@@ -35,6 +35,7 @@ import {
     validateBlockerEligibility,
     getAttackerCap,
     getBlockerCap,
+    getMinimumBlockers,
 } from "./combat";
 import { getInstanceManaCost, tryGetCardById } from "../cards";
 import { matchesPermanentFilter } from "../cards/filters";
@@ -687,7 +688,28 @@ function enumerateBlockerMoves(state: GameState, player: PlayerState): Move[] {
                       blockerCap
               );
 
-    return capped.map((assignments) => ({
+    // CR 509.1b / 702.111 — minimum-blocker thresholds (menace). Drop combos
+    // that block a menace attacker with fewer than its minimum number of
+    // distinct blockers; the server rejects these at confirm time, so the bot
+    // must not consider them legal moves either (mirrors the cap filter above).
+    const minLegal = capped.filter((assignments) => {
+        const blockerCountByAttacker = new Map<string, number>();
+        for (const a of assignments) {
+            blockerCountByAttacker.set(
+                a.attackerId,
+                (blockerCountByAttacker.get(a.attackerId) ?? 0) + 1
+            );
+        }
+        for (const atk of attackers) {
+            const blockedBy = blockerCountByAttacker.get(atk.id) ?? 0;
+            if (blockedBy > 0 && blockedBy < getMinimumBlockers(atk)) {
+                return false;
+            }
+        }
+        return true;
+    });
+
+    return minLegal.map((assignments) => ({
         kind: "declare-blockers" as const,
         assignments,
     }));

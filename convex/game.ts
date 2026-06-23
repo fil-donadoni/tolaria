@@ -128,6 +128,7 @@ import {
     getMaxBlockTargets,
     getAttackerCap,
     getBlockerCap,
+    validateMinimumBlockers,
 } from "./gre/combat";
 import {
     getEffectiveBlockGraph,
@@ -4231,6 +4232,16 @@ export const confirmBlockers = mutation({
                 ...existing,
                 ...attackerIds,
             ];
+        }
+
+        // CR 509.1b / 702.111 — minimum-blocker thresholds (menace). A
+        // declaration where a menace attacker is blocked by exactly one creature
+        // is illegal; this can only be judged once the full block set is known
+        // (after must-block auto-assignment above), so it is enforced here at
+        // confirm time rather than per-blocker at assignment time.
+        const minBlockerCheck = validateMinimumBlockers(state);
+        if (!minBlockerCheck.ok) {
+            throw new Error(minBlockerCheck.reason);
         }
 
         // Mark each assigned blocker

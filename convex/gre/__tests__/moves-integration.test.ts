@@ -30,6 +30,12 @@ import {
     type PublicGameState,
 } from "../../gameProjections";
 import type { GameState } from "../state";
+import { applySourceStaticEffects } from "../state";
+import {
+    validateMinimumBlockers,
+    getRequiredBlockerAssignments,
+} from "../combat";
+import { goblinWarDrums } from "../../cards/sets/fem";
 
 // Mirror of src/lib/ai/state-adapter.ts (kept inline so this convex-side test
 // doesn't pull the frontend module — and its @convex aliases — into the convex
@@ -209,5 +215,126 @@ describe("wire format: bot enumerates from its projected view (criterion 5)", ()
         );
         expect(cast).toBeDefined();
         expect(cast!.tapPlan).toHaveLength(2);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Menace, full path (GRE static-grant → confirmBlockers seam → wire). ADR 0038.
+// Goblin War Drums grants menace to the attacker; the same merge-then-validate
+// sequence game.ts's confirmBlockers runs (auto-assign must-blocks, then
+// validateMinimumBlockers) rejects a lone blocker and accepts two. The granted
+// keyword is then re-checked after projection (criterion 5).
+// ---------------------------------------------------------------------------
+
+/** Mirrors the confirmBlockers body: merge required (must-block) assignments,
+ *  then validate minimum-blocker thresholds. Returns the rejection reason or
+ *  null when the declaration is legal. */
+function confirmBlockSeam(
+    state: GameState,
+    declared: Record<string, string[]>
+): string | null {
+    state.combat!.blockerAssignments = { ...declared };
+    const activePlayer = getPlayer(state, state.activePlayerId);
+    const defender = state.players.find((p) => p.id !== state.activePlayerId)!;
+    const required = getRequiredBlockerAssignments(
+        activePlayer.battlefield,
+        defender.battlefield,
+        state.combat!.attackerIds,
+        state.combat!.blockerAssignments,
+        state
+    );
+    for (const [blockerId, attackerIds] of Object.entries(required)) {
+        const existing = state.combat!.blockerAssignments[blockerId] ?? [];
+        state.combat!.blockerAssignments[blockerId] = [
+            ...existing,
+            ...attackerIds,
+        ];
+    }
+    const check = validateMinimumBlockers(state);
+    return check.ok ? null : check.reason;
+}
+
+describe("menace — Goblin War Drums grant through the confirm-blockers seam", () => {
+    function boardWithWarDrums() {
+        const drums = makeInstance(goblinWarDrums.id, {
+            id: "drums",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const attacker = makeInstance(BEARS, {
+            id: "atk",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const b1 = makeInstance(BEARS, {
+            id: "blk-1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const b2 = makeInstance(BEARS, {
+            id: "blk-2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            phase: "DECLARE_BLOCKERS",
+            players: [
+                makePlayer("p1", { battlefield: [drums, attacker] }),
+                makePlayer("p2", { battlefield: [b1, b2] }),
+            ],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        // ETB-time grant: War Drums pushes "menace" onto the controller's
+        // creatures (replicated here for a hand-built board, as game.ts does on
+        // PERMANENT_ENTERED).
+        applySourceStaticEffects(state, drums);
+        return { state };
+    }
+
+    it("grants menace to the attacker (printed keyword absent, granted present)", () => {
+        const { state } = boardWithWarDrums();
+        const atk = state.players[0].battlefield.find((c) => c.id === "atk")!;
+        expect(atk.staticAbilities).toContain("menace");
+    });
+
+    it("rejects a single blocker at the confirm seam (CR 509.1c)", () => {
+        const { state } = boardWithWarDrums();
+        const reason = confirmBlockSeam(state, { "blk-1": ["atk"] });
+        expect(reason).toMatch(/menace/i);
+    });
+
+    it("accepts two blockers at the confirm seam", () => {
+        const { state } = boardWithWarDrums();
+        const reason = confirmBlockSeam(state, {
+            "blk-1": ["atk"],
+            "blk-2": ["atk"],
+        });
+        expect(reason).toBeNull();
+    });
+
+    it("the granted menace keyword survives projection (criterion 5)", () => {
+        const { state } = boardWithWarDrums();
+        const projected = projectPublicState(state, 1, "p1");
+        const slimAtk = projected.players[0].battlefield.find(
+            (c) => c.id === "atk"
+        )!;
+        expect(slimAtk.staticAbilities).toContain("menace");
+        // And the threshold check holds on the projected (slim) state too.
+        const projectedState = projectedToGameState(projected);
+        projectedState.activePlayerId = "p1";
+        projectedState.combat = {
+            attackerIds: ["atk"],
+            confirmed: true,
+            blockerAssignments: { "blk-1": ["atk"] },
+            blockersConfirmed: false,
+        };
+        expect(validateMinimumBlockers(projectedState).ok).toBe(false);
     });
 });
