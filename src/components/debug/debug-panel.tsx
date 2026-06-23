@@ -105,6 +105,28 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // FEM C3 White — Hand of Justice's `tapOtherFilter` cost (#568, CR
+        // 602.1 / 118.8). The {5}{W} 2/6 Avatar's ability is "{T}, Tap three
+        // untapped white creatures you control: Destroy target creature."
+        //
+        // Board: you control Hand of Justice plus three Order of Leitbur
+        // ({W}{W} 2/1 white Knights) to feed the tap-three cost, and the
+        // opponent controls a Grizzly Bears to destroy. Golden path:
+        //   1. Activate Hand of Justice targeting the opponent's Grizzly Bears.
+        //   2. Pay the cost: tap Hand of Justice ({T}) and tap the three Orders.
+        //   3. The ability resolves and destroys the Grizzly Bears.
+        // Edge: tap one Order first (so only two untapped white creatures
+        //   remain) — the ability is now unpayable and can't be activated.
+        label: "FEM: Hand of Justice — tap three white creatures to destroy (#568)",
+        cards: [
+            { name: "Hand of Justice", owner: "me" as const },
+            { name: "Order of Leitbur", owner: "me" as const, count: 3 },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Equinox — Aura grants the enchanted land a conditional counter (#498,
         // CR 303.4 attachment, 611.2 activated-grant, 701.5a counter, 701.7
         // destroy).
