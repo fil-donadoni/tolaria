@@ -594,6 +594,9 @@ function compactStackItem(item: StackItem): CompactCard {
     if (item.collectedChoices) base.collectedChoices = item.collectedChoices;
     if (item.isCopy) base.isCopy = item.isCopy;
     if (item.exileOnResolve) base.exileOnResolve = item.exileOnResolve;
+    // Acting Player (ADR 0037): persist the controlled-cast override so a
+    // suspended Word of Command resolution survives a DB round-trip.
+    if (item.actingPlayerId) base.actingPlayerId = item.actingPlayerId;
     return base;
 }
 
@@ -646,6 +649,10 @@ function expandStackItem(compact: CompactCard): StackItem {
     if (compact.exileOnResolve) {
         item.exileOnResolve = compact.exileOnResolve as boolean;
     }
+    // Acting Player (ADR 0037) — rehydrate the controlled-cast override.
+    if (compact.actingPlayerId) {
+        item.actingPlayerId = compact.actingPlayerId as string;
+    }
     return item;
 }
 
@@ -685,6 +692,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "playerPreferences",
     "landPlayLocked",
     "preventAllCombatDamageThisTurn",
+    "assignsNoCombatDamageThisTurn",
     "landManaReplacedToBlueThisTurn",
     "damageCapShields",
     "islandSanctuaryProtection",

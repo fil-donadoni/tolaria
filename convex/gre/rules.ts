@@ -37,7 +37,7 @@ export {
 
 /** Reads extra land drops granted by permanents on the player's battlefield
  *  (CR 305.2 — Fastbond). Scans card definitions for `extraLandDrops`. */
-function getExtraLandDrops(player: PlayerState): number {
+export function getExtraLandDrops(player: PlayerState): number {
     let extra = 0;
     for (const card of player.battlefield) {
         const cardId = (card.card as { id?: string }).id;
@@ -767,12 +767,26 @@ export function getLegalTargets(
         !colorFilter &&
         !colorFilterAny
     ) {
+        const playerControllerFilter = requirement.controller ?? "any";
         for (const player of state.players) {
             // CR 506.2 — "target player who attacked this turn": a player
             // attacked iff they control a creature flagged as having attacked.
             if (
                 requirement.playerAttackedThisTurn &&
                 !player.battlefield.some((c) => c.hasAttackedThisTurn)
+            ) {
+                continue;
+            }
+            // CR 115 — "target opponent" / "target player you control":
+            // restrict the eligible players by relationship to the caster.
+            // "you" keeps only the caster; "opponent" excludes the caster (and
+            // requires a known caster). Word of Command — "target opponent".
+            if (playerControllerFilter === "you" && player.id !== casterId) {
+                continue;
+            }
+            if (
+                playerControllerFilter === "opponent" &&
+                (casterId === undefined || player.id === casterId)
             ) {
                 continue;
             }

@@ -263,6 +263,7 @@ import {
     copyArtifact,
     vesuvanDoppelganger,
     gaeasLiege,
+    wordOfCommand,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -292,6 +293,7 @@ import {
     discardCardsAtRandom,
     drawCard,
     removeFromZone,
+    getActingPlayer,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -21363,5 +21365,516 @@ describe("mana costs match modern Scryfall oracle (Alpha errata)", () => {
         // Guard: the EC Alpha 40 'play as printed 1R' note is NOT honored — the
         // oracle cost is {1}{R}{R}, which is what we ship.
         expect(orcishArtillery.manaCost).toEqual({ X: 1, R: 2 });
+    });
+});
+
+// Word of Command — Acting Player foundation + land branch (#576, ADR 0037)
+// ---------------------------------------------------------------------------
+
+describe("Word of Command (controlled cast — land branch, CR 305.2 / 608.2, ADR 0037)", () => {
+    // p1 (the Acting Player / WoC controller) casts Word of Command targeting
+    // the opponent p2. p2's hand holds a Forest (land) + a Grizzly Bears
+    // (non-land). Resolution: p1 looks at p2's hand and picks a card; a land is
+    // played under p2's control, counting against p2's one-land-per-turn drop.
+    function seed(opts: { p2LandsPlayedThisTurn?: number } = {}) {
+        const oppForest = makeInstance(forest.id, {
+            id: "p2-forest",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppBear = makeInstance(grizzlyBears.id, {
+            id: "p2-bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1");
+        const p2 = makePlayer("p2", {
+            hand: [oppForest, oppBear],
+            landsPlayedThisTurn: opts.p2LandsPlayedThisTurn,
+        });
+        const state = makeState({ players: [p1, p2] });
+        pushSpell(state, wordOfCommand.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        return state;
+    }
+
+    /** Submit the head pending choice through the backend integration path.
+     *  Mirrors the `submitResolutionChoice` mutation handler in `game.ts`
+     *  exactly: `applyPendingChoiceSubmit` (which re-runs resolution) followed
+     *  by `checkStateBasedActions` — exercising the GRE → game.ts boundary, not
+     *  just the engine in isolation. */
+    function submitChoice(state: GameState, picks: string[]): void {
+        const head = (state.pendingChoices ?? [])[0];
+        expect(head).toBeDefined();
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: picks,
+        });
+        checkStateBasedActions(state);
+    }
+
+    it("targetRequirement is 'target opponent' (CR 115)", () => {
+        expect(wordOfCommand.targetRequirement).toEqual({
+            type: "player",
+            count: 1,
+            controller: "opponent",
+        });
+    });
+
+    it("only the opponent is a legal target (the caster cannot be chosen)", () => {
+        const state = seed();
+        const legal = getLegalTargets(
+            state,
+            wordOfCommand.targetRequirement!,
+            [],
+            "p1"
+        );
+        const playerIds = legal
+            .filter((t) => t.type === "player")
+            .map((t) => t.id);
+        expect(playerIds).toEqual(["p2"]);
+    });
+
+    it("suspends on a hand-pick choice routed to the controller over the opponent's hand", () => {
+        const state = seed();
+        const result = resolveTopOfStack(state);
+        expect(result).toBeNull(); // suspended
+        expect(state.pendingChoices?.length).toBe(1);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-hand-card");
+        expect(head.zone).toBe("hand");
+        expect(head.playerId).toBe("p1"); // the Acting Player chooses
+        expect(head.zoneOwnerId).toBe("p2"); // from the opponent's hand
+        // ADR 0037: actingPlayerId is recorded only when it DIFFERS from the
+        // prompted player. In slice 1 the WoC controller IS the chooser, so it
+        // is omitted (defaults to playerId) — the foundation is in place for
+        // the spell branch (#577) where the controlled opponent diverges.
+        expect(head.actingPlayerId).toBeUndefined();
+        expect(head.actingPlayerId ?? head.playerId).toBe("p1");
+    });
+
+    it("grants the controller Card Knowledge of the opponent's hand (knownTo)", () => {
+        const state = seed();
+        resolveTopOfStack(state);
+        const p2 = state.players[1];
+        for (const card of p2.hand) {
+            expect(card.knownTo).toContain("p1");
+        }
+    });
+
+    it("picking a land plays it under the opponent's control, consuming their land drop (CR 305.2)", () => {
+        const state = seed();
+        resolveTopOfStack(state);
+        submitChoice(state, ["p2-forest"]);
+
+        const p2 = state.players[1];
+        // Forest left p2's hand and is on p2's battlefield, controlled by p2.
+        expect(p2.hand.map((c) => c.id)).not.toContain("p2-forest");
+        const onBf = p2.battlefield.find((c) => c.id === "p2-forest");
+        expect(onBf).toBeDefined();
+        expect(onBf!.controllerId).toBe("p2");
+        // CR 305.2 — the opponent's one-land-per-turn drop is consumed.
+        expect(p2.landsPlayedThisTurn).toBe(1);
+        // WoC itself resolved into its controller's (p1's) graveyard.
+        const wocInGy = state.players[0].graveyard.some(
+            (c) => c.card.id === wordOfCommand.id
+        );
+        expect(wocInGy).toBe(true);
+        expect(state.stack.length).toBe(0);
+    });
+
+    it("if the opponent already played a land this turn, the chosen land is not played (CR 305.2 'if able')", () => {
+        const state = seed({ p2LandsPlayedThisTurn: 1 });
+        resolveTopOfStack(state);
+        submitChoice(state, ["p2-forest"]);
+
+        const p2 = state.players[1];
+        // The Forest stays in hand — playing it is not "able".
+        expect(p2.hand.map((c) => c.id)).toContain("p2-forest");
+        expect(
+            p2.battlefield.find((c) => c.id === "p2-forest")
+        ).toBeUndefined();
+        expect(p2.landsPlayedThisTurn).toBe(1); // unchanged
+        expect(state.stack.length).toBe(0); // WoC still resolves
+    });
+
+    it("picking a non-land is a no-op this slice (TODO #577 spell branch)", () => {
+        const state = seed();
+        resolveTopOfStack(state);
+        submitChoice(state, ["p2-bear"]);
+
+        const p2 = state.players[1];
+        // The Bear stays in hand — the spell branch is not implemented yet.
+        expect(p2.hand.map((c) => c.id)).toContain("p2-bear");
+        expect(p2.battlefield.length).toBe(0);
+        expect(state.stack.length).toBe(0); // WoC resolves
+    });
+
+    it("getActingPlayer defaults to the controller for an ordinary cast", () => {
+        const state = seed();
+        const item = state.stack[0];
+        expect(item.actingPlayerId).toBeUndefined();
+        expect(getActingPlayer(item)).toBe("p1");
+    });
+
+    // --- Wire format (projectPublicState): knownTo + played land survive ---
+    it("wire format: the controller's view of the opponent's hand survives projection", () => {
+        const state = seed();
+        resolveTopOfStack(state);
+        // Viewer = p1 (the controller / Acting Player). The opponent (p2) hand
+        // is sparse by default, but knownTo grants p1 identity on every card.
+        const projected = projectPublicState(state, 1, "p1");
+        const p2Hand = projected.players[1].hand;
+        const visibleIds = p2Hand
+            .filter((c): c is NonNullable<typeof c> => c !== null)
+            .map((c) => c.id);
+        expect(visibleIds).toContain("p2-forest");
+        expect(visibleIds).toContain("p2-bear");
+    });
+
+    it("wire format: the played land is public on the opponent's battlefield", () => {
+        const state = seed();
+        resolveTopOfStack(state);
+        submitChoice(state, ["p2-forest"]);
+        // Viewer = p1: the opponent's battlefield is always public.
+        const projected = projectPublicState(state, 1, "p1");
+        const bfIds = projected.players[1].battlefield.map((c) => c.id);
+        expect(bfIds).toContain("p2-forest");
+    });
+
+    // --- Serialization round-trip: StackItem.actingPlayerId persists ---
+    it("serialization: StackItem.actingPlayerId survives a DB round-trip (ADR 0037)", () => {
+        const state = seed();
+        // Force a controlled-cast override onto the stack item (the value a
+        // future spell-branch controlled cast would carry).
+        state.stack[0].actingPlayerId = "p1";
+        const restored = expandState(compactState(state));
+        expect(restored.stack[0].actingPlayerId).toBe("p1");
+        expect(getActingPlayer(restored.stack[0])).toBe("p1");
+    });
+});
+
+describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
+    // p1 = Word of Command's controller (Acting Player); p2 = the controlled
+    // opponent whose hand is looked at and whose card is played.
+    function castWordOfCommand(state: GameState) {
+        const item = pushSpell(state, wordOfCommand.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        return item;
+    }
+
+    function submitPick(state: GameState, pickId: string) {
+        const head = (state.pendingChoices ?? [])[0];
+        if (!head) throw new Error("no pending choice");
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [pickId],
+        });
+    }
+
+    it("step 0: the controller is prompted to pick from the OPPONENT's hand, with knowledge granted", () => {
+        const oppCard = makeInstance(darkRitual.id, {
+            id: "opp-ritual",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { hand: [oppCard] })],
+        });
+        castWordOfCommand(state);
+
+        expect(state.pendingChoices).toHaveLength(1);
+        // The chooser is the WoC controller; the zone is the OPPONENT's hand.
+        expect(state.pendingChoices?.[0]).toMatchObject({
+            playerId: "p1",
+            zoneOwnerId: "p2",
+            zone: "hand",
+            kind: "choose-hand-card",
+            count: 1,
+        });
+        // ADR 0026 — the controller now knows the opponent's hand they saw.
+        expect(oppCard.knownTo).toContain("p1");
+    });
+
+    it("casts a non-targeted spell from the opponent's hand: real StackItem, castById=opponent, actingPlayerId=controller", () => {
+        const oppRitual = makeInstance(darkRitual.id, {
+            id: "opp-ritual",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppSwamp = makeInstance(swamp.id, {
+            id: "opp-swamp",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [oppRitual],
+                    battlefield: [oppSwamp],
+                }),
+            ],
+        });
+        castWordOfCommand(state);
+        submitPick(state, "opp-ritual");
+
+        // Dark Ritual is now on the stack as the opponent's spell.
+        const ritualOnStack = state.stack.find(
+            (s) => (s.card as { id?: string }).id === darkRitual.id
+        );
+        expect(ritualOnStack).toBeDefined();
+        expect(ritualOnStack?.castById).toBe("p2"); // CR 601 — opponent's spell
+        expect(ritualOnStack?.actingPlayerId).toBe("p1"); // ADR 0037
+        // It left the opponent's hand and entered the public stack.
+        expect(
+            state.players[1].hand.find((c) => c.id === "opp-ritual")
+        ).toBeUndefined();
+    });
+
+    it("mana is auto-tapped ONLY from the opponent's lands; opponent's other resources untouched", () => {
+        const oppRitual = makeInstance(darkRitual.id, {
+            id: "opp-ritual",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppSwamp = makeInstance(swamp.id, {
+            id: "opp-swamp",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        // A land the CONTROLLER (p1) owns must NOT be touched.
+        const myUntappedSwamp = makeInstance(swamp.id, {
+            id: "my-swamp",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [myUntappedSwamp] }),
+                makePlayer("p2", {
+                    hand: [oppRitual],
+                    battlefield: [oppSwamp],
+                }),
+            ],
+        });
+        castWordOfCommand(state);
+        submitPick(state, "opp-ritual");
+
+        // The opponent's Swamp paid for the spell (tapped); the controller's
+        // own Swamp is untouched.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "opp-swamp")
+                ?.isTapped
+        ).toBe(true);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "my-swamp")
+                ?.isTapped
+        ).toBe(false);
+    });
+
+    it("unpayable from the opponent's lands → spell is NOT played", () => {
+        // Dark Ritual costs {B} but the opponent controls no lands.
+        const oppRitual = makeInstance(darkRitual.id, {
+            id: "opp-ritual",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [oppRitual] }),
+            ],
+        });
+        castWordOfCommand(state);
+        submitPick(state, "opp-ritual");
+
+        // Not cast: nothing on the stack, the card stays in the opponent's hand.
+        expect(
+            state.stack.find(
+                (s) => (s.card as { id?: string }).id === darkRitual.id
+            )
+        ).toBeUndefined();
+        expect(
+            state.players[1].hand.find((c) => c.id === "opp-ritual")
+        ).toBeDefined();
+    });
+
+    it("the cast spell then resolves as the opponent's spell (Dark Ritual fills the opponent's mana pool)", () => {
+        const oppRitual = makeInstance(darkRitual.id, {
+            id: "opp-ritual",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppSwamp = makeInstance(swamp.id, {
+            id: "opp-swamp",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [oppRitual],
+                    battlefield: [oppSwamp],
+                }),
+            ],
+        });
+        castWordOfCommand(state);
+        submitPick(state, "opp-ritual");
+        // Resolve the Dark Ritual now on top of the stack.
+        resolveTopOfStack(state);
+
+        // Dark Ritual adds {B}{B}{B} to its controller's (the opponent's) pool.
+        // The Swamp's {B} was consumed paying for it, so the net is {B}{B}{B}.
+        expect(state.players[1].manaPool.B).toBe(3);
+        // The controller's pool is untouched.
+        expect(state.players[0].manaPool.B).toBe(0);
+    });
+
+    it("land branch: the chosen land is played under the OPPONENT's control (CR 305.2)", () => {
+        const oppSwamp = makeInstance(swamp.id, {
+            id: "opp-swamp-in-hand",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { hand: [oppSwamp] })],
+        });
+        castWordOfCommand(state);
+        submitPick(state, "opp-swamp-in-hand");
+
+        // The land is on the opponent's battlefield and counted their land drop.
+        expect(
+            state.players[1].battlefield.find(
+                (c) => c.id === "opp-swamp-in-hand"
+            )
+        ).toBeDefined();
+        expect(state.players[1].landsPlayedThisTurn).toBe(1);
+    });
+
+    it("land branch: opponent already played a land this turn → land NOT played (CR 305.2)", () => {
+        const oppSwamp = makeInstance(swamp.id, {
+            id: "opp-swamp-in-hand",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [oppSwamp],
+                    landsPlayedThisTurn: 1,
+                }),
+            ],
+        });
+        castWordOfCommand(state);
+        submitPick(state, "opp-swamp-in-hand");
+
+        // The land stayed in hand; the drop count is unchanged.
+        expect(
+            state.players[1].battlefield.find(
+                (c) => c.id === "opp-swamp-in-hand"
+            )
+        ).toBeUndefined();
+        expect(
+            state.players[1].hand.find((c) => c.id === "opp-swamp-in-hand")
+        ).toBeDefined();
+        expect(state.players[1].landsPlayedThisTurn).toBe(1);
+    });
+
+    it("wire format: the resulting stack item's controllerId (castById) = opponent and the chosen card is public after projection", () => {
+        const oppRitual = makeInstance(darkRitual.id, {
+            id: "opp-ritual",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppSwamp = makeInstance(swamp.id, {
+            id: "opp-swamp",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [oppRitual],
+                    battlefield: [oppSwamp],
+                }),
+            ],
+        });
+        castWordOfCommand(state);
+        submitPick(state, "opp-ritual");
+
+        // Re-run the assertion against the projected state both clients see.
+        for (const viewer of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewer);
+            const slim = projected.stack.find(
+                (s) => s.card.id === darkRitual.id
+            );
+            expect(slim).toBeDefined();
+            // CR 601 — the chosen spell is the opponent's spell.
+            expect(slim?.castById).toBe("p2");
+            expect(slim?.actingPlayerId).toBe("p1");
+        }
+    });
+
+    it("wire format: the controller's knownTo view of the opponent's hand survives projection (ADR 0026)", () => {
+        const oppRitual = makeInstance(darkRitual.id, {
+            id: "opp-ritual",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [oppRitual] }),
+            ],
+        });
+        castWordOfCommand(state);
+        // Suspended on the pick: the controller (p1) saw the opponent's hand.
+        const projected = projectPublicState(state, 1, "p1");
+        // p1 sees the opponent's hand card identities they looked at.
+        const oppHand = projected.players[1].hand;
+        expect(
+            oppHand.some(
+                (c) =>
+                    c &&
+                    (c as { card?: { id?: string } }).card?.id === darkRitual.id
+            )
+        ).toBe(true);
+    });
+
+    it("definition: Word of Command targets an opponent, costs {B}{B}", () => {
+        expect(wordOfCommand.manaCost).toEqual({ B: 2 });
+        expect(wordOfCommand.targetRequirement).toMatchObject({
+            type: "player",
+            controller: "opponent",
+        });
     });
 });

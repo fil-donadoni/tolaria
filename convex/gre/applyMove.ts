@@ -273,6 +273,28 @@ export function applyMoveForSearch(
                             );
                         }
                     }
+                    // CR 602.1 / 118.8 — tap-other-creatures cost (Hand of
+                    // Justice): tap the first N untapped matching permanents
+                    // the activator controls, excluding the source. A
+                    // conservative deterministic pick — the search doesn't
+                    // model the human's free choice of which to tap.
+                    if (ability?.cost.tapOtherFilter) {
+                        const owner = next.players.find((p) =>
+                            p.battlefield.some((c) => c.id === src!.id)
+                        );
+                        const { filter, count } = ability.cost.tapOtherFilter;
+                        const picks = (owner?.battlefield ?? [])
+                            .filter(
+                                (c) =>
+                                    c.id !== src!.id &&
+                                    !c.isTapped &&
+                                    matchesPermanentFilter(c, filter, {
+                                        selfControllerId: owner?.id,
+                                    })
+                            )
+                            .slice(0, count);
+                        for (const perm of picks) tapPermanent(next, perm);
+                    }
                 }
             }
             checkStateBasedActions(next);

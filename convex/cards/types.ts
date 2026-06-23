@@ -164,9 +164,10 @@ export interface TargetRequirement {
     zone?: "battlefield" | "graveyard";
     /** Restricts legal targets by relationship to the chooser ("you" =
      *  caster controls; "opponent" = opponent controls; "any" = either).
-     *  Default "any". Honored for graveyard targets (Regrowth) and for
+     *  Default "any". Honored for graveyard targets (Regrowth), for
      *  battlefield-permanent targets (Simulacrum: "target creature you
-     *  control"). Ignored for player / spell targets. */
+     *  control"), and for PLAYER targets (CR 115 — "target opponent", Word of
+     *  Command; "you" keeps only the caster). Ignored for spell targets. */
     controller?: "you" | "opponent" | "any";
     /** Restricts legal permanent targets by live combat role (CR 508.1,
      *  509.1). "attacking" requires `isAttacking === true`; "blocking"
@@ -320,6 +321,20 @@ export interface ActivatedAbility {
          *  engines (Atog, Ashnod's Altar, Orcish Mechanics, Sage of Lat-Nam,
          *  Priest of Yawgmoth, Dwarven Weaponsmith, Gate to Phyrexia). */
         sacrificeFilter?: PermanentFilter;
+        /** "Tap N untapped permanents matching <filter> you control" as an
+         *  activation cost (CR 602.1, 118.8). The activating player chooses
+         *  which `count` untapped permanents to tap while paying the cost; the
+         *  activation is illegal unless at least `count` untapped permanents on
+         *  their battlefield match the filter. Distinct from `tap` (which taps
+         *  THIS source): the source is excluded from the candidate pool, so a
+         *  card with both `tap: true` and `tapOtherFilter` taps itself PLUS the
+         *  chosen others (Hand of Justice — "{T}, Tap three untapped white
+         *  creatures you control: Destroy target creature"). The filter is
+         *  evaluated with the activating player as the controller-relation
+         *  reference, so `controllerRelation: "you"` resolves to the activator.
+         *  Reused by FEM's Vodalian War Machine ("Tap an untapped Merfolk you
+         *  control"). */
+        tapOtherFilter?: { filter: PermanentFilter; count: number };
         /** Life payment (CR 118.4). Legal while `player.life >= life`; SBA
          *  handles the loss if payment takes life to 0 or below. */
         life?: number;
@@ -627,6 +642,13 @@ export interface SpellContext {
     caster: string;
     /** The controller of the spell/ability on the stack. */
     controller: string;
+    /** Acting Player (ADR 0037, CR 601) — the player who makes this
+     *  resolution's choices. Equals `controller` for every normal cast; differs
+     *  only for a controlled cast (Word of Command), where the controlled
+     *  opponent is the `controller`/`caster` of the chosen spell but the Word of
+     *  Command controller is the acting player. Resolve steps that prompt a
+     *  decision should route to `actingPlayer`. */
+    actingPlayer: string;
     /** The instance id of the stack item resolving. For activated abilities,
      *  this equals the id of the source permanent on the battlefield — use
      *  it to target self (e.g. Jade Statue's animate-self ability). */
@@ -880,6 +902,16 @@ export interface SpellContext {
         playerId: string,
         cardInstanceId: string
     ) => boolean;
+    /** PLAYS a land from `playerId`'s hand under their control "if able"
+     *  (CR 305.2 / 116.2a). Distinct from `putFromHandOntoBattlefield` (a free
+     *  zone change that does NOT consume a land drop): this is the special
+     *  action of playing a land — it consumes the player's one-land-per-turn
+     *  drop and is REFUSED (returns false) when that drop is already spent.
+     *  Used by Word of Command ("The player plays that card if able") to play
+     *  the chosen land under the controlled opponent's control, counting toward
+     *  the opponent's land drop. Returns true if the land was played, false if
+     *  not able (not in hand, not a Land, or the land drop is spent). */
+    playLandForPlayer: (playerId: string, cardInstanceId: string) => boolean;
     /** Taps a permanent on the battlefield (CR 701.20a). No-op if already
      *  tapped or if the target is no longer on the battlefield (CR 608.2b).
      *  Used by Icy Manipulator and similar "tap target permanent" effects. */
@@ -1216,6 +1248,13 @@ export interface SpellContext {
         target: TargetSelection,
         duration: DurationSpec
     ) => void;
+    /** Marks `target` as assigning no combat damage this turn (CR 510.1c —
+     *  Farrel's Mantle, Farrel's Zealot). The creature deals 0 combat damage in
+     *  every damage step this turn (source-only — it can still be dealt combat
+     *  damage and can still die). Distinct from `preventAllCombatDamageToAndBy`
+     *  (which is a two-way prevention shield). Idempotent; cleared at CLEANUP.
+     *  No-op for non-permanent targets. */
+    markAssignsNoCombatDamage: (target: TargetSelection) => void;
     /** Registers a turn-scoped delayed lifegain effect on `target` (CR 603.7 /
      *  119, Glyph of Life). For `duration`, whenever `target` is dealt combat
      *  damage by an attacking creature (CR 506.2 — the source is in
@@ -1547,6 +1586,12 @@ export interface SpellContext {
          *  items from another player's zone (e.g. Demonic Hordes: opponent
          *  picks a Land from controller's battlefield). */
         zoneOwnerId?: string;
+        /** Acting Player (ADR 0037): when the prompted player (`playerId`) is
+         *  acting on behalf of another player's decision (Word of Command — the
+         *  controller picks a card from the controlled opponent's hand), set
+         *  this to the acting player. Recorded on the PendingChoice only when it
+         *  differs from `playerId`. Defaults to `playerId` (normal choices). */
+        actingPlayerId?: string;
         /** When true, candidates are drawn from EVERY player's battlefield,
          *  not just one owner's (CR 707 — "a copy of any creature on the
          *  battlefield", Clone / Copy Artifact). Only meaningful for
@@ -1884,6 +1929,29 @@ export interface SpellContext {
      *  resolves next into a face-down permanent. No-op if the id isn't in the
      *  caster's hand. */
     castFaceDown: (cardInstanceId: string) => void;
+    /** Controlled cast (ADR 0037, CR 601) — Word of Command's spell branch.
+     *  Casts a card from `controllerId`'s hand as a real spell while another
+     *  player makes its decisions:
+     *   - the resulting `StackItem` has `castById = controllerId` (the chosen
+     *     spell is the controlled opponent's spell, CR 601) and
+     *     `actingPlayerId = actingPlayerId` (the Word of Command controller, who
+     *     answers any choice routed during the cast/resolution);
+     *   - mana is auto-tapped ONLY from lands `controllerId` controls (the
+     *     oracle's "mana abilities only from lands that player controls"); the
+     *     controller's other resources are untouched;
+     *   - if the cost cannot be paid from those lands the card is NOT played
+     *     ("if able", CR 608.2 / 117.3) — returns false, nothing changes.
+     *  The spell is inserted directly below the resolving item so it becomes the
+     *  new top of the stack and resolves next (CR 608.2f). On success the card
+     *  has left the hand for the (public) stack. Returns true if it was cast,
+     *  false if not played. This slice supports a NON-TARGETED spell only;
+     *  targeted / X / modal casts arrive in later slices. No-op (false) if the
+     *  id isn't in `controllerId`'s hand. */
+    castChosenSpell: (
+        controllerId: string,
+        cardInstanceId: string,
+        actingPlayerId: string
+    ) => boolean;
     /** CR 608.2 — the resolving spell exiles itself as the last thing it does
      *  ("Exile <this spell>", e.g. Recall). Flags the stack item so
      *  `finalizeSpellResolution` routes the card to exile instead of the
@@ -3135,6 +3203,15 @@ export interface TriggerStateView {
              *  `manaCost` to derive color (CR 202.2). Populated from the raw
              *  `CardInstanceState` the engine passes through as the view. */
             card?: Record<string, unknown>;
+            /** Tap state (CR 701.20a). Exposed so a frontend affordability hint
+             *  for a `tapOtherFilter` activation cost (Hand of Justice) can
+             *  count untapped matching permanents the controller controls. */
+            isTapped?: boolean;
+            /** Layer-5 colour override / printed colours, when derivable
+             *  (CR 202.2 / 613.1d). Populated by the engine where available so a
+             *  `tapOtherFilter` colour clause ("white creatures") reads the same
+             *  colour the rest of the engine sees. */
+            colors?: ReadonlyArray<Color>;
         }>;
         hand: { readonly length: number };
         landsPlayedThisTurn?: number;

@@ -55,6 +55,7 @@ vi.mock("@convex/_generated/api", () => {
         "selectAdditionalCost",
         "selectActivationCost",
         "activateAbility",
+        "activateManaAbility",
         "getFullState",
     ];
     const game: Record<string, { _name: string }> = {};
