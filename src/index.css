@@ -188,24 +188,117 @@
         @apply cursor-pointer;
     }
 
-    /* ── Button system ── */
+    /* ── Button system (flat material, issue #594) ──
+     * Forged-plate language: flat-solid fills, even inner hairline, rounded-md
+     * rectangle, symmetric hover bloom, :active brightness. Explicitly NO
+     * 2010-web tropes — no gradient-as-fake-shadow, no asymmetric hard bottom
+     * edge, no glossy top highlight. All colour from semantic tokens.
+     * (Prototype button-lab: shape of the engraved-plate, fill/bloom of the
+     * flat-solid candidate.) Title/label font stays Beleren. */
     .btn-base {
-        @apply font-beleren tracking-wide rounded-sm border transition-colors shadow-md cursor-pointer;
+        @apply font-beleren tracking-wide rounded-md border cursor-pointer;
+        transition:
+            background-color 0.15s ease,
+            border-color 0.15s ease,
+            color 0.15s ease,
+            box-shadow 0.2s ease,
+            filter 0.12s ease;
     }
+
+    /* Primary — flat-solid forged accent plate, dark engraved label. */
     .btn-tone-primary {
-        @apply bg-accent-soft/30 border-accent/45 text-accent-strong hover:bg-accent-soft/50 active:bg-accent-soft/65;
+        background-color: var(--color-accent);
+        border-color: color-mix(in srgb, var(--color-accent) 55%, #000);
+        color: var(--color-surface-base);
+        /* even inner hairline (symmetric — no top-only gloss) */
+        box-shadow: inset 0 0 0 1px
+            color-mix(in srgb, var(--color-accent-strong) 35%, transparent);
     }
+    .btn-tone-primary:hover {
+        background-color: var(--color-accent-strong);
+        border-color: color-mix(in srgb, var(--color-accent) 70%, #000);
+        /* symmetric hover bloom: even glow on all sides, no fake drop shadow */
+        box-shadow:
+            inset 0 0 0 1px
+                color-mix(in srgb, var(--color-accent-strong) 55%, transparent),
+            0 0 22px color-mix(in srgb, var(--color-accent) 55%, transparent);
+    }
+    .btn-tone-primary:active {
+        filter: brightness(0.92);
+    }
+
+    /* Secondary — flat dark plate, accent text + accent border. */
     .btn-tone-secondary {
-        @apply bg-secondary-accent-soft/30 border-secondary-accent/45 text-secondary-accent-strong hover:bg-secondary-accent-soft/50 active:bg-secondary-accent-soft/65;
+        background-color: var(--color-surface-elevated);
+        border-color: color-mix(in srgb, var(--color-accent) 45%, #000);
+        color: var(--color-accent-strong);
+        box-shadow: inset 0 0 0 1px
+            color-mix(in srgb, var(--color-accent-strong) 8%, transparent);
     }
+    .btn-tone-secondary:hover {
+        border-color: var(--color-accent);
+        color: var(--color-parchment);
+        background-color: color-mix(
+            in srgb,
+            var(--color-surface-elevated) 80%,
+            var(--color-accent)
+        );
+        box-shadow: 0 0 16px
+            color-mix(in srgb, var(--color-accent) 28%, transparent);
+    }
+    .btn-tone-secondary:active {
+        filter: brightness(0.92);
+    }
+
+    /* Destructive — flat-solid garnet plate. */
     .btn-tone-destructive {
-        @apply bg-danger-soft/45 border-danger/45 text-danger-strong hover:bg-danger-soft/65 active:bg-danger-soft/80;
+        background-color: var(--color-danger);
+        border-color: color-mix(in srgb, var(--color-danger) 55%, #000);
+        color: var(--color-parchment);
+        box-shadow: inset 0 0 0 1px
+            color-mix(in srgb, var(--color-danger-strong) 30%, transparent);
     }
+    .btn-tone-destructive:hover {
+        background-color: color-mix(
+            in srgb,
+            var(--color-danger) 85%,
+            var(--color-danger-strong)
+        );
+        border-color: color-mix(in srgb, var(--color-danger) 70%, #000);
+        box-shadow:
+            inset 0 0 0 1px
+                color-mix(in srgb, var(--color-danger-strong) 45%, transparent),
+            0 0 22px color-mix(in srgb, var(--color-danger) 50%, transparent);
+    }
+    .btn-tone-destructive:active {
+        filter: brightness(0.92);
+    }
+
+    /* Ghost — text-only, no plate. */
     .btn-tone-ghost {
-        @apply bg-transparent border-transparent text-text-muted hover:text-parchment active:text-parchment shadow-none;
+        @apply border-transparent bg-transparent text-text-muted shadow-none;
     }
+    .btn-tone-ghost:hover {
+        @apply text-parchment;
+        background-color: color-mix(
+            in srgb,
+            var(--color-accent) 10%,
+            transparent
+        );
+    }
+    .btn-tone-ghost:active {
+        @apply text-parchment;
+        filter: brightness(0.92);
+    }
+
+    /* Disabled — opaque, low-contrast plate (no faked transparency). */
     .btn-disabled {
-        @apply bg-surface/40 border-border-subtle/40 text-text-disabled cursor-not-allowed;
+        background-color: var(--color-surface);
+        border-color: var(--color-border-subtle);
+        color: var(--color-text-disabled);
+        box-shadow: none;
+        cursor: not-allowed;
+        filter: none;
     }
 
     /* ── Panel heading + divider ── */
