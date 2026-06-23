@@ -826,6 +826,12 @@ export function applyAllCombatDamage(
         rawAmount: number
     ): void {
         if (rawAmount <= 0) return;
+        // CR 510.1c — "assigns no combat damage this turn" (Farrel's Mantle,
+        // Farrel's Zealot): the source assigns 0 combat damage, so it deals
+        // none in any damage step this turn. Source-only (the creature can
+        // still BE dealt combat damage). Checked before the replacement
+        // pipeline since no damage event is generated at all.
+        if (state.assignsNoCombatDamageThisTurn?.includes(source.id)) return;
         // CR 615 — Ebony Horse: prevent all combat damage to and by the
         // shielded creature. Block both directions before the replacement
         // pipeline (the damage simply never happens).
@@ -1891,6 +1897,11 @@ function tickAllDurations(state: GameState): void {
     // turn. Cleared unconditionally so it doesn't persist across turns.
     if (state.preventAllCombatDamageThisTurn) {
         state.preventAllCombatDamageThisTurn = undefined;
+    }
+    // CR 510.1c / 514.2 — "assigns no combat damage this turn" (Farrel's Mantle,
+    // Farrel's Zealot) expires at end of turn.
+    if (state.assignsNoCombatDamageThisTurn) {
+        state.assignsNoCombatDamageThisTurn = undefined;
     }
     if (state.damageCapShields) {
         state.damageCapShields = undefined;

@@ -54,6 +54,7 @@ vi.mock("@convex/_generated/api", () => {
         "selectAdditionalCost",
         "selectActivationCost",
         "activateAbility",
+        "activateManaAbility",
         "createBand",
         "removeBand",
         "setDamageAssignment",

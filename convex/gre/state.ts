@@ -948,6 +948,18 @@ export type PendingActivation = {
         filter: PermanentFilter;
         pickedId?: string;
     };
+    /** In-progress "tap N untapped permanents matching <filter> you control"
+     *  cost picker (CR 602.1, 118.8 — Hand of Justice "Tap three untapped white
+     *  creatures you control"). Set when the ability has `cost.tapOtherFilter`.
+     *  `pickedIds` accumulates the player's choices via `selectActivationCost`;
+     *  commit is blocked until `pickedIds.length === count` regardless of mana
+     *  coverage. On commit each picked permanent is tapped (distinct from the
+     *  source's own {T}). The source is never a legal pick. */
+    tapOtherChoice?: {
+        filter: PermanentFilter;
+        count: number;
+        pickedIds: string[];
+    };
     /** Counter-removal cost (CR 122.6 — "Remove a [type] counter from this
      *  creature"). Applied at commit. */
     removeCounterCost?: { type: string; count: number };
@@ -1516,6 +1528,14 @@ export type GameState = {
     /** When true, all combat damage is prevented this turn (CR 615, Fog).
      *  Checked at the top of `applyAllCombatDamage`; cleared at CLEANUP. */
     preventAllCombatDamageThisTurn?: boolean;
+    /** Instance ids of permanents that "assign no combat damage this turn"
+     *  (CR 510.1c, 702.x — Farrel's Mantle, Farrel's Zealot). A source in this
+     *  set deals no combat damage in any damage step this turn; checked on the
+     *  source side at the top of `applyOneCombatDamage`. Distinct from a
+     *  prevention shield: the creature simply assigns 0 (its combat-damage
+     *  assignment is skipped, so it can't be lethal to a blocker either).
+     *  Cleared at CLEANUP. */
+    assignsNoCombatDamageThisTurn?: string[];
     /** One-shot damage-cap shields (Forcefield, CR 615). When an unblocked
      *  creature would deal combat damage to the shielded player, reduce to
      *  `maxDamage`. Consumed on first use; cleared at CLEANUP. */
@@ -4775,8 +4795,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         getCounterCount(target: TargetSelection, type: string): number {
             if (target.type !== "permanent") return 0;
             const found = findOnBattlefield(state, target.id);
-            if (!found) return 0;
-            return found.card.counters?.[type] ?? 0;
+            if (found) return found.card.counters?.[type] ?? 0;
+            // CR 608.2g / last-known information: a "Sacrifice this creature:
+            // ... for each [counter] on it" ability (Icatian Moneychanger) pays
+            // its sacrifice cost at activation, so by resolution the source is
+            // gone from the battlefield. The resolving stack item is a snapshot
+            // of the source taken AFTER cost payment but it retains the counters
+            // it had — read them so the count reflects the pre-sacrifice state.
+            if (target.id === item.id) return item.counters?.[type] ?? 0;
+            return 0;
         },
         getDeathsThisTurn(): number {
             return state.deathsThisTurn ?? 0;
@@ -5633,6 +5660,16 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
 
         preventAllCombatDamage(): void {
             state.preventAllCombatDamageThisTurn = true;
+        },
+
+        markAssignsNoCombatDamage(target: TargetSelection): void {
+            // CR 510.1c — the target assigns no combat damage this turn
+            // (Farrel's Mantle, Farrel's Zealot). Idempotent; cleared at
+            // CLEANUP. No-op for non-permanent targets.
+            if (target.type !== "permanent") return;
+            const list = state.assignsNoCombatDamageThisTurn ?? [];
+            if (!list.includes(target.id)) list.push(target.id);
+            state.assignsNoCombatDamageThisTurn = list;
         },
 
         replaceLandManaWithBlue(playerId: string): void {

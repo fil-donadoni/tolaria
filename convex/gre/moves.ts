@@ -519,6 +519,21 @@ function enumerateAbilityMoves(
         ) {
             continue;
         }
+        // CR 602.1 / 118.8 — "tap N untapped permanents matching <filter> you
+        // control" cost is unpayable without N matching untapped permanents
+        // other than the source (Hand of Justice).
+        if (ability.cost.tapOtherFilter) {
+            const { filter, count } = ability.cost.tapOtherFilter;
+            const available = player.battlefield.filter(
+                (c) =>
+                    c.id !== perm.id &&
+                    !c.isTapped &&
+                    matchesPermanentFilter(c, filter, {
+                        selfControllerId: player.id,
+                    })
+            ).length;
+            if (available < count) continue;
+        }
         // Mana cost: must be payable. The {T} part of the cost is paid by the
         // activate mutation itself, not by the tap plan.
         const manaCost = ability.cost.mana

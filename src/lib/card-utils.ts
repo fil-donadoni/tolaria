@@ -389,6 +389,13 @@ export function buildTriggerStateView(
                 types: c.types ?? [],
                 subtypes: c.subtypes ?? [],
                 staticAbilities: c.staticAbilities ?? [],
+                isTapped: c.isTapped === true,
+                // CR 202.2 / 613.1d — effective colours for a tapOtherFilter
+                // colour clause (Hand of Justice): layer-5 override wins, else
+                // the printed cost's colours.
+                colors:
+                    (c.colorOverride as Color[] | undefined) ??
+                    getColorsFromCost(tryGetCardById(c.card.id)?.manaCost),
             })),
         })),
         activePlayerId,

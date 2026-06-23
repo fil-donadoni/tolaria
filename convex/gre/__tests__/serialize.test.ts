@@ -1175,6 +1175,15 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).preventAllCombatDamageThisTurn).toBe(true);
     });
 
+    it("assignsNoCombatDamageThisTurn (Farrel's Mantle / Zealot, CR 510.1c)", () => {
+        const state = freshState();
+        state.assignsNoCombatDamageThisTurn = ["inst-a", "inst-b"];
+        expect(roundTrip(state).assignsNoCombatDamageThisTurn).toEqual([
+            "inst-a",
+            "inst-b",
+        ]);
+    });
+
     it("landManaReplacedToBlueThisTurn (Deep Water)", () => {
         const state = freshState();
         state.landManaReplacedToBlueThisTurn = ["p1"];
