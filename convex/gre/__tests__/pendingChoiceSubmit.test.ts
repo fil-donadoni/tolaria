@@ -14,6 +14,7 @@ import {
 import { checkStateBasedActions } from "../sba";
 import {
     darkRitual,
+    demonicTutor,
     disruptingScepter,
     fireball,
     grizzlyBears,
@@ -1342,5 +1343,76 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
         // Sacrifice adds {B} = sacrificed MV (Grizzly Bears = 2); the Swamp's
         // {B} paid the spell, so the opponent's pool nets {B}{B}.
         expect(state.players[1].manaPool.B).toBe(2);
+    });
+
+    // --- #580: control persists onto the chosen spell's RESOLUTION ---------
+    // The full submit path must route the chosen spell's OWN resolution-time
+    // choice to the WoC controller (Acting Player), read the controlled
+    // opponent's zone, then revert when the spell leaves the stack.
+    it("routes the chosen spell's resolution choice to the controller, then fetches into the OPPONENT's hand (CR 608)", () => {
+        const oppTutor = makeInstance(demonicTutor.id, {
+            id: "opp-tutor",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppSwamp1 = makeInstance(swamp.id, {
+            id: "opp-swamp-1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const oppSwamp2 = makeInstance(swamp.id, {
+            id: "opp-swamp-2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const oppLibCard = makeInstance(darkRitual.id, {
+            id: "opp-lib-ritual",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [oppTutor],
+                    battlefield: [oppSwamp1, oppSwamp2],
+                    library: [oppLibCard],
+                }),
+            ],
+        });
+        pushSpell(state, wordOfCommand.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+
+        // 1) Controller picks the opponent's Demonic Tutor through the path.
+        submitViaMutationPath(state, "opp-tutor");
+
+        // 2) Resolve the Tutor: its resolution choice is routed to the
+        //    controller (p1) while the searched library belongs to p2.
+        resolveTopOfStack(state);
+        const searchHead = (state.pendingChoices ?? [])[0];
+        expect(searchHead?.kind).toBe("search-library");
+        expect(searchHead?.playerId).toBe("p1"); // controller answers
+        expect(searchHead?.zoneOwnerId).toBe("p2"); // opponent's library
+
+        // 3) Controller searches the opponent's library through the path. The
+        //    fetched card lands in the OPPONENT's hand (their resources).
+        submitViaMutationPath(state, "opp-lib-ritual");
+        expect(
+            state.players[1].hand.find((c) => c.id === "opp-lib-ritual")
+        ).toBeDefined();
+
+        // 4) Control reverted: the Tutor (and WoC) left the stack, queue empty.
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(
+            state.stack.find(
+                (s) => (s.card as { id?: string }).id === demonicTutor.id
+            )
+        ).toBeUndefined();
     });
 });

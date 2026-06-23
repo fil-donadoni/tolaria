@@ -34,17 +34,23 @@ export default function PlayerLibrary({
     const { isMinimized, minimize } = useMinimizedChoice();
     const isMe = player.id === playerId;
 
-    // CR 401.4 / 701.19: while a `search-library` choice is active for the
-    // viewer and this library belongs to the chooser, the projection exposes
-    // the searcher's library as `librarySearch` — render those cards face-up
-    // and route clicks to the choice mutation.
+    // CR 401.4 / 701.19: while a `search-library` choice is active and the
+    // VIEWER is its chooser, the projection exposes the SEARCHED library as
+    // `librarySearch` on that library's owner — render those cards face-up and
+    // route clicks to the choice mutation. The searched zone's owner is
+    // `zoneOwnerId ?? playerId`: the chooser's own library for a normal Demonic
+    // Tutor, but the controlled opponent's for a Word of Command controlled
+    // cast (ADR 0037 / #580), where the Acting Player searches the opponent's
+    // library. Gate on the viewer being the chooser and this component being the
+    // searched library's owner — never assume the chooser owns it.
     const head = pendingChoices?.[0];
+    const searchZoneOwner = head?.zoneOwnerId ?? head?.playerId;
     const isLibrarySearchTarget =
         !!head &&
         head.kind === "search-library" &&
         head.zone === "library" &&
         head.playerId === playerId &&
-        player.id === playerId &&
+        player.id === searchZoneOwner &&
         !!player.librarySearch;
 
     // Aladdin's Lamp (CR 614): the projection exposes the looked-at top X as

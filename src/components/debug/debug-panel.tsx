@@ -180,6 +180,48 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Word of Command — control PERSISTS onto the chosen spell's RESOLUTION
+        // (#580, PRD #575, ADR 0037, CR 608 — "you control the player while
+        // that spell is resolving"). The chosen spell's OWN resolution-time
+        // choice is also made by you (the Acting Player), then control reverts
+        // when that spell leaves the stack.
+        //
+        // Board: you hold Word of Command ({B}{B}) with two Swamps. Your
+        // opponent holds Demonic Tutor ({1}{B} — "Search your library for a
+        // card, put it into your hand") and controls two Swamps to pay for it;
+        // their library is stocked so there is something to fetch. Golden path:
+        //   1. Cast Word of Command targeting your opponent.
+        //   2. Look at their hand and pick Demonic Tutor. It is cast as THEIR
+        //      spell (controllerId = opponent), paid from THEIR Swamps.
+        //   3. As the Tutor RESOLVES it asks for a search choice — #580 routes
+        //      that prompt to YOU (the Acting Player). You browse the OPPONENT's
+        //      library and pick the card to put into THEIR hand.
+        //   4. Once the Tutor leaves the stack, control reverts: the opponent
+        //      makes their own subsequent decisions again.
+        // Edge:
+        //   - Remove the opponent's Swamps → the Tutor can't be paid for from
+        //     their lands and is not played ("if able").
+        label: "2ED: Word of Command — control persists onto the chosen spell's resolution (#580)",
+        cards: [
+            {
+                name: "Word of Command",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            {
+                name: "Demonic Tutor",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "opp" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        // Stock the opponent's library so the controller has cards to search.
+        libraryCount: 10,
+    },
+    {
         // Word of Command — controlled cast, SPELL branch (#577, PRD #575, ADR
         // 0037, CR 601 / 305.2). You cast Word of Command targeting your
         // opponent, look at their hand, and choose a card for them to play

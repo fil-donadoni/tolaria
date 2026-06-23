@@ -233,8 +233,11 @@ function hydrateGrantedAbilities(
  *  open the same picker piles (CR 401.4 / 701.19). All fields are `undefined`
  *  when the chooser is not the head choice's player. */
 interface ChoiceExposure {
-    /** `search-library`: expose this player's whole library face-up. */
-    searchChooserId: string | undefined;
+    /** `search-library`: expose THIS player's whole library face-up (the
+     *  searched zone's owner — `zoneOwnerId ?? playerId`, which is the chooser
+     *  for a normal search and the controlled opponent for a Word of Command
+     *  controlled cast, ADR 0037 / #580). */
+    searchZoneOwner: string | undefined;
     /** `reorder-library` / `draw-look-keep`: library owner whose top N is shown. */
     peekZoneOwner: string | undefined;
     /** Number of top cards to expose for the peek (0 when no peek). */
@@ -254,10 +257,15 @@ function computeChoiceExposure(
     const head = state.pendingChoices?.[0];
     const isChooser = head !== undefined && head.playerId === chooserId;
 
-    // CR 401.4 / 701.19: search-library exposes the chooser's whole library.
-    const searchChooserId =
+    // CR 401.4 / 701.19: search-library exposes the SEARCHED library to the
+    // chooser. The searched zone's owner is `zoneOwnerId ?? playerId` — for a
+    // normal Demonic Tutor that's the chooser's own library, but for a
+    // controlled cast (Word of Command, ADR 0037 / #580) the chooser is the
+    // Acting Player while the library belongs to the controlled opponent, so the
+    // exposed pile must follow `zoneOwnerId`, NOT `playerId`.
+    const searchZoneOwner =
         isChooser && head.kind === "search-library" && head.zone === "library"
-            ? head.playerId
+            ? (head.zoneOwnerId ?? head.playerId)
             : undefined;
 
     // CR 401.4: reorder-library exposes the top N cards of the zone owner's
@@ -284,7 +292,7 @@ function computeChoiceExposure(
         ? (head.zoneOwnerId ?? head.playerId)
         : undefined;
 
-    return { searchChooserId, peekZoneOwner, peekCount, revealZoneOwner };
+    return { searchZoneOwner, peekZoneOwner, peekCount, revealZoneOwner };
 }
 
 /**
@@ -300,12 +308,12 @@ export function projectPublicState(
     // CR 401.4 / 701.19: while the viewer is the chooser of an active
     // search-library / reorder-library / draw-look-keep / reveal-hand choice,
     // expose the looked-at zone face-up so the UI can render its picker pile.
-    const { searchChooserId, peekZoneOwner, peekCount, revealZoneOwner } =
+    const { searchZoneOwner, peekZoneOwner, peekCount, revealZoneOwner } =
         computeChoiceExposure(state, viewerId);
 
     const players = state.players.map((player): PublicPlayer => {
         const librarySearch =
-            player.id === searchChooserId
+            player.id === searchZoneOwner
                 ? player.library.map(slimCard)
                 : undefined;
         const libraryPeek =
@@ -389,7 +397,7 @@ export function projectFullState(
     // (#239, #262). There is no single viewer here, so the chooser is the head
     // choice's own player.
     const head = state.pendingChoices?.[0];
-    const { searchChooserId, peekZoneOwner, peekCount, revealZoneOwner } =
+    const { searchZoneOwner, peekZoneOwner, peekCount, revealZoneOwner } =
         computeChoiceExposure(state, head?.playerId);
 
     const players = state.players.map(
@@ -408,7 +416,7 @@ export function projectFullState(
             ),
             library: player.library.map(slimCard),
             librarySearch:
-                player.id === searchChooserId
+                player.id === searchZoneOwner
                     ? player.library.map(slimCard)
                     : undefined,
             libraryPeek:
