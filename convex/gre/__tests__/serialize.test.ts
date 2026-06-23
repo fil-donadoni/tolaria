@@ -164,6 +164,25 @@ describe("game_state serialize round-trip", () => {
         expect(expanded.stack[0].exileOnResolve).toBe(true);
     });
 
+    it("preserves a stack item's actingPlayerId override (Word of Command, ADR 0037)", () => {
+        // Acting Player (ADR 0037): a controlled cast carries an actingPlayerId
+        // distinct from the controller (castById). It must survive the DB
+        // round-trip so a suspended controlled resolution resumes correctly.
+        const state = freshState();
+        const woc = state.players[0].hand[0];
+        state.stack = [
+            {
+                ...woc,
+                zone: "stack",
+                castById: "p2", // the controlled opponent owns the cast
+                actingPlayerId: "p1", // WoC's controller answers the prompts
+            },
+        ];
+        const expanded = expandState(compactState(state));
+        expect(expanded.stack[0].actingPlayerId).toBe("p1");
+        expect(expanded.stack[0].castById).toBe("p2");
+    });
+
     it("library entries derive owner/controller/zone implicitly", () => {
         const state = freshState();
         const compact = compactState(state);

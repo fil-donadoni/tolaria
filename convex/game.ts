@@ -3241,6 +3241,22 @@ export const selectTarget = mutation({
             }
             const found = state.players.find((p) => p.id === args.targetId);
             if (!found) throw new Error("Invalid player target");
+            // CR 115 — "target opponent" / "target player you control": enforce
+            // the controller-relationship filter for player targets (Word of
+            // Command targets an opponent). Mirrors the graveyard-card branch.
+            const playerControllerFilter = pt.controller ?? "any";
+            if (
+                playerControllerFilter === "you" &&
+                found.id !== args.playerId
+            ) {
+                throw new Error("Must target yourself");
+            }
+            if (
+                playerControllerFilter === "opponent" &&
+                found.id === args.playerId
+            ) {
+                throw new Error("Must target an opponent");
+            }
             // CR 506.2 — "target player who attacked this turn" (Fire and
             // Brimstone): the chosen player must control a creature flagged as
             // having attacked this turn.

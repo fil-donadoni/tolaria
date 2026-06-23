@@ -82,6 +82,44 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Word of Command — Acting Player foundation + land branch (#576, ADR
+        // 0037, CR 305.2 one land per turn, CR 608.2 resolution).
+        //
+        // Board: you hold Word of Command ({B}{B} instant) with two Swamps for
+        // mana. Your opponent's hand holds a Forest (a land) plus a Grizzly
+        // Bears (a non-land). Golden path:
+        //   1. Cast Word of Command targeting your opponent (only they are a
+        //      legal target — "target opponent").
+        //   2. On resolution you look at the opponent's hand and choose a card.
+        //   3. Choose the Forest: it is PLAYED under the opponent's control,
+        //      consuming their one-land-per-turn drop (CR 305.2).
+        // Edge: choose the Grizzly Bears instead — the spell branch is not yet
+        //   implemented (#577), so it is a no-op this slice. Or, on a later turn
+        //   where the opponent has already played a land, choosing the Forest
+        //   leaves it in hand ("if able").
+        label: "LEA: Word of Command — controller plays opponent's land (#576)",
+        cards: [
+            {
+                name: "Word of Command",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            {
+                name: "Forest",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // FEM walking skeleton — Vodalian Soldiers tracer (#567, CR 302 vanilla
         // creature, CR 608.3 resolution). Proves the Fallen Empires set file,
         // registry wiring and multi-art CardPrint plumbing end-to-end: a FEM
