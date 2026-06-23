@@ -63,6 +63,7 @@ import {
 import { isGuardedAgainst } from "./gre/permanentGuard";
 import { assertDeckLegal } from "./formats";
 import type {
+    CardType,
     Color,
     ManaCost,
     PermanentFilter,
@@ -576,6 +577,35 @@ function findSacrificeCandidate(
     return player.battlefield.find((c) => c.id === cardInstanceId);
 }
 
+/** True iff a card sitting in a graveyard satisfies the exile-from-graveyard
+ *  cost's optional card-type filter (CR 118.5 / 406 — Night Soil: "creature
+ *  cards"). The card's printed types are read from its instance (graveyard
+ *  cards retain `types`); when `cardType` is omitted any card qualifies. */
+function graveyardCardMatchesExileCost(
+    card: CardInstanceState,
+    cardType?: CardType
+): boolean {
+    if (cardType === undefined) return true;
+    return card.types.includes(cardType);
+}
+
+/** True iff at least ONE player's graveyard holds `count` cards matching
+ *  `cardType` (CR 118.5 — the whole cost must be paid from a SINGLE graveyard;
+ *  it cannot be split across two). Gates activation legality for an
+ *  `exileFromGraveyard` cost (Night Soil). */
+function canPayExileFromGraveyard(
+    state: GameState,
+    count: number,
+    cardType?: CardType
+): boolean {
+    return state.players.some(
+        (p) =>
+            p.graveyard.filter((c) =>
+                graveyardCardMatchesExileCost(c, cardType)
+            ).length >= count
+    );
+}
+
 /** Untapped permanents on `player`'s battlefield that match `filter` and are
  *  eligible to pay a `tapOtherFilter` cost (CR 602.1 / 118.8). The source
  *  permanent (`sourceId`) is excluded — the cost taps OTHER permanents — as is
@@ -645,6 +675,14 @@ export function tryAutoCommitPendingActivation(
     // matching <filter>" cost has been picked (selectActivationCost). Mirrors
     // pendingCast.additionalCost gating.
     if (pa.sacrificeChoice && !pa.sacrificeChoice.pickedId) {
+        return null;
+    }
+    // CR 602.1 / 118.5 — commit is blocked until the "exile N cards from a
+    // single graveyard" cost has been picked (selectActivationExileCost).
+    if (
+        pa.exileFromGraveyardChoice &&
+        !pa.exileFromGraveyardChoice.pickedCardIds
+    ) {
         return null;
     }
     // CR 602.1 / 118.8 — commit is blocked until all N "tap an untapped
@@ -740,6 +778,28 @@ export function tryAutoCommitPendingActivation(
             mv: sacrificedManaValue(sacrificed),
         };
         removePermanentTo(state, sacrificed.id, "graveyard", "sacrifice");
+    }
+    // CR 602.1 / 118.5 / 406 — pay the "exile N cards from a single graveyard"
+    // cost: move each picked card from that owner's graveyard to their exile.
+    // Re-check presence at commit (vanished-card policy): if any picked card
+    // is no longer in the chosen graveyard, drop the activation silently.
+    if (pa.exileFromGraveyardChoice?.pickedCardIds) {
+        const ownerId = pa.exileFromGraveyardChoice.pickedGraveyardOwnerId;
+        const owner = ownerId
+            ? state.players.find((p) => p.id === ownerId)
+            : undefined;
+        const stillThere =
+            owner !== undefined &&
+            pa.exileFromGraveyardChoice.pickedCardIds.every((id) =>
+                owner.graveyard.some((c) => c.id === id)
+            );
+        if (!stillThere) {
+            state.pendingActivation = undefined;
+            return null;
+        }
+        for (const id of pa.exileFromGraveyardChoice.pickedCardIds) {
+            moveCard(owner, id, "graveyard", "exile");
+        }
     }
     // CR 602.1 / 118.8 — tap the chosen "other" permanents (Hand of Justice).
     // Re-validate each at commit: a pick may have left play or been tapped
@@ -1931,6 +1991,16 @@ export function finalizeTargetSelection(
                 throw new Error("No legal permanent to pay the sacrifice cost");
             }
         }
+        // CR 602.1 / 118.5 — "exile N cards from a single graveyard": illegal
+        // unless one graveyard holds enough matching cards.
+        if (ability.cost.exileFromGraveyard) {
+            const { count, cardType } = ability.cost.exileFromGraveyard;
+            if (!canPayExileFromGraveyard(state, count, cardType)) {
+                throw new Error(
+                    "No single graveyard has enough cards to pay the exile cost"
+                );
+            }
+        }
         // CR 602.1 / 118.8 — "tap N untapped permanents matching <filter> you
         // control": illegal unless at least N matching untapped permanents
         // (other than the source) are on the activating player's battlefield.
@@ -2012,6 +2082,7 @@ export function finalizeTargetSelection(
         if (
             manaUncovered ||
             ability.cost.sacrificeFilter ||
+            ability.cost.exileFromGraveyard ||
             ability.cost.tapOtherFilter
         ) {
             state.pendingActivation = {
@@ -2029,6 +2100,21 @@ export function finalizeTargetSelection(
                     ? {
                           sacrificeChoice: {
                               filter: ability.cost.sacrificeFilter,
+                          },
+                      }
+                    : {}),
+                ...(ability.cost.exileFromGraveyard
+                    ? {
+                          exileFromGraveyardChoice: {
+                              count: ability.cost.exileFromGraveyard.count,
+                              ...(ability.cost.exileFromGraveyard.cardType !==
+                              undefined
+                                  ? {
+                                        cardType:
+                                            ability.cost.exileFromGraveyard
+                                                .cardType,
+                                    }
+                                  : {}),
                           },
                       }
                     : {}),
@@ -3094,6 +3180,81 @@ export const selectActivationCost = mutation({
         // clears pendingActivation when the mana is also covered. If mana is
         // still owed, the activation stays pending and the player completes
         // payment via tapForActivationPayment.
+        tryAutoCommitPendingActivation(state, args.playerId);
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** Records the player's pick for an "exile N cards from a single graveyard"
+ *  activation cost (CR 602.1 / 118.5 / 406 — Night Soil). Validates that all
+ *  picked cards sit in the SAME graveyard (`graveyardOwnerId`), that the count
+ *  matches the cost exactly, and that each card satisfies the optional type
+ *  filter. Mirrors `selectActivationCost`: it only records the pick (the cards
+ *  move graveyard → exile at commit, so cancelling leaves the graveyard
+ *  untouched), then drives tryAutoCommitPendingActivation once the pick and the
+ *  mana are both in. */
+export const selectActivationExileCost = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        graveyardOwnerId: v.string(),
+        cardInstanceIds: v.array(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+
+        const pa = state.pendingActivation;
+        if (!pa) throw new Error("No ability being activated");
+        if (pa.playerId !== args.playerId) {
+            throw new Error("Not your pending activation");
+        }
+        const ec = pa.exileFromGraveyardChoice;
+        if (!ec) {
+            throw new Error("This ability has no exile-from-graveyard cost");
+        }
+        if (ec.pickedCardIds) {
+            throw new Error("Exile cost already paid");
+        }
+        if (args.cardInstanceIds.length !== ec.count) {
+            throw new Error(
+                `Must exile exactly ${ec.count} cards from a single graveyard`
+            );
+        }
+        // CR 118.5 — the whole cost must come from ONE graveyard.
+        if (
+            new Set(args.cardInstanceIds).size !== args.cardInstanceIds.length
+        ) {
+            throw new Error("Duplicate card selected for the exile cost");
+        }
+        const owner = state.players.find((p) => p.id === args.graveyardOwnerId);
+        if (!owner) throw new Error("Graveyard owner not in this game");
+        for (const id of args.cardInstanceIds) {
+            const card = owner.graveyard.find((c) => c.id === id);
+            if (!card) {
+                throw new Error("Selected card is not in the chosen graveyard");
+            }
+            if (!graveyardCardMatchesExileCost(card, ec.cardType)) {
+                throw new Error(
+                    "Selected card does not match the exile cost filter"
+                );
+            }
+        }
+        ec.pickedGraveyardOwnerId = args.graveyardOwnerId;
+        ec.pickedCardIds = [...args.cardInstanceIds];
+
+        // Commit fires here when the mana is also covered; otherwise the player
+        // taps the remaining mana via tapForActivationPayment.
         tryAutoCommitPendingActivation(state, args.playerId);
 
         await saveGameState(
@@ -5063,6 +5224,17 @@ export const activateAbility = mutation({
                 throw new Error("No legal permanent to pay the sacrifice cost");
             }
         }
+        // CR 602.1 / 118.5 — "exile N cards from a single graveyard" (Night
+        // Soil): illegal unless one graveyard holds enough matching cards.
+        // Validated up-front so we never enter an unpayable pendingActivation.
+        if (ability.cost.exileFromGraveyard) {
+            const { count, cardType } = ability.cost.exileFromGraveyard;
+            if (!canPayExileFromGraveyard(state, count, cardType)) {
+                throw new Error(
+                    "No single graveyard has enough cards to pay the exile cost"
+                );
+            }
+        }
         // CR 602.1 / 118.8 — "tap N untapped permanents matching <filter> you
         // control": illegal unless at least N matching untapped permanents
         // (other than the source) are available.
@@ -5123,8 +5295,14 @@ export const activateAbility = mutation({
                 getManaSubstitutions(state, player.id)
             );
         const needsSacrificeChoice = !!ability.cost.sacrificeFilter;
+        const needsExileChoice = !!ability.cost.exileFromGraveyard;
         const needsTapOtherChoice = !!ability.cost.tapOtherFilter;
-        if (manaUncovered || needsSacrificeChoice || needsTapOtherChoice) {
+        if (
+            manaUncovered ||
+            needsSacrificeChoice ||
+            needsExileChoice ||
+            needsTapOtherChoice
+        ) {
             const pending: PendingActivation = {
                 playerId: args.playerId,
                 cardInstanceId: card.id,
@@ -5146,6 +5324,21 @@ export const activateAbility = mutation({
                     ? {
                           sacrificeChoice: {
                               filter: ability.cost.sacrificeFilter,
+                          },
+                      }
+                    : {}),
+                ...(ability.cost.exileFromGraveyard
+                    ? {
+                          exileFromGraveyardChoice: {
+                              count: ability.cost.exileFromGraveyard.count,
+                              ...(ability.cost.exileFromGraveyard.cardType !==
+                              undefined
+                                  ? {
+                                        cardType:
+                                            ability.cost.exileFromGraveyard
+                                                .cardType,
+                                    }
+                                  : {}),
                           },
                       }
                     : {}),

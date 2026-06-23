@@ -45,6 +45,7 @@ import GameOverDialog from "./game-over-dialog";
 import PauseMenuDialog from "./pause-menu-dialog";
 import TargetSelectionBanner from "./target-selection-banner";
 import GraveyardTargetDialog from "./graveyard-target-dialog";
+import ExileCostDialog from "./exile-cost-dialog";
 import { isGraveyardTargetForViewer } from "~/lib/graveyard-targets";
 import PaymentBanner from "./payment-banner";
 import PendingChoicePrompt from "./pending-choice-prompt";
@@ -516,7 +517,22 @@ export default function Board({
                                     />
                                 )}
                             {pendingActivation &&
-                                pendingActivation.playerId === viewerId && (
+                                pendingActivation.playerId === viewerId &&
+                                // CR 602.1 / 118.5 — the exile-from-graveyard
+                                // cost (Night Soil) needs a dedicated card
+                                // picker before the payment banner takes over.
+                                (pendingActivation.exileFromGraveyardChoice &&
+                                !pendingActivation.exileFromGraveyardChoice
+                                    .pickedCardIds ? (
+                                    <ExileCostDialog
+                                        choice={
+                                            pendingActivation.exileFromGraveyardChoice
+                                        }
+                                        allPlayers={allPlayers}
+                                        gameId={gameId}
+                                        playerId={viewerId}
+                                    />
+                                ) : (
                                     <PaymentBanner
                                         kind="activation"
                                         pendingActivation={pendingActivation}
@@ -524,7 +540,7 @@ export default function Board({
                                         gameId={gameId}
                                         playerId={viewerId}
                                     />
-                                )}
+                                ))}
                             {pendingChoices &&
                                 pendingChoices.length > 0 &&
                                 (minimizedChoice.isMinimized &&

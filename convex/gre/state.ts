@@ -955,6 +955,20 @@ export type PendingActivation = {
         filter: PermanentFilter;
         pickedId?: string;
     };
+    /** In-progress "exile N cards from a single graveyard" cost picker
+     *  (CR 602.1, 118.5, 406 — Night Soil). Set when the ability has
+     *  `cost.exileFromGraveyard`. `count`/`cardType` mirror the cost; both
+     *  `pickedGraveyardOwnerId` and `pickedCardIds` are undefined until the
+     *  player calls `selectActivationCost`, and commit is blocked while they
+     *  are unset regardless of mana coverage. On commit the chosen cards move
+     *  from that graveyard to its owner's exile zone. Mirrors
+     *  `sacrificeChoice`. */
+    exileFromGraveyardChoice?: {
+        count: number;
+        cardType?: CardType;
+        pickedGraveyardOwnerId?: string;
+        pickedCardIds?: string[];
+    };
     /** In-progress "tap N untapped permanents matching <filter> you control"
      *  cost picker (CR 602.1, 118.8 — Hand of Justice "Tap three untapped white
      *  creatures you control"). Set when the ability has `cost.tapOtherFilter`.

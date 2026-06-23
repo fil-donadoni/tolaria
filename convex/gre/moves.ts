@@ -519,6 +519,20 @@ function enumerateAbilityMoves(
         ) {
             continue;
         }
+        // CR 602.1 / 118.5 — "exile N cards from a single graveyard" cost
+        // (Night Soil) is unpayable unless one graveyard holds enough matching
+        // cards. The whole cost must come from ONE graveyard (CR 118.5).
+        if (ability.cost.exileFromGraveyard) {
+            const { count, cardType } = ability.cost.exileFromGraveyard;
+            const payable = state.players.some(
+                (p) =>
+                    p.graveyard.filter(
+                        (c) =>
+                            cardType === undefined || c.types.includes(cardType)
+                    ).length >= count
+            );
+            if (!payable) continue;
+        }
         // CR 602.1 / 118.8 — "tap N untapped permanents matching <filter> you
         // control" cost is unpayable without N matching untapped permanents
         // other than the source (Hand of Justice).

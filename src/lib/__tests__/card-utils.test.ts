@@ -281,6 +281,54 @@ describe("getStackAbilities", () => {
         });
         expect(getStackAbilities(card)).toHaveLength(1);
     });
+
+    // FEM Night Soil — exile-from-graveyard cost affordability (CR 602.1 /
+    // 118.5). The activation is surfaced only when one viewer-visible graveyard
+    // holds enough matching cards; otherwise the menu hides it (UI hint).
+    it("hides Night Soil's exile ability when no graveyard has two creature cards", () => {
+        const nightSoilId = "4cda6d18-d4b1-4b8a-a72e-f90115adf4c3";
+        const card = makeCardInstance({
+            card: { id: nightSoilId },
+            types: ["Enchantment"],
+        });
+        // Empty graveyards → unpayable → hidden.
+        const emptyView = {
+            players: [
+                { id: "p1", life: 20, hand: { length: 0 }, battlefield: [] },
+            ],
+        };
+        expect(
+            getStackAbilities(card, undefined, true, emptyView)
+        ).toHaveLength(0);
+    });
+
+    it("surfaces Night Soil's exile ability when a single graveyard has two creature cards", () => {
+        const nightSoilId = "4cda6d18-d4b1-4b8a-a72e-f90115adf4c3";
+        const card = makeCardInstance({
+            card: { id: nightSoilId },
+            types: ["Enchantment"],
+        });
+        const gv = (id: string) => ({
+            id,
+            ownerId: "p2",
+            types: ["Creature"] as const,
+        });
+        const view = {
+            players: [
+                { id: "p1", life: 20, hand: { length: 0 }, battlefield: [] },
+                {
+                    id: "p2",
+                    life: 20,
+                    hand: { length: 0 },
+                    battlefield: [],
+                    graveyard: [gv("g1"), gv("g2")],
+                },
+            ],
+        };
+        const abilities = getStackAbilities(card, undefined, true, view);
+        expect(abilities).toHaveLength(1);
+        expect(abilities[0].id).toBe("night-soil-make-saproling");
+    });
 });
 
 // ---------------------------------------------------------------------------

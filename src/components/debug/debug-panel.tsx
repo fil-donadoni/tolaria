@@ -224,6 +224,50 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // FEM C1 — Green spore engine + Night Soil exile-from-graveyard cost
+        // (#569; CR 122.1/122.6 spore counters, 707.1 tokens, 602.1/118.5/406
+        // exile-as-cost).
+        //
+        // Board: you control a Thallid with two spore counters (one upkeep away
+        // from its third) and a Night Soil enchantment. Both graveyards are
+        // stocked with creature cards (Grizzly Bears) so Night Soil's "{1},
+        // Exile two creature cards from a single graveyard" cost is payable from
+        // either pile. Two Forests pay the green/generic costs.
+        // Golden path:
+        //   1. Pass to your next upkeep — the Thallid accrues its third spore
+        //      counter; activate "Remove three spore counters: Create a 1/1
+        //      green Saproling" to make a Saproling.
+        //   2. Activate Night Soil: pay {1}, then pick a graveyard and exile two
+        //      creature cards from it — a second Saproling is created.
+        // Edge: empty one graveyard down to a single creature card — Night Soil's
+        //   ability is then unpayable from that pile (the whole cost must come
+        //   from ONE graveyard, CR 118.5).
+        label: "FEM: Thallid spore engine + Night Soil exile-from-graveyard cost (#569)",
+        cards: [
+            {
+                name: "Thallid",
+                owner: "me" as const,
+                counters: { spore: 2 },
+            },
+            { name: "Night Soil", owner: "me" as const },
+            { name: "Forest", owner: "me" as const, count: 2 },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+                count: 3,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "graveyard" as const,
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // FEM C3 White — Hand of Justice's `tapOtherFilter` cost (#568, CR
         // 602.1 / 118.8). The {5}{W} 2/6 Avatar's ability is "{T}, Tap three
         // untapped white creatures you control: Destroy target creature."
