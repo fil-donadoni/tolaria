@@ -24,7 +24,7 @@ export default function GraveyardCardPicker({
                     disabled={isPending}
                     onClick={() => onPick(card.id)}
                     title={getCardById(card.card.id).name}
-                    className="relative rounded-sm overflow-hidden ring-1 ring-transparent hover:ring-2 hover:ring-[#c8a060]/70 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
+                    className="relative rounded-sm overflow-hidden ring-1 ring-transparent hover:ring-2 hover:ring-accent disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
                 >
                     <CardImage card={card} />
                 </button>

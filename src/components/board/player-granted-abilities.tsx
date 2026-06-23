@@ -51,8 +51,8 @@ export default function PlayerGrantedAbilities({ player }: { player: Player }) {
                         title={grant.oracleText}
                         className={`text-xs font-beleren tracking-wide px-3 py-1.5 rounded-sm whitespace-nowrap shadow-md transition-colors border ${
                             disabled
-                                ? "bg-zinc-800/40 border-zinc-700/40 text-zinc-500 cursor-not-allowed"
-                                : "bg-[#7a5a2e]/30 border-[#c8a060]/45 text-[#e0c08a] hover:bg-[#7a5a2e]/50 cursor-pointer"
+                                ? "bg-surface-elevated border-border-subtle text-text-disabled cursor-not-allowed"
+                                : "bg-accent-soft/30 border-accent/45 text-accent-strong hover:bg-accent-soft/50 cursor-pointer"
                         }`}
                     >
                         {formatOracleText(grant.oracleText)}

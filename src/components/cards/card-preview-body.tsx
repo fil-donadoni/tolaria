@@ -105,7 +105,7 @@ export default function CardPreviewBody({
                 )}
             </div>
             <div
-                className={`${textPad} ${textBase} text-white space-y-2 overflow-y-auto`}
+                className={`${textPad} ${textBase} text-text space-y-2 overflow-y-auto`}
             >
                 <div className="flex items-baseline justify-between gap-2">
                     <span className={`font-semibold ${nameSize} truncate`}>
@@ -117,9 +117,9 @@ export default function CardPreviewBody({
                         </span>
                     )}
                 </div>
-                <div className="text-zinc-300">{typeLine}</div>
+                <div className="text-text-muted">{typeLine}</div>
                 {oracleParagraphs && (
-                    <div className="border-t border-zinc-700 pt-2 space-y-1.5 text-zinc-100">
+                    <div className="border-t border-border-subtle pt-2 space-y-1.5 text-text">
                         {oracleParagraphs.map((p, i) => (
                             <div key={`oracle-${i}`}>{formatOracleText(p)}</div>
                         ))}
@@ -128,11 +128,11 @@ export default function CardPreviewBody({
                 {hasBody && <CardPreviewAbilities abilities={bodyAbilities} />}
                 {hasPT && (
                     <div
-                        className={`text-right font-semibold ${ptSize} border-t border-zinc-700 pt-2 flex justify-end items-baseline gap-2`}
+                        className={`text-right font-semibold ${ptSize} border-t border-border-subtle pt-2 flex justify-end items-baseline gap-2`}
                     >
                         <span
                             className={
-                                ptModified ? "text-emerald-400" : "text-white"
+                                ptModified ? "text-emerald-400" : "text-text"
                             }
                         >
                             {effPower ?? 0}/{effToughness ?? 0}
@@ -149,14 +149,14 @@ export default function CardPreviewBody({
                 <CardPreviewCounters counters={counterDisplays} />
                 {colorName && (
                     <div
-                        className={`border-t border-zinc-700 pt-2 ${sectionSize} font-semibold text-[var(--color-accent-strong)]`}
+                        className={`border-t border-border-subtle pt-2 ${sectionSize} font-semibold text-accent-strong`}
                     >
                         Color: {colorName}
                     </div>
                 )}
                 {ownerName && (
                     <div
-                        className={`text-zinc-400 border-t pt-2 ${sectionSize} italic`}
+                        className={`text-text-muted border-t border-border-subtle pt-2 ${sectionSize} italic`}
                     >
                         Owner: {ownerName}
                     </div>

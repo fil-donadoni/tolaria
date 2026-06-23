@@ -205,10 +205,10 @@ describe("BoardBattlefieldCard visual state + anchors (#256)", () => {
             ...NEUTRAL_VS,
             interactive: true,
             enabled: true,
-            ringClass: "ring-2 ring-[#c8a060]/50 rounded-sm",
+            ringClass: "ring-2 ring-accent/50 rounded-sm",
         };
         const { container } = renderCard(makeCreature(), vs);
-        const ringed = container.querySelector('[class*="ring-[#c8a060]/50"]');
+        const ringed = container.querySelector('[class*="ring-accent/50"]');
         expect(ringed).toBeTruthy();
     });
 });

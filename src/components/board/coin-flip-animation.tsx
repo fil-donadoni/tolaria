@@ -50,8 +50,8 @@ export default function CoinFlipAnimation({
                 <motion.div
                     className={`flex h-24 w-24 items-center justify-center rounded-full border-2 font-beleren text-lg tracking-wide ${
                         isHeads
-                            ? "border-[#c8a060]/70 bg-[#7a5a2e]/40 text-[#e8d2a0]"
-                            : "border-zinc-500/60 bg-zinc-800/60 text-zinc-300"
+                            ? "border-accent/70 bg-accent-soft/40 text-accent-strong"
+                            : "border-border-accent/60 bg-surface-elevated/60 text-text-muted"
                     }`}
                     initial={reduceMotion ? false : { rotateY: 0, scale: 0.9 }}
                     animate={

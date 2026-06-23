@@ -103,22 +103,22 @@ export default function PendingChoicePrompt({
         >
             <div
                 {...dragHandlers}
-                className="relative flex flex-col items-center gap-2 bg-[#0c0d12]/90 border border-zinc-800/80 backdrop-blur-md rounded-sm px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)] cursor-move select-none pointer-events-auto"
+                className="relative flex flex-col items-center gap-2 bg-surface border border-border-subtle backdrop-blur-md rounded-sm px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)] cursor-move select-none pointer-events-auto"
             >
-                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-zinc-500/40" />
-                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-zinc-500/40" />
-                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-zinc-500/40" />
-                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-zinc-500/40" />
+                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-border-accent/40" />
+                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-border-accent/40" />
+                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-border-accent/40" />
+                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-border-accent/40" />
 
                 {isChooser ? (
                     <>
                         <MinimizeChoiceButton className="absolute top-1.5 right-1.5" />
                         <div className="flex flex-col items-center text-center gap-1">
-                            <p className="font-beleren text-sm tracking-wide text-[#f1f1e8]">
+                            <p className="font-beleren text-sm tracking-wide text-parchment">
                                 {sourceLabel}
                             </p>
-                            <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-zinc-500/40 to-transparent" />
-                            <p className="text-zinc-400 text-xs">
+                            <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-border-accent/40 to-transparent" />
+                            <p className="text-text-muted text-xs">
                                 {choice.prompt}
                             </p>
                         </div>
@@ -169,7 +169,7 @@ export default function PendingChoicePrompt({
                                 <button
                                     type="button"
                                     disabled={!canConfirm}
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-[#7a5a2e]/30 border border-[#c8a060]/45 text-[#e0c08a] hover:bg-[#7a5a2e]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                                     onClick={() => primary?.confirm()}
                                 >
                                     {choice.cost ? (
@@ -186,7 +186,7 @@ export default function PendingChoicePrompt({
                                 <button
                                     type="button"
                                     disabled={isBusy}
-                                    className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-zinc-800/40 border border-zinc-600/45 text-zinc-300 hover:bg-zinc-700/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                                    className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-surface-elevated border border-border-accent/40 text-text-muted hover:bg-surface-elevated/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                                     onClick={async () => {
                                         if (isBusy) return;
                                         setIsBusy(true);
@@ -206,7 +206,7 @@ export default function PendingChoicePrompt({
                             </div>
                         ) : (
                             <>
-                                <p className="text-zinc-500 text-xs">
+                                <p className="text-text-disabled text-xs">
                                     {selected} / {max} selected
                                     {min < max && remaining > 0
                                         ? ` — click ${remaining === 1 ? "one more" : `up to ${remaining} more`}`
@@ -215,7 +215,7 @@ export default function PendingChoicePrompt({
                                 <button
                                     type="button"
                                     disabled={!canConfirm}
-                                    className="mt-1 px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-[#7a5a2e]/30 border border-[#c8a060]/45 text-[#e0c08a] hover:bg-[#7a5a2e]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                                    className="mt-1 px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                                     onClick={() => primary?.confirm()}
                                 >
                                     {submitLabel}
@@ -224,9 +224,9 @@ export default function PendingChoicePrompt({
                         )}
                     </>
                 ) : (
-                    <p className="text-zinc-400 text-xs text-center">
+                    <p className="text-text-muted text-xs text-center">
                         Waiting for{" "}
-                        <span className="font-beleren text-[#f1f1e8]">
+                        <span className="font-beleren text-parchment">
                             {chooserName}
                         </span>{" "}
                         — {choice.prompt}

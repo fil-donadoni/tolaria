@@ -366,18 +366,18 @@ export function useBattlefieldVisualState(player: Player) {
                 selectedAttackerIds.includes(card.id) &&
                 !combat?.confirmed
             ) {
-                ringClass = "ring-2 ring-[#a04040] rounded-sm";
+                ringClass = "ring-2 ring-danger rounded-sm";
             }
         }
         if (!ringClass && isTargetSelected) {
-            ringClass = "ring-2 ring-[#c8a060] rounded-sm";
+            ringClass = "ring-2 ring-accent rounded-sm";
         } else if (!ringClass && isValidTarget) {
-            ringClass = "ring-2 ring-[#c8a060]/50 rounded-sm";
+            ringClass = "ring-2 ring-accent/50 rounded-sm";
         }
         if (!ringClass && isChoiceSelected) {
-            ringClass = "ring-2 ring-[#c8a060] rounded-sm";
+            ringClass = "ring-2 ring-accent rounded-sm";
         } else if (!ringClass && isValidChoice) {
-            ringClass = "ring-2 ring-[#c8a060]/40 rounded-sm";
+            ringClass = "ring-2 ring-accent/40 rounded-sm";
         }
 
         // Sacrifice-cost picker highlight (CR 117.9 spell additional cost /
@@ -397,7 +397,7 @@ export function useBattlefieldVisualState(player: Player) {
                     pendingActivation.sacrificeChoice.filter
                 ));
         if (!ringClass && isValidSacrificePick) {
-            ringClass = "ring-2 ring-[#c8a060]/40 rounded-sm";
+            ringClass = "ring-2 ring-accent/40 rounded-sm";
         }
 
         // Tooltip for ineligible creatures

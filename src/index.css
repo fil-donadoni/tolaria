@@ -18,101 +18,116 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ──────────────────────────────────────────────────────────────────────────
+ * Single semantic palette — Antique Bronze (ADR 0007 roles, issue #592).
+ *
+ * One palette only: the shadcn primitive tokens below (`--primary`,
+ * `--background`, `--border`, …) are remapped to point at the same semantic
+ * hex values that drive the `--color-*` design tokens in `@theme inline`.
+ * shadcn supplies components, never colour — a plain shadcn Button/Dialog
+ * renders on-theme because every primitive token draws from this palette.
+ *
+ * The app is dark-only; `:root` carries the theme and `.dark` mirrors it so
+ * shadcn primitives that gate on `.dark` stay consistent.
+ * ────────────────────────────────────────────────────────────────────────── */
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.809 0.105 251.813);
-    --chart-2: oklch(0.623 0.214 259.815);
-    --chart-3: oklch(0.546 0.245 262.881);
-    --chart-4: oklch(0.488 0.243 264.376);
-    --chart-5: oklch(0.424 0.199 265.638);
+    /* shadcn primitive tokens → semantic Antique Bronze palette */
+    --background: #0d0b07;
+    --foreground: #e9e0cb;
+    --card: #16110a;
+    --card-foreground: #e9e0cb;
+    --popover: #1c1710;
+    --popover-foreground: #e9e0cb;
+    --primary: #c9a24b;
+    --primary-foreground: #211705;
+    --secondary: #2a2316;
+    --secondary-foreground: #f3ead2;
+    --muted: #241d12;
+    --muted-foreground: #b7a984;
+    --accent: #c9a24b;
+    --accent-foreground: #211705;
+    --destructive: #b1473a;
+    --destructive-foreground: #fbe6e1;
+    --border: #2e2516;
+    --input: #120e08;
+    --ring: #c9a24b;
+    --chart-1: #c9a24b;
+    --chart-2: #5f97a8;
+    --chart-3: #6fa05a;
+    --chart-4: #b1473a;
+    --chart-5: #ecc878;
     --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --sidebar: #16110a;
+    --sidebar-foreground: #e9e0cb;
+    --sidebar-primary: #c9a24b;
+    --sidebar-primary-foreground: #211705;
+    --sidebar-accent: #2a2316;
+    --sidebar-accent-foreground: #f3ead2;
+    --sidebar-border: #2e2516;
+    --sidebar-ring: #c9a24b;
 }
 
 .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.809 0.105 251.813);
-    --chart-2: oklch(0.623 0.214 259.815);
-    --chart-3: oklch(0.546 0.245 262.881);
-    --chart-4: oklch(0.488 0.243 264.376);
-    --chart-5: oklch(0.424 0.199 265.638);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    --background: #0d0b07;
+    --foreground: #e9e0cb;
+    --card: #16110a;
+    --card-foreground: #e9e0cb;
+    --popover: #1c1710;
+    --popover-foreground: #e9e0cb;
+    --primary: #c9a24b;
+    --primary-foreground: #211705;
+    --secondary: #2a2316;
+    --secondary-foreground: #f3ead2;
+    --muted: #241d12;
+    --muted-foreground: #b7a984;
+    --accent: #c9a24b;
+    --accent-foreground: #211705;
+    --destructive: #b1473a;
+    --destructive-foreground: #fbe6e1;
+    --border: #2e2516;
+    --input: #120e08;
+    --ring: #c9a24b;
+    --chart-1: #c9a24b;
+    --chart-2: #5f97a8;
+    --chart-3: #6fa05a;
+    --chart-4: #b1473a;
+    --chart-5: #ecc878;
+    --sidebar: #16110a;
+    --sidebar-foreground: #e9e0cb;
+    --sidebar-primary: #c9a24b;
+    --sidebar-primary-foreground: #211705;
+    --sidebar-accent: #2a2316;
+    --sidebar-accent-foreground: #f3ead2;
+    --sidebar-border: #2e2516;
+    --sidebar-ring: #c9a24b;
 }
 
 @theme inline {
     --font-sans: "Geist Variable", sans-serif;
     --font-beleren: "Beleren", serif;
 
-    /* Game design tokens (Zelda BotW–inspired, semantic roles) */
-    --color-surface-base: #0c0d12;
-    --color-surface: #0c0d12;
-    --color-surface-elevated: #27272a;
-    --color-border-subtle: #27272a;
-    --color-border-accent: #71717a;
-    --color-accent: #c8a060;
-    --color-accent-strong: #e0c08a;
-    --color-accent-soft: #7a5a2e;
-    --color-secondary-accent: #5a7a8a;
-    --color-secondary-accent-strong: #8cb0c4;
-    --color-secondary-accent-soft: #2e4450;
-    --color-danger: #a04040;
-    --color-danger-strong: #d48080;
-    --color-danger-soft: #5c1e1e;
-    --color-success: #4e8a5a;
-    --color-success-strong: #8fc89a;
-    --color-success-soft: #1f4a28;
-    --color-parchment: #f1f1e8;
-    --color-text: #d4d4d8;
-    --color-text-muted: #a1a1aa;
-    --color-text-disabled: #71717a;
+    /* Game design tokens — Antique Bronze (semantic roles, ADR 0007 / #592) */
+    --color-surface-base: #0d0b07;
+    --color-surface: #16110a;
+    --color-surface-elevated: #241d12;
+    --color-border-subtle: #2e2516;
+    --color-border-accent: #6b5a36;
+    --color-accent: #c9a24b;
+    --color-accent-strong: #ecc878;
+    --color-accent-soft: #4a3a1c;
+    --color-secondary-accent: #5f97a8;
+    --color-secondary-accent-strong: #9cc6d4;
+    --color-secondary-accent-soft: #234049;
+    --color-danger: #b1473a;
+    --color-danger-strong: #e89384;
+    --color-danger-soft: #4a1a14;
+    --color-success: #6fa05a;
+    --color-success-strong: #a8d292;
+    --color-success-soft: #274a1f;
+    --color-parchment: #f3ead2;
+    --color-text: #e9e0cb;
+    --color-text-muted: #b7a984;
+    --color-text-disabled: #6f6244;
 
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
@@ -132,7 +147,9 @@
     --color-border: var(--border);
     --color-destructive: var(--destructive);
     --color-accent-foreground: var(--accent-foreground);
-    --color-accent: var(--accent);
+    /* `--color-accent` is owned by the semantic palette above (the gold accent);
+     * shadcn's `--accent` is remapped to the same value, so primitives agree. */
+    --color-destructive-foreground: var(--destructive-foreground);
     --color-muted-foreground: var(--muted-foreground);
     --color-muted: var(--muted);
     --color-secondary-foreground: var(--secondary-foreground);

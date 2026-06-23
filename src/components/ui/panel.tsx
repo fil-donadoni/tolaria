@@ -41,12 +41,12 @@ function SunburstIcon({ children }: { children: React.ReactNode }) {
                 className="absolute inset-0 opacity-35 mix-blend-color-dodge animate-[spin_80s_linear_infinite]"
                 style={{
                     backgroundImage:
-                        "repeating-conic-gradient(from 0deg, #d97706 0deg 4deg, transparent 4deg 12deg)",
+                        "repeating-conic-gradient(from 0deg, var(--color-accent) 0deg 4deg, transparent 4deg 12deg)",
                 }}
             />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_10%,var(--color-surface)_70%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(245,158,11,0.2)_0%,transparent_60%)]" />
-            <div className="relative z-10 flex items-center justify-center drop-shadow-[0_0_20px_rgba(245,158,11,0.5)]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,color-mix(in_srgb,var(--color-accent)_20%,transparent)_0%,transparent_60%)]" />
+            <div className="relative z-10 flex items-center justify-center drop-shadow-[0_0_20px_color-mix(in_srgb,var(--color-accent)_50%,transparent)]">
                 {children}
             </div>
         </div>

@@ -342,7 +342,7 @@ export default function CardPreview({
                         onClick={dismissOverlay}
                     >
                         <div
-                            className="flex flex-col rounded-2xl shadow-2xl bg-zinc-900/95 overflow-hidden max-h-[90vh] max-w-[90vw]"
+                            className="flex flex-col rounded-2xl shadow-2xl bg-surface overflow-hidden max-h-[90vh] max-w-[90vw]"
                             style={{ width: OVERLAY_WIDTH * 1.5 }}
                             onTouchEnd={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}

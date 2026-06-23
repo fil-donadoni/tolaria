@@ -19,7 +19,7 @@ export default function PendingChoiceOptions({
                     key={opt.id}
                     type="button"
                     disabled={disabled}
-                    className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-[#7a5a2e]/30 border border-[#c8a060]/45 text-[#e0c08a] hover:bg-[#7a5a2e]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                     onClick={() => onPick(opt.id)}
                 >
                     {opt.label}

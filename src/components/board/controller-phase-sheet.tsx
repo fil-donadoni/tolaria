@@ -34,9 +34,9 @@ export default function ControllerPhaseSheet({
                 onClick={onClose}
                 className="absolute inset-0 bg-black/50"
             />
-            <div className="relative max-h-[70vh] w-full animate-[sheetUp_0.2s_ease-out] overflow-hidden rounded-t-2xl border-t border-zinc-800/80 bg-[#0e1016]/98 shadow-2xl backdrop-blur-md">
+            <div className="relative max-h-[70vh] w-full animate-[sheetUp_0.2s_ease-out] overflow-hidden rounded-t-2xl border-t border-border-subtle bg-surface shadow-2xl backdrop-blur-md">
                 {/* Grab handle affordance. */}
-                <div className="mx-auto mt-2 mb-1 h-1 w-10 rounded-full bg-zinc-600" />
+                <div className="mx-auto mt-2 mb-1 h-1 w-10 rounded-full bg-border-accent" />
                 <ControllerPhaseList onClose={onClose} />
             </div>
         </div>

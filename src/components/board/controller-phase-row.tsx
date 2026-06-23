@@ -55,7 +55,7 @@ export default function ControllerPhaseRow({
         <div
             data-current={isCurrent || undefined}
             className={`flex items-center gap-2 px-3 py-1 ${
-                isCurrent ? "bg-amber-400/15" : ""
+                isCurrent ? "bg-accent-soft/15" : ""
             }`}
         >
             <span className="grid h-6 w-6 place-items-center shrink-0">
@@ -71,10 +71,10 @@ export default function ControllerPhaseRow({
             <span
                 className={`flex-1 text-center text-xs font-beleren ${
                     isCurrent
-                        ? "font-bold text-amber-300"
+                        ? "font-bold text-accent-strong"
                         : isPast
-                          ? "text-white/35"
-                          : "text-white/80"
+                          ? "text-text-disabled"
+                          : "text-text"
                 }`}
                 title={phase}
             >
