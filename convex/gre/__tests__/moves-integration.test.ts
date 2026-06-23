@@ -352,7 +352,10 @@ describe("menace — Goblin War Drums grant through the confirm-blockers seam", 
 const ISLAND = getCardByName("Island").id;
 
 describe("Merseine — dynamic cost K (CR 601.2f / 202.3)", () => {
-    function merseineBoard(hostController: string, manaPool: Record<string, number>) {
+    function merseineBoard(
+        hostController: string,
+        manaPool: Record<string, number>
+    ) {
         // Host is Grizzly Bears ({1}{G}, mana value 2), controlled by the
         // chosen player; Merseine attached, with net counters.
         const host = makeInstance(BEARS, {
@@ -375,7 +378,8 @@ describe("Merseine — dynamic cost K (CR 601.2f / 202.3)", () => {
             hostController === "p1"
                 ? makePlayer("p2")
                 : makePlayer("p1", { battlefield: [aura] });
-        const players = hostController === "p1" ? [hostPlayer, other] : [other, hostPlayer];
+        const players =
+            hostController === "p1" ? [hostPlayer, other] : [other, hostPlayer];
         return makeState({ players, priorityPlayerId: hostController });
     }
 
@@ -405,7 +409,10 @@ describe("Merseine — dynamic cost K (CR 601.2f / 202.3)", () => {
 
 describe("High Tide — extra {U} per Island tap, through the mana funnel (CR 614)", () => {
     it("adds an additional {U} when an Island is tapped while High Tide is active", () => {
-        const island = makeInstance(ISLAND, { controllerId: "p1", ownerId: "p1" });
+        const island = makeInstance(ISLAND, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [island] }),
@@ -414,12 +421,17 @@ describe("High Tide — extra {U} per Island tap, through the mana funnel (CR 61
             highTideThisTurn: ["p1"],
         });
         // Island normally produces {U}; the funnel adds one more {U}.
-        const produced = applyLandManaReplacement(state, "p1", island, { U: 1 });
+        const produced = applyLandManaReplacement(state, "p1", island, {
+            U: 1,
+        });
         expect(produced).toEqual({ U: 2 });
     });
 
     it("two active High Tides add two extra {U}", () => {
-        const island = makeInstance(ISLAND, { controllerId: "p1", ownerId: "p1" });
+        const island = makeInstance(ISLAND, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [island] }),
@@ -427,13 +439,18 @@ describe("High Tide — extra {U} per Island tap, through the mana funnel (CR 61
             ],
             highTideThisTurn: ["p1", "p1"],
         });
-        expect(applyLandManaReplacement(state, "p1", island, { U: 1 })).toEqual({
-            U: 3,
-        });
+        expect(applyLandManaReplacement(state, "p1", island, { U: 1 })).toEqual(
+            {
+                U: 3,
+            }
+        );
     });
 
     it("does NOT add {U} when tapping a non-Island land", () => {
-        const forest = makeInstance(FOREST, { controllerId: "p1", ownerId: "p1" });
+        const forest = makeInstance(FOREST, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [forest] }),
@@ -441,9 +458,11 @@ describe("High Tide — extra {U} per Island tap, through the mana funnel (CR 61
             ],
             highTideThisTurn: ["p1"],
         });
-        expect(applyLandManaReplacement(state, "p1", forest, { G: 1 })).toEqual({
-            G: 1,
-        });
+        expect(applyLandManaReplacement(state, "p1", forest, { G: 1 })).toEqual(
+            {
+                G: 1,
+            }
+        );
     });
 });
 

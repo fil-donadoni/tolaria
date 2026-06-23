@@ -987,7 +987,10 @@ function tideSheddingTrigger(id: string) {
             "Whenever there are four or more tide counters on this permanent, remove all tide counters from it.",
         condition: (self) => (self.counters?.["tide"] ?? 0) >= 4,
         resolve: (ctx) => {
-            const src = { type: "permanent" as const, id: ctx.sourceInstanceId };
+            const src = {
+                type: "permanent" as const,
+                id: ctx.sourceInstanceId,
+            };
             const have = ctx.getCounterCount(src, "tide");
             if (have > 0) ctx.removeCounter(src, "tide", have);
         },
@@ -1116,7 +1119,9 @@ export const homaridWarrior: CardDefinition = {
                     type: "permanent" as const,
                     id: ctx.sourceInstanceId,
                 };
-                ctx.grantStaticAbility(self, "shroud", { phase: "end-of-turn" });
+                ctx.grantStaticAbility(self, "shroud", {
+                    phase: "end-of-turn",
+                });
                 ctx.tap(self);
                 ctx.skipNextUntap(self);
             },
@@ -1266,7 +1271,9 @@ export const deepSpawn: CardDefinition = {
                     type: "permanent" as const,
                     id: ctx.sourceInstanceId,
                 };
-                ctx.grantStaticAbility(self, "shroud", { phase: "end-of-turn" });
+                ctx.grantStaticAbility(self, "shroud", {
+                    phase: "end-of-turn",
+                });
                 ctx.tap(self);
                 ctx.skipNextUntap(self);
             },
@@ -1381,7 +1388,8 @@ export const vodalianMage: CardDefinition = {
     id: "c107e82b-134a-4f2b-98c2-6537fae6a50d", // FEM 30a (canonical art)
     rarity: "common",
     name: "Vodalian Mage",
-    oracleText: "{U}, {T}: Counter target spell unless its controller pays {1}.",
+    oracleText:
+        "{U}, {T}: Counter target spell unless its controller pays {1}.",
     manaCost: { X: 2, U: 1 },
     types: ["Creature"],
     subtypes: ["Merfolk", "Wizard"],
@@ -1612,11 +1620,10 @@ export const seasinger: CardDefinition = {
                 if (target?.type !== "permanent") return;
                 // CR 115.4 — the target's controller must control an Island.
                 const targetController = ctx.getController(target);
-                const controlsIsland = ctx
-                    .getBattlefieldIds(targetController, {
+                const controlsIsland =
+                    ctx.getBattlefieldIds(targetController, {
                         subtypes: "Island",
-                    })
-                    .length > 0;
+                    }).length > 0;
                 if (!controlsIsland) return;
                 // CR 611.2c — control lasts only "for as long as ... this
                 // creature remains tapped". The conditional-control SBA reverts
@@ -1695,7 +1702,7 @@ export const merseine: CardDefinition = {
             // to still be attached (the dynamic cost needs a host).
             canActivate: (source) => source.attachedTo !== undefined,
             activatableByEnchantedController: true,
-            resolve: (ctx: SpellContext) => {
+            resolve: () => {
                 // The net counter was removed as part of the activation cost
                 // (CR 122.6); nothing more happens on resolution.
             },

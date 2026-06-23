@@ -998,7 +998,9 @@ describe("Tidal Influence — tide anthem + cast-by-name restriction (CR 601.3e)
                 makePlayer("p2"),
             ],
         });
-        const blue = state.players[0].battlefield.find((c) => c.id === "blue-c")!;
+        const blue = state.players[0].battlefield.find(
+            (c) => c.id === "blue-c"
+        )!;
         // -2/-0 at one tide counter: 2/2 → 0/2.
         expect(getEffectivePower(state, blue)).toBe(0);
         expect(getEffectiveToughness(state, blue)).toBe(2);
@@ -1118,21 +1120,17 @@ describe("High Tide — extra {U} per Island tapped this turn (CR 614)", () => {
         resolveTopOfStack(state);
         expect(state.highTideThisTurn).toContain("p1");
         // It went to the graveyard (instant resolved).
-        expect(
-            state.players[0].graveyard.some((c) => c.id === item.id)
-        ).toBe(true);
+        expect(state.players[0].graveyard.some((c) => c.id === item.id)).toBe(
+            true
+        );
     });
 
     it("two High Tides stack to two extra {U} per Island tap (helper-level)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        resolveTopOfStack(
-            (pushSpell(state, highTide.id, "p1"), state)
-        );
-        resolveTopOfStack(
-            (pushSpell(state, highTide.id, "p1"), state)
-        );
+        resolveTopOfStack((pushSpell(state, highTide.id, "p1"), state));
+        resolveTopOfStack((pushSpell(state, highTide.id, "p1"), state));
         expect(state.highTideThisTurn).toHaveLength(2);
     });
 });
@@ -1504,10 +1502,82 @@ describe("Deep Spawn — upkeep mill-or-sacrifice (CR 117.3a, 701.13a)", () => {
         expect(head?.kind).toBe("may-pay");
         applyMayPaySubmit(state, { playerId: "p1", accept: true });
         // Paying milled two cards; Deep Spawn stays on the battlefield.
-        expect(
-            state.players[0].battlefield.some((c) => c.id === "spawn")
-        ).toBe(true);
+        expect(state.players[0].battlefield.some((c) => c.id === "spawn")).toBe(
+            true
+        );
         expect(state.players[0].graveyard.length).toBe(2);
+    });
+});
+
+describe("Homarid Warrior — shroud + skip-untap dive (CR 702.18, 502.1)", () => {
+    it("gains shroud and skips its next untap, tapped, on activation", () => {
+        const inst = makeInstance(homaridWarrior.id, {
+            id: "hw",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [inst] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, inst, "homarid-warrior-dive");
+        const onBoard = state.players[0].battlefield[0];
+        expect(onBoard.staticAbilities).toContain("shroud");
+        expect(onBoard.isTapped).toBe(true);
+        expect(onBoard.skipNextUntap).toBe(true);
+    });
+});
+
+describe("Homarid Shaman — tap a green creature (CR 701.21)", () => {
+    it("taps the targeted green creature", () => {
+        const shaman = makeInstance(homaridShaman.id, {
+            id: "shaman",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        // A green creature for the opponent (Grizzly Bears is green).
+        const green = makeInstance(grizzlyBears.id, {
+            id: "green",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shaman] }),
+                makePlayer("p2", { battlefield: [green] }),
+            ],
+        });
+        resolveActivated(state, shaman, "homarid-shaman-tap", [
+            { type: "permanent", id: "green" },
+        ]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "green")?.isTapped
+        ).toBe(true);
+    });
+});
+
+describe("Svyelunite Priest — upkeep-only shroud grant (CR 602.5)", () => {
+    it("is restricted to its controller's upkeep", () => {
+        const ability = svyelunitePriest.activatedAbilities?.find(
+            (a) => a.id === "svyelunite-priest-shroud"
+        );
+        expect(ability?.controllerTurnOnly).toBe(true);
+        expect(ability?.activationPhaseRestriction).toEqual(["UPKEEP"]);
+    });
+});
+
+describe("Tidal Flats — first strike for blockers unless attacker pays (CR 509, 117.3a)", () => {
+    it("carries the {U}{U} combat ability", () => {
+        const ability = tidalFlats.activatedAbilities?.find(
+            (a) => a.id === "tidal-flats-first-strike"
+        );
+        expect(ability).toBeDefined();
+        expect(ability?.cost.mana).toEqual({ U: 2 });
     });
 });
 
