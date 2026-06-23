@@ -1074,6 +1074,12 @@ export interface SpellContext {
      *  Used by Sacrifice ("Add an amount of {B} equal to the sacrificed
      *  creature's mana value") to read the captured value at resolve. */
     getAdditionalSacrificeMv: () => number | undefined;
+    /** Subtypes snapshotted on the stack item when this spell's additional
+     *  sacrifice/exile cost (CR 117.9 / 601.2f) was paid at cast time. Returns
+     *  `undefined` for spells without an `additionalCosts` picker. Used by Soul
+     *  Exchange ("Put a +2/+2 counter on that creature if the exiled creature
+     *  was a Thrull") to read the exiled creature's subtypes at resolve. */
+    getAdditionalCostSubtypes: () => string[] | undefined;
     /** Deals `totalAmount` damage divided evenly, rounded down, among the
      *  given targets (CR 120.1, 603.3). Remainder (if any) is discarded.
      *  Used by Fireball and other "divided among any number of targets"
@@ -3868,11 +3874,21 @@ export interface CardDefinition {
      *  on the stack item so `SpellContext.getAdditionalSacrificeMv()` can
      *  read it at resolve. Used by Sacrifice ("As an additional cost,
      *  sacrifice a creature. Add an amount of {B} equal to the sacrificed
-     *  creature's mana value"). Currently exclusive with
-     *  `targetRequirement` — combining the two would need a third pending
-     *  state. */
+     *  creature's mana value").
+     *
+     *  When `exileFilter` is used (instead of `sacrificeFilter`), the chosen
+     *  permanent is EXILED rather than sacrificed (CR 118.5 / 406 — FEM Soul
+     *  Exchange: "As an additional cost to cast this spell, exile a creature
+     *  you control."). The exiled permanent's subtypes are snapshotted on the
+     *  stack item so `SpellContext.getAdditionalCostSubtypes()` can read them at
+     *  resolve (Soul Exchange's "+2/+2 counter if the exiled creature was a
+     *  Thrull"). Provide exactly one of `sacrificeFilter` / `exileFilter`.
+     *  Unlike the sacrifice form, the exile form MAY coexist with
+     *  `targetRequirement`: targets are chosen first (CR 601.2c), then the
+     *  additional-cost picker opens (CR 601.2f), then mana is paid. */
     additionalCosts?: {
-        sacrificeFilter: PermanentFilter;
+        sacrificeFilter?: PermanentFilter;
+        exileFilter?: PermanentFilter;
     };
     /** Adds this many generic mana to the total cost for each target beyond
      *  the first (CR 601.2f). Used by Fireball ("costs {1} more to cast for
