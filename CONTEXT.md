@@ -399,6 +399,10 @@ _Avoid_: Player (too vague when control changes)
 **Owner**:
 The **Player** who started the game with a card in their **Deck**. Never changes. **Tokens** are owned by the **Controller** who created them.
 
+**Acting Player**:
+The **Player** who answers the prompts (card choice, **Targets**, X, mode, additional-cost picks, mana-source selection) for a **Cast** or **Resolve** whose **Controller** is someone else. Normally the **Acting Player** equals the **Controller**; they diverge only when one **Player** is deciding on another's behalf (Word of Command: WoC's **Controller** is the **Acting Player** for a card cast/played from the controlled **Player**'s **Hand**, while the controlled **Player** remains its **Controller** and supplies its resources). Carried as `actingPlayerId` on the cast state and on the resulting **Stack Item** so the override persists through that item's **Resolve**.
+_Avoid_: Decision-maker, proxy player, controller (that's whose object it is, not who decides)
+
 **Admin**:
 A **User** flagged with elevated rights (`isAdmin` on the users row). The only **User** allowed to create, edit, or delete **Preset Decks**. The flag is the sole authority — server mutations check it directly; hiding controls in the UI is cosmetic only. Distinct from a **Player** (a seat in a **Game**) and from **Owner** (deck/card ownership in a **Game**).
 _Avoid_: Superuser, moderator, root
