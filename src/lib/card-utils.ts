@@ -1,5 +1,5 @@
 import type { CardInstance, ManaPool } from "~/types/game";
-import type { Color, ManaCost } from "~/types/cards";
+import type { CardType, Color, ManaCost } from "~/types/cards";
 import type { Phase } from "@convex/gre/types";
 import type { PermanentView, TriggerStateView } from "@convex/cards/types";
 import {
@@ -428,6 +428,7 @@ export function getStackAbilities(
             tap?: boolean;
             removeCounter?: { type: string; count: number };
             discardLastDrawn?: boolean;
+            exileFromGraveyard?: { count: number; cardType?: CardType };
         };
         activationPhaseRestriction?: ReadonlyArray<Phase>;
         activatableByOpponentsOnly?: boolean;
@@ -461,6 +462,22 @@ export function getStackAbilities(
         // CR 118.3 — "discard the last card you drew this turn" cost
         // (Jandor's Ring) is unpayable when no such card is in hand.
         if (a.cost.discardLastDrawn && !canDiscardLastDrawn) return false;
+        // CR 602.1 / 118.5 — "exile N cards from a single graveyard" cost
+        // (Night Soil) is unpayable unless one graveyard holds enough matching
+        // cards (the whole cost must come from ONE graveyard). UI hint against
+        // the viewer-visible graveyards; server validation is authoritative.
+        if (a.cost.exileFromGraveyard) {
+            const { count, cardType } = a.cost.exileFromGraveyard;
+            const players = stateView?.players ?? [];
+            const payable = players.some(
+                (p) =>
+                    (p.graveyard ?? []).filter(
+                        (c) =>
+                            cardType === undefined || c.types.includes(cardType)
+                    ).length >= count
+            );
+            if (!payable) return false;
+        }
         // CR 602.5b — ability-specific activation precondition. Evaluated as a
         // UI hint against the viewer-visible `stateView` (real player/turn data
         // when the caller supplies it; an empty player list otherwise). A

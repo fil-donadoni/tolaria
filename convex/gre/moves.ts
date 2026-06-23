@@ -519,6 +519,20 @@ function enumerateAbilityMoves(
         ) {
             continue;
         }
+        // CR 602.1 / 118.5 — "exile N cards from a single graveyard" cost
+        // (Night Soil) is unpayable unless one graveyard holds enough matching
+        // cards. The whole cost must come from ONE graveyard (CR 118.5).
+        if (ability.cost.exileFromGraveyard) {
+            const { count, cardType } = ability.cost.exileFromGraveyard;
+            const payable = state.players.some(
+                (p) =>
+                    p.graveyard.filter(
+                        (c) =>
+                            cardType === undefined || c.types.includes(cardType)
+                    ).length >= count
+            );
+            if (!payable) continue;
+        }
         // Mana cost: must be payable. The {T} part of the cost is paid by the
         // activate mutation itself, not by the tap plan.
         const manaCost = ability.cost.mana
