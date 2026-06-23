@@ -822,6 +822,9 @@ export function tryAutoCommitPendingActivation(
         activationSacrificeSnapshot = {
             cardInstanceId: sacrificed.id,
             mv: sacrificedManaValue(sacrificed),
+            ...(sacrificed.subtypes && sacrificed.subtypes.length > 0
+                ? { subtypes: [...sacrificed.subtypes] }
+                : {}),
         };
         removePermanentTo(state, sacrificed.id, "graveyard", "sacrifice");
     }
