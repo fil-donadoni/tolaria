@@ -94,6 +94,7 @@ export function useBattlefieldInteraction(player: Player) {
     const selectAdditionalCost = useMutation(api.game.selectAdditionalCost);
     const selectActivationCost = useMutation(api.game.selectActivationCost);
     const activateAbility = useMutation(api.game.activateAbility);
+    const activateManaAbility = useMutation(api.game.activateManaAbility);
     const bufferCtx = usePendingChoiceBuffer();
 
     // Board-coupled visual state (combat rings, tap, damage, legal-target
@@ -478,18 +479,32 @@ export function useBattlefieldInteraction(player: Player) {
         // not yet committed to a cost), the same entry flips to a refund —
         // `tapUntap` toggles in both directions so reusing the ability id is
         // sufficient on the server side; only the label changes here.
-        if (stack.length === 0) return stack;
+        // CR 605.1a / 605.3c — a NON-tap mana ability whose cost is mana
+        // (Farrelite Priest "{1}: Add {W}") is not a tap toggle: a plain click
+        // can't activate it, so surface it as an explicit menu entry routed to
+        // `activateManaAbility`. Independent of `stack`/`getActivatedManaMenuEntry`
+        // (which only handle tap mana abilities). Repeatable, so always offered.
+        const nonTapMana = getCardById(card.card.id).activatedAbilities?.find(
+            (a) => !a.useStack && !a.cost.tap && !!a.cost.mana && a.oracleText
+        );
+        const nonTapManaEntry: ActivatableAbility[] = nonTapMana
+            ? [{ id: nonTapMana.id, oracleText: nonTapMana.oracleText }]
+            : [];
+        if (stack.length === 0) return nonTapManaEntry;
         const mana = getActivatedManaMenuEntry(card);
-        if (!mana) return stack;
+        if (!mana) return [...nonTapManaEntry, ...stack];
         if (card.isTapped) {
-            if (!canRefundManaTap(card, player.manaPool)) return stack;
+            if (!canRefundManaTap(card, player.manaPool))
+                return [...nonTapManaEntry, ...stack];
             return [
                 { id: mana.id, oracleText: "Untap and refund mana" },
+                ...nonTapManaEntry,
                 ...stack,
             ];
         }
-        if (isTapLockedBySummoningSickness(card)) return stack;
-        return [mana, ...stack];
+        if (isTapLockedBySummoningSickness(card))
+            return [...nonTapManaEntry, ...stack];
+        return [mana, ...nonTapManaEntry, ...stack];
     }
 
     function handleActivateAbility(
@@ -505,6 +520,21 @@ export function useBattlefieldInteraction(player: Player) {
         // the mana-ability flow (`tapUntap`, or the mana picker for sources
         // with `manaChoices`) instead of the activated-ability mutation.
         if (ability && !ability.useStack) {
+            // CR 605.1a / 605.3c — a NON-tap mana ability whose cost is mana
+            // (Farrelite Priest "{1}: Add {W}") is not a tap toggle: it pays a
+            // mana cost, resolves immediately, and may carry a side effect.
+            // Route it to `activateManaAbility` rather than `tapUntap`.
+            if (!ability.cost.tap && ability.cost.mana) {
+                guardMutation(
+                    activateManaAbility({
+                        gameId,
+                        playerId,
+                        cardInstanceId: card.id,
+                        abilityId,
+                    })
+                );
+                return;
+            }
             // Board-conditional choosers (Fellwar Stone) derive their colours
             // from every player's battlefield, so pass `allPlayers` (CR 106.1).
             const choices = getManaChoices(card, allPlayers);

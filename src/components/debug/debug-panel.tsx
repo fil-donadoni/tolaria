@@ -82,9 +82,10 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
-        // Word of Command — controlled cast (#577, PRD #575, ADR 0037, CR 601 /
-        // 305.2). You cast Word of Command targeting your opponent, look at
-        // their hand, and choose a card for them to play "if able".
+        // Word of Command — controlled cast, SPELL branch (#577, PRD #575, ADR
+        // 0037, CR 601 / 305.2). You cast Word of Command targeting your
+        // opponent, look at their hand, and choose a card for them to play
+        // "if able".
         //
         // Board: you hold Word of Command ({B}{B}) with two Swamps for the
         // cost. Your opponent holds a castable Dark Ritual (a no-target spell,
@@ -125,6 +126,44 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Word of Command — Acting Player foundation + land branch (#576, ADR
+        // 0037, CR 305.2 one land per turn, CR 608.2 resolution).
+        //
+        // Board: you hold Word of Command ({B}{B} instant) with two Swamps for
+        // mana. Your opponent's hand holds a Forest (a land) plus a Grizzly
+        // Bears (a non-land). Golden path:
+        //   1. Cast Word of Command targeting your opponent (only they are a
+        //      legal target — "target opponent").
+        //   2. On resolution you look at the opponent's hand and choose a card.
+        //   3. Choose the Forest: it is PLAYED under the opponent's control,
+        //      consuming their one-land-per-turn drop (CR 305.2).
+        // Edge: choose the Grizzly Bears instead — it is cast as the opponent's
+        //   spell (#577 spell branch). Or, on a later turn where the opponent
+        //   has already played a land, choosing the Forest leaves it in hand
+        //   ("if able").
+        label: "LEA: Word of Command — controller plays opponent's land (#576)",
+        cards: [
+            {
+                name: "Word of Command",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            {
+                name: "Forest",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // FEM walking skeleton — Vodalian Soldiers tracer (#567, CR 302 vanilla
         // creature, CR 608.3 resolution). Proves the Fallen Empires set file,
         // registry wiring and multi-art CardPrint plumbing end-to-end: a FEM
@@ -143,6 +182,28 @@ const PRESET_SCENARIOS: PresetScenario[] = [
                 zone: "hand" as const,
             },
             { name: "Island", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // FEM C3 White — Hand of Justice's `tapOtherFilter` cost (#568, CR
+        // 602.1 / 118.8). The {5}{W} 2/6 Avatar's ability is "{T}, Tap three
+        // untapped white creatures you control: Destroy target creature."
+        //
+        // Board: you control Hand of Justice plus three Order of Leitbur
+        // ({W}{W} 2/1 white Knights) to feed the tap-three cost, and the
+        // opponent controls a Grizzly Bears to destroy. Golden path:
+        //   1. Activate Hand of Justice targeting the opponent's Grizzly Bears.
+        //   2. Pay the cost: tap Hand of Justice ({T}) and tap the three Orders.
+        //   3. The ability resolves and destroys the Grizzly Bears.
+        // Edge: tap one Order first (so only two untapped white creatures
+        //   remain) — the ability is now unpayable and can't be activated.
+        label: "FEM: Hand of Justice — tap three white creatures to destroy (#568)",
+        cards: [
+            { name: "Hand of Justice", owner: "me" as const },
+            { name: "Order of Leitbur", owner: "me" as const, count: 3 },
+            { name: "Grizzly Bears", owner: "opp" as const },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,

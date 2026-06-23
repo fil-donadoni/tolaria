@@ -767,24 +767,26 @@ export function getLegalTargets(
         !colorFilter &&
         !colorFilterAny
     ) {
-        const playerScope = requirement.controller ?? "any";
+        const playerControllerFilter = requirement.controller ?? "any";
         for (const player of state.players) {
-            // CR 115.1 — "target opponent" / "target player you don't control":
-            // restrict the legal player set by relationship to the caster. The
-            // caster themselves is never legal for "opponent"; only the caster
-            // for "you". Used by Word of Command ("target opponent").
-            if (
-                playerScope === "opponent" &&
-                (casterId === undefined || player.id === casterId)
-            ) {
-                continue;
-            }
-            if (playerScope === "you" && player.id !== casterId) continue;
             // CR 506.2 — "target player who attacked this turn": a player
             // attacked iff they control a creature flagged as having attacked.
             if (
                 requirement.playerAttackedThisTurn &&
                 !player.battlefield.some((c) => c.hasAttackedThisTurn)
+            ) {
+                continue;
+            }
+            // CR 115 — "target opponent" / "target player you control":
+            // restrict the eligible players by relationship to the caster.
+            // "you" keeps only the caster; "opponent" excludes the caster (and
+            // requires a known caster). Word of Command — "target opponent".
+            if (playerControllerFilter === "you" && player.id !== casterId) {
+                continue;
+            }
+            if (
+                playerControllerFilter === "opponent" &&
+                (casterId === undefined || player.id === casterId)
             ) {
                 continue;
             }

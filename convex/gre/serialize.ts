@@ -571,7 +571,6 @@ function compactStackItem(item: StackItem): CompactCard {
     const base = compactCard(item, { ownerId: item.ownerId });
     base.ownerId = item.ownerId;
     base.castById = item.castById;
-    if (item.actingPlayerId) base.actingPlayerId = item.actingPlayerId;
     if (item.targets?.length) base.targets = item.targets;
     if (item.chosenX !== undefined) base.chosenX = item.chosenX;
     if (item.chosenModeId) base.chosenModeId = item.chosenModeId;
@@ -595,6 +594,9 @@ function compactStackItem(item: StackItem): CompactCard {
     if (item.collectedChoices) base.collectedChoices = item.collectedChoices;
     if (item.isCopy) base.isCopy = item.isCopy;
     if (item.exileOnResolve) base.exileOnResolve = item.exileOnResolve;
+    // Acting Player (ADR 0037): persist the controlled-cast override so a
+    // suspended Word of Command resolution survives a DB round-trip.
+    if (item.actingPlayerId) base.actingPlayerId = item.actingPlayerId;
     return base;
 }
 
@@ -605,9 +607,6 @@ function expandStackItem(compact: CompactCard): StackItem {
         ...base,
         castById: compact.castById as string,
     };
-    if (compact.actingPlayerId) {
-        item.actingPlayerId = compact.actingPlayerId as string;
-    }
     if (compact.targets) {
         item.targets = compact.targets as StackItem["targets"];
     }
@@ -650,6 +649,10 @@ function expandStackItem(compact: CompactCard): StackItem {
     if (compact.exileOnResolve) {
         item.exileOnResolve = compact.exileOnResolve as boolean;
     }
+    // Acting Player (ADR 0037) — rehydrate the controlled-cast override.
+    if (compact.actingPlayerId) {
+        item.actingPlayerId = compact.actingPlayerId as string;
+    }
     return item;
 }
 
@@ -689,6 +692,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "playerPreferences",
     "landPlayLocked",
     "preventAllCombatDamageThisTurn",
+    "assignsNoCombatDamageThisTurn",
     "landManaReplacedToBlueThisTurn",
     "damageCapShields",
     "islandSanctuaryProtection",

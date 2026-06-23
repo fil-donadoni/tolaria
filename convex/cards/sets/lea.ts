@@ -3988,28 +3988,30 @@ export const willOTheWisp: CardDefinition = {
 
 // Word of Command — "Look at target opponent's hand and choose a card from it.
 // You control that player until Word of Command finishes resolving. The player
-// plays that card if able. While doing so, the player can activate mana
-// abilities only if they're from lands that player controls and only if mana
-// they produce is spent to activate other mana abilities of lands the player
-// controls and/or to play that card. If the chosen card is cast as a spell, you
-// control the player while that spell is resolving."
+// plays that card if able. …" (CR 608.2, ADR 0037 Acting Player). The control
+// aspect is modelled by scoped choice-routing, NOT a general control-a-player
+// subsystem: WoC's controller is the *Acting Player* who answers every prompt,
+// while the controlled opponent stays the controller of whatever card is
+// played (it is their card, played under their control from their hand, and it
+// counts against their resources — CR 305.2 land drop, "mana only from lands
+// that player controls"). Slice 1 (#576) implemented the LAND branch; slice 2
+// (#577) adds the spell branch ("if the chosen card is cast as a spell …").
 //
-// Modelled by scoped choice-routing (ADR 0037), not a general control-a-player
-// subsystem. The controlled opponent stays the Controller of the card it
-// plays/casts (and supplies its resources); Word of Command's controller is the
-// Acting Player who answers every prompt. CR 601 (casting), CR 305.2
-// (one-land-per-turn), CR 608.2 / 117.3 ("if able").
-//
-// resolveSteps:
-//   0. The controller looks at the target opponent's hand (grants Card
-//      Knowledge `knownTo` the controller) and picks one card.
-//   1. Route the pick by card type:
-//      - Land  → played under the opponent's control via the shared land-play
-//        logic; counts toward the opponent's land-drop (CR 305.2). Limit already
-//        hit → not played.
-//      - Non-targeted spell → cast as the opponent's spell, mana auto-tapped
-//        only from the opponent's lands; unpayable → not played (this slice,
-//        #577). Targeted / X / modal casts arrive in later slices (#578-#580).
+// Resolution (single suspending step):
+//   1. The Acting Player (WoC's controller) looks at the target opponent's hand
+//      — grant Card Knowledge (`knownTo` the controller) over every hand card.
+//   2. The Acting Player picks one card via a resolve-time Pending Choice
+//      (`choose-hand-card`, `zoneOwnerId` = opponent, `actingPlayerId` =
+//      controller). Suspends until submitted.
+//   3. If the chosen card is a LAND: the opponent PLAYS it under their control
+//      "if able" — `playLandForPlayer` consumes the opponent's one-land-per-turn
+//      drop (CR 305.2). Land drop already spent → not played.
+//   4. Otherwise (a non-land card): the opponent CASTS it as their spell via
+//      `castChosenSpell` (castById = opponent, actingPlayerId = controller, CR
+//      601), mana auto-tapped only from the opponent's lands; unpayable → not
+//      played (#577). This slice supports a NON-targeted spell; targeted / X /
+//      modal casts route the extra choices to the controller in later slices
+//      (#578-#580).
 export const wordOfCommand: CardDefinition = {
     id: "96c21429-98d3-416b-be00-6aa9c4c5a006",
     rarity: "rare",
@@ -4018,62 +4020,68 @@ export const wordOfCommand: CardDefinition = {
         "Look at target opponent's hand and choose a card from it. You control that player until Word of Command finishes resolving. The player plays that card if able. While doing so, the player can activate mana abilities only if they're from lands that player controls and only if mana they produce is spent to activate other mana abilities of lands the player controls and/or to play that card. If the chosen card is cast as a spell, you control the player while that spell is resolving.",
     manaCost: { B: 2 },
     types: ["Instant"],
+    // CR 115 — "target opponent". A player target restricted to an opponent of
+    // the caster (the relationship filter is honored for player targets here).
     targetRequirement: { type: "player", count: 1, controller: "opponent" },
-    resolveSteps: [
-        (ctx: SpellContext) => {
-            // Step 0 — the controller (acting player) looks at the target
-            // opponent's hand and chooses a card from it (CR 601 / "look at").
-            const opponent = ctx.targets[0];
-            if (!opponent || opponent.type !== "player") return;
-            const handIds = ctx.getHandIds(opponent.id);
-            if (handIds.length === 0) return; // empty hand — nothing to play
-            // Card Knowledge (ADR 0026): the controller now knows the opponent's
-            // hand they looked at.
-            ctx.markKnown(opponent.id, handIds, ctx.controller);
-            const picks = ctx.requestChoice({
-                playerId: ctx.controller,
-                choiceId: `word-of-command-pick-${ctx.sourceInstanceId}`,
-                kind: "choose-hand-card",
-                zone: "hand",
-                zoneOwnerId: opponent.id,
-                count: 1,
-                prompt: "Word of Command: choose a card from the opponent's hand for them to play.",
-            });
-            if (picks === undefined) return; // suspended — wait for the pick
-        },
-        (ctx: SpellContext) => {
-            // Step 1 — play the chosen card under the opponent's control.
-            const opponent = ctx.targets[0];
-            if (!opponent || opponent.type !== "player") return;
-            const picked = ctx.recallChoice(
-                `word-of-command-pick-${ctx.sourceInstanceId}`
-            );
-            const cardInstanceId = picked?.[0];
-            if (!cardInstanceId) return;
-            // The card must still be in the opponent's hand (CR 608.2b).
-            const handCard = ctx
-                .getHandCards(opponent.id)
-                .find((c) => c.id === cardInstanceId);
-            if (!handCard) return;
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (!target || target.type !== "player") return;
+        const opponentId = target.id;
+        const controllerId = ctx.controller; // the Acting Player (ADR 0037)
 
-            if (handCard.types.includes("Land")) {
-                // CR 305.2 — play the land under the opponent's control; the
-                // engine enforces the opponent's one-land-per-turn. Limit
-                // already hit → not played ("if able").
-                ctx.playLandFor(opponent.id, cardInstanceId);
-                return;
-            }
+        // "Look at target opponent's hand" — grant Card Knowledge of every card
+        // in the opponent's hand to the Acting Player (ADR 0026 knownTo).
+        const handIds = ctx.getHandIds(opponentId);
+        ctx.markKnown(opponentId, handIds, controllerId);
 
-            // Non-land card → cast as the opponent's spell, decided by the
-            // controller (acting player). CR 601: it is the opponent's spell.
-            // Mana auto-tapped from the opponent's lands; unpayable → not
-            // played. This slice (#577) handles a NON-targeted spell;
-            // targeted / X / modal casts route the extra choices to the
-            // controller in later slices (#578-#580). `castChosenSpell` already
-            // bails (returns false) when the spell can't be paid for.
-            ctx.castChosenSpell(opponent.id, cardInstanceId, ctx.controller);
-        },
-    ],
+        // Nothing to choose if the opponent's hand is empty — WoC simply
+        // resolves with no effect (CR 608.2b — instructions become impossible).
+        if (handIds.length === 0) return;
+
+        // The Acting Player chooses one card from the opponent's hand. The
+        // chooser (`playerId`) is the controller; the zone belongs to the
+        // opponent (`zoneOwnerId`); `actingPlayerId` records the controlled-cast
+        // routing (ADR 0037). Suspends until submitted.
+        const picked = ctx.requestChoice({
+            playerId: controllerId,
+            choiceId: controllerId,
+            actingPlayerId: controllerId,
+            kind: "choose-hand-card",
+            zone: "hand",
+            zoneOwnerId: opponentId,
+            count: 1,
+            prompt: "Choose a card from the opponent's hand for them to play.",
+        });
+        if (picked === undefined) return; // suspend — resumes on submit
+        const chosenId = picked[0];
+        if (!chosenId) return;
+
+        // "The player plays that card if able." Determine the chosen card's
+        // characteristics from the opponent's hand (CR 108.1).
+        const handCard = ctx
+            .getHandCards(opponentId)
+            .find((c) => c.id === chosenId);
+        if (!handCard) return; // no longer in hand (CR 608.2b)
+
+        if (handCard.types.includes("Land")) {
+            // LAND branch — play it under the opponent's control, counting
+            // toward their one-land-per-turn drop (CR 305.2). Already spent →
+            // not played ("if able").
+            ctx.playLandForPlayer(opponentId, chosenId);
+            return;
+        }
+
+        // SPELL branch (#577) — cast the chosen non-land card as the opponent's
+        // spell (CR 601): `castById` = opponent, `actingPlayerId` = controller,
+        // so the resulting stack item is the opponent's spell while the Acting
+        // Player keeps deciding. Mana is auto-tapped ONLY from the opponent's
+        // lands; unpayable from those lands → not played ("if able").
+        // `castChosenSpell` handles all of this and is a no-op (returns false)
+        // when the spell can't be paid for. This slice supports a NON-targeted
+        // spell; targeted / X / modal casts route their extra choices to the
+        // controller in later slices (#578-#580).
+        ctx.castChosenSpell(opponentId, chosenId, controllerId);
+    },
 };
 
 // Zombie Master — "Other Zombie creatures you control have swampwalk. Other

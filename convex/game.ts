@@ -62,7 +62,12 @@ import {
 } from "./gre/autoTapDemands";
 import { isGuardedAgainst } from "./gre/permanentGuard";
 import { assertDeckLegal } from "./formats";
-import type { Color, ManaCost, SpellMode } from "./cards/types";
+import type {
+    Color,
+    ManaCost,
+    PermanentFilter,
+    SpellMode,
+} from "./cards/types";
 import {
     assertLegalAction,
     getLegalTargets,
@@ -571,6 +576,31 @@ function findSacrificeCandidate(
     return player.battlefield.find((c) => c.id === cardInstanceId);
 }
 
+/** Untapped permanents on `player`'s battlefield that match `filter` and are
+ *  eligible to pay a `tapOtherFilter` cost (CR 602.1 / 118.8). The source
+ *  permanent (`sourceId`) is excluded — the cost taps OTHER permanents — as is
+ *  anything already tapped. Effective colours are derived per-candidate via the
+ *  layer system so a `colors` filter ("white creatures") reads the same colour
+ *  the rest of the engine sees. The activating player is the controller-relation
+ *  reference, so `controllerRelation: "you"` resolves to `player`. */
+function tapOtherCandidates(
+    player: PlayerState,
+    sourceId: string,
+    filter: PermanentFilter
+): CardInstanceState[] {
+    return player.battlefield.filter((c) => {
+        if (c.id === sourceId) return false;
+        if (c.isTapped) return false;
+        const view = {
+            ...c,
+            colors: STATIC_EFFECT_CTX.getColors(c),
+        };
+        return matchesPermanentFilter(view, filter, {
+            selfControllerId: player.id,
+        });
+    });
+}
+
 /** Pre-sacrifice mana value of a permanent (CR 202.3). Read at commit so a
  *  mana-value-derived effect (Priest of Yawgmoth) sees the sacrificed
  *  permanent's printed cost. X in a printed cost counts as 0. */
@@ -615,6 +645,14 @@ export function tryAutoCommitPendingActivation(
     // matching <filter>" cost has been picked (selectActivationCost). Mirrors
     // pendingCast.additionalCost gating.
     if (pa.sacrificeChoice && !pa.sacrificeChoice.pickedId) {
+        return null;
+    }
+    // CR 602.1 / 118.8 — commit is blocked until all N "tap an untapped
+    // permanent matching <filter> you control" picks are in (Hand of Justice).
+    if (
+        pa.tapOtherChoice &&
+        pa.tapOtherChoice.pickedIds.length < pa.tapOtherChoice.count
+    ) {
         return null;
     }
 
@@ -702,6 +740,25 @@ export function tryAutoCommitPendingActivation(
             mv: sacrificedManaValue(sacrificed),
         };
         removePermanentTo(state, sacrificed.id, "graveyard", "sacrifice");
+    }
+    // CR 602.1 / 118.8 — tap the chosen "other" permanents (Hand of Justice).
+    // Re-validate each at commit: a pick may have left play or been tapped
+    // while mana was being paid. If any pick is no longer a legal payment,
+    // drop the activation silently (lands stay tapped, mirroring the
+    // vanished-source policy above).
+    if (pa.tapOtherChoice) {
+        const picks: CardInstanceState[] = [];
+        for (const id of pa.tapOtherChoice.pickedIds) {
+            const perm = player.battlefield.find((c) => c.id === id);
+            if (!perm || perm.isTapped || perm.id === card.id) {
+                state.pendingActivation = undefined;
+                return null;
+            }
+            picks.push(perm);
+        }
+        for (const perm of picks) {
+            tapPermanent(state, perm);
+        }
     }
 
     const stackItem: StackItem = {
@@ -1874,6 +1931,21 @@ export function finalizeTargetSelection(
                 throw new Error("No legal permanent to pay the sacrifice cost");
             }
         }
+        // CR 602.1 / 118.8 — "tap N untapped permanents matching <filter> you
+        // control": illegal unless at least N matching untapped permanents
+        // (other than the source) are on the activating player's battlefield.
+        if (ability.cost.tapOtherFilter) {
+            const candidates = tapOtherCandidates(
+                player,
+                card.id,
+                ability.cost.tapOtherFilter.filter
+            );
+            if (candidates.length < ability.cost.tapOtherFilter.count) {
+                throw new Error(
+                    "Not enough untapped permanents to pay the tap cost"
+                );
+            }
+        }
         // CR 118.3 — "discard a card at random" cost (Coral Helm): illegal with
         // an empty hand. Validated up-front so we never enter a pendingActivation
         // that can't be paid.
@@ -1937,7 +2009,11 @@ export function finalizeTargetSelection(
                 manaCost,
                 getManaSubstitutions(state, player.id)
             );
-        if (manaUncovered || ability.cost.sacrificeFilter) {
+        if (
+            manaUncovered ||
+            ability.cost.sacrificeFilter ||
+            ability.cost.tapOtherFilter
+        ) {
             state.pendingActivation = {
                 playerId,
                 cardInstanceId: card.id,
@@ -1956,6 +2032,15 @@ export function finalizeTargetSelection(
                           },
                       }
                     : {}),
+                ...(ability.cost.tapOtherFilter
+                    ? {
+                          tapOtherChoice: {
+                              filter: ability.cost.tapOtherFilter.filter,
+                              count: ability.cost.tapOtherFilter.count,
+                              pickedIds: [],
+                          },
+                      }
+                    : {}),
                 ...(ability.cost.discardAtRandom
                     ? { discardAtRandomCount: ability.cost.discardAtRandom }
                     : {}),
@@ -1966,8 +2051,8 @@ export function finalizeTargetSelection(
                 targets,
                 ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
             };
-            // If mana was already covered (sacrifice-choice-only deferral),
-            // commit fires once selectActivationCost sets the pickedId.
+            // If mana was already covered (choice-only deferral), commit fires
+            // once selectActivationCost sets the pickedId / completes the picks.
             tryAutoCommitPendingActivation(state, playerId);
             return;
         }
@@ -2916,10 +3001,13 @@ export const cancelActivation = mutation({
     },
 });
 
-/** Pick the permanent to sacrifice for an activated ability's
- *  "sacrifice a permanent matching <filter>" cost (CR 602.1 / 118.5).
- *  Mirrors selectAdditionalCost for the spell path. Commit fires via
- *  tryAutoCommitPendingActivation once both the pick and the mana are in. */
+/** Pick a permanent for an activated ability's filtered cost picker — either a
+ *  "sacrifice a permanent matching <filter>" cost (CR 602.1 / 118.5) or a
+ *  "tap N untapped permanents matching <filter> you control" cost (CR 602.1 /
+ *  118.8 — Hand of Justice). For the tap-others picker the mutation is called
+ *  once per chosen permanent; commit fires once `count` ids are picked. Mirrors
+ *  selectAdditionalCost for the spell path. Commit fires via
+ *  tryAutoCommitPendingActivation once the choice and the mana are both in. */
 export const selectActivationCost = mutation({
     args: {
         gameId: v.id("games"),
@@ -2938,19 +3026,62 @@ export const selectActivationCost = mutation({
         if (pa.playerId !== args.playerId) {
             throw new Error("Not your pending activation");
         }
-        const sc = pa.sacrificeChoice;
-        if (!sc) {
-            throw new Error("This ability has no sacrifice cost picker");
-        }
-        if (sc.pickedId) {
-            throw new Error("Sacrifice cost already paid");
-        }
         const player = getPlayer(state, args.playerId);
         const candidate = player.battlefield.find(
             (c) => c.id === args.cardInstanceId
         );
         if (!candidate) {
             throw new Error("Selected permanent not on your battlefield");
+        }
+
+        // CR 602.1 / 118.8 — tap-other-creatures picker (Hand of Justice). One
+        // call per chosen permanent; each must match the filter, be untapped,
+        // not be the source, and not already be picked.
+        const toc = pa.tapOtherChoice;
+        if (toc) {
+            if (toc.pickedIds.length >= toc.count) {
+                throw new Error("Tap cost already paid");
+            }
+            if (candidate.id === pa.cardInstanceId) {
+                throw new Error("Cannot tap the ability's own source");
+            }
+            if (candidate.isTapped) {
+                throw new Error("Selected permanent is already tapped");
+            }
+            if (toc.pickedIds.includes(candidate.id)) {
+                throw new Error("Permanent already selected to tap");
+            }
+            const view = {
+                ...candidate,
+                colors: STATIC_EFFECT_CTX.getColors(candidate),
+            };
+            if (
+                !matchesPermanentFilter(view, toc.filter, {
+                    selfControllerId: player.id,
+                })
+            ) {
+                throw new Error(
+                    "Selected permanent does not match the tap cost filter"
+                );
+            }
+            toc.pickedIds.push(candidate.id);
+            tryAutoCommitPendingActivation(state, args.playerId);
+            await saveGameState(
+                ctx,
+                args.gameId,
+                gameState.seq + 1,
+                state,
+                gameState
+            );
+            return;
+        }
+
+        const sc = pa.sacrificeChoice;
+        if (!sc) {
+            throw new Error("This ability has no sacrifice cost picker");
+        }
+        if (sc.pickedId) {
+            throw new Error("Sacrifice cost already paid");
         }
         if (!matchesPermanentFilter(candidate, sc.filter)) {
             throw new Error(
@@ -3241,6 +3372,22 @@ export const selectTarget = mutation({
             }
             const found = state.players.find((p) => p.id === args.targetId);
             if (!found) throw new Error("Invalid player target");
+            // CR 115 — "target opponent" / "target player you control": enforce
+            // the controller-relationship filter for player targets (Word of
+            // Command targets an opponent). Mirrors the graveyard-card branch.
+            const playerControllerFilter = pt.controller ?? "any";
+            if (
+                playerControllerFilter === "you" &&
+                found.id !== args.playerId
+            ) {
+                throw new Error("Must target yourself");
+            }
+            if (
+                playerControllerFilter === "opponent" &&
+                found.id === args.playerId
+            ) {
+                throw new Error("Must target an opponent");
+            }
             // CR 506.2 — "target player who attacked this turn" (Fire and
             // Brimstone): the chosen player must control a creature flagged as
             // having attacked this turn.
@@ -4916,6 +5063,21 @@ export const activateAbility = mutation({
                 throw new Error("No legal permanent to pay the sacrifice cost");
             }
         }
+        // CR 602.1 / 118.8 — "tap N untapped permanents matching <filter> you
+        // control": illegal unless at least N matching untapped permanents
+        // (other than the source) are available.
+        if (ability.cost.tapOtherFilter) {
+            const candidates = tapOtherCandidates(
+                player,
+                card.id,
+                ability.cost.tapOtherFilter.filter
+            );
+            if (candidates.length < ability.cost.tapOtherFilter.count) {
+                throw new Error(
+                    "Not enough untapped permanents to pay the tap cost"
+                );
+            }
+        }
         // CR 602.5 — activated abilities may declare a custom precondition
         // (e.g. Clockwork Beast: "Activate only if it has fewer than seven
         // +1/+0 counters on it.") read against current source state.
@@ -4961,7 +5123,8 @@ export const activateAbility = mutation({
                 getManaSubstitutions(state, player.id)
             );
         const needsSacrificeChoice = !!ability.cost.sacrificeFilter;
-        if (manaUncovered || needsSacrificeChoice) {
+        const needsTapOtherChoice = !!ability.cost.tapOtherFilter;
+        if (manaUncovered || needsSacrificeChoice || needsTapOtherChoice) {
             const pending: PendingActivation = {
                 playerId: args.playerId,
                 cardInstanceId: card.id,
@@ -4983,6 +5146,15 @@ export const activateAbility = mutation({
                     ? {
                           sacrificeChoice: {
                               filter: ability.cost.sacrificeFilter,
+                          },
+                      }
+                    : {}),
+                ...(ability.cost.tapOtherFilter
+                    ? {
+                          tapOtherChoice: {
+                              filter: ability.cost.tapOtherFilter.filter,
+                              count: ability.cost.tapOtherFilter.count,
+                              pickedIds: [],
                           },
                       }
                     : {}),
@@ -5118,6 +5290,17 @@ export const tapUntap = mutation({
         }
 
         const ability = getActivatedManaAbility(card);
+        // CR 605.1a / 606 — a NON-tap mana ability whose cost is mana
+        // (Farrelite Priest "{1}: Add {W}") has no tap toggle to flip: it can be
+        // activated repeatedly and may carry a side effect (a conditional
+        // delayed sacrifice). `tapUntap` only models tap-based sources, so route
+        // these through `activateManaAbility`, which pays the mana cost, runs
+        // the ability's `resolve`, and records the per-turn activation count.
+        if (ability && !ability.cost.tap && ability.cost.mana) {
+            throw new Error(
+                "Use activateManaAbility for non-tap mana abilities"
+            );
+        }
         const isSacrifice = ability?.cost.sacrifice === true;
         const wasTapped = card.isTapped;
 
@@ -5389,6 +5572,132 @@ export const tapUntap = mutation({
         if (producedThisActivation) {
             processPendingActionTriggers(state);
         }
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** Activate a NON-tap mana ability whose cost is mana (CR 605.1a / 605.3c —
+ *  Farrelite Priest "{1}: Add {W}"). Unlike `tapUntap`, the source is not a tap
+ *  toggle: the ability has no {T} component, may be activated repeatedly, and
+ *  may carry a side effect (a conditional delayed sacrifice). It resolves
+ *  immediately without using the stack (CR 605.3c): we synthesize a transient
+ *  stack item, run the ability's `resolve` via the engine's normal resolution
+ *  path so it gets a full `SpellContext` (`addMana`, `getActivationCount`,
+ *  `scheduleDelayedTrigger`), then pop it — it never persists on the stack and
+ *  never passes priority or runs an SBA pass. `recordActivation` increments the
+ *  per-turn activation count BEFORE the resolve runs, so `getActivationCount`
+ *  inside `resolve` includes the current activation (CR 602.5). Legal while the
+ *  player has priority OR while paying a mana cost (CR 605.3b). */
+export const activateManaAbility = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+        abilityId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+
+        // CR 117.3a / 605.3b — answering a may-pay choice opens a mana-payment
+        // window; otherwise other pending choices freeze priority.
+        const mayPayHead = state.pendingChoices?.[0];
+        const isMayPayPaymentWindow =
+            mayPayHead?.kind === "may-pay" &&
+            mayPayHead.playerId === args.playerId;
+        assertNoPendingChoices(state, {
+            allowManaForMayPay: { playerId: args.playerId },
+        });
+
+        const player = getPlayer(state, args.playerId);
+
+        // CR 605.3b — a mana ability is legal while the player has priority or
+        // while paying a mana cost (cast/activation/may-pay window).
+        const isInPayment =
+            state.pendingCast?.playerId === args.playerId ||
+            state.pendingActivation?.playerId === args.playerId;
+        const hasPriority = state.priorityPlayerId === args.playerId;
+        if (!hasPriority && !isInPayment && !isMayPayPaymentWindow) {
+            throw new Error("Cannot activate mana ability without priority");
+        }
+
+        const card = player.battlefield.find(
+            (c) => c.id === args.cardInstanceId
+        );
+        if (!card) throw new Error("Card not on battlefield");
+        if (card.controllerId !== args.playerId) {
+            throw new Error("You do not control this permanent");
+        }
+
+        const resolved = resolveActivatedAbility(card, args.abilityId);
+        if (!resolved) throw new Error("Ability not found");
+        const ability = resolved.ability;
+        if (ability.useStack) {
+            throw new Error("Use activateAbility for stack abilities");
+        }
+        // This path is for non-tap, mana-cost mana abilities only. Tap mana
+        // abilities (lands, mana rocks) go through `tapUntap`.
+        if (ability.cost.tap || !ability.cost.mana) {
+            throw new Error("Use tapUntap for tap mana abilities");
+        }
+        // CR 602.5 — phase-restricted templates are illegal outside their phase.
+        if (
+            ability.activationPhaseRestriction &&
+            !ability.activationPhaseRestriction.includes(state.phase)
+        ) {
+            throw new Error("Ability cannot be activated during this phase");
+        }
+
+        const manaCost = normalizeManaCost(ability.cost.mana);
+        if (
+            !isManaCostCovered(
+                player.manaPool,
+                manaCost,
+                getManaSubstitutions(state, player.id)
+            )
+        ) {
+            throw new Error("Not enough mana");
+        }
+        payManaCost(
+            player.manaPool,
+            manaCost,
+            getManaSubstitutions(state, player.id)
+        );
+        commitLandsForCost(player, manaCost);
+
+        // CR 605.3c — resolve immediately without the stack. Synthesize a
+        // transient stack item so `resolveTopOfStack` builds a full
+        // SpellContext for the source, run the resolve, then pop. The item is
+        // pushed and immediately resolved within this single mutation, so it is
+        // never observable on the stack and never grants priority.
+        const stackItem: StackItem = {
+            ...structuredClone(card),
+            zone: "stack" as const,
+            castById: args.playerId,
+            abilityId: args.abilityId,
+            ...(resolved.grantedSourceCardId
+                ? { grantedSourceCardId: resolved.grantedSourceCardId }
+                : {}),
+        };
+        state.stack.push(stackItem);
+        // Increment BEFORE resolving so getActivationCount inside resolve()
+        // counts this activation (CR 602.5). A mana cost (no {T}) emits
+        // ABILITY_ACTIVATED.
+        recordActivation(state, card, args.abilityId, false);
+        resolveTopOfStack(state);
+        // Flush any ABILITY_ACTIVATED / mana-add triggers queued during the
+        // immediate resolve (CR 603.2/603.3).
+        processPendingActionTriggers(state);
 
         await saveGameState(
             ctx,

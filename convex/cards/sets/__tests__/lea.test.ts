@@ -170,7 +170,6 @@ import {
     moxPearl,
     moxRuby,
     moxSapphire,
-    wordOfCommand,
     stealArtifact,
     mountain,
     volcanicEruption,
@@ -264,6 +263,7 @@ import {
     copyArtifact,
     vesuvanDoppelganger,
     gaeasLiege,
+    wordOfCommand,
 } from "../lea";
 import {
     commitLandsForCost,
@@ -293,6 +293,7 @@ import {
     discardCardsAtRandom,
     drawCard,
     removeFromZone,
+    getActingPlayer,
     type CardInstanceState,
     type GameState,
     type StackItem,
@@ -21364,6 +21365,198 @@ describe("mana costs match modern Scryfall oracle (Alpha errata)", () => {
         // Guard: the EC Alpha 40 'play as printed 1R' note is NOT honored — the
         // oracle cost is {1}{R}{R}, which is what we ship.
         expect(orcishArtillery.manaCost).toEqual({ X: 1, R: 2 });
+    });
+});
+
+// Word of Command — Acting Player foundation + land branch (#576, ADR 0037)
+// ---------------------------------------------------------------------------
+
+describe("Word of Command (controlled cast — land branch, CR 305.2 / 608.2, ADR 0037)", () => {
+    // p1 (the Acting Player / WoC controller) casts Word of Command targeting
+    // the opponent p2. p2's hand holds a Forest (land) + a Grizzly Bears
+    // (non-land). Resolution: p1 looks at p2's hand and picks a card; a land is
+    // played under p2's control, counting against p2's one-land-per-turn drop.
+    function seed(opts: { p2LandsPlayedThisTurn?: number } = {}) {
+        const oppForest = makeInstance(forest.id, {
+            id: "p2-forest",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppBear = makeInstance(grizzlyBears.id, {
+            id: "p2-bear",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1");
+        const p2 = makePlayer("p2", {
+            hand: [oppForest, oppBear],
+            landsPlayedThisTurn: opts.p2LandsPlayedThisTurn,
+        });
+        const state = makeState({ players: [p1, p2] });
+        pushSpell(state, wordOfCommand.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        return state;
+    }
+
+    /** Submit the head pending choice through the backend integration path.
+     *  Mirrors the `submitResolutionChoice` mutation handler in `game.ts`
+     *  exactly: `applyPendingChoiceSubmit` (which re-runs resolution) followed
+     *  by `checkStateBasedActions` — exercising the GRE → game.ts boundary, not
+     *  just the engine in isolation. */
+    function submitChoice(state: GameState, picks: string[]): void {
+        const head = (state.pendingChoices ?? [])[0];
+        expect(head).toBeDefined();
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: picks,
+        });
+        checkStateBasedActions(state);
+    }
+
+    it("targetRequirement is 'target opponent' (CR 115)", () => {
+        expect(wordOfCommand.targetRequirement).toEqual({
+            type: "player",
+            count: 1,
+            controller: "opponent",
+        });
+    });
+
+    it("only the opponent is a legal target (the caster cannot be chosen)", () => {
+        const state = seed();
+        const legal = getLegalTargets(
+            state,
+            wordOfCommand.targetRequirement!,
+            [],
+            "p1"
+        );
+        const playerIds = legal
+            .filter((t) => t.type === "player")
+            .map((t) => t.id);
+        expect(playerIds).toEqual(["p2"]);
+    });
+
+    it("suspends on a hand-pick choice routed to the controller over the opponent's hand", () => {
+        const state = seed();
+        const result = resolveTopOfStack(state);
+        expect(result).toBeNull(); // suspended
+        expect(state.pendingChoices?.length).toBe(1);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-hand-card");
+        expect(head.zone).toBe("hand");
+        expect(head.playerId).toBe("p1"); // the Acting Player chooses
+        expect(head.zoneOwnerId).toBe("p2"); // from the opponent's hand
+        // ADR 0037: actingPlayerId is recorded only when it DIFFERS from the
+        // prompted player. In slice 1 the WoC controller IS the chooser, so it
+        // is omitted (defaults to playerId) — the foundation is in place for
+        // the spell branch (#577) where the controlled opponent diverges.
+        expect(head.actingPlayerId).toBeUndefined();
+        expect(head.actingPlayerId ?? head.playerId).toBe("p1");
+    });
+
+    it("grants the controller Card Knowledge of the opponent's hand (knownTo)", () => {
+        const state = seed();
+        resolveTopOfStack(state);
+        const p2 = state.players[1];
+        for (const card of p2.hand) {
+            expect(card.knownTo).toContain("p1");
+        }
+    });
+
+    it("picking a land plays it under the opponent's control, consuming their land drop (CR 305.2)", () => {
+        const state = seed();
+        resolveTopOfStack(state);
+        submitChoice(state, ["p2-forest"]);
+
+        const p2 = state.players[1];
+        // Forest left p2's hand and is on p2's battlefield, controlled by p2.
+        expect(p2.hand.map((c) => c.id)).not.toContain("p2-forest");
+        const onBf = p2.battlefield.find((c) => c.id === "p2-forest");
+        expect(onBf).toBeDefined();
+        expect(onBf!.controllerId).toBe("p2");
+        // CR 305.2 — the opponent's one-land-per-turn drop is consumed.
+        expect(p2.landsPlayedThisTurn).toBe(1);
+        // WoC itself resolved into its controller's (p1's) graveyard.
+        const wocInGy = state.players[0].graveyard.some(
+            (c) => c.card.id === wordOfCommand.id
+        );
+        expect(wocInGy).toBe(true);
+        expect(state.stack.length).toBe(0);
+    });
+
+    it("if the opponent already played a land this turn, the chosen land is not played (CR 305.2 'if able')", () => {
+        const state = seed({ p2LandsPlayedThisTurn: 1 });
+        resolveTopOfStack(state);
+        submitChoice(state, ["p2-forest"]);
+
+        const p2 = state.players[1];
+        // The Forest stays in hand — playing it is not "able".
+        expect(p2.hand.map((c) => c.id)).toContain("p2-forest");
+        expect(
+            p2.battlefield.find((c) => c.id === "p2-forest")
+        ).toBeUndefined();
+        expect(p2.landsPlayedThisTurn).toBe(1); // unchanged
+        expect(state.stack.length).toBe(0); // WoC still resolves
+    });
+
+    it("picking a non-land is a no-op this slice (TODO #577 spell branch)", () => {
+        const state = seed();
+        resolveTopOfStack(state);
+        submitChoice(state, ["p2-bear"]);
+
+        const p2 = state.players[1];
+        // The Bear stays in hand — the spell branch is not implemented yet.
+        expect(p2.hand.map((c) => c.id)).toContain("p2-bear");
+        expect(p2.battlefield.length).toBe(0);
+        expect(state.stack.length).toBe(0); // WoC resolves
+    });
+
+    it("getActingPlayer defaults to the controller for an ordinary cast", () => {
+        const state = seed();
+        const item = state.stack[0];
+        expect(item.actingPlayerId).toBeUndefined();
+        expect(getActingPlayer(item)).toBe("p1");
+    });
+
+    // --- Wire format (projectPublicState): knownTo + played land survive ---
+    it("wire format: the controller's view of the opponent's hand survives projection", () => {
+        const state = seed();
+        resolveTopOfStack(state);
+        // Viewer = p1 (the controller / Acting Player). The opponent (p2) hand
+        // is sparse by default, but knownTo grants p1 identity on every card.
+        const projected = projectPublicState(state, 1, "p1");
+        const p2Hand = projected.players[1].hand;
+        const visibleIds = p2Hand
+            .filter((c): c is NonNullable<typeof c> => c !== null)
+            .map((c) => c.id);
+        expect(visibleIds).toContain("p2-forest");
+        expect(visibleIds).toContain("p2-bear");
+    });
+
+    it("wire format: the played land is public on the opponent's battlefield", () => {
+        const state = seed();
+        resolveTopOfStack(state);
+        submitChoice(state, ["p2-forest"]);
+        // Viewer = p1: the opponent's battlefield is always public.
+        const projected = projectPublicState(state, 1, "p1");
+        const bfIds = projected.players[1].battlefield.map((c) => c.id);
+        expect(bfIds).toContain("p2-forest");
+    });
+
+    // --- Serialization round-trip: StackItem.actingPlayerId persists ---
+    it("serialization: StackItem.actingPlayerId survives a DB round-trip (ADR 0037)", () => {
+        const state = seed();
+        // Force a controlled-cast override onto the stack item (the value a
+        // future spell-branch controlled cast would carry).
+        state.stack[0].actingPlayerId = "p1";
+        const restored = expandState(compactState(state));
+        expect(restored.stack[0].actingPlayerId).toBe("p1");
+        expect(getActingPlayer(restored.stack[0])).toBe("p1");
     });
 });
 

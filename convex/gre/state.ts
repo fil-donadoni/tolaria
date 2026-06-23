@@ -780,16 +780,6 @@ export type PlayerState = {
 
 export type StackItem = CardInstanceState & {
     castById: string;
-    /** Acting Player (ADR 0037, CR 601) — the player who answers every choice
-     *  routed during this item's resolution, when that is NOT the item's
-     *  controller (`castById`). Set only for a controlled cast (Word of
-     *  Command): the chosen spell's `castById` is the controlled opponent (whose
-     *  spell/resources/zone it is) while `actingPlayerId` is the controller who
-     *  makes its decisions. Undefined for every normal cast — sites that route a
-     *  prompt read `actingPlayerId ?? castById`, so absence means "the
-     *  controller decides", preserving existing behavior. Cleared when the item
-     *  leaves the stack. */
-    actingPlayerId?: string;
     /** Targets chosen during spell announcement (CR 601.2c). */
     targets?: TargetSelection[];
     /** Value chosen for X at cast-time for spells with X in their cost
@@ -851,7 +841,27 @@ export type StackItem = CardInstanceState & {
      *  exile zone instead of the graveyard. Set via
      *  `SpellContext.exileSelf()`. */
     exileOnResolve?: boolean;
+    /** Acting Player (ADR 0037): the player who answers this item's resolution
+     *  choices, split off from the controller (`castById`) for a controlled
+     *  cast (Word of Command — the controller of WoC decides for the opponent
+     *  whose card was put on the stack). Defaults to `castById` when absent —
+     *  read via `getActingPlayer`. Equal to `castById` for all normal play, so
+     *  every existing cast is unaffected. Cleared when the item leaves the
+     *  stack ("you control the player while that spell is resolving"). */
+    actingPlayerId?: string;
 };
+
+/** Acting Player (ADR 0037 / CR 608): the player who answers a stack item's
+ *  resolution choices. Splits the controller role (`castById` — whose
+ *  object/resources it is) from the "who is prompted" role for controlled
+ *  casts (Word of Command). Defaults to `castById` so every normal cast routes
+ *  prompts to its controller exactly as before. */
+export function getActingPlayer(item: {
+    castById: string;
+    actingPlayerId?: string;
+}): string {
+    return item.actingPlayerId ?? item.castById;
+}
 
 /** A delayed triggered ability waiting to fire (CR 603.7a). Queued on
  *  `GameState.delayedTriggers` at spell resolution time and scanned whenever
@@ -896,6 +906,12 @@ export type PendingCast = {
     /** Mode id chosen at announcement for modal spells (CR 700.2 / 700.2c).
      *  Undefined for non-modal spells. Propagated to the stack item. */
     chosenModeId?: string;
+    /** Acting Player (ADR 0037): the player who answers every resolution choice
+     *  for this cast, split off from the controller (`playerId`) for a
+     *  controlled cast (Word of Command). Defaults to `playerId` when absent —
+     *  read via `getActingPlayer`. Propagated onto the resulting StackItem so
+     *  the spell's resolution choices also route to the acting player. */
+    actingPlayerId?: string;
     /** In-progress additional cost picker (CR 117.9 / 601.2f). Set when the
      *  card has `additionalCosts.sacrificeFilter`. `pickedId` is undefined
      *  until the player calls `selectAdditionalCost`; commit is blocked
@@ -938,6 +954,18 @@ export type PendingActivation = {
     sacrificeChoice?: {
         filter: PermanentFilter;
         pickedId?: string;
+    };
+    /** In-progress "tap N untapped permanents matching <filter> you control"
+     *  cost picker (CR 602.1, 118.8 — Hand of Justice "Tap three untapped white
+     *  creatures you control"). Set when the ability has `cost.tapOtherFilter`.
+     *  `pickedIds` accumulates the player's choices via `selectActivationCost`;
+     *  commit is blocked until `pickedIds.length === count` regardless of mana
+     *  coverage. On commit each picked permanent is tapped (distinct from the
+     *  source's own {T}). The source is never a legal pick. */
+    tapOtherChoice?: {
+        filter: PermanentFilter;
+        count: number;
+        pickedIds: string[];
     };
     /** Counter-removal cost (CR 122.6 — "Remove a [type] counter from this
      *  creature"). Applied at commit. */
@@ -1036,13 +1064,6 @@ export type PendingChoice = {
     choiceId: string;
     /** Player who must make the choice. */
     playerId: string;
-    /** Acting Player (ADR 0037) — carried for parity with `StackItem` when a
-     *  controlled cast (Word of Command) routes a choice to a player other than
-     *  the resolving item's controller. For a controlled cast `playerId` is
-     *  already the acting player (the chooser), so this is informational
-     *  plumbing; it defaults to `playerId` when absent. Reserved for resolution
-     *  choices on the chosen spell in later slices. */
-    actingPlayerId?: string;
     /** Semantic kind — see {@link PendingChoiceKind} taxonomy. */
     kind: PendingChoiceKind;
     /** Owner of the zone being picked from. Defaults to `playerId` (the
@@ -1052,6 +1073,13 @@ export type PendingChoice = {
      *  battlefield to sacrifice. The UI uses `zoneOwnerId ?? playerId` to
      *  decide which battlefield receives click routing for the choice. */
     zoneOwnerId?: string;
+    /** Acting Player (ADR 0037): set when the player prompted (`playerId`) is
+     *  acting on behalf of / in control of another player's decision (Word of
+     *  Command — the acting player picks a card from the controlled opponent's
+     *  hand). Equals `playerId` for all normal choices and is omitted then;
+     *  carried for parity with the cast state and so a controlled cast's
+     *  resolution choices can be audited. Defaults to `playerId` when absent. */
+    actingPlayerId?: string;
     /** Zone of the choosable items — restricts the set offered to the chooser.
      *  Undefined for choice kinds that don't pick from a zone (`may-pay`).
      *  `graveyard` picks (Recall) always carry a `candidateIds` allow-list — a
@@ -1240,6 +1268,10 @@ export type PendingTarget = {
      *  this card def id; the ability resolves with the source permanent as
      *  `ctx.sourceInstanceId`. Undefined for native activated abilities. */
     grantedSourceCardId?: string;
+    /** Acting Player (ADR 0037): the player who answers cast-time choices when
+     *  split off from the controller (`playerId`) for a controlled cast.
+     *  Defaults to `playerId` when absent — read via `getActingPlayer`. */
+    actingPlayerId?: string;
 };
 
 /** Pre-game mulligan tracking (CR 103.5, London mulligan). Present only while
@@ -1503,6 +1535,14 @@ export type GameState = {
     /** When true, all combat damage is prevented this turn (CR 615, Fog).
      *  Checked at the top of `applyAllCombatDamage`; cleared at CLEANUP. */
     preventAllCombatDamageThisTurn?: boolean;
+    /** Instance ids of permanents that "assign no combat damage this turn"
+     *  (CR 510.1c, 702.x — Farrel's Mantle, Farrel's Zealot). A source in this
+     *  set deals no combat damage in any damage step this turn; checked on the
+     *  source side at the top of `applyOneCombatDamage`. Distinct from a
+     *  prevention shield: the creature simply assigns 0 (its combat-damage
+     *  assignment is skipped, so it can't be lethal to a blocker either).
+     *  Cleared at CLEANUP. */
+    assignsNoCombatDamageThisTurn?: string[];
     /** One-shot damage-cap shields (Forcefield, CR 615). When an unblocked
      *  creature would deal combat damage to the shielded player, reduce to
      *  `maxDamage`. Consumed on first use; cleared at CLEANUP. */
@@ -4767,8 +4807,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         getCounterCount(target: TargetSelection, type: string): number {
             if (target.type !== "permanent") return 0;
             const found = findOnBattlefield(state, target.id);
-            if (!found) return 0;
-            return found.card.counters?.[type] ?? 0;
+            if (found) return found.card.counters?.[type] ?? 0;
+            // CR 608.2g / last-known information: a "Sacrifice this creature:
+            // ... for each [counter] on it" ability (Icatian Moneychanger) pays
+            // its sacrifice cost at activation, so by resolution the source is
+            // gone from the battlefield. The resolving stack item is a snapshot
+            // of the source taken AFTER cost payment but it retains the counters
+            // it had — read them so the count reflects the pre-sacrifice state.
+            if (target.id === item.id) return item.counters?.[type] ?? 0;
+            return 0;
         },
         getDeathsThisTurn(): number {
             return state.deathsThisTurn ?? 0;
@@ -4883,6 +4930,37 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (idx === -1) return false;
             const [card] = player.hand.splice(idx, 1);
             putReanimatedOnBattlefield(state, card, playerId);
+            return true;
+        },
+        // CR 305.2 / 116.2a — PLAY a land from `playerId`'s hand under their
+        // control, "if able". Unlike `putFromHandOntoBattlefield` (a free zone
+        // change that does NOT consume a land drop), this models the special
+        // action of playing a land: it consumes the player's one-land-per-turn
+        // drop and is refused when that drop is already spent. Word of Command
+        // ("The player plays that card if able") uses it to play the chosen
+        // land under the controlled opponent's control. The land enters via the
+        // canonical play-land sequence (drop bookkeeping → CR 302.6 entry clock
+        // → CR 603.6a ETB notification + pending-action triggers); the resolve
+        // flow runs SBAs afterwards. Returns true if the land was played, false
+        // if not able (not in hand, not a Land, or the land drop is spent —
+        // honoring "if able"). Land-play locks (Worms of the Earth) are NOT
+        // re-checked here: WoC playing a land is a resolution effect, not the
+        // active player's land-play action.
+        playLandForPlayer(playerId: string, cardInstanceId: string): boolean {
+            const player = getPlayer(state, playerId);
+            const card = player.hand.find((c) => c.id === cardInstanceId);
+            if (!card || !card.types.includes("Land")) return false;
+            // CR 614 — a land-play lock (Worms of the Earth) blocks the play.
+            if (landPlayLockActive(state)) return false;
+            // CR 305.2 — one land per turn, plus any extra-drop grants (e.g.
+            // Fastbond) the controlled player has. Refuse if already spent
+            // ("if able").
+            const maxDrops = LAND_DROPS_PER_TURN + getExtraLandDrops(player);
+            if ((player.landsPlayedThisTurn ?? 0) >= maxDrops) return false;
+            // Route through the canonical land-play transition: it records the
+            // land drop (CR 305.2), sets the control-continuity / summoning-sick
+            // clock (CR 302.6), emits the ETB (CR 603.6a) and settles SBAs.
+            applyPlayLand(state, player, cardInstanceId);
             return true;
         },
         // CR 701.20a: to tap a permanent is to turn it sideways from an
@@ -5588,6 +5666,16 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             state.preventAllCombatDamageThisTurn = true;
         },
 
+        markAssignsNoCombatDamage(target: TargetSelection): void {
+            // CR 510.1c — the target assigns no combat damage this turn
+            // (Farrel's Mantle, Farrel's Zealot). Idempotent; cleared at
+            // CLEANUP. No-op for non-permanent targets.
+            if (target.type !== "permanent") return;
+            const list = state.assignsNoCombatDamageThisTurn ?? [];
+            if (!list.includes(target.id)) list.push(target.id);
+            state.assignsNoCombatDamageThisTurn = list;
+        },
+
         replaceLandManaWithBlue(playerId: string): void {
             // CR 614 — idempotent: one entry per player suffices (the
             // replacement is all-or-nothing). Cleared at CLEANUP.
@@ -6079,6 +6167,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             };
             if (req.filter) entry.filter = req.filter;
             if (req.zoneOwnerId) entry.zoneOwnerId = req.zoneOwnerId;
+            // Acting Player (ADR 0037): carry the override only when it differs
+            // from the prompted player — normal choices stay unannotated.
+            if (req.actingPlayerId && req.actingPlayerId !== req.playerId) {
+                entry.actingPlayerId = req.actingPlayerId;
+            }
             if (req.allControllers) entry.allControllers = true;
             if (req.candidateIds) entry.candidateIds = req.candidateIds;
             if (req.candidatePlayerIds) {
@@ -6557,22 +6650,6 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (item.isCopy) return;
             if (item.abilityId || item.triggeredAbilityId) return;
             item.exileOnResolve = true;
-        },
-        playLandFor(playerId, cardInstanceId): boolean {
-            // ADR 0037 / CR 305 — Word of Command's land branch. Play the land
-            // under the controlled player's control, respecting THEIR
-            // one-land-per-turn limit (CR 305.2). Limit already hit → not
-            // played ("if able", CR 117.3 / 608.2).
-            const player = getPlayer(state, playerId);
-            const handCard = player.hand.find((c) => c.id === cardInstanceId);
-            if (!handCard || !handCard.types.includes("Land")) return false;
-            // CR 614 — a land-play lock (Worms of the Earth) blocks the play.
-            if (landPlayLockActive(state)) return false;
-            const landsPlayed = player.landsPlayedThisTurn ?? 0;
-            const maxDrops = LAND_DROPS_PER_TURN + getExtraLandDrops(player);
-            if (landsPlayed >= maxDrops) return false;
-            applyPlayLand(state, player, cardInstanceId);
-            return true;
         },
         castChosenSpell(controllerId, cardInstanceId, actingPlayerId): boolean {
             // ADR 0037 / CR 601 — Word of Command's spell branch. The chosen
