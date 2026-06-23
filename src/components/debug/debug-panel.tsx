@@ -82,6 +82,49 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Word of Command — controlled cast (#577, PRD #575, ADR 0037, CR 601 /
+        // 305.2). You cast Word of Command targeting your opponent, look at
+        // their hand, and choose a card for them to play "if able".
+        //
+        // Board: you hold Word of Command ({B}{B}) with two Swamps for the
+        // cost. Your opponent holds a castable Dark Ritual (a no-target spell,
+        // {B}) and a Swamp (a land they can play), and controls a Swamp so the
+        // Ritual can be paid for from THEIR land. Golden path:
+        //   1. Cast Word of Command targeting your opponent.
+        //   2. On resolution you look at their hand and pick Dark Ritual.
+        //   3. It is cast as THEIR spell (controllerId = opponent), paid by
+        //      auto-tapping the opponent's Swamp only; it resolves and fills
+        //      the opponent's mana pool with {B}{B}{B}.
+        // Edges:
+        //   - Pick the opponent's Swamp instead → it is played under the
+        //     opponent's control (their land drop). If they already played a
+        //     land this turn, it is not played.
+        //   - Remove the opponent's battlefield Swamp → Dark Ritual can't be
+        //     paid for from their lands and is not played.
+        label: "2ED: Word of Command — controlled cast from the opponent's hand (#577)",
+        cards: [
+            {
+                name: "Word of Command",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            {
+                name: "Dark Ritual",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Swamp",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // FEM walking skeleton — Vodalian Soldiers tracer (#567, CR 302 vanilla
         // creature, CR 608.3 resolution). Proves the Fallen Empires set file,
         // registry wiring and multi-art CardPrint plumbing end-to-end: a FEM

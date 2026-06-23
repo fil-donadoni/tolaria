@@ -13,11 +13,14 @@ import {
 } from "../pendingChoiceSubmit";
 import { checkStateBasedActions } from "../sba";
 import {
+    darkRitual,
     disruptingScepter,
     grizzlyBears,
     lightningBolt,
     plains,
+    swamp,
     winterOrb,
+    wordOfCommand,
 } from "../../cards/sets/lea";
 import { jasmineBoreal, petraSphinx, tundraWolves } from "../../cards/sets/leg";
 import {
@@ -1045,5 +1048,99 @@ describe("applyNameCardSubmit — name-a-card mid-resolution (CR 202.3 / 701.x)"
                 cardInstanceIds: ["top"],
             })
         ).toThrow(/submitNameCard/i);
+    });
+});
+
+// Backend integration for Word of Command's controlled cast (#577, ADR 0037):
+// drives the EXACT path the `submitResolutionChoice` mutation runs
+// (`applyPendingChoiceSubmit` → resolve replay → `checkStateBasedActions`),
+// so the GRE → game.ts boundary is covered, not just the engine in isolation.
+describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () => {
+    function wocState(opts: {
+        oppHand: StackItem[] | ReturnType<typeof makeInstance>[];
+        oppBattlefield?: ReturnType<typeof makeInstance>[];
+    }): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: opts.oppHand,
+                    battlefield: opts.oppBattlefield ?? [],
+                }),
+            ],
+        });
+    }
+
+    function submitViaMutationPath(state: GameState, pickId: string) {
+        const head = (state.pendingChoices ?? [])[0];
+        if (!head) throw new Error("no pending choice");
+        // Mirror submitResolutionChoice's handler exactly.
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [pickId],
+        });
+        checkStateBasedActions(state);
+    }
+
+    it("casts the chosen non-targeted spell as the opponent's spell via the submit path", () => {
+        const oppRitual = makeInstance(darkRitual.id, {
+            id: "opp-ritual",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppSwamp = makeInstance(swamp.id, {
+            id: "opp-swamp",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = wocState({
+            oppHand: [oppRitual],
+            oppBattlefield: [oppSwamp],
+        });
+        pushSpell(state, wordOfCommand.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+
+        // The mutation's atomic submit path puts Dark Ritual on the stack.
+        submitViaMutationPath(state, "opp-ritual");
+
+        const ritual = state.stack.find(
+            (s) => (s.card as { id?: string }).id === darkRitual.id
+        );
+        expect(ritual?.castById).toBe("p2");
+        expect(ritual?.actingPlayerId).toBe("p1");
+        expect(oppSwamp.isTapped).toBe(true);
+    });
+
+    it("rejects a stale submit for a different chooser (validation in the submit path)", () => {
+        const oppRitual = makeInstance(darkRitual.id, {
+            id: "opp-ritual",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = wocState({ oppHand: [oppRitual] });
+        pushSpell(state, wordOfCommand.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+
+        const head = (state.pendingChoices ?? [])[0];
+        // The opponent (p2) is NOT the chooser — the controller (p1) is.
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: "p2",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["opp-ritual"],
+            })
+        ).toThrow(/stale/i);
     });
 });

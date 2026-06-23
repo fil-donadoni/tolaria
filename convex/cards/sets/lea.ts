@@ -3986,14 +3986,95 @@ export const willOTheWisp: CardDefinition = {
     ],
 };
 
-// Out of scope — see ADR 0010
-// export const wordOfCommand: CardDefinition = {
-//     id: "96c21429-98d3-416b-be00-6aa9c4c5a006",
-//     name: "Word of Command",
-//     oracleText: "Look at target opponent's hand and choose a card from it. You control that player until Word of Command finishes resolving. The player plays that card if able. While doing so, the player can activate mana abilities only if they're from lands that player controls and only if mana they produce is spent to activate other mana abilities of lands the player controls and/or to play that card. If the chosen card is cast as a spell, you control the player while that spell is resolving.",
-//     manaCost: { B: 2 },
-//     types: ["Instant"],
-// };
+// Word of Command — "Look at target opponent's hand and choose a card from it.
+// You control that player until Word of Command finishes resolving. The player
+// plays that card if able. While doing so, the player can activate mana
+// abilities only if they're from lands that player controls and only if mana
+// they produce is spent to activate other mana abilities of lands the player
+// controls and/or to play that card. If the chosen card is cast as a spell, you
+// control the player while that spell is resolving."
+//
+// Modelled by scoped choice-routing (ADR 0037), not a general control-a-player
+// subsystem. The controlled opponent stays the Controller of the card it
+// plays/casts (and supplies its resources); Word of Command's controller is the
+// Acting Player who answers every prompt. CR 601 (casting), CR 305.2
+// (one-land-per-turn), CR 608.2 / 117.3 ("if able").
+//
+// resolveSteps:
+//   0. The controller looks at the target opponent's hand (grants Card
+//      Knowledge `knownTo` the controller) and picks one card.
+//   1. Route the pick by card type:
+//      - Land  → played under the opponent's control via the shared land-play
+//        logic; counts toward the opponent's land-drop (CR 305.2). Limit already
+//        hit → not played.
+//      - Non-targeted spell → cast as the opponent's spell, mana auto-tapped
+//        only from the opponent's lands; unpayable → not played (this slice,
+//        #577). Targeted / X / modal casts arrive in later slices (#578-#580).
+export const wordOfCommand: CardDefinition = {
+    id: "96c21429-98d3-416b-be00-6aa9c4c5a006",
+    rarity: "rare",
+    name: "Word of Command",
+    oracleText:
+        "Look at target opponent's hand and choose a card from it. You control that player until Word of Command finishes resolving. The player plays that card if able. While doing so, the player can activate mana abilities only if they're from lands that player controls and only if mana they produce is spent to activate other mana abilities of lands the player controls and/or to play that card. If the chosen card is cast as a spell, you control the player while that spell is resolving.",
+    manaCost: { B: 2 },
+    types: ["Instant"],
+    targetRequirement: { type: "player", count: 1, controller: "opponent" },
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            // Step 0 — the controller (acting player) looks at the target
+            // opponent's hand and chooses a card from it (CR 601 / "look at").
+            const opponent = ctx.targets[0];
+            if (!opponent || opponent.type !== "player") return;
+            const handIds = ctx.getHandIds(opponent.id);
+            if (handIds.length === 0) return; // empty hand — nothing to play
+            // Card Knowledge (ADR 0026): the controller now knows the opponent's
+            // hand they looked at.
+            ctx.markKnown(opponent.id, handIds, ctx.controller);
+            const picks = ctx.requestChoice({
+                playerId: ctx.controller,
+                choiceId: `word-of-command-pick-${ctx.sourceInstanceId}`,
+                kind: "choose-hand-card",
+                zone: "hand",
+                zoneOwnerId: opponent.id,
+                count: 1,
+                prompt: "Word of Command: choose a card from the opponent's hand for them to play.",
+            });
+            if (picks === undefined) return; // suspended — wait for the pick
+        },
+        (ctx: SpellContext) => {
+            // Step 1 — play the chosen card under the opponent's control.
+            const opponent = ctx.targets[0];
+            if (!opponent || opponent.type !== "player") return;
+            const picked = ctx.recallChoice(
+                `word-of-command-pick-${ctx.sourceInstanceId}`
+            );
+            const cardInstanceId = picked?.[0];
+            if (!cardInstanceId) return;
+            // The card must still be in the opponent's hand (CR 608.2b).
+            const handCard = ctx
+                .getHandCards(opponent.id)
+                .find((c) => c.id === cardInstanceId);
+            if (!handCard) return;
+
+            if (handCard.types.includes("Land")) {
+                // CR 305.2 — play the land under the opponent's control; the
+                // engine enforces the opponent's one-land-per-turn. Limit
+                // already hit → not played ("if able").
+                ctx.playLandFor(opponent.id, cardInstanceId);
+                return;
+            }
+
+            // Non-land card → cast as the opponent's spell, decided by the
+            // controller (acting player). CR 601: it is the opponent's spell.
+            // Mana auto-tapped from the opponent's lands; unpayable → not
+            // played. This slice (#577) handles a NON-targeted spell;
+            // targeted / X / modal casts route the extra choices to the
+            // controller in later slices (#578-#580). `castChosenSpell` already
+            // bails (returns false) when the spell can't be paid for.
+            ctx.castChosenSpell(opponent.id, cardInstanceId, ctx.controller);
+        },
+    ],
+};
 
 // Zombie Master — "Other Zombie creatures you control have swampwalk. Other
 // Zombies have '{B}: Regenerate this creature.'" (CR 611, 702.13c landwalk,

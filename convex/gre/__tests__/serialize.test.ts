@@ -149,6 +149,28 @@ describe("game_state serialize round-trip", () => {
         expect(top.targets).toEqual([{ type: "player", id: "p2" }]);
     });
 
+    it("preserves a stack item's actingPlayerId (controlled cast, ADR 0037)", () => {
+        const state = freshState();
+        const spell = state.players[0].hand[0];
+        state.stack = [
+            {
+                ...spell,
+                zone: "stack",
+                // Word of Command — chosen spell controlled by the opponent
+                // (p2) but decided by the acting player (p1).
+                castById: "p2",
+                actingPlayerId: "p1",
+            },
+        ];
+        const expanded = expandState(compactState(state));
+        expect(expanded.stack[0].castById).toBe("p2");
+        expect(expanded.stack[0].actingPlayerId).toBe("p1");
+        // Absent on a normal cast (omitted rather than serialized).
+        state.stack[0].actingPlayerId = undefined;
+        const normal = expandState(compactState(state));
+        expect(normal.stack[0].actingPlayerId).toBeUndefined();
+    });
+
     it("preserves a stack item's exileOnResolve flag (Recall, CR 608.2)", () => {
         const state = freshState();
         const recall = state.players[0].hand[0];

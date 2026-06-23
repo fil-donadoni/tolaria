@@ -7,8 +7,9 @@ import type { CardPrint } from "../types";
 //
 // Excluded (mirrors LEA/LEB): ante cards (Contract from Below, Darkpact,
 // Demonic Attorney) and Chaos Orb are permanently out of scope (ADR 0010);
-// Word of Command and Camouflage stay blocked on their not-yet-implemented LEA
-// CardDefinition. A 2ED print lands automatically once its LEA def exists.
+// Camouflage stays blocked on its not-yet-implemented LEA CardDefinition. A 2ED
+// print lands automatically once its LEA def exists. Word of Command is
+// implemented (PRD #575, ADR 0037) — see `wordOfCommand2ed` below.
 
 export const airElemental2ed: CardPrint = {
     printId: "ef5b8140-a157-4c20-a428-fa7250ab34e1",
@@ -2066,6 +2067,13 @@ export const woodenSphere2ed: CardPrint = {
     definitionId: "bcae01a2-171b-47cd-87be-f1e4e5314326", // Wooden Sphere
     setCode: "2ed",
     rarity: "uncommon",
+};
+
+export const wordOfCommand2ed: CardPrint = {
+    printId: "239c8547-207b-41d1-a2be-8825bfc6ef7f",
+    definitionId: "96c21429-98d3-416b-be00-6aa9c4c5a006", // Word of Command
+    setCode: "2ed",
+    rarity: "rare",
 };
 
 export const wrathOfGod2ed: CardPrint = {

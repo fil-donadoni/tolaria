@@ -15,7 +15,7 @@ only from lands that player controls"). Control extends onto the cast spell's
 own resolution.
 
 The engine's cast pipeline conflates two roles into a single `controllerId`:
-*whose object/resources it is* and *who answers the prompts*. It is also a
+_whose object/resources it is_ and _who answers the prompts_. It is also a
 priority-gated mutation state machine (`announceCast` → `selectTarget` → pay →
 `resolveTopOfStack`), and priority is frozen during a resolution — so the chosen
 card's cast cannot reuse those mutations as-is.
@@ -36,7 +36,7 @@ resulting `StackItem`:
 
 The chosen card runs through the resolve-time suspension machinery
 (`PendingChoice`), not the priority-gated mutations. The override rides onto the
-resulting `StackItem` so that spell's *resolution* choices also route to the
+resulting `StackItem` so that spell's _resolution_ choices also route to the
 acting player, and clears when the item leaves the stack ("you control the
 player while that spell is resolving"). `getLegalTargets`, `autoTap`, and the
 additional-cost validators are reused unchanged.
@@ -44,7 +44,7 @@ additional-cost validators are reused unchanged.
 ## Considered options
 
 - **General "one player controls another" subsystem** (a player-level control
-  layer that reroutes *every* decision the controlled player would make).
+  layer that reroutes _every_ decision the controlled player would make).
   Rejected: large, reusable surface that no other card in scope needs — the only
   decisions occurring during Word of Command's resolution are the playing of the
   chosen card, which `actingPlayerId` covers exactly.
@@ -53,7 +53,7 @@ additional-cost validators are reused unchanged.
 
 ## Consequences
 
-- Every site that reads `controllerId` to decide *who is prompted* must instead
+- Every site that reads `controllerId` to decide _who is prompted_ must instead
   read `actingPlayerId` (falling back to `controllerId`). The two are equal for
   all normal play, so the risk is a missed site, not a behavior change — covered
   by exhaustive routing tests.

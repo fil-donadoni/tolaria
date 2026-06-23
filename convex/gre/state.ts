@@ -24,6 +24,13 @@ import {
     isPrintedInSet as isCardPrintedInSet,
 } from "../cards";
 import { turnFaceDown } from "./faceDown";
+import {
+    buildAutoTapSources,
+    manaFromPlan,
+    solveSmartAutoTap,
+} from "./autoTap";
+import { applyPlayLand } from "./playLand";
+import { getExtraLandDrops } from "./rules";
 import { entersTappedByReplacement } from "../cards/entersTapped";
 import { getResolveFn } from "../cards/effectRegistry";
 import { matchesPermanentFilter } from "../cards/filters";
@@ -33,6 +40,7 @@ import {
     getBasicLandMana,
     isAura,
     isDamageablePermanent,
+    LAND_DROPS_PER_TURN,
     manaValue,
     MANA_COLORS,
     PERMANENT_TYPES,
@@ -772,6 +780,16 @@ export type PlayerState = {
 
 export type StackItem = CardInstanceState & {
     castById: string;
+    /** Acting Player (ADR 0037, CR 601) — the player who answers every choice
+     *  routed during this item's resolution, when that is NOT the item's
+     *  controller (`castById`). Set only for a controlled cast (Word of
+     *  Command): the chosen spell's `castById` is the controlled opponent (whose
+     *  spell/resources/zone it is) while `actingPlayerId` is the controller who
+     *  makes its decisions. Undefined for every normal cast — sites that route a
+     *  prompt read `actingPlayerId ?? castById`, so absence means "the
+     *  controller decides", preserving existing behavior. Cleared when the item
+     *  leaves the stack. */
+    actingPlayerId?: string;
     /** Targets chosen during spell announcement (CR 601.2c). */
     targets?: TargetSelection[];
     /** Value chosen for X at cast-time for spells with X in their cost
@@ -1018,6 +1036,13 @@ export type PendingChoice = {
     choiceId: string;
     /** Player who must make the choice. */
     playerId: string;
+    /** Acting Player (ADR 0037) — carried for parity with `StackItem` when a
+     *  controlled cast (Word of Command) routes a choice to a player other than
+     *  the resolving item's controller. For a controlled cast `playerId` is
+     *  already the acting player (the chooser), so this is informational
+     *  plumbing; it defaults to `playerId` when absent. Reserved for resolution
+     *  choices on the chosen spell in later slices. */
+    actingPlayerId?: string;
     /** Semantic kind — see {@link PendingChoiceKind} taxonomy. */
     kind: PendingChoiceKind;
     /** Owner of the zone being picked from. Defaults to `playerId` (the
@@ -4119,6 +4144,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
     const ctx: SpellContext = {
         caster: item.castById,
         controller: item.castById,
+        // ADR 0037 — who answers this resolution's choices. Equals the
+        // controller for every normal cast; a controlled cast (Word of Command)
+        // sets `actingPlayerId` on the stack item so its decisions route to the
+        // controller while the controlled opponent stays the controller/caster.
+        actingPlayer: item.actingPlayerId ?? item.castById,
         // Triggered abilities (CR 603) get a fresh stack-item id, but their
         // resolver needs to reference the originating permanent (e.g. for
         // intervening-if re-check at CR 603.4). `triggerSourceId` is captured
@@ -6527,6 +6557,87 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (item.isCopy) return;
             if (item.abilityId || item.triggeredAbilityId) return;
             item.exileOnResolve = true;
+        },
+        playLandFor(playerId, cardInstanceId): boolean {
+            // ADR 0037 / CR 305 — Word of Command's land branch. Play the land
+            // under the controlled player's control, respecting THEIR
+            // one-land-per-turn limit (CR 305.2). Limit already hit → not
+            // played ("if able", CR 117.3 / 608.2).
+            const player = getPlayer(state, playerId);
+            const handCard = player.hand.find((c) => c.id === cardInstanceId);
+            if (!handCard || !handCard.types.includes("Land")) return false;
+            // CR 614 — a land-play lock (Worms of the Earth) blocks the play.
+            if (landPlayLockActive(state)) return false;
+            const landsPlayed = player.landsPlayedThisTurn ?? 0;
+            const maxDrops = LAND_DROPS_PER_TURN + getExtraLandDrops(player);
+            if (landsPlayed >= maxDrops) return false;
+            applyPlayLand(state, player, cardInstanceId);
+            return true;
+        },
+        castChosenSpell(controllerId, cardInstanceId, actingPlayerId): boolean {
+            // ADR 0037 / CR 601 — Word of Command's spell branch. The chosen
+            // card is the controlled opponent's spell (controllerId =
+            // opponent), but the Word of Command controller (actingPlayerId)
+            // makes its decisions. This slice supports a NON-targeted spell
+            // only — targeted / X / modal casts arrive in later slices.
+            const owner = getPlayer(state, controllerId);
+            const handCard = owner.hand.find((c) => c.id === cardInstanceId);
+            if (!handCard) return false; // not in hand — no-op (CR 608.2b)
+
+            const cardId = (handCard.card as { id?: string }).id;
+            const def = cardId ? tryGetCardById(cardId) : undefined;
+            if (!def) return false;
+
+            // Pay the mana ONLY from lands the controlled player controls
+            // (the oracle's mana restriction). Auto-tap over THEIR battlefield
+            // and THEIR floating pool; unpayable from those sources => the
+            // card is not played ("if able", CR 117.3 / 608.2).
+            const cost = normalizeManaCost(def.manaCost ?? {});
+            const subs = getManaSubstitutions(state, controllerId);
+            const sources = buildAutoTapSources(owner.battlefield);
+            const plan = solveSmartAutoTap(owner.manaPool, cost, subs, sources);
+            if (plan === null) return false; // unpayable — not played
+
+            // Execute the plan against the controlled player's own pool: tap
+            // the chosen lands and add their mana (CR 605.1a). `manaFromPlan`
+            // totals the planned output so the pool covers the cost.
+            const tappedIds = new Set(plan.map((step) => step.cardId));
+            for (const src of owner.battlefield) {
+                if (tappedIds.has(src.id)) src.isTapped = true;
+            }
+            const produced = manaFromPlan(sources, plan);
+            for (const color of MANA_COLORS) {
+                const v = produced[color];
+                if (v) {
+                    owner.manaPool[color] = (owner.manaPool[color] ?? 0) + v;
+                }
+            }
+            // CR 601.2g — pay the cost from the controlled player's pool only.
+            if (Object.keys(cost).length > 0) {
+                payManaCostForSpell(owner, cost, def.types, subs);
+                commitLandsForCost(owner, cost);
+            }
+
+            // Move hand -> stack as a real spell controlled by the opponent,
+            // with the acting-player override so any choice during the cast /
+            // resolution routes to the Word of Command controller (ADR 0037).
+            const card = removeFromZone(owner, cardInstanceId, "hand");
+            const stackItem: StackItem = {
+                ...card,
+                zone: "stack",
+                castById: controllerId,
+                actingPlayerId,
+            };
+            // Insert directly below the resolving item (Word of Command) so it
+            // becomes the new top after the pop and resolves next (CR 608.2f),
+            // mirroring `castFaceDown` / `copyStackItem`.
+            const idx = state.stack.findIndex((s) => s.id === item.id);
+            if (idx === -1) state.stack.push(stackItem);
+            else state.stack.splice(idx, 0, stackItem);
+            // CR 601.2i — the spell is cast: make it a public object and let
+            // cast triggers fire.
+            emitSpellCastEvent(state, stackItem);
+            return true;
         },
     };
     return ctx;

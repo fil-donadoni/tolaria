@@ -613,6 +613,13 @@ export interface SpellContext {
     caster: string;
     /** The controller of the spell/ability on the stack. */
     controller: string;
+    /** Acting Player (ADR 0037, CR 601) — the player who makes this
+     *  resolution's choices. Equals `controller` for every normal cast; differs
+     *  only for a controlled cast (Word of Command), where the controlled
+     *  opponent is the `controller`/`caster` of the chosen spell but the Word of
+     *  Command controller is the acting player. Resolve steps that prompt a
+     *  decision should route to `actingPlayer`. */
+    actingPlayer: string;
     /** The instance id of the stack item resolving. For activated abilities,
      *  this equals the id of the source permanent on the battlefield — use
      *  it to target self (e.g. Jade Statue's animate-self ability). */
@@ -1870,6 +1877,40 @@ export interface SpellContext {
      *  resolves next into a face-down permanent. No-op if the id isn't in the
      *  caster's hand. */
     castFaceDown: (cardInstanceId: string) => void;
+    /** Controlled land play (ADR 0037, CR 305 / 305.2) — Word of Command's land
+     *  branch. Plays a land from `playerId`'s hand onto `playerId`'s
+     *  battlefield as that player's land play, going through the shared
+     *  land-play logic (ETB notification, continuous effects). It counts toward
+     *  `playerId`'s one-land-per-turn limit; if that player has already played
+     *  their land(s) this turn the land is NOT played ("if able", CR 608.2 /
+     *  117.3) — returns false. Distinct from `putFromHandOntoBattlefield`, which
+     *  is a zone change that is NOT "playing" a land (no land-drop consumed).
+     *  Returns true if the land was played, false if not (limit hit, not a
+     *  Land, or not in `playerId`'s hand). */
+    playLandFor: (playerId: string, cardInstanceId: string) => boolean;
+    /** Controlled cast (ADR 0037, CR 601) — Word of Command's spell branch.
+     *  Casts a card from `controllerId`'s hand as a real spell while another
+     *  player makes its decisions:
+     *   - the resulting `StackItem` has `castById = controllerId` (the chosen
+     *     spell is the controlled opponent's spell, CR 601) and
+     *     `actingPlayerId = actingPlayerId` (the Word of Command controller, who
+     *     answers any choice routed during the cast/resolution);
+     *   - mana is auto-tapped ONLY from lands `controllerId` controls (the
+     *     oracle's "mana abilities only from lands that player controls"); the
+     *     controller's other resources are untouched;
+     *   - if the cost cannot be paid from those lands the card is NOT played
+     *     ("if able", CR 608.2 / 117.3) — returns false, nothing changes.
+     *  The spell is inserted directly below the resolving item so it becomes the
+     *  new top of the stack and resolves next (CR 608.2f). On success the card
+     *  has left the hand for the (public) stack. Returns true if it was cast,
+     *  false if not played. This slice supports a NON-TARGETED spell only;
+     *  targeted / X / modal casts arrive in later slices. No-op (false) if the
+     *  id isn't in `controllerId`'s hand. */
+    castChosenSpell: (
+        controllerId: string,
+        cardInstanceId: string,
+        actingPlayerId: string
+    ) => boolean;
     /** CR 608.2 — the resolving spell exiles itself as the last thing it does
      *  ("Exile <this spell>", e.g. Recall). Flags the stack item so
      *  `finalizeSpellResolution` routes the card to exile instead of the

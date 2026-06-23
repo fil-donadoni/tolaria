@@ -49,6 +49,36 @@ export type AutoTapSource = {
 /** Ordered list of taps to perform (card + chosen mana option). */
 export type AutoTapPlan = { cardId: string; manaChoiceIndex?: number }[];
 
+/** Total the mana an executed {@link AutoTapPlan} adds to the pool, summed over
+ *  each tapped source's chosen option (CR 605.1a). Pairs `solveSmartAutoTap` /
+ *  `solveAutoTap` with a way to apply the plan when the caller taps sources
+ *  directly into a pool rather than through the per-click payment mutation —
+ *  used by a controlled cast (Word of Command) auto-tapping the opponent's
+ *  lands inside a resolve step. Sources not present in `sources` are skipped. */
+export function manaFromPlan(
+    sources: AutoTapSource[],
+    plan: AutoTapPlan
+): ManaContribution {
+    const byId = new Map(sources.map((s) => [s.cardId, s]));
+    const total: ManaContribution = {};
+    for (const step of plan) {
+        const src = byId.get(step.cardId);
+        if (!src) continue;
+        const opt =
+            step.manaChoiceIndex !== undefined
+                ? src.options.find(
+                      (o) => o.manaChoiceIndex === step.manaChoiceIndex
+                  )
+                : src.options[0];
+        if (!opt) continue;
+        for (const color of MANA_COLORS) {
+            const v = opt.mana[color];
+            if (v) total[color] = (total[color] ?? 0) + v;
+        }
+    }
+    return total;
+}
+
 /** Strip X and zero/negative entries from a ManaCost into a color contribution. */
 function toContribution(cost: {
     [k: string]: number | string | undefined;

@@ -571,6 +571,7 @@ function compactStackItem(item: StackItem): CompactCard {
     const base = compactCard(item, { ownerId: item.ownerId });
     base.ownerId = item.ownerId;
     base.castById = item.castById;
+    if (item.actingPlayerId) base.actingPlayerId = item.actingPlayerId;
     if (item.targets?.length) base.targets = item.targets;
     if (item.chosenX !== undefined) base.chosenX = item.chosenX;
     if (item.chosenModeId) base.chosenModeId = item.chosenModeId;
@@ -604,6 +605,9 @@ function expandStackItem(compact: CompactCard): StackItem {
         ...base,
         castById: compact.castById as string,
     };
+    if (compact.actingPlayerId) {
+        item.actingPlayerId = compact.actingPlayerId as string;
+    }
     if (compact.targets) {
         item.targets = compact.targets as StackItem["targets"];
     }
