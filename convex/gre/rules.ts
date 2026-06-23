@@ -37,7 +37,7 @@ export {
 
 /** Reads extra land drops granted by permanents on the player's battlefield
  *  (CR 305.2 — Fastbond). Scans card definitions for `extraLandDrops`. */
-function getExtraLandDrops(player: PlayerState): number {
+export function getExtraLandDrops(player: PlayerState): number {
     let extra = 0;
     for (const card of player.battlefield) {
         const cardId = (card.card as { id?: string }).id;

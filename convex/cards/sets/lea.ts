@@ -3994,8 +3994,8 @@ export const willOTheWisp: CardDefinition = {
 // while the controlled opponent stays the controller of whatever card is
 // played (it is their card, played under their control from their hand, and it
 // counts against their resources — CR 305.2 land drop, "mana only from lands
-// that player controls"). Slice 1 (#576) implements the LAND branch end to end;
-// the spell branch ("if the chosen card is cast as a spell …") arrives in #577.
+// that player controls"). Slice 1 (#576) implemented the LAND branch; slice 2
+// (#577) adds the spell branch ("if the chosen card is cast as a spell …").
 //
 // Resolution (single suspending step):
 //   1. The Acting Player (WoC's controller) looks at the target opponent's hand
@@ -4006,7 +4006,12 @@ export const willOTheWisp: CardDefinition = {
 //   3. If the chosen card is a LAND: the opponent PLAYS it under their control
 //      "if able" — `playLandForPlayer` consumes the opponent's one-land-per-turn
 //      drop (CR 305.2). Land drop already spent → not played.
-//   4. Non-land pick: TODO(#577 spell branch) — no-op this slice.
+//   4. Otherwise (a non-land card): the opponent CASTS it as their spell via
+//      `castChosenSpell` (castById = opponent, actingPlayerId = controller, CR
+//      601), mana auto-tapped only from the opponent's lands; unpayable → not
+//      played (#577). This slice supports a NON-targeted spell; targeted / X /
+//      modal casts route the extra choices to the controller in later slices
+//      (#578-#580).
 export const wordOfCommand: CardDefinition = {
     id: "96c21429-98d3-416b-be00-6aa9c4c5a006",
     rarity: "rare",
@@ -4066,10 +4071,16 @@ export const wordOfCommand: CardDefinition = {
             return;
         }
 
-        // TODO(#577 spell branch): cast the chosen non-land card as the
-        // opponent's spell on the stack with `actingPlayerId` = controller, so
-        // cast-time and resolution choices route to the Acting Player. No-op
-        // this slice.
+        // SPELL branch (#577) — cast the chosen non-land card as the opponent's
+        // spell (CR 601): `castById` = opponent, `actingPlayerId` = controller,
+        // so the resulting stack item is the opponent's spell while the Acting
+        // Player keeps deciding. Mana is auto-tapped ONLY from the opponent's
+        // lands; unpayable from those lands → not played ("if able").
+        // `castChosenSpell` handles all of this and is a no-op (returns false)
+        // when the spell can't be paid for. This slice supports a NON-targeted
+        // spell; targeted / X / modal casts route their extra choices to the
+        // controller in later slices (#578-#580).
+        ctx.castChosenSpell(opponentId, chosenId, controllerId);
     },
 };
 

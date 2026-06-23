@@ -219,6 +219,29 @@ describe("getLegalTargets", () => {
         expect(targets.every((t) => t.type === "player")).toBe(true);
     });
 
+    it("controller:'opponent' restricts a player target to the opponent (CR 115.1, Word of Command)", () => {
+        const state = makeGameState();
+        const req: TargetRequirement = {
+            type: "player",
+            count: 1,
+            controller: "opponent",
+        };
+        // From p1's perspective the only legal player target is p2.
+        const targets = getLegalTargets(state, req, [], "p1");
+        expect(targets).toEqual([{ type: "player", id: "p2" }]);
+    });
+
+    it("controller:'you' restricts a player target to the caster", () => {
+        const state = makeGameState();
+        const req: TargetRequirement = {
+            type: "player",
+            count: 1,
+            controller: "you",
+        };
+        const targets = getLegalTargets(state, req, [], "p1");
+        expect(targets).toEqual([{ type: "player", id: "p1" }]);
+    });
+
     it("playerAttackedThisTurn filters players to those who attacked (CR 506.2)", () => {
         // p2 controls a creature flagged as having attacked; p1 controls none.
         const attacker = makeCard({

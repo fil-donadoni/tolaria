@@ -8,8 +8,8 @@ import type { CardPrint } from "../types";
 // Excluded (mirrors LEA/LEB): ante cards (Contract from Below, Darkpact,
 // Demonic Attorney) and Chaos Orb are permanently out of scope (ADR 0010);
 // Camouflage stays blocked on its not-yet-implemented LEA CardDefinition.
-// Word of Command shipped (#576, ADR 0037). A 2ED print lands automatically
-// once its LEA def exists.
+// Word of Command shipped (#576 / #577, ADR 0037). A 2ED print lands
+// automatically once its LEA def exists — see `wordOfCommand2ed` below.
 
 export const airElemental2ed: CardPrint = {
     printId: "ef5b8140-a157-4c20-a428-fa7250ab34e1",
