@@ -654,7 +654,7 @@ function sacrificedManaValue(perm: CardInstanceState): number {
  *  (normally none). Returns `undefined` when there is no mana cost at all, and
  *  throws when the dynamic cost is declared but the source isn't attached to a
  *  permanent on the battlefield (illegal activation). */
-function resolveAbilityManaCost(
+export function resolveAbilityManaCost(
     state: GameState,
     card: CardInstanceState,
     ability: { cost: ActivatedAbility["cost"] },

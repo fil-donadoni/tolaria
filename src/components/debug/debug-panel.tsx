@@ -417,6 +417,35 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // FEM C2 Blue — the Homarid tide swing (#571, CR 611.2c counter-gated
+        // P/T, 603.6a upkeep counter, 603.8 four-or-more shed).
+        //
+        // Board: you control a Homarid with THREE tide counters — it reads as a
+        // 3/3 right now (+1/+1 at exactly three). You hold High Tide and a
+        // Seasinger; three Islands feed the blue mana. Golden path / tide cycle:
+        //   1. Note the Homarid is 3/3 at three tide counters.
+        //   2. Pass to your next upkeep: a fourth tide counter is put on it; the
+        //      state-trigger then sheds ALL tide counters (back to 0/0 base, so
+        //      it dies to the 0-toughness SBA — the tide low point).
+        //   3. (Alternative) Cast High Tide, then tap an Island for mana — you
+        //      get {U}{U} (the extra {U} rider) to fuel a blue play.
+        // Edge: a Homarid with exactly ONE tide counter is 1/1 (-1/-1); with two
+        //   it is a vanilla 2/2 — step the counter map to see each band.
+        label: "FEM: Homarid mid-tide swing + High Tide ramp (#571)",
+        cards: [
+            {
+                name: "Homarid",
+                owner: "me" as const,
+                counters: { tide: 3 },
+            },
+            { name: "High Tide", owner: "me" as const, zone: "hand" as const },
+            { name: "Seasinger", owner: "me" as const, zone: "hand" as const },
+            { name: "Island", owner: "me" as const, count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Equinox — Aura grants the enchanted land a conditional counter (#498,
         // CR 303.4 attachment, 611.2 activated-grant, 701.5a counter, 701.7
         // destroy).
