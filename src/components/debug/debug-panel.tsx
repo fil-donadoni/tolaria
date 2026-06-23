@@ -82,6 +82,29 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // FEM walking skeleton — Vodalian Soldiers tracer (#567, CR 302 vanilla
+        // creature, CR 608.3 resolution). Proves the Fallen Empires set file,
+        // registry wiring and multi-art CardPrint plumbing end-to-end: a FEM
+        // card is buildable, castable and resolves onto the battlefield.
+        //
+        // Board: you hold Vodalian Soldiers ({1}{U} 1/2 Merfolk Soldier) in hand
+        // with two Islands for the blue mana (`landCount` seeds Plains, so the
+        // Islands are placed explicitly). Golden path: cast it, it resolves onto
+        // the battlefield as a 1/2. (The other three FEM artworks resolve to the
+        // same shared definition — see fem.test.ts multi-art coverage.)
+        label: "FEM: Vodalian Soldiers — walking-skeleton tracer (#567)",
+        cards: [
+            {
+                name: "Vodalian Soldiers",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Island", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Equinox — Aura grants the enchanted land a conditional counter (#498,
         // CR 303.4 attachment, 611.2 activated-grant, 701.5a counter, 701.7
         // destroy).

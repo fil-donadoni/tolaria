@@ -17,6 +17,7 @@ import * as arn from "./sets/arn";
 import * as atq from "./sets/atq";
 import * as leg from "./sets/leg";
 import * as drk from "./sets/drk";
+import * as fem from "./sets/fem";
 import * as unlimited from "./sets/2ed";
 import * as revised from "./sets/3ed";
 
@@ -51,6 +52,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "atq", exports: atq },
     { code: "leg", exports: leg },
     { code: "drk", exports: drk },
+    { code: "fem", exports: fem },
     { code: "2ed", exports: unlimited },
     { code: "3ed", exports: revised },
 ];
