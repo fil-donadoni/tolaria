@@ -8,6 +8,7 @@ import {
 import { PointerActivationConstraints } from "@dnd-kit/dom";
 import { getCardById } from "@convex/cards";
 import { getCardColors } from "@convex/cards/colors";
+import { effectiveFeatured, toggleFeatured } from "~/lib/featuredPicker";
 import { FORMAT_RULES, type FormatId, validateDeck } from "@convex/formats";
 import { type LobbyDeck } from "~/lib/deckTypes";
 import {
@@ -63,6 +64,11 @@ interface WorkingDeck {
     colors: string[];
     cards: DeckCard[];
     sideboard: DeckCard[];
+    // Featured Card override (PRD #589, issue #599). The Card ID the player
+    // picked to supply the deck's art, or `undefined` to let the resolver
+    // default to the first Maindeck card. Persisted via the existing deck
+    // update mutation (admin-gated for presets, ADR 0033).
+    featuredCardId?: string;
 }
 
 interface DeckBuilderProps {
@@ -127,6 +133,12 @@ export default function DeckBuilder({
                   colors: initialDeck.colors,
                   cards: initialDeck.cards,
                   sideboard: initialDeck.sideboard ?? [],
+                  // The override is seeded `undefined` so an unchanged save
+                  // leaves the stored value untouched (the update mutation skips
+                  // an absent `featuredCardId`). The currently-featured card is
+                  // still shown via the resolved `initialDeck.featuredCardId`
+                  // (see `effectiveFeaturedCardId`), so it survives reloads.
+                  featuredCardId: undefined,
               }
             : {
                   name: nextDeckName(initialDeckList),
@@ -134,6 +146,7 @@ export default function DeckBuilder({
                   colors: [],
                   cards: [],
                   sideboard: [],
+                  featuredCardId: undefined,
               }
     );
     const [filters, setFilters] = useFilterSearchParams();
@@ -186,6 +199,7 @@ export default function DeckBuilder({
             colors: pending.colors,
             cards: pending.cards,
             sideboard: pending.sideboard,
+            featuredCardId: pending.featuredCardId,
         });
         inflightRef.current = promise;
         try {
@@ -242,6 +256,35 @@ export default function DeckBuilder({
             updateDeck((d) => ({ ...d, name }));
         },
         [updateDeck]
+    );
+
+    // Pick the Featured Card (PRD #589, issue #599). Stores the Card ID as the
+    // override on the working deck; the debounced autosave persists it through
+    // the existing deck update mutation (admin-gated for presets, ADR 0033).
+    // A re-click on the already-featured card clears the override, reverting to
+    // the first-Maindeck-card default (User Story 13).
+    const handleSetFeatured = useCallback(
+        (cardId: string) => {
+            updateDeck((d) => ({
+                ...d,
+                featuredCardId: toggleFeatured(d.featuredCardId, cardId),
+            }));
+        },
+        [updateDeck]
+    );
+
+    // The card currently supplying the deck's art (pure `effectiveFeatured`):
+    // the override picked this session, or the value loaded with the deck so the
+    // indicator survives reloads — resolved against the live Maindeck so a
+    // removed featured card falls back to the first remaining one.
+    const effectiveFeaturedCardId = useMemo(
+        () =>
+            effectiveFeatured(
+                deck.featuredCardId,
+                initialDeck?.featuredCardId,
+                deck.cards
+            ),
+        [deck.featuredCardId, deck.cards, initialDeck]
     );
 
     // Format is chosen at creation and immutable (ADR 0036): the select only
@@ -636,6 +679,8 @@ export default function DeckBuilder({
                                 grouped
                                 cards={deck.cards}
                                 onRemove={handleRemove}
+                                featuredCardId={effectiveFeaturedCardId}
+                                onSetFeatured={handleSetFeatured}
                                 emptyMessage="Click or drag cards here to add them."
                                 headerRight={
                                     <CardZoomSlider
