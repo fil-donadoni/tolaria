@@ -44,6 +44,83 @@ export function getBlockerCap(state: GameState): number | undefined {
     return isCardOnBattlefield(state, CAVERNS_OF_DESPAIR_ID) ? 2 : undefined;
 }
 
+/** Generic minimum-blocker threshold (CR 509.1b, 702.111 menace).
+ *
+ *  Some evasion keywords don't forbid a blocker outright — they impose a
+ *  MINIMUM on how many creatures must block the attacker together. Menace
+ *  (CR 702.111a) sets that minimum to two ("can't be blocked except by two or
+ *  more creatures"). The threshold is deliberately a single generic number so
+ *  future "can't be blocked except by three or more creatures" variants reuse
+ *  the same `confirmBlockers` enforcement path — they only raise this number.
+ *
+ *  Returns the per-attacker minimum number of blockers (default 1, i.e. no
+ *  constraint). Reads the attacker instance's effective `staticAbilities`,
+ *  which already include keywords granted by anthems such as Goblin War Drums
+ *  (the grant is pushed into `staticAbilities` imperatively when the source
+ *  resolves — see `applySourceStaticEffects`). */
+export function getMinimumBlockers(attacker: CardInstanceState): number {
+    // CR 702.111a — menace. If multiple "two or more" / "three or more"
+    // keywords ever stack, the highest minimum wins (CR 509.1b applies every
+    // restriction). Today only menace exists.
+    if (attacker.staticAbilities.includes("menace")) return 2;
+    return 1;
+}
+
+/** Validates the COMPLETE set of declared blocks against every attacker's
+ *  minimum-blocker threshold (CR 509.1b). Unlike pairwise blocker eligibility,
+ *  a minimum constraint can only be judged once all blocks are known: an
+ *  attacker with menace blocked by exactly one creature is an ILLEGAL block
+ *  declaration (CR 509.1c), but the same single block is a legal intermediate
+ *  state while the defender is still assigning. Hence this runs at confirm
+ *  time, not at per-blocker assignment time.
+ *
+ *  `blockerAssignments` maps blockerId → the attacker ids it blocks. An
+ *  attacker is "blocked" by N distinct creatures; the declaration is legal
+ *  only when N is 0 (unblocked) or N ≥ the attacker's minimum. */
+export function validateMinimumBlockers(
+    state: GameState
+): { ok: true } | { ok: false; reason: string } {
+    const combat = state.combat;
+    if (!combat) return { ok: true };
+
+    // Count distinct blockers per attacker from the assignment map.
+    const blockerCountByAttacker = new Map<string, number>();
+    for (const attackerIds of Object.values(combat.blockerAssignments)) {
+        for (const attackerId of attackerIds) {
+            blockerCountByAttacker.set(
+                attackerId,
+                (blockerCountByAttacker.get(attackerId) ?? 0) + 1
+            );
+        }
+    }
+
+    const activePlayer = state.players.find(
+        (p) => p.id === state.activePlayerId
+    );
+    if (!activePlayer) return { ok: true };
+
+    for (const attackerId of combat.attackerIds) {
+        const blockedBy = blockerCountByAttacker.get(attackerId) ?? 0;
+        if (blockedBy === 0) continue; // unblocked is always legal
+        const attacker = activePlayer.battlefield.find(
+            (c) => c.id === attackerId
+        );
+        if (!attacker) continue;
+        const min = getMinimumBlockers(attacker);
+        if (blockedBy < min) {
+            const cardName = tryGetCardById(
+                (attacker.card as { id?: string }).id ?? ""
+            )?.name;
+            const label = cardName ?? "This creature";
+            return {
+                ok: false,
+                reason: `${label} can't be blocked except by ${min} or more creatures (menace)`,
+            };
+        }
+    }
+    return { ok: true };
+}
+
 /** Arboria (CR 508.1c) — true when a creature can't be declared as an attacker
  *  against `defenderId` because an Arboria is in play and that player took no
  *  qualifying action (cast a spell / put a nontoken permanent onto the
