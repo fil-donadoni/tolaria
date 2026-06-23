@@ -7,6 +7,7 @@ import {
     sortLobbyPresets,
     buildPresetPatch,
     buildNewPresetRow,
+    resolveFeaturedCardId,
     type LobbyPreset,
 } from "../decks";
 import { PRESET_DECKS, type DeckPreset } from "../deckPresets";
@@ -36,6 +37,38 @@ describe("slugify (PRD #466, ADR 0033)", () => {
     it("is deterministic and idempotent on an existing slug", () => {
         const slug = slugify("White Weenie");
         expect(slugify(slug)).toBe(slug);
+    });
+});
+
+describe("resolveFeaturedCardId (PRD #589, issue #593)", () => {
+    const cards = [
+        { cardId: "bolt", cardName: "Lightning Bolt" },
+        { cardId: "shock", cardName: "Shock" },
+    ];
+
+    it("an in-deck override wins over the default", () => {
+        expect(resolveFeaturedCardId({ featuredCardId: "shock", cards })).toBe(
+            "shock"
+        );
+    });
+
+    it("defaults to the first inserted Maindeck card when absent", () => {
+        expect(resolveFeaturedCardId({ cards })).toBe("bolt");
+    });
+
+    it("resolves an empty deck to null", () => {
+        expect(resolveFeaturedCardId({ cards: [] })).toBeNull();
+        expect(
+            resolveFeaturedCardId({ featuredCardId: "bolt", cards: [] })
+        ).toBeNull();
+    });
+
+    it("falls back to the first card when the override is no longer in the deck", () => {
+        // The featured card was removed from the Maindeck — the dangling
+        // override self-heals to the default rather than pointing at nothing.
+        expect(
+            resolveFeaturedCardId({ featuredCardId: "removed", cards })
+        ).toBe("bolt");
     });
 });
 
@@ -115,6 +148,23 @@ describe("presetRowToLobby — wire shape", () => {
         const lobby = presetRowToLobby({ ...row, description: undefined });
         expect(lobby.description).toBe("");
     });
+
+    it("resolves the Featured Card to the first card when absent (PRD #589)", () => {
+        // The seeded/legacy row has no `featuredCardId`; the wire surfaces the
+        // first-card default so the lobby can render deck art with no migration.
+        const lobby = presetRowToLobby({ ...row, featuredCardId: undefined });
+        expect(lobby.featuredCardId).toBe("a");
+    });
+
+    it("surfaces an in-deck Featured Card override on the wire (PRD #589)", () => {
+        const lobby = presetRowToLobby({ ...row, featuredCardId: "a" });
+        expect(lobby.featuredCardId).toBe("a");
+    });
+
+    it("self-heals a dangling Featured Card override to the first card", () => {
+        const lobby = presetRowToLobby({ ...row, featuredCardId: "gone" });
+        expect(lobby.featuredCardId).toBe("a");
+    });
 });
 
 describe("sortLobbyPresets", () => {
@@ -176,6 +226,17 @@ describe("buildPresetPatch — slug is read-only (ADR 0033)", () => {
     it("yields an empty patch for an empty input (caller skips the write)", () => {
         expect(buildPresetPatch({})).toEqual({});
     });
+
+    it("persists an explicit Featured Card override (PRD #589, issue #593)", () => {
+        const patch = buildPresetPatch({ featuredCardId: "bolt" });
+        expect(patch.featuredCardId).toBe("bolt");
+        expect(Object.keys(patch)).toEqual(["featuredCardId"]);
+    });
+
+    it("leaves the Featured Card untouched when absent from the patch", () => {
+        const patch = buildPresetPatch({ name: "Renamed" });
+        expect("featuredCardId" in patch).toBe(false);
+    });
 });
 
 describe("buildNewPresetRow — admin create (issue #469)", () => {
@@ -203,6 +264,28 @@ describe("buildNewPresetRow — admin create (issue #469)", () => {
         expect(row.colors).toEqual([]);
         expect(row.cards).toEqual([]);
         expect(row.sideboard).toBeUndefined();
+    });
+
+    it("carries a Featured Card override through (PRD #589, issue #593)", () => {
+        const row = buildNewPresetRow({
+            name: "Featured Deck",
+            cards: [{ cardId: "bolt", cardName: "Lightning Bolt" }],
+            featuredCardId: "bolt",
+        });
+        expect(row.featuredCardId).toBe("bolt");
+    });
+
+    it("leaves the Featured Card absent when not provided (round-trips undefined)", () => {
+        const row = buildNewPresetRow({ name: "No Featured" });
+        expect(row.featuredCardId).toBeUndefined();
+        // An absent override resolves to the first-card default on read.
+        const lobby = presetRowToLobby({
+            _id: "row1" as Doc<"presetDecks">["_id"],
+            _creationTime: 0,
+            ...row,
+            cards: [{ cardId: "first", cardName: "First" }],
+        });
+        expect(lobby.featuredCardId).toBe("first");
     });
 
     it("carries the full payload through (cards, colors, sideboard)", () => {

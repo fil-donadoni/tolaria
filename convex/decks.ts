@@ -3,7 +3,11 @@ import { mutation, query } from "./_generated/server";
 import { internalMutation } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { assertIsAdmin } from "./auth";
-import { type DeckCard, type DeckPreset } from "./deckPresets";
+import {
+    type DeckCard,
+    type DeckPreset,
+    resolveFeaturedCardId,
+} from "./deckPresets";
 import { type FormatId, type Reason, validateDeck } from "./formats";
 
 // Typed deck Format (ADR 0036). An Admin chooses it when authoring a preset.
@@ -38,6 +42,12 @@ const lobbyPresetValidator = v.object({
     colors: v.array(v.string()),
     cards: v.array(deckCardValidator),
     sideboard: v.optional(v.array(deckCardValidator)),
+    // Featured Card (PRD #589, issue #593). The resolved Card ID representing
+    // the deck's art in the lobby (override-or-default, via
+    // `resolveFeaturedCardId`). `null` for an empty deck. Resolved server-side
+    // on every read so the wire is self-describing — the client never has to
+    // re-run the resolver.
+    featuredCardId: v.union(v.string(), v.null()),
     // Derived legality (ADR 0036), never stored — recomputed every read so a
     // ruleset/card-pool change reclassifies every preset with no migration.
     isLegal: v.boolean(),
@@ -55,10 +65,20 @@ export interface LobbyPreset {
     colors: string[];
     cards: DeckCard[];
     sideboard?: DeckCard[];
+    // Resolved Featured Card ID (PRD #589, issue #593) — override-or-default,
+    // `null` for an empty deck. Resolved server-side so the lobby renders deck
+    // art without re-running the resolver.
+    featuredCardId: string | null;
     // Derived legality (ADR 0036), recomputed on every read — never stored.
     isLegal: boolean;
     reasons: Reason[];
 }
+
+// Re-export the pure Featured Card resolver (PRD #589, issue #593) so existing
+// `../decks` importers keep working. It lives in the server-free
+// `deckPresets.ts` module so the frontend can share it without importing server
+// runtime; the builders below fold it into the wire projection.
+export { resolveFeaturedCardId };
 
 /**
  * Derive a stable, human-readable slug from a preset name: lowercase, spaces
@@ -91,6 +111,10 @@ export function presetRowToLobby(row: Doc<"presetDecks">): LobbyPreset {
         colors: row.colors,
         cards: row.cards,
         sideboard: row.sideboard,
+        // Resolve the Featured Card on every read (PRD #589, issue #593): the
+        // stored override-or-absent collapses to a single Card ID (or null),
+        // so an override left dangling by a later card removal self-heals.
+        featuredCardId: resolveFeaturedCardId(row),
         isLegal,
         reasons,
     };
@@ -160,6 +184,10 @@ const presetPatchValidator = v.object({
     cards: v.optional(v.array(deckCardValidator)),
     sideboard: v.optional(v.array(deckCardValidator)),
     description: v.optional(v.string()),
+    // Featured Card override (PRD #589, issue #593). The stored Card ID — NOT
+    // the resolved one. An admin can set or clear it; clearing reverts to the
+    // first-card default on the next read.
+    featuredCardId: v.optional(v.string()),
 });
 
 /** The editable subset of a preset, mirroring `presetPatchValidator`. */
@@ -169,6 +197,7 @@ export interface PresetPatchInput {
     cards?: DeckCard[];
     sideboard?: DeckCard[];
     description?: string;
+    featuredCardId?: string;
 }
 
 /**
@@ -192,6 +221,8 @@ export function buildPresetPatch(
     if (input.cards !== undefined) patch.cards = input.cards;
     if (input.sideboard !== undefined) patch.sideboard = input.sideboard;
     if (input.description !== undefined) patch.description = input.description;
+    if (input.featuredCardId !== undefined)
+        patch.featuredCardId = input.featuredCardId;
     return patch;
 }
 
@@ -203,6 +234,7 @@ export interface PresetCreateInput {
     cards?: DeckCard[];
     sideboard?: DeckCard[];
     description?: string;
+    featuredCardId?: string;
 }
 
 /**
@@ -223,6 +255,9 @@ export function buildNewPresetRow(input: PresetCreateInput): PresetInsert {
         colors: input.colors ?? [],
         cards: input.cards ?? [],
         sideboard: input.sideboard,
+        // Featured Card override (PRD #589, issue #593). Stored verbatim; absent
+        // ⇒ the resolver defaults to the first Maindeck card on read.
+        featuredCardId: input.featuredCardId,
     };
 }
 
@@ -237,6 +272,9 @@ const presetCreateValidator = v.object({
     cards: v.optional(v.array(deckCardValidator)),
     sideboard: v.optional(v.array(deckCardValidator)),
     description: v.optional(v.string()),
+    // Featured Card override (PRD #589, issue #593). Optional at creation;
+    // absent ⇒ first-card default on read.
+    featuredCardId: v.optional(v.string()),
 });
 
 // Single preset by slug, backing the editor's preset edit mode (ADR 0033).

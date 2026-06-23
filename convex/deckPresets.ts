@@ -17,6 +17,30 @@ export interface DeckPreset {
     sideboard?: DeckCard[];
 }
 
+/**
+ * Resolve a deck's Featured Card to a single Card ID (PRD #589, issue #593).
+ * The Featured Card represents the deck's art in the lobby. Rules:
+ *   - an explicit `featuredCardId` override wins, but only while that card is
+ *     still in the Maindeck (`cards`);
+ *   - an override pointing at a card no longer in the deck falls back to the
+ *     default — the first card inserted into the Maindeck (`cards[0]`);
+ *   - an absent override resolves to that same default;
+ *   - an empty deck resolves to `null` (no art to show).
+ * Lives in this pure, server-free module so BOTH the Convex builders
+ * (`convex/decks.ts` re-exports it) and the frontend (`src/lib/deckTypes.ts`)
+ * share one resolver without the client pulling in server runtime. Stores and
+ * returns a Card ID only — art uses the default printing (edition-specific
+ * featured art is out of scope). Not part of legality (ADR 0036).
+ */
+export function resolveFeaturedCardId(deck: {
+    featuredCardId?: string;
+    cards: { cardId: string }[];
+}): string | null {
+    const fid = deck.featuredCardId;
+    if (fid && deck.cards.some((c) => c.cardId === fid)) return fid;
+    return deck.cards[0]?.cardId ?? null;
+}
+
 function times(n: number, cardId: string, cardName: string): DeckCard[] {
     return Array.from({ length: n }, () => ({ cardId, cardName }));
 }

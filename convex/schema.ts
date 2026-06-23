@@ -72,6 +72,13 @@ export default defineSchema({
                 })
             )
         ),
+        // Featured Card override (PRD #589, issue #593). A Card ID picked to
+        // represent the deck's art in the lobby. Optional: absent ⇒ the
+        // resolver defaults to the first card inserted into the Maindeck. Stored
+        // as a Card ID only — art uses the default printing (no migration: an
+        // absent value resolves to the default). Not part of legality (ADR
+        // 0036). Resolved via the pure `resolveFeaturedCardId`.
+        featuredCardId: v.optional(v.string()),
     }).index("by_user", ["userId"]),
     // Preset Decks (PRD #466, ADR 0033). The built-in decklists, moved out of
     // the in-code `PRESET_DECKS` constant into the DB so a trusted Admin can
@@ -105,6 +112,11 @@ export default defineSchema({
                 })
             )
         ),
+        // Featured Card override (PRD #589, issue #593). Mirrors `userDecks`:
+        // a Card ID representing the preset's art in the lobby. Absent ⇒ the
+        // resolver defaults to the first Maindeck card. Card ID only (default
+        // printing); not part of legality (ADR 0036).
+        featuredCardId: v.optional(v.string()),
     }).index("by_slug", ["slug"]),
     // A Match (ADR 0029 / PRD #387) is a best-of-N set of Games. The single
     // create/join/solo paths build a `bestOf: 1` Match whose first Game is the
