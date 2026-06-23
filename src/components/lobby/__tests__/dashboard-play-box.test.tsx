@@ -13,6 +13,7 @@ const DECK: LobbyDeck = {
     format: "old-school",
     colors: ["R"],
     cards: [],
+    featuredCardId: null,
     isLegal: true,
     reasons: [],
 };

@@ -1,5 +1,9 @@
 import type { Doc, Id } from "@convex/_generated/dataModel";
-import type { DeckCard, DeckPreset } from "@convex/deckPresets";
+import {
+    type DeckCard,
+    type DeckPreset,
+    resolveFeaturedCardId,
+} from "@convex/deckPresets";
 import { type FormatId, type Reason, validateDeck } from "@convex/formats";
 
 export interface LobbyDeckBase {
@@ -13,6 +17,10 @@ export interface LobbyDeckBase {
     // Sideboard — 0–15 cards held aside (issue #391). Absent === empty for
     // legacy decks saved before sideboarding existed.
     sideboard?: DeckCard[];
+    // Resolved Featured Card ID (PRD #589, issue #593) — the Card ID whose art
+    // represents the deck in the lobby. Override-or-default via the shared pure
+    // `resolveFeaturedCardId`; `null` for an empty deck. Not part of legality.
+    featuredCardId: string | null;
     // Derived deck legality for the deck's Format (ADR 0036, issue #512).
     // Computed from contents via the shared pure `validateDeck` — never stored,
     // so the lobby and the live builder panel never disagree with the server.
@@ -33,7 +41,13 @@ export type LobbyDeck = PresetLobbyDeck | UserLobbyDeck;
 
 // The preset row the lobby query returns may already carry derived legality
 // (`convex/decks.ts`); accept either that shape or the bare in-code preset.
-type PresetSource = DeckPreset & { isLegal?: boolean; reasons?: Reason[] };
+type PresetSource = DeckPreset & {
+    isLegal?: boolean;
+    reasons?: Reason[];
+    // The lobby query resolves and surfaces this server-side; bare in-code
+    // presets omit it and it's resolved client-side below.
+    featuredCardId?: string | null;
+};
 
 export function toPresetLobbyDeck(d: PresetSource): PresetLobbyDeck {
     // Prefer the server-derived legality when present (the lobby query computes
@@ -42,6 +56,16 @@ export function toPresetLobbyDeck(d: PresetSource): PresetLobbyDeck {
         d.isLegal !== undefined && d.reasons !== undefined
             ? { isLegal: d.isLegal, reasons: d.reasons }
             : validateDeck(d, d.format);
+    // Prefer the server-resolved Featured Card when present (the lobby query
+    // resolves it); otherwise resolve here via the same pure resolver (PRD
+    // #589, issue #593).
+    // In this branch the override is absent, so resolution reduces to the
+    // first-card default — pass only `cards` (the source type allows `null`
+    // for `featuredCardId`, which the resolver's input doesn't).
+    const featuredCardId =
+        d.featuredCardId !== undefined
+            ? d.featuredCardId
+            : resolveFeaturedCardId({ cards: d.cards });
     return {
         kind: "preset",
         presetId: d.presetId,
@@ -51,6 +75,7 @@ export function toPresetLobbyDeck(d: PresetSource): PresetLobbyDeck {
         colors: d.colors,
         cards: d.cards,
         sideboard: d.sideboard ?? [],
+        featuredCardId,
         isLegal: legality.isLegal,
         reasons: legality.reasons,
     };
@@ -70,6 +95,10 @@ export function toUserLobbyDeck(d: Doc<"userDecks">): UserLobbyDeck {
         colors: d.colors,
         cards: d.cards,
         sideboard: d.sideboard ?? [],
+        // Resolve the stored Featured Card override against the deck contents
+        // (PRD #589, issue #593) — user-deck rows aren't projected server-side,
+        // so resolution happens here via the shared pure resolver.
+        featuredCardId: resolveFeaturedCardId(d),
         isLegal,
         reasons,
     };
