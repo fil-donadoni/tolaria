@@ -351,6 +351,30 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // FEM C4 Red — Goblin War Drums grants menace; the min-blocker threshold
+        // (#570, ADR 0038, CR 509.1b / 702.111a). Menace: a creature with it
+        // can't be blocked except by two or more creatures.
+        //
+        // Board: you control Goblin War Drums (so your creatures have menace)
+        // and a Brassclaw Orcs (3/2) ready to attack. The opponent controls a
+        // single Grizzly Bears — one would-be blocker. Golden path:
+        //   1. Move to combat and attack with Brassclaw Orcs.
+        //   2. The opponent tries to block with their lone Grizzly Bears and
+        //      confirms — the confirm is REJECTED: a menace attacker can't be
+        //      blocked by one creature.
+        //   3. The attacker connects for 3.
+        // Edge: give the opponent a second creature (drop another Grizzly Bears
+        //   onto their board) — now two blockers are legal and the block stands.
+        label: "FEM: Goblin War Drums menace — single blocker rejected (#570)",
+        cards: [
+            { name: "Goblin War Drums", owner: "me" as const },
+            { name: "Brassclaw Orcs", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Equinox — Aura grants the enchanted land a conditional counter (#498,
         // CR 303.4 attachment, 611.2 activated-grant, 701.5a counter, 701.7
         // destroy).
