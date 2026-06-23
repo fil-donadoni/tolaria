@@ -164,9 +164,10 @@ export interface TargetRequirement {
     zone?: "battlefield" | "graveyard";
     /** Restricts legal targets by relationship to the chooser ("you" =
      *  caster controls; "opponent" = opponent controls; "any" = either).
-     *  Default "any". Honored for graveyard targets (Regrowth) and for
+     *  Default "any". Honored for graveyard targets (Regrowth), for
      *  battlefield-permanent targets (Simulacrum: "target creature you
-     *  control"). Ignored for player / spell targets. */
+     *  control"), and for PLAYER targets (CR 115 — "target opponent", Word of
+     *  Command; "you" keeps only the caster). Ignored for spell targets. */
     controller?: "you" | "opponent" | "any";
     /** Restricts legal permanent targets by live combat role (CR 508.1,
      *  509.1). "attacking" requires `isAttacking === true`; "blocking"
@@ -866,6 +867,16 @@ export interface SpellContext {
         playerId: string,
         cardInstanceId: string
     ) => boolean;
+    /** PLAYS a land from `playerId`'s hand under their control "if able"
+     *  (CR 305.2 / 116.2a). Distinct from `putFromHandOntoBattlefield` (a free
+     *  zone change that does NOT consume a land drop): this is the special
+     *  action of playing a land — it consumes the player's one-land-per-turn
+     *  drop and is REFUSED (returns false) when that drop is already spent.
+     *  Used by Word of Command ("The player plays that card if able") to play
+     *  the chosen land under the controlled opponent's control, counting toward
+     *  the opponent's land drop. Returns true if the land was played, false if
+     *  not able (not in hand, not a Land, or the land drop is spent). */
+    playLandForPlayer: (playerId: string, cardInstanceId: string) => boolean;
     /** Taps a permanent on the battlefield (CR 701.20a). No-op if already
      *  tapped or if the target is no longer on the battlefield (CR 608.2b).
      *  Used by Icy Manipulator and similar "tap target permanent" effects. */
@@ -1533,6 +1544,12 @@ export interface SpellContext {
          *  items from another player's zone (e.g. Demonic Hordes: opponent
          *  picks a Land from controller's battlefield). */
         zoneOwnerId?: string;
+        /** Acting Player (ADR 0037): when the prompted player (`playerId`) is
+         *  acting on behalf of another player's decision (Word of Command — the
+         *  controller picks a card from the controlled opponent's hand), set
+         *  this to the acting player. Recorded on the PendingChoice only when it
+         *  differs from `playerId`. Defaults to `playerId` (normal choices). */
+        actingPlayerId?: string;
         /** When true, candidates are drawn from EVERY player's battlefield,
          *  not just one owner's (CR 707 — "a copy of any creature on the
          *  battlefield", Clone / Copy Artifact). Only meaningful for

@@ -33,6 +33,7 @@ import {
     getBasicLandMana,
     isAura,
     isDamageablePermanent,
+    LAND_DROPS_PER_TURN,
     manaValue,
     MANA_COLORS,
     PERMANENT_TYPES,
@@ -833,7 +834,27 @@ export type StackItem = CardInstanceState & {
      *  exile zone instead of the graveyard. Set via
      *  `SpellContext.exileSelf()`. */
     exileOnResolve?: boolean;
+    /** Acting Player (ADR 0037): the player who answers this item's resolution
+     *  choices, split off from the controller (`castById`) for a controlled
+     *  cast (Word of Command — the controller of WoC decides for the opponent
+     *  whose card was put on the stack). Defaults to `castById` when absent —
+     *  read via `getActingPlayer`. Equal to `castById` for all normal play, so
+     *  every existing cast is unaffected. Cleared when the item leaves the
+     *  stack ("you control the player while that spell is resolving"). */
+    actingPlayerId?: string;
 };
+
+/** Acting Player (ADR 0037 / CR 608): the player who answers a stack item's
+ *  resolution choices. Splits the controller role (`castById` — whose
+ *  object/resources it is) from the "who is prompted" role for controlled
+ *  casts (Word of Command). Defaults to `castById` so every normal cast routes
+ *  prompts to its controller exactly as before. */
+export function getActingPlayer(item: {
+    castById: string;
+    actingPlayerId?: string;
+}): string {
+    return item.actingPlayerId ?? item.castById;
+}
 
 /** A delayed triggered ability waiting to fire (CR 603.7a). Queued on
  *  `GameState.delayedTriggers` at spell resolution time and scanned whenever
@@ -878,6 +899,12 @@ export type PendingCast = {
     /** Mode id chosen at announcement for modal spells (CR 700.2 / 700.2c).
      *  Undefined for non-modal spells. Propagated to the stack item. */
     chosenModeId?: string;
+    /** Acting Player (ADR 0037): the player who answers every resolution choice
+     *  for this cast, split off from the controller (`playerId`) for a
+     *  controlled cast (Word of Command). Defaults to `playerId` when absent —
+     *  read via `getActingPlayer`. Propagated onto the resulting StackItem so
+     *  the spell's resolution choices also route to the acting player. */
+    actingPlayerId?: string;
     /** In-progress additional cost picker (CR 117.9 / 601.2f). Set when the
      *  card has `additionalCosts.sacrificeFilter`. `pickedId` is undefined
      *  until the player calls `selectAdditionalCost`; commit is blocked
@@ -1027,6 +1054,13 @@ export type PendingChoice = {
      *  battlefield to sacrifice. The UI uses `zoneOwnerId ?? playerId` to
      *  decide which battlefield receives click routing for the choice. */
     zoneOwnerId?: string;
+    /** Acting Player (ADR 0037): set when the player prompted (`playerId`) is
+     *  acting on behalf of / in control of another player's decision (Word of
+     *  Command — the acting player picks a card from the controlled opponent's
+     *  hand). Equals `playerId` for all normal choices and is omitted then;
+     *  carried for parity with the cast state and so a controlled cast's
+     *  resolution choices can be audited. Defaults to `playerId` when absent. */
+    actingPlayerId?: string;
     /** Zone of the choosable items — restricts the set offered to the chooser.
      *  Undefined for choice kinds that don't pick from a zone (`may-pay`).
      *  `graveyard` picks (Recall) always carry a `candidateIds` allow-list — a
@@ -1215,6 +1249,10 @@ export type PendingTarget = {
      *  this card def id; the ability resolves with the source permanent as
      *  `ctx.sourceInstanceId`. Undefined for native activated abilities. */
     grantedSourceCardId?: string;
+    /** Acting Player (ADR 0037): the player who answers cast-time choices when
+     *  split off from the controller (`playerId`) for a controlled cast.
+     *  Defaults to `playerId` when absent — read via `getActingPlayer`. */
+    actingPlayerId?: string;
 };
 
 /** Pre-game mulligan tracking (CR 103.5, London mulligan). Present only while
@@ -4855,6 +4893,45 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             putReanimatedOnBattlefield(state, card, playerId);
             return true;
         },
+        // CR 305.2 / 116.2a — PLAY a land from `playerId`'s hand under their
+        // control, "if able". Unlike `putFromHandOntoBattlefield` (a free zone
+        // change that does NOT consume a land drop), this models the special
+        // action of playing a land: it consumes the player's one-land-per-turn
+        // drop and is refused when that drop is already spent. Word of Command
+        // ("The player plays that card if able") uses it to play the chosen
+        // land under the controlled opponent's control. The land enters via the
+        // canonical play-land sequence (drop bookkeeping → CR 302.6 entry clock
+        // → CR 603.6a ETB notification + pending-action triggers); the resolve
+        // flow runs SBAs afterwards. Returns true if the land was played, false
+        // if not able (not in hand, not a Land, or the land drop is spent —
+        // honoring "if able"). Land-play locks (Worms of the Earth) are NOT
+        // re-checked here: WoC playing a land is a resolution effect, not the
+        // active player's land-play action.
+        playLandForPlayer(playerId: string, cardInstanceId: string): boolean {
+            const player = getPlayer(state, playerId);
+            const card = player.hand.find((c) => c.id === cardInstanceId);
+            if (!card || !card.types.includes("Land")) return false;
+            // CR 305.2 — one land per turn (no extra-drop sources in scope for
+            // a WoC-played land this slice). Refuse if already spent ("if able").
+            if ((player.landsPlayedThisTurn ?? 0) >= LAND_DROPS_PER_TURN) {
+                return false;
+            }
+            const moved = moveCard(
+                player,
+                cardInstanceId,
+                "hand",
+                "battlefield"
+            );
+            // CR 305.2 — record the land drop against the controlled player.
+            player.landsPlayedThisTurn = (player.landsPlayedThisTurn ?? 0) + 1;
+            // CR 302.6 — control-continuity clock (summoning sickness clock for
+            // manlands), matching the canonical `applyPlayLand` sequence.
+            markEnteredThisTurn(moved);
+            // CR 603.6a — ETB triggers see the land enter.
+            emitPermanentEntered(state, moved);
+            processPendingActionTriggers(state);
+            return true;
+        },
         // CR 701.20a: to tap a permanent is to turn it sideways from an
         // untapped position. Already-tapped permanents are unaffected.
         // Silently no-ops if the target has left the battlefield (CR 608.2b).
@@ -6049,6 +6126,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             };
             if (req.filter) entry.filter = req.filter;
             if (req.zoneOwnerId) entry.zoneOwnerId = req.zoneOwnerId;
+            // Acting Player (ADR 0037): carry the override only when it differs
+            // from the prompted player — normal choices stay unannotated.
+            if (req.actingPlayerId && req.actingPlayerId !== req.playerId) {
+                entry.actingPlayerId = req.actingPlayerId;
+            }
             if (req.allControllers) entry.allControllers = true;
             if (req.candidateIds) entry.candidateIds = req.candidateIds;
             if (req.candidatePlayerIds) {
