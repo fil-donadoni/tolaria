@@ -1323,7 +1323,11 @@ function performPhaseEntry(state: GameState): void {
             };
             break;
         case "DECLARE_BLOCKERS": {
-            if (state.combat) {
+            // Camouflage (ADR 0012) locks the forced pile blocks into
+            // `blockerAssignments` at the spell's resolution (DECLARE_ATTACKERS),
+            // and replaces this step entirely — so do NOT reset the assignments;
+            // the auto-skip below confirms them with no blocking priority.
+            if (state.combat && !state.camouflageCombat) {
                 state.combat.blockerAssignments = {};
                 state.combat.blockedAttackerIds = undefined;
                 state.combat.pendingBlockerId = undefined;
@@ -2084,6 +2088,8 @@ function endCombatStep(state: GameState): void {
         state.combat = undefined;
     }
     state.combatBlockRestrictions = undefined;
+    // Camouflage's combat-scoped flag lifts with the rest of combat (ADR 0012).
+    state.camouflageCombat = undefined;
     // CR 511.3 — "until end of combat" effects end as the step ends.
     tickAllDurations(state);
 }
@@ -2145,6 +2151,33 @@ export function advancePhase(state: GameState): Phase[] {
         recordBlockedAttackers(state);
     }
 
+    // Camouflage (ADR 0012) — the defender's declare-blockers step is replaced:
+    // the forced pile blocks were already locked into `blockerAssignments` at
+    // the spell's resolution, so confirm them here with no blocking priority
+    // window. Marking blockers as blocking + firing the confirmed events keeps
+    // the rest of combat (damage assignment, triggers) identical to a normal
+    // declare-blockers.
+    const skipCamouflageBlockers =
+        state.phase === "DECLARE_BLOCKERS" &&
+        hadAttackers &&
+        !!state.combat &&
+        !!state.camouflageCombat &&
+        !state.combat.blockersConfirmed;
+    if (skipCamouflageBlockers && state.combat) {
+        const defenderId = getOpponentId(state, state.activePlayerId);
+        const defender = getPlayer(state, defenderId);
+        for (const blockerId of Object.keys(state.combat.blockerAssignments)) {
+            const card = defender.battlefield.find((c) => c.id === blockerId);
+            if (card) {
+                card.isBlocking = true;
+                card.hasBlockedThisTurn = true;
+            }
+        }
+        state.combat.blockersConfirmed = true;
+        recordBlockedAttackers(state);
+        emitBlockersConfirmedEvents(state);
+    }
+
     // CR 510.5: skip the first-strike damage step when no combatant has
     // first strike or double strike.
     const skipFirstStrikeDamage =
@@ -2167,6 +2200,7 @@ export function advancePhase(state: GameState): Phase[] {
         AUTO_PHASES.has(state.phase) ||
         skipEmptyCombat ||
         skipUnblockableCombat ||
+        skipCamouflageBlockers ||
         skipFirstStrikeDamage
     ) {
         // Auto-phase or empty combat: skip straight through (no priority given)

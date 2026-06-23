@@ -383,6 +383,14 @@ function passesCastPhaseRestriction(
     ) {
         return false;
     }
+    // CR 117.1b — "during your turn" only (Camouflage). The controller must be
+    // the active player.
+    if (
+        def?.castTurnRestriction === "self" &&
+        state.activePlayerId !== card.controllerId
+    ) {
+        return false;
+    }
     return true;
 }
 

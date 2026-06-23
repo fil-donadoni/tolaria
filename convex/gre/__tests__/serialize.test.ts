@@ -527,6 +527,13 @@ describe("game_state serialize round-trip", () => {
         );
     });
 
+    it("preserves the camouflageCombat flag across the round trip (#563)", () => {
+        const state = freshState();
+        state.camouflageCombat = true;
+        const expanded = expandState(compactState(state));
+        expect(expanded.camouflageCombat).toBe(true);
+    });
+
     it("compact form is materially smaller than raw JSON", () => {
         const state = freshState();
         const rawSize = JSON.stringify(state).length;
