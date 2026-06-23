@@ -4077,19 +4077,112 @@ export const wordOfCommand: CardDefinition = {
         // keeps deciding. Mana is auto-tapped ONLY from the opponent's lands;
         // unpayable from those lands → not played ("if able").
         //
+        // The Acting Player (controller) makes EVERY cast decision for the
+        // controlled opponent's spell, consuming the opponent's resources
+        // (ADR 0037): the mode (CR 700.2c), the value of X (CR 107.3), any
+        // additional sacrifice cost (CR 117.9), and the targets (CR 601.2c).
+        // Each pick is a resolve-time Pending Choice routed to the controller;
+        // the resolve step re-runs after every submit, reading prior picks back
+        // (so the choiceIds must be stable). Any pick that is unmeetable from
+        // the opponent's resources means the card is NOT played ("if able").
+
+        // MODE (#579, CR 700.2c) — for a modal spell the controller chooses
+        // exactly one mode; its target requirement and resolution drive the
+        // rest of the cast (CR 700.2d). Non-modal cards return an empty list.
+        const modes = ctx.getCardModes(opponentId, chosenId);
+        let chosenModeId: string | undefined;
+        if (modes.length > 0) {
+            const pickedMode = ctx.requestOptionChoice({
+                playerId: controllerId,
+                choiceId: `${controllerId}:mode`,
+                actingPlayerId: controllerId,
+                options: modes,
+                prompt: "Choose a mode for the opponent's spell.",
+            });
+            if (pickedMode === undefined) return; // suspend — resume on submit
+            chosenModeId = pickedMode;
+        }
+
+        // X (#579, CR 107.3) — for a spell with a variable {X} the controller
+        // chooses X. The legal range is 0..maxAffordable from the opponent's
+        // lands ONLY (the oracle's mana restriction): values the opponent
+        // cannot pay are not offered, so "if able" falls out — if even X=0 is
+        // unpayable, `castChosenSpell` below returns false and nothing happens.
+        let chosenX: number | undefined;
+        if (ctx.cardHasXCost(opponentId, chosenId)) {
+            const maxX = ctx.getMaxAffordableX(
+                opponentId,
+                chosenId,
+                chosenModeId
+            );
+            const xOptions = Array.from({ length: maxX + 1 }, (_, n) => ({
+                id: String(n),
+                label: `X = ${n}`,
+            }));
+            const pickedX = ctx.requestOptionChoice({
+                playerId: controllerId,
+                choiceId: `${controllerId}:x`,
+                actingPlayerId: controllerId,
+                options: xOptions,
+                prompt: "Choose the value of X for the opponent's spell.",
+            });
+            if (pickedX === undefined) return; // suspend — resume on submit
+            chosenX = Number(pickedX);
+        }
+
+        // ADDITIONAL COST — sacrifice (#579, CR 117.9). For a spell with a
+        // sacrifice additional cost the controller picks a matching permanent
+        // on the CONTROLLED OPPONENT's battlefield; it is sacrificed on commit.
+        // No matching permanent → the cost is unmeetable, the spell is NOT
+        // played ("if able", CR 117.9 / 601.2f).
+        const sacrificeFilter = ctx.getCardSacrificeFilter(
+            opponentId,
+            chosenId
+        );
+        let additionalSacrificeId: string | undefined;
+        if (sacrificeFilter) {
+            const candidateIds = ctx.getBattlefieldIds(
+                opponentId,
+                sacrificeFilter
+            );
+            if (candidateIds.length === 0) return; // unmeetable — not played
+            const pickedSac = ctx.requestChoice({
+                playerId: controllerId,
+                choiceId: `${controllerId}:sacrifice`,
+                actingPlayerId: controllerId,
+                kind: "choose-permanents",
+                zone: "battlefield",
+                zoneOwnerId: opponentId,
+                filter: sacrificeFilter,
+                candidateIds,
+                count: 1,
+                prompt: "Choose a permanent for the opponent to sacrifice.",
+            });
+            if (pickedSac === undefined) return; // suspend — resume on submit
+            additionalSacrificeId = pickedSac[0];
+            if (!additionalSacrificeId) return;
+        }
+
         // TARGETED spell (#578, CR 601.2c) — the Acting Player chooses the
-        // targets. The legal candidate set comes from `getLegalTargetsForCard`,
-        // which reuses `getLegalTargets` exactly as a normal cast does, with the
-        // controlled opponent as the spell's caster (CR 601). For an "any
-        // target" spell (Lightning Bolt) that places no restriction, so the
-        // controller may aim the opponent's Bolt at the opponent themselves —
-        // the classic Word of Command line. No legal targets → the spell is NOT
-        // played ("if able", CR 601.2c).
-        const targetReq = ctx.getCardTargetRequirement(opponentId, chosenId);
+        // targets. For a MODAL spell the active requirement is the chosen
+        // mode's (CR 700.2d); otherwise the card-level one. The legal candidate
+        // set comes from `getLegalTargetsForCard`, which reuses `getLegalTargets`
+        // exactly as a normal cast does, with the controlled opponent as the
+        // spell's caster (CR 601). For an "any target" spell (Lightning Bolt)
+        // that places no restriction, so the controller may aim the opponent's
+        // Bolt at the opponent themselves — the classic Word of Command line.
+        // No legal targets → the spell is NOT played ("if able", CR 601.2c).
+        const targetReq = chosenModeId
+            ? ctx.getCardModeTargetRequirement(
+                  opponentId,
+                  chosenId,
+                  chosenModeId
+              )
+            : ctx.getCardTargetRequirement(opponentId, chosenId);
         let chosenTargets: TargetSelection[] | undefined;
         if (targetReq) {
             // This slice supports single-target spells (count 1); multi-target
-            // / X / modal casts route their extra choices in later slices.
+            // casts route their extra picks in a later slice.
             const legal = ctx.getLegalTargetsForCard(
                 opponentId,
                 chosenId,
@@ -4127,11 +4220,17 @@ export const wordOfCommand: CardDefinition = {
             chosenTargets = [selected];
         }
 
-        // `castChosenSpell` handles mana payment + stack placement + cast
-        // triggers and is a no-op (returns false) when the spell can't be paid
-        // for from the opponent's lands. The Acting Player's targets (if any)
-        // ride onto the resulting stack item (CR 601.2c).
-        ctx.castChosenSpell(opponentId, chosenId, controllerId, chosenTargets);
+        // `castChosenSpell` handles mana payment (including X) + the additional
+        // sacrifice + stack placement + cast triggers, and is a no-op (returns
+        // false) when the spell can't be paid for / its additional cost can't
+        // be met from the opponent's resources. The Acting Player's targets, X,
+        // mode and sacrifice all ride onto the resulting stack item.
+        ctx.castChosenSpell(opponentId, chosenId, controllerId, {
+            targets: chosenTargets,
+            chosenX,
+            chosenModeId,
+            additionalSacrificeId,
+        });
     },
 };
 

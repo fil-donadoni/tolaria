@@ -119,6 +119,67 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Word of Command — X / modal / additional-cost casts (#579, PRD #575,
+        // ADR 0037, CR 107.3 / 700.2c / 117.9). Every cast decision is made by
+        // you (the Acting Player) from the OPPONENT's resources.
+        //
+        // Board: you hold Word of Command ({B}{B}) with two Swamps. Your
+        // opponent's hand holds an X spell (Fireball, {X}{R}), a modal spell
+        // (Red Elemental Blast — counter/destroy a blue object), and an
+        // additional-cost spell (Sacrifice — "sacrifice a creature; add {B}
+        // equal to its mana value"). They control two Mountains and a Swamp for
+        // mana plus a Grizzly Bears to feed Sacrifice; you control a blue
+        // Merfolk for Red Elemental Blast's destroy mode to aim at. Golden path:
+        //   1. Cast Word of Command targeting your opponent.
+        //   2. Look at their hand and pick a card:
+        //      • Fireball → you choose X (only values payable from their two
+        //        Mountains are offered) and aim it; X mana is auto-tapped from
+        //        THEIR lands.
+        //      • Red Elemental Blast → you choose the mode (counter/destroy);
+        //        the destroy mode lets you blow up your own Merfolk (a blue
+        //        permanent).
+        //      • Sacrifice → you choose which of THEIR creatures (Grizzly Bears)
+        //        is sacrificed as the additional cost; it resolves adding {B}{B}
+        //        to their pool.
+        // Edges:
+        //   - Remove the opponent's Mountains → Fireball is unpayable even at
+        //     X = 0 and is not played ("if able").
+        //   - Remove the opponent's Grizzly Bears → Sacrifice's additional cost
+        //     is unmeetable and the spell is not played.
+        label: "2ED: Word of Command — X / modal / additional-cost cast (#579)",
+        cards: [
+            {
+                name: "Word of Command",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            // A blue permanent for Red Elemental Blast's destroy mode to aim at.
+            { name: "Merfolk of the Pearl Trident", owner: "me" as const },
+            {
+                name: "Fireball",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Red Elemental Blast",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Sacrifice",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "opp" as const, count: 2 },
+            { name: "Swamp", owner: "opp" as const },
+            // Fodder for Sacrifice's additional cost (a creature to sacrifice).
+            { name: "Grizzly Bears", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Word of Command — controlled cast, SPELL branch (#577, PRD #575, ADR
         // 0037, CR 601 / 305.2). You cast Word of Command targeting your
         // opponent, look at their hand, and choose a card for them to play

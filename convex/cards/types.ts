@@ -1637,6 +1637,11 @@ export interface SpellContext {
         choiceId: string;
         options: { id: string; label: string }[];
         prompt: string;
+        /** Acting Player (ADR 0037): set when the prompted `playerId` is acting
+         *  on another player's behalf (Word of Command — the controller picks X
+         *  / the mode for the controlled opponent's spell). Recorded on the
+         *  PendingChoice only when it differs from `playerId`. */
+        actingPlayerId?: string;
     }) => string | undefined;
 
     /** Requests a player name ANY card (CR 202.3 / 701.x "chooses a card
@@ -1948,16 +1953,77 @@ export interface SpellContext {
      *  hand.
      *
      *  For a TARGETED spell (CR 601.2c) the Acting Player's chosen targets are
-     *  passed in via `targets` and written onto the resulting `StackItem`; the
-     *  caller is responsible for choosing them from `getLegalTargetsForCard`
-     *  (Word of Command — the controller aims the opponent's spell). X / modal
-     *  casts arrive in later slices. */
+     *  passed in via `opts.targets` and written onto the resulting `StackItem`;
+     *  the caller is responsible for choosing them from `getLegalTargetsForCard`
+     *  (Word of Command — the controller aims the opponent's spell).
+     *
+     *  X / modal / additional-cost casts (CR 107.3 / 700.2c / 117.9, #579) ride
+     *  on the same `opts`, all decided by the Acting Player from the controlled
+     *  opponent's resources:
+     *   - `chosenX` — the value of X (CR 107.3); folded into the generic cost
+     *     (honoring `xFactor`) and snapshotted on the stack item for `getX()`.
+     *   - `chosenModeId` — the chosen mode (CR 700.2c); written onto the stack
+     *     item so the mode's `resolve` runs and its `staticEffects` apply.
+     *   - `additionalSacrificeId` — a permanent on the CONTROLLED OPPONENT's
+     *     battlefield to sacrifice as an additional cost (CR 117.9). It is
+     *     sacrificed on commit and its pre-sacrifice mana value snapshotted for
+     *     `getAdditionalSacrificeMv()`. The caller must validate it matches the
+     *     card's `additionalCosts.sacrificeFilter`; a missing/illegal pick
+     *     means the cost is unmeetable → the spell is NOT played ("if able").
+     *  Any of these unpayable/unmeetable from the opponent's resources →
+     *  returns false, nothing changes. */
     castChosenSpell: (
         controllerId: string,
         cardInstanceId: string,
         actingPlayerId: string,
-        targets?: TargetSelection[]
+        opts?: {
+            targets?: TargetSelection[];
+            chosenX?: number;
+            chosenModeId?: string;
+            additionalSacrificeId?: string;
+        }
     ) => boolean;
+    /** ADR 0037 / CR 700.2 — the modes of a card in `casterId`'s hand, read
+     *  from the registry (CR 108.1), or `[]` for a non-modal card. Lets a
+     *  controlled cast (Word of Command) prompt the Acting Player to choose a
+     *  mode (CR 700.2c) and then drive targeting/resolution from it. */
+    getCardModes: (
+        casterId: string,
+        cardInstanceId: string
+    ) => { id: string; label: string }[];
+    /** ADR 0037 / CR 700.2d — the target requirement of a specific mode of a
+     *  modal card in `casterId`'s hand, or `undefined` if the mode has none /
+     *  the card isn't modal. Drives the Acting Player's target pick for a
+     *  controlled modal cast (Word of Command). */
+    getCardModeTargetRequirement: (
+        casterId: string,
+        cardInstanceId: string,
+        modeId: string
+    ) => TargetRequirement | undefined;
+    /** ADR 0037 / CR 107.3 — true when a card in `casterId`'s hand has a
+     *  variable {X} in its mana cost (a string-valued `X`). Lets a controlled
+     *  cast (Word of Command) know it must ask the Acting Player for X. */
+    cardHasXCost: (casterId: string, cardInstanceId: string) => boolean;
+    /** ADR 0037 / CR 117.9 — the `additionalCosts.sacrificeFilter` of a card in
+     *  `casterId`'s hand, or `undefined` if it has no sacrifice additional
+     *  cost. Lets a controlled cast (Word of Command) enumerate the controlled
+     *  opponent's matching permanents for the Acting Player to choose from. */
+    getCardSacrificeFilter: (
+        casterId: string,
+        cardInstanceId: string
+    ) => PermanentFilter | undefined;
+    /** ADR 0037 / CR 107.3 — the highest value of X payable for a card in
+     *  `controllerId`'s hand SOLELY from lands `controllerId` controls (Word of
+     *  Command's mana restriction). Computed by auto-tapping the controlled
+     *  opponent's battlefield + floating pool against the cost at each candidate
+     *  X. Returns 0 when even X=0 is unpayable (the caller treats that as "not
+     *  played", "if able"). `chosenModeId` is accepted for symmetry but does not
+     *  currently change the mana cost (modal X spells are not in the pool). */
+    getMaxAffordableX: (
+        controllerId: string,
+        cardInstanceId: string,
+        chosenModeId?: string
+    ) => number;
     /** ADR 0037 / CR 601.2c — enumerate the legal targets for a card in
      *  `casterId`'s hand if it were cast as their spell, reusing the exact
      *  `getLegalTargets` candidate set a normal cast uses. Relationship filters
