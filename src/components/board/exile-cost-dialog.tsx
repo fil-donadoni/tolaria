@@ -115,7 +115,7 @@ export default function ExileCostDialog({
                             type="button"
                             disabled={isPending}
                             onClick={() => setChosenOwnerId(g.ownerId)}
-                            className="rounded-sm px-3 py-2 ring-1 ring-[#c8a060]/40 hover:ring-2 hover:ring-[#c8a060]/70 disabled:opacity-40 cursor-pointer text-left"
+                            className="rounded-sm px-3 py-2 ring-1 ring-accent/40 hover:ring-2 hover:ring-accent disabled:opacity-40 cursor-pointer text-left"
                         >
                             {g.ownerId === playerId
                                 ? "Your graveyard"
@@ -138,8 +138,8 @@ export default function ExileCostDialog({
                                     title={getCardById(card.card.id).name}
                                     className={`relative rounded-sm overflow-hidden ring-1 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                                         isSel
-                                            ? "ring-2 ring-[#c8a060]"
-                                            : "ring-transparent hover:ring-2 hover:ring-[#c8a060]/70"
+                                            ? "ring-2 ring-accent"
+                                            : "ring-transparent hover:ring-2 hover:ring-accent"
                                     }`}
                                 >
                                     <CardImage card={card} />
@@ -154,7 +154,7 @@ export default function ExileCostDialog({
                                 isPending || selected.length !== choice.count
                             }
                             onClick={() => void handleConfirm()}
-                            className="rounded-sm px-4 py-2 bg-[#c8a060]/80 hover:bg-[#c8a060] text-black font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            className="rounded-sm px-4 py-2 bg-accent hover:bg-accent-strong text-black font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                         >
                             Exile {selected.length}/{choice.count}
                         </button>

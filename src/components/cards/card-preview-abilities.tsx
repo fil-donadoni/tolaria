@@ -6,9 +6,9 @@ import {
 import { formatOracleText } from "~/lib/oracle-text";
 
 const KEYWORD_STATE_CLASS: Record<AbilityDisplayState, string> = {
-    native: "text-zinc-100",
+    native: "text-text",
     granted: "text-emerald-400",
-    lost: "text-zinc-400 line-through opacity-70",
+    lost: "text-text-muted line-through opacity-70",
 };
 
 function KeywordRow({
@@ -34,7 +34,7 @@ function AbilityRow({
     text: string;
     state: "native" | "granted";
 }) {
-    const cls = state === "granted" ? "text-emerald-400" : "text-zinc-100";
+    const cls = state === "granted" ? "text-emerald-400" : "text-text";
     const prefix = state === "granted" ? "[+] " : "";
     return (
         <div className={cls}>
@@ -61,7 +61,7 @@ export default function CardPreviewAbilities({
     abilities: DisplayAbilities;
 }) {
     return (
-        <div className="border-t border-zinc-700 pt-2 space-y-1.5">
+        <div className="border-t border-border-subtle pt-2 space-y-1.5">
             {abilities.keywords.length > 0 && (
                 <div className="space-y-0.5">
                     {abilities.keywords.map((k, i) => (

@@ -374,6 +374,12 @@ export function applyPendingChoiceSubmit(
             ) {
                 throw new Error("Card does not match the required filter");
             }
+            // Precomputed eligibility allow-list (Camouflage's per-pile pick:
+            // each pile draws only from the still-unassigned creatures, so a
+            // creature already placed in an earlier pile is rejected here).
+            if (head.candidateIds && !head.candidateIds.includes(id)) {
+                throw new Error("Card is not an eligible choice");
+            }
         }
     } else if (head.zone === "hand") {
         for (const id of args.cardInstanceIds) {

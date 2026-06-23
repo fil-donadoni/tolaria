@@ -5675,14 +5675,78 @@ export const birdsOfParadise: CardDefinition = {
     ],
 };
 
-// Out of scope — see ADR 0010
-// export const camouflage: CardDefinition = {
-//     id: "3838c2a3-7fab-4976-9c1b-2891aee24e52",
-//     name: "Camouflage",
-//     oracleText: "Cast this spell only during your declare attackers step.\nThis turn, instead of declaring blockers, each defending player chooses any number of creatures they control and divides them into a number of piles equal to the number of attacking creatures for whom that player is the defending player. Creatures those players control that can block additional creatures may likewise be put into additional piles. Assign each pile to a different one of those attacking creatures at random. Each creature in a pile that can block the creature that pile is assigned to does so. (Piles can be empty.)",
-//     manaCost: { G: 1 },
-//     types: ["Instant"],
-// };
+// Camouflage — pile combat (CR 509 variant, the RANDOM twin of Raging River,
+// ADR 0012). Cast only during the controller's declare-attackers step (the
+// attackers are already declared). On resolve it REPLACES the defending
+// player's declare-blockers step for this combat: the defender divides any
+// number of their creatures into N piles (N = number of attackers; piles can
+// be empty), the engine assigns each pile to a DIFFERENT attacker at random
+// (seeded PRNG — deterministic for replay), and each creature in a pile that
+// can legally block its assigned attacker is forced to do so.
+//
+// The N-pile division reuses the existing `partition` choice kind (ADR 0012)
+// rather than a Camouflage-specific kind: it is collected as up to N sequential
+// subset picks, each from the still-unassigned creatures (the per-pile
+// `candidateIds` allow-list shrinks as creatures are placed). The random
+// assignment + forced legal blocks are applied by
+// `ctx.applyCamouflagePileBlocks` once every pile has been chosen. Single
+// defending player, matching the rest of combat.
+export const camouflage: CardDefinition = {
+    id: "3838c2a3-7fab-4976-9c1b-2891aee24e52",
+    rarity: "uncommon",
+    name: "Camouflage",
+    oracleText:
+        "Cast this spell only during your declare attackers step.\nThis turn, instead of declaring blockers, each defending player chooses any number of creatures they control and divides them into a number of piles equal to the number of attacking creatures for whom that player is the defending player. Creatures those players control that can block additional creatures may likewise be put into additional piles. Assign each pile to a different one of those attacking creatures at random. Each creature in a pile that can block the creature that pile is assigned to does so. (Piles can be empty.)",
+    manaCost: { G: 1 },
+    types: ["Instant"],
+    // CR 117.1b — castable only during the controller's declare-attackers step.
+    castPhaseRestriction: ["DECLARE_ATTACKERS"],
+    castTurnRestriction: "self",
+    resolve: (ctx: SpellContext) => {
+        const attackerIds = ctx.getBattlefieldIds(ctx.controller, {
+            types: "Creature",
+            isAttacking: true,
+        });
+        const pileCount = attackerIds.length;
+        if (pileCount === 0) return; // no attackers ⇒ nothing to replace.
+
+        const defenderId = ctx.allPlayerIds.find((p) => p !== ctx.controller);
+        if (!defenderId) return;
+
+        // Collect the defender's division into up to N piles. Each pile is a
+        // subset pick (the `partition` kind) from the creatures not yet placed
+        // in an earlier pile; leftover (unpicked) creatures simply don't block.
+        const piles: string[][] = [];
+        const assigned = new Set<string>();
+        for (let pileIndex = 0; pileIndex < pileCount; pileIndex++) {
+            const remaining = ctx
+                .getBattlefieldIds(defenderId, { types: "Creature" })
+                .filter((id) => !assigned.has(id));
+            // No creatures left to place ⇒ the rest of the piles are empty.
+            if (remaining.length === 0) {
+                piles.push([]);
+                continue;
+            }
+            const pick = ctx.requestChoice({
+                playerId: defenderId,
+                choiceId: `camouflage-pile-${pileIndex}`,
+                kind: "partition",
+                zone: "battlefield",
+                zoneOwnerId: defenderId,
+                filter: { types: "Creature" },
+                candidateIds: remaining,
+                count: { min: 0, max: remaining.length },
+                prompt: `Camouflage — choose the creatures for pile ${pileIndex + 1} of ${pileCount} (the rest stay back or go in a later pile).`,
+            });
+            if (pick === undefined) return; // suspended — resumes on submit.
+            for (const id of pick) assigned.add(id);
+            piles.push(pick);
+        }
+
+        // Random pile→attacker assignment + forced legal blocks (CR 509.1).
+        ctx.applyCamouflagePileBlocks(defenderId, piles);
+    },
+};
 
 // CR 605.1a — the granted ability adds mana and does not target, so it
 // qualifies as a mana ability (useStack: false). CR 118.4 — paying 1 life

@@ -145,6 +145,75 @@ describe("derived deck legality on lobby decks (ADR 0036, issue #512)", () => {
     });
 });
 
+describe("Featured Card on lobby decks (PRD #589, issue #593)", () => {
+    it("resolves a user deck's absent override to the first Maindeck card", () => {
+        const deck = toUserLobbyDeck(
+            userDeck({
+                cards: [
+                    { cardId: "bolt", cardName: "Lightning Bolt" },
+                    { cardId: "shock", cardName: "Shock" },
+                ],
+            })
+        );
+        expect(deck.featuredCardId).toBe("bolt");
+    });
+
+    it("surfaces a user deck's in-deck Featured Card override", () => {
+        const deck = toUserLobbyDeck(
+            userDeck({
+                cards: [
+                    { cardId: "bolt", cardName: "Lightning Bolt" },
+                    { cardId: "shock", cardName: "Shock" },
+                ],
+                featuredCardId: "shock",
+            })
+        );
+        expect(deck.featuredCardId).toBe("shock");
+    });
+
+    it("self-heals a user deck's dangling override to the first card", () => {
+        const deck = toUserLobbyDeck(
+            userDeck({
+                cards: [{ cardId: "bolt", cardName: "Lightning Bolt" }],
+                featuredCardId: "removed",
+            })
+        );
+        expect(deck.featuredCardId).toBe("bolt");
+    });
+
+    it("resolves an empty user deck's Featured Card to null", () => {
+        const deck = toUserLobbyDeck(userDeck({ cards: [] }));
+        expect(deck.featuredCardId).toBeNull();
+    });
+
+    it("prefers the server-resolved Featured Card on a preset (wire)", () => {
+        // The lobby query resolves featuredCardId server-side; the client must
+        // trust it rather than re-resolve.
+        const deck = toPresetLobbyDeck({
+            presetId: "p",
+            name: "Server-featured",
+            format: "freeform",
+            description: "",
+            colors: ["R"],
+            cards: [{ cardId: "bolt", cardName: "Lightning Bolt" }],
+            featuredCardId: "bolt",
+        });
+        expect(deck.featuredCardId).toBe("bolt");
+    });
+
+    it("resolves a bare in-code preset's Featured Card client-side", () => {
+        const deck = toPresetLobbyDeck({
+            presetId: "p2",
+            name: "Bare Preset",
+            format: "freeform",
+            description: "",
+            colors: ["W"],
+            cards: [{ cardId: "lions", cardName: "Savannah Lions" }],
+        });
+        expect(deck.featuredCardId).toBe("lions");
+    });
+});
+
 describe("selectPreset — null-safe stored-selection fallback (issue #470)", () => {
     const decks = [
         toPresetLobbyDeck({

@@ -22,7 +22,7 @@ export default function CardPreviewDock(props: CardPreviewBodyProps) {
     return createPortal(
         <div
             data-card-preview-dock
-            className="pointer-events-none fixed left-2 top-1/2 -translate-y-1/2 z-100 flex flex-col rounded-2xl shadow-2xl bg-zinc-900/95 backdrop-blur-sm overflow-hidden"
+            className="pointer-events-none fixed left-2 top-1/2 -translate-y-1/2 z-100 flex flex-col rounded-2xl shadow-2xl bg-surface overflow-hidden"
             style={{
                 width: DOCK_WIDTH,
                 maxHeight: `calc(100vh - ${VIEWPORT_PAD * 2}px)`,

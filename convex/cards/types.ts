@@ -1536,6 +1536,17 @@ export interface SpellContext {
         attackerId: string,
         allowedPileLabel: string
     ) => void;
+    /** Camouflage (CR 509 variant — the random twin of Raging River, ADR 0012).
+     *  Replaces the defending player's declare-blockers step for THIS combat:
+     *  `piles` is the defender's division of any number of their creatures into
+     *  buckets (piles can be empty; the count is at most the number of
+     *  attackers). The engine assigns each pile to a DIFFERENT attacker at
+     *  random via the seeded PRNG (deterministic for replay), then each creature
+     *  in a pile that can legally block its assigned attacker is forced to do so
+     *  — the blocks are written straight into `combat.blockerAssignments`. Sets
+     *  `state.camouflageCombat` so the DECLARE_BLOCKERS step auto-confirms with
+     *  no blocking priority. No-op if there is no active combat. */
+    applyCamouflagePileBlocks: (defenderId: string, piles: string[][]) => void;
     /** Copies a spell on the stack (CR 707.10, Fork). Clones the target stack
      *  item, inserts the copy directly above the original (so the copy
      *  resolves first), and returns the copy's new stack id — or `null` if the
@@ -3883,8 +3894,11 @@ export interface CardDefinition {
      *  controls this permanent. A phaseTrigger at DRAW handles the choice
      *  (skip or draw). Used by Island Sanctuary. */
     drawStepReplacement?: boolean;
-    /** Restricts cast timing to the opponent's turn only (Siren's Call). */
-    castTurnRestriction?: "opponent";
+    /** Restricts cast timing by whose turn it is (CR 117.1b). `"opponent"` —
+     *  only during an opponent's turn (Siren's Call). `"self"` — only during the
+     *  controller's own turn (Camouflage's "during your declare attackers
+     *  step", combined with `castPhaseRestriction`). */
+    castTurnRestriction?: "opponent" | "self";
     /** Extra land drops per turn granted to the controller while this permanent
      *  is on the battlefield (CR 305.2 — Fastbond). Added to LAND_DROPS_PER_TURN
      *  at land-play legality check time. Use 999 for unlimited. */

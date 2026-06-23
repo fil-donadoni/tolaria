@@ -39,7 +39,7 @@ export default function ControllerBottomBar({
             <div
                 data-controller-bottom-bar
                 data-cue={cue}
-                className={`fixed inset-x-2 bottom-2 z-40 flex flex-col gap-2 rounded-2xl border bg-[#0c0d12]/92 p-2 shadow-2xl backdrop-blur-md md:hidden ${
+                className={`fixed inset-x-2 bottom-2 z-40 flex flex-col gap-2 rounded-2xl border bg-surface-base p-2 shadow-2xl backdrop-blur-md md:hidden ${
                     isMyTurn ? "border-emerald-500/60" : "border-rose-500/40"
                 }`}
             >
@@ -58,13 +58,13 @@ export default function ControllerBottomBar({
                         onClick={() => setSheetOpen((v) => !v)}
                         aria-expanded={sheetOpen}
                         aria-label="Toggle phase list"
-                        className="flex min-w-[88px] flex-col justify-center rounded-xl bg-white/[0.04] px-3 py-2 text-left active:bg-white/[0.08]"
+                        className="flex min-w-[88px] flex-col justify-center rounded-xl bg-surface-elevated px-3 py-2 text-left active:bg-surface-elevated"
                     >
-                        <span className="flex items-center gap-1 text-[8px] uppercase tracking-wider text-white/40">
+                        <span className="flex items-center gap-1 text-[8px] uppercase tracking-wider text-text-disabled">
                             T{turn} · {phaseGroupLabel(phase)}
                             <ChevronUp className="h-3 w-3" aria-hidden />
                         </span>
-                        <span className="truncate font-beleren text-sm font-bold text-amber-300">
+                        <span className="truncate font-beleren text-sm font-bold text-accent-strong">
                             {phaseLabel(phase)}
                         </span>
                     </button>
@@ -77,7 +77,7 @@ export default function ControllerBottomBar({
                                 type="button"
                                 onClick={primary.onClick}
                                 disabled={primary.disabled}
-                                className="flex flex-1 items-center justify-center rounded-xl border border-zinc-600/45 bg-zinc-800/40 px-3 text-center text-xs font-beleren tracking-wide text-zinc-300 disabled:opacity-70"
+                                className="flex flex-1 items-center justify-center rounded-xl border border-border-accent/40 bg-surface-elevated px-3 text-center text-xs font-beleren tracking-wide text-text-muted disabled:opacity-70"
                                 style={{ minHeight: 48 }}
                             >
                                 {primary.label}

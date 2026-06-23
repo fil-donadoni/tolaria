@@ -1496,6 +1496,15 @@ export type GameState = {
         attackerId: string;
         allowedPileLabel: string;
     }[];
+    /** Combat-scoped flag set by Camouflage (CR 509 variant — the random twin
+     *  of Raging River, ADR 0012). When true, the defending player's
+     *  declare-blockers step is REPLACED for this combat: the engine has
+     *  already locked the forced pile blocks into `combat.blockerAssignments`
+     *  at the spell's resolution, so the DECLARE_BLOCKERS step grants no
+     *  blocking priority and auto-confirms (see `phases.ts`). Combat-scoped:
+     *  cleared at end of combat. Persisted so a mid-combat stable-point save
+     *  preserves the "blockers already declared" state. */
+    camouflageCombat?: boolean;
     /** Per-player preferences that drive "may"-style replacement opt-ins.
      *  Persisted in state so the choice is replay-stable and toggleable
      *  through a mutation rather than requiring mid-event suspension.
@@ -6062,6 +6071,61 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 ...existing,
                 { attackerId, allowedPileLabel },
             ];
+        },
+
+        // Camouflage (CR 509 variant — the random twin of Raging River,
+        // ADR 0012). Replaces the defender's declare-blockers step: the
+        // defender's piles are assigned to distinct attackers at random (seeded
+        // PRNG — deterministic for replay), then each creature in a pile that
+        // can legally block its assigned attacker is forced to do so (CR 509.1 —
+        // "each creature in a pile that can block the creature that pile is
+        // assigned to does so"). The forced blocks are written into
+        // `combat.blockerAssignments`; the DECLARE_BLOCKERS step auto-confirms.
+        applyCamouflagePileBlocks(defenderId: string, piles: string[][]): void {
+            const combat = state.combat;
+            if (!combat) return;
+            // Marks "declare-blockers replaced by Camouflage" for this combat;
+            // consumed by the DECLARE_BLOCKERS phase hook. Cleared at end of
+            // combat alongside the other combat-scoped state.
+            state.camouflageCombat = true;
+
+            const defender = getPlayer(state, defenderId);
+            const attackerOwner = getPlayer(state, state.activePlayerId);
+
+            // Assign each pile to a DIFFERENT attacker at random. seededShuffle
+            // reorders a copy of the attacker ids; pile i is then assigned to
+            // shuffled[i]. Piles beyond the attacker count have no attacker to
+            // block and are dropped (the defender can declare at most N piles).
+            const shuffledAttackers = seededShuffle(state, [
+                ...combat.attackerIds,
+            ]);
+
+            for (let i = 0; i < piles.length; i++) {
+                const attackerId = shuffledAttackers[i];
+                if (attackerId === undefined) break;
+                const attacker = attackerOwner.battlefield.find(
+                    (c) => c.id === attackerId
+                );
+                if (!attacker) continue;
+                for (const blockerId of piles[i]) {
+                    const blocker = defender.battlefield.find(
+                        (c) => c.id === blockerId
+                    );
+                    if (!blocker) continue;
+                    // CR 509.1b — only creatures that CAN legally block their
+                    // assigned attacker do so; others stay back.
+                    const { eligible } = validateBlockerEligibility(
+                        attacker,
+                        blocker,
+                        defender.battlefield,
+                        state
+                    );
+                    if (!eligible) continue;
+                    blocker.isBlocking = true;
+                    blocker.hasBlockedThisTurn = true;
+                    combat.blockerAssignments[blockerId] = [attackerId];
+                }
+            }
         },
         copyStackItem(targetStackItemId, modifications): string | null {
             const original = state.stack.find(

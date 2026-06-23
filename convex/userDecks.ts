@@ -60,6 +60,9 @@ export const create = mutation({
         cards: v.array(deckCardValidator),
         sideboard: v.optional(v.array(deckCardValidator)),
         description: v.optional(v.string()),
+        // Featured Card override (PRD #589, issue #593). Optional Card ID;
+        // absent ⇒ the resolver defaults to the first Maindeck card on read.
+        featuredCardId: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const userId = await getCurrentUserId(ctx);
@@ -72,6 +75,7 @@ export const create = mutation({
             cards: args.cards,
             sideboard: args.sideboard,
             description: args.description,
+            featuredCardId: args.featuredCardId,
         });
     },
 });
@@ -87,6 +91,9 @@ export const update = mutation({
             cards: v.optional(v.array(deckCardValidator)),
             sideboard: v.optional(v.array(deckCardValidator)),
             description: v.optional(v.string()),
+            // Featured Card override (PRD #589, issue #593). Set or change the
+            // stored Card ID; an absent value in the patch leaves it untouched.
+            featuredCardId: v.optional(v.string()),
         }),
     },
     handler: async (ctx, args) => {
@@ -102,6 +109,8 @@ export const update = mutation({
             patch.sideboard = args.patch.sideboard;
         if (args.patch.description !== undefined)
             patch.description = args.patch.description;
+        if (args.patch.featuredCardId !== undefined)
+            patch.featuredCardId = args.patch.featuredCardId;
         if (Object.keys(patch).length === 0) return null;
         await ctx.db.patch(args.id, patch);
         return null;

@@ -6567,6 +6567,41 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Camouflage — {G} Instant, pile combat (#563, CR 509 variant, the
+        // RANDOM twin of Raging River, ADR 0012). "Cast only during your
+        // declare attackers step. This turn, instead of declaring blockers,
+        // each defending player divides any number of their creatures into N
+        // piles (N = number of attackers). Assign each pile to a different
+        // attacker at random. Each creature in a pile that can block its
+        // assigned attacker does so."
+        //
+        // Board: you hold Camouflage ({G}) with a Forest for the cost and field
+        // two Grizzly Bears as attackers. The opponent has two ground Grizzly
+        // Bears (legal blockers) and a Serra Angel (flying — it can block any
+        // pile's attacker). Golden path:
+        //   1. Move to combat and attack with both Grizzly Bears.
+        //   2. In your declare-attackers step, cast Camouflage and let it
+        //      resolve. The declare-blockers step is replaced: you (the
+        //      defender) divide your creatures into two piles, one pick per
+        //      pile.
+        //   3. The engine assigns each pile to a different attacker at random
+        //      and forces every creature that can legally block its assigned
+        //      attacker to do so — no manual blocker declaration follows.
+        // Edge: put a ground Bear in a pile assigned to an attacker it can
+        //   still legally block → it blocks; the Serra Angel can be put in any
+        //   pile and always blocks (flying blocks ground attackers).
+        label: "2ED: Camouflage — random pile blocking replaces declare-blockers (#563)",
+        cards: [
+            { name: "Camouflage", owner: "me" as const, zone: "hand" as const },
+            { name: "Forest", owner: "me" as const },
+            { name: "Grizzly Bears", owner: "me" as const, count: 2 },
+            { name: "Grizzly Bears", owner: "opp" as const, count: 2 },
+            { name: "Serra Angel", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

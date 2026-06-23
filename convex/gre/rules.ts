@@ -383,6 +383,14 @@ function passesCastPhaseRestriction(
     ) {
         return false;
     }
+    // CR 117.1b — "during your turn" only (Camouflage). The controller must be
+    // the active player.
+    if (
+        def?.castTurnRestriction === "self" &&
+        state.activePlayerId !== card.controllerId
+    ) {
+        return false;
+    }
     // CR 601.3e — "Cast this spell only if no permanent[s] named <this name>
     // are on the battlefield" (FEM Tidal Influence). The match uses the printed
     // card name (CR 201.2); any permanent on either battlefield sharing the

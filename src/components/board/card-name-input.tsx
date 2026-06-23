@@ -61,7 +61,7 @@ export default function CardNameInput({
                 disabled={disabled}
                 placeholder="Type a card name…"
                 aria-label="Card name"
-                className="px-2.5 py-1.5 rounded-sm text-xs bg-[#0c0d12] border border-[#c8a060]/45 text-[#f1f1e8] placeholder:text-zinc-600 focus:outline-none focus:border-[#c8a060]/80 disabled:opacity-40"
+                className="px-2.5 py-1.5 rounded-sm text-xs bg-surface border border-accent/45 text-parchment placeholder:text-text-disabled focus:outline-none focus:border-accent/80 disabled:opacity-40"
                 onChange={(e) => setValue(e.target.value)}
                 onKeyDown={(e) => {
                     if (e.key === "Enter") {
@@ -71,13 +71,13 @@ export default function CardNameInput({
                 }}
             />
             {suggestions.length > 0 && (
-                <ul className="flex flex-col rounded-sm border border-zinc-800/80 bg-[#0c0d12] divide-y divide-zinc-800/60 overflow-hidden">
+                <ul className="flex flex-col rounded-sm border border-border-subtle bg-surface divide-y divide-border-subtle overflow-hidden">
                     {suggestions.map((name) => (
                         <li key={name}>
                             <button
                                 type="button"
                                 disabled={disabled}
-                                className="w-full text-left px-2.5 py-1 text-xs text-zinc-300 hover:bg-[#7a5a2e]/40 disabled:opacity-40 cursor-pointer"
+                                className="w-full text-left px-2.5 py-1 text-xs text-text-muted hover:bg-accent-soft/40 disabled:opacity-40 cursor-pointer"
                                 onClick={() => setValue(name)}
                             >
                                 {name}
@@ -89,13 +89,13 @@ export default function CardNameInput({
             <button
                 type="button"
                 disabled={disabled || !isValid}
-                className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-[#7a5a2e]/30 border border-[#c8a060]/45 text-[#e0c08a] hover:bg-[#7a5a2e]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft/30 border border-accent/45 text-accent-strong hover:bg-accent-soft/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 onClick={submit}
             >
                 Name it
             </button>
             {trimmed.length > 0 && !isValid && (
-                <p className="text-[11px] text-zinc-500 text-center">
+                <p className="text-[11px] text-text-disabled text-center">
                     No implemented card by that name
                 </p>
             )}

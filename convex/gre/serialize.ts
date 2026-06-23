@@ -693,6 +693,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "artifactDamageToPlayerThisTurn",
     "damageRedirections",
     "combatBlockRestrictions",
+    "camouflageCombat",
     "playerPreferences",
     "landPlayLocked",
     "preventAllCombatDamageThisTurn",
