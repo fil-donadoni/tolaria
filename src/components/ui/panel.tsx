@@ -1,5 +1,9 @@
 import * as React from "react";
+import { ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import CornerFiligreeFrame from "./corner-filigree-frame";
+import SunburstIcon from "./sunburst-icon";
+import SubtitleFlourish from "./subtitle-flourish";
 
 type PanelSize = "default" | "wide" | "full";
 type PanelTone = "neutral" | "accent";
@@ -11,89 +15,79 @@ const SIZE_CLASSES: Record<PanelSize, string> = {
     full: "w-full",
 };
 
-function CornerBracket({ className }: { className: string }) {
-    return (
-        <div
-            data-slot="corner-bracket"
-            className={cn(
-                "absolute w-4 h-4 after:absolute after:w-1 after:h-1 after:bg-text-muted/40",
-                className
-            )}
-        />
-    );
-}
-
-function CornerBrackets() {
-    return (
-        <>
-            <CornerBracket className="top-2 left-2 border-t border-l border-border-accent/40 after:top-1 after:left-1" />
-            <CornerBracket className="top-2 right-2 border-t border-r border-border-accent/40 after:top-1 after:right-1" />
-            <CornerBracket className="bottom-2 left-2 border-b border-l border-border-accent/40 after:bottom-1 after:left-1" />
-            <CornerBracket className="bottom-2 right-2 border-b border-r border-border-accent/40 after:bottom-1 after:right-1" />
-        </>
-    );
-}
-
-function SunburstIcon({ children }: { children: React.ReactNode }) {
-    return (
-        <div className="relative shrink-0 w-28 h-28 sm:w-36 sm:h-36 flex items-center justify-center overflow-hidden rounded-full border border-border-subtle/30 bg-surface/40">
-            <div
-                className="absolute inset-0 opacity-35 mix-blend-color-dodge animate-[spin_80s_linear_infinite]"
-                style={{
-                    backgroundImage:
-                        "repeating-conic-gradient(from 0deg, var(--color-accent) 0deg 4deg, transparent 4deg 12deg)",
-                }}
-            />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_10%,var(--color-surface)_70%)]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,color-mix(in_srgb,var(--color-accent)_20%,transparent)_0%,transparent_60%)]" />
-            <div className="relative z-10 flex items-center justify-center drop-shadow-[0_0_20px_color-mix(in_srgb,var(--color-accent)_50%,transparent)]">
-                {children}
-            </div>
-        </div>
-    );
-}
-
+/**
+ * Shared panel — the single chrome frame (ADR 0007), composition API
+ * (`Panel` + `PanelHeader` / `PanelBody` / `PanelFooter`).
+ *
+ * Physical look (issue #595): a layered OPAQUE bezel (`.panel-physical` — inner
+ * gold hairline, even/symmetric inner shade, drop shadow; no asymmetric
+ * fake-3D) framed by SVG corner filigree.
+ *
+ * `overlay` mode renders ONLY the corner filigree, stretched `inset-0` to the
+ * nearest positioned ancestor, so an already-built `relative` panel can be
+ * framed without re-wrapping it (and without the zero-height collapse a
+ * self-sizing wrapper would cause).
+ */
 function Panel({
     size = "default",
     tone = "neutral",
     density = "default",
+    overlay = false,
     className,
     children,
 }: {
     size?: PanelSize;
     tone?: PanelTone;
     density?: PanelDensity;
+    overlay?: boolean;
     className?: string;
-    children: React.ReactNode;
+    children?: React.ReactNode;
 }) {
+    if (overlay) {
+        return <CornerFiligreeFrame overlay />;
+    }
+
     return (
         <div
             data-slot="panel"
             className={cn(
-                "relative bg-surface/90 border backdrop-blur-md rounded-sm text-text shadow-[0_0_50px_rgba(0,0,0,0.8)] select-none opacity-80",
+                "panel-physical relative rounded-md border text-text select-none",
                 density === "compact" ? "p-2" : "p-6",
-                tone === "accent"
-                    ? "border-accent/30"
-                    : "border-border-subtle/80",
+                tone === "accent" ? "border-accent/40" : "border-border-subtle",
                 SIZE_CLASSES[size],
                 className
             )}
         >
-            <CornerBrackets />
+            <CornerFiligreeFrame overlay />
             {children}
         </div>
     );
 }
 
+/**
+ * Engraved header band: small-caps Beleren title centred over a darker inset
+ * band, a gold rule beneath with a centred diamond node, optional leading
+ * sunburst icon, optional subtitle (clasp-flanked), and an optional collapse
+ * chevron.
+ */
 function PanelHeader({
     title,
     subtitle,
     icon,
+    collapsible = false,
+    collapsed = false,
+    onToggleCollapse,
+    titleId,
     className,
 }: {
-    title: string;
-    subtitle?: string;
+    title: React.ReactNode;
+    subtitle?: React.ReactNode;
     icon?: React.ReactNode;
+    collapsible?: boolean;
+    collapsed?: boolean;
+    onToggleCollapse?: () => void;
+    /** Render the title element with this id (e.g. for DialogTitle wiring). */
+    titleId?: string;
     className?: string;
 }) {
     return (
@@ -101,19 +95,48 @@ function PanelHeader({
             data-slot="panel-header"
             className={cn(
                 "flex gap-4 sm:gap-6",
-                icon ? "flex-col sm:flex-row items-center" : "flex-col",
+                icon ? "flex-col items-center sm:flex-row" : "flex-col",
                 className
             )}
         >
             {icon && <SunburstIcon>{icon}</SunburstIcon>}
-            <div className="flex-1 flex flex-col w-full min-w-0">
-                <h2 className="heading-panel">{title}</h2>
+
+            <div className="flex w-full min-w-0 flex-1 flex-col">
+                <div className="panel-header-band relative -mx-2 -mt-2 flex items-center justify-center rounded-t-md px-3 py-2 sm:-mx-4 sm:-mt-4">
+                    <h2
+                        id={titleId}
+                        data-slot="panel-title"
+                        className="heading-panel text-base tracking-[0.16em] uppercase sm:text-lg"
+                    >
+                        {title}
+                    </h2>
+                    {collapsible && (
+                        <button
+                            type="button"
+                            onClick={onToggleCollapse}
+                            aria-label={collapsed ? "Expand" : "Collapse"}
+                            aria-expanded={!collapsed}
+                            className="absolute right-3 flex h-5 w-5 items-center justify-center rounded-sm border border-border-accent/60 text-text-muted transition-colors hover:text-accent-strong"
+                        >
+                            {collapsed ? (
+                                <ChevronDown className="h-3 w-3" />
+                            ) : (
+                                <ChevronUp className="h-3 w-3" />
+                            )}
+                        </button>
+                    )}
+                    {/* gold rule with a centred diamond node sitting on it */}
+                    <span className="panel-rule absolute bottom-0 left-0 h-px w-full" />
+                    <span className="divider-node absolute -bottom-[3px] left-1/2 h-1.5 w-1.5 -translate-x-1/2 rotate-45" />
+                </div>
+
                 {subtitle && (
-                    <p className="text-text-muted text-sm text-center mt-1">
-                        {subtitle}
-                    </p>
+                    <div className="mt-3 flex items-center justify-center gap-2 text-center text-sm text-text-muted">
+                        <SubtitleFlourish side="left" />
+                        <span>{subtitle}</span>
+                        <SubtitleFlourish side="right" />
+                    </div>
                 )}
-                <div className="divider-gradient my-2" />
             </div>
         </div>
     );
@@ -129,7 +152,7 @@ function PanelBody({
     return (
         <div
             data-slot="panel-body"
-            className={cn("flex flex-col gap-3", className)}
+            className={cn("mt-4 flex flex-col gap-3", className)}
         >
             {children}
         </div>
@@ -147,7 +170,7 @@ function PanelFooter({
         <div
             data-slot="panel-footer"
             className={cn(
-                "flex justify-end gap-2 mt-4 pt-3 border-t border-border-accent/20",
+                "mt-4 flex justify-end gap-2 border-t border-border-accent/20 pt-3",
                 className
             )}
         >
@@ -156,11 +179,4 @@ function PanelFooter({
     );
 }
 
-export {
-    Panel,
-    PanelHeader,
-    PanelBody,
-    PanelFooter,
-    SunburstIcon,
-    CornerBrackets,
-};
+export { Panel, PanelHeader, PanelBody, PanelFooter, SunburstIcon };
