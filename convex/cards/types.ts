@@ -379,6 +379,16 @@ export interface ActivatedAbility {
          *  `chosenX = multiplier * mvOfStackItem(targetSpell)` and pays that as
          *  the {X} portion. Used by Reflecting Mirror (multiplier 2). */
         xFromTargetSpellMv?: { multiplier: number };
+        /** Dynamic mana cost equal to the mana cost of the permanent this Aura
+         *  is attached to (CR 601.2f / 202.3 — FEM Merseine: "Pay enchanted
+         *  creature's mana cost: Remove a net counter from this Aura."). When
+         *  true, the engine reads the printed mana cost of `card.attachedTo`'s
+         *  permanent at activation time and uses it as this ability's mana cost
+         *  (in addition to any `mana` declared, which is normally omitted). The
+         *  activation is illegal when the source isn't attached to anything.
+         *  Pair with `canActivate` to restrict who may activate it (Merseine
+         *  limits it to the enchanted creature's controller). */
+        manaEqualToEnchantedCreatureCost?: boolean;
     };
     /** Oracle text for this ability (displayed in context menus and on the stack). */
     oracleText: string;
@@ -523,6 +533,12 @@ export interface ActivatedAbility {
      *  by Clergy of the Holy Nimbus ("{1}: This creature can't be regenerated
      *  this turn. Only your opponents may activate this ability."). */
     activatableByOpponentsOnly?: boolean;
+    /** "Only the controller of the enchanted creature may activate this
+     *  ability" (CR 602.1 — FEM Merseine). The ability lives on an Aura; only
+     *  the player who controls the permanent the Aura is attached to
+     *  (`source.attachedTo`) may activate it, regardless of who controls the
+     *  Aura. Overrides the controller-only default. */
+    activatableByEnchantedController?: boolean;
 }
 
 // --- Temporary-effect durations (CR 611.2, 514.2, 511.3) ---
@@ -778,6 +794,10 @@ export interface SpellContext {
      *  (permanent). No-op if the target has left the battlefield. Used by
      *  Barl's Cage. */
     skipNextUntap: (target: TargetSelection) => void;
+    /** Grants the target "can attack this turn as though it didn't have
+     *  defender" (CR 508.1a override — FEM Vodalian War Machine). Cleared at
+     *  CLEANUP. No-op if the target has left the battlefield. */
+    allowAttackDespiteDefender: (target: TargetSelection) => void;
     /** Sets the target's base power and/or toughness to a fixed value until
      *  `duration` expires (CR 613.4b layer 7b, ADR 0017). Pass `undefined` for
      *  a characteristic to leave it untouched ("base power 0" sets power only).
@@ -1383,6 +1403,12 @@ export interface SpellContext {
      *  Idempotent (stacking Deep Water activations don't compound). Cleared at
      *  CLEANUP. */
     replaceLandManaWithBlue: (playerId: string) => void;
+    /** Arms a FEM High Tide rider for `playerId` until end of turn: each time
+     *  that player taps an Island for mana, they add an additional {U} on top of
+     *  the Island's normal output (CR 614-style additive replacement). Unlike
+     *  `replaceLandManaWithBlue`, this is additive AND stacks — two High Tides
+     *  give two extra {U} per Island tap. Cleared at CLEANUP. */
+    addHighTide: (playerId: string) => void;
     /** Sets Island Sanctuary protection: the given player can only be attacked
      *  by creatures with flying or islandwalk until their next turn. */
     setIslandSanctuaryProtection: (playerId: string) => void;
@@ -2458,6 +2484,17 @@ export interface StaticUntapRestriction {
      *  the source's controller. Reserved enum keeps room for future
      *  controller-scoped restrictions without breaking the type. */
     scope: "each-player";
+    /** When true, the restriction is scoped to the permanent this source is
+     *  ATTACHED to (CR 303.4 — an Aura's host), not to a board-wide filter.
+     *  The engine synthesizes an instance-id filter for `source.attachedTo`
+     *  at untap-collection time (FEM Merseine: "Enchanted creature doesn't
+     *  untap ..."). `filter` is ignored when this is set. */
+    appliesToHost?: boolean;
+    /** Optional source-level gate (CR 611.2c). Evaluated once per source: when
+     *  present and false, the restriction contributes nothing this untap step.
+     *  Reads the source permanent's live view — Merseine gates on "if this Aura
+     *  has a net counter on it" (`source.counters.net > 0`). */
+    condition?: (source: PermanentView) => boolean;
 }
 
 /** Card-level block restriction (CR 509.1b). Declares that a permanent
@@ -3835,6 +3872,13 @@ export interface CardDefinition {
      *  list. Used by Berserk ("cast only before the combat damage step") —
      *  the instant-speed check still applies, this only narrows further. */
     castPhaseRestriction?: Phase[];
+    /** CR 601.3e — "Cast this spell only if no permanent[s] named <this card's
+     *  name> are on the battlefield." When true, the spell's Cast action is
+     *  suppressed (and the server cast rejected) while any permanent on either
+     *  battlefield shares this card's name (FEM Tidal Influence). Name match
+     *  uses the printed card name (CR 201.2), so alternate-art prints of the
+     *  same card collide as expected. */
+    castUniqueByName?: boolean;
     /** When true, the normal draw at draw step is suppressed if the controller
      *  controls this permanent. A phaseTrigger at DRAW handles the choice
      *  (skip or draw). Used by Island Sanctuary. */

@@ -383,6 +383,20 @@ function passesCastPhaseRestriction(
     ) {
         return false;
     }
+    // CR 601.3e — "Cast this spell only if no permanent[s] named <this name>
+    // are on the battlefield" (FEM Tidal Influence). The match uses the printed
+    // card name (CR 201.2); any permanent on either battlefield sharing the
+    // spell's name blocks the cast.
+    if (def?.castUniqueByName && def.name) {
+        const nameClash = state.players.some((p) =>
+            p.battlefield.some(
+                (perm) =>
+                    tryGetCardById((perm.card as { id?: string }).id ?? "")
+                        ?.name === def.name
+            )
+        );
+        if (nameClash) return false;
+    }
     return true;
 }
 

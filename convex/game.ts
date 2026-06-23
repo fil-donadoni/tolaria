@@ -63,6 +63,7 @@ import {
 import { isGuardedAgainst } from "./gre/permanentGuard";
 import { assertDeckLegal } from "./formats";
 import type {
+    ActivatedAbility,
     CardType,
     Color,
     ManaCost,
@@ -644,6 +645,46 @@ function sacrificedManaValue(perm: CardInstanceState): number {
               0
           )
         : 0;
+}
+
+/** Resolves an activated ability's mana cost, folding in the FEM Merseine
+ *  "pay enchanted creature's mana cost" dynamic cost (CR 601.2f / 202.3). When
+ *  `manaEqualToEnchantedCreatureCost` is set, the source's `attachedTo`
+ *  permanent's PRINTED mana cost is added on top of any declared `cost.mana`
+ *  (normally none). Returns `undefined` when there is no mana cost at all, and
+ *  throws when the dynamic cost is declared but the source isn't attached to a
+ *  permanent on the battlefield (illegal activation). */
+function resolveAbilityManaCost(
+    state: GameState,
+    card: CardInstanceState,
+    ability: { cost: ActivatedAbility["cost"] },
+    opts: { chosenX?: number } = {}
+): Record<string, number> | undefined {
+    const base = ability.cost.mana
+        ? normalizeManaCost(ability.cost.mana, { chosenX: opts.chosenX })
+        : undefined;
+    if (!ability.cost.manaEqualToEnchantedCreatureCost) return base;
+
+    const hostId = card.attachedTo;
+    const host = hostId
+        ? state.players
+              .flatMap((p) => p.battlefield)
+              .find((c) => c.id === hostId)
+        : undefined;
+    if (!host) {
+        throw new Error("Enchanted creature is no longer on the battlefield");
+    }
+    const hostCardId = (host.card as { id?: string }).id;
+    const hostCost = (hostCardId ? tryGetCardById(hostCardId) : undefined)
+        ?.manaCost;
+    // Merge the host's printed cost (normalized so X folds to 0, CR 202.3b)
+    // onto the base.
+    const merged: Record<string, number> = { ...(base ?? {}) };
+    const hostNormalized = hostCost ? normalizeManaCost(hostCost) : {};
+    for (const [sym, amt] of Object.entries(hostNormalized)) {
+        merged[sym] = (merged[sym] ?? 0) + amt;
+    }
+    return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
 /** If the activator's pool now covers pendingActivation, pay mana, apply the
@@ -2056,11 +2097,9 @@ export function finalizeTargetSelection(
         if (hasXInCost && abilityChosenX === undefined) {
             throw new Error("This ability requires a chosen X value");
         }
-        const manaCost = ability.cost.mana
-            ? normalizeManaCost(ability.cost.mana, {
-                  chosenX: abilityChosenX,
-              })
-            : undefined;
+        const manaCost = resolveAbilityManaCost(state, card, ability, {
+            chosenX: abilityChosenX,
+        });
         if (manaCost) {
             applyCostModifiers(
                 manaCost,
@@ -4999,7 +5038,22 @@ export const activateAbility = mutation({
         // CR 602.1 — "only your opponents may activate this ability" (Clergy of
         // the Holy Nimbus): the source's controller may NOT activate it; any
         // other player may. Checked before the controller-only default below.
-        if (ability.activatableByOpponentsOnly) {
+        if (ability.activatableByEnchantedController) {
+            // CR 602.1 — "Only the controller of the enchanted creature may
+            // activate this ability" (FEM Merseine). The Aura's host decides
+            // who may activate, regardless of who controls the Aura.
+            const hostId = card.attachedTo;
+            const host = hostId
+                ? state.players
+                      .flatMap((p) => p.battlefield)
+                      .find((c) => c.id === hostId)
+                : undefined;
+            if (!host || host.controllerId !== args.playerId) {
+                throw new Error(
+                    "Only the controller of the enchanted creature may activate this ability"
+                );
+            }
+        } else if (ability.activatableByOpponentsOnly) {
             if (card.controllerId === args.playerId) {
                 throw new Error(
                     "Only your opponents may activate this ability"
@@ -5281,9 +5335,9 @@ export const activateAbility = mutation({
             throw new Error("This ability requires a chosen X value");
         }
         const chosenX = hasXInCost ? args.chosenX : undefined;
-        const manaCost = ability.cost.mana
-            ? normalizeManaCost(ability.cost.mana, { chosenX })
-            : undefined;
+        const manaCost = resolveAbilityManaCost(state, card, ability, {
+            chosenX,
+        });
         if (manaCost) {
             applyCostModifiers(
                 manaCost,

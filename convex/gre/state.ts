@@ -414,6 +414,12 @@ export type CardInstanceState = {
      *  following untap step proceeds normally. Set by
      *  `SpellContext.skipNextUntap` (Barl's Cage, The Dark). */
     skipNextUntap?: boolean;
+    /** When true, this permanent may attack this turn as though it didn't have
+     *  defender (CR 508.1a override — FEM Vodalian War Machine). Set by
+     *  `SpellContext.allowAttackDespiteDefender`; cleared at CLEANUP (until end
+     *  of turn). Read by the defender attack-restriction rule
+     *  (`combatRegistry.ts`). */
+    canAttackDespiteDefenderThisTurn?: boolean;
     /** Counters on this permanent (CR 122). Map of counter type → count.
      *  Layer 7d folds P/T-modifying types (+1/+1, +1/+0, ...) into effective
      *  stat reads. Mutated by `addCounter`/`removeCounter`. Cleared on
@@ -1537,6 +1543,14 @@ export type GameState = {
      *  the produced colours are rewritten to the same TOTAL quantity of {U}
      *  before they reach the pool. Cleared at CLEANUP (until end of turn). */
     landManaReplacedToBlueThisTurn?: string[];
+    /** Player ids who have an active FEM High Tide this turn (CR 614-style
+     *  additive rider): "Until end of turn, whenever a player taps an Island
+     *  for mana, that player adds an additional {U}." Each High Tide resolution
+     *  adds the casting player's id (one entry per cast — repeated High Tides
+     *  stack additively, so duplicate ids are intentional and each contributes
+     *  one extra {U} per Island tap). Read by the single `applyLandManaReplacement`
+     *  mana funnel. Cleared at CLEANUP (until end of turn). */
+    highTideThisTurn?: string[];
     /** When true, no player may play a land and lands can't enter the
      *  battlefield (Worms of the Earth). Unlike the turn-scoped flags below,
      *  this is NOT cleared at CLEANUP — it is a cache of a battlefield-derived
@@ -4775,6 +4789,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (!found) return;
             found.card.skipNextUntap = true;
         },
+        allowAttackDespiteDefender(target: TargetSelection): void {
+            // CR 508.1a override — "can attack this turn as though it didn't
+            // have defender" (FEM Vodalian War Machine). Cleared at CLEANUP.
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.canAttackDespiteDefenderThisTurn = true;
+        },
         setBasePT(
             target: TargetSelection,
             power: number | undefined,
@@ -5730,6 +5752,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const list = state.landManaReplacedToBlueThisTurn ?? [];
             if (!list.includes(playerId)) list.push(playerId);
             state.landManaReplacedToBlueThisTurn = list;
+        },
+
+        addHighTide(playerId: string): void {
+            // FEM High Tide — additive, NOT idempotent: each resolution adds
+            // another entry so two High Tides give two extra {U} per Island tap
+            // (CR 614-style stacking riders). Cleared at CLEANUP.
+            const list = state.highTideThisTurn ?? [];
+            list.push(playerId);
+            state.highTideThisTurn = list;
         },
 
         setIslandSanctuaryProtection(playerId: string): void {

@@ -147,6 +147,28 @@ export function collectUntapRestrictions(state: GameState): {
         const effects = def?.staticEffects ?? [];
         for (const effect of effects) {
             if (effect.kind === "untap-restriction") {
+                // CR 611.2c — a host-scoped restriction (FEM Merseine) gated on
+                // the source's live state. Evaluate the condition and resolve
+                // the host filter at collection time so the dispatcher sees a
+                // plain instance-id filter (or nothing when the gate is closed).
+                if (effect.appliesToHost) {
+                    const view = effectivePermanentView(state, card);
+                    if (effect.condition && !effect.condition(view)) continue;
+                    const hostId = card.attachedTo;
+                    if (!hostId) continue;
+                    out.push({
+                        source: card,
+                        restriction: {
+                            ...effect,
+                            filter: { instanceIds: [hostId] },
+                        },
+                    });
+                    continue;
+                }
+                if (effect.condition) {
+                    const view = effectivePermanentView(state, card);
+                    if (!effect.condition(view)) continue;
+                }
                 out.push({ source: card, restriction: effect });
             }
         }
@@ -1617,6 +1639,11 @@ export function finalizeCleanup(state: GameState): void {
             if (card.hasBlockedThisTurn) {
                 card.hasBlockedThisTurn = undefined;
             }
+            // CR 514.2 — "can attack as though it didn't have defender" is
+            // turn-scoped (FEM Vodalian War Machine).
+            if (card.canAttackDespiteDefenderThisTurn) {
+                card.canAttackDespiteDefenderThisTurn = undefined;
+            }
             if (card.damagedBySources !== undefined) {
                 card.damagedBySources = undefined;
             }
@@ -1909,6 +1936,10 @@ function tickAllDurations(state: GameState): void {
     // CR 514.2 — Deep Water's "until end of turn" land-mana replacement expires.
     if (state.landManaReplacedToBlueThisTurn) {
         state.landManaReplacedToBlueThisTurn = undefined;
+    }
+    // CR 514.2 — FEM High Tide's "until end of turn" extra-{U} rider expires.
+    if (state.highTideThisTurn) {
+        state.highTideThisTurn = undefined;
     }
     if (state.allCreaturesMustAttack) {
         state.allCreaturesMustAttack = undefined;

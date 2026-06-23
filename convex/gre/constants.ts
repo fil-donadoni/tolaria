@@ -343,12 +343,28 @@ export function applyLandManaReplacement(
     card: CardInstanceState,
     produced: ManaCost
 ): ManaCost {
-    if (!state.landManaReplacedToBlueThisTurn?.includes(controllerId))
-        return produced;
-    if (!isLand(card)) return produced;
-    const total = totalManaCount(produced);
-    if (total <= 0) return produced;
-    return { U: total };
+    let result = produced;
+    if (
+        state.landManaReplacedToBlueThisTurn?.includes(controllerId) &&
+        isLand(card)
+    ) {
+        const total = totalManaCount(result);
+        if (total > 0) result = { U: total };
+    }
+    // FEM High Tide (CR 614-style additive rider): "Until end of turn, whenever
+    // a player taps an Island for mana, that player adds an additional {U}."
+    // It benefits EVERY player who taps an Island this turn (not just the
+    // caster), so the count is global. Folded into the single mana funnel so
+    // every tap path adds the bonus consistently. The replacement above runs
+    // first (Deep Water turns the Island's mana into {U}); High Tide then adds
+    // one MORE {U} per active High Tide, keyed to the Island subtype (CR 305.6).
+    if (card.subtypes.includes("Island")) {
+        const highTides = state.highTideThisTurn?.length ?? 0;
+        if (highTides > 0) {
+            result = { ...result, U: (result.U ?? 0) + highTides };
+        }
+    }
+    return result;
 }
 
 /** Spend restriction (CR 106.6) carried by a card's fixed tap mana ability, or

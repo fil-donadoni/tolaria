@@ -551,9 +551,29 @@ function enumerateAbilityMoves(
         }
         // Mana cost: must be payable. The {T} part of the cost is paid by the
         // activate mutation itself, not by the tap plan.
-        const manaCost = ability.cost.mana
+        const manaCost: Record<string, number> = ability.cost.mana
             ? normalizeManaCost(ability.cost.mana)
             : {};
+        // FEM Merseine (CR 601.2f / 202.3) — "Pay enchanted creature's mana
+        // cost": fold the attached host's printed cost into the affordability
+        // check so the Brain only offers the activation when it can pay.
+        if (ability.cost.manaEqualToEnchantedCreatureCost) {
+            const hostId = perm.attachedTo;
+            const host = hostId
+                ? state.players
+                      .flatMap((p) => p.battlefield)
+                      .find((c) => c.id === hostId)
+                : undefined;
+            if (!host) continue;
+            const hostCardId = (host.card as { id?: string }).id;
+            const hostCost = (
+                hostCardId ? tryGetCardById(hostCardId) : undefined
+            )?.manaCost;
+            const hostNorm = hostCost ? normalizeManaCost(hostCost) : {};
+            for (const [sym, amt] of Object.entries(hostNorm)) {
+                manaCost[sym] = (manaCost[sym] ?? 0) + amt;
+            }
+        }
         const tapPlan = planManaPayment(player, manaCost);
         if (tapPlan === null) continue;
 

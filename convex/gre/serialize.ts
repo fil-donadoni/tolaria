@@ -694,6 +694,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "preventAllCombatDamageThisTurn",
     "assignsNoCombatDamageThisTurn",
     "landManaReplacedToBlueThisTurn",
+    "highTideThisTurn",
     "damageCapShields",
     "islandSanctuaryProtection",
     "allCreaturesMustAttack",
