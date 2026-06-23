@@ -15,10 +15,12 @@ import { checkStateBasedActions } from "../sba";
 import {
     darkRitual,
     disruptingScepter,
+    fireball,
     grizzlyBears,
     lightningBolt,
     mountain,
     plains,
+    sacrifice,
     swamp,
     winterOrb,
     wordOfCommand,
@@ -1232,5 +1234,113 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
                 cardInstanceIds: ["no-such-id"],
             })
         ).toThrow(/legal target/i);
+    });
+
+    // --- X / additional-cost casts (#579, CR 107.3 / 117.9): every cast
+    // decision flows through the same submit path the mutation runs. ---
+
+    it("casts the opponent's Fireball with controller-chosen X via the submit path (CR 107.3)", () => {
+        const oppFireball = makeInstance(fireball.id, {
+            id: "opp-fireball",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const m1 = makeInstance(mountain.id, {
+            id: "opp-m1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const m2 = makeInstance(mountain.id, {
+            id: "opp-m2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = wocState({
+            oppHand: [oppFireball],
+            oppBattlefield: [m1, m2],
+        });
+        const startLife = state.players[0].life;
+        pushSpell(state, wordOfCommand.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+
+        // 1) Pick Fireball. 2) Choose X = 1 (an option pick). 3) Aim at p1.
+        submitViaMutationPath(state, "opp-fireball");
+        const xHead = (state.pendingChoices ?? [])[0];
+        expect(xHead?.kind).toBe("option-pick");
+        expect(xHead?.playerId).toBe("p1");
+        submitViaMutationPath(state, "1");
+        submitViaMutationPath(state, "p1");
+
+        const fb = state.stack.find(
+            (s) => (s.card as { id?: string }).id === fireball.id
+        );
+        expect(fb?.castById).toBe("p2");
+        expect(fb?.chosenX).toBe(1);
+        expect(m1.isTapped && m2.isTapped).toBe(true);
+
+        resolveTopOfStack(state);
+        checkStateBasedActions(state);
+        expect(state.players[0].life).toBe(startLife - 1);
+    });
+
+    it("casts the opponent's Sacrifice with a controller-chosen sacrifice via the submit path (CR 117.9)", () => {
+        const oppSacrifice = makeInstance(sacrifice.id, {
+            id: "opp-sacrifice",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppSwamp = makeInstance(swamp.id, {
+            id: "opp-swamp",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const oppBears = makeInstance(grizzlyBears.id, {
+            id: "opp-bears",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = wocState({
+            oppHand: [oppSacrifice],
+            oppBattlefield: [oppSwamp, oppBears],
+        });
+        pushSpell(state, wordOfCommand.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+
+        // 1) Pick Sacrifice. 2) Choose the creature to sacrifice (the
+        // controller picks from the OPPONENT's battlefield).
+        submitViaMutationPath(state, "opp-sacrifice");
+        const sacHead = (state.pendingChoices ?? [])[0];
+        expect(sacHead?.kind).toBe("choose-permanents");
+        expect(sacHead?.playerId).toBe("p1");
+        expect(sacHead?.zoneOwnerId).toBe("p2");
+        submitViaMutationPath(state, "opp-bears");
+
+        const sac = state.stack.find(
+            (s) => (s.card as { id?: string }).id === sacrifice.id
+        );
+        expect(sac?.castById).toBe("p2");
+        expect(sac?.additionalSacrificeSnapshot?.cardInstanceId).toBe(
+            "opp-bears"
+        );
+        // The opponent's creature is in their graveyard, not battlefield.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "opp-bears")
+        ).toBeUndefined();
+
+        resolveTopOfStack(state);
+        checkStateBasedActions(state);
+        // Sacrifice adds {B} = sacrificed MV (Grizzly Bears = 2); the Swamp's
+        // {B} paid the spell, so the opponent's pool nets {B}{B}.
+        expect(state.players[1].manaPool.B).toBe(2);
     });
 });

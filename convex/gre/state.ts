@@ -1,5 +1,6 @@
 import type {
     AnimateSpec,
+    CardDefinition,
     CardSupertype,
     CardType,
     Color,
@@ -6219,6 +6220,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 options: req.options,
                 prompt: req.prompt,
             };
+            // Acting Player (ADR 0037): annotate only when it differs from the
+            // prompted player (Word of Command — controller picks X / mode).
+            if (req.actingPlayerId && req.actingPlayerId !== req.playerId) {
+                entry.actingPlayerId = req.actingPlayerId;
+            }
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },
@@ -6663,6 +6669,92 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const def = cardId ? tryGetCardById(cardId) : undefined;
             return def?.targetRequirement;
         },
+        getCardModes(casterId, cardInstanceId) {
+            // CR 700.2 / 108.1 — the modes of a chosen card, read from the
+            // registry so a controlled cast (Word of Command) can prompt the
+            // Acting Player to choose one (CR 700.2c). Empty for a non-modal
+            // card. Only id/label are surfaced (the picker's needs).
+            const def = getHandCardDef(state, casterId, cardInstanceId);
+            return (def?.modes ?? []).map((m) => ({
+                id: m.id,
+                label: m.label,
+            }));
+        },
+        getCardModeTargetRequirement(casterId, cardInstanceId, modeId) {
+            // CR 700.2d — only the chosen mode's target requirement is honored.
+            const def = getHandCardDef(state, casterId, cardInstanceId);
+            return def?.modes?.find((m) => m.id === modeId)?.targetRequirement;
+        },
+        cardHasXCost(casterId, cardInstanceId) {
+            // CR 107.3 — a variable {X} is a string-valued X in the cost.
+            const def = getHandCardDef(state, casterId, cardInstanceId);
+            return typeof (def?.manaCost as { X?: unknown } | undefined)?.X ===
+                "string"
+                ? true
+                : false;
+        },
+        getCardSacrificeFilter(casterId, cardInstanceId) {
+            // CR 117.9 — the additional sacrifice cost's filter, if any.
+            const def = getHandCardDef(state, casterId, cardInstanceId);
+            return def?.additionalCosts?.sacrificeFilter;
+        },
+        getMaxAffordableX(controllerId, cardInstanceId) {
+            // CR 107.3 / ADR 0037 — the largest X payable SOLELY from lands the
+            // controlled opponent controls (Word of Command's mana
+            // restriction). Mirrors `castChosenSpell`'s payment model: build
+            // the cost at each candidate X, fold X into the generic cost
+            // (honoring xFactor) and apply cost modifiers, then ask the SAME
+            // auto-tap solver used at cast whether it is payable from THEIR
+            // battlefield + floating pool. Walk X upward until the first
+            // unpayable value; the previous X is the cap. A loose upper bound of
+            // total available mana guarantees termination (each extra X adds ≥1
+            // to the generic cost). Returns 0 when even X=0 is unpayable — the
+            // caller treats that as "not played" ("if able").
+            const owner = getPlayer(state, controllerId);
+            const def = getHandCardDef(state, controllerId, cardInstanceId);
+            if (!def) return 0;
+            const handCard = owner.hand.find((c) => c.id === cardInstanceId);
+            if (!handCard) return 0;
+            const subs = getManaSubstitutions(state, controllerId);
+            const sources = buildAutoTapSources(owner.battlefield);
+            // Upper bound: floating pool + every land's max output. X can't
+            // exceed this (the generic portion alone would exhaust the mana).
+            const poolTotal = MANA_COLORS.reduce(
+                (acc, c) => acc + (owner.manaPool[c] ?? 0),
+                0
+            );
+            const sourceTotal = sources.reduce((acc, s) => {
+                // Max mana this source can contribute across its options.
+                const maxOut = s.options.reduce((m, opt) => {
+                    const out = MANA_COLORS.reduce(
+                        (sum, c) => sum + (opt.mana[c] ?? 0),
+                        0
+                    );
+                    return Math.max(m, out);
+                }, 0);
+                return acc + Math.max(1, maxOut);
+            }, 0);
+            const cap = poolTotal + sourceTotal;
+            let best = -1;
+            for (let x = 0; x <= cap; x++) {
+                const cost = normalizeManaCost(def.manaCost ?? {}, {
+                    chosenX: x,
+                });
+                applyCostModifiers(
+                    cost,
+                    getCostModifiers(state, handCard, "spell")
+                );
+                const plan = solveSmartAutoTap(
+                    owner.manaPool,
+                    cost,
+                    subs,
+                    sources
+                );
+                if (plan === null) break;
+                best = x;
+            }
+            return best < 0 ? 0 : best;
+        },
         getLegalTargetsForCard(casterId, cardInstanceId, requirement) {
             // ADR 0037 / CR 601.2c — enumerate the legal targets for the chosen
             // card cast under `casterId`'s control (Word of Command's spell
@@ -6698,14 +6790,22 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             controllerId,
             cardInstanceId,
             actingPlayerId,
-            targets
+            opts
         ): boolean {
             // ADR 0037 / CR 601 — Word of Command's spell branch. The chosen
             // card is the controlled opponent's spell (controllerId =
             // opponent), but the Word of Command controller (actingPlayerId)
-            // makes its decisions — including its targets (CR 601.2c), passed
-            // in via `targets` and validated by the caller against
-            // `getLegalTargetsForCard`. X / modal casts arrive in later slices.
+            // makes its decisions — its targets (CR 601.2c), the value of X
+            // (CR 107.3), the chosen mode (CR 700.2c), and any additional
+            // sacrifice cost (CR 117.9) — all decided by the caller and passed
+            // in via `opts`. Resources are consumed from the CONTROLLED
+            // OPPONENT (controllerId): mana from their lands, the sacrifice
+            // from their battlefield.
+            const targets = opts?.targets;
+            const chosenX = opts?.chosenX;
+            const chosenModeId = opts?.chosenModeId;
+            const additionalSacrificeId = opts?.additionalSacrificeId;
+
             const owner = getPlayer(state, controllerId);
             const handCard = owner.hand.find((c) => c.id === cardInstanceId);
             if (!handCard) return false; // not in hand — no-op (CR 608.2b)
@@ -6714,11 +6814,43 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const def = cardId ? tryGetCardById(cardId) : undefined;
             if (!def) return false;
 
-            // Pay the mana ONLY from lands the controlled player controls
-            // (the oracle's mana restriction). Auto-tap over THEIR battlefield
-            // and THEIR floating pool; unpayable from those sources => the
-            // card is not played ("if able", CR 117.3 / 608.2).
-            const cost = normalizeManaCost(def.manaCost ?? {});
+            // CR 117.9 — additional sacrifice cost. The picked permanent must
+            // be on the CONTROLLED OPPONENT's battlefield and match the card's
+            // sacrifice filter; an absent/illegal pick when the card REQUIRES a
+            // sacrifice means the cost is unmeetable → not played ("if able").
+            const sacrificeFilter = def.additionalCosts?.sacrificeFilter;
+            let sacrificed: CardInstanceState | undefined;
+            if (sacrificeFilter) {
+                sacrificed = owner.battlefield.find(
+                    (c) => c.id === additionalSacrificeId
+                );
+                if (
+                    !sacrificed ||
+                    !matchesPermanentFilter(
+                        // CR 202.2 — populate effective colors so color-scoped
+                        // sacrifice filters match (mirrors getBattlefieldIds).
+                        {
+                            ...sacrificed,
+                            colors: STATIC_EFFECT_CTX.getColors(sacrificed),
+                        },
+                        sacrificeFilter
+                    )
+                ) {
+                    return false; // unmeetable additional cost — not played
+                }
+            }
+
+            // CR 107.3 — fold the chosen X into the generic cost (xFactor
+            // honored). CR 601.2f — apply cost modifiers, mirroring a normal
+            // cast (announceCast). Pay the mana ONLY from lands the controlled
+            // player controls (the oracle's mana restriction): auto-tap over
+            // THEIR battlefield and THEIR floating pool; unpayable from those
+            // sources => the card is not played ("if able", CR 117.3 / 608.2).
+            const cost = normalizeManaCost(def.manaCost ?? {}, { chosenX });
+            applyCostModifiers(
+                cost,
+                getCostModifiers(state, handCard, "spell")
+            );
             const subs = getManaSubstitutions(state, controllerId);
             const sources = buildAutoTapSources(owner.battlefield);
             const plan = solveSmartAutoTap(owner.manaPool, cost, subs, sources);
@@ -6744,6 +6876,36 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 commitLandsForCost(owner, cost);
             }
 
+            // CR 117.9 — pay the additional sacrifice from the opponent's
+            // battlefield, snapshotting its pre-sacrifice mana value for the
+            // stack item so `getAdditionalSacrificeMv()` reads it at resolve
+            // (mirrors the normal-cast snapshot in tryCommitCast).
+            let additionalSacrificeSnapshot:
+                | StackItem["additionalSacrificeSnapshot"]
+                | undefined;
+            if (sacrificed) {
+                const sacCardId = (sacrificed.card as { id?: string }).id;
+                const sacDef = sacCardId
+                    ? tryGetCardById(sacCardId)
+                    : undefined;
+                const mv = sacDef?.manaCost
+                    ? Object.entries(sacDef.manaCost).reduce<number>(
+                          (acc, [, v]) => acc + (typeof v === "number" ? v : 0),
+                          0
+                      )
+                    : 0;
+                additionalSacrificeSnapshot = {
+                    cardInstanceId: sacrificed.id,
+                    mv,
+                };
+                removePermanentTo(
+                    state,
+                    sacrificed.id,
+                    "graveyard",
+                    "sacrifice"
+                );
+            }
+
             // Move hand -> stack as a real spell controlled by the opponent,
             // with the acting-player override so any choice during the cast /
             // resolution routes to the Word of Command controller (ADR 0037).
@@ -6759,6 +6921,17 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             // normal cast (the resolve step reads `ctx.targets`). Omitted for a
             // non-targeted spell (`targets` undefined) so the field stays clean.
             if (targets && targets.length > 0) stackItem.targets = targets;
+            // CR 107.3 / 700.2c / 117.9 — the X / mode / sacrifice-snapshot
+            // chosen by the Acting Player ride onto the stack item so the
+            // resolve reads them back via getX / chosenModeId dispatch /
+            // getAdditionalSacrificeMv. Omitted when absent so the item stays
+            // clean (matches the normal-cast stack item shape).
+            if (chosenX !== undefined) stackItem.chosenX = chosenX;
+            if (chosenModeId) stackItem.chosenModeId = chosenModeId;
+            if (additionalSacrificeSnapshot) {
+                stackItem.additionalSacrificeSnapshot =
+                    additionalSacrificeSnapshot;
+            }
             // Insert directly below the resolving item (Word of Command) so it
             // becomes the new top after the pop and resolves next (CR 608.2f),
             // mirroring `castFaceDown` / `copyStackItem`.
@@ -6792,6 +6965,21 @@ export function getPlayer(state: GameState, playerId: string): PlayerState {
     const player = state.players.find((p) => p.id === playerId);
     if (!player) throw new Error(`Player not found: ${playerId}`);
     return player;
+}
+
+/** CR 108.1 — resolve the CardDefinition of an instance in `playerId`'s hand
+ *  via the registry, or undefined if it isn't in their hand / has no known id.
+ *  Shared by the controlled-cast getters (Word of Command, ADR 0037) that
+ *  inspect a chosen card's modes / X cost / additional costs before casting. */
+function getHandCardDef(
+    state: GameState,
+    playerId: string,
+    cardInstanceId: string
+): CardDefinition | undefined {
+    const owner = getPlayer(state, playerId);
+    const handCard = owner.hand.find((c) => c.id === cardInstanceId);
+    const cardId = handCard ? (handCard.card as { id?: string }).id : undefined;
+    return (cardId ? tryGetCardById(cardId) : undefined) ?? undefined;
 }
 
 export function allocInstanceId(counter: { nextInstanceId?: number }): string {

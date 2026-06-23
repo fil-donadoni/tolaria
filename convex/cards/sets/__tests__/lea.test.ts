@@ -22073,6 +22073,325 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
         }
     });
 
+    // --- X / modal / additional-cost casts (#579, CR 107.3 / 700.2c / 117.9):
+    // the Acting Player makes EVERY cast decision from the opponent's
+    // resources. ---
+
+    /** Submits the head pending choice (an option pick, a permanent pick, or a
+     *  target pick) with a single id — all use the same client-buffered shape. */
+    function submitOption(state: GameState, optionId: string) {
+        submitPick(state, optionId);
+    }
+
+    it("X spell: controller is prompted for X, then X mana is paid from the opponent's lands (CR 107.3)", () => {
+        // Opponent holds Fireball ({X}{R}, deals X damage). Two Mountains can
+        // pay {1}{R} → X up to 1 is affordable.
+        const oppFireball = makeInstance(fireball.id, {
+            id: "opp-fireball",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const m1 = makeInstance(mountain.id, {
+            id: "opp-m1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const m2 = makeInstance(mountain.id, {
+            id: "opp-m2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [oppFireball],
+                    battlefield: [m1, m2],
+                }),
+            ],
+        });
+        const startLife = state.players[0].life;
+        castWordOfCommand(state);
+        submitPick(state, "opp-fireball");
+
+        // The controller (p1) is prompted to choose X — an option pick.
+        expect(state.pendingChoices).toHaveLength(1);
+        const xChoice = state.pendingChoices![0];
+        expect(xChoice.playerId).toBe("p1");
+        expect(xChoice.kind).toBe("option-pick");
+        // Only X = 0 and X = 1 are affordable from the opponent's two Mountains.
+        expect(xChoice.options?.map((o) => o.id)).toEqual(["0", "1"]);
+
+        submitOption(state, "1"); // choose X = 1
+        // Fireball is "any target" — the controller then aims it. Target p1.
+        submitTarget(state, "p1");
+
+        const fb = state.stack.find(
+            (s) => (s.card as { id?: string }).id === fireball.id
+        );
+        expect(fb?.castById).toBe("p2"); // opponent's spell (CR 601)
+        expect(fb?.chosenX).toBe(1);
+        // Both Mountains tapped to pay {1}{R} (X = 1).
+        expect(state.players[1].battlefield.every((c) => c.isTapped)).toBe(
+            true
+        );
+
+        resolveTopOfStack(state);
+        // X = 1 → 1 damage to the controller (p1).
+        expect(state.players[0].life).toBe(startLife - 1);
+    });
+
+    it("X spell: unpayable even at X = 0 → not played (CR 107.3 / 'if able')", () => {
+        // Fireball needs {R}; the opponent controls no lands, so even X = 0 is
+        // unpayable — castChosenSpell refuses and nothing happens.
+        const oppFireball = makeInstance(fireball.id, {
+            id: "opp-fireball",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [oppFireball] }),
+            ],
+        });
+        castWordOfCommand(state);
+        submitPick(state, "opp-fireball");
+
+        // X is offered as just {0} (the only candidate), the target is aimed,
+        // then the cast fails on payment.
+        submitOption(state, "0");
+        submitTarget(state, "p1");
+
+        expect(
+            state.stack.find(
+                (s) => (s.card as { id?: string }).id === fireball.id
+            )
+        ).toBeUndefined();
+        expect(
+            state.players[1].hand.find((c) => c.id === "opp-fireball")
+        ).toBeDefined();
+    });
+
+    it("modal spell: controller chooses the mode; the chosen mode's target/resolution apply (CR 700.2c/d)", () => {
+        // Opponent holds Red Elemental Blast ({R}, modal: counter target blue
+        // spell / destroy target blue permanent). The controller picks the
+        // destroy mode and destroys a blue creature.
+        const oppBlast = makeInstance(redElementalBlast.id, {
+            id: "opp-blast",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppMountain = makeInstance(mountain.id, {
+            id: "opp-mountain",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        // A blue creature the controller (p1) owns — a legal "destroy target
+        // blue permanent" target.
+        const blueCreature = makeInstance(merfolkOfThePearlTrident.id, {
+            id: "blue-merfolk",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [blueCreature] }),
+                makePlayer("p2", {
+                    hand: [oppBlast],
+                    battlefield: [oppMountain],
+                }),
+            ],
+        });
+        castWordOfCommand(state);
+        submitPick(state, "opp-blast");
+
+        // The controller is prompted for the mode (an option pick over modes).
+        expect(state.pendingChoices).toHaveLength(1);
+        const modeChoice = state.pendingChoices![0];
+        expect(modeChoice.playerId).toBe("p1");
+        expect(modeChoice.kind).toBe("option-pick");
+        expect(modeChoice.options?.map((o) => o.id)).toEqual(
+            expect.arrayContaining(["counter", "destroy"])
+        );
+
+        submitOption(state, "destroy"); // choose the destroy mode
+        submitTarget(state, "blue-merfolk"); // aim it at the blue creature
+
+        const blast = state.stack.find(
+            (s) => (s.card as { id?: string }).id === redElementalBlast.id
+        );
+        expect(blast?.castById).toBe("p2");
+        expect(blast?.chosenModeId).toBe("destroy");
+        expect(blast?.targets).toEqual([
+            { type: "permanent", id: "blue-merfolk" },
+        ]);
+
+        resolveTopOfStack(state);
+        // The blue creature was destroyed by the chosen mode's resolution.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "blue-merfolk")
+        ).toBeUndefined();
+        expect(
+            state.players[0].graveyard.find((c) => c.id === "blue-merfolk")
+        ).toBeDefined();
+    });
+
+    it("additional-cost spell: controller picks the sacrifice from the OPPONENT's battlefield (CR 117.9)", () => {
+        // Opponent holds Sacrifice ({B}, "sacrifice a creature; add {B} equal to
+        // its mana value"). The controller chooses which of the opponent's
+        // creatures is sacrificed — Grizzly Bears (MV 2).
+        const oppSacrifice = makeInstance(sacrifice.id, {
+            id: "opp-sacrifice",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppSwamp = makeInstance(swamp.id, {
+            id: "opp-swamp",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const oppBears = makeInstance(grizzlyBears.id, {
+            id: "opp-bears",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [oppSacrifice],
+                    battlefield: [oppSwamp, oppBears],
+                }),
+            ],
+        });
+        castWordOfCommand(state);
+        submitPick(state, "opp-sacrifice");
+
+        // The controller is prompted to choose a creature on the OPPONENT's
+        // battlefield to sacrifice.
+        expect(state.pendingChoices).toHaveLength(1);
+        const sacChoice = state.pendingChoices![0];
+        expect(sacChoice.playerId).toBe("p1");
+        expect(sacChoice.kind).toBe("choose-permanents");
+        expect(sacChoice.zoneOwnerId).toBe("p2");
+        expect(sacChoice.candidateIds).toEqual(["opp-bears"]);
+
+        submitPick(state, "opp-bears");
+
+        const sac = state.stack.find(
+            (s) => (s.card as { id?: string }).id === sacrifice.id
+        );
+        expect(sac?.castById).toBe("p2");
+        expect(sac?.additionalSacrificeSnapshot?.cardInstanceId).toBe(
+            "opp-bears"
+        );
+        // The opponent's Grizzly Bears was sacrificed to their graveyard.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "opp-bears")
+        ).toBeUndefined();
+        expect(
+            state.players[1].graveyard.find((c) => c.id === "opp-bears")
+        ).toBeDefined();
+
+        resolveTopOfStack(state);
+        // Sacrifice adds {B} equal to the sacrificed creature's MV (2). The
+        // Swamp's {B} paid the spell's {B}, so the opponent's pool nets {B}{B}.
+        expect(state.players[1].manaPool.B).toBe(2);
+    });
+
+    it("additional-cost spell: no matching permanent to sacrifice → not played (CR 117.9 / 'if able')", () => {
+        // Opponent holds Sacrifice but controls no creature → the additional
+        // cost is unmeetable, so the spell is never played.
+        const oppSacrifice = makeInstance(sacrifice.id, {
+            id: "opp-sacrifice",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppSwamp = makeInstance(swamp.id, {
+            id: "opp-swamp",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [oppSacrifice],
+                    battlefield: [oppSwamp],
+                }),
+            ],
+        });
+        castWordOfCommand(state);
+        submitPick(state, "opp-sacrifice");
+
+        // No sacrifice prompt was raised; nothing was cast.
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(
+            state.stack.find(
+                (s) => (s.card as { id?: string }).id === sacrifice.id
+            )
+        ).toBeUndefined();
+        expect(
+            state.players[1].hand.find((c) => c.id === "opp-sacrifice")
+        ).toBeDefined();
+    });
+
+    it("wire format: an X cast's chosenX + the modal cast's chosenModeId survive projection", () => {
+        // X cast (Fireball, X = 1) — re-assert chosenX after projection.
+        const oppFireball = makeInstance(fireball.id, {
+            id: "opp-fireball",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const m1 = makeInstance(mountain.id, {
+            id: "opp-m1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const m2 = makeInstance(mountain.id, {
+            id: "opp-m2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [oppFireball],
+                    battlefield: [m1, m2],
+                }),
+            ],
+        });
+        castWordOfCommand(state);
+        submitPick(state, "opp-fireball");
+        submitOption(state, "1");
+        submitTarget(state, "p1");
+
+        for (const viewer of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewer);
+            const slim = projected.stack.find((s) => s.card.id === fireball.id);
+            expect(slim).toBeDefined();
+            expect(slim?.castById).toBe("p2");
+            expect(slim?.chosenX).toBe(1);
+        }
+    });
+
     it("definition: Word of Command targets an opponent, costs {B}{B}", () => {
         expect(wordOfCommand.manaCost).toEqual({ B: 2 });
         expect(wordOfCommand.targetRequirement).toMatchObject({
