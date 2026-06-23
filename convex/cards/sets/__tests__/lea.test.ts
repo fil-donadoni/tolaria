@@ -22392,6 +22392,158 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
         }
     });
 
+    // --- #580: control PERSISTS onto the chosen spell's RESOLUTION ---------
+    // "If the chosen card is cast as a spell, you control the player while that
+    // spell is resolving." (CR 608, ADR 0037). The chosen spell's OWN resolve
+    // step enqueues its resolution-time Pending Choices with playerId =
+    // ctx.caster/ctx.controller (= the controlled opponent); the engine must
+    // redirect those prompts to the Acting Player (WoC's controller) while the
+    // spell's stack item carries the override, then revert when it leaves the
+    // stack. Demonic Tutor ("Search your library …") is the minimal probe: its
+    // resolve enqueues a single `search-library` choice for ctx.caster.
+    function seedWoCTutor() {
+        const oppTutor = makeInstance(demonicTutor.id, {
+            id: "opp-tutor",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        // Two Swamps pay Demonic Tutor's {1}{B} from the opponent's lands only.
+        const oppSwamp1 = makeInstance(swamp.id, {
+            id: "opp-swamp-1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const oppSwamp2 = makeInstance(swamp.id, {
+            id: "opp-swamp-2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        // A card to fetch lives in the opponent's library.
+        const oppLibCard = makeInstance(darkRitual.id, {
+            id: "opp-lib-ritual",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [oppTutor],
+                    battlefield: [oppSwamp1, oppSwamp2],
+                    library: [oppLibCard],
+                }),
+            ],
+        });
+    }
+
+    it("a chosen spell's RESOLUTION choice routes to the controller, reading the OPPONENT's zone (CR 608)", () => {
+        const state = seedWoCTutor();
+        castWordOfCommand(state);
+        submitPick(state, "opp-tutor"); // controller picks the opponent's Tutor
+
+        // The Tutor is on the stack as the opponent's spell with the override.
+        const tutorOnStack = state.stack.find(
+            (s) => (s.card as { id?: string }).id === demonicTutor.id
+        );
+        expect(tutorOnStack?.castById).toBe("p2");
+        expect(tutorOnStack?.actingPlayerId).toBe("p1");
+
+        // Resolve the Tutor: it enqueues a search-library choice. #580 — that
+        // resolution choice is ROUTED TO THE CONTROLLER (p1), with the OWNER of
+        // the searched zone left on the controlled opponent (p2).
+        resolveTopOfStack(state);
+        expect(state.pendingChoices).toHaveLength(1);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("search-library");
+        expect(head.playerId).toBe("p1"); // controller answers (Acting Player)
+        // Resource/ownership read stays on the opponent (controller of the spell).
+        expect(head.zoneOwnerId).toBe("p2");
+        expect(head.actingPlayerId).toBe("p2"); // controlled player recorded
+    });
+
+    it("the controller's pick fetches from the OPPONENT's library into the OPPONENT's hand (CR 608.2)", () => {
+        const state = seedWoCTutor();
+        castWordOfCommand(state);
+        submitPick(state, "opp-tutor");
+        resolveTopOfStack(state); // enqueues the controller's search choice
+        submitPick(state, "opp-lib-ritual"); // controller searches FOR the opp
+
+        // The fetched card moved into the OPPONENT's hand (their resources),
+        // even though the CONTROLLER made the decision.
+        expect(
+            state.players[1].hand.find((c) => c.id === "opp-lib-ritual")
+        ).toBeDefined();
+        expect(
+            state.players[1].library.find((c) => c.id === "opp-lib-ritual")
+        ).toBeUndefined();
+    });
+
+    it("after the chosen spell leaves the stack, the opponent makes their OWN subsequent decisions again", () => {
+        const state = seedWoCTutor();
+        castWordOfCommand(state);
+        submitPick(state, "opp-tutor");
+        resolveTopOfStack(state);
+        submitPick(state, "opp-lib-ritual"); // resolve the Tutor fully
+
+        // The Tutor (and Word of Command) have left the stack — no override
+        // lingers; no pending choices remain.
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(
+            state.stack.find(
+                (s) => (s.card as { id?: string }).id === demonicTutor.id
+            )
+        ).toBeUndefined();
+
+        // Now the opponent (p2) casts THEIR OWN Demonic Tutor normally — its
+        // resolution choice routes back to THEM, not the controller (control
+        // reverted with the stack item, ADR 0037 / CR 608).
+        const ownTutor = makeInstance(demonicTutor.id, {
+            id: "p2-own-tutor",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const libCard = makeInstance(darkRitual.id, {
+            id: "p2-lib-2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        state.players[1].hand.push(ownTutor);
+        state.players[1].library.push(libCard);
+        pushSpell(state, demonicTutor.id, "p2");
+        // Point the just-pushed stack item at the opponent's own instance.
+        const ownOnStack = state.stack[state.stack.length - 1];
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("search-library");
+        expect(head.playerId).toBe("p2"); // opponent answers their own spell
+        expect(head.actingPlayerId).toBeUndefined(); // no override
+        expect(ownOnStack.actingPlayerId).toBeUndefined();
+    });
+
+    it("wire format: the chosen spell's routed resolution choice survives projection (controller answers, opp owns the zone)", () => {
+        const state = seedWoCTutor();
+        castWordOfCommand(state);
+        submitPick(state, "opp-tutor");
+        resolveTopOfStack(state); // enqueue the routed search choice
+
+        // The routed choice must reach BOTH clients with the same routing: the
+        // controller (p1) is prompted, the opponent (p2) owns the searched zone.
+        for (const viewer of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewer);
+            const head = (projected.pendingChoices ?? [])[0];
+            expect(head).toBeDefined();
+            expect(head?.kind).toBe("search-library");
+            expect(head?.playerId).toBe("p1");
+            expect(head?.zoneOwnerId).toBe("p2");
+        }
+    });
+
     it("definition: Word of Command targets an opponent, costs {B}{B}", () => {
         expect(wordOfCommand.manaCost).toEqual({ B: 2 });
         expect(wordOfCommand.targetRequirement).toMatchObject({

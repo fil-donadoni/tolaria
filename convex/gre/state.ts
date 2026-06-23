@@ -4196,6 +4196,39 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         return found.card;
     }
 
+    /** Acting-Player routing for a resolution-time choice (ADR 0037 / CR 608 —
+     *  "you control the player while that spell is resolving", #580).
+     *
+     *  When this stack item is a controlled cast (Word of Command put the chosen
+     *  spell on the stack with `actingPlayerId` = the WoC controller and
+     *  `castById` = the controlled opponent), the spell's OWN resolve step
+     *  enqueues its choices with `playerId = ctx.controller = item.castById`
+     *  (the opponent) — it has no knowledge of the controlled-cast routing. To
+     *  honour "you control the player while that spell is resolving", redirect
+     *  the player who is PROMPTED to the acting player, while recording the
+     *  controlled player in `actingPlayerId` so zone/resource/ownership reads
+     *  (`zoneOwnerId ?? playerId` on the submit/UI side) still resolve against
+     *  the controller (the oracle's "mana only from lands that player controls"
+     *  / "from THEIR hand" reads stay on the opponent).
+     *
+     *  Strictly gated on `req.playerId === item.castById`: a choice a spell
+     *  directs at a SPECIFIC OTHER player (APNAP opponent picks, e.g. Cuombajj
+     *  Witches' "of an opponent's choice") is never the controlled player, so it
+     *  is not redirected. For every normal (non-controlled) cast `actingPlayerId`
+     *  is absent and this is the identity — existing routing is unchanged. */
+    function routeActingPlayer(reqPlayerId: string): {
+        playerId: string;
+        actingPlayerId?: string;
+    } {
+        const acting = getActingPlayer(item);
+        if (acting !== item.castById && reqPlayerId === item.castById) {
+            // Controlled cast: the acting player answers; the controlled player
+            // (the spell's controller) is recorded for zone/resource routing.
+            return { playerId: acting, actingPlayerId: item.castById };
+        }
+        return { playerId: reqPlayerId };
+    }
+
     const ctx: SpellContext = {
         caster: item.castById,
         controller: item.castById,
@@ -6169,11 +6202,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const key = `${step}:${req.choiceId}`;
             const stored = item.collectedChoices?.[key];
             if (stored) return stored;
+            // ADR 0037 (#580) — redirect the prompt to the acting player for a
+            // controlled cast's resolution; the explicit `req.actingPlayerId`
+            // (Word of Command's own card pick) still wins when supplied.
+            const routed = routeActingPlayer(req.playerId);
             const entry: PendingChoice = {
                 stackItemId: item.id,
                 step,
                 choiceId: req.choiceId,
-                playerId: req.playerId,
+                playerId: routed.playerId,
                 kind: req.kind,
                 zone: req.zone,
                 count: req.count,
@@ -6181,11 +6218,16 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 prompt: req.prompt,
             };
             if (req.filter) entry.filter = req.filter;
-            if (req.zoneOwnerId) entry.zoneOwnerId = req.zoneOwnerId;
+            // Default the picked-from zone owner to the controlled player so the
+            // chosen spell's resolution reads from THEIR zones (CR 608.2) even
+            // though the acting player answers.
+            const zoneOwnerId = req.zoneOwnerId ?? routed.actingPlayerId;
+            if (zoneOwnerId) entry.zoneOwnerId = zoneOwnerId;
             // Acting Player (ADR 0037): carry the override only when it differs
             // from the prompted player — normal choices stay unannotated.
-            if (req.actingPlayerId && req.actingPlayerId !== req.playerId) {
-                entry.actingPlayerId = req.actingPlayerId;
+            const actingPlayerId = req.actingPlayerId ?? routed.actingPlayerId;
+            if (actingPlayerId && actingPlayerId !== entry.playerId) {
+                entry.actingPlayerId = actingPlayerId;
             }
             if (req.allControllers) entry.allControllers = true;
             if (req.candidateIds) entry.candidateIds = req.candidateIds;
@@ -6200,17 +6242,23 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const key = `${step}:${req.choiceId}`;
             const stored = item.collectedChoices?.[key];
             if (stored) return stored[0] === "yes";
+            // ADR 0037 (#580) — a may-pay during a controlled cast's resolution
+            // is the acting player's decision; resources still come from the
+            // controlled player (whose pool pays the cost).
+            const routed = routeActingPlayer(req.playerId);
             const entry: PendingChoice = {
                 stackItemId: item.id,
                 step,
                 choiceId: req.choiceId,
-                playerId: req.playerId,
+                playerId: routed.playerId,
                 kind: "may-pay",
                 count: 1,
 
                 prompt: req.prompt,
             };
             if (req.cost) entry.cost = req.cost;
+            if (routed.actingPlayerId)
+                entry.actingPlayerId = routed.actingPlayerId;
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },
@@ -6224,11 +6272,16 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const key = `${step}:${req.choiceId}`;
             const stored = item.collectedChoices?.[key];
             if (stored) return stored[0];
+            // ADR 0037 (#580) — modal / "choose one" picks made DURING a
+            // controlled cast's resolution route to the acting player; the
+            // explicit `req.actingPlayerId` (Word of Command's own X / mode
+            // picks during its cast) still wins when supplied.
+            const routed = routeActingPlayer(req.playerId);
             const entry: PendingChoice = {
                 stackItemId: item.id,
                 step,
                 choiceId: req.choiceId,
-                playerId: req.playerId,
+                playerId: routed.playerId,
                 kind: "option-pick",
                 count: 1,
                 options: req.options,
@@ -6236,8 +6289,9 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             };
             // Acting Player (ADR 0037): annotate only when it differs from the
             // prompted player (Word of Command — controller picks X / mode).
-            if (req.actingPlayerId && req.actingPlayerId !== req.playerId) {
-                entry.actingPlayerId = req.actingPlayerId;
+            const actingPlayerId = req.actingPlayerId ?? routed.actingPlayerId;
+            if (actingPlayerId && actingPlayerId !== entry.playerId) {
+                entry.actingPlayerId = actingPlayerId;
             }
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
@@ -6254,15 +6308,20 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const key = `${step}:${req.choiceId}`;
             const stored = item.collectedChoices?.[key];
             if (stored) return stored[0];
+            // ADR 0037 (#580) — a name-a-card choice during a controlled cast's
+            // resolution is the acting player's decision.
+            const routed = routeActingPlayer(req.playerId);
             const entry: PendingChoice = {
                 stackItemId: item.id,
                 step,
                 choiceId: req.choiceId,
-                playerId: req.playerId,
+                playerId: routed.playerId,
                 kind: "name-card",
                 count: 1,
                 prompt: req.prompt,
             };
+            if (routed.actingPlayerId)
+                entry.actingPlayerId = routed.actingPlayerId;
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },
@@ -6316,11 +6375,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 face: winning.face ?? (won ? "WIN" : "LOSE"),
                 consequence: winning.consequence,
             };
+            // ADR 0037 (#580) — a coin flip during a controlled cast's
+            // resolution is acknowledged by the acting player.
+            const routed = routeActingPlayer(req.playerId);
             const entry: PendingChoice = {
                 stackItemId: item.id,
                 step,
                 choiceId: req.choiceId,
-                playerId: req.playerId,
+                playerId: routed.playerId,
                 kind: "random-reveal",
                 count: 1,
                 prompt: "Flip a coin",
@@ -6330,6 +6392,8 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 result: won ? 1 : 0,
                 realized,
             };
+            if (routed.actingPlayerId)
+                entry.actingPlayerId = routed.actingPlayerId;
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },
