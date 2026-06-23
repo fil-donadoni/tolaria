@@ -316,6 +316,8 @@ describe("game_state serialize round-trip", () => {
         ];
         lion.untapLockedBy = ["gremlin-1"];
         lion.skipNextUntap = true;
+        // FEM Vodalian War Machine — turn-scoped "attack as though no defender".
+        lion.canAttackDespiteDefenderThisTurn = true;
         lion.cantBeBlockedBySubtypesThisTurn = ["Wall"];
         lion.counters = { "+1/+1": 1, "+1/+0": 2 };
         lion.grantedStaticAbilities = [
@@ -403,6 +405,7 @@ describe("game_state serialize round-trip", () => {
         ]);
         expect(got.untapLockedBy).toEqual(["gremlin-1"]);
         expect(got.skipNextUntap).toBe(true);
+        expect(got.canAttackDespiteDefenderThisTurn).toBe(true);
         expect(got.cantBeBlockedBySubtypesThisTurn).toEqual(["Wall"]);
         expect(got.counters).toEqual({ "+1/+1": 1, "+1/+0": 2 });
         expect(got.grantedStaticAbilities).toEqual([
@@ -1217,6 +1220,13 @@ describe("optional field round-trip smoke tests", () => {
         const state = freshState();
         state.landManaReplacedToBlueThisTurn = ["p1"];
         expect(roundTrip(state).landManaReplacedToBlueThisTurn).toEqual(["p1"]);
+    });
+
+    it("highTideThisTurn (FEM High Tide — additive, stacks)", () => {
+        const state = freshState();
+        // Two High Tides → two entries (each contributes one extra {U}).
+        state.highTideThisTurn = ["p1", "p1"];
+        expect(roundTrip(state).highTideThisTurn).toEqual(["p1", "p1"]);
     });
 
     it("landPlayLocked (Worms of the Earth)", () => {

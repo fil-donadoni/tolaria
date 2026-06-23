@@ -35,7 +35,10 @@ import {
     validateMinimumBlockers,
     getRequiredBlockerAssignments,
 } from "../combat";
-import { goblinWarDrums } from "../../cards/sets/fem";
+import { goblinWarDrums, merseine, seasinger } from "../../cards/sets/fem";
+import { untapStep } from "../phases";
+import { applyLandManaReplacement } from "../constants";
+import { resolveAbilityManaCost } from "../../game";
 
 // Mirror of src/lib/ai/state-adapter.ts (kept inline so this convex-side test
 // doesn't pull the frontend module — and its @convex aliases — into the convex
@@ -336,5 +339,154 @@ describe("menace — Goblin War Drums grant through the confirm-blockers seam", 
             blockersConfirmed: false,
         };
         expect(validateMinimumBlockers(projectedState).ok).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// FEM C2 (#571) — full-path coverage for the new cost / choice shapes.
+// CAPABILITY K (dynamic cost = enchanted creature's mana cost), the High Tide
+// mana funnel rider, and CAPABILITY I (optional skip-untap) are driven through
+// the same pure GRE primitives the game.ts mutations call (ADR 0001).
+// ---------------------------------------------------------------------------
+
+const ISLAND = getCardByName("Island").id;
+
+describe("Merseine — dynamic cost K (CR 601.2f / 202.3)", () => {
+    function merseineBoard(
+        hostController: string,
+        manaPool: Record<string, number>
+    ) {
+        // Host is Grizzly Bears ({1}{G}, mana value 2), controlled by the
+        // chosen player; Merseine attached, with net counters.
+        const host = makeInstance(BEARS, {
+            id: "host",
+            controllerId: hostController,
+            ownerId: hostController,
+        });
+        const aura = makeInstance(merseine.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+            counters: { net: 3 },
+        });
+        const hostPlayer = makePlayer(hostController, {
+            battlefield: hostController === "p1" ? [aura, host] : [host],
+            manaPool,
+        });
+        const other =
+            hostController === "p1"
+                ? makePlayer("p2")
+                : makePlayer("p1", { battlefield: [aura] });
+        const players =
+            hostController === "p1" ? [hostPlayer, other] : [other, hostPlayer];
+        return makeState({ players, priorityPlayerId: hostController });
+    }
+
+    it("game.ts resolveAbilityManaCost folds in the enchanted creature's printed cost", () => {
+        // This is the EXACT helper the activateAbility mutation calls to compute
+        // the cost it then checks against the activator's pool. Grizzly Bears
+        // costs {1}{G} → the dynamic cost is {1}{G} (normalized X=1, G=1).
+        const state = merseineBoard("p1", {});
+        const aura = state.players[0].battlefield.find((c) => c.id === "aura")!;
+        const ability = merseine.activatedAbilities!.find(
+            (a) => a.id === "merseine-remove-net"
+        )!;
+        const cost = resolveAbilityManaCost(state, aura, ability);
+        expect(cost).toEqual({ X: 1, G: 1 });
+    });
+
+    it("game.ts resolveAbilityManaCost throws when the Aura has no host (illegal activation)", () => {
+        const state = merseineBoard("p1", {});
+        const aura = state.players[0].battlefield.find((c) => c.id === "aura")!;
+        aura.attachedTo = undefined; // host gone
+        const ability = merseine.activatedAbilities!.find(
+            (a) => a.id === "merseine-remove-net"
+        )!;
+        expect(() => resolveAbilityManaCost(state, aura, ability)).toThrow();
+    });
+});
+
+describe("High Tide — extra {U} per Island tap, through the mana funnel (CR 614)", () => {
+    it("adds an additional {U} when an Island is tapped while High Tide is active", () => {
+        const island = makeInstance(ISLAND, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [island] }),
+                makePlayer("p2"),
+            ],
+            highTideThisTurn: ["p1"],
+        });
+        // Island normally produces {U}; the funnel adds one more {U}.
+        const produced = applyLandManaReplacement(state, "p1", island, {
+            U: 1,
+        });
+        expect(produced).toEqual({ U: 2 });
+    });
+
+    it("two active High Tides add two extra {U}", () => {
+        const island = makeInstance(ISLAND, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [island] }),
+                makePlayer("p2"),
+            ],
+            highTideThisTurn: ["p1", "p1"],
+        });
+        expect(applyLandManaReplacement(state, "p1", island, { U: 1 })).toEqual(
+            {
+                U: 3,
+            }
+        );
+    });
+
+    it("does NOT add {U} when tapping a non-Island land", () => {
+        const forest = makeInstance(FOREST, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [forest] }),
+                makePlayer("p2"),
+            ],
+            highTideThisTurn: ["p1"],
+        });
+        expect(applyLandManaReplacement(state, "p1", forest, { G: 1 })).toEqual(
+            {
+                G: 1,
+            }
+        );
+    });
+});
+
+describe("Seasinger — optional skip-untap through the real untap step (CR 502.1)", () => {
+    it("untapStep enqueues a 0..1 untap-pick for a may-choose-not-to-untap permanent and leaves it tapped", () => {
+        const singer = makeInstance(seasinger.id, {
+            id: "singer",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [singer] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            phase: "UNTAP",
+        });
+        untapStep(state);
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("untap-pick");
+        expect(head?.count).toEqual({ min: 0, max: 1 });
+        // The permanent is NOT auto-untapped — the controller chooses.
+        expect(state.players[0].battlefield[0].isTapped).toBe(true);
     });
 });

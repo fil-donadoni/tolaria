@@ -152,11 +152,14 @@ export const EVASION_RULES: readonly EvasionRule[] = [
 // Attack restriction rules registry (attacker eligibility)
 // ---------------------------------------------------------------------------
 
-// CR 702.3a — Defender: "A creature with defender can't attack."
+// CR 702.3a — Defender: "A creature with defender can't attack." The
+// turn-scoped `canAttackDespiteDefenderThisTurn` flag (FEM Vodalian War Machine:
+// "can attack this turn as though it didn't have defender") overrides the rule
+// for that one turn; the flag is cleared at CLEANUP.
 const DEFENDER_RULE: AttackRestrictionRule = {
     keyword: "defender",
     cr: "702.3a",
-    canAttack: () => false,
+    canAttack: (card) => card.canAttackDespiteDefenderThisTurn === true,
     reason: "Creatures with defender cannot attack",
 };
 

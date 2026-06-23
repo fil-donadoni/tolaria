@@ -128,6 +128,8 @@ function compactCard(
         out.untapLockedBy = card.untapLockedBy;
     }
     if (card.skipNextUntap) out.skipNextUntap = true;
+    if (card.canAttackDespiteDefenderThisTurn)
+        out.canAttackDespiteDefenderThisTurn = true;
     if (card.counters && Object.keys(card.counters).length > 0) {
         out.counters = card.counters;
     }
@@ -303,6 +305,8 @@ function expandCard(
         result.untapLockedBy = compact.untapLockedBy as string[];
     }
     if (compact.skipNextUntap) result.skipNextUntap = true;
+    if (compact.canAttackDespiteDefenderThisTurn)
+        result.canAttackDespiteDefenderThisTurn = true;
     if (compact.counters) {
         result.counters = compact.counters as Record<string, number>;
     }
@@ -695,6 +699,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "preventAllCombatDamageThisTurn",
     "assignsNoCombatDamageThisTurn",
     "landManaReplacedToBlueThisTurn",
+    "highTideThisTurn",
     "damageCapShields",
     "islandSanctuaryProtection",
     "allCreaturesMustAttack",
