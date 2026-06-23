@@ -122,3 +122,69 @@ describe("DeckPileArea", () => {
         expect(queryByText("MV 1")).toBeNull();
     });
 });
+
+// Featured Card picker (PRD #589, issue #599). The Maindeck wires
+// `onSetFeatured` + the resolved `featuredCardId`; the Sideboard never does.
+describe("DeckPileArea — Featured Card picker (issue #599)", () => {
+    it("renders no featured affordance when onSetFeatured is absent", () => {
+        const { queryByTitle } = renderArea(
+            area({ cards: [card(BOLT_ID, "Lightning Bolt")] })
+        );
+        expect(queryByTitle(/featured/i)).toBeNull();
+    });
+
+    it("fires onSetFeatured with the card id when the affordance is clicked", () => {
+        const onSetFeatured = vi.fn();
+        const { getByTitle } = renderArea(
+            area({
+                cards: [card(BOLT_ID, "Lightning Bolt")],
+                onSetFeatured,
+            })
+        );
+        fireEvent.click(getByTitle("Set as featured card"));
+        expect(onSetFeatured).toHaveBeenCalledWith(BOLT_ID);
+    });
+
+    it("picking the featured card does NOT also remove a copy (stopPropagation)", () => {
+        const onRemove = vi.fn();
+        const onSetFeatured = vi.fn();
+        const { getByTitle } = renderArea(
+            area({
+                cards: [card(BOLT_ID, "Lightning Bolt")],
+                onRemove,
+                onSetFeatured,
+            })
+        );
+        fireEvent.click(getByTitle("Set as featured card"));
+        expect(onSetFeatured).toHaveBeenCalledTimes(1);
+        expect(onRemove).not.toHaveBeenCalled();
+    });
+
+    it("marks the currently-featured card (persistent indicator across reloads)", () => {
+        const { getByTitle, queryByTitle } = renderArea(
+            area({
+                cards: [card(BOLT_ID, "Lightning Bolt"), card(PLAINS_ID)],
+                featuredCardId: BOLT_ID,
+                onSetFeatured: vi.fn(),
+            })
+        );
+        // The featured card reads as featured; the other offers to be set.
+        expect(getByTitle("Featured card — click to clear")).toBeTruthy();
+        expect(queryByTitle("Set as featured card")).toBeTruthy();
+    });
+
+    it("clicking the already-featured card clears it (re-pick toggles off)", () => {
+        const onSetFeatured = vi.fn();
+        const { getByTitle } = renderArea(
+            area({
+                cards: [card(BOLT_ID, "Lightning Bolt")],
+                featuredCardId: BOLT_ID,
+                onSetFeatured,
+            })
+        );
+        fireEvent.click(getByTitle("Featured card — click to clear"));
+        // The handler is invoked with the id; the toggle-to-clear decision lives
+        // in the builder's handler (covered by the builder, not the pure pile).
+        expect(onSetFeatured).toHaveBeenCalledWith(BOLT_ID);
+    });
+});

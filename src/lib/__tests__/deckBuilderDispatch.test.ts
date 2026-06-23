@@ -46,6 +46,19 @@ describe("toUpdatePatch — format is immutable on update (ADR 0036)", () => {
         expect(patch.cards).toEqual(payload.cards);
         expect(patch.sideboard).toEqual(payload.sideboard);
     });
+
+    it("carries the Featured Card through the update patch (PRD #589, issue #599)", () => {
+        const patch = toUpdatePatch({ ...payload, featuredCardId: "bolt" });
+        expect(patch.featuredCardId).toBe("bolt");
+    });
+
+    it("leaves the Featured Card undefined when none is picked", () => {
+        // An absent override must reach the mutation as `undefined` so the
+        // server's `if (featuredCardId !== undefined)` guard leaves the stored
+        // value untouched (no accidental clear).
+        const patch = toUpdatePatch(payload);
+        expect(patch.featuredCardId).toBeUndefined();
+    });
 });
 
 describe("saveUserDeck", () => {
@@ -153,5 +166,40 @@ describe("dispatchDeckSave", () => {
         await save(payload);
         expect(presetUpdate).toHaveBeenCalledWith("derived-slug", payload);
         expect(presetCreate).not.toHaveBeenCalled();
+    });
+});
+
+describe("Featured Card picker → update path (PRD #589, issue #599)", () => {
+    const featured: DeckSavePayload = { ...payload, featuredCardId: "bolt" };
+
+    it("flows the featured pick to the USER deck update sink", async () => {
+        const { sinks, userUpdate } = makeSinks();
+        const save = dispatchDeckSave("user", sinks, "deck42");
+        await save(featured);
+        expect(userUpdate).toHaveBeenCalledWith("deck42", featured);
+        expect(userUpdate).toHaveBeenCalledWith(
+            "deck42",
+            expect.objectContaining({ featuredCardId: "bolt" })
+        );
+    });
+
+    it("flows the featured pick to the PRESET update sink by slug (admin path)", async () => {
+        const { sinks, presetUpdate } = makeSinks();
+        const save = dispatchDeckSave("preset", sinks, "mono-red-burn", "edit");
+        await save(featured);
+        expect(presetUpdate).toHaveBeenCalledWith("mono-red-burn", featured);
+        expect(presetUpdate).toHaveBeenCalledWith(
+            "mono-red-burn",
+            expect.objectContaining({ featuredCardId: "bolt" })
+        );
+    });
+
+    it("flows the featured pick on a brand-new USER deck (create path)", async () => {
+        const { sinks, userCreate } = makeSinks();
+        const save = dispatchDeckSave("user", sinks, null);
+        await save(featured);
+        expect(userCreate).toHaveBeenCalledWith(
+            expect.objectContaining({ featuredCardId: "bolt" })
+        );
     });
 });

@@ -23,6 +23,12 @@ interface DeckPileAreaProps {
     emptyMessage: string;
     /** Optional control rendered at the right of the header (e.g. zoom slider). */
     headerRight?: React.ReactNode;
+    /** Resolved Featured Card ID for this deck (PRD #589, issue #599). The
+     *  matching card is marked in the pile. Only the Maindeck wires it. */
+    featuredCardId?: string | null;
+    /** Pick a card as the deck's Featured Card. Presence enables the
+     *  "Set as featured" affordance on each card. Maindeck only. */
+    onSetFeatured?: (cardId: string) => void;
 }
 
 export default function DeckPileArea({
@@ -35,6 +41,8 @@ export default function DeckPileArea({
     warning,
     emptyMessage,
     headerRight,
+    featuredCardId,
+    onSetFeatured,
 }: DeckPileAreaProps) {
     const piles = useMemo(
         () =>
@@ -73,6 +81,8 @@ export default function DeckPileArea({
                             cards={pile.cards}
                             zone={zone}
                             onRemove={onRemove}
+                            featuredCardId={featuredCardId}
+                            onSetFeatured={onSetFeatured}
                         />
                     ))}
                 </div>

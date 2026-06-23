@@ -18,6 +18,11 @@ export interface DeckSavePayload {
     colors: string[];
     cards: DeckCard[];
     sideboard: DeckCard[];
+    // Featured Card override (PRD #589, issue #599). The Card ID the player (or
+    // an admin, for a preset) picked to supply the deck's art. Optional: absent
+    // ⇒ the server/resolver defaults to the first Maindeck card. Carried on both
+    // the create and update paths — unlike `format`, it stays editable.
+    featuredCardId?: string;
 }
 
 /** The patch sent on an UPDATE — everything in a save payload EXCEPT the
@@ -37,6 +42,10 @@ export function toUpdatePatch(payload: DeckSavePayload): DeckUpdatePatch {
         colors: payload.colors,
         cards: payload.cards,
         sideboard: payload.sideboard,
+        // Unlike `format`, the Featured Card is editable on update (PRD #589,
+        // issue #599). Both `userDecks.update` and `decks.updatePreset` accept
+        // it; the latter is server-gated by `assertIsAdmin` (ADR 0033).
+        featuredCardId: payload.featuredCardId,
     };
 }
 
