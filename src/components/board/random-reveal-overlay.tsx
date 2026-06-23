@@ -62,11 +62,11 @@ export default function RandomRevealOverlay({
 
     return (
         <div className="absolute inset-0 z-100 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className="relative flex flex-col items-center gap-4 rounded-sm border border-zinc-800/80 bg-[#0c0d12]/95 px-8 py-6 shadow-[0_0_60px_rgba(0,0,0,0.85)]">
-                <div className="absolute top-1.5 left-1.5 h-3 w-3 border-t border-l border-zinc-500/40" />
-                <div className="absolute top-1.5 right-1.5 h-3 w-3 border-t border-r border-zinc-500/40" />
-                <div className="absolute bottom-1.5 left-1.5 h-3 w-3 border-b border-l border-zinc-500/40" />
-                <div className="absolute bottom-1.5 right-1.5 h-3 w-3 border-b border-r border-zinc-500/40" />
+            <div className="relative flex flex-col items-center gap-4 rounded-sm border border-border-subtle bg-surface px-8 py-6 shadow-[0_0_60px_rgba(0,0,0,0.85)]">
+                <div className="absolute top-1.5 left-1.5 h-3 w-3 border-t border-l border-border-accent/40" />
+                <div className="absolute top-1.5 right-1.5 h-3 w-3 border-t border-r border-border-accent/40" />
+                <div className="absolute bottom-1.5 left-1.5 h-3 w-3 border-b border-l border-border-accent/40" />
+                <div className="absolute bottom-1.5 right-1.5 h-3 w-3 border-b border-r border-border-accent/40" />
 
                 {choice.randomKind === "coin" && (
                     <CoinFlipAnimation
@@ -76,11 +76,11 @@ export default function RandomRevealOverlay({
                     />
                 )}
 
-                <p className="font-beleren text-sm tracking-wide text-[#f1f1e8]">
+                <p className="font-beleren text-sm tracking-wide text-parchment">
                     {label}
                 </p>
                 {consequence && (
-                    <p className="text-xs text-zinc-400">{consequence}</p>
+                    <p className="text-xs text-text-muted">{consequence}</p>
                 )}
             </div>
         </div>

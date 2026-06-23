@@ -97,8 +97,8 @@ export default function GameOverDialog({
             dismissable={false}
         >
             <div className="flex flex-col items-center text-center gap-2 mt-1">
-                <p className="text-zinc-400 text-sm">{reasonText}</p>
-                <span className="text-2xl sm:text-3xl font-bold text-amber-400 font-beleren tracking-wide">
+                <p className="text-text-muted text-sm">{reasonText}</p>
+                <span className="text-2xl sm:text-3xl font-bold text-accent-strong font-beleren tracking-wide">
                     {isDraw
                         ? "Draw"
                         : matchOver
@@ -106,7 +106,7 @@ export default function GameOverDialog({
                           : `${winner?.name ?? "?"} wins!`}
                 </span>
                 {scoreLine && (
-                    <p className="text-zinc-500 text-xs tracking-wide">
+                    <p className="text-text-disabled text-xs tracking-wide">
                         {scoreLine}
                     </p>
                 )}
@@ -114,7 +114,7 @@ export default function GameOverDialog({
                     <button
                         type="button"
                         onClick={() => setSideboarding(true)}
-                        className="mt-3 w-full py-2.5 rounded-sm bg-amber-700/30 border border-amber-500/45 text-amber-200 font-beleren tracking-wide hover:bg-amber-600/30 transition-colors cursor-pointer"
+                        className="mt-3 w-full py-2.5 rounded-sm bg-accent-soft border border-accent text-accent-strong font-beleren tracking-wide hover:bg-accent-soft/80 transition-colors cursor-pointer"
                     >
                         Continue to Sideboarding
                     </button>
@@ -123,7 +123,7 @@ export default function GameOverDialog({
                     <button
                         type="button"
                         onClick={handleLeave}
-                        className="mt-3 w-full py-2.5 rounded-sm bg-zinc-800/40 border border-zinc-600/45 text-zinc-300 font-beleren tracking-wide hover:bg-zinc-700/40 transition-colors cursor-pointer"
+                        className="mt-3 w-full py-2.5 rounded-sm bg-surface-elevated border border-border-accent/40 text-text-muted font-beleren tracking-wide hover:bg-surface-elevated/80 transition-colors cursor-pointer"
                     >
                         Back to Lobby
                     </button>

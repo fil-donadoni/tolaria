@@ -122,19 +122,19 @@ export default function TargetSelectionBanner({
         >
             <div
                 {...dragHandlers}
-                className="relative flex items-center gap-3 bg-[#0c0d12]/90 border border-zinc-800/80 backdrop-blur-md rounded-sm px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)] cursor-move select-none"
+                className="relative flex items-center gap-3 bg-surface border border-border-subtle backdrop-blur-md rounded-sm px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)] cursor-move select-none"
             >
-                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-zinc-500/40" />
-                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-zinc-500/40" />
-                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-zinc-500/40" />
-                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-zinc-500/40" />
+                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-border-accent/40" />
+                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-border-accent/40" />
+                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-border-accent/40" />
+                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-border-accent/40" />
 
                 <div className="text-sm">
-                    <span className="font-beleren tracking-wide text-[#f1f1e8]">
+                    <span className="font-beleren tracking-wide text-parchment">
                         {cardName}
                     </span>
                     <br />
-                    <span className="text-zinc-400 ml-2">{hint}</span>
+                    <span className="text-text-muted ml-2">{hint}</span>
                 </div>
                 {showDone && (
                     <button
@@ -148,7 +148,7 @@ export default function TargetSelectionBanner({
                                 setIsBusy(false);
                             }
                         }}
-                        className="px-3 py-1 rounded-sm text-xs font-beleren tracking-wide bg-[#7a5a2e]/30 border border-[#c8a060]/45 text-[#e0c08a] hover:bg-[#7a5a2e]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        className="px-3 py-1 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                     >
                         Done
                     </button>
@@ -164,7 +164,7 @@ export default function TargetSelectionBanner({
                             setIsBusy(false);
                         }
                     }}
-                    className="px-3 py-1 rounded-sm text-xs font-beleren tracking-wide bg-[#5c1e1e]/45 border border-[#a04040]/45 text-[#d48080] hover:bg-[#5c1e1e]/65 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    className="px-3 py-1 rounded-sm text-xs font-beleren tracking-wide bg-danger-soft border border-danger text-danger-strong hover:bg-danger-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 >
                     {isCopyRetarget ? "Keep targets" : "Cancel"}
                 </button>

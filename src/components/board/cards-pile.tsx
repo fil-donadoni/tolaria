@@ -94,7 +94,7 @@ function FanLayout({
         <div
             ref={scrollRef}
             tabIndex={0}
-            className="overflow-x-auto px-2 py-6 outline-none focus-visible:ring-1 focus-visible:ring-zinc-500/60"
+            className="overflow-x-auto px-2 py-6 outline-none focus-visible:ring-1 focus-visible:ring-border-accent/60"
             style={
                 {
                     "--pile-card-w": "clamp(5.5rem, 14vw, 13rem)",
@@ -253,7 +253,7 @@ export default function CardsPile({
     // dialog so the chip can open it (e.g. an empty exile), so fall through.
     if (!cards.length && !controlled) {
         return (
-            <div className="group w-(--card-w-sm) aspect-5/7 mb-2 flex justify-center items-center text-center p-2 border border-white/15 rounded-sm">
+            <div className="group w-(--card-w-sm) aspect-5/7 mb-2 flex justify-center items-center text-center p-2 border border-border-subtle rounded-sm">
                 {zoneIcon ? (
                     <span
                         aria-label={emptyLabel}
@@ -262,7 +262,7 @@ export default function CardsPile({
                         {zoneIcon}
                     </span>
                 ) : (
-                    <span className="text-white/85 text-xs">
+                    <span className="text-text-muted text-xs">
                         {emptyLabel || "No cards"}
                     </span>
                 )}
@@ -336,7 +336,7 @@ export default function CardsPile({
                     />
                 )}
                 {footer && (
-                    <div className="sticky bottom-0 mt-2 flex justify-center border-t border-zinc-700/50 bg-[#0c0d12]/95 pt-3 pb-1">
+                    <div className="sticky bottom-0 mt-2 flex justify-center border-t border-border-subtle bg-surface pt-3 pb-1">
                         {footer}
                     </div>
                 )}

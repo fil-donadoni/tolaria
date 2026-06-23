@@ -71,19 +71,19 @@ export default function MulliganPrompt({
         >
             <div
                 {...dragHandlers}
-                className="relative flex flex-col items-center gap-3 bg-[#0c0d12]/90 border border-zinc-800/80 backdrop-blur-md rounded-sm px-6 py-4 shadow-[0_0_50px_rgba(0,0,0,0.8)] cursor-move select-none pointer-events-auto"
+                className="relative flex flex-col items-center gap-3 bg-surface border border-border-subtle backdrop-blur-md rounded-sm px-6 py-4 shadow-[0_0_50px_rgba(0,0,0,0.8)] cursor-move select-none pointer-events-auto"
             >
-                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-zinc-500/40" />
-                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-zinc-500/40" />
-                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-zinc-500/40" />
-                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-zinc-500/40" />
+                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-border-accent/40" />
+                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-border-accent/40" />
+                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-border-accent/40" />
+                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-border-accent/40" />
 
                 <div className="flex flex-col items-center gap-1 w-full">
-                    <p className="font-beleren text-sm tracking-wide text-[#f1f1e8]">
+                    <p className="font-beleren text-sm tracking-wide text-parchment">
                         Mulligan
                     </p>
-                    <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-zinc-500/40 to-transparent" />
-                    <p className="text-zinc-400 text-xs">
+                    <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-border-accent/40 to-transparent" />
+                    <p className="text-text-muted text-xs">
                         {viewerMulls > 0
                             ? `you have taken ${viewerMulls} mulligan${viewerMulls === 1 ? "" : "s"}`
                             : "review your opening hand"}
@@ -96,7 +96,7 @@ export default function MulliganPrompt({
                             type="button"
                             onClick={onKeep}
                             disabled={isBusy}
-                            className="px-4 py-2 rounded-sm bg-[#7a5a2e]/30 border border-[#c8a060]/45 text-[#e0c08a] text-sm font-beleren tracking-wide hover:bg-[#7a5a2e]/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                            className="px-4 py-2 rounded-sm bg-accent-soft border border-accent text-accent-strong text-sm font-beleren tracking-wide hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                         >
                             Keep
                         </button>
@@ -104,7 +104,7 @@ export default function MulliganPrompt({
                             type="button"
                             onClick={onMull}
                             disabled={isBusy || nextHandSize < 0}
-                            className="px-4 py-2 rounded-sm bg-[#5c1e1e]/45 border border-[#a04040]/45 text-[#d48080] text-sm font-beleren tracking-wide hover:bg-[#5c1e1e]/65 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                            className="px-4 py-2 rounded-sm bg-danger-soft border border-danger text-danger-strong text-sm font-beleren tracking-wide hover:bg-danger-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                         >
                             {nextHandSize >= 0
                                 ? `Mulligan to ${nextHandSize}`
@@ -112,9 +112,9 @@ export default function MulliganPrompt({
                         </button>
                     </div>
                 ) : (
-                    <p className="text-zinc-400 text-xs">
+                    <p className="text-text-muted text-xs">
                         Waiting for{" "}
-                        <span className="text-[#f1f1e8] font-beleren">
+                        <span className="text-parchment font-beleren">
                             {declaringPlayer?.name ?? "opponent"}
                         </span>
                     </p>

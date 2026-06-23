@@ -24,18 +24,18 @@ export default function ControllerPhaseList({
         <div
             role="dialog"
             aria-label="Turn phases"
-            className="flex w-[248px] flex-col overflow-hidden rounded-xl border border-zinc-800/80 bg-[#0e1016]/95 shadow-2xl backdrop-blur-md"
+            className="flex w-[248px] flex-col overflow-hidden rounded-xl border border-border-subtle bg-surface shadow-2xl backdrop-blur-md"
             style={{ maxHeight: "calc(100vh - 24px)" }}
         >
-            <div className="flex items-center justify-between border-b border-zinc-800/80 px-3 py-2">
-                <span className="font-beleren text-xs text-amber-300">
+            <div className="flex items-center justify-between border-b border-border-subtle px-3 py-2">
+                <span className="font-beleren text-xs text-accent-strong">
                     Turn {turn} — Phases
                 </span>
                 <button
                     type="button"
                     onClick={onClose}
                     aria-label="Close phase list"
-                    className="cursor-pointer text-sm text-white/50 hover:text-white/80"
+                    className="cursor-pointer text-sm text-text-muted hover:text-text"
                 >
                     ✕
                 </button>
@@ -46,7 +46,7 @@ export default function ControllerPhaseList({
              *  names, and an OPP head over the right stop column. Same
              *  `gap-2 px-3` + `w-6` gutters as ControllerPhaseRow so the heads
              *  sit directly above their dots. */}
-            <div className="flex items-center gap-2 px-3 py-1 text-[8px] uppercase tracking-wider text-white/30">
+            <div className="flex items-center gap-2 px-3 py-1 text-[8px] uppercase tracking-wider text-text-disabled">
                 <span className="w-6 text-center">You</span>
                 <span className="flex-1 text-center">Stop on</span>
                 <span className="w-6 text-center">Opp</span>
@@ -55,7 +55,7 @@ export default function ControllerPhaseList({
             <div className="min-h-0 flex-1 overflow-y-auto pb-2">
                 {PHASE_GROUPS.map((group) => (
                     <div key={group.label}>
-                        <div className="px-3 pb-0.5 pt-2 text-[9px] uppercase tracking-wider text-white/40">
+                        <div className="px-3 pb-0.5 pt-2 text-[9px] uppercase tracking-wider text-text-disabled">
                             {group.label}
                         </div>
                         {group.steps.map((step) => {

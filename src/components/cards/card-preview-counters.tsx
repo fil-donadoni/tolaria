@@ -16,8 +16,8 @@ export default function CardPreviewCounters({
     if (counters.length === 0) return null;
 
     return (
-        <div className="border-t border-zinc-700 pt-2 text-sm">
-            <div className="text-zinc-400 font-semibold mb-1">Counters</div>
+        <div className="border-t border-border-subtle pt-2 text-sm">
+            <div className="text-text-muted font-semibold mb-1">Counters</div>
             <ul className="flex flex-col gap-0.5">
                 {counters.map((c) => (
                     <li
@@ -27,7 +27,7 @@ export default function CardPreviewCounters({
                         <span className={`font-semibold ${TONE_TEXT[c.tone]}`}>
                             {c.label}
                         </span>
-                        <span className="text-white font-bold tabular-nums">
+                        <span className="text-text font-bold tabular-nums">
                             ×{c.count}
                         </span>
                     </li>

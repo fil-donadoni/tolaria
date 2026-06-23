@@ -89,7 +89,7 @@ export default function SideboardingDialog({
         return (
             <GameDialog open title="Sideboarding" dismissable={false}>
                 <div className="flex flex-col gap-3 mt-1">
-                    <p className="text-zinc-400 text-sm text-center">
+                    <p className="text-text-muted text-sm text-center">
                         Waiting for the other player to finish sideboarding…
                     </p>
                     {opponent && (
@@ -110,10 +110,10 @@ export default function SideboardingDialog({
         return (
             <GameDialog open title="Sideboarding" dismissable={false}>
                 <div className="flex flex-col gap-3 mt-1">
-                    <p className="text-emerald-200 text-sm text-center font-beleren tracking-wide">
+                    <p className="text-success-strong text-sm text-center font-beleren tracking-wide">
                         You are ready.
                     </p>
-                    <p className="text-zinc-400 text-xs text-center">
+                    <p className="text-text-muted text-xs text-center">
                         The next game starts once both players are ready.
                     </p>
                     <SideboardOpponentStatus opponent={opponent} />
@@ -192,7 +192,7 @@ export default function SideboardingDialog({
             dismissable={false}
         >
             <div className="flex flex-col gap-3 mt-1">
-                <p className="text-zinc-500 text-xs text-center">
+                <p className="text-text-disabled text-xs text-center">
                     Swap cards between your Maindeck and Sideboard. Your
                     Maindeck must stay at {lockedSize} cards.
                 </p>
@@ -223,7 +223,7 @@ export default function SideboardingDialog({
                 )}
                 {isChooser && (
                     <div className="flex flex-col items-center gap-1">
-                        <span className="text-zinc-400 text-xs">
+                        <span className="text-text-muted text-xs">
                             You lost the last game — choose:
                         </span>
                         <div className="flex gap-2">
@@ -235,8 +235,8 @@ export default function SideboardingDialog({
                                     onClick={() => setPlayDraw(opt)}
                                     className={`rounded-sm border px-3 py-1 text-xs font-beleren tracking-wide transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 ${
                                         playDraw === opt
-                                            ? "border-amber-500/60 bg-amber-700/30 text-amber-200"
-                                            : "border-zinc-600/45 bg-zinc-800/40 text-zinc-300 hover:bg-zinc-700/40"
+                                            ? "border-accent bg-accent-soft text-accent-strong"
+                                            : "border-border-accent/40 bg-surface-elevated text-text-muted hover:bg-surface-elevated/80"
                                     }`}
                                 >
                                     {opt === "play" ? "Play" : "Draw"}
@@ -250,7 +250,7 @@ export default function SideboardingDialog({
                     type="button"
                     onClick={() => void handleReady()}
                     disabled={!sizeOk || submitting}
-                    className="mt-1 w-full py-2.5 rounded-sm bg-amber-700/30 border border-amber-500/45 text-amber-200 font-beleren tracking-wide hover:bg-amber-600/30 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                    className="mt-1 w-full py-2.5 rounded-sm bg-accent-soft border border-accent text-accent-strong font-beleren tracking-wide hover:bg-accent-soft/80 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
                 >
                     {submitting ? "Confirming…" : "Ready"}
                 </button>

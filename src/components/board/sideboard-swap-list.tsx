@@ -65,7 +65,7 @@ export default function SideboardSwapList({
                     {rows.map((row) => (
                         <li
                             key={row.cardId}
-                            className="flex items-center justify-between gap-2 rounded-sm bg-zinc-800/40 px-2 py-1 text-xs text-zinc-200"
+                            className="flex items-center justify-between gap-2 rounded-sm bg-surface-elevated px-2 py-1 text-xs text-text"
                         >
                             <span className="truncate">
                                 {row.count > 1 ? `${row.count}× ` : ""}
@@ -75,7 +75,7 @@ export default function SideboardSwapList({
                                 type="button"
                                 disabled={disabled}
                                 onClick={() => onMove(row.cardId)}
-                                className="shrink-0 rounded-sm border border-amber-500/40 px-1.5 py-0.5 text-amber-200 hover:bg-amber-600/20 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                                className="shrink-0 rounded-sm border border-accent/40 px-1.5 py-0.5 text-accent-strong hover:bg-accent-soft transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
                             >
                                 {moveLabel}
                             </button>

@@ -25,7 +25,7 @@ export default function StackAbilityTile({
     const badgeLabel = kind === "triggered" ? "Trigger" : "Ability";
 
     return (
-        <div className="w-full flex flex-col rounded-lg shadow-lg bg-zinc-900/95 backdrop-blur-sm overflow-hidden ring-1 ring-zinc-700">
+        <div className="w-full flex flex-col rounded-lg shadow-lg bg-surface overflow-hidden ring-1 ring-border-accent">
             <div
                 className="relative w-full"
                 style={{ aspectRatio: ART_CROP_RATIO }}
@@ -47,15 +47,15 @@ export default function StackAbilityTile({
                         staticAbilities={def?.staticAbilities ?? []}
                     />
                 )}
-                <div className="absolute top-1 left-1 text-[9px] uppercase tracking-wider font-semibold text-zinc-100 bg-black/70 px-1.5 py-0.5 rounded">
+                <div className="absolute top-1 left-1 text-[9px] uppercase tracking-wider font-semibold text-text bg-black/70 px-1.5 py-0.5 rounded">
                     {badgeLabel}
                 </div>
             </div>
             <div className="p-2 space-y-1 text-left">
-                <div className="text-[10px] font-semibold text-zinc-100 truncate">
+                <div className="text-[10px] font-semibold text-text truncate">
                     {name}
                 </div>
-                <div className="text-[10px] leading-snug text-zinc-100">
+                <div className="text-[10px] leading-snug text-text">
                     {formatOracleText(abilityText)}
                 </div>
             </div>

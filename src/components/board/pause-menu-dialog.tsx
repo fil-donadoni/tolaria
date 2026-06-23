@@ -82,7 +82,7 @@ export default function PauseMenuDialog({
                     <button
                         type="button"
                         onClick={() => setStep("menu")}
-                        className="flex-1 py-2 rounded-sm bg-zinc-800/40 border border-zinc-600/45 text-zinc-300 font-beleren tracking-wide hover:bg-zinc-700/40 transition-colors cursor-pointer"
+                        className="flex-1 py-2 rounded-sm bg-surface-elevated border border-border-accent/40 text-text-muted font-beleren tracking-wide hover:bg-surface-elevated transition-colors cursor-pointer"
                     >
                         No
                     </button>
@@ -90,7 +90,7 @@ export default function PauseMenuDialog({
                         type="button"
                         onClick={handleConcede}
                         disabled={isBusy}
-                        className="flex-1 py-2 rounded-sm bg-[#5c1e1e]/45 border border-[#a04040]/45 text-[#d48080] font-beleren tracking-wide hover:bg-[#5c1e1e]/65 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        className="flex-1 py-2 rounded-sm bg-danger-soft border border-danger text-danger-strong font-beleren tracking-wide hover:bg-danger disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                     >
                         Yes
                     </button>
@@ -112,7 +112,7 @@ export default function PauseMenuDialog({
                     <button
                         type="button"
                         onClick={() => setStep("menu")}
-                        className="flex-1 py-2 rounded-sm bg-zinc-800/40 border border-zinc-600/45 text-zinc-300 font-beleren tracking-wide hover:bg-zinc-700/40 transition-colors cursor-pointer"
+                        className="flex-1 py-2 rounded-sm bg-surface-elevated border border-border-accent/40 text-text-muted font-beleren tracking-wide hover:bg-surface-elevated transition-colors cursor-pointer"
                     >
                         No
                     </button>
@@ -120,7 +120,7 @@ export default function PauseMenuDialog({
                         type="button"
                         onClick={handleForfeit}
                         disabled={isBusy}
-                        className="flex-1 py-2 rounded-sm bg-[#5c1e1e]/45 border border-[#a04040]/45 text-[#d48080] font-beleren tracking-wide hover:bg-[#5c1e1e]/65 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        className="flex-1 py-2 rounded-sm bg-danger-soft border border-danger text-danger-strong font-beleren tracking-wide hover:bg-danger disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                     >
                         Yes
                     </button>
@@ -141,7 +141,7 @@ export default function PauseMenuDialog({
                 <button
                     type="button"
                     onClick={() => setStep("confirm-concede")}
-                    className="w-full py-2.5 rounded-sm bg-[#5c1e1e]/45 border border-[#a04040]/45 text-[#d48080] font-beleren tracking-wide hover:bg-[#5c1e1e]/65 transition-colors cursor-pointer"
+                    className="w-full py-2.5 rounded-sm bg-danger-soft border border-danger text-danger-strong font-beleren tracking-wide hover:bg-danger transition-colors cursor-pointer"
                 >
                     {isBo3 ? "Concede Game" : "Concede"}
                 </button>
@@ -149,7 +149,7 @@ export default function PauseMenuDialog({
                     <button
                         type="button"
                         onClick={() => setStep("confirm-forfeit")}
-                        className="w-full py-2.5 rounded-sm bg-[#3a1414]/45 border border-[#7a2a2a]/45 text-[#b86a6a] font-beleren tracking-wide hover:bg-[#3a1414]/65 transition-colors cursor-pointer"
+                        className="w-full py-2.5 rounded-sm bg-danger-soft border border-danger-strong text-danger font-beleren tracking-wide hover:bg-danger transition-colors cursor-pointer"
                     >
                         Forfeit Match
                     </button>

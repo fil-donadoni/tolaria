@@ -16,7 +16,7 @@ const CUE_STYLE: Record<
         pulse: false,
     },
     "auto-passing": {
-        dot: "bg-zinc-400",
+        dot: "bg-text-disabled",
         label: "Auto-passing",
         pulse: false,
     },
@@ -31,7 +31,7 @@ export default function ControllerCueBadge({ cue }: { cue: ControllerCue }) {
             role="status"
             aria-live="polite"
             data-cue={cue}
-            className={`flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/70 ${
+            className={`flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted ${
                 style.pulse ? "animate-pulse" : ""
             }`}
         >

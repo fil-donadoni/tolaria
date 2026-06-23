@@ -34,7 +34,7 @@ export default function ControllerPod({
         // clears the pile row height in the corner.
         <div
             data-controller-pod
-            className={`fixed bottom-32 right-4 z-40 flex w-52 flex-col gap-2 rounded-2xl border bg-[#0c0d12]/90 p-2.5 shadow-2xl backdrop-blur-md ${
+            className={`fixed bottom-32 right-4 z-40 flex w-52 flex-col gap-2 rounded-2xl border bg-surface-base p-2.5 shadow-2xl backdrop-blur-md ${
                 isMyTurn
                     ? "border-emerald-500/60 shadow-emerald-500/10"
                     : "border-rose-500/40 shadow-rose-500/10"
@@ -64,18 +64,18 @@ export default function ControllerPod({
                 onClick={() => setExpanded((v) => !v)}
                 aria-expanded={expanded}
                 aria-label="Toggle phase list"
-                className="flex items-center gap-2 rounded-xl bg-white/[0.03] px-2.5 py-2 text-left hover:bg-white/[0.06] cursor-pointer"
+                className="flex items-center gap-2 rounded-xl bg-surface-elevated px-2.5 py-2 text-left hover:bg-surface-elevated cursor-pointer"
             >
                 <div className="flex min-w-0 flex-1 flex-col">
-                    <span className="text-[8px] uppercase tracking-wider text-white/40">
+                    <span className="text-[8px] uppercase tracking-wider text-text-disabled">
                         T{turn} · {phaseGroupLabel(phase)}
                     </span>
-                    <span className="truncate font-beleren text-sm font-bold text-amber-300">
+                    <span className="truncate font-beleren text-sm font-bold text-accent-strong">
                         {phaseLabel(phase)}
                     </span>
                 </div>
                 <ChevronRight
-                    className={`h-3.5 w-3.5 shrink-0 text-white/40 transition-transform ${
+                    className={`h-3.5 w-3.5 shrink-0 text-text-disabled transition-transform ${
                         expanded ? "rotate-90" : ""
                     }`}
                     aria-hidden
@@ -93,7 +93,7 @@ export default function ControllerPod({
                                 type="button"
                                 onClick={action.onClick}
                                 disabled={action.disabled}
-                                className="rounded-sm border border-zinc-600/45 bg-zinc-800/40 px-3 py-2 text-center text-xs font-beleren tracking-wide text-zinc-300 shadow-md transition-colors hover:bg-zinc-700/40 disabled:cursor-default disabled:opacity-70"
+                                className="rounded-sm border border-border-accent/40 bg-surface-elevated px-3 py-2 text-center text-xs font-beleren tracking-wide text-text-muted shadow-md transition-colors hover:bg-surface-elevated disabled:cursor-default disabled:opacity-70"
                             >
                                 {action.label}
                             </button>

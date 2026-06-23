@@ -51,7 +51,7 @@ export default function BoardBackground() {
                 className="absolute inset-0"
                 style={{
                     background:
-                        "radial-gradient(120% 90% at 50% 22%, #15161f 0%, #0c0d12 52%, #07070b 100%)",
+                        "radial-gradient(120% 90% at 50% 22%, #15161f 0%, var(--color-surface-base) 52%, #07070b 100%)",
                 }}
             />
 
@@ -61,7 +61,7 @@ export default function BoardBackground() {
                 className="absolute -top-1/4 left-1/2 h-[80vmax] w-[80vmax] -translate-x-1/2 rounded-full"
                 style={{
                     background:
-                        "radial-gradient(circle, rgba(200,160,96,0.14) 0%, rgba(122,90,46,0.07) 38%, transparent 68%)",
+                        "radial-gradient(circle, color-mix(in srgb, var(--color-accent) 14%, transparent) 0%, color-mix(in srgb, var(--color-accent-soft) 7%, transparent) 38%, transparent 68%)",
                 }}
             />
 
@@ -70,7 +70,7 @@ export default function BoardBackground() {
                 className="absolute -bottom-1/3 left-1/2 h-[70vmax] w-[70vmax] -translate-x-1/2 rounded-full"
                 style={{
                     background:
-                        "radial-gradient(circle, rgba(90,122,138,0.12) 0%, rgba(46,68,80,0.06) 40%, transparent 70%)",
+                        "radial-gradient(circle, color-mix(in srgb, var(--color-secondary-accent) 12%, transparent) 0%, color-mix(in srgb, var(--color-secondary-accent-soft) 6%, transparent) 40%, transparent 70%)",
                 }}
             />
 
@@ -79,7 +79,7 @@ export default function BoardBackground() {
                 className="absolute left-1/2 top-1/2 h-[120vmin] w-[120vmin] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-[0.04]"
                 style={{
                     background:
-                        "conic-gradient(from 0deg, transparent 0deg, rgba(224,192,138,0.6) 8deg, transparent 22deg, transparent 180deg, rgba(140,176,196,0.5) 188deg, transparent 205deg, transparent 360deg)",
+                        "conic-gradient(from 0deg, transparent 0deg, color-mix(in srgb, var(--color-accent-strong) 60%, transparent) 8deg, transparent 22deg, transparent 180deg, color-mix(in srgb, var(--color-secondary-accent-strong) 50%, transparent) 188deg, transparent 205deg, transparent 360deg)",
                     maskImage:
                         "radial-gradient(circle, transparent 56%, #000 57%, #000 60%, transparent 61%)",
                     WebkitMaskImage:

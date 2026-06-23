@@ -14,14 +14,14 @@ export default function DragHandle({
     return (
         <div
             {...handlers}
-            className={`flex items-center gap-2 px-3 py-1.5 cursor-move select-none border-b border-zinc-800/80 hover:bg-white/5 ${className}`}
+            className={`flex items-center gap-2 px-3 py-1.5 cursor-move select-none border-b border-border-subtle hover:bg-surface-elevated ${className}`}
         >
             <svg
                 viewBox="0 0 16 16"
                 width="12"
                 height="12"
                 aria-hidden
-                className="text-zinc-500"
+                className="text-text-disabled"
             >
                 <circle cx="5" cy="4" r="1" fill="currentColor" />
                 <circle cx="11" cy="4" r="1" fill="currentColor" />
@@ -31,7 +31,7 @@ export default function DragHandle({
                 <circle cx="11" cy="12" r="1" fill="currentColor" />
             </svg>
             {label && (
-                <span className="font-beleren text-xs tracking-wide text-[#f1f1e8]/70">
+                <span className="font-beleren text-xs tracking-wide text-parchment/70">
                     {label}
                 </span>
             )}

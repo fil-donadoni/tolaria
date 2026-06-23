@@ -23,10 +23,10 @@ export default function PileChip({
             type="button"
             onClick={onClick}
             data-testid={testId}
-            className="flex items-center gap-1 rounded-md border border-zinc-700/70 bg-white/[0.06] px-2 py-1 font-beleren text-[10px] text-white/85 active:bg-white/[0.12]"
+            className="flex items-center gap-1 rounded-md border border-border-subtle bg-surface-elevated px-2 py-1 font-beleren text-[10px] text-text-muted active:bg-surface"
         >
             {label}
-            <span className="font-bold text-amber-300">{count}</span>
+            <span className="font-bold text-accent-strong">{count}</span>
         </button>
     );
 }

@@ -37,18 +37,18 @@ export default function ErrorToast({
 
     return (
         <div className="fixed left-1/2 bottom-24 -translate-x-1/2 z-100">
-            <div className="relative bg-[#0c0d12]/90 border border-[#a04040]/45 backdrop-blur-md rounded-sm px-4 py-2 shadow-[0_0_50px_rgba(0,0,0,0.8)] flex items-center gap-3">
-                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-[#a04040]/45" />
-                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-[#a04040]/45" />
-                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-[#a04040]/45" />
-                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-[#a04040]/45" />
-                <p className="font-beleren text-[#d48080] text-sm tracking-wide px-2">
+            <div className="relative bg-surface border border-danger/45 rounded-sm px-4 py-2 shadow-[0_0_50px_rgba(0,0,0,0.8)] flex items-center gap-3">
+                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-danger/45" />
+                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-danger/45" />
+                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-danger/45" />
+                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-danger/45" />
+                <p className="font-beleren text-danger-strong text-sm tracking-wide px-2">
                     {error.title}
                 </p>
                 <button
                     type="button"
                     onClick={handleCopy}
-                    className="font-beleren text-[#d48080] text-xs tracking-wide border border-[#a04040]/45 rounded-sm px-2 py-0.5 hover:bg-[#a04040]/20 transition-colors"
+                    className="font-beleren text-danger-strong text-xs tracking-wide border border-danger/45 rounded-sm px-2 py-0.5 hover:bg-danger/20 transition-colors"
                 >
                     {copied ? "Copied!" : "Copy"}
                 </button>
@@ -56,7 +56,7 @@ export default function ErrorToast({
                     type="button"
                     onClick={onDismiss}
                     aria-label="Dismiss error"
-                    className="font-beleren text-[#d48080] text-sm leading-none px-1 hover:text-[#f0a0a0] transition-colors"
+                    className="font-beleren text-danger-strong text-sm leading-none px-1 hover:text-danger transition-colors"
                 >
                     ×
                 </button>

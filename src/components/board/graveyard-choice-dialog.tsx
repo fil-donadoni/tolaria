@@ -23,12 +23,12 @@ export default function GraveyardChoiceDialog({
                     type="button"
                     disabled={isPending}
                     onClick={() => onSelect(gy.playerId)}
-                    className="flex items-center justify-between rounded-sm px-3 py-2.5 text-left hover:bg-white/5 border border-transparent hover:border-zinc-700/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    className="flex items-center justify-between rounded-sm px-3 py-2.5 text-left hover:bg-surface-elevated border border-transparent hover:border-border-subtle disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 >
-                    <span className="font-beleren text-sm tracking-wide text-zinc-100">
+                    <span className="font-beleren text-sm tracking-wide text-text">
                         {gy.isMine ? "My graveyard" : "Opponent's graveyard"}
                     </span>
-                    <span className="text-xs text-zinc-500">
+                    <span className="text-xs text-text-disabled">
                         {gy.cards.length}{" "}
                         {gy.cards.length === 1 ? "card" : "cards"}
                     </span>

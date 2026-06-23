@@ -16,13 +16,13 @@ export default function SideboardOpponentStatus({
 }: SideboardOpponentStatusProps) {
     return (
         <div className="flex items-center justify-center gap-2 text-xs">
-            <span className="text-zinc-400">{opponent.name}:</span>
+            <span className="text-text-muted">{opponent.name}:</span>
             {opponent.ready ? (
-                <span className="rounded-sm border border-emerald-500/45 bg-emerald-700/25 px-2 py-0.5 font-beleren tracking-wide text-emerald-200">
+                <span className="rounded-sm border border-success bg-success-soft px-2 py-0.5 font-beleren tracking-wide text-success-strong">
                     ready
                 </span>
             ) : (
-                <span className="rounded-sm border border-zinc-600/45 bg-zinc-800/40 px-2 py-0.5 font-beleren tracking-wide text-zinc-300">
+                <span className="rounded-sm border border-border-accent/40 bg-surface-elevated px-2 py-0.5 font-beleren tracking-wide text-text-muted">
                     sideboarding…
                 </span>
             )}
