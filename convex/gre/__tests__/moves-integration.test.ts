@@ -235,9 +235,7 @@ function confirmBlockSeam(
 ): string | null {
     state.combat!.blockerAssignments = { ...declared };
     const activePlayer = getPlayer(state, state.activePlayerId);
-    const defender = state.players.find(
-        (p) => p.id !== state.activePlayerId
-    )!;
+    const defender = state.players.find((p) => p.id !== state.activePlayerId)!;
     const required = getRequiredBlockerAssignments(
         activePlayer.battlefield,
         defender.battlefield,

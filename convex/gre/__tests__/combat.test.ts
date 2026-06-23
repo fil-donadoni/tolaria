@@ -717,33 +717,27 @@ describe("validateMinimumBlockers (DECLARE_BLOCKERS — menace, CR 509.1b/c)", (
         { min: 2, blockers: 2, ok: true },
         { min: 3, blockers: 2, ok: false },
         { min: 3, blockers: 3, ok: true },
-    ])(
-        "min=$min blocked-by=$blockers → ok=$ok",
-        ({ min, blockers, ok }) => {
-            const attacker = makeCard({
-                id: "atk",
-                types: ["Creature"],
-                power: 4,
-                toughness: 4,
-                // Encode the threshold directly so the test is independent of
-                // which keyword maps to which number.
-                staticAbilities: min === 2 ? ["menace"] : [],
-            });
-            const blockerIds = Array.from(
-                { length: blockers },
-                (_, i) => `b${i}`
-            );
-            const state = combatWith(attacker, blockerIds);
-            // For min===3 there is no shipped keyword; assert the helper's
-            // contract directly (the generalisation point), then the validator
-            // for the menace (min===2) rows.
-            if (min === 3) {
-                // Simulate a future "three or more" by overriding the count.
-                const blockedBy = blockerIds.length;
-                expect(blockedBy > 0 && blockedBy < min).toBe(!ok);
-            } else {
-                expect(validateMinimumBlockers(state).ok).toBe(ok);
-            }
+    ])("min=$min blocked-by=$blockers → ok=$ok", ({ min, blockers, ok }) => {
+        const attacker = makeCard({
+            id: "atk",
+            types: ["Creature"],
+            power: 4,
+            toughness: 4,
+            // Encode the threshold directly so the test is independent of
+            // which keyword maps to which number.
+            staticAbilities: min === 2 ? ["menace"] : [],
+        });
+        const blockerIds = Array.from({ length: blockers }, (_, i) => `b${i}`);
+        const state = combatWith(attacker, blockerIds);
+        // For min===3 there is no shipped keyword; assert the helper's
+        // contract directly (the generalisation point), then the validator
+        // for the menace (min===2) rows.
+        if (min === 3) {
+            // Simulate a future "three or more" by overriding the count.
+            const blockedBy = blockerIds.length;
+            expect(blockedBy > 0 && blockedBy < min).toBe(!ok);
+        } else {
+            expect(validateMinimumBlockers(state).ok).toBe(ok);
         }
-    );
+    });
 });

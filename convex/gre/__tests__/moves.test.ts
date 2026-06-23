@@ -376,8 +376,7 @@ describe("enumerateMoves — combat (issue #110)", () => {
         expect(blockBoth).toBeDefined();
         // The illegal single-blocker combos must be absent.
         const hasSingle = moves.some(
-            (m) =>
-                m.kind === "declare-blockers" && m.assignments.length === 1
+            (m) => m.kind === "declare-blockers" && m.assignments.length === 1
         );
         expect(hasSingle).toBe(false);
     });

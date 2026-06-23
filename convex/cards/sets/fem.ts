@@ -2199,8 +2199,7 @@ export const orgg: CardDefinition = {
             id: "orgg-cant-block-power-3",
             side: "blocker",
             predicate: (_self, attacker) => (attacker.power ?? 0) < 3,
-            oracleText:
-                "Orgg can't block creatures with power 3 or greater.",
+            oracleText: "Orgg can't block creatures with power 3 or greater.",
         },
     ],
 };
@@ -2426,12 +2425,14 @@ export const raidingParty: CardDefinition = {
                     ctx.recallChoice("raiding-party-protected") ?? []
                 );
                 for (const pid of ctx.allPlayerIds) {
-                    const whiteCreatures = ctx.getBattlefieldIds(pid, {
-                        types: "Creature",
-                        colors: "W",
-                    }).filter(
-                        (id) => !ctx.getIsTapped({ type: "permanent", id })
-                    );
+                    const whiteCreatures = ctx
+                        .getBattlefieldIds(pid, {
+                            types: "Creature",
+                            colors: "W",
+                        })
+                        .filter(
+                            (id) => !ctx.getIsTapped({ type: "permanent", id })
+                        );
                     let tappedCount = 0;
                     if (whiteCreatures.length > 0) {
                         const chosen = ctx.requestChoice({

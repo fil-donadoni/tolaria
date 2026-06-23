@@ -1448,7 +1448,9 @@ describe("Goblin Grenade — sacrifice a Goblin, 5 damage (CR 601.2f, 115.4)", (
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2", { life: 20 })],
         });
-        pushSpell(state, goblinGrenade.id, "p1", [{ type: "player", id: "p2" }]);
+        pushSpell(state, goblinGrenade.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
         resolveTopOfStack(state);
         expect(state.players[1].life).toBe(15);
     });
@@ -1616,9 +1618,7 @@ describe("Orcish Captain — coin-flip pump on an Orc (CR 705.2)", () => {
 describe("Brassclaw Orcs — can't block power 2+ (CR 509.1b, ADR 0006)", () => {
     it("declares a blocker-side block-restriction predicate", () => {
         const effects = brassclawOrcs.staticEffects ?? [];
-        const restriction = effects.find(
-            (e) => e.kind === "block-restriction"
-        );
+        const restriction = effects.find((e) => e.kind === "block-restriction");
         expect(restriction).toBeDefined();
         if (restriction && restriction.kind === "block-restriction") {
             expect(restriction.side).toBe("blocker");
@@ -1812,22 +1812,18 @@ describe("Dwarven Armorer — discard for a counter (CR 122.1)", () => {
             (c) => c.id === "buffme"
         )!;
         const counters = buffed.counters ?? {};
-        const total =
-            (counters["+0/+1"] ?? 0) + (counters["+1/+0"] ?? 0);
+        const total = (counters["+0/+1"] ?? 0) + (counters["+1/+0"] ?? 0);
         expect(total).toBe(1);
-        expect(state.players[0].graveyard.some((c) => c.id === "discardme")).toBe(
-            true
-        );
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "discardme")
+        ).toBe(true);
     });
 });
 
 describe("Dwarven Catapult — X damage split among opponent creatures (CR 107.3)", () => {
     it("deals floor(X / N) to each of the opponent's creatures", () => {
         const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { life: 20 }),
-            ],
+            players: [makePlayer("p1"), makePlayer("p2", { life: 20 })],
         });
         const c1 = makeInstance(grizzlyBears.id, {
             id: "oc1",
