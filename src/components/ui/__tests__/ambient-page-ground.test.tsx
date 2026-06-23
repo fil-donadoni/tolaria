@@ -33,6 +33,18 @@ describe("AmbientPageGround (issue #596)", () => {
         expect(img.getAttribute("aria-hidden")).toBe("true");
     });
 
+    it("tags the glow + art layers with the reduced-motion-gated motion hooks (issue #598)", () => {
+        // The breathing-glow + ken-burns CSS keys off these data hooks and is
+        // gated behind prefers-reduced-motion: no-preference (asserted in
+        // src/__tests__/motion-gating.test.ts). The component's job is just to
+        // tag the layers so that gated CSS has something to animate.
+        const { container } = render(<AmbientPageGround />);
+        const root = container.querySelector("[data-ambient-ground]")!;
+        expect(root.querySelector('[data-ambient-glow="warm"]')).not.toBeNull();
+        expect(root.querySelector('[data-ambient-glow="cool"]')).not.toBeNull();
+        expect(root.querySelector("[data-ambient-art]")).not.toBeNull();
+    });
+
     it("renders the arcane ring by default but omits it when ring={false}", () => {
         const { container: withRing } = render(<AmbientPageGround ring />);
         const { container: noRing } = render(
