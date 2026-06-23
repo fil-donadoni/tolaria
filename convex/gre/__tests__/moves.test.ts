@@ -302,6 +302,85 @@ describe("enumerateMoves — combat (issue #110)", () => {
             assignments: [{ blockerId: blocker.id, attackerId: attacker.id }],
         });
     });
+
+    // ADR 0038 — the bot's blocker enumeration must honour the menace
+    // minimum-blocker threshold the server enforces at confirmBlockers, or it
+    // would propose a block the mutation then rejects (CR 509.1b/c).
+    it("does NOT offer blocking a menace attacker with a single blocker", () => {
+        const attacker = makeInstance(BEARS, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+            staticAbilities: ["menace"], // granted by e.g. Goblin War Drums
+        });
+        const blocker = makeInstance(BEARS, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: [attacker.id],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const moves = enumerateMoves(state, "p2");
+        // Only the no-block move survives: a lone blocker on a menace attacker
+        // is illegal, so the bot must not consider it.
+        expect(moves).toEqual([{ kind: "declare-blockers", assignments: [] }]);
+    });
+
+    it("DOES offer blocking a menace attacker with two blockers", () => {
+        const attacker = makeInstance(BEARS, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+            staticAbilities: ["menace"],
+        });
+        const b1 = makeInstance(BEARS, {
+            id: "blk-1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const b2 = makeInstance(BEARS, {
+            id: "blk-2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: [b1, b2] }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: [attacker.id],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const moves = enumerateMoves(state, "p2");
+        const blockBoth = moves.find(
+            (m) =>
+                m.kind === "declare-blockers" &&
+                m.assignments.length === 2 &&
+                m.assignments.every((a) => a.attackerId === attacker.id)
+        );
+        expect(blockBoth).toBeDefined();
+        // The illegal single-blocker combos must be absent.
+        const hasSingle = moves.some(
+            (m) =>
+                m.kind === "declare-blockers" && m.assignments.length === 1
+        );
+        expect(hasSingle).toBe(false);
+    });
 });
 
 describe("enumerateMoves — mulligan (issue #110)", () => {

@@ -28,20 +28,25 @@ import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
 import { untapRestriction } from "../abilities/static/untapRestriction";
 import { payOrSacrificeUpkeepTrigger } from "./leg";
 import { manaCostForCardId } from "../manaCostLookup";
-import { getColorsFromCost } from "../colors";
 
 /** Colours of a permanent view, derived from its mana cost (CR 202.2). The
  *  block-restriction predicates receive a `PermanentView` that carries only an
  *  `{ id }` reference on `card` in production, so colours are recovered
  *  cycle-safely via the registry lookup (test fixtures may inline `manaCost`).
- *  Mirrors leg.ts's `colorsOf`; extracted here for the FEM red colour-clause
- *  restrictions (Orcish Veteran). */
+ *  Mirrors leg.ts's `colorsOf` exactly — including the inlined colour list — so
+ *  this set module never imports `../colors` (which sits in a
+ *  `colors → gre/constants → index → sets` cycle and would create a TDZ hazard
+ *  under strict ESM evaluation). */
 function colorsOfView(view: { card?: Record<string, unknown> }): string[] {
     const card = view.card ?? {};
-    const inlined = (card as { manaCost?: import("../types").ManaCost }).manaCost;
+    const inlined = (card as { manaCost?: import("../types").ManaCost })
+        .manaCost;
     const cardId = (card as { id?: string }).id;
     const cost = inlined ?? (cardId ? manaCostForCardId(cardId) : undefined);
-    return getColorsFromCost(cost);
+    if (!cost) return [];
+    return (["W", "U", "B", "R", "G"] as const).filter(
+        (c) => (cost[c] ?? 0) > 0
+    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
