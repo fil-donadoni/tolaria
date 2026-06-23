@@ -6,10 +6,10 @@ import type { CardPrint } from "../types";
 // the shared LEA/LEB CardDefinition. See ADR 0014.
 //
 // Excluded (mirrors LEA/LEB): ante cards (Contract from Below, Darkpact,
-// Demonic Attorney) and Chaos Orb are permanently out of scope (ADR 0010);
-// Camouflage stays blocked on its not-yet-implemented LEA CardDefinition.
-// Word of Command shipped (#576 / #577, ADR 0037). A 2ED print lands
-// automatically once its LEA def exists — see `wordOfCommand2ed` below.
+// Demonic Attorney) and Chaos Orb are permanently out of scope (ADR 0010).
+// Camouflage shipped (#563, pile combat) and Word of Command shipped
+// (#576 / #577, ADR 0037). A 2ED print lands automatically once its LEA def
+// exists — see `camouflage2ed` / `wordOfCommand2ed` below.
 
 export const airElemental2ed: CardPrint = {
     printId: "ef5b8140-a157-4c20-a428-fa7250ab34e1",
@@ -196,6 +196,13 @@ export const braingeyser2ed: CardPrint = {
 export const burrowing2ed: CardPrint = {
     printId: "08c109d4-6dd1-42a5-90ed-f8a71b6a0ca5",
     definitionId: "a14c05e4-8df3-450b-8a98-5028e73b14c1", // Burrowing
+    setCode: "2ed",
+    rarity: "uncommon",
+};
+
+export const camouflage2ed: CardPrint = {
+    printId: "09243dc6-c56c-42a8-969b-2ecffe89e1ca",
+    definitionId: "3838c2a3-7fab-4976-9c1b-2891aee24e52", // Camouflage
     setCode: "2ed",
     rarity: "uncommon",
 };

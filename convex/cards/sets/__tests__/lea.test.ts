@@ -152,6 +152,7 @@ import {
     jadeStatue,
     jayemdaeTome,
     juggernaut,
+    camouflage,
     nightmare,
     plains,
     serraAngel,
@@ -20999,6 +21000,257 @@ describe("Raging River (pile combat — CR 509.2 variant, ADR 0012)", () => {
             restored.players[1].battlefield.find((c) => c.id === "g1")!
                 .pileLabel
         ).toBe("left");
+    });
+});
+
+describe("Camouflage (random pile combat — CR 509 variant, #563, ADR 0012)", () => {
+    // Submits the head pending choice (a per-pile subset pick) and auto-resumes
+    // the spell's resolution via applyPendingChoiceSubmit.
+    function submitHead(state: GameState, picks: string[]) {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: picks,
+        });
+    }
+
+    // p1 attacks with `attackerIds`; p2 has the listed defending creatures.
+    // `seed` makes the random pile→attacker assignment deterministic.
+    function setup(opts: {
+        attackerIds: string[];
+        defenders: CardInstanceState[];
+        seed?: number;
+    }) {
+        const attackers = opts.attackerIds.map((id) =>
+            makeInstance(savannahLions.id, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                isAttacking: true,
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: attackers }),
+                makePlayer("p2", { battlefield: opts.defenders }),
+            ],
+            activePlayerId: "p1",
+            phase: "DECLARE_ATTACKERS",
+        });
+        state.rngSeed = opts.seed ?? 1;
+        state.rngCounter = 0;
+        state.combat = {
+            attackerIds: [...opts.attackerIds],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        };
+        return state;
+    }
+
+    function ground(id: string): CardInstanceState {
+        return makeInstance(savannahLions.id, {
+            id,
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+    }
+
+    it("is a {G} Instant castable only during your declare attackers step", () => {
+        expect(camouflage.manaCost).toEqual({ G: 1 });
+        expect(camouflage.types).toEqual(["Instant"]);
+        expect(camouflage.castPhaseRestriction).toEqual(["DECLARE_ATTACKERS"]);
+        expect(camouflage.castTurnRestriction).toBe("self");
+    });
+
+    it("forces a legal block from the pile (N=1) and marks the combat", () => {
+        const blocker = ground("b1");
+        const state = setup({ attackerIds: ["atkA"], defenders: [blocker] });
+        pushSpell(state, camouflage.id, "p1");
+
+        // Resolve → defender's single pile choice.
+        resolveTopOfStack(state);
+        expect(state.pendingChoices?.[0].kind).toBe("partition");
+        expect(state.pendingChoices?.[0].playerId).toBe("p2");
+
+        submitHead(state, ["b1"]); // put b1 in the only pile
+
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.camouflageCombat).toBe(true);
+        // b1 is forced to block its assigned attacker atkA.
+        expect(state.combat!.blockerAssignments).toEqual({ b1: ["atkA"] });
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "b1")!.isBlocking
+        ).toBe(true);
+    });
+
+    it("skips a creature in a pile that can't legally block its attacker", () => {
+        // atkA flies; a ground creature in its pile can't block it → no block.
+        const flyer = makeInstance(serraAngel.id, {
+            id: "atkA",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const blocker = ground("b1");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [flyer] }),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+            activePlayerId: "p1",
+            phase: "DECLARE_ATTACKERS",
+        });
+        state.rngSeed = 1;
+        state.combat = {
+            attackerIds: ["atkA"],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: false,
+        };
+        pushSpell(state, camouflage.id, "p1");
+        resolveTopOfStack(state);
+        submitHead(state, ["b1"]); // assigned to the flyer, can't block it
+
+        expect(state.camouflageCombat).toBe(true);
+        expect(state.combat!.blockerAssignments).toEqual({});
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "b1")!.isBlocking
+        ).toBeUndefined();
+    });
+
+    it("assigns each pile to a different attacker at random (seed 1 = identity)", () => {
+        // seededShuffle(["atkA","atkB"]) at seed 1 is the identity, so pile 0 →
+        // atkA and pile 1 → atkB.
+        const b1 = ground("b1");
+        const b2 = ground("b2");
+        const state = setup({
+            attackerIds: ["atkA", "atkB"],
+            defenders: [b1, b2],
+            seed: 1,
+        });
+        pushSpell(state, camouflage.id, "p1");
+        resolveTopOfStack(state);
+
+        // Pile 0 (candidates b1,b2): pick b1.
+        expect(state.pendingChoices?.[0].choiceId).toBe("camouflage-pile-0");
+        submitHead(state, ["b1"]);
+        // Pile 1 (only b2 remains as a candidate): pick b2.
+        expect(state.pendingChoices?.[0].choiceId).toBe("camouflage-pile-1");
+        expect(state.pendingChoices?.[0].candidateIds).toEqual(["b2"]);
+        submitHead(state, ["b2"]);
+
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.combat!.blockerAssignments).toEqual({
+            b1: ["atkA"],
+            b2: ["atkB"],
+        });
+    });
+
+    it("a different seed swaps the random pile→attacker assignment", () => {
+        // seededShuffle(["atkA","atkB"]) at seed 0 = ["atkB","atkA"], so pile 0
+        // is assigned to atkB and pile 1 to atkA.
+        const b1 = ground("b1");
+        const b2 = ground("b2");
+        const state = setup({
+            attackerIds: ["atkA", "atkB"],
+            defenders: [b1, b2],
+            seed: 0,
+        });
+        pushSpell(state, camouflage.id, "p1");
+        resolveTopOfStack(state);
+        submitHead(state, ["b1"]); // pile 0 → atkB
+        submitHead(state, ["b2"]); // pile 1 → atkA
+
+        expect(state.combat!.blockerAssignments).toEqual({
+            b1: ["atkB"],
+            b2: ["atkA"],
+        });
+    });
+
+    it("rejects assigning a creature already placed in an earlier pile", () => {
+        const b1 = ground("b1");
+        const b2 = ground("b2");
+        const state = setup({
+            attackerIds: ["atkA", "atkB"],
+            defenders: [b1, b2],
+            seed: 1,
+        });
+        pushSpell(state, camouflage.id, "p1");
+        resolveTopOfStack(state);
+        submitHead(state, ["b1"]); // b1 placed in pile 0
+        // pile 1 only offers b2; b1 is no longer eligible.
+        expect(() => submitHead(state, ["b1"])).toThrow(
+            "Card is not an eligible choice"
+        );
+    });
+
+    it("auto-confirms blockers with no priority window at DECLARE_BLOCKERS", () => {
+        const blocker = ground("b1");
+        const state = setup({ attackerIds: ["atkA"], defenders: [blocker] });
+        pushSpell(state, camouflage.id, "p1");
+        resolveTopOfStack(state);
+        submitHead(state, ["b1"]);
+
+        // Advance out of DECLARE_ATTACKERS: the engine routes through
+        // DECLARE_BLOCKERS, which Camouflage replaces — it must NOT wipe the
+        // pre-locked block and must auto-confirm.
+        state.combat!.confirmed = true;
+        const traversed = advancePhase(state);
+        expect(traversed).toContain("DECLARE_BLOCKERS");
+        expect(state.combat!.blockersConfirmed).toBe(true);
+        expect(state.combat!.blockerAssignments).toEqual({ b1: ["atkA"] });
+        expect(state.combat!.blockedAttackerIds).toContain("atkA");
+    });
+
+    it("wire format: forced block survives projectPublicState (#563)", () => {
+        const blocker = ground("b1");
+        const state = setup({ attackerIds: ["atkA"], defenders: [blocker] });
+        pushSpell(state, camouflage.id, "p1");
+        resolveTopOfStack(state);
+        submitHead(state, ["b1"]);
+
+        // GRE-level: the forced block is recorded.
+        expect(state.combat!.blockerAssignments).toEqual({ b1: ["atkA"] });
+
+        // The same block survives the projection both clients receive.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.combat!.blockerAssignments).toEqual({ b1: ["atkA"] });
+        const slimBlocker = projected.players[1].battlefield.find(
+            (c) => c.id === "b1"
+        )!;
+        expect(slimBlocker.isBlocking).toBe(true);
+    });
+
+    it("clears the camouflageCombat flag at end of combat (CR 511)", () => {
+        const blocker = ground("b1");
+        const state = setup({ attackerIds: ["atkA"], defenders: [blocker] });
+        pushSpell(state, camouflage.id, "p1");
+        resolveTopOfStack(state);
+        submitHead(state, ["b1"]);
+        expect(state.camouflageCombat).toBe(true);
+
+        state.phase = "COMBAT_DAMAGE";
+        state.combat!.blockersConfirmed = true;
+        advancePhase(state); // → END_OF_COMBAT
+        expect(state.phase).toBe("END_OF_COMBAT");
+        advancePhase(state); // leaving END_OF_COMBAT tears down combat
+        expect(state.camouflageCombat).toBeUndefined();
+    });
+
+    it("survives a serialize round-trip mid-combat", () => {
+        const blocker = ground("b1");
+        const state = setup({ attackerIds: ["atkA"], defenders: [blocker] });
+        pushSpell(state, camouflage.id, "p1");
+        resolveTopOfStack(state);
+        submitHead(state, ["b1"]);
+
+        const restored = expandState(compactState(state));
+        expect(restored.camouflageCombat).toBe(true);
+        expect(restored.combat!.blockerAssignments).toEqual({ b1: ["atkA"] });
     });
 });
 
