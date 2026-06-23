@@ -17,6 +17,7 @@ import {
     disruptingScepter,
     grizzlyBears,
     lightningBolt,
+    mountain,
     plains,
     swamp,
     winterOrb,
@@ -1142,5 +1143,94 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
                 cardInstanceIds: ["opp-ritual"],
             })
         ).toThrow(/stale/i);
+    });
+
+    // --- Targeted spell branch (#578, CR 601.2c): the controller picks the
+    // chosen spell's targets through the same submit path. ---
+
+    it("casts the opponent's Lightning Bolt aimed at the opponent themselves via the submit path", () => {
+        const oppBolt = makeInstance(lightningBolt.id, {
+            id: "opp-bolt",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppMountain = makeInstance(mountain.id, {
+            id: "opp-mountain",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = wocState({
+            oppHand: [oppBolt],
+            oppBattlefield: [oppMountain],
+        });
+        const startingLife = state.players[1].life;
+        pushSpell(state, wordOfCommand.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+
+        // 1) Pick the Bolt through the mutation's submit path.
+        submitViaMutationPath(state, "opp-bolt");
+        // A second choice — the target pick — is now routed to the controller.
+        const head = (state.pendingChoices ?? [])[0];
+        expect(head?.playerId).toBe("p1");
+        expect(head?.kind).toBe("choose-damage-target");
+        expect(head?.candidatePlayerIds).toEqual(
+            expect.arrayContaining(["p1", "p2"])
+        );
+
+        // 2) Aim it at the opponent (p2) themselves through the submit path.
+        submitViaMutationPath(state, "p2");
+
+        const bolt = state.stack.find(
+            (s) => (s.card as { id?: string }).id === lightningBolt.id
+        );
+        expect(bolt?.castById).toBe("p2"); // CR 601 — opponent's spell
+        expect(bolt?.actingPlayerId).toBe("p1"); // ADR 0037
+        expect(bolt?.targets).toEqual([{ type: "player", id: "p2" }]);
+        expect(oppMountain.isTapped).toBe(true);
+
+        // 3) Resolve: 3 damage lands on the opponent.
+        resolveTopOfStack(state);
+        checkStateBasedActions(state);
+        expect(state.players[1].life).toBe(startingLife - 3);
+    });
+
+    it("rejects an illegal target pick (not in the legal set) via the submit path", () => {
+        const oppBolt = makeInstance(lightningBolt.id, {
+            id: "opp-bolt",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppMountain = makeInstance(mountain.id, {
+            id: "opp-mountain",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = wocState({
+            oppHand: [oppBolt],
+            oppBattlefield: [oppMountain],
+        });
+        pushSpell(state, wordOfCommand.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        submitViaMutationPath(state, "opp-bolt");
+
+        // "no-such-id" is neither a legal permanent nor a legal player target.
+        const head = (state.pendingChoices ?? [])[0];
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: head.playerId,
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["no-such-id"],
+            })
+        ).toThrow(/legal target/i);
     });
 });

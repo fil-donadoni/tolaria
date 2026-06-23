@@ -82,6 +82,43 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Word of Command — controlled cast, TARGETED spell branch (#578, PRD
+        // #575, ADR 0037, CR 601.2c). The classic line: choose the opponent's
+        // Lightning Bolt and aim it back at them.
+        //
+        // Board: you hold Word of Command ({B}{B}) with two Swamps for the
+        // cost. Your opponent holds a castable Lightning Bolt ({R}, "any
+        // target") and controls a Mountain so it can be paid for from THEIR
+        // land. Golden path:
+        //   1. Cast Word of Command targeting your opponent.
+        //   2. On resolution you look at their hand and pick Lightning Bolt.
+        //   3. You (the Acting Player) choose its target — pick the opponent
+        //      themselves. It is cast as THEIR spell (controllerId = opponent),
+        //      paid by auto-tapping the opponent's Mountain, and resolves for 3
+        //      damage to the opponent.
+        // Edges:
+        //   - Aim the Bolt at yourself instead → 3 damage to you.
+        //   - Remove the opponent's Mountain → the Bolt can't be paid for from
+        //     their lands and is not played ("if able").
+        label: "2ED: Word of Command — controller aims opponent's Lightning Bolt (#578)",
+        cards: [
+            {
+                name: "Word of Command",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            {
+                name: "Lightning Bolt",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+            { name: "Mountain", owner: "opp" as const },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Word of Command — controlled cast, SPELL branch (#577, PRD #575, ADR
         // 0037, CR 601 / 305.2). You cast Word of Command targeting your
         // opponent, look at their hand, and choose a card for them to play

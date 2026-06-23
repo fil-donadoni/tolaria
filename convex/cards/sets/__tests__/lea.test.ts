@@ -21870,6 +21870,209 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
         ).toBe(true);
     });
 
+    // --- TARGETED spell branch (#578, CR 601.2c): the Acting Player picks the
+    // chosen spell's targets, reusing getLegalTargets. ---
+
+    /** Submits the head pending choice (the target pick) with a single id. */
+    function submitTarget(state: GameState, targetId: string) {
+        submitPick(state, targetId);
+    }
+
+    it("targeted spell: the controller is prompted to pick a target after the card pick", () => {
+        const oppBolt = makeInstance(lightningBolt.id, {
+            id: "opp-bolt",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppMountain = makeInstance(mountain.id, {
+            id: "opp-mountain",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [oppBolt],
+                    battlefield: [oppMountain],
+                }),
+            ],
+        });
+        castWordOfCommand(state);
+        // Pick the opponent's Lightning Bolt from their hand.
+        submitPick(state, "opp-bolt");
+
+        // A second pending choice — the target pick — is now routed to the
+        // controller (p1), not the controlled opponent (p2).
+        expect(state.pendingChoices).toHaveLength(1);
+        const head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p1");
+        expect(head.kind).toBe("choose-damage-target");
+        // "Any target" → both players are legal targets, including the
+        // controlled opponent themselves (the classic WoC line).
+        expect(head.candidatePlayerIds).toEqual(
+            expect.arrayContaining(["p1", "p2"])
+        );
+    });
+
+    it("controller aims the opponent's Lightning Bolt at the opponent themselves; 3 damage lands", () => {
+        const oppBolt = makeInstance(lightningBolt.id, {
+            id: "opp-bolt",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppMountain = makeInstance(mountain.id, {
+            id: "opp-mountain",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [oppBolt],
+                    battlefield: [oppMountain],
+                }),
+            ],
+        });
+        const startingLife = state.players[1].life;
+        castWordOfCommand(state);
+        submitPick(state, "opp-bolt"); // choose the Bolt
+        submitTarget(state, "p2"); // aim it at the opponent themselves
+
+        // Lightning Bolt is on the stack as the opponent's spell, targeting p2.
+        const bolt = state.stack.find(
+            (s) => (s.card as { id?: string }).id === lightningBolt.id
+        );
+        expect(bolt?.castById).toBe("p2"); // CR 601 — opponent's spell
+        expect(bolt?.actingPlayerId).toBe("p1"); // ADR 0037
+        expect(bolt?.targets).toEqual([{ type: "player", id: "p2" }]);
+
+        // Resolve it: 3 damage to the opponent (the controlled player).
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(startingLife - 3);
+        // The controller (p1) is untouched.
+        expect(state.players[0].life).toBe(startingLife);
+    });
+
+    it("targeted spell with NO legal target → not played (CR 601.2c)", () => {
+        // Dwarven Demolition Team's ability targets a Wall; a Lightning Bolt
+        // always has a legal target (players), so use a spell whose only legal
+        // targets can be removed. Burrowing targets a creature; with no
+        // creatures on the battlefield it has no legal target.
+        const oppBurrowing = makeInstance(burrowing.id, {
+            id: "opp-burrowing",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppMountain = makeInstance(mountain.id, {
+            id: "opp-mountain",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [oppBurrowing],
+                    battlefield: [oppMountain],
+                }),
+            ],
+        });
+        castWordOfCommand(state);
+        submitPick(state, "opp-burrowing");
+
+        // No target prompt was raised, and the spell is not on the stack.
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(
+            state.stack.find(
+                (s) => (s.card as { id?: string }).id === burrowing.id
+            )
+        ).toBeUndefined();
+        // It stayed in the opponent's hand ("if able").
+        expect(
+            state.players[1].hand.find((c) => c.id === "opp-burrowing")
+        ).toBeDefined();
+    });
+
+    it("control persists: the controller's target choice rides onto the cast spell's stack item", () => {
+        const oppBolt = makeInstance(lightningBolt.id, {
+            id: "opp-bolt",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppMountain = makeInstance(mountain.id, {
+            id: "opp-mountain",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [oppBolt],
+                    battlefield: [oppMountain],
+                }),
+            ],
+        });
+        castWordOfCommand(state);
+        submitPick(state, "opp-bolt");
+        submitTarget(state, "p1"); // aim it at the controller
+
+        const bolt = state.stack.find(
+            (s) => (s.card as { id?: string }).id === lightningBolt.id
+        );
+        // The acting-player override and the chosen targets both ride along.
+        expect(bolt?.actingPlayerId).toBe("p1");
+        expect(bolt?.targets).toEqual([{ type: "player", id: "p1" }]);
+    });
+
+    it("wire format: the targeted cast's stack item (targets + controllerId) survives projection", () => {
+        const oppBolt = makeInstance(lightningBolt.id, {
+            id: "opp-bolt",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const oppMountain = makeInstance(mountain.id, {
+            id: "opp-mountain",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [oppBolt],
+                    battlefield: [oppMountain],
+                }),
+            ],
+        });
+        castWordOfCommand(state);
+        submitPick(state, "opp-bolt");
+        submitTarget(state, "p2");
+
+        for (const viewer of ["p1", "p2"]) {
+            const projected = projectPublicState(state, 1, viewer);
+            const slim = projected.stack.find(
+                (s) => s.card.id === lightningBolt.id
+            );
+            expect(slim).toBeDefined();
+            expect(slim?.castById).toBe("p2"); // CR 601 — opponent's spell
+            expect(slim?.actingPlayerId).toBe("p1"); // ADR 0037
+            expect(slim?.targets).toEqual([{ type: "player", id: "p2" }]);
+        }
+    });
+
     it("definition: Word of Command targets an opponent, costs {B}{B}", () => {
         expect(wordOfCommand.manaCost).toEqual({ B: 2 });
         expect(wordOfCommand.targetRequirement).toMatchObject({

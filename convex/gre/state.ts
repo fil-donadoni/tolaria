@@ -30,7 +30,7 @@ import {
     solveSmartAutoTap,
 } from "./autoTap";
 import { applyPlayLand } from "./playLand";
-import { getExtraLandDrops } from "./rules";
+import { getExtraLandDrops, getLegalTargets } from "./rules";
 import { entersTappedByReplacement } from "../cards/entersTapped";
 import { getResolveFn } from "../cards/effectRegistry";
 import { matchesPermanentFilter } from "../cards/filters";
@@ -6651,12 +6651,61 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (item.abilityId || item.triggeredAbilityId) return;
             item.exileOnResolve = true;
         },
-        castChosenSpell(controllerId, cardInstanceId, actingPlayerId): boolean {
+        getCardTargetRequirement(casterId, cardInstanceId) {
+            // CR 108.1 — read the chosen card's target requirement from the
+            // registry so a controlled cast (Word of Command) can branch on
+            // whether the Acting Player must choose targets.
+            const owner = getPlayer(state, casterId);
+            const handCard = owner.hand.find((c) => c.id === cardInstanceId);
+            const cardId = handCard
+                ? (handCard.card as { id?: string }).id
+                : undefined;
+            const def = cardId ? tryGetCardById(cardId) : undefined;
+            return def?.targetRequirement;
+        },
+        getLegalTargetsForCard(casterId, cardInstanceId, requirement) {
+            // ADR 0037 / CR 601.2c — enumerate the legal targets for the chosen
+            // card cast under `casterId`'s control (Word of Command's spell
+            // branch). Reuses `getLegalTargets` exactly as a normal cast does
+            // (moves.ts) so the candidate set is identical: "any target",
+            // opponent-relative restrictions, color/type/power filters all come
+            // out the same. The relationship filters ("opponent", "you") are
+            // resolved against `casterId` — the controlled opponent, whose spell
+            // it is — so an "any target" spell (Lightning Bolt) places no
+            // restriction and the Acting Player may aim it at the opponent
+            // (the controlled player) themselves.
+            const owner = getPlayer(state, casterId);
+            const handCard = owner.hand.find((c) => c.id === cardInstanceId);
+            const cardId = handCard
+                ? (handCard.card as { id?: string }).id
+                : undefined;
+            const def = cardId ? tryGetCardById(cardId) : undefined;
+            const sourceColors = getColorsFromCost(def?.manaCost);
+            return getLegalTargets(
+                state,
+                requirement,
+                sourceColors,
+                casterId,
+                undefined,
+                def?.types ?? [],
+                def?.subtypes ?? [],
+                // The chosen card is being cast as a spell (CR 601), not an
+                // activated ability — mirror moves.ts.
+                true
+            );
+        },
+        castChosenSpell(
+            controllerId,
+            cardInstanceId,
+            actingPlayerId,
+            targets
+        ): boolean {
             // ADR 0037 / CR 601 — Word of Command's spell branch. The chosen
             // card is the controlled opponent's spell (controllerId =
             // opponent), but the Word of Command controller (actingPlayerId)
-            // makes its decisions. This slice supports a NON-targeted spell
-            // only — targeted / X / modal casts arrive in later slices.
+            // makes its decisions — including its targets (CR 601.2c), passed
+            // in via `targets` and validated by the caller against
+            // `getLegalTargetsForCard`. X / modal casts arrive in later slices.
             const owner = getPlayer(state, controllerId);
             const handCard = owner.hand.find((c) => c.id === cardInstanceId);
             if (!handCard) return false; // not in hand — no-op (CR 608.2b)
@@ -6705,6 +6754,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 castById: controllerId,
                 actingPlayerId,
             };
+            // CR 601.2c — the targets chosen by the Acting Player ride onto the
+            // stack item so the spell resolves against them, exactly like a
+            // normal cast (the resolve step reads `ctx.targets`). Omitted for a
+            // non-targeted spell (`targets` undefined) so the field stays clean.
+            if (targets && targets.length > 0) stackItem.targets = targets;
             // Insert directly below the resolving item (Word of Command) so it
             // becomes the new top after the pop and resolves next (CR 608.2f),
             // mirroring `castFaceDown` / `copyStackItem`.

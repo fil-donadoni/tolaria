@@ -1930,14 +1930,42 @@ export interface SpellContext {
      *  The spell is inserted directly below the resolving item so it becomes the
      *  new top of the stack and resolves next (CR 608.2f). On success the card
      *  has left the hand for the (public) stack. Returns true if it was cast,
-     *  false if not played. This slice supports a NON-TARGETED spell only;
-     *  targeted / X / modal casts arrive in later slices. No-op (false) if the
-     *  id isn't in `controllerId`'s hand. */
+     *  false if not played. No-op (false) if the id isn't in `controllerId`'s
+     *  hand.
+     *
+     *  For a TARGETED spell (CR 601.2c) the Acting Player's chosen targets are
+     *  passed in via `targets` and written onto the resulting `StackItem`; the
+     *  caller is responsible for choosing them from `getLegalTargetsForCard`
+     *  (Word of Command — the controller aims the opponent's spell). X / modal
+     *  casts arrive in later slices. */
     castChosenSpell: (
         controllerId: string,
         cardInstanceId: string,
-        actingPlayerId: string
+        actingPlayerId: string,
+        targets?: TargetSelection[]
     ) => boolean;
+    /** ADR 0037 / CR 601.2c — enumerate the legal targets for a card in
+     *  `casterId`'s hand if it were cast as their spell, reusing the exact
+     *  `getLegalTargets` candidate set a normal cast uses. Relationship filters
+     *  ("opponent"/"you") resolve against `casterId` (the controlled opponent
+     *  whose spell it is, CR 601), so an "any target" spell places no
+     *  restriction — Word of Command's controller may aim the opponent's
+     *  Lightning Bolt at the opponent themselves. Returns the flat candidate
+     *  list (empty when there are no legal targets → the controlled cast is not
+     *  played, "if able"). Returns `[]` for a card with no `targetRequirement`. */
+    getLegalTargetsForCard: (
+        casterId: string,
+        cardInstanceId: string,
+        requirement: TargetRequirement
+    ) => TargetSelection[];
+    /** CR 601.2c — the `targetRequirement` of a card in `casterId`'s hand, read
+     *  from the registry (CR 108.1), or `undefined` for a non-targeted card.
+     *  Lets a controlled cast (Word of Command) decide whether the chosen
+     *  spell needs the Acting Player to choose targets before casting it. */
+    getCardTargetRequirement: (
+        casterId: string,
+        cardInstanceId: string
+    ) => TargetRequirement | undefined;
     /** CR 608.2 — the resolving spell exiles itself as the last thing it does
      *  ("Exile <this spell>", e.g. Recall). Flags the stack item so
      *  `finalizeSpellResolution` routes the card to exile instead of the

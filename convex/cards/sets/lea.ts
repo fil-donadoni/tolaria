@@ -4071,16 +4071,67 @@ export const wordOfCommand: CardDefinition = {
             return;
         }
 
-        // SPELL branch (#577) — cast the chosen non-land card as the opponent's
-        // spell (CR 601): `castById` = opponent, `actingPlayerId` = controller,
-        // so the resulting stack item is the opponent's spell while the Acting
-        // Player keeps deciding. Mana is auto-tapped ONLY from the opponent's
-        // lands; unpayable from those lands → not played ("if able").
-        // `castChosenSpell` handles all of this and is a no-op (returns false)
-        // when the spell can't be paid for. This slice supports a NON-targeted
-        // spell; targeted / X / modal casts route their extra choices to the
-        // controller in later slices (#578-#580).
-        ctx.castChosenSpell(opponentId, chosenId, controllerId);
+        // SPELL branch — cast the chosen non-land card as the opponent's spell
+        // (CR 601): `castById` = opponent, `actingPlayerId` = controller, so the
+        // resulting stack item is the opponent's spell while the Acting Player
+        // keeps deciding. Mana is auto-tapped ONLY from the opponent's lands;
+        // unpayable from those lands → not played ("if able").
+        //
+        // TARGETED spell (#578, CR 601.2c) — the Acting Player chooses the
+        // targets. The legal candidate set comes from `getLegalTargetsForCard`,
+        // which reuses `getLegalTargets` exactly as a normal cast does, with the
+        // controlled opponent as the spell's caster (CR 601). For an "any
+        // target" spell (Lightning Bolt) that places no restriction, so the
+        // controller may aim the opponent's Bolt at the opponent themselves —
+        // the classic Word of Command line. No legal targets → the spell is NOT
+        // played ("if able", CR 601.2c).
+        const targetReq = ctx.getCardTargetRequirement(opponentId, chosenId);
+        let chosenTargets: TargetSelection[] | undefined;
+        if (targetReq) {
+            // This slice supports single-target spells (count 1); multi-target
+            // / X / modal casts route their extra choices in later slices.
+            const legal = ctx.getLegalTargetsForCard(
+                opponentId,
+                chosenId,
+                targetReq
+            );
+            if (legal.length === 0) return; // no legal target — not played
+
+            // Route the target pick to the Acting Player (controller). The
+            // candidate set is split into permanent/spell instance ids
+            // (`candidateIds`) and player ids (`candidatePlayerIds`) so the
+            // `choose-damage-target` validator accepts either kind, mirroring an
+            // "any target" pick (CR 115.4) — Lightning Bolt's exact shape.
+            const candidatePlayerIds = legal
+                .filter((t) => t.type === "player")
+                .map((t) => t.id);
+            const candidateIds = legal
+                .filter((t) => t.type !== "player")
+                .map((t) => t.id);
+            const pickedTarget = ctx.requestChoice({
+                playerId: controllerId,
+                choiceId: `${controllerId}:target`,
+                actingPlayerId: controllerId,
+                kind: "choose-damage-target",
+                zone: "battlefield",
+                count: 1,
+                candidateIds,
+                candidatePlayerIds,
+                prompt: "Choose a target for the opponent's spell.",
+            });
+            if (pickedTarget === undefined) return; // suspend — resume on submit
+            const pickedId = pickedTarget[0];
+            if (!pickedId) return;
+            const selected = legal.find((t) => t.id === pickedId);
+            if (!selected) return; // pick no longer legal (CR 608.2b)
+            chosenTargets = [selected];
+        }
+
+        // `castChosenSpell` handles mana payment + stack placement + cast
+        // triggers and is a no-op (returns false) when the spell can't be paid
+        // for from the opponent's lands. The Acting Player's targets (if any)
+        // ride onto the resulting stack item (CR 601.2c).
+        ctx.castChosenSpell(opponentId, chosenId, controllerId, chosenTargets);
     },
 };
 
