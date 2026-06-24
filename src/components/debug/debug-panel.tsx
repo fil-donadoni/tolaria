@@ -256,6 +256,68 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 6,
     },
     {
+        // ICE Red free tranche (#633, PRD #628). Exercises the Red ICE burn /
+        // creatures end to end:
+        //   - Incinerate (3 damage, no-regen) and Pyroclasm (2 to each
+        //     creature) are in hand as removal.
+        //   - Pyroblast counters / destroys a blue permanent — the opponent's
+        //     Sea Spirit is the target.
+        //   - Flame Spirit / Wall of Lava are firebreathing mana sinks.
+        //   - Karplusan Yeti fights an opposing creature; Orcish Cannoneers
+        //     pings for 2 (and 3 to you).
+        label: "ICE: Red free tranche — Incinerate / Pyroclasm / Pyroblast / Karplusan Yeti (#633)",
+        cards: [
+            {
+                name: "Incinerate",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Pyroclasm",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Pyroblast",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Flame Spirit",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Wall of Lava",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Karplusan Yeti",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Orcish Cannoneers",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Sea Spirit",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
+    {
         // Word of Command — controlled cast, TARGETED spell branch (#578, PRD
         // #575, ADR 0037, CR 601.2c). The classic line: choose the opponent's
         // Lightning Bolt and aim it back at them.

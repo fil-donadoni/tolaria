@@ -3064,6 +3064,46 @@ export const stromgaldCabal: CardDefinition = {
 //     manaCost: { X: 1, B: 2 },
 //     types: ["Enchantment"],
 // };
+// ─────────────────────────────────────────────────────────────────────────────
+// Red free tranche (#633)
+//
+// The free-tranche Red cards — expressible entirely with already-shipped
+// primitives — are activated below (intermixed with the remaining commented
+// stubs). Reprints already implemented in earlier sets (Stone Rain, Shatter)
+// are CardPrints onto their existing LEA definitions (ADR 0014); new-to-ICE Red
+// cards are full CardDefinitions. Pyroblast is the colour-mirror of Hydroblast
+// (modal counter/destroy gated on blue).
+//
+// DEFERRED (remain commented stubs, owned by a later cluster):
+//   • Cumulative upkeep — Brand of Ill Omen (ADR 0042 cluster).
+//   • Snow-matters — Avalanche (destroy snow lands), Barbarian Guides (snow
+//     landwalk grant), Glacial Crevasses / Goblin Ski Patrol / Karplusan Giant
+//     (snow Mountain cost / requirement), Melting (un-snow lands) (no snow
+//     supertype filter / snow-evasion plumbing yet — snow cluster).
+//   • Divided-as-you-choose damage — Fire Covenant, Fiery Justice, Meteor
+//     Shower (only `dealDividedDamage`, divided EVENLY, exists; the
+//     player-chosen division primitive is unbuilt).
+//   • Next-upkeep delayed cantrip — Flare, Panic ("draw a card at the beginning
+//     of the next turn's upkeep"); same gap flagged in the Black tranche.
+//   • Specialized interactions — Aggression ("destroy if it didn't attack"
+//     end-step on the enchanted creature), Balduvian Hydra (counter-as-shield
+//     +1/+0 engine), Bone Shaman (damage-rider regen-lock grant), Chaos Lord /
+//     Chaos Moon / Game of Chaos (parity / coin-flip escalation),
+//     Dwarven Armory (upkeep-only timing), Earthlink (dies→sac-land),
+//     Ghostly Flame (colourless-damage-source static), Goblin Mutant /
+//     Goblin Sappers / Grizzled Wolverine (conditional attack/block + timing
+//     restrictions), Márton Stromgald (dynamic per-attacker pump), Melee /
+//     Mudslide / Monsoon (choose-blocks / per-player untap-pay / Island-count
+//     end-step), Orcish Farmer (land-type change), Orcish Librarian
+//     (random-exile + reorder), Orcish Squatters (control-on-attack),
+//     Total War (continuous attack-trigger destroy), Curse of Marit Lage
+//     (Island untap-lock — IMPLEMENTED below as the Wrath-of-Marit-Lage twin),
+//     Mountain Titan (cast-trigger counter grant). Each needs a primitive not
+//     yet built; flagged for its capability cluster.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Aggression — DEFERRED (end-step "destroy if it didn't attack this turn" on the
+// enchanted creature needs a per-creature attacked-this-turn end-step hook).
 // TODO(#628): implement.
 // export const aggression: CardDefinition = {
 //     id: "f3f26060-0c24-496c-b8e2-4dac7ea6166b",
@@ -3074,15 +3114,19 @@ export const stromgaldCabal: CardDefinition = {
 //     types: ["Enchantment"],
 //     subtypes: ["Aura"],
 // };
-// TODO(#628): implement.
-// export const anarchy: CardDefinition = {
-//     id: "28d941da-b5cb-4b7e-84f2-ece883f89af3",
-//     name: "Anarchy",
-//     rarity: "uncommon",
-//     oracleText: "Destroy all white permanents.",
-//     manaCost: { X: 2, R: 2 },
-//     types: ["Sorcery"],
-// };
+// Anarchy — "Destroy all white permanents." (CR 701.7 destroy + CR 105.2 colour
+// filter.) A one-line `destroyAll` over the white colour filter.
+export const anarchy: CardDefinition = {
+    id: "28d941da-b5cb-4b7e-84f2-ece883f89af3",
+    name: "Anarchy",
+    rarity: "uncommon",
+    oracleText: "Destroy all white permanents.",
+    manaCost: { X: 2, R: 2 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        ctx.destroyAll({ colors: "W" });
+    },
+};
 // TODO(#628): implement.
 // export const avalanche: CardDefinition = {
 //     id: "d3a925e5-0d0a-42ec-b1c6-9793b8e11625",
@@ -3092,18 +3136,18 @@ export const stromgaldCabal: CardDefinition = {
 //     manaCost: { X: "X", R: 2 },
 //     types: ["Sorcery"],
 // };
-// TODO(#628): implement.
-// export const balduvianBarbarians: CardDefinition = {
-//     id: "efeabe8e-8107-4d19-8a43-362aa79cdd92",
-//     name: "Balduvian Barbarians",
-//     rarity: "common",
-//     oracleText: "",
-//     manaCost: { X: 1, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Barbarian"],
-//     power: 3,
-//     toughness: 2,
-// };
+// Balduvian Barbarians — {1}{R}{R} 3/2 vanilla Human Barbarian (CR 302).
+export const balduvianBarbarians: CardDefinition = {
+    id: "efeabe8e-8107-4d19-8a43-362aa79cdd92",
+    name: "Balduvian Barbarians",
+    rarity: "common",
+    oracleText: "",
+    manaCost: { X: 1, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Barbarian"],
+    power: 3,
+    toughness: 2,
+};
 // TODO(#628): implement.
 // export const balduvianHydra: CardDefinition = {
 //     id: "c3a3b37f-daa6-4502-bb12-c72afe3df035",
@@ -3180,25 +3224,59 @@ export const stromgaldCabal: CardDefinition = {
 //     manaCost: { X: 3, R: 1 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const conquer: CardDefinition = {
-//     id: "ae610e66-7bcb-40ec-bed5-86dcfd098654",
-//     name: "Conquer",
-//     rarity: "uncommon",
-//     oracleText: "Enchant land\nYou control enchanted land.",
-//     manaCost: { X: 3, R: 2 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
-// TODO(#628): implement.
-// export const curseOfMaritLage: CardDefinition = {
-//     id: "69b381c1-aa71-4d40-a320-70f58a440d51",
-//     name: "Curse of Marit Lage",
-//     rarity: "rare",
-//     oracleText: "When this enchantment enters, tap all Islands.\nIslands don't untap during their controllers' untap steps.",
-//     manaCost: { X: 3, R: 2 },
-//     types: ["Enchantment"],
-// };
+// Conquer — Aura granting control of the enchanted LAND (CR 613.1b, layer 2
+// control-change). The Control-Magic shape pointed at a land instead of a
+// creature; no upkeep tax, no P/T.
+export const conquer: CardDefinition = {
+    id: "ae610e66-7bcb-40ec-bed5-86dcfd098654",
+    name: "Conquer",
+    rarity: "uncommon",
+    oracleText: "Enchant land\nYou control enchanted land.",
+    manaCost: { X: 3, R: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Land", count: 1 },
+    staticEffects: [{ kind: "control-change", applies: AURA_AFFECTS_HOST }],
+};
+// Curse of Marit Lage — ETB taps every Island (CR 603.6b enters trigger, CR
+// 701.20a tap) and a static untap-lock on Islands (CR 611). The mirror of
+// Wrath of Marit Lage (Blue tranche), swapping red creatures → Islands.
+export const curseOfMaritLage: CardDefinition = {
+    id: "69b381c1-aa71-4d40-a320-70f58a440d51",
+    name: "Curse of Marit Lage",
+    rarity: "rare",
+    oracleText:
+        "When this enchantment enters, tap all Islands.\nIslands don't untap during their controllers' untap steps.",
+    manaCost: { X: 3, R: 2 },
+    types: ["Enchantment"],
+    staticEffects: [
+        untapRestriction({
+            id: "curse-marit-lage-island-lock",
+            oracleText:
+                "Islands don't untap during their controllers' untap steps (Curse of Marit Lage).",
+            filter: { types: "Land", subtypes: "Island" },
+            maxUntap: 0,
+        }),
+    ],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "curse-marit-lage-tap-islands",
+            oracleText: "When this enchantment enters, tap all Islands.",
+            scope: "self",
+            resolve: (ctx) => {
+                for (const pid of ctx.allPlayerIds) {
+                    const islands = ctx.getBattlefieldIds(pid, {
+                        types: "Land",
+                        subtypes: "Island",
+                    });
+                    for (const id of islands) {
+                        ctx.tap({ type: "permanent", id });
+                    }
+                }
+            },
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const dwarvenArmory: CardDefinition = {
 //     id: "7d14a430-6e08-40cf-970a-cae84bba6ef7",
@@ -3208,6 +3286,9 @@ export const stromgaldCabal: CardDefinition = {
 //     manaCost: { X: 2, R: 2 },
 //     types: ["Enchantment"],
 // };
+// Errantry — DEFERRED ("can only attack alone" needs an attack restriction that
+// reads the full attacker set, which the current attack-restriction predicate
+// (defender-battlefield only) can't express).
 // TODO(#628): implement.
 // export const errantry: CardDefinition = {
 //     id: "8346e741-61f8-4283-be51-f5f80e9595a5",
@@ -3218,18 +3299,38 @@ export const stromgaldCabal: CardDefinition = {
 //     types: ["Enchantment"],
 //     subtypes: ["Aura"],
 // };
-// TODO(#628): implement.
-// export const flameSpirit: CardDefinition = {
-//     id: "add2b82a-9aa5-4d5c-a1c2-e313541f12c8",
-//     name: "Flame Spirit",
-//     rarity: "uncommon",
-//     oracleText: "{R}: This creature gets +1/+0 until end of turn.",
-//     manaCost: { X: 4, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Elemental", "Spirit"],
-//     power: 2,
-//     toughness: 3,
-// };
+// Flame Spirit — 2/3 with firebreathing "{R}: +1/+0 until end of turn" (CR 605
+// activated ability, CR 611.1 temporary pump).
+export const flameSpirit: CardDefinition = {
+    id: "add2b82a-9aa5-4d5c-a1c2-e313541f12c8",
+    name: "Flame Spirit",
+    rarity: "uncommon",
+    oracleText: "{R}: This creature gets +1/+0 until end of turn.",
+    manaCost: { X: 4, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Elemental", "Spirit"],
+    power: 2,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "flame-spirit-firebreathing",
+            oracleText: "{R}: This creature gets +1/+0 until end of turn.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+// Flare — DEFERRED (the "draw a card at the beginning of the next turn's
+// upkeep" delayed cantrip has no next-upkeep delayed-trigger timing yet; the
+// 1-damage leg is trivial but partial ship is not allowed).
 // TODO(#628): implement.
 // export const flare: CardDefinition = {
 //     id: "d5350236-7bd2-462d-9768-50087626c764",
@@ -3293,18 +3394,61 @@ export const stromgaldCabal: CardDefinition = {
 //     power: 1,
 //     toughness: 1,
 // };
-// TODO(#628): implement.
-// export const goblinSnowman: CardDefinition = {
-//     id: "5bbb260a-6763-4d1c-a009-4e34cd572519",
-//     name: "Goblin Snowman",
-//     rarity: "uncommon",
-//     oracleText: "Whenever this creature blocks, prevent all combat damage that would be dealt to and dealt by it this turn.\n{T}: This creature deals 1 damage to target creature it's blocking.",
-//     manaCost: { X: 3, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Goblin"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Goblin Snowman — "Whenever this creature blocks, prevent all combat damage to
+// and dealt by it this turn" (CR 509.4 block trigger, fired off
+// BLOCKERS_CONFIRMED matching self; CR 615 two-way prevention) plus "{T}: deals
+// 1 damage to target creature it's blocking" (the "it's blocking" restriction is
+// enforced at resolve via the live block graph, CR 509.1).
+export const goblinSnowman: CardDefinition = {
+    id: "5bbb260a-6763-4d1c-a009-4e34cd572519",
+    name: "Goblin Snowman",
+    rarity: "uncommon",
+    oracleText:
+        "Whenever this creature blocks, prevent all combat damage that would be dealt to and dealt by it this turn.\n{T}: This creature deals 1 damage to target creature it's blocking.",
+    manaCost: { X: 3, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Goblin"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        {
+            id: "goblin-snowman-block-prevent",
+            oracleText:
+                "Whenever this creature blocks, prevent all combat damage that would be dealt to and dealt by it this turn.",
+            // BLOCKERS_CONFIRMED fires once per attacker-blocker pair; match
+            // only the pair whose blocker is self so the prevention is set once.
+            event: "BLOCKERS_CONFIRMED",
+            matches: (event, self) =>
+                event.type === "BLOCKERS_CONFIRMED" &&
+                event.blockerId === self.id,
+            resolve: (ctx) => {
+                ctx.preventAllCombatDamageToAndBy(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "goblin-snowman-ping",
+            oracleText:
+                "{T}: This creature deals 1 damage to target creature it's blocking.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type !== "permanent") return;
+                // "it's blocking" — only deal the damage if Goblin Snowman is
+                // currently blocking the targeted attacker (CR 509.1).
+                const blockers = ctx.getBlockersByAttacker()[target.id] ?? [];
+                if (!blockers.includes(ctx.sourceInstanceId)) return;
+                ctx.dealDamage(target, 1);
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const grizzledWolverine: CardDefinition = {
 //     id: "95bb17b9-55c4-4cc1-83f6-75490b9a97d0",
@@ -3317,34 +3461,63 @@ export const stromgaldCabal: CardDefinition = {
 //     power: 2,
 //     toughness: 2,
 // };
-// TODO(#628): implement.
-// export const imposingVisage: CardDefinition = {
-//     id: "cca42b74-9b42-482b-b12a-79cafdcd087e",
-//     name: "Imposing Visage",
-//     rarity: "common",
-//     oracleText: "Enchant creature\nEnchanted creature has menace. (It can't be blocked except by two or more creatures.)",
-//     manaCost: { R: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
-// TODO(#628): implement.
-// export const incinerate: CardDefinition = {
-//     id: "9c3f00af-010d-4485-b8b7-47400d99c496",
-//     name: "Incinerate",
-//     rarity: "common",
-//     oracleText: "Incinerate deals 3 damage to any target. A creature dealt damage this way can't be regenerated this turn.",
-//     manaCost: { X: 1, R: 1 },
-//     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const jokulhaups: CardDefinition = {
-//     id: "3bf0d325-5928-4593-8faa-64ffa414cb48",
-//     name: "Jokulhaups",
-//     rarity: "rare",
-//     oracleText: "Destroy all artifacts, creatures, and lands. They can't be regenerated.",
-//     manaCost: { X: 4, R: 2 },
-//     types: ["Sorcery"],
-// };
+// Imposing Visage — Aura granting menace (CR 702.111, layer 6 keyword-grant on
+// the host).
+export const imposingVisage: CardDefinition = {
+    id: "cca42b74-9b42-482b-b12a-79cafdcd087e",
+    name: "Imposing Visage",
+    rarity: "common",
+    oracleText:
+        "Enchant creature\nEnchanted creature has menace. (It can't be blocked except by two or more creatures.)",
+    manaCost: { R: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "menace",
+        },
+    ],
+};
+// Incinerate — 3 damage to any target; a creature dealt damage this way can't be
+// regenerated this turn (CR 120.1 damage, CR 701.15c regen-lock). The damage is
+// dealt first, then the target-scoped regen-lock is applied to a creature.
+export const incinerate: CardDefinition = {
+    id: "9c3f00af-010d-4485-b8b7-47400d99c496",
+    name: "Incinerate",
+    rarity: "common",
+    oracleText:
+        "Incinerate deals 3 damage to any target. A creature dealt damage this way can't be regenerated this turn.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "any", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (!t) return;
+        if (t.type === "permanent") {
+            ctx.setTargetCantBeRegeneratedThisTurn(t);
+        }
+        ctx.dealDamage(t, 3);
+    },
+};
+// Jokulhaups — "Destroy all artifacts, creatures, and lands. They can't be
+// regenerated." (CR 701.7 destroy + CR 701.15c regen suppression.)
+export const jokulhaups: CardDefinition = {
+    id: "3bf0d325-5928-4593-8faa-64ffa414cb48",
+    name: "Jokulhaups",
+    rarity: "rare",
+    oracleText:
+        "Destroy all artifacts, creatures, and lands. They can't be regenerated.",
+    manaCost: { X: 4, R: 2 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        ctx.destroyAll(["Artifact", "Creature", "Land"], {
+            cantBeRegenerated: true,
+        });
+    },
+};
 // TODO(#628): implement.
 // export const karplusanGiant: CardDefinition = {
 //     id: "c524ac2a-294c-4b19-b00b-999e370a3b95",
@@ -3357,27 +3530,60 @@ export const stromgaldCabal: CardDefinition = {
 //     power: 3,
 //     toughness: 3,
 // };
-// TODO(#628): implement.
-// export const karplusanYeti: CardDefinition = {
-//     id: "7dd9b214-d9fe-4c2e-b45b-7145ad98c408",
-//     name: "Karplusan Yeti",
-//     rarity: "rare",
-//     oracleText: "{T}: This creature deals damage equal to its power to target creature. That creature deals damage equal to its power to this creature.",
-//     manaCost: { X: 3, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Yeti"],
-//     power: 3,
-//     toughness: 3,
-// };
-// TODO(#628): implement.
-// export const lavaBurst: CardDefinition = {
-//     id: "79dc0e20-5790-4927-8432-cf0e9b7381d4",
-//     name: "Lava Burst",
-//     rarity: "common",
-//     oracleText: "Lava Burst deals X damage to any target. If Lava Burst would deal damage to a creature, that damage can't be prevented or dealt instead to another permanent or player.",
-//     manaCost: { X: "X", R: 1 },
-//     types: ["Sorcery"],
-// };
+// Karplusan Yeti — "{T}: This creature deals damage equal to its power to target
+// creature. That creature deals damage equal to its power to this creature." —
+// the mutual-damage "fight" shape (CR 701.12-style), expressed with the `fight`
+// primitive which snapshots both powers and deals simultaneously.
+export const karplusanYeti: CardDefinition = {
+    id: "7dd9b214-d9fe-4c2e-b45b-7145ad98c408",
+    name: "Karplusan Yeti",
+    rarity: "rare",
+    oracleText:
+        "{T}: This creature deals damage equal to its power to target creature. That creature deals damage equal to its power to this creature.",
+    manaCost: { X: 3, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Yeti"],
+    power: 3,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "karplusan-yeti-fight",
+            oracleText:
+                "{T}: This creature deals damage equal to its power to target creature. That creature deals damage equal to its power to this creature.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") ctx.fight(target);
+            },
+        },
+    ],
+};
+// Lava Burst — "Lava Burst deals X damage to any target." (CR 120.1, X folded
+// from the cost.)
+//
+// DEFERRED (documented simplification, NOT a card-specific primitive — same gap
+// as DRK Whippoorwill): the rider "If Lava Burst would deal damage to a
+// creature, that damage can't be prevented or dealt instead to another permanent
+// or player" is an anti-prevention / anti-redirection lock for which no engine
+// primitive exists. It is a narrow rider (matters only against active Fog-style
+// prevention or redirection) and does not change the spell's primary function.
+// Flagged for the prevention-lock cluster.
+export const lavaBurst: CardDefinition = {
+    id: "79dc0e20-5790-4927-8432-cf0e9b7381d4",
+    name: "Lava Burst",
+    rarity: "common",
+    oracleText:
+        "Lava Burst deals X damage to any target. If Lava Burst would deal damage to a creature, that damage can't be prevented or dealt instead to another permanent or player.",
+    manaCost: { X: "X", R: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "any", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t) ctx.dealDamage(t, ctx.getX());
+    },
+};
 // TODO(#628): implement.
 // export const mRtonStromgald: CardDefinition = {
 //     id: "7880e815-53e7-43e0-befd-e368f00a75d8",
@@ -3418,18 +3624,21 @@ export const stromgaldCabal: CardDefinition = {
 //     manaCost: { X: "XX", R: 1 },
 //     types: ["Sorcery"],
 // };
-// TODO(#628): implement.
-// export const mountainGoat: CardDefinition = {
-//     id: "ccf70276-a40c-4d25-b584-4c8a07a00602",
-//     name: "Mountain Goat",
-//     rarity: "common",
-//     oracleText: "Mountainwalk (This creature can't be blocked as long as defending player controls a Mountain.)",
-//     manaCost: { R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Goat"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Mountain Goat — 1/1 with mountainwalk (CR 702.13 landwalk; unblockable while
+// the defender controls a Mountain).
+export const mountainGoat: CardDefinition = {
+    id: "ccf70276-a40c-4d25-b584-4c8a07a00602",
+    name: "Mountain Goat",
+    rarity: "common",
+    oracleText:
+        "Mountainwalk (This creature can't be blocked as long as defending player controls a Mountain.)",
+    manaCost: { R: 1 },
+    types: ["Creature"],
+    subtypes: ["Goat"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["mountainwalk"],
+};
 // TODO(#628): implement.
 // export const mudslide: CardDefinition = {
 //     id: "65acce56-8674-471e-9d5e-91b7e3f672c1",
@@ -3439,18 +3648,36 @@ export const stromgaldCabal: CardDefinition = {
 //     manaCost: { X: 2, R: 1 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const orcishCannoneers: CardDefinition = {
-//     id: "a4309a2f-27f5-4652-b0b4-6a6119436f75",
-//     name: "Orcish Cannoneers",
-//     rarity: "uncommon",
-//     oracleText: "{T}: This creature deals 2 damage to any target and 3 damage to you.",
-//     manaCost: { X: 1, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Orc", "Warrior"],
-//     power: 1,
-//     toughness: 3,
-// };
+// Orcish Cannoneers — "{T}: This creature deals 2 damage to any target and 3
+// damage to you." (CR 605 activated ability, CR 120.1 damage — both legs are
+// real damage, the self-damage hits the controller as a player.)
+export const orcishCannoneers: CardDefinition = {
+    id: "a4309a2f-27f5-4652-b0b4-6a6119436f75",
+    name: "Orcish Cannoneers",
+    rarity: "uncommon",
+    oracleText:
+        "{T}: This creature deals 2 damage to any target and 3 damage to you.",
+    manaCost: { X: 1, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Orc", "Warrior"],
+    power: 1,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "orcish-cannoneers-fire",
+            oracleText:
+                "{T}: This creature deals 2 damage to any target and 3 damage to you.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target) ctx.dealDamage(target, 2);
+                ctx.dealDamage({ type: "player", id: ctx.controller }, 3);
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const orcishConscripts: CardDefinition = {
 //     id: "e71394f8-3038-4cad-adea-a704f004777f",
@@ -3475,18 +3702,71 @@ export const stromgaldCabal: CardDefinition = {
 //     power: 2,
 //     toughness: 2,
 // };
-// TODO(#628): implement.
-// export const orcishHealer: CardDefinition = {
-//     id: "7ff511f3-416e-4919-acd6-fd8183bf5c60",
-//     name: "Orcish Healer",
-//     rarity: "uncommon",
-//     oracleText: "{R}{R}, {T}: Target creature can't be regenerated this turn.\n{B}{B}{R}, {T}: Regenerate target black or green creature.\n{R}{G}{G}, {T}: Regenerate target black or green creature.",
-//     manaCost: { R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Orc", "Cleric"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Orcish Healer — three activated abilities (CR 605, CR 701.15c regen-lock /
+// CR 701.15a regeneration shield): a regen-lock on any creature, and two
+// regenerate-a-black-or-green-creature legs differing only in their mana cost
+// (the black/green target restriction uses `colorFilterAny`).
+export const orcishHealer: CardDefinition = {
+    id: "7ff511f3-416e-4919-acd6-fd8183bf5c60",
+    name: "Orcish Healer",
+    rarity: "uncommon",
+    oracleText:
+        "{R}{R}, {T}: Target creature can't be regenerated this turn.\n{B}{B}{R}, {T}: Regenerate target black or green creature.\n{R}{G}{G}, {T}: Regenerate target black or green creature.",
+    manaCost: { R: 2 },
+    types: ["Creature"],
+    subtypes: ["Orc", "Cleric"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "orcish-healer-regen-lock",
+            oracleText:
+                "{R}{R}, {T}: Target creature can't be regenerated this turn.",
+            cost: { mana: { R: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent")
+                    ctx.setTargetCantBeRegeneratedThisTurn(target);
+            },
+        },
+        {
+            id: "orcish-healer-regen-br",
+            oracleText:
+                "{B}{B}{R}, {T}: Regenerate target black or green creature.",
+            cost: { mana: { B: 2, R: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                colorFilterAny: ["B", "G"],
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent")
+                    ctx.applyRegenerationShield(target);
+            },
+        },
+        {
+            id: "orcish-healer-regen-rg",
+            oracleText:
+                "{R}{G}{G}, {T}: Regenerate target black or green creature.",
+            cost: { mana: { R: 1, G: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                colorFilterAny: ["B", "G"],
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent")
+                    ctx.applyRegenerationShield(target);
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const orcishLibrarian: CardDefinition = {
 //     id: "8ed908d6-6d06-4ccb-9577-37ef2d01c1a5",
@@ -3499,18 +3779,37 @@ export const stromgaldCabal: CardDefinition = {
 //     power: 1,
 //     toughness: 1,
 // };
-// TODO(#628): implement.
-// export const orcishLumberjack: CardDefinition = {
-//     id: "21ef13e3-658c-43a3-a290-4c5dde8e8b55",
-//     name: "Orcish Lumberjack",
-//     rarity: "common",
-//     oracleText: "{T}, Sacrifice a Forest: Add three mana in any combination of {R} and/or {G}.",
-//     manaCost: { R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Orc"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Orcish Lumberjack — "{T}, Sacrifice a Forest: Add three mana in any
+// combination of {R} and/or {G}." A mana ability (CR 605.1a, `useStack: false`)
+// whose Forest sacrifice cost uses `sacrificeFilter`; "any combination of R/G"
+// (3 mana) is enumerated as the four discrete `manaChoices` RRR/RRG/RGG/GGG.
+export const orcishLumberjack: CardDefinition = {
+    id: "21ef13e3-658c-43a3-a290-4c5dde8e8b55",
+    name: "Orcish Lumberjack",
+    rarity: "common",
+    oracleText:
+        "{T}, Sacrifice a Forest: Add three mana in any combination of {R} and/or {G}.",
+    manaCost: { R: 1 },
+    types: ["Creature"],
+    subtypes: ["Orc"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "orcish-lumberjack-mana",
+            oracleText:
+                "{T}, Sacrifice a Forest: Add three mana in any combination of {R} and/or {G}.",
+            cost: { tap: true, sacrificeFilter: { subtypes: "Forest" } },
+            useStack: false,
+            manaChoices: [{ R: 3 }, { R: 2, G: 1 }, { R: 1, G: 2 }, { G: 3 }],
+            effect: (ctx) => {
+                // Representative leg; the engine applies the player's chosen
+                // entry from `manaChoices` at activation time.
+                ctx.addMana({ R: 3 });
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const orcishSquatters: CardDefinition = {
 //     id: "f3ee7bd5-612b-4916-a914-1294805b8f64",
@@ -3523,6 +3822,9 @@ export const stromgaldCabal: CardDefinition = {
 //     power: 2,
 //     toughness: 3,
 // };
+// Panic — DEFERRED (the "draw a card at the beginning of the next turn's
+// upkeep" delayed cantrip has no next-upkeep delayed-trigger timing yet; same
+// gap flagged for Flare and the Black tranche's delayed cantrips).
 // TODO(#628): implement.
 // export const panic: CardDefinition = {
 //     id: "a9ab85ac-311c-4e36-943a-817e43a3c8a8",
@@ -3532,88 +3834,160 @@ export const stromgaldCabal: CardDefinition = {
 //     manaCost: { R: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
-// export const pyroblast: CardDefinition = {
-//     id: "c342cac5-08ae-4428-9c2c-f6c5904e54d2",
-//     name: "Pyroblast",
-//     rarity: "common",
-//     oracleText: "Choose one —\n• Counter target spell if it's blue.\n• Destroy target permanent if it's blue.",
-//     manaCost: { R: 1 },
-//     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const pyroclasm: CardDefinition = {
-//     id: "88040748-ad76-4b9a-bd4e-87e5980e9816",
-//     name: "Pyroclasm",
-//     rarity: "uncommon",
-//     oracleText: "Pyroclasm deals 2 damage to each creature.",
-//     manaCost: { X: 1, R: 1 },
-//     types: ["Sorcery"],
-// };
-// TODO(#628): implement.
-// export const sabretoothTiger: CardDefinition = {
-//     id: "6914c5a8-2114-41c5-a471-ca97524d622f",
-//     name: "Sabretooth Tiger",
-//     rarity: "common",
-//     oracleText: "First strike",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Cat"],
-//     power: 2,
-//     toughness: 1,
-// };
-// TODO(#628): implement.
-// export const shatter: CardDefinition = {
-//     id: "7eb18d53-20de-43d7-86f7-97a6d14d54b8",
-//     name: "Shatter",
-//     rarity: "common",
-//     oracleText: "Destroy target artifact.",
-//     manaCost: { X: 1, R: 1 },
-//     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const stoneRain: CardDefinition = {
-//     id: "5a002e6d-ea59-4694-b3e5-075d6020b0d9",
-//     name: "Stone Rain",
-//     rarity: "common",
-//     oracleText: "Destroy target land.",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Sorcery"],
-// };
-// TODO(#628): implement.
-// export const stoneSpirit: CardDefinition = {
-//     id: "789dfae7-fe23-4e2e-9f5f-304535d22a78",
-//     name: "Stone Spirit",
-//     rarity: "uncommon",
-//     oracleText: "This creature can't be blocked by creatures with flying.",
-//     manaCost: { X: 4, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Elemental", "Spirit"],
-//     power: 4,
-//     toughness: 3,
-// };
-// TODO(#628): implement.
-// export const stonehands: CardDefinition = {
-//     id: "d23fa1af-78e5-4d23-bbf6-cd62bc54b4e9",
-//     name: "Stonehands",
-//     rarity: "common",
-//     oracleText: "Enchant creature\nEnchanted creature gets +0/+2.\n{R}: Enchanted creature gets +1/+0 until end of turn.",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
-// TODO(#628): implement.
-// export const torGiant: CardDefinition = {
-//     id: "7ef8f279-1a10-4685-99d6-bc971a7f922b",
-//     name: "Tor Giant",
-//     rarity: "common",
-//     oracleText: "",
-//     manaCost: { X: 3, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Giant"],
-//     power: 3,
-//     toughness: 3,
-// };
+// Pyroblast — modal "choose one" (CR 700.2): counter a blue spell OR destroy a
+// blue permanent. The colour-mirror of Hydroblast, gating each mode's target on
+// blue via `colorFilter: "U"`.
+export const pyroblast: CardDefinition = {
+    id: "c342cac5-08ae-4428-9c2c-f6c5904e54d2",
+    name: "Pyroblast",
+    rarity: "common",
+    oracleText:
+        "Choose one —\n• Counter target spell if it's blue.\n• Destroy target permanent if it's blue.",
+    manaCost: { R: 1 },
+    types: ["Instant"],
+    modes: [
+        {
+            id: "counter",
+            label: "Counter target blue spell",
+            oracleText: "Counter target spell if it's blue.",
+            targetRequirement: { type: "spell", count: 1, colorFilter: "U" },
+            resolve: (ctx) => {
+                const t = ctx.targets[0];
+                if (t?.type === "spell") ctx.counter(t);
+            },
+        },
+        {
+            id: "destroy",
+            label: "Destroy target blue permanent",
+            oracleText: "Destroy target permanent if it's blue.",
+            targetRequirement: { type: "any", count: 1, colorFilter: "U" },
+            resolve: (ctx) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") ctx.destroy(t);
+            },
+        },
+    ],
+};
+// Pyroclasm — "Pyroclasm deals 2 damage to each creature." (CR 120.3 — a
+// symmetric sweep over every creature.)
+export const pyroclasm: CardDefinition = {
+    id: "88040748-ad76-4b9a-bd4e-87e5980e9816",
+    name: "Pyroclasm",
+    rarity: "uncommon",
+    oracleText: "Pyroclasm deals 2 damage to each creature.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        ctx.dealDamageToEach(2, { creatures: true });
+    },
+};
+// Sabretooth Tiger — 2/1 with first strike (CR 702.7).
+export const sabretoothTiger: CardDefinition = {
+    id: "6914c5a8-2114-41c5-a471-ca97524d622f",
+    name: "Sabretooth Tiger",
+    rarity: "common",
+    oracleText: "First strike",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Cat"],
+    power: 2,
+    toughness: 1,
+    staticAbilities: ["first strike"],
+};
+// Shatter — ICE reprint of the LEA instant ("Destroy target artifact").
+// CardPrint onto the LEA definition (ADR 0014).
+export const shatterIce: CardPrint = {
+    printId: "7eb18d53-20de-43d7-86f7-97a6d14d54b8",
+    definitionId: "50dc7fc1-cb6a-4c68-b993-1a25cf16226e",
+    setCode: "ice",
+    rarity: "common",
+};
+// Stone Rain — ICE reprint of the LEA sorcery ("Destroy target land").
+// CardPrint onto the LEA definition (ADR 0014).
+export const stoneRainIce: CardPrint = {
+    printId: "5a002e6d-ea59-4694-b3e5-075d6020b0d9",
+    definitionId: "57ff74cb-a2ed-4123-ac42-f72f9820049e",
+    setCode: "ice",
+    rarity: "common",
+};
+// Stone Spirit — 4/3 "can't be blocked by creatures with flying" (CR 509.1b
+// block restriction; the predicate rejects candidate blockers whose
+// `staticAbilities` include flying).
+export const stoneSpirit: CardDefinition = {
+    id: "789dfae7-fe23-4e2e-9f5f-304535d22a78",
+    name: "Stone Spirit",
+    rarity: "uncommon",
+    oracleText: "This creature can't be blocked by creatures with flying.",
+    manaCost: { X: 4, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Elemental", "Spirit"],
+    power: 4,
+    toughness: 3,
+    staticEffects: [
+        {
+            kind: "block-restriction",
+            id: "stone-spirit-no-flying-blockers",
+            side: "attacker",
+            // self = Stone Spirit (attacker), opponent = candidate blocker.
+            // The block-restriction PermanentView carries keywords on
+            // `staticAbilities` (cast, mirroring leg.ts's Wall/flying check).
+            predicate: (_self, opponent) =>
+                !(
+                    (opponent as { staticAbilities?: string[] })
+                        .staticAbilities ?? []
+                ).includes("flying"),
+            oracleText:
+                "This creature can't be blocked by creatures with flying.",
+        },
+    ],
+};
+// Stonehands — Aura: static +0/+2 (layer 7c) plus an activated "{R}: Enchanted
+// creature gets +1/+0 until end of turn" pump (CR 605 / CR 611.1) that resolves
+// the host via `getAttachedTo`.
+export const stonehands: CardDefinition = {
+    id: "d23fa1af-78e5-4d23-bbf6-cd62bc54b4e9",
+    name: "Stonehands",
+    rarity: "common",
+    oracleText:
+        "Enchant creature\nEnchanted creature gets +0/+2.\n{R}: Enchanted creature gets +1/+0 until end of turn.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        { kind: "pt-buff", applies: AURA_AFFECTS_HOST, power: 0, toughness: 2 },
+    ],
+    activatedAbilities: [
+        {
+            id: "stonehands-pump",
+            oracleText: "{R}: Enchanted creature gets +1/+0 until end of turn.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (!hostId) return;
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: hostId },
+                    1,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+// Tor Giant — {3}{R} 3/3 vanilla Giant (CR 302).
+export const torGiant: CardDefinition = {
+    id: "7ef8f279-1a10-4685-99d6-bc971a7f922b",
+    name: "Tor Giant",
+    rarity: "common",
+    oracleText: "",
+    manaCost: { X: 3, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Giant"],
+    power: 3,
+    toughness: 3,
+};
 // TODO(#628): implement.
 // export const totalWar: CardDefinition = {
 //     id: "6107388b-ec1e-401e-a407-a821c908ed8d",
@@ -3623,36 +3997,81 @@ export const stromgaldCabal: CardDefinition = {
 //     manaCost: { X: 3, R: 1 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const vertigo: CardDefinition = {
-//     id: "3067e7af-7bbd-48c1-9f1d-df2a91a0ec54",
-//     name: "Vertigo",
-//     rarity: "uncommon",
-//     oracleText: "Vertigo deals 2 damage to target creature with flying. That creature loses flying until end of turn.",
-//     manaCost: { R: 1 },
-//     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const wallOfLava: CardDefinition = {
-//     id: "b99d6d11-b3f7-4d73-967c-3049af82a9d8",
-//     name: "Wall of Lava",
-//     rarity: "uncommon",
-//     oracleText: "Defender (This creature can't attack.)\n{R}: This creature gets +1/+1 until end of turn.",
-//     manaCost: { X: 1, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Wall"],
-//     power: 1,
-//     toughness: 3,
-// };
-// TODO(#628): implement.
-// export const wordOfBlasting: CardDefinition = {
-//     id: "46b383c8-d604-4131-a869-9e9d13e30b94",
-//     name: "Word of Blasting",
-//     rarity: "uncommon",
-//     oracleText: "Destroy target Wall. It can't be regenerated. Word of Blasting deals damage equal to that Wall's mana value to the Wall's controller.",
-//     manaCost: { X: 1, R: 1 },
-//     types: ["Instant"],
-// };
+// Vertigo — "2 damage to target creature with flying. That creature loses
+// flying until end of turn." (CR 120.1 damage + CR 611.1b layer-6 keyword
+// removal.) The flying-target restriction uses `requireAbility: "flying"`; the
+// loss is `removeStaticAbilities` scoped to flying, until end of turn.
+export const vertigo: CardDefinition = {
+    id: "3067e7af-7bbd-48c1-9f1d-df2a91a0ec54",
+    name: "Vertigo",
+    rarity: "uncommon",
+    oracleText:
+        "Vertigo deals 2 damage to target creature with flying. That creature loses flying until end of turn.",
+    manaCost: { R: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1, requireAbility: "flying" },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type !== "permanent") return;
+        ctx.dealDamage(t, 2);
+        ctx.removeStaticAbilities(t, (kw) => kw === "flying", {
+            phase: "end-of-turn",
+        });
+    },
+};
+// Wall of Lava — 1/3 Wall with defender and firebreathing "{R}: +1/+1 until end
+// of turn" (CR 702.3 defender, CR 605 / CR 611.1 pump).
+export const wallOfLava: CardDefinition = {
+    id: "b99d6d11-b3f7-4d73-967c-3049af82a9d8",
+    name: "Wall of Lava",
+    rarity: "uncommon",
+    oracleText:
+        "Defender (This creature can't attack.)\n{R}: This creature gets +1/+1 until end of turn.",
+    manaCost: { X: 1, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 1,
+    toughness: 3,
+    staticAbilities: ["defender"],
+    activatedAbilities: [
+        {
+            id: "wall-of-lava-pump",
+            oracleText: "{R}: This creature gets +1/+1 until end of turn.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+// Word of Blasting — "Destroy target Wall. It can't be regenerated. Deals damage
+// equal to that Wall's mana value to the Wall's controller." (CR 701.7 destroy +
+// CR 701.15c regen-lock + CR 120.1 damage.) The Wall's mana value and controller
+// are read BEFORE the destroy; the target uses a Wall subtype restriction.
+export const wordOfBlasting: CardDefinition = {
+    id: "46b383c8-d604-4131-a869-9e9d13e30b94",
+    name: "Word of Blasting",
+    rarity: "uncommon",
+    oracleText:
+        "Destroy target Wall. It can't be regenerated. Word of Blasting deals damage equal to that Wall's mana value to the Wall's controller.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1, subtypeFilter: "Wall" },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type !== "permanent") return;
+        const mv = ctx.getManaValue(t);
+        const controller = ctx.getController(t);
+        ctx.destroy(t, { cantBeRegenerated: true });
+        if (mv > 0) ctx.dealDamage({ type: "player", id: controller }, mv);
+    },
+};
 // TODO(#628): implement.
 // export const aurochs: CardDefinition = {
 //     id: "7e973a84-7f7d-4524-9f2f-ec9a014d52ee",
@@ -4618,15 +5037,33 @@ export const stormSpirit: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const stormbind: CardDefinition = {
-//     id: "c2d5d91b-aeb4-4d7e-b748-77f9960da55f",
-//     name: "Stormbind",
-//     rarity: "rare",
-//     oracleText: "{2}, Discard a card at random: This enchantment deals 2 damage to any target.",
-//     manaCost: { X: 1, R: 1, G: 1 },
-//     types: ["Enchantment"],
-// };
+// Stormbind — R/G Enchantment (activated here as part of the Red tranche, #633):
+// "{2}, Discard a card at random: This enchantment deals 2 damage to any
+// target." (CR 605 activated ability; the discard-at-random leg of the cost uses
+// the `discardAtRandom` cost field; CR 120.1 damage.)
+export const stormbind: CardDefinition = {
+    id: "c2d5d91b-aeb4-4d7e-b748-77f9960da55f",
+    name: "Stormbind",
+    rarity: "rare",
+    oracleText:
+        "{2}, Discard a card at random: This enchantment deals 2 damage to any target.",
+    manaCost: { X: 1, R: 1, G: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "stormbind-bolt",
+            oracleText:
+                "{2}, Discard a card at random: This enchantment deals 2 damage to any target.",
+            cost: { mana: { X: 2 }, discardAtRandom: 1 },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target) ctx.dealDamage(target, 2);
+            },
+        },
+    ],
+};
 // Wings of Aesthir — Aura: static +1/+0 (layer 7c) plus flying and first
 // strike grants on the host (CR 611 keyword-grant).
 export const wingsOfAesthir: CardDefinition = {

@@ -5824,6 +5824,16 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             found.card.cantBeRegeneratedThisTurn = true;
         },
 
+        setTargetCantBeRegeneratedThisTurn(target: TargetSelection): void {
+            // CR 701.15c — target-scoped twin of the source version above
+            // (Incinerate, Orcish Healer, Word of Blasting). Sets the same
+            // per-instance flag; cleared at CLEANUP (CR 514.2).
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found || !found.card.types.includes("Creature")) return;
+            found.card.cantBeRegeneratedThisTurn = true;
+        },
+
         setCanBlockAdditional(target: TargetSelection, value: number): void {
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);

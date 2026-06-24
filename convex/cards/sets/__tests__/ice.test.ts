@@ -92,6 +92,34 @@ import {
     songsOfTheDamned,
     spoilsOfEvil,
     stromgaldCabal,
+    // Red free tranche (#633)
+    anarchy,
+    balduvianBarbarians,
+    conquer,
+    curseOfMaritLage,
+    flameSpirit,
+    goblinSnowman,
+    imposingVisage,
+    incinerate,
+    jokulhaups,
+    karplusanYeti,
+    lavaBurst,
+    mountainGoat,
+    orcishCannoneers,
+    orcishHealer,
+    orcishLumberjack,
+    pyroblast,
+    pyroclasm,
+    sabretoothTiger,
+    shatterIce,
+    stoneRainIce,
+    stoneSpirit,
+    stonehands,
+    stormbind,
+    torGiant,
+    vertigo,
+    wallOfLava,
+    wordOfBlasting,
 } from "../ice";
 import {
     getCardById,
@@ -1947,5 +1975,659 @@ describe("ICE Black tranche registry parity", () => {
         expect(getCardById(howlFromBeyondIce.printId).name).toBe(
             "Howl from Beyond"
         );
+    });
+});
+
+// ===========================================================================
+// Red free tranche (#633)
+// ===========================================================================
+
+// --- Reprints (CardPrint wiring, ADR 0014) ---------------------------------
+
+describe("ICE Red reprints (CardPrint wiring, ADR 0014)", () => {
+    it("Shatter print resolves to the LEA definition", () => {
+        expect(getCardById(shatterIce.printId).name).toBe("Shatter");
+        expect(shatterIce.definitionId).toBe(
+            "50dc7fc1-cb6a-4c68-b993-1a25cf16226e"
+        );
+        expect(shatterIce.setCode).toBe("ice");
+    });
+    it("Stone Rain print resolves to the LEA definition", () => {
+        expect(getCardById(stoneRainIce.printId).name).toBe("Stone Rain");
+        expect(stoneRainIce.definitionId).toBe(
+            "57ff74cb-a2ed-4123-ac42-f72f9820049e"
+        );
+    });
+});
+
+// --- Vanilla / keyword creatures (CR 702 — snapshot checks) ----------------
+
+describe("ICE Red keyword creatures (CR 702)", () => {
+    it("Balduvian Barbarians is a 3/2 vanilla", () => {
+        expect(balduvianBarbarians.power).toBe(3);
+        expect(balduvianBarbarians.toughness).toBe(2);
+        expect(balduvianBarbarians.staticAbilities ?? []).toEqual([]);
+    });
+    it("Tor Giant is a 3/3 vanilla", () => {
+        expect(torGiant.power).toBe(3);
+        expect(torGiant.toughness).toBe(3);
+    });
+    it("Sabretooth Tiger has first strike", () => {
+        expect(sabretoothTiger.staticAbilities).toEqual(["first strike"]);
+        expect(sabretoothTiger.power).toBe(2);
+        expect(sabretoothTiger.toughness).toBe(1);
+    });
+    it("Mountain Goat has mountainwalk", () => {
+        expect(mountainGoat.staticAbilities).toEqual(["mountainwalk"]);
+    });
+    it("Wall of Lava has defender", () => {
+        expect(wallOfLava.staticAbilities).toEqual(["defender"]);
+    });
+});
+
+// --- Anarchy (destroy all white permanents, CR 701.7 / 105.2) --------------
+
+describe("Anarchy (CR 701.7 destroy by colour)", () => {
+    it("destroys white permanents and spares others", () => {
+        // `matchesPermanentFilter` reads the instance `colors` field (the engine
+        // enriches it at read time; tests set it explicitly via spread — same
+        // pattern as arn.test.ts's colour-filter cases).
+        const whiteCreature = {
+            ...makeInstance(kjeldoranKnight.id, {
+                id: "wht",
+                controllerId: "p2",
+                ownerId: "p2",
+            }),
+            colors: ["W"] as const,
+        };
+        const redCreature = {
+            ...makeInstance(sabretoothTiger.id, {
+                id: "redc",
+                controllerId: "p2",
+                ownerId: "p2",
+            }),
+            colors: ["R"] as const,
+        };
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [whiteCreature, redCreature] }),
+            ],
+        });
+        pushSpell(state, anarchy.id, "p1");
+        resolveTopOfStack(state);
+        const bf = state.players[1].battlefield.map((c) => c.id);
+        expect(bf).not.toContain("wht");
+        expect(bf).toContain("redc");
+    });
+});
+
+// --- Pyroclasm (2 damage to each creature, CR 120.3) -----------------------
+
+describe("Pyroclasm (CR 120.3 sweep)", () => {
+    it("deals 2 damage to every creature, killing the 2-toughness ones", () => {
+        const small = vanilla("small", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+            card: { id: "fake-small" },
+        });
+        const big = vanilla("big", 4, 4, {
+            controllerId: "p2",
+            ownerId: "p2",
+            card: { id: "fake-big" },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [small, big] }),
+            ],
+        });
+        pushSpell(state, pyroclasm.id, "p1");
+        resolveTopOfStack(state);
+        const bf = state.players[1].battlefield.map((c) => c.id);
+        expect(bf).not.toContain("small");
+        expect(bf).toContain("big");
+    });
+});
+
+// --- Incinerate (3 damage + regen-lock, CR 120.1 / 701.15c) ----------------
+
+describe("Incinerate (CR 120.1 damage + CR 701.15c regen-lock)", () => {
+    it("deals 3 damage to a player", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { life: 20 })],
+        });
+        pushSpell(state, incinerate.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17);
+    });
+    it("kills a 3-toughness creature and locks regeneration", () => {
+        const creature = vanilla("c", 3, 3, {
+            controllerId: "p2",
+            ownerId: "p2",
+            card: { id: "fake-c" },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [creature] }),
+            ],
+        });
+        pushSpell(state, incinerate.id, "p1", [{ type: "permanent", id: "c" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id)).not.toContain(
+            "c"
+        );
+    });
+});
+
+// --- Lava Burst (X damage to any target, CR 120.1) -------------------------
+
+describe("Lava Burst (CR 120.1 X damage)", () => {
+    it("deals X damage to a player", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { life: 20 })],
+        });
+        const item = pushSpell(state, lavaBurst.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        item.chosenX = 4;
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(16);
+    });
+});
+
+// --- Jokulhaups (destroy all artifacts/creatures/lands, CR 701.7) ----------
+
+describe("Jokulhaups (CR 701.7 mass destruction)", () => {
+    it("destroys creatures and lands", () => {
+        const creature = vanilla("c", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+            card: { id: "fake-c" },
+        });
+        const land: CardInstanceState = {
+            id: "land",
+            card: { id: "fake-land" },
+            types: ["Land"] as CardType[],
+            subtypes: ["Mountain"],
+            staticAbilities: [],
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            isTapped: false,
+        };
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [creature, land] }),
+            ],
+        });
+        pushSpell(state, jokulhaups.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+    });
+});
+
+// --- Pyroblast (modal counter/destroy blue, mirror of Hydroblast) ----------
+
+describe("Pyroblast (CR 700.2 modal, blue-gated)", () => {
+    it("has two modes gating targets on blue via colorFilter", () => {
+        expect(pyroblast.modes).toHaveLength(2);
+        const counter = pyroblast.modes!.find((m) => m.id === "counter")!;
+        const destroy = pyroblast.modes!.find((m) => m.id === "destroy")!;
+        expect(counter.targetRequirement).toMatchObject({
+            type: "spell",
+            colorFilter: "U",
+        });
+        expect(destroy.targetRequirement).toMatchObject({
+            type: "any",
+            colorFilter: "U",
+        });
+    });
+    it("destroy mode destroys a blue permanent", () => {
+        // Sea Spirit is a registered blue creature → colours derive correctly.
+        const bluePerm = makeInstance(seaSpirit.id, {
+            id: "blue",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bluePerm] }),
+            ],
+        });
+        state.stack.push({
+            ...makeInstance(pyroblast.id, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "stack",
+            }),
+            castById: "p1",
+            chosenModeId: "destroy",
+            targets: [{ type: "permanent", id: "blue" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id)).not.toContain(
+            "blue"
+        );
+    });
+});
+
+// --- Conquer (control aura on land, CR 613.1b layer 2) ---------------------
+
+describe("Conquer (CR 613.1b control-change on land)", () => {
+    it("declares a control-change static targeting a land", () => {
+        expect(conquer.targetRequirement).toMatchObject({ type: "Land" });
+        expect(conquer.staticEffects).toEqual([
+            { kind: "control-change", applies: expect.any(Function) },
+        ]);
+    });
+});
+
+// --- Curse of Marit Lage (tap Islands + untap-lock, CR 701.20a / 611) ------
+
+describe("Curse of Marit Lage (CR 701.20a tap + CR 611 untap-lock)", () => {
+    it("declares an ETB trigger that taps all Islands", () => {
+        const trigger = curseOfMaritLage.triggeredAbilities!.find(
+            (t) => t.id === "curse-marit-lage-tap-islands"
+        )!;
+        expect(trigger).toBeDefined();
+        expect(curseOfMaritLage.oracleText).toContain("tap all Islands");
+    });
+    it("carries an untap-restriction static on Islands", () => {
+        expect(curseOfMaritLage.staticEffects).toHaveLength(1);
+        expect(curseOfMaritLage.staticEffects![0].kind).toBe(
+            "untap-restriction"
+        );
+    });
+});
+
+// --- Flame Spirit / Wall of Lava firebreathing (CR 611.1) ------------------
+
+describe("Flame Spirit firebreathing (CR 611.1)", () => {
+    it("+1/+0 until end of turn pumps power, survives projection", () => {
+        const spirit = makeInstance(flameSpirit.id, {
+            id: "spirit",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [spirit] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, spirit, "flame-spirit-firebreathing");
+        const after = state.players[0].battlefield[0];
+        expect(getEffectivePower(state, after)).toBe(3);
+        // wire format: the pump survives projectPublicState.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "spirit"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+    });
+});
+
+describe("Wall of Lava firebreathing (CR 611.1)", () => {
+    it("+1/+1 until end of turn, survives projection", () => {
+        const wall = makeInstance(wallOfLava.id, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wall] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, wall, "wall-of-lava-pump");
+        const after = state.players[0].battlefield[0];
+        expect(getEffectivePower(state, after)).toBe(2);
+        expect(getEffectiveToughness(state, after)).toBe(4);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "wall"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(2);
+        expect(getEffectiveToughness(projected, slim)).toBe(4);
+    });
+});
+
+// --- Stonehands (aura +0/+2 + activated pump, CR 611.1) --------------------
+
+describe("Stonehands (CR 611.1 static + activated pump on the host)", () => {
+    it("declares a +0/+2 static on the host", () => {
+        expect(stonehands.staticEffects).toEqual([
+            {
+                kind: "pt-buff",
+                applies: expect.any(Function),
+                power: 0,
+                toughness: 2,
+            },
+        ]);
+    });
+    it("the {R} pump buffs the enchanted creature, survives projection", () => {
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+            card: { id: "fake-host" },
+        });
+        const aura = makeInstance(stonehands.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, aura, "stonehands-pump");
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(getEffectivePower(state, after)).toBe(3);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+    });
+});
+
+// --- Imposing Visage (menace aura, CR 702.111) -----------------------------
+
+describe("Imposing Visage (CR 702.111 menace grant)", () => {
+    it("grants menace to the host via keyword-grant", () => {
+        expect(imposingVisage.staticEffects).toEqual([
+            {
+                kind: "keyword-grant",
+                applies: expect.any(Function),
+                keyword: "menace",
+            },
+        ]);
+    });
+});
+
+// --- Karplusan Yeti (fight, CR 701.12-style) -------------------------------
+
+describe("Karplusan Yeti (mutual fight damage)", () => {
+    it("deals mutual damage, killing both when lethal", () => {
+        const yeti = makeInstance(karplusanYeti.id, {
+            id: "yeti",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const foe = vanilla("foe", 3, 3, {
+            controllerId: "p2",
+            ownerId: "p2",
+            card: { id: "fake-foe" },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [yeti] }),
+                makePlayer("p2", { battlefield: [foe] }),
+            ],
+        });
+        resolveActivated(state, yeti, "karplusan-yeti-fight", [
+            { type: "permanent", id: "foe" },
+        ]);
+        // both are 3/3 and deal 3 to each other → both die.
+        expect(state.players[0].battlefield.map((c) => c.id)).not.toContain(
+            "yeti"
+        );
+        expect(state.players[1].battlefield.map((c) => c.id)).not.toContain(
+            "foe"
+        );
+    });
+});
+
+// --- Orcish Cannoneers ({T}: 2 dmg any target + 3 to you) ------------------
+
+describe("Orcish Cannoneers (CR 120.1 damage + self-damage)", () => {
+    it("deals 2 to a target player and 3 to the controller", () => {
+        const cannon = makeInstance(orcishCannoneers.id, {
+            id: "cannon",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [cannon] }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        resolveActivated(state, cannon, "orcish-cannoneers-fire", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].life).toBe(18);
+        expect(state.players[0].life).toBe(17);
+    });
+});
+
+// --- Orcish Healer (regen-lock + regenerate B/G) ---------------------------
+
+describe("Orcish Healer (CR 701.15 regen)", () => {
+    it("has three abilities; regen legs gate on black-or-green targets", () => {
+        const ids = orcishHealer.activatedAbilities!.map((a) => a.id);
+        expect(ids).toContain("orcish-healer-regen-lock");
+        expect(ids).toContain("orcish-healer-regen-br");
+        expect(ids).toContain("orcish-healer-regen-rg");
+        const br = orcishHealer.activatedAbilities!.find(
+            (a) => a.id === "orcish-healer-regen-br"
+        )!;
+        expect(br.targetRequirement).toMatchObject({
+            type: "Creature",
+            colorFilterAny: ["B", "G"],
+        });
+    });
+    it("the regen-lock leg flags the target as can't-be-regenerated", () => {
+        const healer = makeInstance(orcishHealer.id, {
+            id: "healer",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const foe = vanilla("foe", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+            card: { id: "fake-foe" },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [healer] }),
+                makePlayer("p2", { battlefield: [foe] }),
+            ],
+        });
+        resolveActivated(state, healer, "orcish-healer-regen-lock", [
+            { type: "permanent", id: "foe" },
+        ]);
+        expect(state.players[1].battlefield[0].cantBeRegeneratedThisTurn).toBe(
+            true
+        );
+    });
+});
+
+// --- Orcish Lumberjack (mana ability, sacrifice Forest) --------------------
+
+describe("Orcish Lumberjack (CR 605.1a mana ability)", () => {
+    it("is a non-stack mana ability with R/G manaChoices and a Forest cost", () => {
+        const ability = orcishLumberjack.activatedAbilities![0];
+        expect(ability.useStack).toBe(false);
+        expect(ability.cost).toMatchObject({
+            tap: true,
+            sacrificeFilter: { subtypes: "Forest" },
+        });
+        expect(ability.manaChoices).toEqual([
+            { R: 3 },
+            { R: 2, G: 1 },
+            { R: 1, G: 2 },
+            { G: 3 },
+        ]);
+    });
+});
+
+// --- Stone Spirit (can't be blocked by flyers, CR 509.1b) ------------------
+
+describe("Stone Spirit (CR 509.1b block restriction)", () => {
+    it("declares an attacker-side block-restriction rejecting flyers", () => {
+        const eff = stoneSpirit.staticEffects!.find(
+            (e) => e.kind === "block-restriction"
+        );
+        expect(eff).toBeDefined();
+    });
+    it("the predicate rejects a flying blocker, allows a ground one", () => {
+        const eff = stoneSpirit.staticEffects!.find(
+            (e) => e.kind === "block-restriction"
+        )! as unknown as {
+            predicate: (
+                self: unknown,
+                opponent: { staticAbilities?: string[] }
+            ) => boolean;
+        };
+        expect(eff.predicate({}, { staticAbilities: ["flying"] })).toBe(false);
+        expect(eff.predicate({}, { staticAbilities: [] })).toBe(true);
+    });
+});
+
+// --- Vertigo (2 dmg to flyer + loses flying, CR 120.1 / 611.1b) ------------
+
+describe("Vertigo (CR 120.1 damage + CR 611.1b lose flying)", () => {
+    it("targets a creature with flying", () => {
+        expect(vertigo.targetRequirement).toMatchObject({
+            type: "Creature",
+            requireAbility: "flying",
+        });
+    });
+    it("deals 2 damage and removes flying until end of turn", () => {
+        const flyer = vanilla("flyer", 2, 4, {
+            controllerId: "p2",
+            ownerId: "p2",
+            card: { id: "fake-flyer" },
+            staticAbilities: ["flying"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [flyer] }),
+            ],
+        });
+        pushSpell(state, vertigo.id, "p1", [
+            { type: "permanent", id: "flyer" },
+        ]);
+        resolveTopOfStack(state);
+        const after = state.players[1].battlefield.find(
+            (c) => c.id === "flyer"
+        )!;
+        // 2 damage marked, flying stripped (read at the live state).
+        expect((after.staticAbilities ?? []).includes("flying")).toBe(false);
+    });
+});
+
+// --- Word of Blasting (destroy Wall + damage = MV, CR 701.7 / 120.1) -------
+
+describe("Word of Blasting (CR 701.7 destroy Wall + MV damage)", () => {
+    it("targets a Wall via subtypeFilter", () => {
+        expect(wordOfBlasting.targetRequirement).toMatchObject({
+            type: "Creature",
+            subtypeFilter: "Wall",
+        });
+    });
+    it("destroys the Wall and deals its mana value to its controller", () => {
+        // Glacial Wall is a registered {2}{U} Wall (mana value 3) → both the
+        // Wall subtype target and the mana-value read resolve via the registry.
+        const wall = makeInstance(glacialWall.id, {
+            id: "wall",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { life: 20, battlefield: [wall] }),
+            ],
+        });
+        pushSpell(state, wordOfBlasting.id, "p1", [
+            { type: "permanent", id: "wall" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id)).not.toContain(
+            "wall"
+        );
+        // mana value {2}{U} = 3 → 3 damage to the controller.
+        expect(state.players[1].life).toBe(17);
+    });
+});
+
+// --- Goblin Snowman (block prevent trigger + ping blocked creature) --------
+
+describe("Goblin Snowman (CR 509.4 block trigger + ping)", () => {
+    it("has a block-confirmed prevention trigger and a ping ability", () => {
+        expect(goblinSnowman.triggeredAbilities).toHaveLength(1);
+        expect(goblinSnowman.triggeredAbilities![0].event).toBe(
+            "BLOCKERS_CONFIRMED"
+        );
+        expect(goblinSnowman.activatedAbilities![0].id).toBe(
+            "goblin-snowman-ping"
+        );
+    });
+});
+
+// --- Stormbind (R/G enchantment, discard-at-random cost) -------------------
+
+describe("Stormbind (CR 605 activated, discard-at-random cost)", () => {
+    it("the {2}, discard cost deals 2 damage to any target", () => {
+        const ability = stormbind.activatedAbilities![0];
+        expect(ability.cost).toMatchObject({
+            mana: { X: 2 },
+            discardAtRandom: 1,
+        });
+        expect(ability.targetRequirement).toMatchObject({ type: "any" });
+    });
+});
+
+// --- Registry parity -------------------------------------------------------
+
+describe("ICE Red tranche registry parity", () => {
+    const expected = [
+        "Anarchy",
+        "Balduvian Barbarians",
+        "Conquer",
+        "Curse of Marit Lage",
+        "Flame Spirit",
+        "Goblin Snowman",
+        "Imposing Visage",
+        "Incinerate",
+        "Jokulhaups",
+        "Karplusan Yeti",
+        "Lava Burst",
+        "Mountain Goat",
+        "Orcish Cannoneers",
+        "Orcish Healer",
+        "Orcish Lumberjack",
+        "Pyroblast",
+        "Pyroclasm",
+        "Sabretooth Tiger",
+        "Stone Spirit",
+        "Stonehands",
+        "Stormbind",
+        "Tor Giant",
+        "Vertigo",
+        "Wall of Lava",
+        "Word of Blasting",
+    ];
+    it("registers every activated Red card by name", () => {
+        for (const name of expected) {
+            expect(getCardByName(name).name).toBe(name);
+        }
+    });
+    it("registers the two Red reprints by print id", () => {
+        expect(getCardById(shatterIce.printId).name).toBe("Shatter");
+        expect(getCardById(stoneRainIce.printId).name).toBe("Stone Rain");
     });
 });
