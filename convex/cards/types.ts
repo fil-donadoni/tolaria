@@ -1993,9 +1993,12 @@ export interface SpellContext {
      *  validator enforces `candidateIds` on library picks but does not apply a
      *  `PermanentFilter` to hidden library cards. `manaValue` folds X to 0 (CR
      *  202.3b). Empty for an empty library. Used by Transmute Artifact. */
-    getLibraryCards: (
-        playerId: string
-    ) => Array<{ id: string; types: CardType[]; manaValue: number }>;
+    getLibraryCards: (playerId: string) => Array<{
+        id: string;
+        types: CardType[];
+        subtypes: string[];
+        manaValue: number;
+    }>;
 
     /** Characteristics of every card in `playerId`'s graveyard, read from the
      *  card registry (CR 108.1). Mirrors `getHandCards`; used by effects that
@@ -2270,7 +2273,17 @@ export interface PermanentView {
  *  "P/T equal to Swamps you control". Intentionally a subset of the engine's
  *  full GameState so layer computation stays pure. */
 export interface StaticEffectStateView {
-    players: ReadonlyArray<{ battlefield: ReadonlyArray<PermanentView> }>;
+    players: ReadonlyArray<{
+        battlefield: ReadonlyArray<PermanentView>;
+        /** Cards in this player's graveyard, exposed for graveyard-counting
+         *  characteristic-defining abilities (CR 604.3) — e.g. Lhurgoyf, whose
+         *  power equals "the number of creature cards in all graveyards".
+         *  Only `types` is needed by current CDAs; the array survives the wire
+         *  projection (`PublicGameState.players[].graveyard` keeps `.types`,
+         *  stripping only `.card`), so the count is identical server-side and
+         *  after `projectPublicState`. */
+        graveyard: ReadonlyArray<{ readonly types: readonly CardType[] }>;
+    }>;
     /** The player whose turn it currently is (CR 102.1). Optional because the
      *  layer system reads it best-effort: it is a top-level `GameState` field
      *  that survives the wire projection (`PublicGameState` keeps every

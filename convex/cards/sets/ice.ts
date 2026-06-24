@@ -22,6 +22,7 @@ import type {
     TriggeredAbility,
 } from "../types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../types";
+import { makeTapForMana } from "../abilities";
 import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
@@ -4239,42 +4240,796 @@ export const wordOfBlasting: CardDefinition = {
 //     manaCost: { X: 2, G: 2 },
 //     types: ["Enchantment"],
 // };
+// ─────────────────────────────────────────────────────────────────────────────
+// Green free tranche (#634)
+//
+// The free-tranche Green cards — expressible entirely with already-shipped
+// primitives — are activated below (intermixed with the remaining commented
+// stubs). Reprints already implemented in LEA (Giant Growth, Hurricane, Lure,
+// Regeneration, Wild Growth) are CardPrints onto their existing definitions
+// (ADR 0014); new-to-ICE Green cards are full CardDefinitions. Lhurgoyf is a
+// `pt-cda` (layer 7a) whose `compute` counts creature cards in all graveyards
+// from game state — MANDATORY wire-format test (projection keeps `.types`).
+//
+// DEFERRED (remain commented stubs, owned by a later cluster):
+//   • Cumulative upkeep — Fyndhorn Pollen, Maddening Wind, Ritual of Subdual
+//     (ADR 0042 cluster).
+//   • Next-upkeep delayed cantrip — Pyknite, Touch of Vitae ("draw a card at the
+//     beginning of the next turn's upkeep"); same gap flagged in the Black/Red
+//     tranches.
+//   • Snow-matters — Snowblind / Whiteout / Woolly Mammoths / Rime Dryad /
+//     Thermokarst (snow-land counting, snow landwalk evasion, snow-land sac
+//     recursion). No snow supertype filter / snow-evasion plumbing yet — snow
+//     cluster.
+//   • Specialized interactions — Gorilla Pack (Forest-gated attack + dies-when-
+//     no-Forest sac), Thoughtleech (opponent-Island-tap watcher trigger),
+//     Venomous Breath (end-of-combat destroy-blockers delayed combat trigger),
+//     Wiitigo ("blocked since last upkeep" per-creature tracking). Each needs a
+//     primitive not yet built; flagged for its capability cluster.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Fyndhorn Brownie — "{2}{G}, {T}: Untap target creature." (CR 605 activated
+// ability; CR 701.20a untap. The Twiddle-on-a-stick untap, scoped to creatures.)
+export const fyndhornBrownie: CardDefinition = {
+    id: "06204e82-9dfd-4334-a23a-f8240fc37772",
+    name: "Fyndhorn Brownie",
+    rarity: "common",
+    oracleText: "{2}{G}, {T}: Untap target creature.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Ouphe"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "fyndhorn-brownie-untap",
+            oracleText: "{2}{G}, {T}: Untap target creature.",
+            cost: { mana: { X: 2, G: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") ctx.untap(t);
+            },
+        },
+    ],
+};
+// Fyndhorn Elder — "{T}: Add {G}{G}." Mana dork (CR 605.1a mana ability,
+// resolves immediately). The Llanowar Elves shape producing two green.
+export const fyndhornElder: CardDefinition = {
+    id: "fca8aa11-f7cb-4f88-a041-30098579f1d2",
+    name: "Fyndhorn Elder",
+    rarity: "uncommon",
+    oracleText: "{T}: Add {G}{G}.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Elf", "Druid"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        makeTapForMana({
+            id: "fyndhorn-elder-mana",
+            oracleText: "{T}: Add {G}{G}.",
+            produces: { G: 2 },
+        }),
+    ],
+};
+// Fyndhorn Elves — "{T}: Add {G}." The Llanowar Elves twin (CR 605.1a).
+export const fyndhornElves: CardDefinition = {
+    id: "3ba95ffa-990a-4013-98b7-5d8c0b34e9c4",
+    name: "Fyndhorn Elves",
+    rarity: "common",
+    oracleText: "{T}: Add {G}.",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Elf", "Druid"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        makeTapForMana({
+            id: "fyndhorn-elves-mana",
+            oracleText: "{T}: Add {G}.",
+            produces: { G: 1 },
+        }),
+    ],
+};
+// Giant Growth — ICE reprint of the LEA instant (+3/+3 until end of turn).
+// CardPrint onto the LEA definition (ADR 0014).
+export const giantGrowthIce: CardPrint = {
+    printId: "431c9749-fd7b-4960-a910-8d41d3704e6c",
+    definitionId: "367dbefe-3366-408e-9fcf-7dc00f8cc201",
+    setCode: "ice",
+    rarity: "common",
+};
+// DEFERRED — Gorilla Pack ("can't attack unless defending player controls a
+// Forest" + "when you control no Forests, sacrifice it"); the Forest-gated
+// attack restriction tied to a dies-when-no-Forest state trigger is owned by a
+// later cluster.
 // TODO(#628): implement.
-// export const fyndhornBrownie: CardDefinition = {
-//     id: "06204e82-9dfd-4334-a23a-f8240fc37772",
-//     name: "Fyndhorn Brownie",
+// export const gorillaPack: CardDefinition = {
+//     id: "046f6b76-5f17-4728-aa34-72b7eff1d4c9",
+//     name: "Gorilla Pack",
 //     rarity: "common",
-//     oracleText: "{2}{G}, {T}: Untap target creature.",
+//     oracleText: "This creature can't attack unless defending player controls a Forest.\nWhen you control no Forests, sacrifice this creature.",
+//     manaCost: { X: 2, G: 1 },
+//     types: ["Creature"],
+//     subtypes: ["Ape"],
+//     power: 3,
+//     toughness: 3,
+// };
+// Hot Springs — Aura on a land you control granting it an activated prevention
+// ability (CR 611 activated-grant, CR 615 prevention). The granted "{T}:
+// Prevent the next 1 damage to any target this turn" lives on `grantTemplates`
+// so Hot Springs itself doesn't expose it; `activated-grant` pushes it onto the
+// enchanted land.
+export const hotSprings: CardDefinition = {
+    id: "1d4fe072-81a7-424e-8d21-aaca010d5b1d",
+    name: "Hot Springs",
+    rarity: "rare",
+    oracleText:
+        'Enchant land you control\nEnchanted land has "{T}: Prevent the next 1 damage that would be dealt to any target this turn."',
+    manaCost: { X: 1, G: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Land", count: 1, controller: "you" },
+    staticEffects: [
+        {
+            kind: "activated-grant",
+            applies: AURA_AFFECTS_HOST,
+            abilityId: "hot-springs-prevent",
+        },
+    ],
+    grantTemplates: [
+        {
+            id: "hot-springs-prevent",
+            oracleText:
+                "{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t)
+                    ctx.preventNextNDamageToTarget(t, 1, {
+                        phase: "end-of-turn",
+                    });
+            },
+        },
+    ],
+};
+// Hurricane — ICE reprint of the LEA sorcery (X damage to each flier and each
+// player). CardPrint onto the LEA definition (ADR 0014).
+export const hurricaneIce: CardPrint = {
+    printId: "a8cc6db7-1f40-40e3-a7ea-92f1d05e2e3d",
+    definitionId: "52f5a19f-16e4-4d35-89e1-969ac8202f88",
+    setCode: "ice",
+    rarity: "uncommon",
+};
+// Johtull Wurm — "Whenever this creature becomes blocked, it gets -2/-1 until
+// end of turn for each creature blocking it beyond the first." (CR 509.1h
+// becomes-blocked, CR 514.2 cleanup expiry.) NEGATIVE asymmetric rampage: the
+// engine's `rampageTrigger` only does symmetric +N/+N, so the per-blocker
+// -2/-1 is written inline, reusing the BLOCKERS_CONFIRMED event + the live
+// block graph (dedupe on the first blocker so it fires once) like rampage does.
+export const johtullWurm: CardDefinition = {
+    id: "64a22e88-f7b1-48c8-a199-e57edcd50654",
+    name: "Johtull Wurm",
+    rarity: "uncommon",
+    oracleText:
+        "Whenever this creature becomes blocked, it gets -2/-1 until end of turn for each creature blocking it beyond the first.",
+    manaCost: { X: 5, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Wurm"],
+    power: 6,
+    toughness: 6,
+    triggeredAbilities: [
+        {
+            id: "johtull-wurm-block-shrink",
+            oracleText:
+                "Whenever this creature becomes blocked, it gets -2/-1 until end of turn for each creature blocking it beyond the first.",
+            event: "BLOCKERS_CONFIRMED",
+            matches: (event, self, state) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return false;
+                // Fire only when self is the blocked ATTACKER (CR 509.1h).
+                if (event.attackerId !== self.id) return false;
+                // The engine emits one BLOCKERS_CONFIRMED per attacker-blocker
+                // pair; dedupe to the first blocker so a multi-blocked attacker
+                // fires once (mirrors `rampageTrigger.firstBlockerOf`).
+                const assignments = state?.combat?.blockerAssignments;
+                if (!assignments) return true;
+                for (const [blockerId, attackerIds] of Object.entries(
+                    assignments
+                )) {
+                    if (attackerIds.includes(self.id)) {
+                        return event.blockerId === blockerId;
+                    }
+                }
+                return true;
+            },
+            resolve: (ctx: SpellContext, event) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return;
+                const attackerId = ctx.sourceInstanceId;
+                // CR 509.1h — count live blockers at resolution.
+                const live = new Set<string>();
+                for (const pid of ctx.allPlayerIds) {
+                    for (const id of ctx.getBattlefieldIds(pid)) live.add(id);
+                }
+                const blockers = (
+                    ctx.getBlockersByAttacker()[attackerId] ?? []
+                ).filter((id) => live.has(id));
+                const beyondFirst = Math.max(0, blockers.length - 1);
+                if (beyondFirst === 0) return;
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: attackerId },
+                    -2 * beyondFirst,
+                    -1 * beyondFirst,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+// Juniper Order Druid — "{T}: Untap target land." (CR 605 activated ability;
+// CR 701.20a untap, scoped to lands.)
+export const juniperOrderDruid: CardDefinition = {
+    id: "cb211704-ff8e-498b-b7bb-f8384f198ffd",
+    name: "Juniper Order Druid",
+    rarity: "common",
+    oracleText: "{T}: Untap target land.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Cleric", "Druid"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "juniper-order-druid-untap",
+            oracleText: "{T}: Untap target land.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Land", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") ctx.untap(t);
+            },
+        },
+    ],
+};
+// Lhurgoyf — its power equals the number of creature cards in all graveyards and
+// its toughness is that number plus 1 (CR 604.3 / 613.4c CDA P/T, layer 7a). A
+// `pt-cda` whose `compute` counts `Creature`-typed cards across every player's
+// graveyard from game state; the printed 0/0 base is the CDA target so the
+// effective P/T is exactly `{ n, n+1 }`. `.types` survives `projectPublicState`
+// (slimCard strips only `card`), so the count is identical on the wire — the
+// mandatory wire-format test re-asserts it after projection.
+export const lhurgoyf: CardDefinition = {
+    id: "fee6d385-d44b-4f1a-beb1-13aeebde063e",
+    name: "Lhurgoyf",
+    rarity: "rare",
+    oracleText:
+        "Lhurgoyf's power is equal to the number of creature cards in all graveyards and its toughness is equal to that number plus 1.",
+    manaCost: { X: 2, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Lhurgoyf"],
+    power: 0,
+    toughness: 0,
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: EFFECT_AFFECTS_SELF,
+            compute: (_source, state) => {
+                let creatures = 0;
+                for (const player of state.players) {
+                    for (const card of player.graveyard) {
+                        if (card.types.includes("Creature")) creatures++;
+                    }
+                }
+                return { power: creatures, toughness: creatures + 1 };
+            },
+        },
+    ],
+};
+// Lure — ICE reprint of the LEA Aura ("All creatures able to block enchanted
+// creature do so"). CardPrint onto the LEA definition (ADR 0014).
+export const lureIce: CardPrint = {
+    printId: "87af69ee-c2bb-46ea-8d36-d484d04a3c8a",
+    definitionId: "2a87b26e-0431-42e9-b44f-94ba8546111a",
+    setCode: "ice",
+    rarity: "uncommon",
+};
+// Nature's Lore — "Search your library for a Forest card, put that card onto the
+// battlefield, then shuffle." (CR 701.19 search; CR 400.7 put onto battlefield;
+// CR 701.20 shuffle.) A library search restricted to Forest cards via the
+// `candidateIds` allow-list, then `putFromLibraryOntoBattlefield` + shuffle.
+export const naturesLore: CardDefinition = {
+    id: "668d2969-b6b7-4507-bdd4-20bbaa68035a",
+    name: "Nature's Lore",
+    rarity: "uncommon",
+    oracleText:
+        "Search your library for a Forest card, put that card onto the battlefield, then shuffle.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        const forests = ctx
+            .getLibraryCards(ctx.controller)
+            .filter((c) => c.subtypes.includes("Forest"));
+        const found = ctx.requestChoice({
+            playerId: ctx.controller,
+            choiceId: "natures-lore-search",
+            kind: "search-library",
+            zone: "library",
+            candidateIds: forests.map((c) => c.id),
+            count: { min: 0, max: 1 },
+            prompt: "Search your library for a Forest card.",
+        });
+        if (found === undefined) return; // suspended
+        const foundId = found[0];
+        if (foundId) ctx.putFromLibraryOntoBattlefield(ctx.controller, foundId);
+        ctx.shuffleLibrary(ctx.controller);
+    },
+};
+// Pale Bears — {2}{G} 2/2 with islandwalk (CR 702.18 landwalk evasion).
+export const paleBears: CardDefinition = {
+    id: "7f19c2a3-6403-4a78-bf45-6e339578d673",
+    name: "Pale Bears",
+    rarity: "rare",
+    oracleText:
+        "Islandwalk (This creature can't be blocked as long as defending player controls an Island.)",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Bear"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["islandwalk"],
+};
+// Pygmy Allosaurus — {2}{G} 2/2 with swampwalk (CR 702.18 landwalk evasion).
+export const pygmyAllosaurus: CardDefinition = {
+    id: "88a68767-9822-4f15-895e-32164e2159be",
+    name: "Pygmy Allosaurus",
+    rarity: "rare",
+    oracleText:
+        "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Dinosaur"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["swampwalk"],
+};
+// DEFERRED — Pyknite (next-turn-upkeep delayed cantrip "draw a card at the
+// beginning of the next turn's upkeep"); same gap flagged in the Black/Red
+// tranches.
+// TODO(#628): implement.
+// export const pyknite: CardDefinition = {
+//     id: "6ffc64e4-ae3c-49f9-8ed6-518dd497bfe6",
+//     name: "Pyknite",
+//     rarity: "common",
+//     oracleText: "When this creature enters, draw a card at the beginning of the next turn's upkeep.",
 //     manaCost: { X: 2, G: 1 },
 //     types: ["Creature"],
 //     subtypes: ["Ouphe"],
 //     power: 1,
 //     toughness: 1,
 // };
+// Regeneration — ICE reprint of the LEA Aura ("{G}: Regenerate enchanted
+// creature"). CardPrint onto the LEA definition (ADR 0014).
+export const regenerationIce: CardPrint = {
+    printId: "1dacfaec-6b61-450d-a134-2087c38a298a",
+    definitionId: "b7b7aa34-b4f8-41b4-82ce-ab2e204c3bf4",
+    setCode: "ice",
+    rarity: "common",
+};
+// DEFERRED — Rime Dryad (snow forestwalk); snow-evasion plumbing is unbuilt
+// (snow cluster).
 // TODO(#628): implement.
-// export const fyndhornElder: CardDefinition = {
-//     id: "fca8aa11-f7cb-4f88-a041-30098579f1d2",
-//     name: "Fyndhorn Elder",
-//     rarity: "uncommon",
-//     oracleText: "{T}: Add {G}{G}.",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Elf", "Druid"],
-//     power: 1,
-//     toughness: 1,
-// };
-// TODO(#628): implement.
-// export const fyndhornElves: CardDefinition = {
-//     id: "3ba95ffa-990a-4013-98b7-5d8c0b34e9c4",
-//     name: "Fyndhorn Elves",
+// export const rimeDryad: CardDefinition = {
+//     id: "7a93e6ce-1295-41f8-b454-2dfe321481a6",
+//     name: "Rime Dryad",
 //     rarity: "common",
-//     oracleText: "{T}: Add {G}.",
+//     oracleText: "Snow forestwalk (This creature can't be blocked as long as defending player controls a snow Forest.)",
 //     manaCost: { G: 1 },
 //     types: ["Creature"],
-//     subtypes: ["Elf", "Druid"],
+//     subtypes: ["Dryad"],
 //     power: 1,
-//     toughness: 1,
+//     toughness: 2,
 // };
+// Scaled Wurm — {7}{G} 7/6 vanilla Wurm (CR 302).
+export const scaledWurm: CardDefinition = {
+    id: "499cd7fa-c86c-4a5f-b36d-8160e8a6af1f",
+    name: "Scaled Wurm",
+    rarity: "common",
+    oracleText: "",
+    manaCost: { X: 7, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Wurm"],
+    power: 7,
+    toughness: 6,
+};
+// Shambling Strider — "{R}{G}: This creature gets +1/-1 until end of turn."
+// (CR 605 activated ability; CR 514.2 cleanup expiry — a firebreathing-style
+// self-pump trading toughness for power.)
+export const shamblingStrider: CardDefinition = {
+    id: "8886ba2d-b25a-4b74-9299-911c509ae864",
+    name: "Shambling Strider",
+    rarity: "common",
+    oracleText: "{R}{G}: This creature gets +1/-1 until end of turn.",
+    manaCost: { X: 4, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Yeti"],
+    power: 5,
+    toughness: 5,
+    activatedAbilities: [
+        {
+            id: "shambling-strider-pump",
+            oracleText: "{R}{G}: This creature gets +1/-1 until end of turn.",
+            cost: { mana: { R: 1, G: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    -1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+// DEFERRED — Snowblind (snow-land counting + attacking/defending branch); snow
+// cluster.
+// TODO(#628): implement.
+// export const snowblind: CardDefinition = {
+//     id: "5f62c376-487a-42bc-bd85-ab8b0480f7dc",
+//     name: "Snowblind",
+//     rarity: "rare",
+//     oracleText: "Enchant creature\nEnchanted creature gets -X/-Y. If that creature is attacking, X is the number of snow lands defending player controls. Otherwise, X is the number of snow lands its controller controls. Y is equal to X or to enchanted creature's toughness minus 1, whichever is smaller.",
+//     manaCost: { X: 3, G: 1 },
+//     types: ["Enchantment"],
+//     subtypes: ["Aura"],
+// };
+// Stampede — "Attacking creatures get +1/+0 and gain trample until end of turn."
+// (CR 611.1c temporary P/T + keyword grant on the set of attackers; CR 514.2
+// expiry.) Each currently-attacking creature receives the buff and trample.
+export const stampede: CardDefinition = {
+    id: "bc8265a1-4621-4d25-8f7f-f0179951a694",
+    name: "Stampede",
+    rarity: "rare",
+    oracleText:
+        "Attacking creatures get +1/+0 and gain trample until end of turn.",
+    manaCost: { X: 1, G: 2 },
+    types: ["Instant"],
+    resolve: (ctx: SpellContext) => {
+        // "Attacking creatures" = every creature currently attacking, any
+        // controller (CR 506.4). Scan all players' battlefields for attackers.
+        for (const pid of ctx.allPlayerIds) {
+            for (const id of ctx.getBattlefieldIds(pid, {
+                types: "Creature",
+            })) {
+                if (!ctx.getIsAttacking(id)) continue;
+                const target = { type: "permanent" as const, id };
+                ctx.addTemporaryPTBuff(target, 1, 0, { phase: "end-of-turn" });
+                ctx.grantStaticAbility(target, "trample", {
+                    phase: "end-of-turn",
+                });
+            }
+        }
+    },
+};
+// Stunted Growth — "Target player chooses three cards from their hand and puts
+// them on top of their library in any order." (CR 701-style hand→library-top;
+// the targeted player makes the choice and the order.) Routes a hand-card
+// choice to the TARGET player, then moves each pick to the top in pick order.
+export const stuntedGrowth: CardDefinition = {
+    id: "4c9b7393-eb35-4c99-bbf5-bcf924aa8ff3",
+    name: "Stunted Growth",
+    rarity: "rare",
+    oracleText:
+        "Target player chooses three cards from their hand and puts them on top of their library in any order.",
+    manaCost: { X: 3, G: 2 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "player") return;
+        const hand = ctx.getHandCards(target.id).map((c) => c.id);
+        if (hand.length === 0) return;
+        // "chooses three cards" — fewer than three if the hand is smaller
+        // (CR 700.3: do as much as possible). The chooser's pick order becomes
+        // the top-of-library order.
+        const count = Math.min(3, hand.length);
+        const picks = ctx.requestChoice({
+            playerId: target.id,
+            choiceId: "stunted-growth-pick",
+            kind: "choose-hand-card",
+            zone: "hand",
+            candidateIds: hand,
+            count,
+            prompt: "Choose three cards to put on top of your library in any order.",
+        });
+        if (picks === undefined) return; // suspended on the target's choice
+        for (const id of picks) {
+            ctx.moveHandCardToLibraryTop(target.id, id);
+        }
+    },
+};
+// Tarpan — {G} 1/1 with "When this creature dies, you gain 1 life." (CR 700.4
+// dies trigger; CR 119.3 life gain.)
+export const tarpan: CardDefinition = {
+    id: "b1420ec5-367c-4514-86c5-3993bf339e37",
+    name: "Tarpan",
+    rarity: "common",
+    oracleText: "When this creature dies, you gain 1 life.",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Horse"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        diedTrigger({
+            id: "tarpan-death-lifegain",
+            oracleText: "When this creature dies, you gain 1 life.",
+            scope: "self",
+            resolve: (ctx) => ctx.gainLife(ctx.controller, 1),
+        }),
+    ],
+};
+// DEFERRED — Thermokarst ("destroy target land; if it was a snow land, gain 1
+// life"); the snow-supertype branch is a snow-matters effect with no
+// SpellContext supertype reader yet (snow cluster).
+// TODO(#628): implement.
+// export const thermokarst: CardDefinition = {
+//     id: "00ae906b-2c4d-48e9-9f2d-217777e22292",
+//     name: "Thermokarst",
+//     rarity: "uncommon",
+//     oracleText: "Destroy target land. If that land was a snow land, you gain 1 life.",
+//     manaCost: { X: 1, G: 2 },
+//     types: ["Sorcery"],
+// };
+// DEFERRED — Thoughtleech (opponent-Island-tap watcher trigger); no "becomes
+// tapped" watcher on opponent lands yet.
+// TODO(#628): implement.
+// export const thoughtleech: CardDefinition = {
+//     id: "d8fe7f9d-644f-48d0-93fa-d9a536f1f755",
+//     name: "Thoughtleech",
+//     rarity: "uncommon",
+//     oracleText: "Whenever an Island an opponent controls becomes tapped, you may gain 1 life.",
+//     manaCost: { G: 2 },
+//     types: ["Enchantment"],
+// };
+// Tinder Wall — 0/3 Wall with Defender, a sacrifice-for-{R}{R} mana ability, and
+// "{R}, Sacrifice this creature: It deals 2 damage to target creature it's
+// blocking." (CR 605.1a mana ability with sac cost; CR 605 activated ability;
+// CR 120.1 damage.) The "creature it's blocking" constraint is enforced in the
+// resolve via the live block graph.
+export const tinderWall: CardDefinition = {
+    id: "2a7c6489-21e9-4b86-a54a-b1e2f1fce318",
+    name: "Tinder Wall",
+    rarity: "common",
+    oracleText:
+        "Defender (This creature can't attack.)\nSacrifice this creature: Add {R}{R}.\n{R}, Sacrifice this creature: It deals 2 damage to target creature it's blocking.",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Plant", "Wall"],
+    power: 0,
+    toughness: 3,
+    staticAbilities: ["defender"],
+    activatedAbilities: [
+        {
+            id: "tinder-wall-mana",
+            oracleText: "Sacrifice this creature: Add {R}{R}.",
+            cost: { sacrifice: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ R: 2 }),
+            manaProduced: { R: 2 },
+        },
+        {
+            id: "tinder-wall-bolt",
+            oracleText:
+                "{R}, Sacrifice this creature: It deals 2 damage to target creature it's blocking.",
+            cost: { mana: { R: 1 }, sacrifice: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") ctx.dealDamage(t, 2);
+            },
+        },
+    ],
+};
+// DEFERRED — Touch of Vitae (next-turn-upkeep delayed cantrip "draw a card at
+// the beginning of the next turn's upkeep" plus a one-shot untap-grant); same
+// gap flagged in the Black/Red tranches.
+// TODO(#628): implement.
+// export const touchOfVitae: CardDefinition = {
+//     id: "48d2cd18-a24d-40e0-a654-777d9e623ae2",
+//     name: "Touch of Vitae",
+//     rarity: "uncommon",
+//     oracleText: "Until end of turn, target creature gains haste and \"{0}: Untap this creature. Activate only once.\"\nDraw a card at the beginning of the next turn's upkeep.",
+//     manaCost: { X: 2, G: 1 },
+//     types: ["Instant"],
+// };
+// Trailblazer — "Target creature can't be blocked this turn." (CR 509.1b — a
+// can't-be-blocked restriction set on the target until end of turn.)
+export const trailblazer: CardDefinition = {
+    id: "9194c69d-c849-4c4a-976c-d1382bd5cf32",
+    name: "Trailblazer",
+    rarity: "rare",
+    oracleText: "Target creature can't be blocked this turn.",
+    manaCost: { X: 2, G: 2 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type === "permanent") ctx.setCantBeBlockedThisTurn(t);
+    },
+};
+// DEFERRED — Venomous Breath (end-of-combat destroy of creatures that blocked
+// or were blocked by the target this turn); the delayed end-of-combat combat-
+// relationship trigger is owned by a later cluster.
+// TODO(#628): implement.
+// export const venomousBreath: CardDefinition = {
+//     id: "8eeb9e02-1d26-4959-a878-2ef8db2358bc",
+//     name: "Venomous Breath",
+//     rarity: "uncommon",
+//     oracleText: "Choose target creature. At this turn's next end of combat, destroy all creatures that blocked or were blocked by it this turn.",
+//     manaCost: { X: 3, G: 1 },
+//     types: ["Instant"],
+// };
+// Wall of Pine Needles — 3/3 Wall with Defender and "{G}: Regenerate this
+// creature." (CR 702.3 defender; CR 605 activated ability; CR 701.15
+// regeneration shield.)
+export const wallOfPineNeedles: CardDefinition = {
+    id: "5d879923-55fc-46ab-9306-5e1f10441c89",
+    name: "Wall of Pine Needles",
+    rarity: "uncommon",
+    oracleText:
+        "Defender (This creature can't attack.)\n{G}: Regenerate this creature.",
+    manaCost: { X: 3, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Plant", "Wall"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["defender"],
+    activatedAbilities: [
+        {
+            id: "wall-of-pine-needles-regen",
+            oracleText: "{G}: Regenerate this creature.",
+            cost: { mana: { G: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.applyRegenerationShield({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
+// DEFERRED — Whiteout ("all creatures lose flying" + snow-land-sacrifice
+// graveyard recursion); the snow-land sac cost is a snow-matters effect (snow
+// cluster).
+// TODO(#628): implement.
+// export const whiteout: CardDefinition = {
+//     id: "a8645e4f-eaa8-4420-a6a3-eb53c311fab1",
+//     name: "Whiteout",
+//     rarity: "uncommon",
+//     oracleText: "All creatures lose flying until end of turn.\nSacrifice a snow land: Return this card from your graveyard to your hand.",
+//     manaCost: { X: 1, G: 1 },
+//     types: ["Instant"],
+// };
+// DEFERRED — Wiitigo ("put a +1/+1 counter if it has blocked or been blocked
+// since your last upkeep, else remove one"); the per-creature blocked-since-
+// last-upkeep tracking is owned by a later cluster.
+// TODO(#628): implement.
+// export const wiitigo: CardDefinition = {
+//     id: "9ee86bf2-6c54-4c6e-8394-eb39f98d5a85",
+//     name: "Wiitigo",
+//     rarity: "rare",
+//     oracleText: "This creature enters with six +1/+1 counters on it.\nAt the beginning of your upkeep, put a +1/+1 counter on this creature if it has blocked or been blocked since your last upkeep. Otherwise, remove a +1/+1 counter from it.",
+//     manaCost: { X: 3, G: 3 },
+//     types: ["Creature"],
+//     subtypes: ["Yeti"],
+//     power: 0,
+//     toughness: 0,
+// };
+// Wild Growth — ICE reprint of the LEA Aura ("enchanted land's controller adds
+// an additional {G} when it's tapped for mana"). CardPrint onto the LEA
+// definition (ADR 0014).
+export const wildGrowthIce: CardPrint = {
+    printId: "f8047ab9-a0fc-4933-bcbc-e761aa0f622b",
+    definitionId: "fd896dfa-66c0-4327-8e5b-489bbe350c95",
+    setCode: "ice",
+    rarity: "common",
+};
+// DEFERRED — Woolly Mammoths ("trample as long as you control a snow land");
+// the snow-land-conditional keyword is a snow-matters effect (snow cluster).
+// TODO(#628): implement.
+// export const woollyMammoths: CardDefinition = {
+//     id: "eaca1216-99c8-4ad5-a51a-3c4ff3b82097",
+//     name: "Woolly Mammoths",
+//     rarity: "common",
+//     oracleText: "This creature has trample as long as you control a snow land.",
+//     manaCost: { X: 1, G: 2 },
+//     types: ["Creature"],
+//     subtypes: ["Elephant"],
+//     power: 3,
+//     toughness: 2,
+// };
+// Woolly Spider — 2/3 with Reach and "Whenever this creature blocks a creature
+// with flying, this creature gets +0/+2 until end of turn." (CR 702.17 reach;
+// CR 509.1h blocks trigger; CR 514.2 expiry.) The blocks trigger fires on
+// BLOCKERS_CONFIRMED where self is the blocker and the blocked attacker has
+// flying (`hasStaticAbility`).
+export const woollySpider: CardDefinition = {
+    id: "e10520b2-b5a7-4328-84c8-20443b6f588a",
+    name: "Woolly Spider",
+    rarity: "common",
+    oracleText:
+        "Reach (This creature can block creatures with flying.)\nWhenever this creature blocks a creature with flying, this creature gets +0/+2 until end of turn.",
+    manaCost: { X: 1, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Spider"],
+    power: 2,
+    toughness: 3,
+    staticAbilities: ["reach"],
+    triggeredAbilities: [
+        {
+            id: "woolly-spider-block-flier",
+            oracleText:
+                "Whenever this creature blocks a creature with flying, this creature gets +0/+2 until end of turn.",
+            event: "BLOCKERS_CONFIRMED",
+            matches: (event, self) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return false;
+                return event.blockerId === self.id;
+            },
+            resolve: (ctx: SpellContext, event) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return;
+                // "a creature with flying" — the blocked attacker must have
+                // flying (CR 702.9). Read its effective keywords.
+                const attacker = {
+                    type: "permanent" as const,
+                    id: event.attackerId,
+                };
+                if (!ctx.hasStaticAbility(attacker, "flying")) return;
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    0,
+                    2,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+// Yavimaya Gnats — 0/1 flier with "{G}: Regenerate this creature." (CR 702.9
+// flying; CR 605 activated ability; CR 701.15 regeneration shield.)
+export const yavimayaGnats: CardDefinition = {
+    id: "9d8b7020-ca8f-4867-bc51-13d824daf154",
+    name: "Yavimaya Gnats",
+    rarity: "uncommon",
+    oracleText: "Flying\n{G}: Regenerate this creature.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Insect"],
+    power: 0,
+    toughness: 1,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "yavimaya-gnats-regen",
+            oracleText: "{G}: Regenerate this creature.",
+            cost: { mana: { G: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.applyRegenerationShield({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
+// ── Green capability-cluster stubs (cumulative upkeep — ADR 0042) ────────────
 // TODO(#628): implement.
 // export const fyndhornPollen: CardDefinition = {
 //     id: "3efbe59d-bebc-40b1-85ac-2e4c1ff3731e",
