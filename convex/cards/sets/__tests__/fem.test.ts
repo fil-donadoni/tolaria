@@ -4360,7 +4360,10 @@ describe("Spirit Shield / Zelyon Sword — tapped-duration buff (REUSE I, CR 611
                     makePlayer("p2"),
                 ],
             });
-            const base = { power: getEffectivePower(state, bear), toughness: getEffectiveToughness(state, bear) };
+            const base = {
+                power: getEffectivePower(state, bear),
+                toughness: getEffectiveToughness(state, bear),
+            };
             resolveActivated(state, equip, id, [
                 { type: "permanent", id: "bear" },
             ]);
@@ -4374,7 +4377,9 @@ describe("Spirit Shield / Zelyon Sword — tapped-duration buff (REUSE I, CR 611
                 (c) => c.id === "bear"
             )!;
             expect(getEffectivePower(state, buffed)).toBe(base.power + p);
-            expect(getEffectiveToughness(state, buffed)).toBe(base.toughness + t);
+            expect(getEffectiveToughness(state, buffed)).toBe(
+                base.toughness + t
+            );
         });
 
         it(`${def.name} buff survives the wire-format projection`, () => {

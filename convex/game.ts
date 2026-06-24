@@ -530,7 +530,8 @@ export function tapSourceIntoPayment(
         }
         // CR 603.7a / ADR 0040 — arm a control-change-on-tap rider (Rainbow
         // Vale) when this source is tapped for mana during a payment.
-        if (!isSacrifice) armDelayedTriggerOnTap(state, ability, card, player.id);
+        if (!isSacrifice)
+            armDelayedTriggerOnTap(state, ability, card, player.id);
         tappedLandIds.push(card.id);
         return;
     }

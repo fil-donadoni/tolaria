@@ -4530,13 +4530,7 @@ export const rainbowVale: CardDefinition = {
                 "{T}: Add one mana of any color. An opponent gains control of this land at the beginning of the next end step.",
             cost: { tap: true },
             useStack: false,
-            manaChoices: [
-                { W: 1 },
-                { U: 1 },
-                { B: 1 },
-                { R: 1 },
-                { G: 1 },
-            ],
+            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
             // ADR 0040 — arm the delayed control change when tapped for mana.
             armsDelayedTriggerOnTap: {
                 triggerId: "rainbow-vale-handoff",
@@ -4561,10 +4555,7 @@ export const rainbowVale: CardDefinition = {
                 if (!opponent) return;
                 // CR 613.1b — indefinite control change (no condition), the
                 // Ghazbán Ogre shape. Reverts only when the next handoff fires.
-                ctx.gainControl(
-                    { type: "permanent", id: sourceId },
-                    opponent
-                );
+                ctx.gainControl({ type: "permanent", id: sourceId }, opponent);
             },
         },
     ],
@@ -4698,8 +4689,7 @@ export const balmOfRestoration: CardDefinition = {
     activatedAbilities: [
         {
             id: "balm-gain-life",
-            oracleText:
-                "{1}, {T}, Sacrifice this artifact: You gain 2 life.",
+            oracleText: "{1}, {T}, Sacrifice this artifact: You gain 2 life.",
             cost: { mana: { X: 1 }, tap: true, sacrifice: true },
             useStack: true,
             resolve: (ctx: SpellContext) => {
@@ -4840,7 +4830,8 @@ export const ringOfRenewal: CardDefinition = {
     activatedAbilities: [
         {
             id: "ring-of-renewal",
-            oracleText: "{5}, {T}: Discard a card at random, then draw two cards.",
+            oracleText:
+                "{5}, {T}: Discard a card at random, then draw two cards.",
             cost: { mana: { X: 5 }, tap: true, discardAtRandom: 1 },
             useStack: true,
             resolve: (ctx: SpellContext) => {
