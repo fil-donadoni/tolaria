@@ -22,7 +22,6 @@ import type {
     CardPrint,
     Color,
     ManaCost,
-    Rarity,
     SpellContext,
     TokenSpec,
 } from "../types";
