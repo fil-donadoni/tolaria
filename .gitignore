@@ -30,3 +30,7 @@ convex/_generated
 
 # Claude Code runtime lock (per-session: sessionId/pid). Not shared config.
 .claude/scheduled_tasks.lock
+
+# list-to-cards staging output (regenerated; lockfile data/card-index.json IS committed)
+data/worklists/*.out/
+data/worklists/*.resolved.jsonl

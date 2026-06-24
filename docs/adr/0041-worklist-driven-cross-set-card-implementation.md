@@ -9,7 +9,7 @@ accepted
 Until now every card batch has been organized **one set at a time**: pick a set
 (ARN, LEG, DRK, FEM…), download its MTGJSON blob with `scripts/json-to-cards.mjs`,
 and implement it to a chosen depth before moving on. The set is both the
-*selection unit* (which cards to build next) and the *organizing unit* (the
+_selection unit_ (which cards to build next) and the _organizing unit_ (the
 home-set file the cards live in).
 
 We want to keep the organizing unit but **change the selection strategy**: build
@@ -27,7 +27,7 @@ shippable work.
 ## Decision
 
 **A worklist is a selection strategy, not a data-model entity.** A "Vintage Cube"
-list is a curated TODO that decides *which cards to build next*. It never becomes
+list is a curated TODO that decides _which cards to build next_. It never becomes
 a schema table, a `cube.ts` module, or a player-facing entity. Each card still
 files under its **real home set**; `setCode` stays equal to the real set; prints,
 pool availability, and `isPrintedInSet` are untouched. The cube exists only as a
@@ -36,7 +36,7 @@ committed worklist file plus a PRD/issues — never as a code entity.
 **Home set = earliest paper printing.** "First print" is resolved deterministically
 as Scryfall's `game:paper unique:prints order:released dir:asc`, first row —
 excluding digital-only, gold-border, oversized, and non-tournament printings.
-Whatever set that is (expansion, core, *or* supplemental) becomes the home-set
+Whatever set that is (expansion, core, _or_ supplemental) becomes the home-set
 file and supplies the `scryfallId` for art. Home-set files are created lazily, so
 a 540-card cube can spin up dozens of **sparse** set files (a handful of cards
 each). That is accepted: the registry just imports them; sparse files are
@@ -48,7 +48,7 @@ upstream fits the job, behind a common output:
 - **Set mode** — MTGJSON whole-set blob (`json-to-cards.mjs`), best for "implement
   set X" (1 download beats ~350 single calls).
 - **List mode** — Scryfall per card for a curated cross-set list (`POST
-  /cards/collection`, 75 ids/call → ~8 calls for a 540-card cube). Scryfall is the
+/cards/collection`, 75 ids/call → ~8 calls for a 540-card cube). Scryfall is the
   upstream MTGJSON copies `scryfallId` from and carries everything implementation
   needs (oracle text, cost, type, P/T, loyalty, keywords, `id`=scryfallId,
   `oracle_id`); single-card fetch and always-current data make it the right tool
@@ -79,8 +79,8 @@ worklist is itself a reviewable, hand-editable, reproducible artifact — no liv
 CubeCobra dependency that rots or makes runs non-deterministic.
 
 **Clustering is by engine-capability gap, agent-driven over a mechanical pre-split.**
-A cube has no thematic factions to cluster on, so the axis is *shared missing
-capability*. The tool does only a **mechanical pre-split**: vanilla detection
+A cube has no thematic factions to cluster on, so the axis is _shared missing
+capability_. The tool does only a **mechanical pre-split**: vanilla detection
 (empty oracle text + creature/land), known-keyword match against `combatRegistry`
 and supported `staticAbilities`. Everything else is `needs-triage`, and an **agent**
 reads it and assigns capability clusters (no machine-readable capability registry
@@ -89,12 +89,12 @@ exists to diff against, so semantic judgment is required). Output per worklist i
 
 - **done** — already implemented (oracleId hit).
 - **free** — emitted as **active, complete `CardDefinition`s** (vanilla/keyword-only,
-  or unique `resolve()` composing existing primitives — no *new* capability). Shipped
+  or unique `resolve()` composing existing primitives — no _new_ capability). Shipped
   as slice 1 in one PR.
 - **capability cluster** — emitted as **commented-out stubs** (id/name/cost/types/P/T
   filled, body TODO; build stays green). One `ready-for-agent` issue + PR per cluster:
   build the missing capability once, then uncomment every card it unlocks. Prioritized
-  by *(cards unlocked ÷ build effort)*.
+  by _(cards unlocked ÷ build effort)_.
 - **out-of-scope** — cards whose **layout** isn't modeled (transform/MDFC/split/
   adventure/meld/flip) or otherwise deferred. No stub; listed in the coverage report
   with a reason; one **`ready-for-human`** issue per layout (schema-level work).
@@ -104,11 +104,11 @@ exists to diff against, so semantic judgment is required). Output per worklist i
 - A 540-card cube produces many **sparse home-set files** and matching registry
   imports. Accepted as self-organizing; the alternative (misattributing cards to a
   later "cleaner" set) breaks "prima stampa" and picks the wrong art.
-- "Free" means *no new engine capability*, **not** zero-code: many free-tranche cards
+- "Free" means _no new engine capability_, **not** zero-code: many free-tranche cards
   still need a small bespoke `resolve()`. The free tranche is large but not free to
   type.
 - Finishing the current Vintage Cube front-loads the highest-frequency mechanics. As a
-  *count of distinct mechanics* that is ~40-50% (the long tail of niche set mechanics
+  _count of distinct mechanics_ that is ~40-50% (the long tail of niche set mechanics
   remains); **frequency-weighted, ~65-75% of an arbitrary new constructed-playable card
   becomes near-free** thereafter. Biggest remaining buckets: planeswalkers, the modeled
   layouts above, and rare set mechanics.

@@ -10,6 +10,7 @@ import LobbyRoute from "./routes/lobby.route";
 import DeckBuilderRoute from "./routes/deck-builder.route";
 import DeckDetailRoute from "./routes/deck-detail.route";
 import GameRoute from "./routes/game.route";
+import PrototypeStackRoute from "./routes/prototype-stack.route";
 
 const rootRoute = createRootRoute({
     component: () => (
@@ -68,6 +69,17 @@ const gameRoute = createRoute({
     component: GameRoute,
 });
 
+// PROTOTYPE (throwaway) — battlefield identical-permanent stacking. Delete this
+// route + ./routes/prototype-stack.route.tsx once a variant wins.
+const prototypeStackRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/prototype/stack",
+    validateSearch: (s: Record<string, unknown>): { variant?: string } => ({
+        variant: typeof s.variant === "string" ? s.variant : undefined,
+    }),
+    component: PrototypeStackRoute,
+});
+
 const routeTree = rootRoute.addChildren([
     indexRoute,
     decksCreateRoute,
@@ -76,6 +88,7 @@ const routeTree = rootRoute.addChildren([
     presetCreateRoute,
     presetEditRoute,
     gameRoute,
+    prototypeStackRoute,
 ]);
 
 const router = createRouter({ routeTree });

@@ -85,8 +85,12 @@ export type CardSupertype =
  *  rarities used by the implemented sets (LEA–LEG era); modern "mythic" /
  *  "special" / "bonus" can be added when those sets ship. Consumed by
  *  rarity-budgeted Formats (Alpha 40, ADR 0036). Informational for Basic
- *  lands — they are gated by the `Basic` supertype, not by rarity. */
-export type Rarity = "common" | "uncommon" | "rare";
+ *  lands — they are gated by the `Basic` supertype, not by rarity. `"mythic"`
+ *  ships with the cross-set worklist work (ADR 0041) — Vintage Cube draws
+ *  heavily on modern mythics; the LEA–LEG sets never use it, and the Alpha 40
+ *  rarity budget (commons/uncommons/rares only) is unaffected. `"special"` /
+ *  `"bonus"` remain unmodelled — the import tool bails loudly on them. */
+export type Rarity = "common" | "uncommon" | "rare" | "mythic";
 
 // --- Targeting ---
 
