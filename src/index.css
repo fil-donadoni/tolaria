@@ -14,6 +14,12 @@
 
 :root {
     --font-beleren: "Beleren", serif;
+
+    /* Card preview dock (#332): vertical safe-area reserved at the bottom of the
+       viewport so the hover preview never overlaps the controller pod
+       (`fixed bottom-32 right-4`, pod ~150px tall → ~300px). The dock spans from
+       a small top inset down to this band and centers the card within it. */
+    --preview-bottom-safe: 300px;
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -350,6 +356,18 @@
                 color-mix(in srgb, var(--color-accent) 22%, transparent),
             inset 0 0 28px rgba(0, 0, 0, 0.42),
             0 22px 50px rgba(0, 0, 0, 0.62);
+    }
+
+    /* Card preview dock glow (#332, Antique Bronze): a board-coherent gold
+       accent glow instead of the old off-theme gray `shadow-2xl` + no border.
+       Three layers: a soft inner accent ring (NOT a hard border), the outer gold
+       glow, and a depth drop shadow. No emerald/rose — those belong to the
+       controller pod's turn indicator. */
+    .card-preview-dock {
+        box-shadow:
+            0 0 0 1px color-mix(in srgb, var(--color-accent) 28%, transparent),
+            0 0 30px color-mix(in srgb, var(--color-accent) 32%, transparent),
+            0 22px 50px rgba(0, 0, 0, 0.6);
     }
 
     /* Engraved header band: darker inset strip under the title, gold rule. */
