@@ -466,18 +466,13 @@ async function main() {
     ].join("\n");
     writeFileSync(resolve(outDir, "report.md"), report, "utf-8");
 
-    // update lockfile with every emitted card (free + capability: their id
-    // appears in source, so the id-guard must know it)
-    const additions = [...buckets.free, ...buckets.capability].map((c) => ({
-        name: c.name,
-        scryfallId: c.id,
-        oracleId: c.oracleId,
-        firstSet: c.firstSet,
-    }));
-    const merged = [...lockfile];
-    const seen = new Set(lockfile.map((e) => e.scryfallId));
-    for (const a of additions) if (!seen.has(a.scryfallId)) merged.push(a);
-    writeFileSync(lockPath, JSON.stringify(merged, null, 2) + "\n", "utf-8");
+    // NB: the importer is READ-ONLY on the lockfile — it never writes staged
+    // cards back. A staged card is not yet *implemented* (it lives in `.out/`,
+    // not in `convex/cards/sets/`), so adding it would conflate "staged" with
+    // "done" and poison the next run's dedup. The lockfile gains a card's id
+    // only at WIRING time (or via `backfill-card-index.ts`, which reads the
+    // registry). This keeps the importer idempotent: same worklist + same
+    // lockfile → identical `.out/`.
 
     // Drop the resume checkpoint ONLY on a fully clean run. If any card errored
     // (429/503/timeout), keep it so the next run resumes — re-fetching just the
