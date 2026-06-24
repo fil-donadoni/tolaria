@@ -1,11 +1,13 @@
 import type { Doc, Id } from "@convex/_generated/dataModel";
 import type { Difficulty } from "@convex/gre";
+import { FORMAT_RULES } from "@convex/formats";
 import type { LobbyDeck } from "~/lib/deckTypes";
 import type { MatchFormat } from "~/lib/session";
 import { cn } from "~/lib/utils";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import ActionButton from "~/components/board/action-button";
 import ManaSymbol from "../cards/mana-symbol";
+import FeaturedDeckArt from "./featured-deck-art";
 import DifficultySelector from "./difficulty-selector";
 import MatchFormatSelector from "./match-format-selector";
 import AiDeckSelector from "./ai-deck-selector";
@@ -67,44 +69,71 @@ export default function DashboardPlayBox({
         <Panel tone="accent">
             <PanelHeader title="Play" />
             <PanelBody>
-                {selectedDeck ? (
-                    <div className="flex flex-col md:flex-row flex-wrap justify-between items-center gap-3 mb-8">
-                        <div className="flex gap-4">
-                            <span className="text-lg font-semibold text-parchment">
-                                {selectedDeck.name}
-                            </span>
-
-                            <div className="flex items-center gap-1 text-xl">
-                                {selectedDeck.colors.map((c) => (
-                                    <ManaSymbol key={c} symbol={c} />
-                                ))}
+                {/* Featured-art HERO SPLASH of the selected deck (PRD #589,
+                    issue #600): the resolved Featured Card's art under a bottom
+                    fade that keeps the name + mana legible. A graceful fallback
+                    paints when the deck has no resolvable art. */}
+                <div className="relative h-40 w-full overflow-hidden rounded-md ring-1 ring-border-accent/40 sm:h-48">
+                    <FeaturedDeckArt
+                        featuredCardId={selectedDeck?.featuredCardId ?? null}
+                        objectPosition="object-[center_30%]"
+                        className="h-full w-full"
+                    />
+                    <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-surface-base via-surface-base/50 to-transparent" />
+                    <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-3 p-3 sm:p-4">
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                                <span className="truncate font-beleren text-xl tracking-wide text-parchment drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)] sm:text-2xl">
+                                    {selectedDeck?.name ?? "No deck selected"}
+                                </span>
+                                {selectedDeck && (
+                                    <div className="flex shrink-0 items-center gap-0.5 text-lg">
+                                        {selectedDeck.colors.map((c) => (
+                                            <ManaSymbol
+                                                key={c}
+                                                symbol={c}
+                                                className="size-5"
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="text-sm text-text drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+                                {selectedDeck ? (
+                                    <span className="flex items-center gap-2">
+                                        {
+                                            FORMAT_RULES[selectedDeck.format]
+                                                .label
+                                        }{" "}
+                                        · {selectedDeck.cards.length} cards
+                                        {selectedDeck.kind === "user" && (
+                                            <span className="rounded-sm bg-accent-soft/40 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-strong">
+                                                Custom
+                                            </span>
+                                        )}
+                                    </span>
+                                ) : (
+                                    "Pick a deck from the lists below"
+                                )}
                             </div>
                         </div>
-
-                        <div className="flex items-center justify-between w-full">
-                            {selectedDeck.kind === "user" && (
-                                <span className="rounded-sm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-strong/80">
-                                    Custom
-                                </span>
-                            )}
-                            <ActionButton
-                                onClick={onChangeDeck}
-                                label="Change deck"
-                                tone="secondary"
-                            />
-                        </div>
+                        {selectedDeck && (
+                            <div className="shrink-0">
+                                <ActionButton
+                                    onClick={onChangeDeck}
+                                    label="Change deck"
+                                    tone="secondary"
+                                />
+                            </div>
+                        )}
                     </div>
-                ) : (
-                    <p className="text-sm text-text-muted">
-                        Select a deck to start playing.
-                    </p>
-                )}
+                </div>
 
                 {selectedDeck && !selectedDeck.isLegal && (
                     <div
                         role="status"
                         aria-live="polite"
-                        className="mb-4 rounded-sm border border-danger/50 bg-danger/10 px-4 py-3 text-sm text-danger"
+                        className="rounded-sm border border-danger/50 bg-danger/10 px-4 py-3 text-sm text-danger"
                     >
                         <p className="font-semibold">
                             This deck is not legal for its format and cannot
@@ -123,7 +152,7 @@ export default function DashboardPlayBox({
                     </div>
                 )}
 
-                <div className="mb-3 flex flex-wrap items-end justify-start gap-4">
+                <div className="flex flex-wrap items-end justify-start gap-4">
                     <MatchFormatSelector
                         value={matchFormat}
                         onChange={onMatchFormatChange}
@@ -176,7 +205,7 @@ export default function DashboardPlayBox({
                                     disabled={!canPlay}
                                     className={cn(
                                         "flex items-center justify-between rounded-sm border px-4 py-2 text-sm transition",
-                                        "bg-surface-elevated/30 border-border-subtle/30 text-text hover:bg-surface-elevated/50",
+                                        "border-border-subtle bg-surface-elevated text-text hover:border-border-accent/60",
                                         "disabled:cursor-not-allowed disabled:opacity-40"
                                     )}
                                 >

@@ -14,11 +14,42 @@ function deck(overrides: Partial<LobbyDeck> = {}): LobbyDeck {
         format: "old-school",
         colors: ["R"],
         cards: [],
+        featuredCardId: null,
         isLegal: true,
         reasons: [],
         ...overrides,
     } as LobbyDeck;
 }
+
+// A real preset Scryfall printing id (non-token).
+const REAL_CARD_ID = "d05b92bd-797e-413f-a8b0-32e0937a1ee0";
+
+describe("DeckListItem featured art (PRD #589, issue #600)", () => {
+    it("renders the resolved Featured Card art as the row thumbnail", () => {
+        const { container } = render(
+            <DeckListItem
+                deck={deck({ featuredCardId: REAL_CARD_ID })}
+                isSelected={false}
+                onFocus={vi.fn()}
+            />
+        );
+        const img = container.querySelector("img[src*='art_crop']");
+        expect(img).not.toBeNull();
+        expect(img!.getAttribute("src")).toContain(REAL_CARD_ID);
+    });
+
+    it("renders the no-art fallback for a deck with no featured card", () => {
+        const { container } = render(
+            <DeckListItem
+                deck={deck({ featuredCardId: null })}
+                isSelected={false}
+                onFocus={vi.fn()}
+            />
+        );
+        // No art image — mana-symbol <img>s may exist, but no art_crop source.
+        expect(container.querySelector("img[src*='art_crop']")).toBeNull();
+    });
+});
 
 describe("DeckListItem legality (issue #512)", () => {
     it("renders a Select button enabled for a legal deck", () => {
