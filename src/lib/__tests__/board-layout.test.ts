@@ -8,6 +8,9 @@ import {
     reorderIndexForDragX,
     moveItem,
     reconcileHandOrder,
+    stackFanOffset,
+    STACK_FAN_REVEAL,
+    STACK_FAN_MAX_WIDTH,
     CARD_WIDTH,
     CARD_HEIGHT,
     RIGHT_GUTTER,
@@ -515,5 +518,35 @@ describe("mirrorVertical (opponent-side projection)", () => {
 
     it("keeps the standard card aspect ratio constant", () => {
         expect(CARD_HEIGHT / CARD_WIDTH).toBeCloseTo(7 / 5, 2);
+    });
+});
+
+describe("stackFanOffset — fanned permanent stack reveal (PRD #621, #623)", () => {
+    it("returns 0 for a single member (no fan)", () => {
+        expect(stackFanOffset(1)).toBe(0);
+        expect(stackFanOffset(0)).toBe(0);
+    });
+
+    it("uses the full resting reveal when the fan fits under the max width", () => {
+        // 2 members: total width = 120 + 34 = 154 < 360, so no clamp.
+        expect(stackFanOffset(2)).toBe(STACK_FAN_REVEAL);
+        // 3 members: 120 + 2*34 = 188 < 360, still no clamp.
+        expect(stackFanOffset(3)).toBe(STACK_FAN_REVEAL);
+    });
+
+    it("clamps the offset so the fan never exceeds the max width", () => {
+        // 8 members at full reveal would be 120 + 7*34 = 358 ≤ 360 (still fits).
+        expect(stackFanOffset(8)).toBe(STACK_FAN_REVEAL);
+        // A larger count is clamped: offset = (360 - 120) / (n - 1).
+        const offset = stackFanOffset(20);
+        expect(offset).toBeLessThan(STACK_FAN_REVEAL);
+        expect(offset).toBeCloseTo((STACK_FAN_MAX_WIDTH - CARD_WIDTH) / 19, 5);
+    });
+
+    it("keeps the total fan width at or under the cap for every size 2..8", () => {
+        for (let n = 2; n <= 8; n++) {
+            const total = CARD_WIDTH + (n - 1) * stackFanOffset(n);
+            expect(total).toBeLessThanOrEqual(STACK_FAN_MAX_WIDTH + 0.001);
+        }
     });
 });

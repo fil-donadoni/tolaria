@@ -5,8 +5,10 @@ import { useBattlefieldInteraction } from "~/hooks/useBattlefieldInteraction";
 import { useIsPortrait } from "~/hooks/useIsPortrait";
 import { isCreature, isLand } from "~/lib/card-utils";
 import { bandedRowsLayout, RIGHT_GUTTER } from "~/lib/board-layout";
+import { groupBattlefield } from "~/lib/battlefield-stacks";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
 import BoardBattlefieldCard from "./board-battlefield-card";
+import BattlefieldStack from "./battlefield-stack";
 import CombatPanels from "./combat-panels";
 
 /** Two battlefield rows: creatures hold the combat line in FRONT (toward the
@@ -131,31 +133,57 @@ export default function BoardBattlefield({
         );
     }
 
-    function toItem(card: CardInstance): SpatialItem {
+    /** Render a single host permanent with its attached auras pinned up-and-left
+     *  (CR 303.4) — unchanged from the per-card path. A host is always "altered"
+     *  per `groupBattlefield`, so it only ever appears as a singleton group. */
+    function renderHostWithAuras(card: CardInstance): React.ReactNode {
         const auras = attachedAurasByHost.get(card.id);
+        if (!auras?.length) return renderCard(card);
+        // Host slot carries its auras as overlays pinned up-and-left, so they
+        // track the host through the spring/tilt motion. The host paints last
+        // (on top); each extra aura fans further out.
+        return (
+            <div className="relative w-full h-full">
+                {auras.map((aura, i) => (
+                    <div
+                        key={aura.id}
+                        className="absolute w-full h-full"
+                        style={{
+                            top: `-${22 * (i + 1)}%`,
+                            left: `-${22 * (i + 1)}%`,
+                        }}
+                    >
+                        {renderCard(aura)}
+                    </div>
+                ))}
+                {renderCard(card)}
+            </div>
+        );
+    }
+
+    /** Turn one grouped band entry — a singleton or a fanned permanent stack
+     *  (PRD #621, #623) — into a single laid-out {@link SpatialItem}. A singleton
+     *  renders exactly as before (host+auras path included); a stack occupies the
+     *  SAME one-card footprint slot and renders its members as a fan via
+     *  {@link BattlefieldStack}. */
+    function groupToItem(group: {
+        key: string;
+        isStack: boolean;
+        members: CardInstance[];
+    }): SpatialItem {
+        if (!group.isStack) {
+            return {
+                key: group.key,
+                node: renderHostWithAuras(group.members[0]),
+            };
+        }
         return {
-            key: card.id,
-            node: auras?.length ? (
-                // Host slot carries its auras as overlays pinned up-and-left, so
-                // they track the host through the spring/tilt motion. The host
-                // paints last (on top); each extra aura fans further out.
-                <div className="relative w-full h-full">
-                    {auras.map((aura, i) => (
-                        <div
-                            key={aura.id}
-                            className="absolute w-full h-full"
-                            style={{
-                                top: `-${22 * (i + 1)}%`,
-                                left: `-${22 * (i + 1)}%`,
-                            }}
-                        >
-                            {renderCard(aura)}
-                        </div>
-                    ))}
-                    {renderCard(card)}
-                </div>
-            ) : (
-                renderCard(card)
+            key: group.key,
+            node: (
+                <BattlefieldStack
+                    members={group.members}
+                    renderMember={renderCard}
+                />
             ),
         };
     }
@@ -181,21 +209,32 @@ export default function BoardBattlefield({
                 else if (backRowRank(card) === 0) lands.push(card);
                 else others.push(card);
             }
+            // Collapse identical, interchangeable permanents into fanned
+            // permanent stacks BEFORE layout (PRD #621, #623). Group each band
+            // independently so a stack never spans the creature/back-row split;
+            // each resulting group (singleton OR stack) takes exactly one layout
+            // slot, so the row math is unchanged — only the slot COUNT shrinks.
+            const creatureGroups = groupBattlefield(
+                creatures,
+                attachedAurasByHost
+            );
+            const landGroups = groupBattlefield(lands, attachedAurasByHost);
+            const otherGroups = groupBattlefield(others, attachedAurasByHost);
             // Order: creatures, then back row = lands (left block) then others (right).
             const ordered: SpatialItem[] = [
-                ...creatures,
-                ...lands,
-                ...others,
-            ].map(toItem);
+                ...creatureGroups,
+                ...landGroups,
+                ...otherGroups,
+            ].map(groupToItem);
             return {
                 orderedItems: ordered,
-                creatureCount: creatures.length,
-                landCount: lands.length,
-                otherCount: others.length,
+                creatureCount: creatureGroups.length,
+                landCount: landGroups.length,
+                otherCount: otherGroups.length,
             };
-            // `toItem`/`renderCard` close over the per-render interaction handlers;
-            // they are intentionally recomputed each render (cheap) — the heavy
-            // grouping deps are the battlefield and host set.
+            // `groupToItem`/`renderCard` close over the per-render interaction
+            // handlers; they are intentionally recomputed each render (cheap) —
+            // the heavy grouping deps are the battlefield and host set.
             // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [player.battlefield, hostExistsAnywhere, attachedAurasByHost]);
 

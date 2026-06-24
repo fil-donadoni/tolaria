@@ -6693,6 +6693,52 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Permanent stacking — fanned identical permanents on the battlefield
+        // (PRD #621, issue #623). Exercises the whole feature one-click:
+        //   • A fan of identical lands (Forest ×6, some tapped) collapses into
+        //     ONE footprint — untapped members first, tapped (rotated 90°) at the
+        //     tail, with a ×6 count badge. Tapping/untapping members re-sorts the
+        //     fan without fragmenting the mana base.
+        //   • A fan of identical vanilla creatures (Grizzly Bears ×4) collapses
+        //     the creature row the same way; every member stays individually
+        //     clickable / targetable.
+        //   • A Grizzly Bears carrying a +1/+1 counter is "altered" and EJECTS to
+        //     its own singleton, rendering in full beside the stack — proof that
+        //     instance-specific state always stands alone.
+        // Hover any member to lift it forward (z + pop-up) without moving a
+        // single neighbour — the footprint is fixed.
+        label: "UI: Permanent stacking — fanned identical lands + creatures, altered ejects (#623)",
+        cards: [
+            {
+                name: "Forest",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                count: 4,
+            },
+            {
+                name: "Forest",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                tapped: true,
+                count: 2,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                count: 4,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                counters: { "+1/+1": 1 },
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
