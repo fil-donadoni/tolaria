@@ -6796,15 +6796,19 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         // CR 108.1 — library card characteristics from the registry. Mirrors
         // `getHandCards`; used to precompute the `candidateIds` allow-list for a
         // filtered `search-library` choice (Transmute Artifact: artifact cards).
-        getLibraryCards(
-            playerId: string
-        ): Array<{ id: string; types: CardType[]; manaValue: number }> {
+        getLibraryCards(playerId: string): Array<{
+            id: string;
+            types: CardType[];
+            subtypes: string[];
+            manaValue: number;
+        }> {
             return getPlayer(state, playerId).library.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
                 const def = cardId ? tryGetCardById(cardId) : undefined;
                 return {
                     id: c.id,
                     types: def?.types ?? c.types,
+                    subtypes: def?.subtypes ?? c.subtypes,
                     manaValue: manaValue(def?.manaCost),
                 };
             });

@@ -120,6 +120,32 @@ import {
     vertigo,
     wallOfLava,
     wordOfBlasting,
+    // Green free tranche (#634)
+    fyndhornBrownie,
+    fyndhornElder,
+    fyndhornElves,
+    giantGrowthIce,
+    hotSprings,
+    hurricaneIce,
+    johtullWurm,
+    juniperOrderDruid,
+    lhurgoyf,
+    lureIce,
+    naturesLore,
+    paleBears,
+    pygmyAllosaurus,
+    regenerationIce,
+    scaledWurm,
+    shamblingStrider,
+    stampede,
+    stuntedGrowth,
+    tarpan,
+    tinderWall,
+    trailblazer,
+    wallOfPineNeedles,
+    wildGrowthIce,
+    woollySpider,
+    yavimayaGnats,
 } from "../ice";
 import {
     getCardById,
@@ -130,6 +156,9 @@ import {
 import { resolveTopOfStack } from "../../../gre/state";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import { projectPublicState } from "../../../gameProjections";
+import { emitBlockersConfirmedEvents } from "../../../gre/phases";
+import { recordBlockedAttackers } from "../../../gre/banding";
+import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
 import {
     makeInstance,
     makePlayer,
@@ -156,6 +185,19 @@ function resolveActivated(
         targets,
     });
     resolveTopOfStack(state);
+}
+
+/** Submit the current head pending choice (zone-pick) with the given ordered
+ *  ids, auto-resuming the suspended resolution (mirrors the game.ts mutation). */
+function submitChoice(state: GameState, cardInstanceIds: string[]): void {
+    const head = state.pendingChoices![0];
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds,
+    });
 }
 
 /** A generic vanilla creature body not backed by a registered definition. */
@@ -2629,5 +2671,628 @@ describe("ICE Red tranche registry parity", () => {
     it("registers the two Red reprints by print id", () => {
         expect(getCardById(shatterIce.printId).name).toBe("Shatter");
         expect(getCardById(stoneRainIce.printId).name).toBe("Stone Rain");
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Green free tranche (#634)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// --- Mana dorks (CR 605.1a mana ability) -----------------------------------
+
+describe("Fyndhorn Elves / Elder (CR 605.1a mana ability)", () => {
+    it("Fyndhorn Elves taps for {G} as a non-stack mana ability", () => {
+        const ability = fyndhornElves.activatedAbilities![0];
+        expect(ability.useStack).toBe(false);
+        expect(ability.cost).toMatchObject({ tap: true });
+        expect(ability.manaProduced).toEqual({ G: 1 });
+    });
+    it("Fyndhorn Elder taps for {G}{G}", () => {
+        const ability = fyndhornElder.activatedAbilities![0];
+        expect(ability.useStack).toBe(false);
+        expect(ability.manaProduced).toEqual({ G: 2 });
+    });
+    it("Fyndhorn Elves' effect adds {G} to its controller's pool", () => {
+        // Mana abilities resolve via their `effect` (CR 605.3b), not the stack;
+        // drive it directly with a minimal context (mirrors how the engine
+        // runs a non-stack mana ability on activation).
+        let added: Record<string, number> | undefined;
+        fyndhornElves.activatedAbilities![0].effect!({
+            addMana: (cost: Record<string, number>) => {
+                added = cost;
+            },
+        } as never);
+        expect(added).toEqual({ G: 1 });
+    });
+});
+
+// --- Untap utility creatures (CR 701.20a untap) ----------------------------
+
+describe("Fyndhorn Brownie / Juniper Order Druid (CR 701.20a untap)", () => {
+    it("Fyndhorn Brownie untaps a target creature", () => {
+        const brownie = makeInstance(fyndhornBrownie.id, {
+            id: "brownie",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const ally = vanilla("ally", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [brownie, ally] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, brownie, "fyndhorn-brownie-untap", [
+            { type: "permanent", id: "ally" },
+        ]);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "ally"
+        )!;
+        expect(after.isTapped).toBe(false);
+    });
+    it("Juniper Order Druid targets a land", () => {
+        const ability = juniperOrderDruid.activatedAbilities![0];
+        expect(ability.targetRequirement).toMatchObject({ type: "Land" });
+    });
+});
+
+// --- Lhurgoyf — graveyard-counting CDA P/T (CR 604.3 / 613.4c, layer 7a) ----
+
+describe("Lhurgoyf (CR 604.3 graveyard-counting CDA P/T)", () => {
+    /** A creature card sitting in a graveyard (registry id irrelevant; the CDA
+     *  reads the instance `.types`). */
+    function deadCreature(id: string, owner: string): CardInstanceState {
+        return {
+            id,
+            card: { id: `fake-${id}` },
+            types: ["Creature"] as CardType[],
+            subtypes: [],
+            staticAbilities: [],
+            power: 1,
+            toughness: 1,
+            controllerId: owner,
+            ownerId: owner,
+            zone: "graveyard",
+            isTapped: false,
+        };
+    }
+    function deadNonCreature(id: string, owner: string): CardInstanceState {
+        return { ...deadCreature(id, owner), types: ["Instant"] as CardType[] };
+    }
+
+    it("power = creatures in all graveyards, toughness = that + 1", () => {
+        const goyf = makeInstance(lhurgoyf.id, {
+            id: "goyf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [goyf],
+                    graveyard: [
+                        deadCreature("c1", "p1"),
+                        deadCreature("c2", "p1"),
+                        deadNonCreature("i1", "p1"), // not a creature → ignored
+                    ],
+                }),
+                makePlayer("p2", {
+                    graveyard: [deadCreature("c3", "p2")], // counts too
+                }),
+            ],
+        });
+        const after = state.players[0].battlefield[0];
+        // 3 creature cards across both graveyards → 3/4.
+        expect(getEffectivePower(state, after)).toBe(3);
+        expect(getEffectiveToughness(state, after)).toBe(4);
+    });
+
+    it("MANDATORY wire format: the count survives projectPublicState", () => {
+        const goyf = makeInstance(lhurgoyf.id, {
+            id: "goyf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [goyf],
+                    graveyard: [deadCreature("c1", "p1")],
+                }),
+                makePlayer("p2", {
+                    graveyard: [
+                        deadCreature("c2", "p2"),
+                        deadCreature("c3", "p2"),
+                    ],
+                }),
+            ],
+        });
+        // 3 creature cards → 3/4 on fat state.
+        const after = state.players[0].battlefield[0];
+        expect(getEffectivePower(state, after)).toBe(3);
+        expect(getEffectiveToughness(state, after)).toBe(4);
+        // The projection strips `card` but keeps `.types` on graveyard cards,
+        // so the CDA recomputes the identical P/T on the wire.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "goyf"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(4);
+    });
+
+    it("empty graveyards → 0/1", () => {
+        const goyf = makeInstance(lhurgoyf.id, {
+            id: "goyf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [goyf] }),
+                makePlayer("p2"),
+            ],
+        });
+        const after = state.players[0].battlefield[0];
+        expect(getEffectivePower(state, after)).toBe(0);
+        expect(getEffectiveToughness(state, after)).toBe(1);
+    });
+});
+
+// --- Keyword / vanilla creatures (CR 302, 702 keywords) --------------------
+
+describe("Green vanilla / keyword creatures", () => {
+    it("Scaled Wurm is a 7/6 vanilla Wurm", () => {
+        expect(scaledWurm.power).toBe(7);
+        expect(scaledWurm.toughness).toBe(6);
+        expect(scaledWurm.activatedAbilities).toBeUndefined();
+    });
+    it("Pale Bears has islandwalk", () => {
+        expect(paleBears.staticAbilities).toContain("islandwalk");
+    });
+    it("Pygmy Allosaurus has swampwalk", () => {
+        expect(pygmyAllosaurus.staticAbilities).toContain("swampwalk");
+    });
+    it("Yavimaya Gnats has flying", () => {
+        expect(yavimayaGnats.staticAbilities).toContain("flying");
+    });
+    it("Tinder Wall and Wall of Pine Needles have defender", () => {
+        expect(tinderWall.staticAbilities).toContain("defender");
+        expect(wallOfPineNeedles.staticAbilities).toContain("defender");
+    });
+    it("Woolly Spider has reach", () => {
+        expect(woollySpider.staticAbilities).toContain("reach");
+    });
+});
+
+// --- Regeneration via {G} (CR 701.15 regeneration shield) ------------------
+
+describe("Wall of Pine Needles / Yavimaya Gnats regenerate (CR 701.15)", () => {
+    it("Wall of Pine Needles applies a regeneration shield to itself", () => {
+        const wall = makeInstance(wallOfPineNeedles.id, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wall] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, wall, "wall-of-pine-needles-regen");
+        const after = state.players[0].battlefield[0];
+        expect((after.regenerationShields ?? 0) > 0).toBe(true);
+    });
+});
+
+// --- Shambling Strider self-pump (CR 611.1, +1/-1) -------------------------
+
+describe("Shambling Strider (CR 611.1 +1/-1 self-pump)", () => {
+    it("+1/-1 until end of turn, survives projection", () => {
+        const strider = makeInstance(shamblingStrider.id, {
+            id: "strider",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [strider] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, strider, "shambling-strider-pump");
+        const after = state.players[0].battlefield[0];
+        expect(getEffectivePower(state, after)).toBe(6); // 5 → 6
+        expect(getEffectiveToughness(state, after)).toBe(4); // 5 → 4
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "strider"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(6);
+        expect(getEffectiveToughness(projected, slim)).toBe(4);
+    });
+});
+
+// --- Tinder Wall sac-for-mana + bolt (CR 605.1a / 120.1) -------------------
+
+describe("Tinder Wall (CR 605.1a mana sac + CR 120.1 bolt)", () => {
+    it("the mana ability is non-stack with a sacrifice cost producing {R}{R}", () => {
+        const mana = tinderWall.activatedAbilities!.find(
+            (a) => a.id === "tinder-wall-mana"
+        )!;
+        expect(mana.useStack).toBe(false);
+        expect(mana.cost).toMatchObject({ sacrifice: true });
+        expect(mana.manaProduced).toEqual({ R: 2 });
+    });
+    it("the bolt deals 2 damage to its target", () => {
+        const wall = makeInstance(tinderWall.id, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const victim = vanilla("victim", 3, 3, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wall] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        resolveActivated(state, wall, "tinder-wall-bolt", [
+            { type: "permanent", id: "victim" },
+        ]);
+        const after = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(after.damageMarked).toBe(2);
+    });
+});
+
+// --- Tarpan dies-trigger lifegain (CR 700.4 / 119.3) -----------------------
+
+describe("Tarpan (CR 700.4 dies trigger lifegain)", () => {
+    it("declares a self-scoped died trigger", () => {
+        expect(tarpan.triggeredAbilities).toHaveLength(1);
+        expect(tarpan.triggeredAbilities![0].id).toBe("tarpan-death-lifegain");
+    });
+});
+
+// --- Hurricane (X to fliers + players) — covered by LEA; ICE is a reprint ---
+
+describe("Hot Springs (CR 611 activated-grant on a land)", () => {
+    it("enchants a land you control and grants a prevention activated ability", () => {
+        expect(hotSprings.targetRequirement).toMatchObject({
+            type: "Land",
+            controller: "you",
+        });
+        const grant = hotSprings.staticEffects!.find(
+            (e) => e.kind === "activated-grant"
+        );
+        expect(grant).toBeDefined();
+        expect(hotSprings.grantTemplates![0].id).toBe("hot-springs-prevent");
+    });
+});
+
+// --- Nature's Lore — search a Forest onto the battlefield (CR 701.19) -------
+
+describe("Nature's Lore (CR 701.19 search Forest onto battlefield)", () => {
+    it("puts a Forest from library onto the battlefield and shuffles", () => {
+        const forest: CardInstanceState = {
+            id: "forest",
+            card: { id: "fake-forest" },
+            types: ["Land"] as CardType[],
+            subtypes: ["Forest"],
+            staticAbilities: [],
+            power: undefined,
+            toughness: undefined,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+            isTapped: false,
+        };
+        const filler: CardInstanceState = {
+            ...forest,
+            id: "filler",
+            card: { id: "fake-filler" },
+            types: ["Instant"] as CardType[],
+            subtypes: [],
+        };
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: [forest, filler] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, naturesLore.id, "p1", []);
+        resolveTopOfStack(state);
+        // The search suspends on a library-pick choice; submit the Forest.
+        submitChoice(state, ["forest"]);
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "forest"
+        );
+    });
+});
+
+// --- Stampede — buff every attacker (CR 611.1c + trample) -------------------
+
+describe("Stampede (CR 611.1c attacker buff + trample)", () => {
+    it("+1/+0 and trample on each attacking creature, survives projection", () => {
+        const atk = makeInstance(balduvianBears.id, {
+            id: "atk",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const idle = vanilla("idle", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [atk, idle] }),
+                makePlayer("p2"),
+            ],
+            phase: "DECLARE_ATTACKERS",
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        pushSpell(state, stampede.id, "p1", []);
+        resolveTopOfStack(state);
+        const attacker = state.players[0].battlefield.find(
+            (c) => c.id === "atk"
+        )!;
+        const nonAttacker = state.players[0].battlefield.find(
+            (c) => c.id === "idle"
+        )!;
+        expect(getEffectivePower(state, attacker)).toBe(3); // 2 → 3
+        expect((attacker.staticAbilities ?? []).includes("trample")).toBe(true);
+        // The idle (non-attacking) creature is untouched.
+        expect(getEffectivePower(state, nonAttacker)).toBe(2);
+        const projected = projectPublicState(state, 1, "p1");
+        const slimAtk = projected.players[0].battlefield.find(
+            (c) => c.id === "atk"
+        )!;
+        expect(getEffectivePower(projected, slimAtk)).toBe(3);
+    });
+});
+
+// --- Trailblazer — can't be blocked this turn (CR 509.1b) ------------------
+
+describe("Trailblazer (CR 509.1b can't be blocked this turn)", () => {
+    it("marks the target creature can't-be-blocked", () => {
+        const creature = makeInstance(balduvianBears.id, {
+            id: "runner",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [creature] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, trailblazer.id, "p1", [
+            { type: "permanent", id: "runner" },
+        ]);
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "runner"
+        )!;
+        expect(after.cantBeBlockedThisTurn).toBe(true);
+    });
+});
+
+// --- Stunted Growth — target player tucks three (CR 700-style hand→top) -----
+
+describe("Stunted Growth (target player puts cards on top of library)", () => {
+    it("targets a player and moves chosen hand cards to the library top", () => {
+        const h1 = makeInstance(balduvianBears.id, {
+            id: "h1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const h2 = makeInstance(scaledWurm.id, {
+            id: "h2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [h1, h2], library: [] }),
+            ],
+        });
+        pushSpell(state, stuntedGrowth.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        // The targeted player (p2) chooses which cards to tuck; hand of 2 < 3
+        // so both are submitted.
+        submitChoice(state, ["h1", "h2"]);
+        expect(state.players[1].hand).toHaveLength(0);
+        expect(state.players[1].library.map((c) => c.id).sort()).toEqual([
+            "h1",
+            "h2",
+        ]);
+    });
+});
+
+// --- Johtull Wurm — negative rampage (CR 509.1h, -2/-1 per extra blocker) ---
+
+describe("Johtull Wurm (CR 509.1h -2/-1 per extra blocker)", () => {
+    /** p1 fields Johtull Wurm as the attacker; p2 fields `n` blockers, all
+     *  assigned to it, at DECLARE_BLOCKERS. */
+    function setupBlock(n: number): GameState {
+        const wurm = makeInstance(johtullWurm.id, {
+            id: "wurm",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const blockerIds = Array.from({ length: n }, (_, i) => `blk${i}`);
+        const blockers = blockerIds.map((id) =>
+            vanilla(id, 1, 1, {
+                id,
+                controllerId: "p2",
+                ownerId: "p2",
+                isBlocking: true,
+            })
+        );
+        const blockerAssignments: Record<string, string[]> = {};
+        for (const id of blockerIds) blockerAssignments[id] = ["wurm"];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wurm] }),
+                makePlayer("p2", { battlefield: blockers }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["wurm"],
+                confirmed: true,
+                blockerAssignments,
+                blockersConfirmed: true,
+            },
+        });
+        recordBlockedAttackers(state);
+        return state;
+    }
+
+    it("blocked by ONE: no penalty (beyond the first)", () => {
+        const state = setupBlock(1);
+        emitBlockersConfirmedEvents(state);
+        resolveTopOfStack(state);
+        const wurm = state.players[0].battlefield.find((c) => c.id === "wurm")!;
+        expect(getEffectivePower(state, wurm)).toBe(6);
+        expect(getEffectiveToughness(state, wurm)).toBe(6);
+    });
+
+    it("blocked by THREE: fires once, -2/-1 × 2 → 2/4", () => {
+        const state = setupBlock(3);
+        emitBlockersConfirmedEvents(state);
+        // The per-pair emission collapses to a single fire (first-blocker dedupe).
+        expect(
+            state.stack.filter(
+                (s) => s.triggeredAbilityId === "johtull-wurm-block-shrink"
+            )
+        ).toHaveLength(1);
+        resolveTopOfStack(state);
+        const wurm = state.players[0].battlefield.find((c) => c.id === "wurm")!;
+        // base 6/6, −2×2 / −1×2 = −4/−2 → 2/4.
+        expect(getEffectivePower(state, wurm)).toBe(2);
+        expect(getEffectiveToughness(state, wurm)).toBe(4);
+    });
+});
+
+// --- Woolly Spider — +0/+2 when blocking a flier (CR 509.1h) ----------------
+
+describe("Woolly Spider (CR 509.1h block-a-flier pump)", () => {
+    function setupSpiderBlock(attackerFlies: boolean): GameState {
+        const spider = makeInstance(woollySpider.id, {
+            id: "spider",
+            controllerId: "p1",
+            ownerId: "p1",
+            isBlocking: true,
+        });
+        const attacker = vanilla("flyer", 2, 2, {
+            id: "flyer",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+            staticAbilities: attackerFlies ? ["flying"] : [],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [spider] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["flyer"],
+                confirmed: true,
+                blockerAssignments: { spider: ["flyer"] },
+                blockersConfirmed: true,
+            },
+        });
+        recordBlockedAttackers(state);
+        return state;
+    }
+
+    it("+0/+2 when it blocks a flier, survives projection", () => {
+        const state = setupSpiderBlock(true);
+        emitBlockersConfirmedEvents(state);
+        resolveTopOfStack(state);
+        const spider = state.players[0].battlefield.find(
+            (c) => c.id === "spider"
+        )!;
+        expect(getEffectiveToughness(state, spider)).toBe(5); // 3 → 5
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "spider"
+        )!;
+        expect(getEffectiveToughness(projected, slim)).toBe(5);
+    });
+
+    it("no pump when blocking a non-flier", () => {
+        const state = setupSpiderBlock(false);
+        emitBlockersConfirmedEvents(state);
+        // Resolve any pushed trigger; the guard returns without a buff.
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        const spider = state.players[0].battlefield.find(
+            (c) => c.id === "spider"
+        )!;
+        expect(getEffectiveToughness(state, spider)).toBe(3);
+    });
+});
+
+// --- Registry parity -------------------------------------------------------
+
+describe("ICE Green tranche registry parity", () => {
+    const expected = [
+        "Fyndhorn Brownie",
+        "Fyndhorn Elder",
+        "Fyndhorn Elves",
+        "Hot Springs",
+        "Johtull Wurm",
+        "Juniper Order Druid",
+        "Lhurgoyf",
+        "Nature's Lore",
+        "Pale Bears",
+        "Pygmy Allosaurus",
+        "Scaled Wurm",
+        "Shambling Strider",
+        "Stampede",
+        "Stunted Growth",
+        "Tarpan",
+        "Tinder Wall",
+        "Trailblazer",
+        "Wall of Pine Needles",
+        "Woolly Spider",
+        "Yavimaya Gnats",
+    ];
+    it("registers every activated Green card by name", () => {
+        for (const name of expected) {
+            expect(getCardByName(name).name).toBe(name);
+        }
+    });
+    it("registers the five Green reprints by print id", () => {
+        expect(getCardById(giantGrowthIce.printId).name).toBe("Giant Growth");
+        expect(getCardById(hurricaneIce.printId).name).toBe("Hurricane");
+        expect(getCardById(lureIce.printId).name).toBe("Lure");
+        expect(getCardById(regenerationIce.printId).name).toBe("Regeneration");
+        expect(getCardById(wildGrowthIce.printId).name).toBe("Wild Growth");
     });
 });

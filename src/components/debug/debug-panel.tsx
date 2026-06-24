@@ -318,6 +318,73 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 6,
     },
     {
+        // ICE Green free tranche (#634, PRD #628). Exercises the Green ICE
+        // ramp / combat tricks end to end:
+        //   - Lhurgoyf is a */*+1 whose P/T grows with creature cards in all
+        //     graveyards (cast removal at the opposing Bears to feed it).
+        //   - Giant Growth (+3/+3) and Stampede (attackers +1/+0 + trample) are
+        //     combat tricks in hand.
+        //   - Fyndhorn Elves / Elder ramp; Tinder Wall walls + sacs for {R}{R}.
+        //   - Hurricane in hand sweeps fliers + players for X.
+        //   - Woolly Spider (reach) blocks the opponent's flier and grows +0/+2.
+        label: "ICE: Green free tranche — Lhurgoyf / Giant Growth / Stampede / Hurricane (#634)",
+        cards: [
+            {
+                name: "Giant Growth",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Stampede",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Hurricane",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Lhurgoyf",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Fyndhorn Elves",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Fyndhorn Elder",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Tinder Wall",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Woolly Spider",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Scaled Wurm",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
+    {
         // Word of Command — controlled cast, TARGETED spell branch (#578, PRD
         // #575, ADR 0037, CR 601.2c). The classic line: choose the opponent's
         // Lightning Bolt and aim it back at them.

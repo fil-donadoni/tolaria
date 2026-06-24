@@ -31,6 +31,11 @@ function toLayerState(players: Player[]): LayerStateView {
     return {
         players: players.map((p) => ({
             battlefield: p.battlefield.map(toPermanentView),
+            // Graveyard cards feed graveyard-counting CDAs (Lhurgoyf). Only
+            // `.types` is read; the projected client state carries it.
+            graveyard: p.graveyard.map((c) => ({
+                types: (c.types ?? []) as CardType[],
+            })),
         })),
     };
 }
