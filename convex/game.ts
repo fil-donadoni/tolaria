@@ -5923,6 +5923,35 @@ export const tapUntap = mutation({
             }
         }
 
+        // CR 603.7a / ADR 0040 — a tap mana ability may declare a delayed-
+        // trigger rider (`armsDelayedTriggerOnTap`). When the source was just
+        // tapped for mana (`producedThisActivation` is set, i.e. this was a tap,
+        // not an untap), arm the named delayed trigger from the source card's
+        // `delayedTriggers[]`, with the activating player as the trigger's
+        // controller (CR 113.7) and the source instance id in the payload.
+        // Drives Rainbow Vale's "An opponent gains control of this land at the
+        // beginning of the next end step." The mana-ability `effect` context
+        // only exposes `addMana`, so this declarative seam carries the side
+        // effect that needs the delayed-trigger machinery.
+        if (producedThisActivation && ability?.armsDelayedTriggerOnTap) {
+            const rider = ability.armsDelayedTriggerOnTap;
+            const sourceCardId = (card.card as { id?: string }).id;
+            if (sourceCardId) {
+                state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;
+                state.delayedTriggers = [
+                    ...(state.delayedTriggers ?? []),
+                    {
+                        id: `delayed-${state.nextDelayedSeq}`,
+                        sourceCardId,
+                        triggerId: rider.triggerId,
+                        controller: args.playerId,
+                        timing: rider.timing,
+                        payload: { sourceId: card.id },
+                    },
+                ];
+            }
+        }
+
         // CR 603.2 — flush the PERMANENT_TAPPED event into a trigger pass so
         // Manabarbs / Mana Flare / Wild Growth land on the stack right after
         // the mana ability resolves. Skip on untap (no event was emitted).
