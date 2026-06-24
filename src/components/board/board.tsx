@@ -60,6 +60,17 @@ const POPUP_SELECTORS = [
     '[data-slot="context-menu-content"]',
 ].join(",");
 
+/** Horizontal band reserved on the right edge by the pile columns
+ *  (graveyard/library/exile): right-3 (0.75rem) + 3 × --card-w-sm + 2 × gap-2
+ *  (1rem). In portrait the piles collapse to bottom chips, so the band is 0.
+ *  Single source of truth: set inline on `data-board-root` for in-subtree
+ *  consumers (nameplate, hand) AND published to `document.documentElement`
+ *  while the board is mounted so portal'd dialogs (rendered to body) can
+ *  center on the play area instead of the full viewport. */
+function rightPilesWidth(isPortrait: boolean): string {
+    return isPortrait ? "0px" : "calc(1.75rem + 3 * var(--card-w-sm))";
+}
+
 type BoardProps = {
     gameId: Id<"games">;
     playerId: string;
@@ -166,6 +177,19 @@ export default function Board({
         if (stack) for (const c of stack) ids.push(c.card.id);
         preloadCardImages(ids);
     }, [players, stack]);
+
+    // Publish --right-piles-w to the document root while the board is mounted
+    // so portal'd dialogs (rendered to document.body, outside data-board-root)
+    // can offset their centering by half the strip and stay over the play
+    // area. Removed on unmount so the lobby/global default is absent and the
+    // dialog's var(..., 0px) fallback centers on the full viewport.
+    useEffect(() => {
+        const root = document.documentElement;
+        root.style.setProperty("--right-piles-w", rightPilesWidth(isPortrait));
+        return () => {
+            root.style.removeProperty("--right-piles-w");
+        };
+    }, [isPortrait]);
 
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
@@ -310,22 +334,17 @@ export default function Board({
                                             data-board-root
                                             style={
                                                 {
-                                                    // Horizontal band reserved on
-                                                    // the right edge by the pile
-                                                    // columns (graveyard/library/
-                                                    // exile): right-3 (0.75rem) +
-                                                    // 3 × --card-w-sm + 2 × gap-2
-                                                    // (1rem). Life nameplate + hand
-                                                    // center within the space that
-                                                    // excludes this band, not the
-                                                    // full viewport. In portrait the
-                                                    // piles collapse to bottom chips,
-                                                    // so the band is 0 and centering
-                                                    // falls back to the viewport.
+                                                    // Life nameplate + hand center
+                                                    // within the space that excludes
+                                                    // the right pile band, not the
+                                                    // full viewport. See
+                                                    // rightPilesWidth() above — the
+                                                    // same value is published to
+                                                    // documentElement for dialogs.
                                                     "--right-piles-w":
-                                                        isPortrait
-                                                            ? "0px"
-                                                            : "calc(1.75rem + 3 * var(--card-w-sm))",
+                                                        rightPilesWidth(
+                                                            isPortrait
+                                                        ),
                                                 } as CSSProperties
                                             }
                                         >

@@ -53,7 +53,16 @@ function DialogContent({
             <DialogPrimitive.Popup
                 data-slot="dialog-content"
                 className={cn(
-                    "fixed top-1/2 left-1/2 z-100 grid w-fit -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+                    // In-game the board publishes `--right-piles-w` (the right
+                    // pile-column strip width) to documentElement. Centering on
+                    // `left: calc(50% - strip/2)` (instead of plain 50%) shifts
+                    // the popup left by half the strip so it sits over the play
+                    // area, not the full viewport — mirroring the life-nameplate
+                    // offset (board-player.tsx). We adjust `left`, NOT the
+                    // transform, so the zoom/fade enter-exit animation (which
+                    // animates `transform` via keyframes) stays intact. Lobby:
+                    // var absent ⇒ 0px ⇒ unchanged full-viewport centering.
+                    "fixed top-1/2 left-[calc(50%-var(--right-piles-w,0px)/2)] z-100 grid w-fit -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
                     className
                 )}
                 {...props}
