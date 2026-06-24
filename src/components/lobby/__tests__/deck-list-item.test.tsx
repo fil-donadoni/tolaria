@@ -14,11 +14,42 @@ function deck(overrides: Partial<LobbyDeck> = {}): LobbyDeck {
         format: "old-school",
         colors: ["R"],
         cards: [],
+        featuredCardId: null,
         isLegal: true,
         reasons: [],
         ...overrides,
     } as LobbyDeck;
 }
+
+// A real preset Scryfall printing id (non-token).
+const REAL_CARD_ID = "d05b92bd-797e-413f-a8b0-32e0937a1ee0";
+
+describe("DeckListItem featured art (PRD #589, issue #600)", () => {
+    it("renders the resolved Featured Card art as the row thumbnail", () => {
+        const { container } = render(
+            <DeckListItem
+                deck={deck({ featuredCardId: REAL_CARD_ID })}
+                isSelected={false}
+                onFocus={vi.fn()}
+            />
+        );
+        const img = container.querySelector("img[src*='art_crop']");
+        expect(img).not.toBeNull();
+        expect(img!.getAttribute("src")).toContain(REAL_CARD_ID);
+    });
+
+    it("renders the no-art fallback for a deck with no featured card", () => {
+        const { container } = render(
+            <DeckListItem
+                deck={deck({ featuredCardId: null })}
+                isSelected={false}
+                onFocus={vi.fn()}
+            />
+        );
+        // No art image — mana-symbol <img>s may exist, but no art_crop source.
+        expect(container.querySelector("img[src*='art_crop']")).toBeNull();
+    });
+});
 
 describe("DeckListItem legality (issue #512)", () => {
     it("renders a Select button enabled for a legal deck", () => {
@@ -35,6 +66,28 @@ describe("DeckListItem legality (issue #512)", () => {
         expect(button.disabled).toBe(false);
         fireEvent.click(button);
         expect(onSelect).toHaveBeenCalledWith("p1");
+    });
+
+    it("carries the reduced-motion-gated micro-motion hooks (issue #598)", () => {
+        // `data-deck-row` + `data-selected` drive the selected-Deck pulse and
+        // `deck-row-liftable` the hover-lift. The CSS that consumes them is
+        // gated behind prefers-reduced-motion: no-preference (asserted in
+        // src/__tests__/motion-gating.test.ts), so carrying the hooks is the
+        // component's whole responsibility here.
+        const { container, rerender } = render(
+            <DeckListItem deck={deck()} isSelected={false} onFocus={vi.fn()} />
+        );
+        const row = container.querySelector("[data-deck-row]")!;
+        expect(row).not.toBeNull();
+        expect(row.className).toContain("deck-row-liftable");
+        expect(row.getAttribute("data-selected")).toBe("false");
+
+        rerender(<DeckListItem deck={deck()} isSelected onFocus={vi.fn()} />);
+        expect(
+            container
+                .querySelector("[data-deck-row]")!
+                .getAttribute("data-selected")
+        ).toBe("true");
     });
 
     it("flags an illegal deck and disables its Select button", () => {

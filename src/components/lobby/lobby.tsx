@@ -32,7 +32,7 @@ import {
     type MatchFormat,
 } from "~/lib/session";
 import type { Difficulty } from "@convex/gre";
-import { Panel } from "~/components/ui/panel";
+import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import GameDialog from "~/components/ui/game-dialog";
 import LoadingScreen from "~/components/ui/loading-screen";
 import LobbyFooter from "~/components/legal/lobby-footer";
@@ -402,75 +402,71 @@ function Lobby() {
                 />
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                    <Panel className="max-h-100">
-                        <div className="overflow-auto max-h-88">
-                            <DeckList
-                                title="My Decks"
-                                decks={filteredUserDecks}
-                                selectedPresetId={storedPresetId}
-                                onFocus={handleFocusDeck}
-                                onSelect={handleSelectDeck}
-                                emptyLabel={
-                                    deckFormatFilter === "all"
-                                        ? "No saved decks yet. Create one to start building."
-                                        : "No saved decks match this format."
-                                }
-                                renderActions={renderUserActions}
-                                headerExtra={
-                                    <div className="flex items-center gap-3">
-                                        <DeckFormatFilter
-                                            value={deckFormatFilter}
-                                            onChange={
-                                                handleDeckFormatFilterChange
-                                            }
-                                        />
-                                        <button
-                                            onClick={handleNewDeck}
-                                            className="btn-base btn-tone-primary px-3 py-1.5 text-xs"
-                                        >
-                                            + New Deck
-                                        </button>
-                                    </div>
-                                }
-                            />
-                        </div>
+                    <Panel className="flex max-h-[28rem] flex-col">
+                        <PanelHeader title="My Decks" />
+                        <PanelBody className="min-h-0 flex-1">
+                            <div className="flex items-center justify-end gap-3">
+                                <DeckFormatFilter
+                                    value={deckFormatFilter}
+                                    onChange={handleDeckFormatFilterChange}
+                                />
+                                <button
+                                    onClick={handleNewDeck}
+                                    className="btn-base btn-tone-primary px-3 py-1.5 text-xs"
+                                >
+                                    + New Deck
+                                </button>
+                            </div>
+                            <div className="min-h-0 flex-1 overflow-auto">
+                                <DeckList
+                                    decks={filteredUserDecks}
+                                    selectedPresetId={storedPresetId}
+                                    onFocus={handleFocusDeck}
+                                    onSelect={handleSelectDeck}
+                                    emptyLabel={
+                                        deckFormatFilter === "all"
+                                            ? "No saved decks yet. Create one to start building."
+                                            : "No saved decks match this format."
+                                    }
+                                    renderActions={renderUserActions}
+                                />
+                            </div>
+                        </PanelBody>
                     </Panel>
 
-                    <Panel className="max-h-100">
-                        <div className="overflow-auto max-h-88">
-                            <DeckList
-                                title="Preset Decks"
-                                decks={filteredPresetDecks}
-                                selectedPresetId={storedPresetId}
-                                onFocus={handleFocusDeck}
-                                onSelect={handleSelectDeck}
-                                emptyLabel={
-                                    deckFormatFilter === "all"
-                                        ? undefined
-                                        : "No preset decks match this format."
-                                }
-                                renderActions={renderPresetActions}
-                                headerExtra={
-                                    <div className="flex items-center gap-3">
-                                        <DeckFormatFilter
-                                            value={deckFormatFilter}
-                                            onChange={
-                                                handleDeckFormatFilterChange
-                                            }
-                                        />
-                                        {isAdmin && (
-                                            <button
-                                                onClick={handleNewPreset}
-                                                className="btn-base btn-tone-primary px-3 py-1.5 text-xs"
-                                                title="Create a new preset (admin)"
-                                            >
-                                                + New Preset
-                                            </button>
-                                        )}
-                                    </div>
-                                }
-                            />
-                        </div>
+                    <Panel className="flex max-h-[28rem] flex-col">
+                        <PanelHeader title="Preset Decks" />
+                        <PanelBody className="min-h-0 flex-1">
+                            <div className="flex items-center justify-end gap-3">
+                                <DeckFormatFilter
+                                    value={deckFormatFilter}
+                                    onChange={handleDeckFormatFilterChange}
+                                />
+                                {isAdmin && (
+                                    <button
+                                        onClick={handleNewPreset}
+                                        className="btn-base btn-tone-primary px-3 py-1.5 text-xs"
+                                        title="Create a new preset (admin)"
+                                    >
+                                        + New Preset
+                                    </button>
+                                )}
+                            </div>
+                            <div className="min-h-0 flex-1 overflow-auto">
+                                <DeckList
+                                    decks={filteredPresetDecks}
+                                    selectedPresetId={storedPresetId}
+                                    onFocus={handleFocusDeck}
+                                    onSelect={handleSelectDeck}
+                                    emptyLabel={
+                                        deckFormatFilter === "all"
+                                            ? undefined
+                                            : "No preset decks match this format."
+                                    }
+                                    renderActions={renderPresetActions}
+                                />
+                            </div>
+                        </PanelBody>
                     </Panel>
                 </div>
 

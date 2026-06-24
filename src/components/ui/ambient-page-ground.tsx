@@ -43,9 +43,12 @@ interface AmbientPageGroundProps {
  *    6. grain       — an inline SVG noise tile to kill banding
  *    7. vignette    — darkens the edges to keep focus on the content
  *
- *  Fully **static** here (motion ships in a later slice): a slow pan of these
- *  large layers reads as judder on some displays. The whole stack is inert to
- *  pointer events so it never intercepts interaction with the foreground. */
+ *  **Micro-motion** (#598) lives on three layers and is gated entirely in CSS
+ *  behind `prefers-reduced-motion: no-preference` (`index.css`): the warm/cool
+ *  glows "breathe" (`data-ambient-glow`), the art slowly drifts with a Ken-Burns
+ *  zoom/pan (`data-ambient-art`). With reduced motion requested every layer is
+ *  static. All animation is transform/opacity only — no layout shift. The whole
+ *  stack is inert to pointer events so it never intercepts the foreground. */
 export default function AmbientPageGround({
     ring = true,
 }: AmbientPageGroundProps) {
@@ -67,20 +70,28 @@ export default function AmbientPageGround({
             />
 
             {/* 2. warm glow from the top, tinted from the accent token. No blur
-                filter — the radial-gradient is already feathered. */}
+                filter — the radial-gradient is already feathered. It "breathes"
+                (scale + opacity) under prefers-reduced-motion: no-preference,
+                via the ambientBreath keyframe (#598). `--amb-tx` hands the
+                keyframe the horizontal translate so it preserves the centring. */}
             <div
+                data-ambient-glow="warm"
                 className="absolute -top-1/4 left-1/2 h-[80vmax] w-[80vmax] -translate-x-1/2 rounded-full"
                 style={{
+                    ["--amb-tx" as string]: "-50%",
                     background:
                         "radial-gradient(circle, color-mix(in oklab, var(--color-accent) 16%, transparent) 0%, color-mix(in oklab, var(--color-accent-soft) 10%, transparent) 38%, transparent 68%)",
                 }}
             />
 
             {/* 3. cool counter-glow from the bottom, tinted from the secondary
-                accent token */}
+                accent token. Breathes on a longer, phase-offset period than the
+                warm glow so the two never pulse in lockstep (#598). */}
             <div
+                data-ambient-glow="cool"
                 className="absolute -bottom-1/3 left-1/2 h-[70vmax] w-[70vmax] -translate-x-1/2 rounded-full"
                 style={{
+                    ["--amb-tx" as string]: "-50%",
                     background:
                         "radial-gradient(circle, color-mix(in oklab, var(--color-secondary-accent) 14%, transparent) 0%, color-mix(in oklab, var(--color-secondary-accent-soft) 9%, transparent) 40%, transparent 70%)",
                 }}
@@ -103,8 +114,11 @@ export default function AmbientPageGround({
 
             {/* 5. lobby art frame — heavily diluted and graded down (low
                 opacity + reduced saturation/brightness) so it reads as faint
-                atmosphere, not a photo. Static. */}
+                atmosphere, not a photo. Drifts with a slow Ken-Burns zoom/pan
+                under prefers-reduced-motion: no-preference (#598); it stays at
+                its baseline scale when reduced motion is requested. */}
             <img
+                data-ambient-art
                 src={imageSrc}
                 alt=""
                 aria-hidden

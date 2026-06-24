@@ -3,6 +3,7 @@ import { FORMAT_RULES } from "@convex/formats";
 import type { LobbyDeck } from "~/lib/deckTypes";
 import { cn } from "~/lib/utils";
 import ManaSymbol from "../cards/mana-symbol";
+import FeaturedDeckArt from "./featured-deck-art";
 
 interface DeckListItemProps {
     deck: LobbyDeck;
@@ -33,83 +34,94 @@ export default function DeckListItem({
             tabIndex={0}
             onClick={() => onFocus(deck.presetId)}
             onKeyDown={handleCardKeyDown}
+            // Micro-motion (#598): `data-deck-row` + `data-selected` drive the
+            // selected-Deck pulse, `deck-row-liftable` the hover-lift. Both are
+            // gated behind prefers-reduced-motion: no-preference in index.css,
+            // so neither runs when reduced motion is requested.
+            data-deck-row
+            data-selected={isSelected}
             className={cn(
-                "flex flex-col cursor-pointer gap-3 rounded-sm border px-4 py-3 text-left transition",
+                "deck-row-liftable group flex cursor-pointer items-center gap-3 rounded-sm border px-3 py-2.5 text-left transition",
                 isSelected
-                    ? "border-accent/40 bg-accent-soft/20"
-                    : "border-border-subtle/40 bg-surface-elevated/20 hover:bg-surface-elevated/40"
+                    ? "border-accent/60 bg-accent-soft/30"
+                    : "border-border-subtle bg-surface-elevated hover:border-border-accent/60"
             )}
         >
-            <div className="flex items-center gap-2">
-                <span className="text-base font-semibold text-parchment">
-                    {deck.name}
-                </span>
-                {isSelected && (
-                    <span className="rounded-sm bg-accent-soft/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
-                        Selected
-                    </span>
-                )}
-                {/* Derived legality (ADR 0036, issue #512): an illegal deck is
-                    flagged here and blocked from selection below. */}
-                {!deck.isLegal && (
-                    <span
-                        className="rounded-sm bg-danger/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger"
-                        title={deck.reasons.map((r) => r.message).join(" ")}
-                    >
-                        Illegal
-                    </span>
-                )}
-            </div>
+            {/* Featured card-art thumbnail (PRD #589, issue #600) — resolved
+                Featured Card ID → art_crop, with a graceful fallback for decks
+                with no resolvable art. */}
+            <FeaturedDeckArt
+                featuredCardId={deck.featuredCardId}
+                dim
+                className="h-12 w-12 shrink-0 rounded ring-1 ring-black/40"
+            />
 
-            <div className="flex flex-col md:flex-row md:items-center gap-4">
-                <div className="flex flex-1 flex-col gap-1">
-                    <div className="flex items-center gap-1 text-xl">
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                    <span className="truncate font-beleren text-sm tracking-wide text-parchment">
+                        {deck.name}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-0.5 text-base">
                         {deck.colors.map((c) => (
-                            <ManaSymbol key={c} symbol={c} />
+                            <ManaSymbol key={c} symbol={c} className="size-4" />
                         ))}
                     </div>
-                    {deck.description && (
-                        <span className="text-xs text-text-muted">
-                            {deck.description}
+                    {isSelected && (
+                        <span className="rounded-sm bg-accent-soft/40 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
+                            Selected
                         </span>
                     )}
-                    <span className="text-[10px] uppercase tracking-wide text-text-disabled">
-                        {deck.cards.length} cards ·{" "}
-                        {FORMAT_RULES[deck.format].label}
-                    </span>
-                </div>
-
-                <div
-                    className="flex items-center gap-2"
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <span className="text-xs text-text-muted">View</span>
-                    {onSelect && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onSelect(deck.presetId);
-                            }}
-                            disabled={isSelected || !deck.isLegal}
-                            className={cn(
-                                "btn-base px-3 py-2 text-xs",
-                                isSelected || !deck.isLegal
-                                    ? "btn-disabled"
-                                    : "btn-tone-primary"
-                            )}
-                            title={
-                                !deck.isLegal
-                                    ? "Deck is illegal for its format"
-                                    : isSelected
-                                      ? "Already selected"
-                                      : "Select deck"
-                            }
+                    {/* Derived legality (ADR 0036, issue #512): an illegal deck
+                        is flagged here and blocked from selection below. */}
+                    {!deck.isLegal && (
+                        <span
+                            className="rounded-sm bg-danger/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-danger"
+                            title={deck.reasons.map((r) => r.message).join(" ")}
                         >
-                            {isSelected ? "Selected" : "Select"}
-                        </button>
+                            Illegal
+                        </span>
                     )}
-                    {extraActions}
                 </div>
+                {deck.description && (
+                    <span className="truncate text-xs text-text-muted">
+                        {deck.description}
+                    </span>
+                )}
+                <span className="text-[10px] uppercase tracking-wide text-text-disabled">
+                    {deck.cards.length} cards ·{" "}
+                    {FORMAT_RULES[deck.format].label}
+                </span>
+            </div>
+
+            <div
+                className="flex shrink-0 items-center gap-2"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {onSelect && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onSelect(deck.presetId);
+                        }}
+                        disabled={isSelected || !deck.isLegal}
+                        className={cn(
+                            "btn-base px-3 py-2 text-xs",
+                            isSelected || !deck.isLegal
+                                ? "btn-disabled"
+                                : "btn-tone-primary"
+                        )}
+                        title={
+                            !deck.isLegal
+                                ? "Deck is illegal for its format"
+                                : isSelected
+                                  ? "Already selected"
+                                  : "Select deck"
+                        }
+                    >
+                        {isSelected ? "Selected" : "Select"}
+                    </button>
+                )}
+                {extraActions}
             </div>
         </div>
     );

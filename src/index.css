@@ -429,6 +429,137 @@
         box-shadow: 0 0 8px
             color-mix(in srgb, var(--color-accent) 50%, transparent);
     }
+
+    /* ── Title Treatment (issue #597) ──
+       Epic start/end-of-Game headline: glowy Beleren over the scene, flanked by
+       clasp flourishes, with a slow-rotating runic ring behind it. */
+    .title-treatment-glow {
+        color: var(--color-parchment);
+        text-shadow:
+            0 0 22px color-mix(in srgb, var(--color-accent) 55%, transparent),
+            0 0 6px
+                color-mix(in srgb, var(--color-accent-strong) 60%, transparent),
+            0 3px 8px rgba(0, 0, 0, 0.85);
+    }
+
+    /* Dashed runic ring; #598 animates the slow rotation (gated below). */
+    .runic-ring {
+        border: 1px dashed
+            color-mix(in srgb, var(--color-accent) 70%, transparent);
+        box-shadow:
+            0 0 30px color-mix(in srgb, var(--color-accent) 30%, transparent),
+            inset 0 0 24px
+                color-mix(in srgb, var(--color-accent) 18%, transparent);
+        mask-image: radial-gradient(circle, #000 60%, transparent 72%);
+        -webkit-mask-image: radial-gradient(circle, #000 60%, transparent 72%);
+    }
+}
+
+/* ── Micro-motion pass (issue #598, PRD #589) ──
+   Tasteful, subtle motion that gives the chrome life without distraction. Every
+   keyframe animates only `transform` / `opacity` (compositor-friendly — never a
+   layout property), so there is no reflow or jank. ALL of it is gated behind the
+   `prefers-reduced-motion: no-preference` query at the bottom of this block, so
+   when the OS requests reduced motion NOTHING animates. The base rules above
+   (`.runic-ring`, ambient layers) ship the static look unconditionally. */
+
+/* Slow rotation for the Title Treatment's runic ring (#597 shipped the markup). */
+@keyframes runicSpin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* "Breathing" — a gentle scale + opacity swell for the ambient warm/cool glows.
+   Each glow keeps its own translate via a CSS var so the keyframe (which owns
+   `transform`) doesn't clobber the centring done in markup. */
+@keyframes ambientBreath {
+    0%,
+    100% {
+        transform: translateX(var(--amb-tx, 0)) scale(1);
+        opacity: 0.85;
+    }
+    50% {
+        transform: translateX(var(--amb-tx, 0)) scale(1.08);
+        opacity: 1;
+    }
+}
+
+/* Slow Ken-Burns drift for the faint background art — a barely-perceptible zoom
+   and pan so the scene feels alive without the judder of a fast pan. */
+@keyframes kenBurns {
+    0% {
+        transform: scale(1.06) translate(0, 0);
+    }
+    50% {
+        transform: scale(1.12) translate(-1.5%, -1%);
+    }
+    100% {
+        transform: scale(1.06) translate(0, 0);
+    }
+}
+
+/* Pulse for the selected Deck — a soft glow swell on its accent ring. Animates
+   box-shadow spread/opacity via opacity-only steps to stay cheap; no size change
+   so neighbouring rows never shift. */
+@keyframes selectedPulse {
+    0%,
+    100% {
+        box-shadow:
+            0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent),
+            0 0 14px color-mix(in srgb, var(--color-accent) 18%, transparent);
+    }
+    50% {
+        box-shadow:
+            0 0 0 1px color-mix(in srgb, var(--color-accent) 70%, transparent),
+            0 0 22px color-mix(in srgb, var(--color-accent) 34%, transparent);
+    }
+}
+
+/* Hover-lift base: deck rows opt in by carrying `data-deck-row`. The lift is a
+   transform (no layout shift) plus a shadow; the transition itself is safe even
+   under reduced motion (it's an interaction response, not ambient motion), but
+   we keep it inside the gate to honour the setting strictly. */
+.deck-row-liftable {
+    will-change: transform;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    /* 1. Slowly-rotating runic ring on the Title Treatment. */
+    .runic-ring {
+        animation: runicSpin 64s linear infinite;
+    }
+
+    /* 2. Breathing warm/cool glows on the ambient ground. The two glows breathe
+       on slightly different periods + a phase offset so they never pulse in
+       lockstep (which would read as a single throb). */
+    [data-ambient-ground] [data-ambient-glow="warm"] {
+        animation: ambientBreath 11s ease-in-out infinite;
+    }
+    [data-ambient-ground] [data-ambient-glow="cool"] {
+        animation: ambientBreath 14s ease-in-out infinite;
+        animation-delay: -5s;
+    }
+
+    /* 3. Slow ken-burns on the background art. */
+    [data-ambient-ground] [data-ambient-art] {
+        animation: kenBurns 40s ease-in-out infinite;
+    }
+
+    /* 4. Pulse on the selected Deck row. */
+    [data-deck-row][data-selected="true"] {
+        animation: selectedPulse 3.2s ease-in-out infinite;
+    }
+
+    /* 5. Hover-lift on deck rows. */
+    .deck-row-liftable {
+        transition:
+            transform 160ms ease-out,
+            box-shadow 160ms ease-out;
+    }
+    .deck-row-liftable:hover {
+        transform: translateY(-2px);
+    }
 }
 
 @layer base {
