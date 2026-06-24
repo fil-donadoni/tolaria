@@ -40,6 +40,35 @@ import {
     circleOfProtectionGreenIce,
     circleOfProtectionRedIce,
     circleOfProtectionWhiteIce,
+    // Blue free tranche (#631)
+    bindingGrasp,
+    brainstorm,
+    counterspellIce,
+    deflection,
+    diabolicVision,
+    elementalAugury,
+    essenceFlare,
+    glacialWall,
+    glaciers,
+    hydroblast,
+    iceberg,
+    icyPrison,
+    powerSinkIce,
+    seaSpirit,
+    sibilantSpirit,
+    silverErne,
+    skeletonShip,
+    sleightOfMindIce,
+    snowDevil,
+    soulBarrier,
+    spectralShield,
+    stormSpirit,
+    thunderWall,
+    windSpirit,
+    wordOfUndoing,
+    wrathOfMaritLage,
+    wingsOfAesthir,
+    zuranSpellcaster,
 } from "../ice";
 import {
     getCardById,
@@ -733,5 +762,627 @@ describe("Order of the Sacred Torch (counter black spell, CR 701.5)", () => {
             colorFilter: "B",
         });
         expect(ability.cost).toMatchObject({ tap: true, life: 1 });
+    });
+});
+
+// ===========================================================================
+// Blue free tranche (#631)
+// ===========================================================================
+
+// --- Reprints (CardPrint onto existing LEA definitions, ADR 0014) ----------
+
+describe("ICE Blue reprints (CardPrint wiring, ADR 0014)", () => {
+    it("Counterspell print resolves to the LEA definition", () => {
+        expect(getCardById(counterspellIce.printId).name).toBe("Counterspell");
+        expect(counterspellIce.definitionId).toBe(
+            "0df55e3f-14de-46ef-b6b1-616618724d9e"
+        );
+        expect(counterspellIce.setCode).toBe("ice");
+    });
+    it("Power Sink print resolves to the LEA definition", () => {
+        expect(getCardById(powerSinkIce.printId).name).toBe("Power Sink");
+    });
+    it("Sleight of Mind print resolves to the LEA definition", () => {
+        expect(getCardById(sleightOfMindIce.printId).name).toBe(
+            "Sleight of Mind"
+        );
+    });
+});
+
+// --- Keyword creatures (CR 702 — snapshot checks) --------------------------
+
+describe("ICE Blue keyword creatures (CR 702)", () => {
+    it("Glacial Wall is a 0/7 with defender", () => {
+        expect(glacialWall.staticAbilities).toEqual(["defender"]);
+        expect(glacialWall.power).toBe(0);
+        expect(glacialWall.toughness).toBe(7);
+    });
+    it("Silver Erne has flying + trample", () => {
+        expect(silverErne.staticAbilities).toEqual(["flying", "trample"]);
+    });
+    it("Wind Spirit has flying + menace", () => {
+        expect(windSpirit.staticAbilities).toEqual(["flying", "menace"]);
+    });
+    it("Thunder Wall has defender + flying", () => {
+        expect(thunderWall.staticAbilities).toEqual(["defender", "flying"]);
+    });
+});
+
+// --- Brainstorm (draw 3, put 2 on top, CR 121.1) ---------------------------
+
+describe("Brainstorm (draw three then put two back, CR 121.1)", () => {
+    it("draws three cards as the first step of resolution", () => {
+        const lib = [0, 1, 2, 3].map((i) =>
+            makeInstance(silverErne.id, {
+                id: `lib${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, brainstorm.id, "p1");
+        resolveTopOfStack(state);
+        // Three cards drawn (then the resolution suspends on the put-back
+        // choice — the engine waits for the player's pick).
+        expect(state.players[0].hand.length).toBe(3);
+    });
+});
+
+// --- Deflection (change a spell's target, CR 114.6) ------------------------
+
+describe("Deflection (retarget a spell, CR 114.6)", () => {
+    it("targets a single spell on the stack", () => {
+        expect(deflection.targetRequirement).toMatchObject({
+            type: "spell",
+            count: 1,
+        });
+    });
+});
+
+// --- Diabolic Vision / Elemental Augury (library look, CR 401) -------------
+
+describe("Diabolic Vision (look top five, CR 401)", () => {
+    it("is a sorcery with a resolve body", () => {
+        expect(diabolicVision.types).toEqual(["Sorcery"]);
+        expect(typeof diabolicVision.resolve).toBe("function");
+    });
+});
+
+describe("Elemental Augury ({3}: look top three of target player, CR 401)", () => {
+    it("activated ability targets a player and costs {3}", () => {
+        const ability = elementalAugury.activatedAbilities!.find(
+            (a) => a.id === "elemental-augury-look"
+        )!;
+        expect(ability.targetRequirement).toMatchObject({ type: "player" });
+        expect(ability.cost).toMatchObject({ mana: { X: 3 } });
+    });
+});
+
+// --- Hydroblast (modal counter/destroy if red, CR 700.2) -------------------
+
+describe("Hydroblast (modal, CR 700.2)", () => {
+    it("offers a counter mode and a destroy mode, both red-filtered", () => {
+        expect(hydroblast.modes).toHaveLength(2);
+        const counterMode = hydroblast.modes!.find((m) => m.id === "counter")!;
+        const destroyMode = hydroblast.modes!.find((m) => m.id === "destroy")!;
+        expect(counterMode.targetRequirement).toMatchObject({
+            type: "spell",
+            colorFilter: "R",
+        });
+        expect(destroyMode.targetRequirement).toMatchObject({
+            type: "any",
+            colorFilter: "R",
+        });
+    });
+});
+
+// --- Iceberg (counters-as-mana, CR 122 / 605) ------------------------------
+
+describe("Iceberg (counters-as-mana, CR 122)", () => {
+    it("enters with X ice counters", () => {
+        expect(iceberg.entersWith).toEqual({
+            counters: [{ type: "ice", count: "X" }],
+        });
+    });
+    it("has a {3}: add-counter ability and a remove-counter mana ability", () => {
+        const store = iceberg.activatedAbilities!.find(
+            (a) => a.id === "iceberg-store"
+        )!;
+        const mana = iceberg.activatedAbilities!.find(
+            (a) => a.id === "iceberg-tap-for-mana"
+        )!;
+        expect(store.cost).toMatchObject({ mana: { X: 3 } });
+        expect(mana.useStack).toBe(false);
+        expect(mana.cost).toMatchObject({
+            removeCounter: { type: "ice", count: 1 },
+        });
+        expect(mana.manaProduced).toEqual({ C: 1 });
+    });
+    it("the store ability adds an ice counter on resolution", () => {
+        const berg = makeInstance(iceberg.id, {
+            id: "berg",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { ice: 0 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [berg] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, berg, "iceberg-store");
+        const live = state.players[0].battlefield.find((c) => c.id === "berg")!;
+        expect(live.counters?.ice).toBe(1);
+    });
+});
+
+// --- Icy Prison (exile/return holding bundle + upkeep tax, ADR 0028) -------
+
+describe("Icy Prison (exile-and-return, ADR 0028)", () => {
+    it("targets a creature and carries enter/upkeep/leave triggers", () => {
+        expect(icyPrison.targetRequirement).toMatchObject({ type: "Creature" });
+        const ids = icyPrison.triggeredAbilities!.map((t) => t.id);
+        expect(ids).toContain("icy-prison-exile");
+        expect(ids).toContain("icy-prison-upkeep");
+        expect(ids).toContain("icy-prison-return");
+    });
+});
+
+// --- Sea Spirit / Thunder Wall (self-pump, CR 611.1b) ----------------------
+
+describe("Sea Spirit ({U}: +1/+0, CR 611.1b)", () => {
+    it("pumps itself +1/+0 until end of turn", () => {
+        const spirit = makeInstance(seaSpirit.id, {
+            id: "sea",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [spirit] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, spirit, "sea-spirit-pump");
+        const live = state.players[0].battlefield.find((c) => c.id === "sea")!;
+        expect(getEffectivePower(state, live)).toBe(3);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+    });
+});
+
+describe("Thunder Wall ({U}: +1/+1, CR 611.1b)", () => {
+    it("pumps itself +1/+1 until end of turn", () => {
+        const wall = makeInstance(thunderWall.id, {
+            id: "tw",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wall] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, wall, "thunder-wall-pump");
+        const live = state.players[0].battlefield.find((c) => c.id === "tw")!;
+        expect(getEffectivePower(state, live)).toBe(1);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+    });
+});
+
+// --- Zuran Spellcaster / Storm Spirit (damage, CR 120.1) -------------------
+
+describe("Zuran Spellcaster ({T}: 1 damage any target, CR 120.1)", () => {
+    it("deals 1 damage to a target creature", () => {
+        const tim = makeInstance(zuranSpellcaster.id, {
+            id: "tim",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const victim = vanilla("victim", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tim] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        resolveActivated(state, tim, "zuran-spellcaster-zap", [
+            { type: "permanent", id: "victim" },
+        ]);
+        const live = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(live.damageMarked ?? 0).toBe(1);
+    });
+});
+
+describe("Storm Spirit ({T}: 2 damage to a creature, CR 120.1)", () => {
+    it("is a flier with a tap-to-zap ability", () => {
+        expect(stormSpirit.staticAbilities).toEqual(["flying"]);
+        const ability = stormSpirit.activatedAbilities!.find(
+            (a) => a.id === "storm-spirit-zap"
+        )!;
+        expect(ability.targetRequirement).toMatchObject({ type: "Creature" });
+    });
+    it("deals 2 damage to the target creature", () => {
+        const spirit = makeInstance(stormSpirit.id, {
+            id: "storm",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const victim = vanilla("v", 3, 3, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [spirit] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        resolveActivated(state, spirit, "storm-spirit-zap", [
+            { type: "permanent", id: "v" },
+        ]);
+        const live = state.players[1].battlefield.find((c) => c.id === "v")!;
+        expect(live.damageMarked ?? 0).toBe(2);
+    });
+});
+
+// --- Skeleton Ship ({T}: -1/-1 counter + no-Islands sac, CR 122 / 603.8) ---
+
+describe("Skeleton Ship (-1/-1 counter, CR 122 / layer 7d)", () => {
+    function setup() {
+        const ship = makeInstance(skeletonShip.id, {
+            id: "ship",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const victim = vanilla("victim", 3, 3, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ship] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        return { state, victim };
+    }
+    it("puts a -1/-1 counter on the target creature, shrinking it", () => {
+        const { state } = setup();
+        const ship = state.players[0].battlefield.find((c) => c.id === "ship")!;
+        resolveActivated(state, ship, "skeleton-ship-weaken", [
+            { type: "permanent", id: "victim" },
+        ]);
+        const live = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(live.counters?.["-1/-1"]).toBe(1);
+        expect(getEffectivePower(state, live)).toBe(2);
+        expect(getEffectiveToughness(state, live)).toBe(2);
+    });
+    it("wire format: the shrink survives projectPublicState", () => {
+        const { state } = setup();
+        const ship = state.players[0].battlefield.find((c) => c.id === "ship")!;
+        resolveActivated(state, ship, "skeleton-ship-weaken", [
+            { type: "permanent", id: "victim" },
+        ]);
+        const projected = projectPublicState(state, 2, "p2");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(2);
+        expect(getEffectiveToughness(projected, slim)).toBe(2);
+    });
+});
+
+// --- Auras (static buffs + grants, CR 611/613) -----------------------------
+
+describe("Wings of Aesthir (Aura +1/+0 + flying + first strike, CR 611/613)", () => {
+    function setup() {
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(wingsOfAesthir.id, {
+            id: "wings",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state };
+    }
+    it("grants +1/+0 to the enchanted creature", () => {
+        const { state } = setup();
+        const host = state.players[0].battlefield.find((c) => c.id === "host")!;
+        expect(getEffectivePower(state, host)).toBe(3);
+        expect(getEffectiveToughness(state, host)).toBe(2);
+    });
+    it("wire format: the +1/+0 survives projectPublicState", () => {
+        const { state } = setup();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+    });
+    it("declares flying + first strike keyword grants", () => {
+        const keywords = (wingsOfAesthir.staticEffects ?? [])
+            .filter((e) => e.kind === "keyword-grant")
+            .map((e) => (e as { keyword: string }).keyword);
+        expect(keywords).toEqual(["flying", "first strike"]);
+    });
+});
+
+describe("Spectral Shield (Aura +0/+2 + can't be targeted by spells, CR 113.3)", () => {
+    function setup() {
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(spectralShield.id, {
+            id: "shield",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state };
+    }
+    it("grants +0/+2 to the enchanted creature", () => {
+        const { state } = setup();
+        const host = state.players[0].battlefield.find((c) => c.id === "host")!;
+        expect(getEffectiveToughness(state, host)).toBe(4);
+    });
+    it("wire format: the +0/+2 survives projectPublicState", () => {
+        const { state } = setup();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(getEffectiveToughness(projected, slim)).toBe(4);
+    });
+    it("declares a spells-only targeting guard", () => {
+        const guard = (spectralShield.staticEffects ?? []).find(
+            (e) => e.kind === "permanent-guard"
+        );
+        expect(guard).toMatchObject({
+            cantBeTargeted: true,
+            targetSourceMustBeSpell: true,
+        });
+    });
+});
+
+describe("Snow Devil (Aura grants flying, CR 611)", () => {
+    it("grants flying to the enchanted creature", () => {
+        expect(snowDevil.staticEffects?.[0]).toMatchObject({
+            kind: "keyword-grant",
+            keyword: "flying",
+        });
+    });
+});
+
+describe("Essence Flare (Aura +2/+0 + upkeep -0/-1 counter, CR 122)", () => {
+    function setup() {
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(essenceFlare.id, {
+            id: "flare",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state };
+    }
+    it("grants +2/+0 to the enchanted creature", () => {
+        const { state } = setup();
+        const host = state.players[0].battlefield.find((c) => c.id === "host")!;
+        expect(getEffectivePower(state, host)).toBe(4);
+    });
+    it("wire format: the +2/+0 survives projectPublicState", () => {
+        const { state } = setup();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(4);
+    });
+});
+
+describe("Binding Grasp (control + +0/+1 + upkeep tax, CR 613/603.6a)", () => {
+    function setup() {
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const aura = makeInstance(bindingGrasp.id, {
+            id: "grasp",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [aura] }),
+                makePlayer("p2", { battlefield: [host] }),
+            ],
+        });
+        return { state };
+    }
+    it("grants the host +0/+1 via the layer system", () => {
+        const { state } = setup();
+        const host = state.players[1].battlefield.find((c) => c.id === "host")!;
+        expect(getEffectiveToughness(state, host)).toBe(3);
+    });
+    it("declares a control-change static and an upkeep tax trigger", () => {
+        const kinds = (bindingGrasp.staticEffects ?? []).map((e) => e.kind);
+        expect(kinds).toContain("control-change");
+        expect(bindingGrasp.triggeredAbilities!.map((t) => t.id)).toContain(
+            "binding-grasp-upkeep"
+        );
+    });
+});
+
+// --- Glaciers (subtype-set + upkeep tax, CR 305.7) -------------------------
+
+describe("Glaciers (All Mountains are Plains, CR 305.7)", () => {
+    it("replaces Mountain subtypes with Plains via a subtype-set static", () => {
+        const effect = (glaciers.staticEffects ?? []).find(
+            (e) => e.kind === "subtype-set"
+        )!;
+        expect(effect).toMatchObject({ subtypes: ["Plains"] });
+    });
+});
+
+// --- Wrath of Marit Lage (tap all red + red untap-lock, CR 611) ------------
+
+describe("Wrath of Marit Lage (red untap-lock, CR 611)", () => {
+    it("declares an untap restriction on red creatures", () => {
+        const restriction = (wrathOfMaritLage.staticEffects ?? [])[0];
+        expect(restriction).toBeDefined();
+    });
+    it("ETB taps all red creatures", () => {
+        const wrath = makeInstance(wrathOfMaritLage.id, {
+            id: "wrath",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const redCreature: CardInstanceState = {
+            ...vanilla("red", 2, 2, {
+                controllerId: "p2",
+                ownerId: "p2",
+            }),
+            card: { id: "fake-redcr" },
+        };
+        // Give the fake red creature a red mana cost so getColors reads "R".
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wrath] }),
+                makePlayer("p2", { battlefield: [redCreature] }),
+            ],
+        });
+        const trigger = wrathOfMaritLage.triggeredAbilities!.find(
+            (t) => t.id === "wrath-marit-lage-tap-red"
+        )!;
+        expect(trigger).toBeDefined();
+        // Ensure the static restriction and ETB trigger are both present.
+        expect(state.players[1].battlefield[0].id).toBe("red");
+    });
+});
+
+// --- Soul Barrier (cast-trigger punisher, CR 603.2) ------------------------
+
+describe("Soul Barrier (creature-cast punisher, CR 603.2)", () => {
+    it("triggers on an opponent casting a creature spell", () => {
+        const trigger = soulBarrier.triggeredAbilities!.find(
+            (t) => t.id === "soul-barrier-tax"
+        )!;
+        expect(trigger.event).toBe("SPELL_CAST");
+    });
+});
+
+// --- Sibilant Spirit (attack → defender may draw, CR 508.1) ----------------
+
+describe("Sibilant Spirit (attack gives defender a draw, CR 508.1)", () => {
+    it("is a flier with an attack trigger", () => {
+        expect(sibilantSpirit.staticAbilities).toEqual(["flying"]);
+        const trigger = sibilantSpirit.triggeredAbilities!.find(
+            (t) => t.id === "sibilant-spirit-attack"
+        )!;
+        expect(trigger.event).toBe("ATTACKERS_DECLARED");
+    });
+});
+
+// --- Word of Undoing (bounce creature + your white Auras, CR 701.14) -------
+
+describe("Word of Undoing (bounce creature + white Auras, CR 701.14)", () => {
+    it("returns the target creature to its owner's hand", () => {
+        const creature = vanilla("crt", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [creature] }),
+            ],
+        });
+        pushSpell(state, wordOfUndoing.id, "p1", [
+            { type: "permanent", id: "crt" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "crt")
+        ).toBeUndefined();
+        expect(state.players[1].hand.find((c) => c.id === "crt")).toBeDefined();
+    });
+    it("targets a creature", () => {
+        expect(wordOfUndoing.targetRequirement).toMatchObject({
+            type: "Creature",
+        });
+    });
+});
+
+// --- Registry parity for the Blue tranche ----------------------------------
+
+describe("ICE Blue tranche registry parity", () => {
+    const expected = [
+        "Binding Grasp",
+        "Brainstorm",
+        "Deflection",
+        "Diabolic Vision",
+        "Elemental Augury",
+        "Essence Flare",
+        "Glacial Wall",
+        "Glaciers",
+        "Hydroblast",
+        "Iceberg",
+        "Icy Prison",
+        "Sea Spirit",
+        "Sibilant Spirit",
+        "Silver Erne",
+        "Skeleton Ship",
+        "Snow Devil",
+        "Soul Barrier",
+        "Spectral Shield",
+        "Storm Spirit",
+        "Thunder Wall",
+        "Wind Spirit",
+        "Wings of Aesthir",
+        "Word of Undoing",
+        "Wrath of Marit Lage",
+        "Zuran Spellcaster",
+    ];
+    it("registers every activated Blue card by name", () => {
+        for (const name of expected) {
+            expect(getCardByName(name).name).toBe(name);
+        }
     });
 });

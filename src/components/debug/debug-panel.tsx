@@ -129,6 +129,74 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 5,
     },
     {
+        // ICE Blue free tranche (#631, PRD #628). Exercises the Blue ICE
+        // staples end to end:
+        //   - Zuran Spellcaster ({T}: 1 damage any target) and Storm Spirit
+        //     ({T}: 2 damage to a creature) ping the opponent's board.
+        //   - Skeleton Ship ({T}: -1/-1 counter) shrinks a creature.
+        //   - Iceberg banks colourless mana as ice counters.
+        //   - Wings of Aesthir (Aura: +1/+0, flying, first strike) suits up a
+        //     creature; Spectral Shield (+0/+2, can't be targeted by spells)
+        //     protects one.
+        //   - Hydroblast ({U}) and Brainstorm ({U}) round out the spell suite.
+        label: "ICE: Blue free tranche — Zuran Spellcaster / Skeleton Ship / Iceberg / Wings of Aesthir (#631)",
+        cards: [
+            {
+                name: "Brainstorm",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Hydroblast",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Zuran Spellcaster",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Storm Spirit",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Skeleton Ship",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Iceberg",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Wings of Aesthir",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Spectral Shield",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Silver Erne",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
+    {
         // Word of Command — controlled cast, TARGETED spell branch (#578, PRD
         // #575, ADR 0037, CR 601.2c). The classic line: choose the opponent's
         // Lightning Bolt and aim it back at them.
