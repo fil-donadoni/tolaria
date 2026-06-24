@@ -97,6 +97,47 @@ describe("DashboardPlayBox join format (issue #397)", () => {
     });
 });
 
+describe("DashboardPlayBox featured-art hero splash (PRD #589, issue #600)", () => {
+    const REAL_CARD_ID = "d05b92bd-797e-413f-a8b0-32e0937a1ee0";
+
+    function renderWith(selectedDeck: LobbyDeck | null) {
+        return render(
+            <DashboardPlayBox
+                selectedDeck={selectedDeck}
+                openGames={[]}
+                difficulty="medium"
+                onDifficultyChange={vi.fn()}
+                matchFormat={1}
+                onMatchFormatChange={vi.fn()}
+                decks={selectedDeck ? [selectedDeck] : []}
+                aiDeckId={null}
+                onAiDeckChange={vi.fn()}
+                onCreateSolo={vi.fn()}
+                onCreateVsAi={vi.fn()}
+                onCreateMultiplayer={vi.fn()}
+                onJoin={vi.fn()}
+                onChangeDeck={vi.fn()}
+            />
+        );
+    }
+
+    it("renders the selected deck's Featured Card art in the hero splash", () => {
+        const { container } = renderWith({
+            ...DECK,
+            featuredCardId: REAL_CARD_ID,
+        });
+        const img = container.querySelector("img[src*='art_crop']");
+        expect(img).not.toBeNull();
+        expect(img!.getAttribute("src")).toContain(REAL_CARD_ID);
+    });
+
+    it("renders the no-art fallback when no deck is selected", () => {
+        const { container, getByText } = renderWith(null);
+        expect(getByText("No deck selected")).toBeTruthy();
+        expect(container.querySelector("img[src*='art_crop']")).toBeNull();
+    });
+});
+
 describe("DashboardPlayBox deck legality gate (issue #512)", () => {
     const ILLEGAL: LobbyDeck = {
         ...DECK,
