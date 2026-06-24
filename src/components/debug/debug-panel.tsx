@@ -446,6 +446,50 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // FEM C5 Black — Thrulls & Order of the Ebon Hand (#572). Exercises the
+        // sac-self mana ability (Basal Thrull, ADR 0039) and the exile-as-cost
+        // extension (Soul Exchange, CR 117.9 / 601.2f / 406).
+        //
+        // Board: you control a Basal Thrull ({B}{B} 1/2 — "{T}, Sacrifice this:
+        // Add {B}{B}") and a fodder Thrull (Armor Thrull) to feed Soul
+        // Exchange's exile cost. Your graveyard holds a Grizzly Bears to
+        // reanimate. You hold Soul Exchange and Hymn to Tourach; two Swamps pay
+        // the black mana. Golden path:
+        //   1. Activate Basal Thrull's mana ability — it is SACRIFICED (not
+        //      tapped) and adds {B}{B} (no stack — a mana ability).
+        //   2. Cast Soul Exchange targeting the Grizzly Bears in your graveyard;
+        //      pay the additional cost by EXILING a Thrull you control. The Bears
+        //      returns to the battlefield with a +2/+2 counter (the exiled
+        //      creature was a Thrull).
+        //   3. (Alternative) Cast Hymn to Tourach at the opponent — they discard
+        //      two cards at random.
+        // Edge: exile a NON-Thrull instead (the reanimated creature gets no
+        //   +2/+2 counter).
+        label: "FEM: Basal Thrull sac-mana + Soul Exchange reanimation (#572)",
+        cards: [
+            { name: "Basal Thrull", owner: "me" as const },
+            { name: "Armor Thrull", owner: "me" as const },
+            {
+                name: "Soul Exchange",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Hymn to Tourach",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Equinox — Aura grants the enchanted land a conditional counter (#498,
         // CR 303.4 attachment, 611.2 activated-grant, 701.5a counter, 701.7
         // destroy).

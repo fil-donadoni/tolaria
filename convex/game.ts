@@ -502,7 +502,11 @@ export function tapSourceIntoPayment(
 
     const manaColor = getBasicLandMana(card) ?? getActivatedManaColor(card);
     if (!manaColor) throw new Error("Card does not produce mana");
-    card.isTapped = true;
+    // ADR 0039 / CR 605.1a — a fixed-output "Sacrifice this" mana ability
+    // (Basal Thrull) sacrifices the source instead of tapping it. One-way: the
+    // sacrificed source is never in `tappedLandIds` as an untappable entry.
+    const isSacrifice = ability?.cost.sacrifice === true;
+    if (!isSacrifice) card.isTapped = true;
     // CR 106.1 / 605.1a — board-conditional output (Urza trio) is computed from
     // the controller's battlefield now and snapshotted onto `chosenMana` so the
     // untap/refund path returns the exact amount that was added.
@@ -523,8 +527,18 @@ export function tapSourceIntoPayment(
             player.manaPool[color] = (player.manaPool[color] ?? 0) + count;
         }
     }
+    // CR 605.2 — emit "tapped for mana" before the sacrifice moves the card off
+    // the battlefield, so leaves-the-battlefield triggers see the mana added and
+    // the event carries the permanent's pre-sacrifice characteristics.
     emitPermanentTapped(state, card, true, added);
-    tappedLandIds.push(card.id);
+    // ADR 0039 / CR 605.1a — pay the "Sacrifice this" portion of a fixed-output
+    // sacrifice mana ability (Basal Thrull). One-way: the sacrificed source is
+    // never recorded in `tappedLandIds` (there is no untap/refund branch for it).
+    if (isSacrifice) {
+        moveCard(player, card.id, "battlefield", "graveyard");
+    } else {
+        tappedLandIds.push(card.id);
+    }
 }
 
 /** Reverses a single tap recorded in `tappedLandIds` — refunds the mana and
@@ -818,6 +832,9 @@ export function tryAutoCommitPendingActivation(
         activationSacrificeSnapshot = {
             cardInstanceId: sacrificed.id,
             mv: sacrificedManaValue(sacrificed),
+            ...(sacrificed.subtypes && sacrificed.subtypes.length > 0
+                ? { subtypes: [...sacrificed.subtypes] }
+                : {}),
         };
         removePermanentTo(state, sacrificed.id, "graveyard", "sacrifice");
     }
@@ -1026,9 +1043,12 @@ export function tryAutoCommitPendingCast(
     );
     commitLandsForCost(player, state.pendingCast.manaCost);
 
-    // Sacrifice the picked permanent (CR 117.9) and snapshot its mana value
-    // for the stack item — the resolve reads it via
-    // SpellContext.getAdditionalSacrificeMv.
+    // Pay the picked permanent's additional cost (CR 117.9): sacrifice it
+    // (`kind: "sacrifice"`) or exile it (`kind: "exile"`, Soul Exchange).
+    // Snapshot its mana value AND subtypes onto the stack item — the resolve
+    // reads them via SpellContext.getAdditionalSacrificeMv /
+    // getAdditionalCostSubtypes ("+2/+2 counter if the exiled creature was a
+    // Thrull").
     let additionalSacrificeSnapshot: StackItem["additionalSacrificeSnapshot"];
     if (ac?.pickedId) {
         const sacrificed = player.battlefield.find((c) => c.id === ac.pickedId);
@@ -1050,8 +1070,17 @@ export function tryAutoCommitPendingCast(
         additionalSacrificeSnapshot = {
             cardInstanceId: sacrificed.id,
             mv,
+            ...(sacrificed.subtypes && sacrificed.subtypes.length > 0
+                ? { subtypes: [...sacrificed.subtypes] }
+                : {}),
         };
-        removePermanentTo(state, sacrificed.id, "graveyard", "sacrifice");
+        if (ac.kind === "exile") {
+            // CR 406 — exiled as an additional cost; not a sacrifice, so no
+            // sacrifice cause is passed to leave-the-battlefield triggers.
+            removePermanentTo(state, sacrificed.id, "exile");
+        } else {
+            removePermanentTo(state, sacrificed.id, "graveyard", "sacrifice");
+        }
     }
 
     const spellCard = removeFromZone(
@@ -2245,6 +2274,32 @@ export function finalizeTargetSelection(
         : {};
     applyCostModifiers(manaCost, getCostModifiers(state, cardInHand, "spell"));
 
+    // CR 601.2c → 601.2f — targets have just been chosen; now the additional
+    // cost is paid. A spell with both a target and an additional cost (FEM Soul
+    // Exchange: target a graveyard creature, then exile a creature you control)
+    // must open the additional-cost picker BEFORE mana, even when the pool
+    // already covers the mana — otherwise the spell would commit without the
+    // extra cost being paid. The picker carries the targets along on
+    // pendingCast so the resolve still sees them (CR 117.9 / 601.2f).
+    const postTargetPicker = buildAdditionalCostPicker(
+        cardDef.additionalCosts,
+        player
+    );
+    if (postTargetPicker) {
+        state.pendingCast = {
+            playerId,
+            cardInstanceId,
+            manaCost,
+            tappedLandIds: [],
+            keepPriority,
+            chosenX,
+            ...(chosenModeId ? { chosenModeId } : {}),
+            additionalCost: postTargetPicker,
+        };
+        (state.pendingCast as Record<string, unknown>).targets = targets;
+        return;
+    }
+
     // CR 106.6: a spell may also spend restriction-permitting mana —
     // creature mana (Metamorphosis) or artifact mana (Mishra's Workshop) —
     // in addition to the fungible pool. Eligibility is decided from the
@@ -2294,6 +2349,33 @@ export function finalizeTargetSelection(
         // Targets ride along on pendingCast until payment completes.
         (state.pendingCast as Record<string, unknown>).targets = targets;
     }
+}
+
+/** Builds the additional-cost picker descriptor for a spell's
+ *  `additionalCosts` (CR 117.9 / 601.2f), validating up-front that the caster
+ *  controls at least one legal permanent (the cast is illegal otherwise). Both
+ *  the `sacrificeFilter` (sacrifice) and `exileFilter` (exile — Soul Exchange)
+ *  forms route through the same picker; the `kind` decides whether the picked
+ *  permanent is sacrificed or exiled at commit. Returns `undefined` when the
+ *  card has no additional cost. */
+function buildAdditionalCostPicker(
+    spec:
+        | { sacrificeFilter?: PermanentFilter; exileFilter?: PermanentFilter }
+        | undefined,
+    player: PlayerState
+): { kind: "sacrifice" | "exile"; filter: PermanentFilter } | undefined {
+    const filter = spec?.sacrificeFilter ?? spec?.exileFilter;
+    if (!filter) return undefined;
+    const kind: "sacrifice" | "exile" = spec?.exileFilter
+        ? "exile"
+        : "sacrifice";
+    const candidates = player.battlefield.filter((c) =>
+        matchesPermanentFilter(c, filter, { selfControllerId: player.id })
+    );
+    if (candidates.length === 0) {
+        throw new Error("No legal permanent to pay the additional cost");
+    }
+    return { kind, filter };
 }
 
 /** Step 1 of casting: announce the spell, enter payment phase (CR 601.2a). */
@@ -2494,18 +2576,11 @@ export const announceCast = mutation({
             getCostModifiers(state, cardInHand, "spell")
         );
 
-        const additionalCostSpec = cardDef.additionalCosts;
-        if (additionalCostSpec?.sacrificeFilter) {
-            // CR 117.9: the cast is illegal if the player can't pay the
-            // additional cost. Validate up-front before entering pendingCast.
-            const candidates = player.battlefield.filter((c) =>
-                matchesPermanentFilter(c, additionalCostSpec.sacrificeFilter)
-            );
-            if (candidates.length === 0) {
-                throw new Error(
-                    "No legal permanent to pay the additional cost"
-                );
-            }
+        const additionalCostPicker = buildAdditionalCostPicker(
+            cardDef.additionalCosts,
+            player
+        );
+        if (additionalCostPicker) {
             // Open pendingCast in additional-cost picker mode. Commit is
             // gated on the pickedId being set, regardless of mana coverage.
             state.pendingCast = {
@@ -2518,10 +2593,7 @@ export const announceCast = mutation({
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
-                additionalCost: {
-                    kind: "sacrifice",
-                    filter: additionalCostSpec.sacrificeFilter,
-                },
+                additionalCost: additionalCostPicker,
             };
 
             await saveGameState(
@@ -2679,7 +2751,11 @@ export const tapForPayment = mutation({
                 getBasicLandMana(card) ?? getActivatedManaColor(card);
             if (!manaColor) throw new Error("Card does not produce mana");
 
-            card.isTapped = true;
+            // ADR 0039 / CR 605.1a — a fixed-output "Sacrifice this" mana
+            // ability (Basal Thrull) sacrifices the source instead of tapping
+            // it. One-way: it is never pushed as an untappable tappedLand entry.
+            const isSacrifice = ability?.cost.sacrifice === true;
+            if (!isSacrifice) card.isTapped = true;
             // CR 106.1 / 605.1a — board-conditional output (Urza trio) computed
             // from the controller's battlefield and snapshotted onto
             // `chosenMana` so untap refunds the exact amount added.
@@ -2693,8 +2769,9 @@ export const tapForPayment = mutation({
                 [manaColor]: amount,
             } as ManaCost);
             if (
-                getDynamicManaProduced(card, player.battlefield) ||
-                added[manaColor] === undefined
+                !isSacrifice &&
+                (getDynamicManaProduced(card, player.battlefield) ||
+                    added[manaColor] === undefined)
             ) {
                 card.chosenMana = added;
             }
@@ -2705,7 +2782,11 @@ export const tapForPayment = mutation({
                 }
             }
             emitPermanentTapped(state, card, true, added);
-            state.pendingCast.tappedLandIds.push(card.id);
+            if (isSacrifice) {
+                moveCard(player, card.id, "battlefield", "graveyard");
+            } else {
+                state.pendingCast.tappedLandIds.push(card.id);
+            }
         }
 
         // Check if cost is now covered → auto-commit
@@ -2826,7 +2907,11 @@ export const selectAdditionalCost = mutation({
         if (!candidate) {
             throw new Error("Selected permanent not on your battlefield");
         }
-        if (!matchesPermanentFilter(candidate, ac.filter)) {
+        if (
+            !matchesPermanentFilter(candidate, ac.filter, {
+                selfControllerId: args.playerId,
+            })
+        ) {
             throw new Error(
                 "Selected permanent does not match the additional cost filter"
             );
@@ -5699,8 +5784,14 @@ export const tapUntap = mutation({
                 card.isTapped = false;
             }
         } else {
-            // Fixed mana ability (lands, Mox, Sol Ring)
-            card.isTapped = !card.isTapped;
+            // Fixed mana ability (lands, Mox, Sol Ring). CR 605.1a — a
+            // fixed-output mana ability whose cost includes "Sacrifice this"
+            // (ADR 0039, Basal Thrull "{T}, Sacrifice this: Add {B}{B}") is a
+            // one-way activation: `isSacrifice && wasTapped` was already
+            // rejected above, so here `wasTapped` is always false. We keep the
+            // permanent on the battlefield only long enough to read its mana
+            // output, then move it to the graveyard instead of tapping it.
+            if (!isSacrifice) card.isTapped = !card.isTapped;
             const manaColor =
                 getBasicLandMana(card) ?? getActivatedManaColor(card);
             if (manaColor) {
@@ -5821,6 +5912,14 @@ export const tapUntap = mutation({
                     if (isDynamic || card.chosenMana)
                         card.chosenMana = undefined;
                 }
+            }
+            // CR 605.1a / ADR 0039 — pay the "Sacrifice this" portion of a
+            // fixed-output sacrifice mana ability (Basal Thrull). Done after
+            // the mana is produced and the PERMANENT_TAPPED event is emitted
+            // (above), so leaves-the-battlefield triggers see the mana already
+            // added. One-way: there is no untap branch for a sacrificed source.
+            if (isSacrifice && !wasTapped) {
+                moveCard(player, card.id, "battlefield", "graveyard");
             }
         }
 

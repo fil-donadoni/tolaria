@@ -797,10 +797,16 @@ export type StackItem = CardInstanceState & {
      *  resolution, dispatch lookups the matching entry in
      *  `card.modes` and runs `mode.resolve` instead of `card.resolve`. */
     chosenModeId?: string;
-    /** Snapshot of the permanent sacrificed as an additional cost at
+    /** Snapshot of the permanent sacrificed OR exiled as an additional cost at
      *  announcement (CR 117.9 / 601.2f). Captured at commit and read at
-     *  resolve via `SpellContext.getAdditionalSacrificeMv`. */
-    additionalSacrificeSnapshot?: { cardInstanceId: string; mv: number };
+     *  resolve via `SpellContext.getAdditionalSacrificeMv` (mana value) and
+     *  `SpellContext.getAdditionalCostSubtypes` (subtypes — e.g. Soul
+     *  Exchange's "if the exiled creature was a Thrull"). */
+    additionalSacrificeSnapshot?: {
+        cardInstanceId: string;
+        mv: number;
+        subtypes?: string[];
+    };
     /** If set, this stack item is an activated ability (not a spell). Source permanent stays on battlefield. */
     abilityId?: string;
     /** When the activated ability was GRANTED to the source by another card
@@ -920,13 +926,14 @@ export type PendingCast = {
      *  the spell's resolution choices also route to the acting player. */
     actingPlayerId?: string;
     /** In-progress additional cost picker (CR 117.9 / 601.2f). Set when the
-     *  card has `additionalCosts.sacrificeFilter`. `pickedId` is undefined
-     *  until the player calls `selectAdditionalCost`; commit is blocked
-     *  while it is undefined regardless of mana coverage. On commit the
-     *  picked permanent is sacrificed and its mana value is snapshotted on
-     *  the resulting stack item. */
+     *  card has `additionalCosts.sacrificeFilter` (`kind: "sacrifice"`) or
+     *  `additionalCosts.exileFilter` (`kind: "exile"`, FEM Soul Exchange).
+     *  `pickedId` is undefined until the player calls `selectAdditionalCost`;
+     *  commit is blocked while it is undefined regardless of mana coverage. On
+     *  commit the picked permanent is sacrificed/exiled and its mana value +
+     *  subtypes are snapshotted on the resulting stack item. */
     additionalCost?: {
-        kind: "sacrifice";
+        kind: "sacrifice" | "exile";
         filter: PermanentFilter;
         pickedId?: string;
     };
@@ -5259,6 +5266,9 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         // Players / graveyard-card / synthetic targets return 0.
         getAdditionalSacrificeMv(): number | undefined {
             return item.additionalSacrificeSnapshot?.mv;
+        },
+        getAdditionalCostSubtypes(): string[] | undefined {
+            return item.additionalSacrificeSnapshot?.subtypes;
         },
         getManaValue(target: TargetSelection): number {
             if (target.type === "permanent") {

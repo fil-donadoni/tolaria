@@ -283,6 +283,13 @@ const COUNTER_PT_CONTRIBUTION: Record<string, PTBuff> = {
     // creature. Each contributes -2 toughness, 0 power; they ride the same
     // counter→P/T pipeline as the built-in -1/-1 family.
     "-0/-2": { power: 0, toughness: -2 },
+    // CR 122.1c — FEM C5 black introduces the ±2 counter family: Armor Thrull's
+    // "+1/+2", Soul Exchange's "+2/+2" (on a reanimated Thrull), and Ebon
+    // Praetor's "-2/-2" (upkeep) / "+1/+0" (sacrificed-Thrull bonus, already
+    // above). Each rides the same counter→P/T pipeline.
+    "+1/+2": { power: 1, toughness: 2 },
+    "+2/+2": { power: 2, toughness: 2 },
+    "-2/-2": { power: -2, toughness: -2 },
 };
 
 /** Sum of P/T contributions from counters on `target` (layer 7d). Reads from
