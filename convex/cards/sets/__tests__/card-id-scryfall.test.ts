@@ -21,6 +21,7 @@ import type { CardDefinition } from "../../types";
 import * as lea from "../lea";
 import * as arn from "../arn";
 import * as atq from "../atq";
+import * as ice from "../ice";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const jsonDir = join(here, "../../../../data/json");
@@ -60,6 +61,7 @@ const GUARDED_SETS: { code: string; mod: Record<string, unknown> }[] = [
     { code: "lea", mod: lea },
     { code: "arn", mod: arn },
     { code: "atq", mod: atq },
+    { code: "ice", mod: ice },
 ];
 
 describe("card id == identifiers.scryfallId from set MTGJSON", () => {
