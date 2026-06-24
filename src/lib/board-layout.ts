@@ -31,6 +31,29 @@ export type Placement = {
 export const CARD_WIDTH = 120;
 export const CARD_HEIGHT = Math.round((CARD_WIDTH * 7) / 5);
 
+/** Permanent-stack fan reveal (PRD #621, issue #623). A fanned permanent stack
+ *  overlaps its members horizontally: member `i` sits `i * offset` px to the
+ *  right of the lead. The offset is the resting reveal, clamped so the whole fan
+ *  never exceeds {@link STACK_FAN_MAX_WIDTH}. */
+export const STACK_FAN_REVEAL = 34;
+/** Hard cap on a fanned permanent stack's total visual width (px). */
+export const STACK_FAN_MAX_WIDTH = 360;
+
+/** Resting horizontal reveal offset (px) between consecutive members of a fanned
+ *  permanent stack of `n` members (PRD #621 "Size-driven presentation",
+ *  issue #623). Pure: `min(STACK_FAN_REVEAL, (maxWidth − cardWidth) / (n − 1))`
+ *  so the fan stays under {@link STACK_FAN_MAX_WIDTH}. Returns 0 for a single
+ *  member (a singleton lays out as one card, no fan). */
+export function stackFanOffset(
+    n: number,
+    cardWidth: number = CARD_WIDTH,
+    maxWidth: number = STACK_FAN_MAX_WIDTH
+): number {
+    if (n <= 1) return 0;
+    const clamped = (maxWidth - cardWidth) / (n - 1);
+    return Math.min(STACK_FAN_REVEAL, clamped);
+}
+
 /** Default gap between full-size cards before any overlap kicks in. */
 const DEFAULT_GAP = 12;
 
