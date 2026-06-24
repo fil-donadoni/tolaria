@@ -6646,6 +6646,53 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // FEM C6 — Artifacts & Lands (#573, PRD #566). Exercises the two new
+        // capabilities of the cluster in one board:
+        //   • CAPABILITY B — control-change-on-tap (Rainbow Vale, ADR 0040 /
+        //     CR 613.1b): tap it for any colour, then at the next end step it
+        //     hands itself to the opponent. Tap it again next turn to get it
+        //     back — it ping-pongs.
+        //   • CAPABILITY H — variable counter-removal → variable mana
+        //     (Bottomless Vault storage land, CR 106.1 / 122.6): seeded with
+        //     three storage counters. Tap removing N counters to add N {B}.
+        //     It enters tapped and may choose not to untap to keep banking.
+        // Also on board: Spirit Shield (REUSE I tapped-duration buff) with a
+        // Grizzly Bears to buff +0/+2 for as long as the Shield stays tapped.
+        //
+        // Golden path:
+        //   1. Tap Bottomless Vault choosing to remove 2 of its 3 storage
+        //      counters → +{B}{B}; one counter remains.
+        //   2. Tap Rainbow Vale for any colour. Pass to the end step — Rainbow
+        //      Vale moves to the opponent's control.
+        //   3. {2},{T} Spirit Shield targeting Grizzly Bears → it is 2/4 while
+        //      the Shield is tapped; choose not to untap to hold the buff.
+        label: "FEM C6: Rainbow Vale control-change + charged storage land + tap-lock Spirit Shield (#573)",
+        cards: [
+            {
+                name: "Rainbow Vale",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Bottomless Vault",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                tapped: true,
+                counters: { storage: 3 },
+            },
+            {
+                name: "Spirit Shield",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            { name: "Grizzly Bears", owner: "me" as const },
+            // Lands to pay Spirit Shield's {2} activation cost.
+            { name: "Plains", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

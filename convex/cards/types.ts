@@ -407,6 +407,24 @@ export interface ActivatedAbility {
     animatesSelf?: boolean;
     /** Effect for mana abilities (useStack: false). */
     effect?: (ctx: ActivatedAbilityContext) => void;
+    /** Rider on a TAP mana ability (CR 605.1a, `useStack: false`): when the
+     *  source is tapped for mana, the engine also arms a delayed triggered
+     *  ability (CR 603.7a) from the source card's `delayedTriggers[]`, with the
+     *  activating player as the trigger's controller (CR 113.7) and the source
+     *  instance id placed in the payload under `sourceId`. This is the
+     *  declarative seam for "{T}: Add one mana of any color. <X> at the
+     *  beginning of the next end step." — the mana-ability `effect` context only
+     *  exposes `addMana`, so a tap-mana side effect that needs the stack-grade
+     *  delayed-trigger machinery rides this field instead (ADR 0040). Used by
+     *  Rainbow Vale (control-change-on-tap). No-op on untap. */
+    armsDelayedTriggerOnTap?: {
+        triggerId: string;
+        timing:
+            | "next-end-step"
+            | "next-end-of-combat"
+            | "next-draw-step"
+            | "next-main-phase";
+    };
     /** Mana abilities don't use the stack — they resolve immediately (CR 605.3a). */
     useStack: boolean;
     /** Effect for stack abilities (useStack: true) — called with full SpellContext on resolution. */
