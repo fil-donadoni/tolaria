@@ -1,8 +1,10 @@
 // Play-area layout rule: the AI-decision trace box is a LEFT-side dev overlay
 // that floats over the left edge of the play area. It must be left-anchored
 // (`left-*`) and must NOT reserve layout width or center over the play area —
-// the left side never affects centering. (The Debug panel floats on the right
-// edge with `right-4`; both are dev overlays that don't reserve width.)
+// the left side never affects centering. (The Debug panel floats in the
+// bottom-left corner with `bottom-4 left-3`; both are dev overlays that don't
+// reserve width. The AI box sits at left-center, the Debug panel at
+// bottom-left, so they never overlap.)
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 
