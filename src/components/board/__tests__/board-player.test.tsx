@@ -266,6 +266,23 @@ describe("board player life totals (#280)", () => {
         ).toBeTruthy();
     });
 
+    it("centers the nameplate on the play area via the shared utility", () => {
+        // Play-area layout rule: the nameplate wrapper centers on the play area
+        // (viewport minus the right strip) through the single documented
+        // `.play-area-center-x` utility (index.css), combined with the
+        // `-translate-x-1/2` half-shift — NOT an inline `left-[calc(...)]`.
+        const { container } = renderSpatial(
+            makePlayer("p1"),
+            { playerId: "p2" },
+            "top"
+        );
+        const wrapper = container.querySelector<HTMLElement>(
+            ".play-area-center-x"
+        );
+        expect(wrapper).toBeTruthy();
+        expect(wrapper!.className).toContain("-translate-x-1/2");
+    });
+
     it("shows a priority ring on the player who holds priority", () => {
         // p1 has priority (default ctx), viewer is p2. The priority ring is a
         // token-based box-shadow (teal `secondary-accent` for both seats),

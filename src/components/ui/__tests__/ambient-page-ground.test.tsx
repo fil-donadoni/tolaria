@@ -7,6 +7,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import AmbientPageGround from "../ambient-page-ground";
+import { AMBIENT_BG_IMAGES } from "../ambient-backgrounds";
 
 afterEach(cleanup);
 
@@ -27,7 +28,9 @@ describe("AmbientPageGround (issue #596)", () => {
     it("paints a faint, decorative fantasy art frame from the lobby pool", () => {
         const { container } = render(<AmbientPageGround />);
         const img = container.querySelector("img")!;
-        expect(img.getAttribute("src")).toMatch(/^\/img\/lobby-bg\/\d+\.webp$/);
+        // The component picks one frame at random from the shared art pool
+        // (local fantasy frames + hand-picked Scryfall art-crop URLs).
+        expect(AMBIENT_BG_IMAGES).toContain(img.getAttribute("src"));
         // empty alt + aria-hidden ⇒ decorative, not announced
         expect(img.getAttribute("alt")).toBe("");
         expect(img.getAttribute("aria-hidden")).toBe("true");

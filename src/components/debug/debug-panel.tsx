@@ -6830,9 +6830,9 @@ export default function DebugPanel({
     return (
         <div
             ref={panelRef}
-            className="fixed top-1/2 right-4 -translate-y-1/2 z-100 font-mono text-xs"
+            className="fixed bottom-4 left-3 z-100 font-mono text-xs"
         >
-            <div className="rounded-lg border border-white/10 bg-black/90 shadow-2xl backdrop-blur">
+            <div className="flex max-h-[calc(100vh-2rem)] flex-col overflow-y-auto rounded-lg border border-white/10 bg-black/90 shadow-2xl backdrop-blur">
                 <button
                     onClick={() => setIsOpen(!isOpen)}
                     className="flex w-full items-center justify-between px-3 py-2 text-white/70 hover:text-white"

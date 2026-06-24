@@ -75,3 +75,17 @@ describe("GameStack resolution order (slice #255)", () => {
         expect(order).toEqual(["top", "middle", "bottom"]);
     });
 });
+
+describe("GameStack play-area anchor", () => {
+    it("anchors to the right edge of the play area (left of the reserved strip)", () => {
+        // Play-area layout rule: the floating stack panel anchors its right
+        // edge to `--right-piles-w` (the reserved right strip) rather than the
+        // viewport, so it sits just BEFORE the piles/preview column. Portrait ⇒
+        // var resolves to 0px ⇒ flush to the edge.
+        const { container } = renderStack([makeStackItem("only")]);
+        const panel = container.firstElementChild as HTMLElement;
+        expect(panel.style.right).toBe("var(--right-piles-w)");
+        // No hard-coded viewport right inset remains.
+        expect(panel.className).not.toContain("right-4");
+    });
+});
