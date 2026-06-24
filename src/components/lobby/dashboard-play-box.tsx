@@ -1,16 +1,11 @@
 import type { Doc, Id } from "@convex/_generated/dataModel";
-import type { Difficulty } from "@convex/gre";
 import { FORMAT_RULES } from "@convex/formats";
 import type { LobbyDeck } from "~/lib/deckTypes";
-import type { MatchFormat } from "~/lib/session";
 import { cn } from "~/lib/utils";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import ActionButton from "~/components/board/action-button";
 import ManaSymbol from "../cards/mana-symbol";
 import FeaturedDeckArt from "./featured-deck-art";
-import DifficultySelector from "./difficulty-selector";
-import MatchFormatSelector from "./match-format-selector";
-import AiDeckSelector from "./ai-deck-selector";
 
 /** An open (waiting) game enriched with its owning Match's format (PRD #387 /
  *  #397). The joiner inherits the creator's `bestOf`, so the format is shown in
@@ -20,18 +15,10 @@ export type OpenGame = Doc<"games"> & { bestOf: 1 | 3 };
 interface DashboardPlayBoxProps {
     selectedDeck: LobbyDeck | null;
     openGames: Array<OpenGame> | undefined;
-    difficulty: Difficulty;
-    onDifficultyChange: (difficulty: Difficulty) => void;
-    /** Bo1/Bo3 selection (PRD #387). Flows into Match creation as `bestOf`. */
-    matchFormat: MatchFormat;
-    onMatchFormatChange: (format: MatchFormat) => void;
-    /** All decks selectable as the AI opponent's deck (user + preset). */
-    decks: LobbyDeck[];
-    /** Selected AI opponent deck presetId, or null to mirror the player. */
-    aiDeckId: string | null;
-    onAiDeckChange: (presetId: string | null) => void;
-    onCreateSolo: () => void;
+    /** Opens the two-step vs-AI setup dialog (difficulty + match format + AI
+     *  opponent deck). The match only starts once the dialog is confirmed. */
     onCreateVsAi: () => void;
+    onCreateSolo: () => void;
     onCreateMultiplayer: () => void;
     onJoin: (gameId: Id<"games">) => void;
     onChangeDeck: () => void;
@@ -44,15 +31,8 @@ interface DashboardPlayBoxProps {
 export default function DashboardPlayBox({
     selectedDeck,
     openGames,
-    difficulty,
-    onDifficultyChange,
-    matchFormat,
-    onMatchFormatChange,
-    decks,
-    aiDeckId,
-    onAiDeckChange,
-    onCreateSolo,
     onCreateVsAi,
+    onCreateSolo,
     onCreateMultiplayer,
     onJoin,
     onChangeDeck,
@@ -151,25 +131,6 @@ export default function DashboardPlayBox({
                         </ul>
                     </div>
                 )}
-
-                <div className="flex flex-wrap items-end justify-start gap-4">
-                    <MatchFormatSelector
-                        value={matchFormat}
-                        onChange={onMatchFormatChange}
-                        disabled={busy}
-                    />
-                    <DifficultySelector
-                        value={difficulty}
-                        onChange={onDifficultyChange}
-                        disabled={busy}
-                    />
-                    <AiDeckSelector
-                        decks={decks}
-                        value={aiDeckId}
-                        onChange={onAiDeckChange}
-                        disabled={busy}
-                    />
-                </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <ActionButton
