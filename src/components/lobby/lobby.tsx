@@ -39,6 +39,7 @@ import LobbyFooter from "~/components/legal/lobby-footer";
 import ActionButton from "~/components/board/action-button";
 import DashboardTopBar from "./dashboard-top-bar";
 import DashboardPlayBox from "./dashboard-play-box";
+import VsAiSetupDialog from "./vs-ai-setup-dialog";
 import DeckList from "./deck-list";
 import DeckFormatFilter from "./deck-format-filter";
 import LobbyBackground from "./lobby-background";
@@ -51,6 +52,10 @@ function Lobby() {
         getStoredDeckPresetId()
     );
     const [deleteTarget, setDeleteTarget] = useState<LobbyDeck | null>(null);
+    // Two-step "Play vs AI" flow: the Play panel button opens this dialog (the
+    // second step) where difficulty / match format / AI deck are chosen; the
+    // match starts only on Confirm.
+    const [vsAiOpen, setVsAiOpen] = useState(false);
     const [difficulty, setDifficulty] = useState<Difficulty>(() =>
         getStoredDifficulty()
     );
@@ -185,6 +190,9 @@ function Lobby() {
             return { gameId: id, playerId: `${user._id}-p1` };
         });
 
+    // Confirm step of the vs-AI dialog. `enterGame` navigates away on success;
+    // on failure the dialog stays open so the user can retry or cancel after
+    // reading the surfaced error.
     const handleCreateVsAi = () =>
         enterGame(async ({ user, deck }) => {
             const id = await createSoloGame({
@@ -385,15 +393,8 @@ function Lobby() {
                 <DashboardPlayBox
                     selectedDeck={selectedDeck}
                     openGames={openGames}
-                    difficulty={difficulty}
-                    onDifficultyChange={handleDifficultyChange}
-                    matchFormat={matchFormat}
-                    onMatchFormatChange={handleMatchFormatChange}
-                    decks={allDecks}
-                    aiDeckId={aiDeckId}
-                    onAiDeckChange={handleAiDeckChange}
+                    onCreateVsAi={() => setVsAiOpen(true)}
                     onCreateSolo={handleCreateSolo}
-                    onCreateVsAi={handleCreateVsAi}
                     onCreateMultiplayer={handleCreate}
                     onJoin={handleJoin}
                     onChangeDeck={handleChangeDeck}
@@ -472,6 +473,20 @@ function Lobby() {
 
                 <LobbyFooter />
             </div>
+
+            <VsAiSetupDialog
+                open={vsAiOpen}
+                onOpenChange={setVsAiOpen}
+                difficulty={difficulty}
+                onDifficultyChange={handleDifficultyChange}
+                matchFormat={matchFormat}
+                onMatchFormatChange={handleMatchFormatChange}
+                decks={allDecks}
+                aiDeckId={aiDeckId}
+                onAiDeckChange={handleAiDeckChange}
+                onConfirm={handleCreateVsAi}
+                pending={isBusy}
+            />
 
             <GameDialog
                 open={deleteTarget !== null}

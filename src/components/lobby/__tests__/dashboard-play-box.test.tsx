@@ -45,13 +45,6 @@ function renderBox(openGames: OpenGame[], onJoin = vi.fn()) {
             <DashboardPlayBox
                 selectedDeck={DECK}
                 openGames={openGames}
-                difficulty="medium"
-                onDifficultyChange={vi.fn()}
-                matchFormat={1}
-                onMatchFormatChange={vi.fn()}
-                decks={[DECK]}
-                aiDeckId={null}
-                onAiDeckChange={vi.fn()}
                 onCreateSolo={vi.fn()}
                 onCreateVsAi={vi.fn()}
                 onCreateMultiplayer={vi.fn()}
@@ -105,13 +98,6 @@ describe("DashboardPlayBox featured-art hero splash (PRD #589, issue #600)", () 
             <DashboardPlayBox
                 selectedDeck={selectedDeck}
                 openGames={[]}
-                difficulty="medium"
-                onDifficultyChange={vi.fn()}
-                matchFormat={1}
-                onMatchFormatChange={vi.fn()}
-                decks={selectedDeck ? [selectedDeck] : []}
-                aiDeckId={null}
-                onAiDeckChange={vi.fn()}
                 onCreateSolo={vi.fn()}
                 onCreateVsAi={vi.fn()}
                 onCreateMultiplayer={vi.fn()}
@@ -162,13 +148,6 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
                 <DashboardPlayBox
                     selectedDeck={selectedDeck}
                     openGames={[]}
-                    difficulty="medium"
-                    onDifficultyChange={vi.fn()}
-                    matchFormat={1}
-                    onMatchFormatChange={vi.fn()}
-                    decks={selectedDeck ? [selectedDeck] : []}
-                    aiDeckId={null}
-                    onAiDeckChange={vi.fn()}
                     onCreateSolo={handlers.onCreateSolo}
                     onCreateVsAi={handlers.onCreateVsAi}
                     onCreateMultiplayer={handlers.onCreateMultiplayer}
@@ -199,5 +178,38 @@ describe("DashboardPlayBox deck legality gate (issue #512)", () => {
             "button"
         ) as HTMLButtonElement;
         expect(btn.disabled).toBe(false);
+    });
+});
+
+describe("DashboardPlayBox vs-AI dialog handoff (two-step flow)", () => {
+    function renderBox(onCreateVsAi = vi.fn()) {
+        return {
+            onCreateVsAi,
+            ...render(
+                <DashboardPlayBox
+                    selectedDeck={DECK}
+                    openGames={[]}
+                    onCreateSolo={vi.fn()}
+                    onCreateVsAi={onCreateVsAi}
+                    onCreateMultiplayer={vi.fn()}
+                    onJoin={vi.fn()}
+                    onChangeDeck={vi.fn()}
+                />
+            ),
+        };
+    }
+
+    it("no longer renders the inline difficulty / format / AI-deck selectors", () => {
+        const { queryByLabelText } = renderBox();
+        expect(queryByLabelText("AI Difficulty")).toBeNull();
+        expect(queryByLabelText("Match Format")).toBeNull();
+        expect(queryByLabelText("AI Opponent Deck")).toBeNull();
+    });
+
+    it("clicking 'Play vs AI' fires the open-dialog callback", () => {
+        const onCreateVsAi = vi.fn();
+        const { getByText } = renderBox(onCreateVsAi);
+        fireEvent.click(getByText("Play vs AI"));
+        expect(onCreateVsAi).toHaveBeenCalledTimes(1);
     });
 });
