@@ -6785,6 +6785,24 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // ICE walking skeleton (#629, PRD #628). Balduvian Bears — {1}{G} 2/2
+        // vanilla Bear — is the Ice Age tracer proving the set file, registry
+        // entry, pool availability and projection end to end. Board: you hold
+        // Balduvian Bears with two Forests to cast it. Golden path: cast it and
+        // watch the 2/2 Bear resolve onto the battlefield.
+        label: "ICE: Balduvian Bears — vanilla tracer (#629)",
+        cards: [
+            {
+                name: "Balduvian Bears",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Forest", owner: "me" as const, count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
