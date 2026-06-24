@@ -82,6 +82,53 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ICE White free tranche (#630, PRD #628). Exercises the White ICE
+        // staples end to end:
+        //   - Swords to Plowshares ({W}) exiles a creature, its controller
+        //     gains life equal to its power.
+        //   - Disenchant ({1}{W}) destroys a target artifact/enchantment.
+        //   - Blinking Spirit ({0}: bounce) dodges removal.
+        //   - Lost Order of Jarkeld's CDA P/T tracks the opponent's creature
+        //     count (it enters choosing the opponent automatically in a duel).
+        //   - Kjeldoran Skyknight (flying/first strike/banding) attacks.
+        label: "ICE: White free tranche — STP / Disenchant / Blinking Spirit / Lost Order (#630)",
+        cards: [
+            {
+                name: "Swords to Plowshares",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Disenchant",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Blinking Spirit",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Lost Order of Jarkeld",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Kjeldoran Skyknight",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 5,
+    },
+    {
         // Word of Command — controlled cast, TARGETED spell branch (#578, PRD
         // #575, ADR 0037, CR 601.2c). The classic line: choose the opponent's
         // Lightning Bolt and aim it back at them.

@@ -14,7 +14,9 @@
 // uncomments + completes it. Modern Scryfall oracle text is authoritative
 // (ADR 0004). Generic mana is encoded as `X: n` (e.g. {1}{G} → { X: 1, G: 1 }).
 
-import type { CardDefinition } from "../types";
+import type { CardDefinition, CardPrint, SpellContext } from "../types";
+import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../types";
+import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Active tracer
@@ -37,7 +39,28 @@ export const balduvianBears: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Stubs — uncommented by their owning colour batch / capability cluster (#628)
+// White free tranche (#630)
+//
+// The free-tranche White cards — expressible entirely with already-shipped
+// primitives — are activated below (intermixed with the remaining commented
+// stubs). Reprints already implemented in earlier sets (Death Ward, Disenchant,
+// Swords to Plowshares, the Circle of Protection cycle) are CardPrints onto
+// their existing definitions (ADR 0014); new-to-ICE White cards are full
+// CardDefinitions.
+//
+// DEFERRED (remain commented stubs, owned by a later cluster):
+//   • Cumulative upkeep — Cold Snap, Energy Storm (ADR 0042 cluster).
+//   • Restricted-mana CU support — Adarkar Unicorn (CU mana cluster).
+//   • Color/power-conditional block restrictions — Arctic Foxes, Hipparion, the
+//     five Scarabs (no TargetRequirement/static support yet).
+//   • "Draw a card at the beginning of the next turn's upkeep" delayed cantrips —
+//     Blessed Wine, Heal, Lightning Blow, Formation (no `next-upkeep` delayed
+//     timing yet).
+//   • Specialized interactions — Arenson's Aura, Battle Cry, Call to Arms,
+//     Caribou Range, Drought, Enduring Renewal, Fylgja, General Jarkeld, Justice,
+//     Kjeldoran Elite Guard / Guard, Kjeldoran Royal Guard, Prismatic Ward,
+//     Sacred Boon, Seraph (each needs a primitive not yet built; flagged for its
+//     capability cluster).
 // ─────────────────────────────────────────────────────────────────────────────
 
 // TODO(#628): implement.
@@ -73,16 +96,46 @@ export const balduvianBears: CardDefinition = {
 //     manaCost: { X: 2, W: 1 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const armorOfFaith: CardDefinition = {
-//     id: "fccbbc47-99c6-4ba9-95c2-992d5d2a67b2",
-//     name: "Armor of Faith",
-//     rarity: "common",
-//     oracleText: "Enchant creature\nEnchanted creature gets +1/+1.\n{W}: Enchanted creature gets +0/+1 until end of turn.",
-//     manaCost: { W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Armor of Faith — Aura: static +1/+1 (layer 7c, CR 613) plus a repeatable
+// {W}: +0/+1 until end of turn pump on the host (CR 611.1). Same shape as
+// LEA's Holy Armor.
+export const armorOfFaith: CardDefinition = {
+    id: "fccbbc47-99c6-4ba9-95c2-992d5d2a67b2",
+    name: "Armor of Faith",
+    rarity: "common",
+    oracleText:
+        "Enchant creature\nEnchanted creature gets +1/+1.\n{W}: Enchanted creature gets +0/+1 until end of turn.",
+    manaCost: { W: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: AURA_AFFECTS_HOST,
+            power: 1,
+            toughness: 1,
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "armor-of-faith-pump",
+            oracleText: "{W}: Enchanted creature gets +0/+1 until end of turn.",
+            cost: { mana: { W: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (!hostId) return;
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: hostId },
+                    0,
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const battleCry: CardDefinition = {
 //     id: "c558a8c4-035c-464e-9ff8-c188c1bb619e",
@@ -111,18 +164,33 @@ export const balduvianBears: CardDefinition = {
 //     manaCost: { X: 1, W: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
-// export const blinkingSpirit: CardDefinition = {
-//     id: "14fc0683-9cfa-4439-a533-8773e7747ec4",
-//     name: "Blinking Spirit",
-//     rarity: "rare",
-//     oracleText: "{0}: Return this creature to its owner's hand.",
-//     manaCost: { X: 3, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Spirit"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Blinking Spirit — {0}: Return this creature to its owner's hand (CR 701.14
+// move-to-hand). A repeatable bounce that dodges targeted removal.
+export const blinkingSpirit: CardDefinition = {
+    id: "14fc0683-9cfa-4439-a533-8773e7747ec4",
+    name: "Blinking Spirit",
+    rarity: "rare",
+    oracleText: "{0}: Return this creature to its owner's hand.",
+    manaCost: { X: 3, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Spirit"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "blinking-spirit-bounce",
+            oracleText: "{0}: Return this creature to its owner's hand.",
+            cost: { mana: { X: 0 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.returnToHand({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const blueScarab: CardDefinition = {
 //     id: "b423bb5a-eaac-4c1d-981a-1c635001fc5a",
@@ -153,50 +221,40 @@ export const balduvianBears: CardDefinition = {
 //     subtypes: ["Aura"],
 // };
 // TODO(#628): implement.
-// export const circleOfProtectionBlack: CardDefinition = {
-//     id: "d528045d-3b80-48fd-b606-c132da052685",
-//     name: "Circle of Protection: Black",
-//     rarity: "common",
-//     oracleText: "{1}: The next time a black source of your choice would deal damage to you this turn, prevent that damage.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Enchantment"],
-// };
-// TODO(#628): implement.
-// export const circleOfProtectionBlue: CardDefinition = {
-//     id: "e0d377ec-c43c-43b9-934a-91b4d11650ab",
-//     name: "Circle of Protection: Blue",
-//     rarity: "common",
-//     oracleText: "{1}: The next time a blue source of your choice would deal damage to you this turn, prevent that damage.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Enchantment"],
-// };
-// TODO(#628): implement.
-// export const circleOfProtectionGreen: CardDefinition = {
-//     id: "487dfb1f-b3ab-4daa-bbd9-c43dc91a5fba",
-//     name: "Circle of Protection: Green",
-//     rarity: "common",
-//     oracleText: "{1}: The next time a green source of your choice would deal damage to you this turn, prevent that damage.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Enchantment"],
-// };
-// TODO(#628): implement.
-// export const circleOfProtectionRed: CardDefinition = {
-//     id: "5790ce22-a94f-402e-bcc7-b98f71af9fe5",
-//     name: "Circle of Protection: Red",
-//     rarity: "common",
-//     oracleText: "{1}: The next time a red source of your choice would deal damage to you this turn, prevent that damage.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Enchantment"],
-// };
-// TODO(#628): implement.
-// export const circleOfProtectionWhite: CardDefinition = {
-//     id: "48bc4bb0-350c-424e-976e-b800915f7fb4",
-//     name: "Circle of Protection: White",
-//     rarity: "common",
-//     oracleText: "{1}: The next time a white source of your choice would deal damage to you this turn, prevent that damage.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Enchantment"],
-// };
+// Circle of Protection cycle — ICE reprints of the LEA/LEB Circles (CR 615
+// prevention). Mechanics live on the existing definitions; these are CardPrints
+// (ADR 0014). CoP: Black's home definition is the LEB original; the other four
+// are LEA.
+export const circleOfProtectionBlackIce: CardPrint = {
+    printId: "d528045d-3b80-48fd-b606-c132da052685",
+    definitionId: "fa47b4cd-8da4-4544-b011-ba92b7009203",
+    setCode: "ice",
+    rarity: "common",
+};
+export const circleOfProtectionBlueIce: CardPrint = {
+    printId: "e0d377ec-c43c-43b9-934a-91b4d11650ab",
+    definitionId: "848b1a7f-e8ba-40b5-92b7-af1e963a0319",
+    setCode: "ice",
+    rarity: "common",
+};
+export const circleOfProtectionGreenIce: CardPrint = {
+    printId: "487dfb1f-b3ab-4daa-bbd9-c43dc91a5fba",
+    definitionId: "1ae32d20-b438-4f43-b603-e8f706ecfb03",
+    setCode: "ice",
+    rarity: "common",
+};
+export const circleOfProtectionRedIce: CardPrint = {
+    printId: "5790ce22-a94f-402e-bcc7-b98f71af9fe5",
+    definitionId: "b3dd94c5-42f6-4148-be6e-2a3a4226cc0e",
+    setCode: "ice",
+    rarity: "common",
+};
+export const circleOfProtectionWhiteIce: CardPrint = {
+    printId: "48bc4bb0-350c-424e-976e-b800915f7fb4",
+    definitionId: "92df19c9-e127-42d9-8dd2-7fa5a7095428",
+    setCode: "ice",
+    rarity: "common",
+};
 // TODO(#628): implement.
 // export const coldSnap: CardDefinition = {
 //     id: "81b87a58-b20c-4f38-afa3-59d398195740",
@@ -206,34 +264,41 @@ export const balduvianBears: CardDefinition = {
 //     manaCost: { X: 2, W: 1 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const cooperation: CardDefinition = {
-//     id: "21a815ed-c8b4-4414-8b27-ea612e2977e2",
-//     name: "Cooperation",
-//     rarity: "common",
-//     oracleText: "Enchant creature\nEnchanted creature has banding. (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding a player controls are blocking or being blocked by a creature, that player divides that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
-//     manaCost: { X: 2, W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
-// TODO(#628): implement.
-// export const deathWard: CardDefinition = {
-//     id: "c7b21d29-050d-4704-a4c8-93e3b55086ac",
-//     name: "Death Ward",
-//     rarity: "common",
-//     oracleText: "Regenerate target creature.",
-//     manaCost: { W: 1 },
-//     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const disenchant: CardDefinition = {
-//     id: "b6085d0c-ab2b-445d-bf9d-0fa0a19183a2",
-//     name: "Disenchant",
-//     rarity: "common",
-//     oracleText: "Destroy target artifact or enchantment.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Instant"],
-// };
+// Cooperation — Aura that grants the enchanted creature banding (CR 702.22,
+// 611 keyword-grant on the host). Same shape as LEA's Flight.
+export const cooperation: CardDefinition = {
+    id: "21a815ed-c8b4-4414-8b27-ea612e2977e2",
+    name: "Cooperation",
+    rarity: "common",
+    oracleText: "Enchant creature\nEnchanted creature has banding.",
+    manaCost: { X: 2, W: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "banding",
+        },
+    ],
+};
+// Death Ward — ICE reprint of the LEA instant (CR 701.15 regenerate). The
+// mechanics live on the LEA definition; this is a CardPrint onto it (ADR 0014).
+export const deathWardIce: CardPrint = {
+    printId: "c7b21d29-050d-4704-a4c8-93e3b55086ac",
+    definitionId: "fa5466cc-aa57-4a7f-8b21-d92b2fe02e13",
+    setCode: "ice",
+    rarity: "common",
+};
+// Disenchant — ICE reprint of the LEA instant (destroy target artifact or
+// enchantment). CardPrint onto the LEA definition (ADR 0014).
+export const disenchantIce: CardPrint = {
+    printId: "b6085d0c-ab2b-445d-bf9d-0fa0a19183a2",
+    definitionId: "2722d7e2-61c6-4934-9c21-875ee78fd06c",
+    setCode: "ice",
+    rarity: "common",
+};
 // TODO(#628): implement.
 // export const drought: CardDefinition = {
 //     id: "97736696-3de3-416d-94cf-4fac792f23f0",
@@ -243,18 +308,42 @@ export const balduvianBears: CardDefinition = {
 //     manaCost: { X: 2, W: 2 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const elvishHealer: CardDefinition = {
-//     id: "00bd8485-d63a-4077-a3d1-4d0f2f4d8035",
-//     name: "Elvish Healer",
-//     rarity: "common",
-//     oracleText: "{T}: Prevent the next 1 damage that would be dealt to any target this turn. If it's a green creature, prevent the next 2 damage instead.",
-//     manaCost: { X: 2, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Elf", "Cleric"],
-//     power: 1,
-//     toughness: 2,
-// };
+// Elvish Healer — {T}: prevent the next 1 damage to any target this turn; if
+// that target is a green creature, prevent 2 instead (CR 615 prevention). The
+// amount is target-dependent, resolved from the chosen target's color/type.
+export const elvishHealer: CardDefinition = {
+    id: "00bd8485-d63a-4077-a3d1-4d0f2f4d8035",
+    name: "Elvish Healer",
+    rarity: "common",
+    oracleText:
+        "{T}: Prevent the next 1 damage that would be dealt to any target this turn. If it's a green creature, prevent the next 2 damage instead.",
+    manaCost: { X: 2, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Elf", "Cleric"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "elvish-healer-prevent",
+            oracleText:
+                "{T}: Prevent the next 1 damage that would be dealt to any target this turn. If it's a green creature, prevent the next 2 damage instead.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (!t) return;
+                let amount = 1;
+                if (t.type === "permanent" && ctx.getColors(t).includes("G")) {
+                    amount = 2;
+                }
+                ctx.preventNextNDamageToTarget(t, amount, {
+                    phase: "end-of-turn",
+                });
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const enduringRenewal: CardDefinition = {
 //     id: "be77edac-9a8b-4b7f-a859-27df76b10aa6",
@@ -315,15 +404,41 @@ export const balduvianBears: CardDefinition = {
 //     types: ["Enchantment"],
 //     subtypes: ["Aura"],
 // };
-// TODO(#628): implement.
-// export const hallowedGround: CardDefinition = {
-//     id: "4b35c0f4-5633-4ea9-9bda-daaf787aebdd",
-//     name: "Hallowed Ground",
-//     rarity: "uncommon",
-//     oracleText: "{W}{W}: Return target nonsnow land you control to its owner's hand.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Enchantment"],
-// };
+// Hallowed Ground — {W}{W}: Return target nonsnow land you control to its
+// owner's hand (CR 701.14). A blink/protection engine for your own lands.
+//
+// SIMPLIFICATION (flagged, no engine change): the "nonsnow" target restriction
+// has no live effect in the current pool — snow-covered basics belong to a
+// later snow cluster and TargetRequirement has no supertype-exclusion field.
+// The ability targets any Land you control; the nonsnow clause is a no-op until
+// snow lands ship.
+export const hallowedGround: CardDefinition = {
+    id: "4b35c0f4-5633-4ea9-9bda-daaf787aebdd",
+    name: "Hallowed Ground",
+    rarity: "uncommon",
+    oracleText:
+        "{W}{W}: Return target nonsnow land you control to its owner's hand.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "hallowed-ground-bounce",
+            oracleText:
+                "{W}{W}: Return target nonsnow land you control to its owner's hand.",
+            cost: { mana: { W: 2 } },
+            useStack: true,
+            targetRequirement: {
+                type: "Land",
+                count: 1,
+                controller: "you",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") ctx.returnToHand(t);
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const heal: CardDefinition = {
 //     id: "9e6b2704-685e-4c74-875a-25846175e5e4",
@@ -354,18 +469,43 @@ export const balduvianBears: CardDefinition = {
 //     manaCost: { X: 2, W: 2 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const kelsinkoRanger: CardDefinition = {
-//     id: "8402543e-5406-404f-95c4-800a1dce35f1",
-//     name: "Kelsinko Ranger",
-//     rarity: "common",
-//     oracleText: "{1}{W}: Target green creature gains first strike until end of turn.",
-//     manaCost: { W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Ranger"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Kelsinko Ranger — {1}{W}: Target green creature gains first strike until end
+// of turn (CR 611.1b temporary keyword grant). Targeting is scoped to green
+// creatures via the color filter.
+export const kelsinkoRanger: CardDefinition = {
+    id: "8402543e-5406-404f-95c4-800a1dce35f1",
+    name: "Kelsinko Ranger",
+    rarity: "common",
+    oracleText:
+        "{1}{W}: Target green creature gains first strike until end of turn.",
+    manaCost: { W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Ranger"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "kelsinko-ranger-first-strike",
+            oracleText:
+                "{1}{W}: Target green creature gains first strike until end of turn.",
+            cost: { mana: { X: 1, W: 1 } },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                colorFilter: "G",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") {
+                    ctx.grantStaticAbility(t, "first strike", {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const kjeldoranEliteGuard: CardDefinition = {
 //     id: "a73bc4b6-f7d0-494c-9e60-48279c11b7b6",
@@ -390,30 +530,64 @@ export const balduvianBears: CardDefinition = {
 //     power: 1,
 //     toughness: 1,
 // };
-// TODO(#628): implement.
-// export const kjeldoranKnight: CardDefinition = {
-//     id: "d5b9db8f-93b5-44e3-9e2b-728c80dfbb37",
-//     name: "Kjeldoran Knight",
-//     rarity: "rare",
-//     oracleText: "Banding (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)\n{1}{W}: This creature gets +1/+0 until end of turn.\n{W}{W}: This creature gets +0/+2 until end of turn.",
-//     manaCost: { W: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Knight"],
-//     power: 1,
-//     toughness: 1,
-// };
-// TODO(#628): implement.
-// export const kjeldoranPhalanx: CardDefinition = {
-//     id: "b6e91ba0-b229-4ab1-84f3-2a490dfa5051",
-//     name: "Kjeldoran Phalanx",
-//     rarity: "rare",
-//     oracleText: "First strike; banding (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
-//     manaCost: { X: 5, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Soldier"],
-//     power: 2,
-//     toughness: 5,
-// };
+// Kjeldoran Knight — banding plus two repeatable self-pumps (CR 611.1, 702.22).
+export const kjeldoranKnight: CardDefinition = {
+    id: "d5b9db8f-93b5-44e3-9e2b-728c80dfbb37",
+    name: "Kjeldoran Knight",
+    rarity: "rare",
+    oracleText:
+        "Banding\n{1}{W}: This creature gets +1/+0 until end of turn.\n{W}{W}: This creature gets +0/+2 until end of turn.",
+    manaCost: { W: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Knight"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["banding"],
+    activatedAbilities: [
+        {
+            id: "kjeldoran-knight-pump-power",
+            oracleText: "{1}{W}: This creature gets +1/+0 until end of turn.",
+            cost: { mana: { X: 1, W: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+        {
+            id: "kjeldoran-knight-pump-toughness",
+            oracleText: "{W}{W}: This creature gets +0/+2 until end of turn.",
+            cost: { mana: { W: 2 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    0,
+                    2,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+// Kjeldoran Phalanx — first strike + banding keyword creature (CR 702.7,
+// 702.22).
+export const kjeldoranPhalanx: CardDefinition = {
+    id: "b6e91ba0-b229-4ab1-84f3-2a490dfa5051",
+    name: "Kjeldoran Phalanx",
+    rarity: "rare",
+    oracleText: "First strike, banding",
+    manaCost: { X: 5, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Soldier"],
+    power: 2,
+    toughness: 5,
+    staticAbilities: ["first strike", "banding"],
+};
 // TODO(#628): implement.
 // export const kjeldoranRoyalGuard: CardDefinition = {
 //     id: "66343008-c38a-48a9-b767-fd2243103690",
@@ -426,42 +600,47 @@ export const balduvianBears: CardDefinition = {
 //     power: 2,
 //     toughness: 5,
 // };
-// TODO(#628): implement.
-// export const kjeldoranSkycaptain: CardDefinition = {
-//     id: "cf0115e0-6192-48a9-9e58-f3ef77ef77c2",
-//     name: "Kjeldoran Skycaptain",
-//     rarity: "uncommon",
-//     oracleText: "Flying; first strike; banding (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
-//     manaCost: { X: 4, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Soldier"],
-//     power: 2,
-//     toughness: 2,
-// };
-// TODO(#628): implement.
-// export const kjeldoranSkyknight: CardDefinition = {
-//     id: "f794665a-8353-482a-b065-2a0777a8acda",
-//     name: "Kjeldoran Skyknight",
-//     rarity: "common",
-//     oracleText: "Flying; first strike; banding (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
-//     manaCost: { X: 2, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Knight"],
-//     power: 1,
-//     toughness: 1,
-// };
-// TODO(#628): implement.
-// export const kjeldoranWarrior: CardDefinition = {
-//     id: "ce76f38f-566e-49ff-b197-510cfa1cb51c",
-//     name: "Kjeldoran Warrior",
-//     rarity: "common",
-//     oracleText: "Banding (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
-//     manaCost: { W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Warrior"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Kjeldoran Skycaptain — flying + first strike + banding (CR 702.9, 702.7,
+// 702.22).
+export const kjeldoranSkycaptain: CardDefinition = {
+    id: "cf0115e0-6192-48a9-9e58-f3ef77ef77c2",
+    name: "Kjeldoran Skycaptain",
+    rarity: "uncommon",
+    oracleText: "Flying, first strike, banding",
+    manaCost: { X: 4, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Soldier"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["flying", "first strike", "banding"],
+};
+// Kjeldoran Skyknight — flying + first strike + banding (CR 702.9, 702.7,
+// 702.22).
+export const kjeldoranSkyknight: CardDefinition = {
+    id: "f794665a-8353-482a-b065-2a0777a8acda",
+    name: "Kjeldoran Skyknight",
+    rarity: "common",
+    oracleText: "Flying, first strike, banding",
+    manaCost: { X: 2, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Knight"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["flying", "first strike", "banding"],
+};
+// Kjeldoran Warrior — banding keyword creature (CR 702.22).
+export const kjeldoranWarrior: CardDefinition = {
+    id: "ce76f38f-566e-49ff-b197-510cfa1cb51c",
+    name: "Kjeldoran Warrior",
+    rarity: "common",
+    oracleText: "Banding",
+    manaCost: { W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Warrior"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["banding"],
+};
 // TODO(#628): implement.
 // export const lightningBlow: CardDefinition = {
 //     id: "d1a4ed99-f38c-4e0f-9ff2-2e1e9126e6ef",
@@ -471,52 +650,176 @@ export const balduvianBears: CardDefinition = {
 //     manaCost: { X: 1, W: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
-// export const lostOrderOfJarkeld: CardDefinition = {
-//     id: "0f8fe1e5-69d2-401f-97cb-3cc01064bad3",
-//     name: "Lost Order of Jarkeld",
-//     rarity: "rare",
-//     oracleText: "As this creature enters, choose an opponent.\nLost Order of Jarkeld's power and toughness are each equal to 1 plus the number of creatures the chosen player controls.",
-//     manaCost: { X: 2, W: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Knight"],
-// };
-// TODO(#628): implement.
-// export const mercenaries: CardDefinition = {
-//     id: "7b28762d-1ab7-460e-b433-27f5fa858959",
-//     name: "Mercenaries",
-//     rarity: "rare",
-//     oracleText: "{3}: The next time this creature would deal damage to you this turn, prevent that damage. Any player may activate this ability.",
-//     manaCost: { X: 3, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Mercenary"],
-//     power: 3,
-//     toughness: 3,
-// };
-// TODO(#628): implement.
-// export const orderOfTheSacredTorch: CardDefinition = {
-//     id: "ccc5cb36-c43d-4c71-8019-9b683e160a0a",
-//     name: "Order of the Sacred Torch",
-//     rarity: "rare",
-//     oracleText: "{T}, Pay 1 life: Counter target black spell.",
-//     manaCost: { X: 1, W: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Knight"],
-//     power: 2,
-//     toughness: 2,
-// };
-// TODO(#628): implement.
-// export const orderOfTheWhiteShield: CardDefinition = {
-//     id: "92e55b10-375f-4b4f-b676-3b9b8085fdd2",
-//     name: "Order of the White Shield",
-//     rarity: "uncommon",
-//     oracleText: "Protection from black\n{W}: This creature gains first strike until end of turn.\n{W}{W}: This creature gets +1/+0 until end of turn.",
-//     manaCost: { W: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Knight"],
-//     power: 2,
-//     toughness: 1,
-// };
+// Lost Order of Jarkeld — as it enters, choose an opponent (CR 603.6b); its P/T
+// is a characteristic-defining ability (CR 604.3, layer 7a) equal to 1 plus the
+// number of creatures the chosen player controls. The pt-cda reads the stored
+// `chosenPlayerId` and counts that player's creatures live from game state.
+export const lostOrderOfJarkeld: CardDefinition = {
+    id: "0f8fe1e5-69d2-401f-97cb-3cc01064bad3",
+    name: "Lost Order of Jarkeld",
+    rarity: "rare",
+    oracleText:
+        "As this creature enters, choose an opponent.\nLost Order of Jarkeld's power and toughness are each equal to 1 plus the number of creatures the chosen player controls.",
+    manaCost: { X: 2, W: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Knight"],
+    power: 0,
+    toughness: 0,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "lost-order-choose-opponent",
+            oracleText: "As this creature enters, choose an opponent.",
+            scope: "self",
+            resolve: (ctx) => {
+                // 2-player game: the single opponent of the controller.
+                const opponent = ctx.apNapOrder().find(
+                    (id) =>
+                        id !==
+                        ctx.getController({
+                            type: "permanent",
+                            id: ctx.sourceInstanceId,
+                        })
+                );
+                if (opponent) ctx.setChosenPlayer(opponent);
+            },
+        }),
+    ],
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: EFFECT_AFFECTS_SELF,
+            compute: (source, state) => {
+                const chosen = source.chosenPlayerId;
+                let creatures = 0;
+                if (chosen) {
+                    for (const player of state.players) {
+                        for (const p of player.battlefield) {
+                            if (
+                                p.controllerId === chosen &&
+                                p.types.includes("Creature")
+                            ) {
+                                creatures++;
+                            }
+                        }
+                    }
+                }
+                const value = 1 + creatures;
+                return { power: value, toughness: value };
+            },
+        },
+    ],
+};
+// Mercenaries — {3}: The next time this creature would deal damage to you this
+// turn, prevent that damage. Any player may activate (CR 615 prevention,
+// 602.1 / 113.3c open activation). The shield is keyed to this creature as the
+// damage source and to the activating player as the protected recipient.
+export const mercenaries: CardDefinition = {
+    id: "7b28762d-1ab7-460e-b433-27f5fa858959",
+    name: "Mercenaries",
+    rarity: "rare",
+    oracleText:
+        "{3}: The next time this creature would deal damage to you this turn, prevent that damage. Any player may activate this ability.",
+    manaCost: { X: 3, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Mercenary"],
+    power: 3,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "mercenaries-prevent",
+            oracleText:
+                "{3}: The next time this creature would deal damage to you this turn, prevent that damage. Any player may activate this ability.",
+            cost: { mana: { X: 3 } },
+            useStack: true,
+            activatableByAnyPlayer: true,
+            resolve: (ctx: SpellContext) => {
+                // The activator (the player who paid) is shielded against this
+                // creature's next damage to them this turn.
+                ctx.preventNextDamageFromSource(
+                    ctx.sourceInstanceId,
+                    ctx.controller,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+// Order of the Sacred Torch — {T}, Pay 1 life: Counter target black spell
+// (CR 701.5 counter, CR 118.4 life cost). Target restricted to black spells on
+// the stack via the spell color filter.
+export const orderOfTheSacredTorch: CardDefinition = {
+    id: "ccc5cb36-c43d-4c71-8019-9b683e160a0a",
+    name: "Order of the Sacred Torch",
+    rarity: "rare",
+    oracleText: "{T}, Pay 1 life: Counter target black spell.",
+    manaCost: { X: 1, W: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Knight"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "order-sacred-torch-counter",
+            oracleText: "{T}, Pay 1 life: Counter target black spell.",
+            cost: { tap: true, life: 1 },
+            useStack: true,
+            targetRequirement: {
+                type: "spell",
+                count: 1,
+                colorFilter: "B",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "spell") ctx.counter(t);
+            },
+        },
+    ],
+};
+// Order of the White Shield — protection from black (CR 702.16) plus a first
+// strike grant and a power pump (CR 611.1b), the classic "Order" cycle shape.
+export const orderOfTheWhiteShield: CardDefinition = {
+    id: "92e55b10-375f-4b4f-b676-3b9b8085fdd2",
+    name: "Order of the White Shield",
+    rarity: "uncommon",
+    oracleText:
+        "Protection from black\n{W}: This creature gains first strike until end of turn.\n{W}{W}: This creature gets +1/+0 until end of turn.",
+    manaCost: { W: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Knight"],
+    power: 2,
+    toughness: 1,
+    staticAbilities: ["protection from black"],
+    activatedAbilities: [
+        {
+            id: "order-white-shield-first-strike",
+            oracleText:
+                "{W}: This creature gains first strike until end of turn.",
+            cost: { mana: { W: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.grantStaticAbility(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "first strike",
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+        {
+            id: "order-white-shield-pump",
+            oracleText: "{W}{W}: This creature gets +1/+0 until end of turn.",
+            cost: { mana: { W: 2 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const prismaticWard: CardDefinition = {
 //     id: "6f8b50fd-3d1d-4ea8-a3c7-98ca7a8a455e",
@@ -527,15 +830,31 @@ export const balduvianBears: CardDefinition = {
 //     types: ["Enchantment"],
 //     subtypes: ["Aura"],
 // };
-// TODO(#628): implement.
-// export const rally: CardDefinition = {
-//     id: "e1e9f80e-5d75-45b7-9c66-c0f30996f4dc",
-//     name: "Rally",
-//     rarity: "common",
-//     oracleText: "Blocking creatures get +1/+1 until end of turn.",
-//     manaCost: { W: 2 },
-//     types: ["Instant"],
-// };
+// Rally — "Blocking creatures get +1/+1 until end of turn." (CR 611.1b, 509.1)
+// A combat trick that pumps every creature currently blocking. Blocking
+// creatures are read from the live block graph (attacker → blocker ids).
+export const rally: CardDefinition = {
+    id: "e1e9f80e-5d75-45b7-9c66-c0f30996f4dc",
+    name: "Rally",
+    rarity: "common",
+    oracleText: "Blocking creatures get +1/+1 until end of turn.",
+    manaCost: { W: 2 },
+    types: ["Instant"],
+    resolve: (ctx: SpellContext) => {
+        const blockersByAttacker = ctx.getBlockersByAttacker();
+        const blockerIds = new Set<string>();
+        for (const attackerId of Object.keys(blockersByAttacker)) {
+            for (const id of blockersByAttacker[attackerId]) {
+                blockerIds.add(id);
+            }
+        }
+        for (const id of blockerIds) {
+            ctx.addTemporaryPTBuff({ type: "permanent", id }, 1, 1, {
+                phase: "end-of-turn",
+            });
+        }
+    },
+};
 // TODO(#628): implement.
 // export const redScarab: CardDefinition = {
 //     id: "9a734154-5944-42f4-a02e-c426a45847f3",
@@ -567,48 +886,88 @@ export const balduvianBears: CardDefinition = {
 //     power: 4,
 //     toughness: 4,
 // };
-// TODO(#628): implement.
-// export const shieldBearer: CardDefinition = {
-//     id: "318ff2da-d309-469c-8e2f-fa3c7517a15a",
-//     name: "Shield Bearer",
-//     rarity: "common",
-//     oracleText: "Banding (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Soldier"],
-//     power: 0,
-//     toughness: 3,
-// };
-// TODO(#628): implement.
-// export const snowHound: CardDefinition = {
-//     id: "084437ba-26d4-4af6-ab00-dcb145dd2cd0",
-//     name: "Snow Hound",
-//     rarity: "uncommon",
-//     oracleText: "{1}, {T}: Return this creature and target green or blue creature you control to their owner's hand.",
-//     manaCost: { X: 2, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Dog"],
-//     power: 1,
-//     toughness: 1,
-// };
-// TODO(#628): implement.
-// export const swordsToPlowshares: CardDefinition = {
-//     id: "375fd2cb-443b-4be4-ad60-6d1a8e74f510",
-//     name: "Swords to Plowshares",
-//     rarity: "uncommon",
-//     oracleText: "Exile target creature. Its controller gains life equal to its power.",
-//     manaCost: { W: 1 },
-//     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const warning: CardDefinition = {
-//     id: "cca5b4a7-df11-4635-a147-df12cd13a67c",
-//     name: "Warning",
-//     rarity: "common",
-//     oracleText: "Prevent all combat damage that would be dealt by target attacking creature this turn.",
-//     manaCost: { W: 1 },
-//     types: ["Instant"],
-// };
+// Shield Bearer — 0/3 banding wall-style creature (CR 702.22).
+export const shieldBearer: CardDefinition = {
+    id: "318ff2da-d309-469c-8e2f-fa3c7517a15a",
+    name: "Shield Bearer",
+    rarity: "common",
+    oracleText: "Banding",
+    manaCost: { X: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Soldier"],
+    power: 0,
+    toughness: 3,
+    staticAbilities: ["banding"],
+};
+// Snow Hound — {1}, {T}: Return this creature and target green or blue creature
+// you control to their owner's hand (CR 701.14). A self-bounce that also
+// rescues another of your green/blue creatures.
+export const snowHound: CardDefinition = {
+    id: "084437ba-26d4-4af6-ab00-dcb145dd2cd0",
+    name: "Snow Hound",
+    rarity: "uncommon",
+    oracleText:
+        "{1}, {T}: Return this creature and target green or blue creature you control to their owner's hand.",
+    manaCost: { X: 2, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Dog"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "snow-hound-bounce",
+            oracleText:
+                "{1}, {T}: Return this creature and target green or blue creature you control to their owner's hand.",
+            cost: { mana: { X: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+                colorFilterAny: ["G", "U"],
+            },
+            resolve: (ctx: SpellContext) => {
+                ctx.returnToHand({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") ctx.returnToHand(t);
+            },
+        },
+    ],
+};
+// Swords to Plowshares — ICE reprint of the LEA instant (exile target
+// creature, its controller gains life equal to its power). CardPrint onto the
+// LEA definition (ADR 0014).
+export const swordsToPlowsharesIce: CardPrint = {
+    printId: "375fd2cb-443b-4be4-ad60-6d1a8e74f510",
+    definitionId: "386ea9eb-abc1-4862-aa2d-8fb808d79490",
+    setCode: "ice",
+    rarity: "uncommon",
+};
+// Warning — "Prevent all combat damage that would be dealt by target attacking
+// creature this turn." (CR 615.1, 510.1c). Implemented via the source-only
+// "assigns no combat damage" mark — the attacker deals 0 combat damage in every
+// damage step this turn but can still be dealt damage and die.
+export const warning: CardDefinition = {
+    id: "cca5b4a7-df11-4635-a147-df12cd13a67c",
+    name: "Warning",
+    rarity: "common",
+    oracleText:
+        "Prevent all combat damage that would be dealt by target attacking creature this turn.",
+    manaCost: { W: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: "Creature",
+        count: 1,
+        combatRoleFilter: "attacking",
+    },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type === "permanent") ctx.markAssignsNoCombatDamage(t);
+    },
+};
 // TODO(#628): implement.
 // export const whiteScarab: CardDefinition = {
 //     id: "c57726b5-dfdd-4e47-bc52-ebf6eedbf3bd",
