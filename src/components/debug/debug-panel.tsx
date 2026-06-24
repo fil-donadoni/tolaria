@@ -197,6 +197,65 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 6,
     },
     {
+        // ICE Black free tranche (#632, PRD #628). Exercises the Black ICE
+        // staples end to end:
+        //   - Abyssal Specter (flying; deals damage to a player → that player
+        //     discards) and Knight of Stromgald (pro-white + {B}/{B}{B} pumps)
+        //     attack.
+        //   - Hoar Shade ({B}: +1/+1) is a mana sink.
+        //   - Dark Banishing ({1}{B}: destroy nonblack creature, no regen) and
+        //     Demonic Consultation (name + dig) round out the spells.
+        //   - Pestilence Rats' power scales with the other Rats on the board.
+        //   - Stromgald Cabal ({T}, pay 1 life: counter white spell) holds up.
+        label: "ICE: Black free tranche — Abyssal Specter / Knight of Stromgald / Demonic Consultation / Pestilence Rats (#632)",
+        cards: [
+            {
+                name: "Dark Banishing",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Demonic Consultation",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Abyssal Specter",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Knight of Stromgald",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Hoar Shade",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Pestilence Rats",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                count: 3,
+            },
+            {
+                name: "Stromgald Cabal",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
+    {
         // Word of Command — controlled cast, TARGETED spell branch (#578, PRD
         // #575, ADR 0037, CR 601.2c). The classic line: choose the opponent's
         // Lightning Bolt and aim it back at them.

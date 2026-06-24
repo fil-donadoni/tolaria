@@ -69,6 +69,29 @@ import {
     wrathOfMaritLage,
     wingsOfAesthir,
     zuranSpellcaster,
+    // Black free tranche (#632)
+    abyssalSpecter,
+    brineShaman,
+    darkBanishing,
+    darkRitualIce,
+    demonicConsultation,
+    fearIce,
+    foulFamiliar,
+    hoarShade,
+    howlFromBeyondIce,
+    hyalopterousLemure,
+    kjeldoranDead,
+    knightOfStromgald,
+    krovikanVampire,
+    leshracsRite,
+    mindWarp,
+    minionOfTeveshSzat,
+    moleWorms,
+    moorFiend,
+    pestilenceRats,
+    songsOfTheDamned,
+    spoilsOfEvil,
+    stromgaldCabal,
 } from "../ice";
 import {
     getCardById,
@@ -1384,5 +1407,545 @@ describe("ICE Blue tranche registry parity", () => {
         for (const name of expected) {
             expect(getCardByName(name).name).toBe(name);
         }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Black free tranche (#632)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("ICE Black reprints (CardPrint wiring, ADR 0014)", () => {
+    it("Dark Ritual print resolves to the LEA definition", () => {
+        expect(getCardById(darkRitualIce.printId).name).toBe("Dark Ritual");
+        expect(darkRitualIce.definitionId).toBe(
+            "ebb6664d-23ca-456e-9916-afcd6f26aa7f"
+        );
+        expect(darkRitualIce.setCode).toBe("ice");
+    });
+    it("Fear print resolves to the LEA definition", () => {
+        expect(getCardById(fearIce.printId).name).toBe("Fear");
+    });
+    it("Howl from Beyond print resolves to the LEA definition", () => {
+        expect(getCardById(howlFromBeyondIce.printId).name).toBe(
+            "Howl from Beyond"
+        );
+    });
+});
+
+describe("ICE Black keyword creatures (CR 702)", () => {
+    it("Moor Fiend is a 3/3 with swampwalk", () => {
+        expect(moorFiend.staticAbilities).toEqual(["swampwalk"]);
+        expect(moorFiend.power).toBe(3);
+        expect(moorFiend.toughness).toBe(3);
+    });
+    it("Knight of Stromgald has protection from white", () => {
+        expect(knightOfStromgald.staticAbilities).toEqual([
+            "protection from white",
+        ]);
+    });
+    it("Abyssal Specter has flying", () => {
+        expect(abyssalSpecter.staticAbilities).toEqual(["flying"]);
+    });
+});
+
+describe("Abyssal Specter (damage → discard, CR 603.4 / 701.8)", () => {
+    it("declares a damage-to-player trigger that forces a discard", () => {
+        const trigger = abyssalSpecter.triggeredAbilities!.find(
+            (t) => t.id === "abyssal-specter-discard"
+        )!;
+        expect(trigger).toBeDefined();
+        expect(abyssalSpecter.oracleText).toContain("discards a card");
+    });
+});
+
+describe("Brine Shaman (sacrifice engine, CR 602.1 / 118.5)", () => {
+    it("declares a sacrifice-cost pump and a counter ability", () => {
+        const pump = brineShaman.activatedAbilities!.find(
+            (a) => a.id === "brine-shaman-pump"
+        )!;
+        expect(pump.cost).toMatchObject({
+            tap: true,
+            sacrificeFilter: { types: "Creature" },
+        });
+        const counter = brineShaman.activatedAbilities!.find(
+            (a) => a.id === "brine-shaman-counter"
+        )!;
+        expect(counter.targetRequirement).toMatchObject({
+            type: "spell",
+            spellTypeFilter: "Creature",
+        });
+    });
+    it("pumps the target +2/+2 until end of turn", () => {
+        const shaman = makeInstance(brineShaman.id, {
+            id: "bs",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const victim = vanilla("v", 1, 1, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shaman, victim] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, shaman, "brine-shaman-pump", [
+            { type: "permanent", id: "v" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "v")!;
+        expect(getEffectivePower(state, live)).toBe(3);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+    });
+});
+
+describe("Dark Banishing (destroy nonblack creature, CR 701.7)", () => {
+    it("restricts its target to nonblack creatures", () => {
+        expect(darkBanishing.targetRequirement).toMatchObject({
+            type: "Creature",
+            excludeColors: "B",
+        });
+    });
+    it("destroys the target creature", () => {
+        const victim = vanilla("v", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        pushSpell(state, darkBanishing.id, "p1", [
+            { type: "permanent", id: "v" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "v")
+        ).toBeUndefined();
+        expect(state.players[1].graveyard.some((c) => c.id === "v")).toBe(true);
+    });
+});
+
+describe("Demonic Consultation (name + exile loop, CR 202.3)", () => {
+    it("exiles the top six, then digs to the named card", () => {
+        const lib = [0, 1, 2, 3, 4, 5, 6, 7].map((i) =>
+            makeInstance(i === 7 ? moorFiend.id : hoarShade.id, {
+                id: `lib${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        const item = pushSpell(state, demonicConsultation.id, "p1");
+        // First resolution suspends on the name choice.
+        resolveTopOfStack(state);
+        // Submit the chosen name and resume.
+        const pending = state.pendingChoices?.[0];
+        expect(pending?.kind).toBe("name-card");
+        // The name-card answer is recorded under the choice; simulate the
+        // resume by injecting the collected choice and re-resolving.
+        item.collectedChoices = {
+            "0:demonic-consultation-name": ["Moor Fiend"],
+        };
+        state.stack.push(item);
+        resolveTopOfStack(state);
+        // lib0..lib5 exiled; lib6 (Hoar Shade) exiled; lib7 (Moor Fiend) → hand.
+        const me = state.players[0];
+        expect(me.exile.length).toBe(7);
+        expect(me.hand.some((c) => c.id === "lib7")).toBe(true);
+    });
+});
+
+describe("Foul Familiar (can't block + bounce, CR 509.1b / 701.14)", () => {
+    it("carries a block-restriction that forbids blocking (wire format)", () => {
+        const fam = makeInstance(foulFamiliar.id, {
+            id: "ff",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [fam] }),
+                makePlayer("p2"),
+            ],
+        });
+        // The block-restriction predicate is always-false (can't block).
+        const restriction = foulFamiliar.staticEffects!.find(
+            (e) => e.kind === "block-restriction"
+        )!;
+        expect(restriction).toBeDefined();
+        // Survives projection: the definition is recoverable by id.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "ff"
+        )!;
+        expect(getCardById(slim.card.id).name).toBe("Foul Familiar");
+    });
+    it("returns itself to hand when the ability resolves", () => {
+        const fam = makeInstance(foulFamiliar.id, {
+            id: "ff",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [fam] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, fam, "foul-familiar-bounce");
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "ff")
+        ).toBeUndefined();
+        expect(state.players[0].hand.some((c) => c.id === "ff")).toBe(true);
+    });
+});
+
+describe("Hoar Shade ({B}: +1/+1, CR 611.1b)", () => {
+    it("pumps itself +1/+1 until end of turn (wire format)", () => {
+        const shade = makeInstance(hoarShade.id, {
+            id: "hs",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shade] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, shade, "hoar-shade-pump");
+        const live = state.players[0].battlefield.find((c) => c.id === "hs")!;
+        expect(getEffectivePower(state, live)).toBe(2);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "hs"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(2);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+});
+
+describe("Hyalopterous Lemure ({0}: -1/-0 + flying, CR 611.1b)", () => {
+    it("loses a power and gains flying until end of turn", () => {
+        const lemure = makeInstance(hyalopterousLemure.id, {
+            id: "hl",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lemure] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, lemure, "hyalopterous-lemure-fly");
+        const live = state.players[0].battlefield.find((c) => c.id === "hl")!;
+        expect(getEffectivePower(state, live)).toBe(3);
+        expect(live.staticAbilities).toContain("flying");
+    });
+});
+
+describe("Kjeldoran Dead (ETB sac + regenerate, CR 603.6 / 701.15)", () => {
+    it("regenerates via a shield when the ability resolves", () => {
+        const dead = makeInstance(kjeldoranDead.id, {
+            id: "kd",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, dead, "kjeldoran-dead-regenerate");
+        const live = state.players[0].battlefield.find((c) => c.id === "kd")!;
+        expect(live.regenerationShields ?? 0).toBeGreaterThan(0);
+    });
+});
+
+describe("Knight of Stromgald (grants + pump, CR 611.1b)", () => {
+    it("grants itself first strike until end of turn", () => {
+        const knight = makeInstance(knightOfStromgald.id, {
+            id: "ks",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [knight] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, knight, "knight-of-stromgald-first-strike");
+        const live = state.players[0].battlefield.find((c) => c.id === "ks")!;
+        expect(live.staticAbilities).toContain("first strike");
+    });
+    it("pumps itself +1/+0 until end of turn", () => {
+        const knight = makeInstance(knightOfStromgald.id, {
+            id: "ks",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [knight] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, knight, "knight-of-stromgald-pump");
+        const live = state.players[0].battlefield.find((c) => c.id === "ks")!;
+        expect(getEffectivePower(state, live)).toBe(3);
+    });
+});
+
+describe("Leshrac's Rite (Aura grants swampwalk, CR 611 / 702.13)", () => {
+    it("declares a keyword-grant for swampwalk (Snow Devil pattern)", () => {
+        expect(leshracsRite.staticEffects?.[0]).toMatchObject({
+            kind: "keyword-grant",
+            keyword: "swampwalk",
+        });
+        expect(leshracsRite.targetRequirement).toMatchObject({
+            type: "Creature",
+        });
+    });
+    it("grants swampwalk to the host when the Aura resolves onto it", () => {
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, leshracsRite.id, "p1", [
+            { type: "permanent", id: "host" },
+        ]);
+        resolveTopOfStack(state);
+        const liveHost = state.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(liveHost.staticAbilities).toContain("swampwalk");
+        const projected = projectPublicState(state, 1, "p1");
+        const slimHost = projected.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(slimHost.staticAbilities).toContain("swampwalk");
+    });
+});
+
+describe("Mind Warp (look + discard X, CR 701.8)", () => {
+    it("targets a player and is an X spell", () => {
+        expect(mindWarp.manaCost).toMatchObject({ X: "X", B: 1 });
+        expect(mindWarp.targetRequirement).toMatchObject({ type: "player" });
+    });
+});
+
+describe("Minion of Tevesh Szat (upkeep pay-or-damage, CR 603.6a)", () => {
+    it("pumps target +3/-2 until end of turn", () => {
+        const minion = makeInstance(minionOfTeveshSzat.id, {
+            id: "mts",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const victim = vanilla("v", 4, 4, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [minion] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        resolveActivated(state, minion, "minion-tevesh-szat-pump", [
+            { type: "permanent", id: "v" },
+        ]);
+        const live = state.players[1].battlefield.find((c) => c.id === "v")!;
+        expect(getEffectivePower(state, live)).toBe(7);
+        expect(getEffectiveToughness(state, live)).toBe(2);
+    });
+});
+
+describe("Mole Worms (tap-lock a land, CR 611.2)", () => {
+    it("taps the target land", () => {
+        const worms = makeInstance(moleWorms.id, {
+            id: "mw",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = makeInstance(moorFiend.id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+            types: ["Land"] as CardType[],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [worms] }),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        resolveActivated(state, worms, "mole-worms-tap-lock", [
+            { type: "permanent", id: "land" },
+        ]);
+        const live = state.players[1].battlefield.find((c) => c.id === "land")!;
+        expect(live.isTapped).toBe(true);
+    });
+});
+
+describe("Pestilence Rats (CDA power = other Rats, CR 604.3)", () => {
+    function setup(extraRats: number) {
+        const rats = makeInstance(pestilenceRats.id, {
+            id: "pr",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const others = Array.from({ length: extraRats }, (_, i) =>
+            makeInstance(pestilenceRats.id, {
+                id: `rat${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [rats, ...others] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+    it("power equals the number of OTHER Rats (wire format)", () => {
+        const state = setup(2);
+        const live = state.players[0].battlefield.find((c) => c.id === "pr")!;
+        expect(getEffectivePower(state, live)).toBe(2);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "pr"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(2);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+    it("is 0/3 alone", () => {
+        const state = setup(0);
+        const live = state.players[0].battlefield.find((c) => c.id === "pr")!;
+        expect(getEffectivePower(state, live)).toBe(0);
+    });
+});
+
+describe("Songs of the Damned (add B per creature in graveyard, CR 606)", () => {
+    it("adds {B} for each creature card in the graveyard", () => {
+        const gy = [0, 1].map((i) =>
+            makeInstance(moorFiend.id, {
+                id: `gy${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+            })
+        );
+        const state = makeState({
+            players: [makePlayer("p1", { graveyard: gy }), makePlayer("p2")],
+        });
+        pushSpell(state, songsOfTheDamned.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool?.B ?? 0).toBe(2);
+    });
+});
+
+describe("Spoils of Evil (mana + life per opp graveyard, CR 606)", () => {
+    it("adds {C} and gains life per artifact/creature card", () => {
+        const gy = [0, 1, 2].map((i) =>
+            makeInstance(moorFiend.id, {
+                id: `gy${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "graveyard",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", { graveyard: gy }),
+            ],
+        });
+        pushSpell(state, spoilsOfEvil.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool?.C ?? 0).toBe(3);
+        expect(state.players[0].life).toBe(23);
+    });
+});
+
+describe("Stromgald Cabal (counter white spell, CR 701.5)", () => {
+    it("restricts its target to white spells", () => {
+        const ability = stromgaldCabal.activatedAbilities!.find(
+            (a) => a.id === "stromgald-cabal-counter"
+        )!;
+        expect(ability.targetRequirement).toMatchObject({
+            type: "spell",
+            colorFilter: "W",
+        });
+        expect(ability.cost).toMatchObject({ tap: true, life: 1 });
+    });
+});
+
+describe("Krovikan Vampire (delayed reanimation, CR 603.2 / 603.7c)", () => {
+    it("declares a died-trigger keyed on its own damage and a delayed reanimation", () => {
+        const trigger = krovikanVampire.triggeredAbilities!.find(
+            (t) => t.id === "krovikan-vampire-mark"
+        )!;
+        expect(trigger).toBeDefined();
+        const delayed = krovikanVampire.delayedTriggers!.find(
+            (d) => d.id === "krovikan-vampire-reanimate"
+        )!;
+        expect(delayed.timing).toBe("next-end-step");
+    });
+});
+
+// --- Registry parity for the Black tranche ----------------------------------
+
+describe("ICE Black tranche registry parity", () => {
+    const expected = [
+        "Abyssal Specter",
+        "Brine Shaman",
+        "Dark Banishing",
+        "Demonic Consultation",
+        "Foul Familiar",
+        "Hoar Shade",
+        "Hyalopterous Lemure",
+        "Kjeldoran Dead",
+        "Knight of Stromgald",
+        "Krovikan Vampire",
+        "Leshrac's Rite",
+        "Mind Warp",
+        "Minion of Tevesh Szat",
+        "Mole Worms",
+        "Moor Fiend",
+        "Pestilence Rats",
+        "Songs of the Damned",
+        "Spoils of Evil",
+        "Stromgald Cabal",
+    ];
+    it("registers every activated Black card by name", () => {
+        for (const name of expected) {
+            expect(getCardByName(name).name).toBe(name);
+        }
+    });
+    it("registers the three Black reprints by print id", () => {
+        expect(getCardById(darkRitualIce.printId).name).toBe("Dark Ritual");
+        expect(getCardById(fearIce.printId).name).toBe("Fear");
+        expect(getCardById(howlFromBeyondIce.printId).name).toBe(
+            "Howl from Beyond"
+        );
     });
 });
