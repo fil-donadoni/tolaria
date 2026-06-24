@@ -54,6 +54,37 @@ export function stackFanOffset(
     return Math.min(STACK_FAN_REVEAL, clamped);
 }
 
+/** Permanent-stack depth-pile threshold (PRD #621, issue #624). A stack with
+ *  **more than** this many members renders as a tight diagonal depth-pile at
+ *  ~one-card footprint instead of a wide fan; `≤` this many still fan (#623). */
+export const STACK_DEPTH_PILE_THRESHOLD = 8;
+
+/** Tight per-member diagonal offset (px) of a depth-pile (PRD #621, issue #624).
+ *  Members step down-and-right by this much so the whole pile reads as a small
+ *  stack of cards within roughly one card's footprint. */
+export const STACK_DEPTH_OFFSET = 4;
+
+/** Cap on how many member edges a depth-pile reveals before it stops growing —
+ *  beyond this the pile would creep past a one-card footprint, so deeper members
+ *  share the bottom edge (the `×N` badge still reports the true count). Keeps the
+ *  resting footprint stable regardless of how large the stack gets (issue #624). */
+export const STACK_DEPTH_MAX_VISIBLE_EDGES = 6;
+
+/** Whether a permanent stack of `n` members renders as a depth-pile rather than
+ *  a fan (PRD #621, issue #624). True strictly above
+ *  {@link STACK_DEPTH_PILE_THRESHOLD}. Pure. */
+export function isDepthPile(n: number): boolean {
+    return n > STACK_DEPTH_PILE_THRESHOLD;
+}
+
+/** Resting diagonal offset (px) of member `i` in a depth-pile, clamped so the
+ *  pile never exceeds {@link STACK_DEPTH_MAX_VISIBLE_EDGES} card-edges of spread
+ *  and thus keeps a ~one-card footprint (PRD #621 "depth-pile", issue #624).
+ *  Pure: `min(i, STACK_DEPTH_MAX_VISIBLE_EDGES) * STACK_DEPTH_OFFSET`. */
+export function stackDepthOffset(i: number): number {
+    return Math.min(i, STACK_DEPTH_MAX_VISIBLE_EDGES) * STACK_DEPTH_OFFSET;
+}
+
 /** Default gap between full-size cards before any overlap kicks in. */
 const DEFAULT_GAP = 12;
 

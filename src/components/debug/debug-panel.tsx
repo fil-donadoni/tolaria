@@ -6739,6 +6739,52 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Permanent stacking — LARGE stacks collapse to a depth-pile that
+        // expands on hover (PRD #621, issue #624). Exercises the >8 path:
+        //   • A run of 12 identical Forests (more than 8) collapses into a tight
+        //     diagonal DEPTH-PILE at ~one card's footprint with a ×12 badge —
+        //     huge mana bases no longer eat the board width.
+        //   • Hover the pile: it EXPANDS into the full fan in a high-z overlay
+        //     that floats ABOVE neighbours — no permanent reflows (the central
+        //     hard rule). Per-member hover-lift then makes any instance
+        //     selectable.
+        //   • A run of 10 identical Grizzly Bears (also >8) shows the same
+        //     depth-pile-to-fan expand on the creature row.
+        //   • A second, small Forest stack (×4) stays a direct fan, proving the
+        //     ≤8 path (#623) is untouched and sits beside the pile without being
+        //     pushed when the pile expands.
+        label: "UI: Permanent stacking — large depth-pile expands to fan on hover (#624)",
+        cards: [
+            {
+                name: "Forest",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                count: 9,
+            },
+            {
+                name: "Forest",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                tapped: true,
+                count: 3,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                count: 10,
+            },
+            {
+                name: "Plains",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                count: 4,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
