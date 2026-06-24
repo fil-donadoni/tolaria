@@ -1937,7 +1937,7 @@ export const carrionAnts: CardDefinition = {
 // CLEANUP CR 514.2). The `deathsThisTurn` tally is the shared CR 700.4 death
 // counter maintained in `removePermanentTo` and reset at turn start.
 export const osaiVultures: CardDefinition = {
-    id: "7555ce50-d5aa-515c-b08a-7ad4e7188b4b",
+    id: "f85614b3-62a3-4da9-a74a-7ea40fad1b52",
     rarity: "common",
     name: "Osai Vultures",
     oracleText:
@@ -4736,7 +4736,7 @@ export const pendelhaven: CardDefinition = {
 //     end of turn, mirroring how the printed rampage creatures pair the keyword
 //     with the trigger (ADR 0002).
 export const rapidFire: CardDefinition = {
-    id: "8f6c2b7a-1d4e-4c3a-9b8e-2f5a6d0c1e93",
+    id: "e26e7c9c-e6de-47f4-8394-7e853408f84c",
     rarity: "common",
     name: "Rapid Fire",
     oracleText:
@@ -6709,7 +6709,7 @@ export const giantTurtle: CardDefinition = {
 // `cantBeRegeneratedThisTurn` flag (CR 701.15c) — suppressing the auto-regen
 // so the next lethal destruction kills it. The flag clears at CLEANUP.
 export const clergyOfTheHolyNimbus: CardDefinition = {
-    id: "7a817107-fa2b-55e0-883b-c3ed2b06ba04",
+    id: "db1f578f-fa3b-4447-953b-1490852b6c80",
     rarity: "common",
     name: "Clergy of the Holy Nimbus",
     oracleText:
