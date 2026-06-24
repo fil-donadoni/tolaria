@@ -3984,7 +3984,9 @@ export const soulExchange: CardDefinition = {
         "As an additional cost to cast this spell, exile a creature you control.\nReturn target creature card from your graveyard to the battlefield. Put a +2/+2 counter on that creature if the exiled creature was a Thrull.",
     manaCost: { B: 2 },
     types: ["Sorcery"],
-    additionalCosts: { exileFilter: { types: "Creature", controllerRelation: "you" } },
+    additionalCosts: {
+        exileFilter: { types: "Creature", controllerRelation: "you" },
+    },
     targetRequirement: {
         type: "Creature",
         count: 1,
@@ -4024,8 +4026,7 @@ export const thrullChampion: CardDefinition = {
     staticEffects: [
         {
             kind: "pt-buff",
-            applies: (target, _source, ctx) =>
-                ctx.hasSubtype(target, "Thrull"),
+            applies: (target, _source, ctx) => ctx.hasSubtype(target, "Thrull"),
             power: 1,
             toughness: 1,
         },
@@ -4037,7 +4038,11 @@ export const thrullChampion: CardDefinition = {
                 "{T}: Gain control of target Thrull for as long as you control this creature.",
             cost: { tap: true },
             useStack: true,
-            targetRequirement: { type: "Creature", count: 1, subtypeFilter: "Thrull" },
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                subtypeFilter: "Thrull",
+            },
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "permanent") return;

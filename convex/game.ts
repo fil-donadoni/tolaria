@@ -527,8 +527,18 @@ export function tapSourceIntoPayment(
             player.manaPool[color] = (player.manaPool[color] ?? 0) + count;
         }
     }
+    // CR 605.2 — emit "tapped for mana" before the sacrifice moves the card off
+    // the battlefield, so leaves-the-battlefield triggers see the mana added and
+    // the event carries the permanent's pre-sacrifice characteristics.
     emitPermanentTapped(state, card, true, added);
-    tappedLandIds.push(card.id);
+    // ADR 0039 / CR 605.1a — pay the "Sacrifice this" portion of a fixed-output
+    // sacrifice mana ability (Basal Thrull). One-way: the sacrificed source is
+    // never recorded in `tappedLandIds` (there is no untap/refund branch for it).
+    if (isSacrifice) {
+        moveCard(player, card.id, "battlefield", "graveyard");
+    } else {
+        tappedLandIds.push(card.id);
+    }
 }
 
 /** Reverses a single tap recorded in `tappedLandIds` — refunds the mana and
@@ -2349,7 +2359,9 @@ export function finalizeTargetSelection(
  *  permanent is sacrificed or exiled at commit. Returns `undefined` when the
  *  card has no additional cost. */
 function buildAdditionalCostPicker(
-    spec: { sacrificeFilter?: PermanentFilter; exileFilter?: PermanentFilter } | undefined,
+    spec:
+        | { sacrificeFilter?: PermanentFilter; exileFilter?: PermanentFilter }
+        | undefined,
     player: PlayerState
 ): { kind: "sacrifice" | "exile"; filter: PermanentFilter } | undefined {
     const filter = spec?.sacrificeFilter ?? spec?.exileFilter;
@@ -2358,7 +2370,7 @@ function buildAdditionalCostPicker(
         ? "exile"
         : "sacrifice";
     const candidates = player.battlefield.filter((c) =>
-        matchesPermanentFilter(c, filter)
+        matchesPermanentFilter(c, filter, { selfControllerId: player.id })
     );
     if (candidates.length === 0) {
         throw new Error("No legal permanent to pay the additional cost");
@@ -2895,7 +2907,11 @@ export const selectAdditionalCost = mutation({
         if (!candidate) {
             throw new Error("Selected permanent not on your battlefield");
         }
-        if (!matchesPermanentFilter(candidate, ac.filter)) {
+        if (
+            !matchesPermanentFilter(candidate, ac.filter, {
+                selfControllerId: args.playerId,
+            })
+        ) {
             throw new Error(
                 "Selected permanent does not match the additional cost filter"
             );
