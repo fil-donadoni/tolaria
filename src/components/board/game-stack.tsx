@@ -50,8 +50,14 @@ export default function GameStack({ stack }: GameStackProps) {
 
     return (
         <div
-            className="absolute top-1/2 right-4 z-100"
+            // Play-area layout rule: anchor the stack to the right edge of the
+            // play area (just LEFT of the reserved right strip), not the
+            // viewport. `--right-piles-w` resolves in-tree under
+            // `data-board-root`; portrait ⇒ 0px ⇒ flush to the viewport edge
+            // (and the portrait chip path renders the stack differently anyway).
+            className="absolute top-1/2 z-100"
             style={{
+                right: "var(--right-piles-w)",
                 transform: `translate(${offset.x}px, calc(-50% + ${offset.y}px))`,
             }}
         >

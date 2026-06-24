@@ -79,9 +79,11 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
 
     it("offsets centering by half the right-piles strip so in-game dialogs sit over the play area", () => {
         // The board publishes `--right-piles-w` to documentElement while
-        // mounted; the popup centers on `left: calc(50% - strip/2)` so it
-        // shifts left over the play area. In the lobby the var is absent and
-        // the calc falls back to `50% - 0px/2` = plain center (unchanged).
+        // mounted; the popup centers via the shared `.play-area-center-x`
+        // utility (`left: calc(50% - strip/2)`) so it shifts left over the play
+        // area. In the lobby the var is absent and the calc falls back to
+        // `50% - 0px/2` = plain center (unchanged). The utility is the single
+        // documented source of the play-area centering rule (index.css).
         const { baseElement } = render(
             <GameDialog open title="Offset">
                 <p>body</p>
@@ -90,9 +92,7 @@ describe("GameDialog (issue #597, Zelda-TotK shape)", () => {
         const popup = baseElement.querySelector(
             '[data-slot="dialog-content"]'
         )!;
-        expect(popup.className).toContain(
-            "left-[calc(50%-var(--right-piles-w,0px)/2)]"
-        );
+        expect(popup.className).toContain("play-area-center-x");
     });
 
     it("does not dismiss on overlay close when not dismissable", () => {

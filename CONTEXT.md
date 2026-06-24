@@ -409,6 +409,10 @@ _Avoid_: Superuser, moderator, root
 
 ### Interaction
 
+**Play Area**:
+The viewport MINUS the board's right strip (`--right-piles-w`). The right strip is reserved for the **piles** (library/exile/graveyard), the controller phase pod, and the lateral card preview, and is visually decoupled. Play-area content (dialogs, the player nameplate, the **Stack**) centers/anchors on the play area via the shared `.play-area-center-x` utility (`left: calc(50% - var(--right-piles-w)/2)`), so it sits over the play area, not the full viewport. Left-side dev overlays (**Debug** panel, AI-decision trace) simply float over the edges and never reserve width or affect centering. Portrait collapses the strip to `0px`, so everything centers on the full viewport.
+_Avoid_: Board area, canvas
+
 **Card Preview Overlay**:
 A full-screen centered overlay showing a card's art and oracle text at maximum legible size. On touch devices, triggered by **Long-Press**. On desktop, the lateral zoom panel serves the same purpose (triggered by hover).
 _Avoid_: Tooltip, zoom (overloaded — "zoom" is the desktop variant)
