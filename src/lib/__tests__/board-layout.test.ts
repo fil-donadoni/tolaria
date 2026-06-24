@@ -9,6 +9,11 @@ import {
     moveItem,
     reconcileHandOrder,
     stackFanOffset,
+    isDepthPile,
+    stackDepthOffset,
+    STACK_DEPTH_PILE_THRESHOLD,
+    STACK_DEPTH_OFFSET,
+    STACK_DEPTH_MAX_VISIBLE_EDGES,
     STACK_FAN_REVEAL,
     STACK_FAN_MAX_WIDTH,
     CARD_WIDTH,
@@ -548,5 +553,37 @@ describe("stackFanOffset — fanned permanent stack reveal (PRD #621, #623)", ()
             const total = CARD_WIDTH + (n - 1) * stackFanOffset(n);
             expect(total).toBeLessThanOrEqual(STACK_FAN_MAX_WIDTH + 0.001);
         }
+    });
+});
+
+describe("isDepthPile — large permanent stack threshold (PRD #621, #624)", () => {
+    it("is false at and below the threshold (these still fan)", () => {
+        for (let n = 0; n <= STACK_DEPTH_PILE_THRESHOLD; n++) {
+            expect(isDepthPile(n)).toBe(false);
+        }
+    });
+
+    it("is true strictly above the threshold", () => {
+        expect(isDepthPile(STACK_DEPTH_PILE_THRESHOLD + 1)).toBe(true);
+        expect(isDepthPile(50)).toBe(true);
+    });
+});
+
+describe("stackDepthOffset — depth-pile diagonal step (PRD #621, #624)", () => {
+    it("starts at 0 for the bottom face and steps by the fixed offset", () => {
+        expect(stackDepthOffset(0)).toBe(0);
+        expect(stackDepthOffset(1)).toBe(STACK_DEPTH_OFFSET);
+        expect(stackDepthOffset(3)).toBe(3 * STACK_DEPTH_OFFSET);
+    });
+
+    it("clamps the spread so the pile keeps a ~one-card footprint", () => {
+        // Beyond the visible-edge cap the offset stops growing — deeper faces
+        // share the maximal offset, so a huge stack never spreads past a card.
+        const max = STACK_DEPTH_MAX_VISIBLE_EDGES * STACK_DEPTH_OFFSET;
+        expect(stackDepthOffset(STACK_DEPTH_MAX_VISIBLE_EDGES)).toBe(max);
+        expect(stackDepthOffset(STACK_DEPTH_MAX_VISIBLE_EDGES + 5)).toBe(max);
+        expect(stackDepthOffset(100)).toBe(max);
+        // The capped spread plus one card stays well under the fan max width.
+        expect(CARD_WIDTH + max).toBeLessThan(STACK_FAN_MAX_WIDTH);
     });
 });
