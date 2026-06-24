@@ -17,6 +17,7 @@ import { getCounterDisplays } from "~/lib/counters";
 import { releasePreview, requestOpenPreview } from "./card-preview-singleton";
 import CardPreviewBody from "./card-preview-body";
 import CardPreviewDock from "./card-preview-dock";
+import CardPreviewAnchored from "./card-preview-anchored";
 
 const OVERLAY_WIDTH = 128 * 2;
 export const HOVER_DELAY_MS = 300;
@@ -34,8 +35,10 @@ export default function CardPreview({
     cardInstance,
     children,
 }: CardPreviewProps) {
-    // Desktop hover preview (fixed center-left dock, #332). Mobile long-press
-    // overlay is a separate surface (`showOverlay`) and is unaffected.
+    // Desktop hover preview (#332). On the in-game board it docks in the fixed
+    // right column (CardPreviewDock); in the lobby/deck-builder it floats next
+    // to the hovered card (CardPreviewAnchored). Mobile long-press overlay is a
+    // separate surface (`showOverlay`) and is unaffected.
     const [showDock, setShowDock] = useState(false);
     const [dockImgLoaded, setDockImgLoaded] = useState(false);
     const isHovered = useRef(false);
@@ -352,15 +355,26 @@ export default function CardPreview({
                     </div>,
                     document.body
                 )}
-            {/* Desktop hover preview — fixed center-left dock (#332). */}
-            {showDock && (
-                <CardPreviewDock
-                    {...sharedBody}
-                    size="sm"
-                    imageLoaded={imageSrc ? dockImgLoaded : true}
-                    onImageLoaded={() => setDockImgLoaded(true)}
-                />
-            )}
+            {/* Desktop hover preview (#332). On the board (GameContext present)
+                it docks in the fixed right column; in the lobby/deck-builder it
+                floats next to the hovered card. */}
+            {showDock &&
+                (gameCtx ? (
+                    <CardPreviewDock
+                        {...sharedBody}
+                        size="sm"
+                        imageLoaded={imageSrc ? dockImgLoaded : true}
+                        onImageLoaded={() => setDockImgLoaded(true)}
+                    />
+                ) : (
+                    <CardPreviewAnchored
+                        {...sharedBody}
+                        size="sm"
+                        imageLoaded={imageSrc ? dockImgLoaded : true}
+                        onImageLoaded={() => setDockImgLoaded(true)}
+                        anchorRef={containerRef}
+                    />
+                ))}
         </div>
     );
 }
