@@ -28,6 +28,8 @@ import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
 import { stateTrigger } from "../abilities/triggers/stateTrigger";
 import { untapRestriction } from "../abilities/static/untapRestriction";
+import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
+import { diedTrigger } from "../abilities/triggers/diedTrigger";
 
 // "At the beginning of your upkeep, sacrifice this permanent unless you pay
 // <cost>" (CR 603.6a phase trigger + CR 117.3a may-pay with a hard action on
@@ -1977,18 +1979,88 @@ export const zuranSpellcaster: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const abyssalSpecter: CardDefinition = {
-//     id: "fc26f19c-bcf7-4bd8-af42-4757dbe47fb1",
-//     name: "Abyssal Specter",
-//     rarity: "uncommon",
-//     oracleText: "Flying\nWhenever this creature deals damage to a player, that player discards a card.",
-//     manaCost: { X: 2, B: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Specter"],
-//     power: 2,
-//     toughness: 3,
-// };
+// ─────────────────────────────────────────────────────────────────────────────
+// Black free tranche (#632)
+//
+// The free-tranche Black cards — expressible entirely with already-shipped
+// primitives — are activated below (intermixed with the remaining commented
+// stubs). Reprints already implemented in earlier sets (Dark Ritual, Fear,
+// Howl from Beyond) are CardPrints onto their existing LEA definitions
+// (ADR 0014); new-to-ICE Black cards are full CardDefinitions.
+//
+// DEFERRED (remain commented stubs, owned by a later cluster):
+//   • Cumulative upkeep — Flow of Maggots, Infernal Darkness (ADR 0042 cluster).
+//   • "Draw a card at the beginning of the next turn's upkeep" delayed cantrips —
+//     Gravebind, Krovikan Fetish, Mind Ravel, Touch of Death (no `next-upkeep`
+//     delayed-trigger timing yet).
+//   • Snow-land-counting effects — Drift of the Dead (P/T = snow lands),
+//     Gangrenous Zombies, Icequake, Withering Wisps; snow swampwalk
+//     (Legions of Lim-Dûl) (no supertype filter / snow-evasion keyword yet —
+//     snow cluster).
+//   • "Target creature can't be regenerated this turn" with no destroy —
+//     Lim-Dûl's Cohort (only `destroy(cantBeRegenerated)` / `setExileOnDeath`
+//     exist; same gap as Hurr Jackal / Gravebind).
+//   • CARD_DISCARDED trigger — Necropotence's "whenever you discard a card,
+//     exile it from your graveyard" needs a discard event + discardTrigger
+//     factory the engine doesn't emit yet (skip-draw + pay-life-exile clauses
+//     are supported, but shipping a partial Necropotence is out — flagged).
+//   • "Spend only black/red mana on X" + black-mana-spent lifegain cap —
+//     Soul Burn (no mana-colour-spent tracking primitive).
+//   • Per-turn activation limit ("no more than three times each turn") —
+//     Soul Kiss (no `maxActivationsPerTurn` field on ActivatedAbility yet).
+//   • Specialized interactions — Ashen Ghoul (graveyard-order recursion),
+//     Cloak of Confusion / Gaze of Pain (assign-no-combat-damage redirect),
+//     Dance of the Dead (graveyard-reanimation aura), Dread Wight
+//     (paralyzation counters), Hecatomb / Stench of Evil (tap-Swamp /
+//     pay-per-land), Infernal Denizen / Minion of Leshrac / Norritt
+//     (control-theft / force-attack), Krovikan Elementalist, Leshrac's Sigil,
+//     Lim-Dûl's Hex / Mind Whip / Seizures (recurring pay-or-damage),
+//     Oath of Lim-Dûl (lose-life trigger), Pox (fractional sacrifice). Each
+//     needs a primitive not yet built; flagged for its capability cluster.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Abyssal Specter — flying 2/3; "Whenever this creature deals damage to a
+// player, that player discards a card." (CR 702.9 flying, CR 120.3 / 603.4
+// damage trigger, CR 701.8 discard.) The damaged player chooses which card to
+// discard (modern oracle — not at random), modelled with a `discard-hand`
+// requestChoice scoped to the damaged player's hand.
+export const abyssalSpecter: CardDefinition = {
+    id: "fc26f19c-bcf7-4bd8-af42-4757dbe47fb1",
+    name: "Abyssal Specter",
+    rarity: "uncommon",
+    oracleText:
+        "Flying\nWhenever this creature deals damage to a player, that player discards a card.",
+    manaCost: { X: 2, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Specter"],
+    power: 2,
+    toughness: 3,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        damageDealtTrigger({
+            id: "abyssal-specter-discard",
+            oracleText:
+                "Whenever this creature deals damage to a player, that player discards a card.",
+            source: "self",
+            target: { kind: "player", player: { relation: "any" } },
+            resolve: (ctx, _event, damage) => {
+                if (damage.target.type !== "player") return;
+                const pid = damage.target.id;
+                if (ctx.getHandSize(pid) === 0) return;
+                const picks = ctx.requestChoice({
+                    playerId: pid,
+                    choiceId: `abyssal-specter-${ctx.sourceInstanceId}-${pid}`,
+                    kind: "discard-hand",
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Abyssal Specter: discard a card.",
+                });
+                if (picks === undefined) return; // suspended for the choice
+                for (const id of picks) ctx.discardCard(pid, id);
+            },
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const ashenGhoul: CardDefinition = {
 //     id: "6bb83301-5662-4628-b536-6a3ee0296f2e",
@@ -2001,18 +2073,60 @@ export const zuranSpellcaster: CardDefinition = {
 //     power: 3,
 //     toughness: 1,
 // };
-// TODO(#628): implement.
-// export const brineShaman: CardDefinition = {
-//     id: "f445962c-44a1-4f3f-88d4-17048f8ca9dc",
-//     name: "Brine Shaman",
-//     rarity: "common",
-//     oracleText: "{T}, Sacrifice a creature: Target creature gets +2/+2 until end of turn.\n{1}{U}{U}, Sacrifice a creature: Counter target creature spell.",
-//     manaCost: { X: 1, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Cleric", "Shaman"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Brine Shaman — sacrifice-a-creature engine (CR 602.1 / 118.5 sacrifice cost).
+// "{T}, Sacrifice a creature: Target creature gets +2/+2 until end of turn."
+// and "{1}{U}{U}, Sacrifice a creature: Counter target creature spell."
+// (CR 611.1b temporary buff; CR 701.5 counter.) The sacrifice cost uses
+// `sacrificeFilter` (a Creature the activator controls).
+export const brineShaman: CardDefinition = {
+    id: "f445962c-44a1-4f3f-88d4-17048f8ca9dc",
+    name: "Brine Shaman",
+    rarity: "common",
+    oracleText:
+        "{T}, Sacrifice a creature: Target creature gets +2/+2 until end of turn.\n{1}{U}{U}, Sacrifice a creature: Counter target creature spell.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Cleric", "Shaman"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "brine-shaman-pump",
+            oracleText:
+                "{T}, Sacrifice a creature: Target creature gets +2/+2 until end of turn.",
+            cost: { tap: true, sacrificeFilter: { types: "Creature" } },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.addTemporaryPTBuff(target, 2, 2, {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+        {
+            id: "brine-shaman-counter",
+            oracleText:
+                "{1}{U}{U}, Sacrifice a creature: Counter target creature spell.",
+            cost: {
+                mana: { X: 1, U: 2 },
+                sacrificeFilter: { types: "Creature" },
+            },
+            useStack: true,
+            targetRequirement: {
+                type: "spell",
+                count: 1,
+                spellTypeFilter: "Creature",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "spell") ctx.counter(target);
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const burntOffering: CardDefinition = {
 //     id: "1dae52a2-3af7-4b97-9d2e-2448b7c413fb",
@@ -2042,33 +2156,74 @@ export const zuranSpellcaster: CardDefinition = {
 //     types: ["Enchantment"],
 //     subtypes: ["Aura"],
 // };
-// TODO(#628): implement.
-// export const darkBanishing: CardDefinition = {
-//     id: "f7dc2716-ed62-4797-ad2b-227eca5408d0",
-//     name: "Dark Banishing",
-//     rarity: "common",
-//     oracleText: "Destroy target nonblack creature. It can't be regenerated.",
-//     manaCost: { X: 2, B: 1 },
-//     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const darkRitual: CardDefinition = {
-//     id: "4ebcd681-1871-4914-bcd7-6bd95829f6e0",
-//     name: "Dark Ritual",
-//     rarity: "common",
-//     oracleText: "Add {B}{B}{B}.",
-//     manaCost: { B: 1 },
-//     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const demonicConsultation: CardDefinition = {
-//     id: "8d727b9b-6114-414d-9172-16b6e1db41cc",
-//     name: "Demonic Consultation",
-//     rarity: "uncommon",
-//     oracleText: "Choose a card name. Exile the top six cards of your library, then reveal cards from the top of your library until you reveal a card with the chosen name. Put that card into your hand and exile all other cards revealed this way.",
-//     manaCost: { B: 1 },
-//     types: ["Instant"],
-// };
+// Dark Banishing — "Destroy target nonblack creature. It can't be regenerated."
+// (CR 701.7 destroy, CR 701.15 regeneration suppression, CR 202.2 colour
+// restriction.) The colour gate is enforced at target selection via the
+// `excludeColors` TargetRequirement filter.
+export const darkBanishing: CardDefinition = {
+    id: "f7dc2716-ed62-4797-ad2b-227eca5408d0",
+    name: "Dark Banishing",
+    rarity: "common",
+    oracleText: "Destroy target nonblack creature. It can't be regenerated.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1, excludeColors: "B" },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target) ctx.destroy(target, { cantBeRegenerated: true });
+    },
+};
+// Dark Ritual — ICE reprint of the LEA original (ADR 0014). Mechanics live on
+// the existing LEA definition; this is a CardPrint binding the ICE print id.
+export const darkRitualIce: CardPrint = {
+    printId: "4ebcd681-1871-4914-bcd7-6bd95829f6e0",
+    definitionId: "ebb6664d-23ca-456e-9916-afcd6f26aa7f",
+    setCode: "ice",
+    rarity: "common",
+};
+// Demonic Consultation — "Choose a card name. Exile the top six cards of your
+// library, then reveal cards from the top of your library until you reveal a
+// card with the chosen name. Put that card into your hand and exile all other
+// cards revealed this way." (CR 202.3 name-a-card via `requestNameCard`;
+// CR 701.13 reveal; CR 406 exile.) Composition of shipped primitives: name →
+// `peekLibraryTop` to read the top in order → `moveCardById` library→exile for
+// the first six → continue revealing one at a time, exiling each until one
+// matches the named card (then hand). Empty-library mid-loop is a silent stop
+// (CR 608.2b).
+export const demonicConsultation: CardDefinition = {
+    id: "8d727b9b-6114-414d-9172-16b6e1db41cc",
+    name: "Demonic Consultation",
+    rarity: "uncommon",
+    oracleText:
+        "Choose a card name. Exile the top six cards of your library, then reveal cards from the top of your library until you reveal a card with the chosen name. Put that card into your hand and exile all other cards revealed this way.",
+    manaCost: { B: 1 },
+    types: ["Instant"],
+    resolve: (ctx: SpellContext) => {
+        const me = ctx.controller;
+        const named = ctx.requestNameCard({
+            playerId: me,
+            choiceId: "demonic-consultation-name",
+            prompt: "Name a card.",
+        });
+        if (named === undefined) return; // suspended on the name choice
+        // Read the whole library top-down so exiles operate on stable ids.
+        const lib = ctx.peekLibraryTop(me, Number.MAX_SAFE_INTEGER);
+        // Exile the top six.
+        const firstSix = lib.slice(0, 6);
+        for (const id of firstSix) ctx.moveCardById(me, id, "library", "exile");
+        // Reveal from the new top until the named card (or library runs out).
+        for (let i = 6; i < lib.length; i++) {
+            const id = lib[i];
+            ctx.markKnownToAll(me, [id]);
+            const cardName = ctx.getCardName(id);
+            if (cardName === named) {
+                ctx.moveCardById(me, id, "library", "hand");
+                return;
+            }
+            ctx.moveCardById(me, id, "library", "exile");
+        }
+    },
+};
 // TODO(#628): implement.
 // export const dreadWight: CardDefinition = {
 //     id: "65d332e2-4b2d-4131-84f7-862cb138c477",
@@ -2091,16 +2246,14 @@ export const zuranSpellcaster: CardDefinition = {
 //     types: ["Creature"],
 //     subtypes: ["Wall"],
 // };
-// TODO(#628): implement.
-// export const fear: CardDefinition = {
-//     id: "5709398f-0744-4780-a1d2-eead96c8f348",
-//     name: "Fear",
-//     rarity: "common",
-//     oracleText: "Enchant creature (Target a creature as you cast this. This card enters attached to that creature.)\nEnchanted creature has fear. (It can't be blocked except by artifact creatures and/or black creatures.)",
-//     manaCost: { B: 2 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Fear — ICE reprint of the LEA original (ADR 0014). The fear-granting Aura
+// mechanics live on the existing LEA definition; this is a CardPrint.
+export const fearIce: CardPrint = {
+    printId: "5709398f-0744-4780-a1d2-eead96c8f348",
+    definitionId: "0cd927be-e63f-4371-a1d8-7a0489cb187e",
+    setCode: "ice",
+    rarity: "common",
+};
 // TODO(#628): implement.
 // export const flowOfMaggots: CardDefinition = {
 //     id: "6880a4d3-5cbc-4a01-9190-3565617efcc9",
@@ -2113,18 +2266,45 @@ export const zuranSpellcaster: CardDefinition = {
 //     power: 2,
 //     toughness: 2,
 // };
-// TODO(#628): implement.
-// export const foulFamiliar: CardDefinition = {
-//     id: "8bad3541-8e40-4a2f-ac9d-f7b61f3d75a1",
-//     name: "Foul Familiar",
-//     rarity: "common",
-//     oracleText: "This creature can't block.\n{B}, Pay 1 life: Return this creature to its owner's hand.",
-//     manaCost: { X: 2, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Spirit"],
-//     power: 3,
-//     toughness: 1,
-// };
+// Foul Familiar — 3/1 that can't block (CR 509.1b block-restriction, ADR 0006)
+// with a "{B}, Pay 1 life: Return this creature to its owner's hand." dodge
+// (CR 118.4 life cost, CR 701.14 move-to-hand).
+export const foulFamiliar: CardDefinition = {
+    id: "8bad3541-8e40-4a2f-ac9d-f7b61f3d75a1",
+    name: "Foul Familiar",
+    rarity: "common",
+    oracleText:
+        "This creature can't block.\n{B}, Pay 1 life: Return this creature to its owner's hand.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Spirit"],
+    power: 3,
+    toughness: 1,
+    staticEffects: [
+        {
+            kind: "block-restriction",
+            id: "foul-familiar-cant-block",
+            side: "blocker",
+            predicate: () => false,
+            oracleText: "Foul Familiar can't block.",
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "foul-familiar-bounce",
+            oracleText:
+                "{B}, Pay 1 life: Return this creature to its owner's hand.",
+            cost: { mana: { B: 1 }, life: 1 },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.returnToHand({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const gangrenousZombies: CardDefinition = {
 //     id: "08be4d83-99be-4360-90f1-104dee1c3c2f",
@@ -2164,39 +2344,77 @@ export const zuranSpellcaster: CardDefinition = {
 //     manaCost: { X: 1, B: 2 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const hoarShade: CardDefinition = {
-//     id: "72242dff-15ca-4da0-b3ae-9984d037b31f",
-//     name: "Hoar Shade",
-//     rarity: "common",
-//     oracleText: "{B}: This creature gets +1/+1 until end of turn.",
-//     manaCost: { X: 3, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Shade"],
-//     power: 1,
-//     toughness: 2,
-// };
-// TODO(#628): implement.
-// export const howlFromBeyond: CardDefinition = {
-//     id: "ca9d0d6b-056e-4b94-8de5-a325768f67b6",
-//     name: "Howl from Beyond",
-//     rarity: "common",
-//     oracleText: "Target creature gets +X/+0 until end of turn.",
-//     manaCost: { X: "X", B: 1 },
-//     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const hyalopterousLemure: CardDefinition = {
-//     id: "d2c9e037-f4d5-46fd-b439-56bee6fb2ad3",
-//     name: "Hyalopterous Lemure",
-//     rarity: "uncommon",
-//     oracleText: "{0}: This creature gets -1/-0 and gains flying until end of turn.",
-//     manaCost: { X: 4, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Spirit"],
-//     power: 4,
-//     toughness: 3,
-// };
+// Hoar Shade — classic Shade pump (CR 611.1b). "{B}: This creature gets +1/+1
+// until end of turn."
+export const hoarShade: CardDefinition = {
+    id: "72242dff-15ca-4da0-b3ae-9984d037b31f",
+    name: "Hoar Shade",
+    rarity: "common",
+    oracleText: "{B}: This creature gets +1/+1 until end of turn.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Shade"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "hoar-shade-pump",
+            oracleText: "{B}: This creature gets +1/+1 until end of turn.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+// Howl from Beyond — ICE reprint of the LEA original (ADR 0014). The +X/+0
+// pump mechanics live on the existing LEA definition; this is a CardPrint.
+export const howlFromBeyondIce: CardPrint = {
+    printId: "ca9d0d6b-056e-4b94-8de5-a325768f67b6",
+    definitionId: "67ec17e1-174b-4d07-a27f-91a333c4b2fb",
+    setCode: "ice",
+    rarity: "common",
+};
+// Hyalopterous Lemure — "{0}: This creature gets -1/-0 and gains flying until
+// end of turn." (CR 611.1b negative pump + CR 702.9 flying grant.) Pay {0} to
+// trade power for evasion.
+export const hyalopterousLemure: CardDefinition = {
+    id: "d2c9e037-f4d5-46fd-b439-56bee6fb2ad3",
+    name: "Hyalopterous Lemure",
+    rarity: "uncommon",
+    oracleText:
+        "{0}: This creature gets -1/-0 and gains flying until end of turn.",
+    manaCost: { X: 4, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Spirit"],
+    power: 4,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "hyalopterous-lemure-fly",
+            oracleText:
+                "{0}: This creature gets -1/-0 and gains flying until end of turn.",
+            cost: { mana: { X: 0 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                const self = {
+                    type: "permanent" as const,
+                    id: ctx.sourceInstanceId,
+                };
+                ctx.addTemporaryPTBuff(self, -1, 0, { phase: "end-of-turn" });
+                ctx.grantStaticAbility(self, "flying", {
+                    phase: "end-of-turn",
+                });
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const icequake: CardDefinition = {
 //     id: "14b4dd4d-c617-4603-8a87-761ec6fc6883",
@@ -2227,30 +2445,101 @@ export const zuranSpellcaster: CardDefinition = {
 //     power: 5,
 //     toughness: 7,
 // };
-// TODO(#628): implement.
-// export const kjeldoranDead: CardDefinition = {
-//     id: "d3f7b614-6075-4b7c-acc7-ab63185b570b",
-//     name: "Kjeldoran Dead",
-//     rarity: "common",
-//     oracleText: "When this creature enters, sacrifice a creature.\n{B}: Regenerate this creature.",
-//     manaCost: { B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Skeleton"],
-//     power: 3,
-//     toughness: 1,
-// };
-// TODO(#628): implement.
-// export const knightOfStromgald: CardDefinition = {
-//     id: "2b87069b-ebaf-4705-b5da-446932af9b73",
-//     name: "Knight of Stromgald",
-//     rarity: "uncommon",
-//     oracleText: "Protection from white\n{B}: This creature gains first strike until end of turn.\n{B}{B}: This creature gets +1/+0 until end of turn.",
-//     manaCost: { B: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Knight"],
-//     power: 2,
-//     toughness: 1,
-// };
+// Kjeldoran Dead — "When this creature enters, sacrifice a creature." (CR 603.6
+// ETB trigger + CR 701.16 sacrifice; the controller chooses which Creature they
+// control, and may choose Kjeldoran Dead itself.) Plus "{B}: Regenerate this
+// creature." (CR 701.15 regeneration shield.)
+export const kjeldoranDead: CardDefinition = {
+    id: "d3f7b614-6075-4b7c-acc7-ab63185b570b",
+    name: "Kjeldoran Dead",
+    rarity: "common",
+    oracleText:
+        "When this creature enters, sacrifice a creature.\n{B}: Regenerate this creature.",
+    manaCost: { B: 1 },
+    types: ["Creature"],
+    subtypes: ["Skeleton"],
+    power: 3,
+    toughness: 1,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "kjeldoran-dead-sac",
+            oracleText: "When this creature enters, sacrifice a creature.",
+            scope: "self",
+            resolve: (ctx) => {
+                const picks = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: `kjeldoran-dead-sac-${ctx.sourceInstanceId}`,
+                    kind: "sacrifice-permanents",
+                    zone: "battlefield",
+                    filter: { types: "Creature", controllerRelation: "you" },
+                    count: 1,
+                    prompt: "Kjeldoran Dead: sacrifice a creature.",
+                });
+                if (picks === undefined) return; // suspended for the choice
+                for (const id of picks) ctx.sacrifice(id);
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "kjeldoran-dead-regenerate",
+            oracleText: "{B}: Regenerate this creature.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.applyRegenerationShield({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
+// Knight of Stromgald — the black "Order" cycle shape: protection from white
+// (CR 702.16) plus a first-strike grant and a power pump (CR 611.1b).
+export const knightOfStromgald: CardDefinition = {
+    id: "2b87069b-ebaf-4705-b5da-446932af9b73",
+    name: "Knight of Stromgald",
+    rarity: "uncommon",
+    oracleText:
+        "Protection from white\n{B}: This creature gains first strike until end of turn.\n{B}{B}: This creature gets +1/+0 until end of turn.",
+    manaCost: { B: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Knight"],
+    power: 2,
+    toughness: 1,
+    staticAbilities: ["protection from white"],
+    activatedAbilities: [
+        {
+            id: "knight-of-stromgald-first-strike",
+            oracleText:
+                "{B}: This creature gains first strike until end of turn.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.grantStaticAbility(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "first strike",
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+        {
+            id: "knight-of-stromgald-pump",
+            oracleText: "{B}{B}: This creature gets +1/+0 until end of turn.",
+            cost: { mana: { B: 2 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const krovikanElementalist: CardDefinition = {
 //     id: "bbedca18-a074-4441-b0a9-7b14fdb07412",
@@ -2273,18 +2562,71 @@ export const zuranSpellcaster: CardDefinition = {
 //     types: ["Enchantment"],
 //     subtypes: ["Aura"],
 // };
-// TODO(#628): implement.
-// export const krovikanVampire: CardDefinition = {
-//     id: "717c5dda-8e38-4c76-b241-685198402284",
-//     name: "Krovikan Vampire",
-//     rarity: "uncommon",
-//     oracleText: "At the beginning of each end step, if a creature dealt damage by this creature this turn died, put that card onto the battlefield under your control. Sacrifice it when you lose control of this creature.",
-//     manaCost: { X: 3, B: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Vampire"],
-//     power: 3,
-//     toughness: 3,
-// };
+// Krovikan Vampire — "At the beginning of each end step, if a creature dealt
+// damage by this creature this turn died, put that card onto the battlefield
+// under your control. Sacrifice it when you lose control of this creature."
+// (CR 603.2 death trigger keyed on `damagedBySources` — the Sengir Vampire
+// check — composed with a next-end-step delayed reanimation, CR 603.7c.) When
+// a creature this Vampire damaged this turn dies, a delayed trigger fires at
+// that turn's end step and reanimates the card under the Vampire's controller
+// via `returnToBattlefield(..., "graveyard")`.
+//
+// SIMPLIFICATION (flagged, no engine change): the "sacrifice it when you lose
+// control of this creature" linkage requires per-permanent control-loss
+// tracking the engine doesn't model yet. The reanimation (the card's main
+// effect) is faithful; the sacrifice-on-loss-of-control clause — only reachable
+// via a control-change effect on the Vampire, which the current pool barely
+// exercises — is documented as deferred.
+const KROVIKAN_VAMPIRE_ID = "717c5dda-8e38-4c76-b241-685198402284";
+export const krovikanVampire: CardDefinition = {
+    id: KROVIKAN_VAMPIRE_ID,
+    name: "Krovikan Vampire",
+    rarity: "uncommon",
+    oracleText:
+        "At the beginning of each end step, if a creature dealt damage by this creature this turn died, put that card onto the battlefield under your control. Sacrifice it when you lose control of this creature.",
+    manaCost: { X: 3, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Vampire"],
+    power: 3,
+    toughness: 3,
+    triggeredAbilities: [
+        diedTrigger({
+            id: "krovikan-vampire-mark",
+            oracleText:
+                "Whenever a creature dealt damage by this creature this turn dies, reanimate it under your control at the beginning of the end step.",
+            scope: "any-other",
+            condition: (event, self) =>
+                event.damagedBySources.includes(self.id),
+            resolve: (ctx, _event, deadCreature) => {
+                ctx.scheduleDelayedTrigger(
+                    KROVIKAN_VAMPIRE_ID,
+                    "krovikan-vampire-reanimate",
+                    "next-end-step",
+                    {
+                        deadId: deadCreature.id,
+                        controllerId: ctx.controller,
+                    }
+                );
+            },
+        }),
+    ],
+    delayedTriggers: [
+        {
+            id: "krovikan-vampire-reanimate",
+            oracleText:
+                "Put that card onto the battlefield under your control at the beginning of the end step.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                if (!payload.deadId || !payload.controllerId) return;
+                ctx.returnToBattlefield(
+                    payload.controllerId,
+                    payload.deadId,
+                    "graveyard"
+                );
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const legionsOfLimDL: CardDefinition = {
 //     id: "75b67eb2-b60e-46b4-9d48-11c284957bec",
@@ -2297,16 +2639,26 @@ export const zuranSpellcaster: CardDefinition = {
 //     power: 2,
 //     toughness: 3,
 // };
-// TODO(#628): implement.
-// export const leshracsRite: CardDefinition = {
-//     id: "4e0a6b4e-95b4-40f6-bb19-568dbd908a2b",
-//     name: "Leshrac's Rite",
-//     rarity: "uncommon",
-//     oracleText: "Enchant creature\nEnchanted creature has swampwalk. (It can't be blocked as long as defending player controls a Swamp.)",
-//     manaCost: { B: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Leshrac's Rite — Aura that grants swampwalk to its host (CR 702.13 landwalk,
+// CR 611 keyword grant via `keyword-grant` staticEffect on the host).
+export const leshracsRite: CardDefinition = {
+    id: "4e0a6b4e-95b4-40f6-bb19-568dbd908a2b",
+    name: "Leshrac's Rite",
+    rarity: "uncommon",
+    oracleText:
+        "Enchant creature\nEnchanted creature has swampwalk. (It can't be blocked as long as defending player controls a Swamp.)",
+    manaCost: { B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "swampwalk",
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const leshracsSigil: CardDefinition = {
 //     id: "ad5ba7ee-d6df-4b62-a8a1-c81e6fca392a",
@@ -2346,15 +2698,39 @@ export const zuranSpellcaster: CardDefinition = {
 //     manaCost: { X: 2, B: 1 },
 //     types: ["Sorcery"],
 // };
-// TODO(#628): implement.
-// export const mindWarp: CardDefinition = {
-//     id: "de150cd6-0bbc-47f7-a781-cd1aa10eabc6",
-//     name: "Mind Warp",
-//     rarity: "uncommon",
-//     oracleText: "Look at target player's hand and choose X cards from it. That player discards those cards.",
-//     manaCost: { X: "X", B: 1 },
-//     types: ["Sorcery"],
-// };
+// Mind Warp — "Look at target player's hand and choose X cards from it. That
+// player discards those cards." (CR 702.x reveal-to-caster + CR 701.8 discard.)
+// The caster (not the target) chooses which X cards via a `discard-hand`
+// requestChoice scoped to the target's hand; the picks are then discarded.
+export const mindWarp: CardDefinition = {
+    id: "de150cd6-0bbc-47f7-a781-cd1aa10eabc6",
+    name: "Mind Warp",
+    rarity: "uncommon",
+    oracleText:
+        "Look at target player's hand and choose X cards from it. That player discards those cards.",
+    manaCost: { X: "X", B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "player") return;
+        const x = ctx.getX();
+        const handSize = ctx.getHandSize(target.id);
+        const count = Math.min(x, handSize);
+        if (count <= 0) return;
+        const picks = ctx.requestChoice({
+            playerId: ctx.controller,
+            choiceId: `mind-warp-${ctx.sourceInstanceId}`,
+            kind: "discard-hand",
+            zone: "hand",
+            zoneOwnerId: target.id,
+            count,
+            prompt: "Mind Warp: choose cards for that player to discard.",
+        });
+        if (picks === undefined) return; // suspended for the choice
+        for (const id of picks) ctx.discardCard(target.id, id);
+    },
+};
 // TODO(#628): implement.
 // export const mindWhip: CardDefinition = {
 //     id: "3f3ff5fb-4126-4a18-b540-2beaae382e59",
@@ -2377,42 +2753,108 @@ export const zuranSpellcaster: CardDefinition = {
 //     power: 5,
 //     toughness: 5,
 // };
-// TODO(#628): implement.
-// export const minionOfTeveshSzat: CardDefinition = {
-//     id: "ea9f3ab5-6a31-47db-b8bf-4c56a7ff19d1",
-//     name: "Minion of Tevesh Szat",
-//     rarity: "rare",
-//     oracleText: "At the beginning of your upkeep, this creature deals 2 damage to you unless you pay {B}{B}.\n{T}: Target creature gets +3/-2 until end of turn.",
-//     manaCost: { X: 4, B: 3 },
-//     types: ["Creature"],
-//     subtypes: ["Demon", "Minion"],
-//     power: 4,
-//     toughness: 4,
-// };
-// TODO(#628): implement.
-// export const moleWorms: CardDefinition = {
-//     id: "4914f6fc-e3e7-426b-8688-12157c7df9e7",
-//     name: "Mole Worms",
-//     rarity: "uncommon",
-//     oracleText: "You may choose not to untap this creature during your untap step.\n{T}: Tap target land. It doesn't untap during its controller's untap step for as long as this creature remains tapped.",
-//     manaCost: { X: 2, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Worm"],
-//     power: 1,
-//     toughness: 1,
-// };
-// TODO(#628): implement.
-// export const moorFiend: CardDefinition = {
-//     id: "57089dd4-e30d-498d-9341-43c104c6f3f9",
-//     name: "Moor Fiend",
-//     rarity: "common",
-//     oracleText: "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)",
-//     manaCost: { X: 3, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Horror"],
-//     power: 3,
-//     toughness: 3,
-// };
+// Minion of Tevesh Szat — "At the beginning of your upkeep, this creature deals
+// 2 damage to you unless you pay {B}{B}." (CR 603.6a upkeep trigger + CR 117.3a
+// may-pay; on decline it deals 2 to its controller.) Plus "{T}: Target creature
+// gets +3/-2 until end of turn." (CR 611.1b — pump power, drop toughness.)
+export const minionOfTeveshSzat: CardDefinition = {
+    id: "ea9f3ab5-6a31-47db-b8bf-4c56a7ff19d1",
+    name: "Minion of Tevesh Szat",
+    rarity: "rare",
+    oracleText:
+        "At the beginning of your upkeep, this creature deals 2 damage to you unless you pay {B}{B}.\n{T}: Target creature gets +3/-2 until end of turn.",
+    manaCost: { X: 4, B: 3 },
+    types: ["Creature"],
+    subtypes: ["Demon", "Minion"],
+    power: 4,
+    toughness: 4,
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "minion-tevesh-szat-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, this creature deals 2 damage to you unless you pay {B}{B}.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: ctx.controller,
+                    cost: { B: 2 },
+                    prompt: "Pay {B}{B} or take 2 damage from Minion of Tevesh Szat?",
+                });
+                if (accept === undefined) return; // suspended
+                if (!accept) {
+                    ctx.dealDamage({ type: "player", id: ctx.controller }, 2);
+                }
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "minion-tevesh-szat-pump",
+            oracleText: "{T}: Target creature gets +3/-2 until end of turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.addTemporaryPTBuff(target, 3, -2, {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
+// Mole Worms — land-locking twin of Phyrexian Gremlins (CR 611.2 untap-lock
+// tied to the source's tapped state via `lockUntapWhileSourceTapped`; CR 502.1
+// optional untap). "{T}: Tap target land. It doesn't untap ... for as long as
+// this creature remains tapped."
+export const moleWorms: CardDefinition = {
+    id: "4914f6fc-e3e7-426b-8688-12157c7df9e7",
+    name: "Mole Worms",
+    rarity: "uncommon",
+    oracleText:
+        "You may choose not to untap this creature during your untap step.\n{T}: Tap target land. It doesn't untap during its controller's untap step for as long as this creature remains tapped.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Worm"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["may-choose-not-to-untap"],
+    activatedAbilities: [
+        {
+            id: "mole-worms-tap-lock",
+            oracleText:
+                "{T}: Tap target land. It doesn't untap during its controller's untap step for as long as this creature remains tapped.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Land", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.tap(target);
+                    ctx.lockUntapWhileSourceTapped(target);
+                }
+            },
+        },
+    ],
+};
+// Moor Fiend — 3/3 swampwalk (CR 702.13b landwalk evasion).
+export const moorFiend: CardDefinition = {
+    id: "57089dd4-e30d-498d-9341-43c104c6f3f9",
+    name: "Moor Fiend",
+    rarity: "common",
+    oracleText:
+        "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)",
+    manaCost: { X: 3, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Horror"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["swampwalk"],
+};
 // TODO(#628): implement.
 // export const necropotence: CardDefinition = {
 //     id: "54d7a0c1-efb4-4a8d-ad92-a96d43835052",
@@ -2443,17 +2885,39 @@ export const zuranSpellcaster: CardDefinition = {
 //     manaCost: { X: 3, B: 1 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const pestilenceRats: CardDefinition = {
-//     id: "bff7f6a6-0e90-4eb4-b76e-d98454975fb6",
-//     name: "Pestilence Rats",
-//     rarity: "common",
-//     oracleText: "Pestilence Rats's power is equal to the number of other Rats on the battlefield. (For example, as long as there are two other Rats on the battlefield, Pestilence Rats's power and toughness are 2/3.)",
-//     manaCost: { X: 2, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Rat"],
-//     toughness: 3,
-// };
+// Pestilence Rats — "Pestilence Rats's power is equal to the number of other
+// Rats on the battlefield." (CR 604.3 characteristic-defining ability; */3 with
+// the */ power supplied by a `pt-cda` that counts other Rats across both
+// battlefields — base power 0.)
+export const pestilenceRats: CardDefinition = {
+    id: "bff7f6a6-0e90-4eb4-b76e-d98454975fb6",
+    name: "Pestilence Rats",
+    rarity: "common",
+    oracleText:
+        "Pestilence Rats's power is equal to the number of other Rats on the battlefield. (For example, as long as there are two other Rats on the battlefield, Pestilence Rats's power and toughness are 2/3.)",
+    manaCost: { X: 2, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Rat"],
+    power: 0,
+    toughness: 3,
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: (target, source) => target.id === source.id,
+            compute: (source, state) => {
+                let otherRats = 0;
+                for (const p of state.players) {
+                    for (const c of p.battlefield) {
+                        if (c.id === source.id) continue;
+                        if (c.subtypes.includes("Rat")) otherRats++;
+                    }
+                }
+                // CR 613.4 layer 7b: */3 — power = other Rats, toughness fixed.
+                return { power: otherRats, toughness: 0 };
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const pox: CardDefinition = {
 //     id: "a914138c-a593-414c-bbcb-83d3c1bc4f6f",
@@ -2473,15 +2937,23 @@ export const zuranSpellcaster: CardDefinition = {
 //     types: ["Enchantment"],
 //     subtypes: ["Aura"],
 // };
-// TODO(#628): implement.
-// export const songsOfTheDamned: CardDefinition = {
-//     id: "6cff3547-8c72-439a-91fe-ebe729dab748",
-//     name: "Songs of the Damned",
-//     rarity: "common",
-//     oracleText: "Add {B} for each creature card in your graveyard.",
-//     manaCost: { B: 1 },
-//     types: ["Instant"],
-// };
+// Songs of the Damned — "Add {B} for each creature card in your graveyard."
+// (CR 605/606 mana spell; counts Creature cards in the caster's graveyard at
+// resolution and adds that many {B}.)
+export const songsOfTheDamned: CardDefinition = {
+    id: "6cff3547-8c72-439a-91fe-ebe729dab748",
+    name: "Songs of the Damned",
+    rarity: "common",
+    oracleText: "Add {B} for each creature card in your graveyard.",
+    manaCost: { B: 1 },
+    types: ["Instant"],
+    resolve: (ctx: SpellContext) => {
+        const creatures = ctx
+            .getGraveyardCards(ctx.controller)
+            .filter((c) => c.types.includes("Creature")).length;
+        if (creatures > 0) ctx.addMana({ B: creatures });
+    },
+};
 // TODO(#628): implement.
 // export const soulBurn: CardDefinition = {
 //     id: "eb8e00d2-2381-4d45-bed8-c9bf738a9419",
@@ -2501,15 +2973,34 @@ export const zuranSpellcaster: CardDefinition = {
 //     types: ["Enchantment"],
 //     subtypes: ["Aura"],
 // };
-// TODO(#628): implement.
-// export const spoilsOfEvil: CardDefinition = {
-//     id: "fd368eb6-72f0-42d4-afa5-3daa7de949ff",
-//     name: "Spoils of Evil",
-//     rarity: "rare",
-//     oracleText: "For each artifact or creature card in target opponent's graveyard, add {C} and you gain 1 life.",
-//     manaCost: { X: 2, B: 1 },
-//     types: ["Instant"],
-// };
+// Spoils of Evil — "For each artifact or creature card in target opponent's
+// graveyard, add {C} and you gain 1 life." (CR 606 mana + CR 119 lifegain.)
+// Counts Artifact/Creature cards in the targeted opponent's graveyard; adds
+// that many {C} and gains that much life.
+export const spoilsOfEvil: CardDefinition = {
+    id: "fd368eb6-72f0-42d4-afa5-3daa7de949ff",
+    name: "Spoils of Evil",
+    rarity: "rare",
+    oracleText:
+        "For each artifact or creature card in target opponent's graveyard, add {C} and you gain 1 life.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "player", count: 1, controller: "opponent" },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "player") return;
+        const n = ctx
+            .getGraveyardCards(target.id)
+            .filter(
+                (c) =>
+                    c.types.includes("Artifact") || c.types.includes("Creature")
+            ).length;
+        if (n > 0) {
+            ctx.addMana({ C: n });
+            ctx.gainLife(ctx.controller, n);
+        }
+    },
+};
 // TODO(#628): implement.
 // export const spoilsOfWar: CardDefinition = {
 //     id: "b38af8bd-d927-46d0-a1b1-fb437ea9ea66",
@@ -2528,18 +3019,33 @@ export const zuranSpellcaster: CardDefinition = {
 //     manaCost: { X: 2, B: 2 },
 //     types: ["Sorcery"],
 // };
-// TODO(#628): implement.
-// export const stromgaldCabal: CardDefinition = {
-//     id: "6ac6fa0c-753e-4fbc-8a70-0f956503cf4e",
-//     name: "Stromgald Cabal",
-//     rarity: "rare",
-//     oracleText: "{T}, Pay 1 life: Counter target white spell.",
-//     manaCost: { X: 1, B: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Knight"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Stromgald Cabal — "{T}, Pay 1 life: Counter target white spell." (CR 602.1
+// tap + CR 118.4 life cost; CR 701.5 counter restricted to white spells via the
+// spell-target `colorFilter`.)
+export const stromgaldCabal: CardDefinition = {
+    id: "6ac6fa0c-753e-4fbc-8a70-0f956503cf4e",
+    name: "Stromgald Cabal",
+    rarity: "rare",
+    oracleText: "{T}, Pay 1 life: Counter target white spell.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Knight"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "stromgald-cabal-counter",
+            oracleText: "{T}, Pay 1 life: Counter target white spell.",
+            cost: { tap: true, life: 1 },
+            useStack: true,
+            targetRequirement: { type: "spell", count: 1, colorFilter: "W" },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "spell") ctx.counter(target);
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const touchOfDeath: CardDefinition = {
 //     id: "a49c658f-e657-490b-af1f-e67e48d0046e",
