@@ -1464,6 +1464,16 @@ export interface SpellContext {
      *  no longer on the battlefield. Used by Clergy of the Holy Nimbus's "{1}:
      *  This creature can't be regenerated this turn." */
     setSourceCantBeRegeneratedThisTurn: () => void;
+    /** Marks a TARGET creature so it can't be regenerated for the rest of the
+     *  turn (CR 701.15c — the target-scoped twin of
+     *  `setSourceCantBeRegeneratedThisTurn`). Sets the same per-instance
+     *  `cantBeRegeneratedThisTurn` flag, so it suppresses both regeneration
+     *  shields and the continuous `"auto-regenerate"` replacement on that
+     *  creature. Cleared at CLEANUP (CR 514.2). No-op if the target is not a
+     *  creature on the battlefield. Used by Incinerate ("A creature dealt damage
+     *  this way can't be regenerated this turn"), Orcish Healer, and Word of
+     *  Blasting. */
+    setTargetCantBeRegeneratedThisTurn: (target: TargetSelection) => void;
     /** Forces ALL creatures a player controls to attack this combat if able
      *  (CR 508.1d, Siren's Call). Cleared at CLEANUP. */
     setAllCreaturesMustAttack: (playerId: string) => void;
