@@ -1837,6 +1837,13 @@ export interface SpellContext {
     /** True if the permanent has the given subtype (CR 205.3). */
     hasSubtype: (target: TargetSelection, subtype: string) => boolean;
 
+    /** Effective colors of a battlefield permanent target (CR 202.2 / 105),
+     *  honoring any layer-5 color override. Empty for player / stack-spell
+     *  targets or ids not on the battlefield. Used by resolve closures that
+     *  branch on a chosen target's color (Elvish Healer's "if it's a green
+     *  creature"). */
+    getColors: (target: TargetSelection) => Color[];
+
     /** Ids of cards in `playerId`'s hand. */
     getHandIds: (playerId: string) => string[];
 

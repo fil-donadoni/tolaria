@@ -6555,6 +6555,16 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const found = findOnBattlefield(state, target.id);
             return found?.card.subtypes.includes(subtype) ?? false;
         },
+        getColors(target: TargetSelection): Color[] {
+            // CR 202.2 / 105 — effective colors of a battlefield permanent,
+            // honoring any layer-5 color override (Painter's Servant etc.) via
+            // the shared static-effect color derivation. Empty for non-permanent
+            // targets (players / stack spells).
+            if (target.type !== "permanent") return [];
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return [];
+            return STATIC_EFFECT_CTX.getColors(found.card);
+        },
         getHandIds(playerId: string): string[] {
             return getPlayer(state, playerId).hand.map((c) => c.id);
         },
