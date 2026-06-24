@@ -1288,6 +1288,51 @@ describe("drainAutoPasses", () => {
         expect(state.combat?.confirmed).toBe(true);
     });
 
+    // Pass Turn must NEVER skip the defending player's block decision (CR 509.1).
+    // A standing pass-turn / auto-pass intent that drains through an open
+    // DECLARE_BLOCKERS step must HALT and hand the defender a real window —
+    // mirroring the `passPriority` guard ("Must declare blockers before
+    // passing priority"). It must not auto-confirm an empty block declaration.
+    it("halts at DECLARE_BLOCKERS when the defender has a legal block, even while auto-passing", () => {
+        const state = makeGameState({
+            phase: "DECLARE_BLOCKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 0,
+            // p1 (the attacker) pressed Pass Turn after declaring attackers.
+            autoPassPlayers: ["p1", "p2"],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        const p2 = state.players.find((p) => p.id === "p2")!;
+        p1.battlefield.push(
+            makeCard({
+                id: "atk",
+                types: ["Creature"],
+                power: 2,
+                toughness: 2,
+                isAttacking: true,
+            })
+        );
+        p2.battlefield.push(
+            makeCard({ id: "blk", types: ["Creature"], power: 1, toughness: 1 })
+        );
+
+        drainAutoPasses(state);
+
+        // Drain stopped at the block step instead of fast-forwarding through it.
+        expect(state.phase).toBe("DECLARE_BLOCKERS");
+        // Blockers were NOT auto-confirmed — the defender still gets to choose.
+        expect(state.combat?.blockersConfirmed).toBe(false);
+        // Priority is handed to the defending player for the block decision.
+        expect(state.priorityPlayerId).toBe("p2");
+    });
+
     // -----------------------------------------------------------------------
     // singleShotAutoPass — one-shot skip for the caster after a spell hits
     // the stack (CR 117). Default behavior unless player holds Ctrl on cast.

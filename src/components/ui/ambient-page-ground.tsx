@@ -1,22 +1,13 @@
 import { useState } from "react";
+import { AMBIENT_BG_IMAGES } from "./ambient-backgrounds";
 
-/** Fantasy art pool shipped from `public/img/lobby-bg/`. Shared by every
- *  surface that uses the ambient ground (Battlefield, Lobby, auth screens).
- *  One frame is picked per mount so a screen feels tied to a scene without the
- *  cost of bundling the images. */
-const BG_IMAGES = [
-    "/img/lobby-bg/01.webp",
-    "/img/lobby-bg/02.webp",
-    "/img/lobby-bg/03.webp",
-    "/img/lobby-bg/04.webp",
-    "/img/lobby-bg/05.webp",
-    "/img/lobby-bg/06.webp",
-    "/img/lobby-bg/07.webp",
-    "/img/lobby-bg/08.webp",
-];
-
+/** Pick one ambient frame from the shared rotation pool (local fantasy frames
+ *  + hand-picked Scryfall card art — see `ambient-backgrounds.ts`). One frame
+ *  is picked per mount so a screen feels tied to a scene. */
 function pickRandom() {
-    return BG_IMAGES[Math.floor(Math.random() * BG_IMAGES.length)];
+    return AMBIENT_BG_IMAGES[
+        Math.floor(Math.random() * AMBIENT_BG_IMAGES.length)
+    ];
 }
 
 interface AmbientPageGroundProps {

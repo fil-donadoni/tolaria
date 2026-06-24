@@ -2312,13 +2312,29 @@ export function drainAutoPasses(state: GameState): void {
             emitAttackersDeclaredEvents(state);
         }
 
-        // Auto-confirm blockers when defending player auto-passes
+        // Declare-blockers stop (CR 509.1) — mirrors the `passPriority` guard
+        // in game.ts ("Must declare blockers before passing priority"). A
+        // standing Pass Turn / auto-pass intent must NEVER skip the defending
+        // player's block decision: while attackers are declared, blockers are
+        // unconfirmed, and the defender has at least one legal block, halt the
+        // drain and hand the defender a genuine declare-blockers window. Their
+        // pass intent is preserved, so the drain resumes for the rest of the
+        // turn once they confirm blockers.
+        //
+        // When the defender has no legal block, phase entry already set
+        // `blockersConfirmed` (`skipUnblockableCombat`), so we only reach this
+        // branch unconfirmed when a real block exists; the fall-through
+        // auto-confirm below is a defensive no-op for any edge that slips past.
         if (
             state.phase === "DECLARE_BLOCKERS" &&
             state.combat &&
             !state.combat.blockersConfirmed
         ) {
             const defenderId = getOpponentId(state, state.activePlayerId);
+            if (defenderHasAnyLegalBlock(state)) {
+                state.priorityPlayerId = defenderId;
+                return;
+            }
             const defender = getPlayer(state, defenderId);
             for (const blockerId of Object.keys(
                 state.combat.blockerAssignments
