@@ -14,9 +14,49 @@
 // uncomments + completes it. Modern Scryfall oracle text is authoritative
 // (ADR 0004). Generic mana is encoded as `X: n` (e.g. {1}{G} → { X: 1, G: 1 }).
 
-import type { CardDefinition, CardPrint, SpellContext } from "../types";
+import type {
+    CardDefinition,
+    CardPrint,
+    ManaCost,
+    SpellContext,
+    TriggeredAbility,
+} from "../types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../types";
 import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
+import { leftTrigger } from "../abilities/triggers/leftTrigger";
+import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
+import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
+import { stateTrigger } from "../abilities/triggers/stateTrigger";
+import { untapRestriction } from "../abilities/static/untapRestriction";
+
+// "At the beginning of your upkeep, sacrifice this permanent unless you pay
+// <cost>" (CR 603.6a phase trigger + CR 117.3a may-pay with a hard action on
+// decline). Local twin of the LEA helper of the same name — kept per-set so
+// the set file stays self-contained.
+function makeUpkeepPayOrElse(args: {
+    id: string;
+    oracleText: string;
+    cost: ManaCost;
+    prompt: string;
+    onDecline: (ctx: SpellContext) => void;
+}): TriggeredAbility {
+    return phaseTrigger({
+        id: args.id,
+        oracleText: args.oracleText,
+        phase: "UPKEEP",
+        scope: "your",
+        resolve: (ctx) => {
+            const accept = ctx.requestMayPay({
+                playerId: ctx.controller,
+                choiceId: ctx.controller,
+                cost: args.cost,
+                prompt: args.prompt,
+            });
+            if (accept === undefined) return;
+            if (!accept) args.onDecline(ctx);
+        },
+    });
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Active tracer
@@ -978,7 +1018,43 @@ export const warning: CardDefinition = {
 //     types: ["Enchantment"],
 //     subtypes: ["Aura"],
 // };
-// TODO(#628): implement.
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Blue free tranche (#631)
+//
+// The free-tranche Blue cards — expressible entirely with already-shipped
+// primitives — are activated below (intermixed with the remaining commented
+// stubs). Counterspell, Power Sink and Sleight of Mind are LEA reprints, wired
+// as CardPrints onto their existing definitions (ADR 0014); every other
+// new-to-ICE Blue card is a full CardDefinition.
+//
+// DEFERRED (remain commented stubs, owned by a later cluster):
+//   • Cumulative upkeep — Arnjlot's Ascent, Breath of Dreams, the four
+//     Illusionary creatures, Illusionary Terrain, Illusions of Grandeur,
+//     Mesmeric Trance, Musician, Mystic Might, Mystic Remora, Polar Kraken,
+//     Reality Twist, Snowfall (ADR 0042 cumulative-upkeep cluster).
+//   • Zur's Weirding cluster — Zur's Weirding itself and Dreams of the Dead
+//     (grants cumulative upkeep on reanimation).
+//   • "Draw a card at the beginning of the next turn's upkeep" delayed cantrips
+//     — Clairvoyance, Enervate, Force Void, Infuse, Portent, Ray of Erasure,
+//     Updraft (no `next-upkeep` delayed-trigger timing yet; `scheduleDelayed-
+//     Trigger` only exposes `next-draw-step`, which is not the same step).
+//   • Until-end-of-turn control gain + "tap it when you lose control" — Ray of
+//     Command, Magus of the Unseen (ControlChangeCondition has no EOT variant).
+//   • Specialized primitives still missing — Krovikan Sorcerer (discard a card
+//     of a chosen colour as a cost), Mistfolk (counter a spell that targets
+//     this creature — no "spell targeting source" target filter), Phantasmal
+//     Mount (linked leaves-the-battlefield sacrifices), Essence Vortex (pay
+//     LIFE in a may-pay choice), Soldevi Machinist (mana spendable only on
+//     artifact ABILITIES — ManaRestriction has only spell variants), Merieke Ri
+//     Berit (conditional control + destroy-on-untap), Shyft (indefinite per-
+//     upkeep colour choice), Winter's Chill (combat-only X capped by snow
+//     lands), Balduvian Conjurer (animate a snow land), Balduvian Shaman /
+//     Sleight-of-Mind-style colour-word text change that also grants cumulative
+//     upkeep, Flooded Woodlands (attack restriction with per-attacker cost).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// TODO(#628): implement (cumulative upkeep — ADR 0042 cluster).
 // export const arnjlotsAscent: CardDefinition = {
 //     id: "2307fb16-8b77-45b5-8a02-51a13214791d",
 //     name: "Arnjlot's Ascent",
@@ -1011,25 +1087,67 @@ export const warning: CardDefinition = {
 //     power: 1,
 //     toughness: 1,
 // };
-// TODO(#628): implement.
-// export const bindingGrasp: CardDefinition = {
-//     id: "6b086186-5fbf-4ba7-af0d-ee3ad61d27bb",
-//     name: "Binding Grasp",
-//     rarity: "uncommon",
-//     oracleText: "Enchant creature\nAt the beginning of your upkeep, sacrifice this Aura unless you pay {1}{U}.\nYou control enchanted creature.\nEnchanted creature gets +0/+1.",
-//     manaCost: { X: 3, U: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
-// TODO(#628): implement.
-// export const brainstorm: CardDefinition = {
-//     id: "8d42d7aa-7f53-4cfc-842a-086aab2448d1",
-//     name: "Brainstorm",
-//     rarity: "common",
-//     oracleText: "Draw three cards, then put two cards from your hand on top of your library in any order.",
-//     manaCost: { U: 1 },
-//     types: ["Instant"],
-// };
+// Binding Grasp — Aura granting control of the enchanted creature (CR 613.1b,
+// layer 2 control-change) plus a static +0/+1 (layer 7c) and an upkeep
+// pay-{1}{U}-or-sacrifice tax (CR 603.6a / 117.3a). The Control-Magic shape
+// with an upkeep cost rider.
+export const bindingGrasp: CardDefinition = {
+    id: "6b086186-5fbf-4ba7-af0d-ee3ad61d27bb",
+    name: "Binding Grasp",
+    rarity: "uncommon",
+    oracleText:
+        "Enchant creature\nAt the beginning of your upkeep, sacrifice this Aura unless you pay {1}{U}.\nYou control enchanted creature.\nEnchanted creature gets +0/+1.",
+    manaCost: { X: 3, U: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        { kind: "control-change", applies: AURA_AFFECTS_HOST },
+        { kind: "pt-buff", applies: AURA_AFFECTS_HOST, power: 0, toughness: 1 },
+    ],
+    triggeredAbilities: [
+        makeUpkeepPayOrElse({
+            id: "binding-grasp-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, sacrifice this Aura unless you pay {1}{U}.",
+            cost: { X: 1, U: 1 },
+            prompt: "Pay {1}{U} to keep Binding Grasp?",
+            onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+        }),
+    ],
+};
+// Brainstorm — "Draw three cards, then put two cards from your hand on top of
+// your library in any order." (CR 121.1 draw, CR 401 library top.) Composition:
+// drawCards(3) then a two-step resolution — the caster picks 2 hand cards (a
+// `choose-hand-card` requestChoice), each moved to the top of the library; the
+// pick order IS the top-of-library order (the first picked ends up second from
+// top, matching "in any order" since the player controls the sequence).
+export const brainstorm: CardDefinition = {
+    id: "8d42d7aa-7f53-4cfc-842a-086aab2448d1",
+    name: "Brainstorm",
+    rarity: "common",
+    oracleText:
+        "Draw three cards, then put two cards from your hand on top of your library in any order.",
+    manaCost: { U: 1 },
+    types: ["Instant"],
+    resolve: (ctx: SpellContext) => {
+        ctx.drawCards(ctx.controller, 3);
+        const picks = ctx.requestChoice({
+            playerId: ctx.controller,
+            choiceId: "brainstorm-putback",
+            kind: "choose-hand-card",
+            zone: "hand",
+            count: 2,
+            prompt: "Choose two cards to put on top of your library (last picked ends up on top).",
+        });
+        if (picks === undefined) return; // suspended for the choice
+        // Move each pick to the top; the second pick lands on top last, so the
+        // player's chosen order is preserved (CR 401 "in any order").
+        for (const id of picks) {
+            ctx.moveHandCardToLibraryTop(ctx.controller, id);
+        }
+    },
+};
 // TODO(#628): implement.
 // export const breathOfDreams: CardDefinition = {
 //     id: "e40c9657-fab4-489d-8eb0-960ba2605add",
@@ -1048,24 +1166,42 @@ export const warning: CardDefinition = {
 //     manaCost: { U: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
-// export const counterspell: CardDefinition = {
-//     id: "aedbcbaa-40f0-485f-8427-778edc2d2ec0",
-//     name: "Counterspell",
-//     rarity: "common",
-//     oracleText: "Counter target spell.",
-//     manaCost: { U: 2 },
-//     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const deflection: CardDefinition = {
-//     id: "1005a00a-6a0e-44cb-abea-37e2e53125e2",
-//     name: "Deflection",
-//     rarity: "rare",
-//     oracleText: "Change the target of target spell with a single target.",
-//     manaCost: { X: 3, U: 1 },
-//     types: ["Instant"],
-// };
+// Counterspell — ICE reprint of the LEA instant ("Counter target spell").
+// CardPrint onto the LEA definition (ADR 0014).
+export const counterspellIce: CardPrint = {
+    printId: "aedbcbaa-40f0-485f-8427-778edc2d2ec0",
+    definitionId: "0df55e3f-14de-46ef-b6b1-616618724d9e",
+    setCode: "ice",
+    rarity: "common",
+};
+// Deflection — "Change the target of target spell with a single target."
+// (CR 114.6 — change a spell's target.) Targets a spell on the stack; on
+// resolution it enters a `retarget` phase via `requestRetarget`, asking the
+// caster to pick a new legal target for that spell.
+//
+// SIMPLIFICATION (flagged, no engine change): TargetRequirement has no
+// "spell with a single target" filter, so Deflection may be cast at any spell
+// on the stack. The retarget then re-validates against "any target"; for a
+// multi-target spell only one target would be re-chosen, which is a minor
+// deviation from the printed "single target" restriction. Acceptable for the
+// current pool, where targeted spells are overwhelmingly single-target.
+export const deflection: CardDefinition = {
+    id: "1005a00a-6a0e-44cb-abea-37e2e53125e2",
+    name: "Deflection",
+    rarity: "rare",
+    oracleText: "Change the target of target spell with a single target.",
+    manaCost: { X: 3, U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "spell", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type !== "spell") return;
+        // Re-pick a single new target for the spell against "any target" —
+        // the engine re-validates the new target against the spell's own
+        // requirement at selection time (CR 114.6).
+        ctx.requestRetarget(t.id, { type: "any", count: 1 });
+    },
+};
 // TODO(#628): implement.
 // export const dreamsOfTheDead: CardDefinition = {
 //     id: "93372854-57e7-4db7-a1a6-376c9f49a514",
@@ -1094,16 +1230,38 @@ export const warning: CardDefinition = {
 //     types: ["Enchantment"],
 //     subtypes: ["Aura"],
 // };
-// TODO(#628): implement.
-// export const essenceFlare: CardDefinition = {
-//     id: "13ebb5dd-d7f1-4b06-8585-7004045be542",
-//     name: "Essence Flare",
-//     rarity: "common",
-//     oracleText: "Enchant creature\nEnchanted creature gets +2/+0.\nAt the beginning of the upkeep of enchanted creature's controller, put a -0/-1 counter on that creature.",
-//     manaCost: { U: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Essence Flare — Aura: static +2/+0 (layer 7c) plus an upkeep trigger on the
+// enchanted creature's controller that puts a -0/-1 counter on the host
+// (CR 603.6a phase trigger, CR 122 counters, layer 7d). The host wastes away one
+// toughness per upkeep.
+export const essenceFlare: CardDefinition = {
+    id: "13ebb5dd-d7f1-4b06-8585-7004045be542",
+    name: "Essence Flare",
+    rarity: "common",
+    oracleText:
+        "Enchant creature\nEnchanted creature gets +2/+0.\nAt the beginning of the upkeep of enchanted creature's controller, put a -0/-1 counter on that creature.",
+    manaCost: { U: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        { kind: "pt-buff", applies: AURA_AFFECTS_HOST, power: 2, toughness: 0 },
+    ],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "essence-flare-upkeep",
+            oracleText:
+                "At the beginning of the upkeep of enchanted creature's controller, put a -0/-1 counter on that creature.",
+            phase: "UPKEEP",
+            scope: "host-controller",
+            resolve: (ctx) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (!hostId) return;
+                ctx.addCounter({ type: "permanent", id: hostId }, "-0/-1", 1);
+            },
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const forceVoid: CardDefinition = {
 //     id: "226555ba-22af-45f1-a3f4-d265f8685dd5",
@@ -1113,45 +1271,143 @@ export const warning: CardDefinition = {
 //     manaCost: { X: 2, U: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
-// export const glacialWall: CardDefinition = {
-//     id: "07b71bc1-d9a2-4e99-a8fa-cd696925328d",
-//     name: "Glacial Wall",
-//     rarity: "uncommon",
-//     oracleText: "Defender (This creature can't attack.)",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Wall"],
-//     power: 0,
-//     toughness: 7,
-// };
-// TODO(#628): implement.
-// export const hydroblast: CardDefinition = {
-//     id: "f62716f0-fde2-49ef-b8a4-c1b03f451194",
-//     name: "Hydroblast",
-//     rarity: "common",
-//     oracleText: "Choose one —\n• Counter target spell if it's red.\n• Destroy target permanent if it's red.",
-//     manaCost: { U: 1 },
-//     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const iceberg: CardDefinition = {
-//     id: "a2f70e49-17fa-4033-bd45-63374f7f5ec5",
-//     name: "Iceberg",
-//     rarity: "uncommon",
-//     oracleText: "This enchantment enters with X ice counters on it.\n{3}: Put an ice counter on this enchantment.\nRemove an ice counter from this enchantment: Add {C}.",
-//     manaCost: { X: "X", U: 2 },
-//     types: ["Enchantment"],
-// };
-// TODO(#628): implement.
-// export const icyPrison: CardDefinition = {
-//     id: "39a7e496-8d2e-49db-b298-475d9017537a",
-//     name: "Icy Prison",
-//     rarity: "rare",
-//     oracleText: "When this enchantment enters, exile target creature.\nAt the beginning of your upkeep, sacrifice this enchantment unless any player pays {3}.\nWhen this enchantment leaves the battlefield, return the exiled card to the battlefield under its owner's control.",
-//     manaCost: { U: 2 },
-//     types: ["Enchantment"],
-// };
+// Glacial Wall — 0/7 Wall with Defender (CR 702.3).
+export const glacialWall: CardDefinition = {
+    id: "07b71bc1-d9a2-4e99-a8fa-cd696925328d",
+    name: "Glacial Wall",
+    rarity: "uncommon",
+    oracleText: "Defender",
+    manaCost: { X: 2, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 7,
+    staticAbilities: ["defender"],
+};
+// Hydroblast — modal "choose one" (CR 700.2): counter a red spell OR destroy a
+// red permanent. Each mode restricts its target to red via `colorFilter: "R"`
+// (the "if it's red" clause is enforced as a target restriction in the current
+// pool, which is equivalent for these single-target modes). Functionally the
+// Blue Elemental Blast shape.
+export const hydroblast: CardDefinition = {
+    id: "f62716f0-fde2-49ef-b8a4-c1b03f451194",
+    name: "Hydroblast",
+    rarity: "common",
+    oracleText:
+        "Choose one —\n• Counter target spell if it's red.\n• Destroy target permanent if it's red.",
+    manaCost: { U: 1 },
+    types: ["Instant"],
+    modes: [
+        {
+            id: "counter",
+            label: "Counter target red spell",
+            oracleText: "Counter target spell if it's red.",
+            targetRequirement: { type: "spell", count: 1, colorFilter: "R" },
+            resolve: (ctx) => {
+                const t = ctx.targets[0];
+                if (t?.type === "spell") ctx.counter(t);
+            },
+        },
+        {
+            id: "destroy",
+            label: "Destroy target red permanent",
+            oracleText: "Destroy target permanent if it's red.",
+            targetRequirement: { type: "any", count: 1, colorFilter: "R" },
+            resolve: (ctx) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") ctx.destroy(t);
+            },
+        },
+    ],
+};
+// Iceberg — counters-as-mana battery (CR 122 counters, CR 605 mana ability).
+// Enters with X ice counters; "{3}: Put an ice counter on this" stores mana,
+// and "Remove an ice counter: Add {C}" spends it. The removal ability is a mana
+// ability (`useStack: false`, CR 605.1a) so it resolves immediately.
+export const iceberg: CardDefinition = {
+    id: "a2f70e49-17fa-4033-bd45-63374f7f5ec5",
+    name: "Iceberg",
+    rarity: "uncommon",
+    oracleText:
+        "This enchantment enters with X ice counters on it.\n{3}: Put an ice counter on this enchantment.\nRemove an ice counter from this enchantment: Add {C}.",
+    manaCost: { X: "X", U: 2 },
+    types: ["Enchantment"],
+    entersWith: { counters: [{ type: "ice", count: "X" }] },
+    activatedAbilities: [
+        {
+            id: "iceberg-store",
+            oracleText: "{3}: Put an ice counter on this enchantment.",
+            cost: { mana: { X: 3 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "ice",
+                    1
+                );
+            },
+        },
+        {
+            id: "iceberg-tap-for-mana",
+            oracleText: "Remove an ice counter from this enchantment: Add {C}.",
+            cost: { removeCounter: { type: "ice", count: 1 } },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ C: 1 }),
+            manaProduced: { C: 1 },
+        },
+    ],
+};
+// Icy Prison — ETB-targeted exile-and-return holding bundle (CR 603.7a /
+// ADR 0028) plus an upkeep sacrifice tax. On entry it exiles a target creature
+// (keyed to itself); each upkeep it is sacrificed unless {3} is paid; when it
+// leaves, the exiled card returns to the battlefield under its owner's control.
+//
+// SIMPLIFICATION (flagged, no engine change): the printed upkeep cost is "any
+// player pays {3}" — political. `makeUpkeepPayOrElse` prompts the controller
+// (the player who wants to keep it). In a duel the controller is the only
+// player with an incentive to pay, so this matches play in practice.
+export const icyPrison: CardDefinition = {
+    id: "39a7e496-8d2e-49db-b298-475d9017537a",
+    name: "Icy Prison",
+    rarity: "rare",
+    oracleText:
+        "When this enchantment enters, exile target creature.\nAt the beginning of your upkeep, sacrifice this enchantment unless any player pays {3}.\nWhen this enchantment leaves the battlefield, return the exiled card to the battlefield under its owner's control.",
+    manaCost: { U: 2 },
+    types: ["Enchantment"],
+    targetRequirement: { type: "Creature", count: 1 },
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "icy-prison-exile",
+            oracleText: "When this enchantment enters, exile target creature.",
+            scope: "self",
+            resolve: (ctx) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "permanent") return;
+                ctx.exileWithAttachments(t.id, {
+                    sourceId: ctx.sourceInstanceId,
+                    returnTapped: false,
+                });
+            },
+        }),
+        makeUpkeepPayOrElse({
+            id: "icy-prison-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, sacrifice this enchantment unless any player pays {3}.",
+            cost: { X: 3 },
+            prompt: "Pay {3} to keep Icy Prison?",
+            onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+        }),
+        leftTrigger({
+            id: "icy-prison-return",
+            oracleText:
+                "When this enchantment leaves the battlefield, return the exiled card to the battlefield under its owner's control.",
+            scope: "self",
+            resolve: (ctx: SpellContext) => {
+                ctx.returnExiledForSource(ctx.sourceInstanceId);
+            },
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const illusionaryForces: CardDefinition = {
 //     id: "ab02268e-01cf-4729-95ca-5773afd40b56",
@@ -1324,15 +1580,14 @@ export const warning: CardDefinition = {
 //     manaCost: { U: 1 },
 //     types: ["Sorcery"],
 // };
-// TODO(#628): implement.
-// export const powerSink: CardDefinition = {
-//     id: "85cbec45-81b4-40cc-b356-d6713a6a9b2b",
-//     name: "Power Sink",
-//     rarity: "common",
-//     oracleText: "Counter target spell unless its controller pays {X}. If that player doesn't, they tap all lands with mana abilities they control and lose all unspent mana.",
-//     manaCost: { X: "X", U: 1 },
-//     types: ["Instant"],
-// };
+// Power Sink — ICE reprint of the LEA instant. CardPrint onto the LEA
+// definition (ADR 0014).
+export const powerSinkIce: CardPrint = {
+    printId: "85cbec45-81b4-40cc-b356-d6713a6a9b2b",
+    definitionId: "1b342dd3-09b9-4108-bf12-a65d4cef4eb9",
+    setCode: "ice",
+    rarity: "common",
+};
 // TODO(#628): implement.
 // export const rayOfCommand: CardDefinition = {
 //     id: "638abe5f-2a8a-42ca-bcdf-a52a3df66946",
@@ -1360,18 +1615,34 @@ export const warning: CardDefinition = {
 //     manaCost: { U: 3 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const seaSpirit: CardDefinition = {
-//     id: "f2d93d05-98bc-4504-9045-dedb925895ae",
-//     name: "Sea Spirit",
-//     rarity: "uncommon",
-//     oracleText: "{U}: This creature gets +1/+0 until end of turn.",
-//     manaCost: { X: 4, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Elemental", "Spirit"],
-//     power: 2,
-//     toughness: 3,
-// };
+// Sea Spirit — {U}: firebreathing self-pump (CR 611.1b temporary +1/+0).
+export const seaSpirit: CardDefinition = {
+    id: "f2d93d05-98bc-4504-9045-dedb925895ae",
+    name: "Sea Spirit",
+    rarity: "uncommon",
+    oracleText: "{U}: This creature gets +1/+0 until end of turn.",
+    manaCost: { X: 4, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Elemental", "Spirit"],
+    power: 2,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "sea-spirit-pump",
+            oracleText: "{U}: This creature gets +1/+0 until end of turn.",
+            cost: { mana: { U: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const shyft: CardDefinition = {
 //     id: "99a60c33-b641-42c4-870d-95d07bc975dc",
@@ -1384,49 +1655,94 @@ export const warning: CardDefinition = {
 //     power: 4,
 //     toughness: 2,
 // };
-// TODO(#628): implement.
-// export const sibilantSpirit: CardDefinition = {
-//     id: "47364ad2-5ce9-4b19-a9d2-f6a33188b882",
-//     name: "Sibilant Spirit",
-//     rarity: "rare",
-//     oracleText: "Flying\nWhenever this creature attacks, defending player may draw a card.",
-//     manaCost: { X: 5, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Spirit"],
-//     power: 5,
-//     toughness: 6,
-// };
-// TODO(#628): implement.
-// export const silverErne: CardDefinition = {
-//     id: "685076cc-098c-4f98-918c-0ad825eda10f",
-//     name: "Silver Erne",
-//     rarity: "uncommon",
-//     oracleText: "Flying, trample",
-//     manaCost: { X: 3, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Bird"],
-//     power: 2,
-//     toughness: 2,
-// };
-// TODO(#628): implement.
-// export const sleightOfMind: CardDefinition = {
-//     id: "93dc9f02-11ad-4c4a-8199-9d20c23d31a7",
-//     name: "Sleight of Mind",
-//     rarity: "uncommon",
-//     oracleText: "Change the text of target spell or permanent by replacing all instances of one color word with another. (For example, you may change \"target black spell\" to \"target blue spell.\" This effect lasts indefinitely.)",
-//     manaCost: { U: 1 },
-//     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const snowDevil: CardDefinition = {
-//     id: "2be3a9a5-2ac5-4ea4-915d-8cff35c0e72f",
-//     name: "Snow Devil",
-//     rarity: "common",
-//     oracleText: "Enchant creature\nEnchanted creature has flying.\nEnchanted creature has first strike as long as it's blocking and you control a snow land.",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Sibilant Spirit — 5/6 flier whose attack hands the defending player an
+// optional card draw (CR 508.1 attack trigger, CR 117.3a may-draw). The
+// defending player is the single opponent in a duel.
+export const sibilantSpirit: CardDefinition = {
+    id: "47364ad2-5ce9-4b19-a9d2-f6a33188b882",
+    name: "Sibilant Spirit",
+    rarity: "rare",
+    oracleText:
+        "Flying\nWhenever this creature attacks, defending player may draw a card.",
+    manaCost: { X: 5, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Spirit"],
+    power: 5,
+    toughness: 6,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        {
+            id: "sibilant-spirit-attack",
+            oracleText:
+                "Whenever this creature attacks, defending player may draw a card.",
+            event: "ATTACKERS_DECLARED",
+            matches: (event, self) =>
+                event.type === "ATTACKERS_DECLARED" &&
+                event.attackerIds.includes(self.id),
+            resolve: (ctx) => {
+                const defender = ctx.allPlayerIds.find(
+                    (p) => p !== ctx.controller
+                );
+                if (!defender) return;
+                const accept = ctx.requestMayPay({
+                    playerId: defender,
+                    choiceId: "sibilant-spirit-draw",
+                    prompt: "Draw a card (Sibilant Spirit)?",
+                });
+                if (accept === undefined) return; // suspended
+                if (accept) ctx.drawCards(defender, 1);
+            },
+        },
+    ],
+};
+// Silver Erne — 2/2 flying + trample keyword creature (CR 702.9, 702.19).
+export const silverErne: CardDefinition = {
+    id: "685076cc-098c-4f98-918c-0ad825eda10f",
+    name: "Silver Erne",
+    rarity: "uncommon",
+    oracleText: "Flying, trample",
+    manaCost: { X: 3, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Bird"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["flying", "trample"],
+};
+// Sleight of Mind — ICE reprint of the LEA instant (colour-word text change,
+// CR 612). CardPrint onto the LEA definition (ADR 0014).
+export const sleightOfMindIce: CardPrint = {
+    printId: "93dc9f02-11ad-4c4a-8199-9d20c23d31a7",
+    definitionId: "d427790c-e322-446e-8d7d-a6b48ad41a42",
+    setCode: "ice",
+    rarity: "common",
+};
+// Snow Devil — Aura granting flying to the host (CR 611 keyword-grant). Same
+// shape as LEA's Flight.
+//
+// SIMPLIFICATION (flagged, no engine change): the conditional "first strike as
+// long as it's blocking and you control a snow land" clause is a no-op in the
+// current pool — snow lands belong to a later snow cluster, so the snow-land
+// condition is never met. Only the unconditional flying grant is modelled; the
+// first-strike clause ships dead until snow lands exist (same treatment as
+// Hallowed Ground's nonsnow restriction).
+export const snowDevil: CardDefinition = {
+    id: "2be3a9a5-2ac5-4ea4-915d-8cff35c0e72f",
+    name: "Snow Devil",
+    rarity: "common",
+    oracleText:
+        "Enchant creature\nEnchanted creature has flying.\nEnchanted creature has first strike as long as it's blocking and you control a snow land.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "flying",
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const snowfall: CardDefinition = {
 //     id: "788ed793-3993-4a63-b9f9-9ac3947c3108",
@@ -1448,27 +1764,71 @@ export const warning: CardDefinition = {
 //     power: 1,
 //     toughness: 1,
 // };
-// TODO(#628): implement.
-// export const soulBarrier: CardDefinition = {
-//     id: "9ad7fac7-db4d-45b2-aba6-16f4fd1a586f",
-//     name: "Soul Barrier",
-//     rarity: "uncommon",
-//     oracleText: "Whenever an opponent casts a creature spell, this enchantment deals 2 damage to that player unless they pay {2}.",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Enchantment"],
-// };
-// TODO(#628): implement.
-// export const thunderWall: CardDefinition = {
-//     id: "4fc5d510-c4f7-4a09-bf86-83c3fa3f8928",
-//     name: "Thunder Wall",
-//     rarity: "uncommon",
-//     oracleText: "Defender (This creature can't attack.)\nFlying\n{U}: This creature gets +1/+1 until end of turn.",
-//     manaCost: { X: 1, U: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Wall"],
-//     power: 0,
-//     toughness: 2,
-// };
+// Soul Barrier — punisher enchantment: whenever an opponent casts a creature
+// spell, it deals 2 to that player unless they pay {2} (CR 603.2 cast trigger,
+// CR 117.3a may-pay, CR 120.1 damage).
+export const soulBarrier: CardDefinition = {
+    id: "9ad7fac7-db4d-45b2-aba6-16f4fd1a586f",
+    name: "Soul Barrier",
+    rarity: "uncommon",
+    oracleText:
+        "Whenever an opponent casts a creature spell, this enchantment deals 2 damage to that player unless they pay {2}.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "soul-barrier-tax",
+            oracleText:
+                "Whenever an opponent casts a creature spell, this enchantment deals 2 damage to that player unless they pay {2}.",
+            scope: "opponents",
+            filter: { types: "Creature" },
+            resolve: (ctx, _event, spell) => {
+                const caster = spell.casterId;
+                const accept = ctx.requestMayPay({
+                    playerId: caster,
+                    choiceId: caster,
+                    cost: { X: 2 },
+                    prompt: "Pay {2} or take 2 damage from Soul Barrier?",
+                });
+                if (accept === undefined) return; // suspended
+                if (!accept) {
+                    ctx.dealDamage({ type: "player", id: caster }, 2);
+                }
+            },
+        }),
+    ],
+};
+// Thunder Wall — 0/2 flying Wall with Defender and a {U} self-pump
+// (CR 702.3, 702.9, 611.1b).
+export const thunderWall: CardDefinition = {
+    id: "4fc5d510-c4f7-4a09-bf86-83c3fa3f8928",
+    name: "Thunder Wall",
+    rarity: "uncommon",
+    oracleText:
+        "Defender\nFlying\n{U}: This creature gets +1/+1 until end of turn.",
+    manaCost: { X: 1, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 2,
+    staticAbilities: ["defender", "flying"],
+    activatedAbilities: [
+        {
+            id: "thunder-wall-pump",
+            oracleText: "{U}: This creature gets +1/+1 until end of turn.",
+            cost: { mana: { U: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const updraft: CardDefinition = {
 //     id: "d1bd4e16-27fe-4c7b-ae25-78ed77d8e8e7",
@@ -1478,18 +1838,19 @@ export const warning: CardDefinition = {
 //     manaCost: { X: 1, U: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
-// export const windSpirit: CardDefinition = {
-//     id: "4d882447-9594-4aab-b1a7-8bb275f250cf",
-//     name: "Wind Spirit",
-//     rarity: "uncommon",
-//     oracleText: "Flying\nMenace (This creature can't be blocked except by two or more creatures.)",
-//     manaCost: { X: 4, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Elemental", "Spirit"],
-//     power: 3,
-//     toughness: 2,
-// };
+// Wind Spirit — 3/2 flying + menace keyword creature (CR 702.9, 702.111).
+export const windSpirit: CardDefinition = {
+    id: "4d882447-9594-4aab-b1a7-8bb275f250cf",
+    name: "Wind Spirit",
+    rarity: "uncommon",
+    oracleText: "Flying\nMenace",
+    manaCost: { X: 4, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Elemental", "Spirit"],
+    power: 3,
+    toughness: 2,
+    staticAbilities: ["flying", "menace"],
+};
 // TODO(#628): implement.
 // export const wintersChill: CardDefinition = {
 //     id: "a779aca7-ff2c-48d8-9484-6ad04b2c6bcb",
@@ -1499,24 +1860,76 @@ export const warning: CardDefinition = {
 //     manaCost: { X: "X", U: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
-// export const wordOfUndoing: CardDefinition = {
-//     id: "22b04476-5a5d-4843-a948-82db209c4218",
-//     name: "Word of Undoing",
-//     rarity: "common",
-//     oracleText: "Return target creature and all white Auras you own attached to it to their owners' hands.",
-//     manaCost: { U: 1 },
-//     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const wrathOfMaritLage: CardDefinition = {
-//     id: "1d512f5c-0327-4d49-8a26-672574a49102",
-//     name: "Wrath of Marit Lage",
-//     rarity: "rare",
-//     oracleText: "When this enchantment enters, tap all red creatures.\nRed creatures don't untap during their controllers' untap steps.",
-//     manaCost: { X: 3, U: 2 },
-//     types: ["Enchantment"],
-// };
+// Word of Undoing — "Return target creature and all white Auras you own
+// attached to it to their owners' hands." (CR 701.14 return to hand.) Before
+// bouncing the creature (which would otherwise drop its Auras to the
+// graveyard), the caster's white Auras attached to that creature are returned
+// to hand: scan the caster's white Auras and match each host id to the target.
+export const wordOfUndoing: CardDefinition = {
+    id: "22b04476-5a5d-4843-a948-82db209c4218",
+    name: "Word of Undoing",
+    rarity: "common",
+    oracleText:
+        "Return target creature and all white Auras you own attached to it to their owners' hands.",
+    manaCost: { U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type !== "permanent") return;
+        // Return the caster's white Auras attached to the target first.
+        const whiteAuras = ctx.getBattlefieldIds(ctx.controller, {
+            types: "Enchantment",
+            subtypes: "Aura",
+            colors: ["W"],
+        });
+        for (const auraId of whiteAuras) {
+            if (ctx.getAttachedTo(auraId) === t.id) {
+                ctx.returnToHand({ type: "permanent", id: auraId });
+            }
+        }
+        ctx.returnToHand(t);
+    },
+};
+// Wrath of Marit Lage — ETB taps every red creature (CR 603.6b enters trigger,
+// CR 701.20a tap) and a static untap-lock on red creatures (CR 611 — the
+// Meekstone pattern with a colour filter).
+export const wrathOfMaritLage: CardDefinition = {
+    id: "1d512f5c-0327-4d49-8a26-672574a49102",
+    name: "Wrath of Marit Lage",
+    rarity: "rare",
+    oracleText:
+        "When this enchantment enters, tap all red creatures.\nRed creatures don't untap during their controllers' untap steps.",
+    manaCost: { X: 3, U: 2 },
+    types: ["Enchantment"],
+    staticEffects: [
+        untapRestriction({
+            id: "wrath-marit-lage-red-lock",
+            oracleText:
+                "Red creatures don't untap during their controllers' untap steps (Wrath of Marit Lage).",
+            filter: { types: "Creature", colors: "R" },
+            maxUntap: 0,
+        }),
+    ],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "wrath-marit-lage-tap-red",
+            oracleText: "When this enchantment enters, tap all red creatures.",
+            scope: "self",
+            resolve: (ctx) => {
+                for (const pid of ctx.allPlayerIds) {
+                    const reds = ctx.getBattlefieldIds(pid, {
+                        types: "Creature",
+                        colors: ["R"],
+                    });
+                    for (const id of reds) {
+                        ctx.tap({ type: "permanent", id });
+                    }
+                }
+            },
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const zursWeirding: CardDefinition = {
 //     id: "e1f8531f-19ca-48a2-baf2-c5dc6f18d79c",
@@ -1538,18 +1951,32 @@ export const warning: CardDefinition = {
 //     power: 1,
 //     toughness: 1,
 // };
-// TODO(#628): implement.
-// export const zuranSpellcaster: CardDefinition = {
-//     id: "152a72b1-a7b7-4e5c-8558-fab97465f549",
-//     name: "Zuran Spellcaster",
-//     rarity: "common",
-//     oracleText: "{T}: This creature deals 1 damage to any target.",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Wizard"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Zuran Spellcaster — {T}: deal 1 damage to any target (CR 605 activated
+// ability, CR 120.1 damage). The Prodigal Sorcerer "Tim" shape.
+export const zuranSpellcaster: CardDefinition = {
+    id: "152a72b1-a7b7-4e5c-8558-fab97465f549",
+    name: "Zuran Spellcaster",
+    rarity: "common",
+    oracleText: "{T}: This creature deals 1 damage to any target.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "zuran-spellcaster-zap",
+            oracleText: "{T}: This creature deals 1 damage to any target.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target) ctx.dealDamage(target, 1);
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const abyssalSpecter: CardDefinition = {
 //     id: "fc26f19c-bcf7-4bd8-af42-4757dbe47fb1",
@@ -3334,14 +3761,51 @@ export const warning: CardDefinition = {
 //     subtypes: ["Aura"],
 // };
 // TODO(#628): implement.
-// export const diabolicVision: CardDefinition = {
-//     id: "1ea01324-1cfb-498c-8299-f690373864bd",
-//     name: "Diabolic Vision",
-//     rarity: "uncommon",
-//     oracleText: "Look at the top five cards of your library. Put one of them into your hand and the rest on top of your library in any order.",
-//     manaCost: { U: 1, B: 1 },
-//     types: ["Sorcery"],
-// };
+// Diabolic Vision — "Look at the top five cards of your library. Put one of
+// them into your hand and the rest on top of your library in any order." (CR
+// 401 library peek/reorder, CR 121 to hand.) Composition: peek the top five
+// (grant knowledge), pick one to move to hand, then reorder the remaining top
+// cards.
+export const diabolicVision: CardDefinition = {
+    id: "1ea01324-1cfb-498c-8299-f690373864bd",
+    name: "Diabolic Vision",
+    rarity: "uncommon",
+    oracleText:
+        "Look at the top five cards of your library. Put one of them into your hand and the rest on top of your library in any order.",
+    manaCost: { U: 1, B: 1 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        const top = ctx.peekLibraryTop(ctx.controller, 5);
+        if (top.length === 0) return;
+        ctx.markKnown(ctx.controller, top, ctx.controller);
+        const pick = ctx.requestChoice({
+            playerId: ctx.controller,
+            choiceId: "diabolic-vision-keep",
+            kind: "search-library",
+            zone: "library",
+            count: 1,
+            candidateIds: top,
+            prompt: "Put one of the top five cards into your hand.",
+        });
+        if (pick === undefined) return; // suspended for the choice
+        const kept = pick[0];
+        if (kept) ctx.moveCardById(ctx.controller, kept, "library", "hand");
+        // The rest stay on top; their order is the player's prerogative
+        // ("in any order") — reorder among the remaining peeked ids.
+        const rest = top.filter((id) => id !== kept);
+        const ordered = ctx.requestChoice({
+            playerId: ctx.controller,
+            choiceId: "diabolic-vision-reorder",
+            kind: "reorder-library",
+            zone: "library",
+            count: rest.length,
+            candidateIds: rest,
+            prompt: "Put the rest back on top in any order (first picked ends up on top).",
+        });
+        if (ordered === undefined) return; // suspended
+        ctx.reorderLibraryTop(ctx.controller, ordered);
+    },
+};
 // TODO(#628): implement.
 // export const earthlink: CardDefinition = {
 //     id: "a83cb1c4-7c5b-4a5e-b15e-138d644f5cdb",
@@ -3351,15 +3815,49 @@ export const warning: CardDefinition = {
 //     manaCost: { X: 3, B: 1, R: 1, G: 1 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const elementalAugury: CardDefinition = {
-//     id: "62bbff2a-5109-400a-961b-eacffb9aed67",
-//     name: "Elemental Augury",
-//     rarity: "rare",
-//     oracleText: "{3}: Look at the top three cards of target player's library, then put them back in any order.",
-//     manaCost: { U: 1, B: 1, R: 1 },
-//     types: ["Enchantment"],
-// };
+// Elemental Augury — "{3}: Look at the top three cards of target player's
+// library, then put them back in any order." (CR 401 library peek/reorder.)
+// The activated ability targets a player; on resolution the controller looks at
+// (gains knowledge of) the top three of that player's library and reorders
+// them.
+export const elementalAugury: CardDefinition = {
+    id: "62bbff2a-5109-400a-961b-eacffb9aed67",
+    name: "Elemental Augury",
+    rarity: "rare",
+    oracleText:
+        "{3}: Look at the top three cards of target player's library, then put them back in any order.",
+    manaCost: { U: 1, B: 1, R: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "elemental-augury-look",
+            oracleText:
+                "{3}: Look at the top three cards of target player's library, then put them back in any order.",
+            cost: { mana: { X: 3 } },
+            useStack: true,
+            targetRequirement: { type: "player", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "player") return;
+                const top = ctx.peekLibraryTop(t.id, 3);
+                if (top.length === 0) return;
+                ctx.markKnown(t.id, top, ctx.controller);
+                const ordered = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: "elemental-augury-reorder",
+                    kind: "reorder-library",
+                    zone: "library",
+                    count: top.length,
+                    candidateIds: top,
+                    zoneOwnerId: t.id,
+                    prompt: "Put the top three cards back in any order (first picked ends up on top).",
+                });
+                if (ordered === undefined) return; // suspended
+                ctx.reorderLibraryTop(t.id, ordered);
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const essenceVortex: CardDefinition = {
 //     id: "fe07e496-5070-4116-a91a-a3bbe19c12af",
@@ -3426,15 +3924,35 @@ export const warning: CardDefinition = {
 //     power: 2,
 //     toughness: 3,
 // };
-// TODO(#628): implement.
-// export const glaciers: CardDefinition = {
-//     id: "b86e159b-ecf1-4b4a-9041-4e97fdf935e5",
-//     name: "Glaciers",
-//     rarity: "rare",
-//     oracleText: "At the beginning of your upkeep, sacrifice this enchantment unless you pay {W}{U}.\nAll Mountains are Plains.",
-//     manaCost: { X: 2, W: 1, U: 1 },
-//     types: ["Enchantment"],
-// };
+// Glaciers — upkeep pay-{W}{U}-or-sacrifice (CR 603.6a / 117.3a) plus the
+// Conversion-style global subtype replacement "All Mountains are Plains"
+// (CR 305.7, layer 4 subtype-set).
+export const glaciers: CardDefinition = {
+    id: "b86e159b-ecf1-4b4a-9041-4e97fdf935e5",
+    name: "Glaciers",
+    rarity: "rare",
+    oracleText:
+        "At the beginning of your upkeep, sacrifice this enchantment unless you pay {W}{U}.\nAll Mountains are Plains.",
+    manaCost: { X: 2, W: 1, U: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "subtype-set",
+            applies: (target) => target.subtypes.includes("Mountain"),
+            subtypes: ["Plains"],
+        },
+    ],
+    triggeredAbilities: [
+        makeUpkeepPayOrElse({
+            id: "glaciers-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, sacrifice this enchantment unless you pay {W}{U}.",
+            cost: { W: 1, U: 1 },
+            prompt: "Pay {W}{U} to keep Glaciers?",
+            onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const hymnOfRebirth: CardDefinition = {
 //     id: "61d0f2f2-f6e2-4b8a-8418-10b17c5e0ea9",
@@ -3499,41 +4017,101 @@ export const warning: CardDefinition = {
 //     manaCost: { X: 2, W: 1, G: 1 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const skeletonShip: CardDefinition = {
-//     id: "271c8a7c-0f71-4f9d-ab0e-ca7c8c4aca50",
-//     name: "Skeleton Ship",
-//     rarity: "rare",
-//     oracleText: "When you control no Islands, sacrifice Skeleton Ship.\n{T}: Put a -1/-1 counter on target creature.",
-//     manaCost: { X: 3, U: 1, B: 1 },
-//     types: ["Creature"],
-//     supertypes: ["Legendary"],
-//     subtypes: ["Skeleton"],
-//     power: 0,
-//     toughness: 3,
-// };
-// TODO(#628): implement.
-// export const spectralShield: CardDefinition = {
-//     id: "7fe0a783-d086-4dc8-ae4a-59f3c2daaca0",
-//     name: "Spectral Shield",
-//     rarity: "uncommon",
-//     oracleText: "Enchant creature\nEnchanted creature gets +0/+2 and can't be the target of spells.",
-//     manaCost: { X: 1, W: 1, U: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
-// TODO(#628): implement.
-// export const stormSpirit: CardDefinition = {
-//     id: "7a383a5f-4814-4b92-aa80-2a6440a719bc",
-//     name: "Storm Spirit",
-//     rarity: "rare",
-//     oracleText: "Flying\n{T}: This creature deals 2 damage to target creature.",
-//     manaCost: { X: 3, W: 1, U: 1, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Elemental", "Spirit"],
-//     power: 3,
-//     toughness: 3,
-// };
+// Skeleton Ship — legendary 0/3 with a state-triggered "no Islands → sacrifice"
+// guard (CR 603.8) and "{T}: Put a -1/-1 counter on target creature" (CR 122,
+// layer 7d). The state trigger fizzles at resolve if an Island reappears.
+export const skeletonShip: CardDefinition = {
+    id: "271c8a7c-0f71-4f9d-ab0e-ca7c8c4aca50",
+    name: "Skeleton Ship",
+    rarity: "rare",
+    oracleText:
+        "When you control no Islands, sacrifice Skeleton Ship.\n{T}: Put a -1/-1 counter on target creature.",
+    manaCost: { X: 3, U: 1, B: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Skeleton"],
+    power: 0,
+    toughness: 3,
+    triggeredAbilities: [
+        stateTrigger({
+            id: "skeleton-ship-no-islands",
+            oracleText: "When you control no Islands, sacrifice Skeleton Ship.",
+            condition: (self, state) => {
+                const controller = state.players.find(
+                    (p) => p.id === self.controllerId
+                );
+                if (!controller) return false;
+                return !controller.battlefield.some((perm) =>
+                    perm.subtypes.includes("Island")
+                );
+            },
+            resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "skeleton-ship-weaken",
+            oracleText: "{T}: Put a -1/-1 counter on target creature.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") ctx.addCounter(t, "-1/-1", 1);
+            },
+        },
+    ],
+};
+// Spectral Shield — Aura: static +0/+2 (layer 7c) and "can't be the target of
+// spells" on the host (CR 113.3 — spells only; abilities may still target it).
+export const spectralShield: CardDefinition = {
+    id: "7fe0a783-d086-4dc8-ae4a-59f3c2daaca0",
+    name: "Spectral Shield",
+    rarity: "uncommon",
+    oracleText:
+        "Enchant creature\nEnchanted creature gets +0/+2 and can't be the target of spells.",
+    manaCost: { X: 1, W: 1, U: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        { kind: "pt-buff", applies: AURA_AFFECTS_HOST, power: 0, toughness: 2 },
+        {
+            kind: "permanent-guard",
+            id: "spectral-shield-spell-shroud",
+            cantBeTargeted: true,
+            targetSourceMustBeSpell: true,
+            applies: (target, source) => target.id === source.attachedTo,
+        },
+    ],
+};
+// Storm Spirit — 3/3 flier with "{T}: deal 2 damage to target creature"
+// (CR 605 activated ability, CR 120.1 damage).
+export const stormSpirit: CardDefinition = {
+    id: "7a383a5f-4814-4b92-aa80-2a6440a719bc",
+    name: "Storm Spirit",
+    rarity: "rare",
+    oracleText: "Flying\n{T}: This creature deals 2 damage to target creature.",
+    manaCost: { X: 3, W: 1, U: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Elemental", "Spirit"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "storm-spirit-zap",
+            oracleText: "{T}: This creature deals 2 damage to target creature.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") ctx.dealDamage(t, 2);
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const stormbind: CardDefinition = {
 //     id: "c2d5d91b-aeb4-4d7e-b748-77f9960da55f",
@@ -3543,16 +4121,32 @@ export const warning: CardDefinition = {
 //     manaCost: { X: 1, R: 1, G: 1 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const wingsOfAesthir: CardDefinition = {
-//     id: "eeb0282d-ccec-4556-8b70-b6f665077afe",
-//     name: "Wings of Aesthir",
-//     rarity: "uncommon",
-//     oracleText: "Enchant creature\nEnchanted creature gets +1/+0 and has flying and first strike.",
-//     manaCost: { W: 1, U: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Wings of Aesthir — Aura: static +1/+0 (layer 7c) plus flying and first
+// strike grants on the host (CR 611 keyword-grant).
+export const wingsOfAesthir: CardDefinition = {
+    id: "eeb0282d-ccec-4556-8b70-b6f665077afe",
+    name: "Wings of Aesthir",
+    rarity: "uncommon",
+    oracleText:
+        "Enchant creature\nEnchanted creature gets +1/+0 and has flying and first strike.",
+    manaCost: { W: 1, U: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        { kind: "pt-buff", applies: AURA_AFFECTS_HOST, power: 1, toughness: 0 },
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "flying",
+        },
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "first strike",
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const adarkarSentinel: CardDefinition = {
 //     id: "ff62754b-f4f0-4731-8dd7-327a820f60a8",
