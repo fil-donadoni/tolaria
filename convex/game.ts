@@ -418,6 +418,38 @@ function assertNoPendingChoices(
  *  tapForPayment and tapForActivationPayment — the logic is identical, only
  *  the bookkeeping state differs. Mutates `card`, `player.manaPool`, and
  *  pushes the card id onto `tappedLandIds`. */
+/** CR 603.7a / ADR 0040 — arm a tap mana ability's delayed-trigger rider.
+ *  When a tap mana ability declares `armsDelayedTriggerOnTap` and its source is
+ *  tapped for mana, append a `DelayedTriggerInstance` (the same shape
+ *  `scheduleDelayedTrigger` builds) for the named trigger on the source card's
+ *  `delayedTriggers[]`, controlled by the ACTIVATING player (CR 113.7) with the
+ *  source instance id in `payload.sourceId`. Drives Rainbow Vale's
+ *  control-change-on-tap. Pure: mutates `state.delayedTriggers` /
+ *  `state.nextDelayedSeq` only. No-op when the ability has no rider. */
+export function armDelayedTriggerOnTap(
+    state: GameState,
+    ability: ActivatedAbility | undefined | null,
+    card: CardInstanceState,
+    activatorId: string
+): void {
+    const rider = ability?.armsDelayedTriggerOnTap;
+    if (!rider) return;
+    const sourceCardId = (card.card as { id?: string }).id;
+    if (!sourceCardId) return;
+    state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;
+    state.delayedTriggers = [
+        ...(state.delayedTriggers ?? []),
+        {
+            id: `delayed-${state.nextDelayedSeq}`,
+            sourceCardId,
+            triggerId: rider.triggerId,
+            controller: activatorId,
+            timing: rider.timing,
+            payload: { sourceId: card.id },
+        },
+    ];
+}
+
 export function tapSourceIntoPayment(
     state: GameState,
     player: PlayerState,
@@ -496,6 +528,9 @@ export function tapSourceIntoPayment(
                 player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
             }
         }
+        // CR 603.7a / ADR 0040 — arm a control-change-on-tap rider (Rainbow
+        // Vale) when this source is tapped for mana during a payment.
+        if (!isSacrifice) armDelayedTriggerOnTap(state, ability, card, player.id);
         tappedLandIds.push(card.id);
         return;
     }
@@ -537,6 +572,9 @@ export function tapSourceIntoPayment(
     if (isSacrifice) {
         moveCard(player, card.id, "battlefield", "graveyard");
     } else {
+        // CR 603.7a / ADR 0040 — arm a control-change-on-tap rider when a
+        // fixed-output tap mana source is tapped during a payment.
+        armDelayedTriggerOnTap(state, ability, card, player.id);
         tappedLandIds.push(card.id);
     }
 }
@@ -5933,23 +5971,8 @@ export const tapUntap = mutation({
         // beginning of the next end step." The mana-ability `effect` context
         // only exposes `addMana`, so this declarative seam carries the side
         // effect that needs the delayed-trigger machinery.
-        if (producedThisActivation && ability?.armsDelayedTriggerOnTap) {
-            const rider = ability.armsDelayedTriggerOnTap;
-            const sourceCardId = (card.card as { id?: string }).id;
-            if (sourceCardId) {
-                state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;
-                state.delayedTriggers = [
-                    ...(state.delayedTriggers ?? []),
-                    {
-                        id: `delayed-${state.nextDelayedSeq}`,
-                        sourceCardId,
-                        triggerId: rider.triggerId,
-                        controller: args.playerId,
-                        timing: rider.timing,
-                        payload: { sourceId: card.id },
-                    },
-                ];
-            }
+        if (producedThisActivation) {
+            armDelayedTriggerOnTap(state, ability, card, args.playerId);
         }
 
         // CR 603.2 — flush the PERMANENT_TAPPED event into a trigger pass so
