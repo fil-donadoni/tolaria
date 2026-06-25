@@ -98,6 +98,23 @@ describe("game_state serialize round-trip", () => {
         expect(got.counters).toEqual({ depletion: 1 });
     });
 
+    it("preserves a wind counter on a tapped permanent (Freyalise's Winds, CR 122.1 / 614.6)", () => {
+        // Freyalise's Winds (#668) stores its untap-replacement state entirely
+        // in the existing per-instance `counters` map (a `wind` counter) — no
+        // new GameState field. A tapped permanent carrying a wind counter must
+        // survive the DB round-trip so a save/load reloads correctly: the untap
+        // step reads the counter (with Winds in play) to keep it tapped and shed
+        // the counter.
+        const state = freshState();
+        const perm = state.players[1].battlefield[0];
+        perm.isTapped = true;
+        perm.counters = { wind: 1 };
+        const expanded = expandState(compactState(state));
+        const got = expanded.players[1].battlefield[0];
+        expect(got.isTapped).toBe(true);
+        expect(got.counters).toEqual({ wind: 1 });
+    });
+
     it("preserves the per-turn draw tally (Sylvan Library, CR 121.1)", () => {
         const state = freshState();
         state.players[0].drawnThisTurn = ["card-a", "card-b", "card-c"];

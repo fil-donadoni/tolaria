@@ -153,6 +153,76 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         turn: 2,
     },
     {
+        // ICE one-off seams (#668, PRD #628). Exercises the four new
+        // trigger/replacement event seams in one board:
+        //   - Oath of Lim-Dûl ({3}{B} enchantment): the LIFE_LOST seam.
+        //     "Whenever you lose life, for each 1 life you lost, sacrifice a
+        //     permanent other than this enchantment unless you discard a card."
+        //     Lose life (let an opponent creature hit you, or activate its own
+        //     {B}{B} draw twice to thin) and watch the punisher fire per point.
+        //     A spare Balduvian Bears is on the battlefield to sacrifice and a
+        //     card in hand to discard instead.
+        //   - Ghostly Flame ({B}{R} enchantment): the damage-source colour
+        //     override. While it's in play, your black/red sources are
+        //     colourless sources of damage (relevant for protection / colour-
+        //     keyed prevention).
+        //   - Freyalise's Winds ({2}{G}{G} enchantment): tap any permanent →
+        //     it gains a wind counter; on your untap step a wind-countered
+        //     permanent stays tapped and sheds its counters instead. A land is
+        //     pre-seeded with a wind counter, tapped, so the next untap step
+        //     leaves it tapped and removes the counter.
+        //   - Seizures (Aura) is in hand to cast onto a creature — when the
+        //     enchanted creature taps it deals 3 to that creature's controller
+        //     unless they pay {3}.
+        // Turn 2 so untap is observable; an opponent creature is present to
+        // attack with / enchant. Life 20 so pay-life / damage is safe.
+        label: "ICE: One-off seams — Oath of Lim-Dûl / Ghostly Flame / Freyalise's Winds / Seizures (#668)",
+        cards: [
+            {
+                name: "Oath of Lim-Dûl",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Ghostly Flame",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Freyalise's Winds",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            // A spare permanent to sacrifice to Oath, and a creature to enchant
+            // with Seizures.
+            {
+                name: "Balduvian Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+            // A card in hand to discard instead of sacrificing to Oath.
+            {
+                name: "Balduvian Bears",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            // Seizures to cast onto a creature.
+            {
+                name: "Seizures",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+        turn: 2,
+    },
+    {
         // ICE divide-as-you-choose cluster (#664, PRD #628). Exercises the
         // player-chosen division of a fixed total among ≥1-each targets for
         // damage AND counters (CR 601.2d / 120.4):

@@ -3495,6 +3495,8 @@ export function dealDamageFromPermanentToPlayer(
     reduced = applyTargetPrevention(state, "player", finalTarget.id, reduced);
     if (reduced <= 0) return;
     getPlayer(state, finalTarget.id).life -= reduced;
+    // CR 119.3 — damage dealt to a player causes that player to lose life.
+    emitLifeLost(state, finalTarget.id, reduced, true);
     bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
     recordSourceDamagedOpponent(state, source.id, finalTarget.id);
     bumpArtifactDamageToPlayer(state, finalTarget.id, reduced, desc.types);
@@ -3572,6 +3574,8 @@ function markDamageFromPermanentSource(
         );
         if (reduced <= 0) return null;
         getPlayer(state, finalTarget.id).life -= reduced;
+        // CR 119.3 — damage dealt to a player causes that player to lose life.
+        emitLifeLost(state, finalTarget.id, reduced, true);
         bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
         recordSourceDamagedOpponent(state, source.id, finalTarget.id);
         bumpArtifactDamageToPlayer(state, finalTarget.id, reduced, desc.types);
@@ -4228,6 +4232,58 @@ export function emitCardDiscarded(
     ];
 }
 
+/** Emits a LIFE_LOST event for a player whose life total just dropped (CR
+ *  119.3). The seam for "whenever you lose life" triggers (Oath of Lim-Dûl —
+ *  "for each 1 life you lost, ..."). Emitted AFTER the life total has actually
+ *  decreased, carrying the ACTUAL amount lost (post-replacement,
+ *  post-prevention). `fromDamage` distinguishes damage-driven loss (CR 119.3)
+ *  from a direct "lose life" / paid life cost. No-op for a zero-or-negative
+ *  amount (a fully prevented / replaced-away loss is not a life loss). */
+export function emitLifeLost(
+    state: GameState,
+    playerId: string,
+    amount: number,
+    fromDamage: boolean
+): void {
+    if (amount <= 0) return;
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "LIFE_LOST",
+            playerId,
+            amount,
+            fromDamage,
+        },
+    ];
+}
+
+/** Single choke point for a NON-damage life loss (CR 119.3): a "lose life"
+ *  effect (`loseLife` primitive) or a paid life cost (CR 118.4). Runs the CR
+ *  614 lifeloss replacement layer (Lich's "if you would lose life, ... instead"
+ *  may rewrite the amount or consume it), applies the resulting life drop, and
+ *  emits LIFE_LOST with the actual amount lost so "whenever you lose life"
+ *  triggers (Oath of Lim-Dûl) fire off every non-damage life-loss path. Damage
+ *  to a player does NOT route through here — damage runs its own CR 614 / 615
+ *  pipeline and calls `emitLifeLost(..., fromDamage: true)` directly after the
+ *  reduced amount lands (the loss is a consequence of damage, not a separately
+ *  replaceable "lose life" event). No-op for amount <= 0. */
+export function loseLifeEmitting(
+    state: GameState,
+    playerId: string,
+    amount: number
+): void {
+    if (amount <= 0) return;
+    const repl = applyLifeChangeReplacements(state, {
+        kind: "lifeloss",
+        playerId,
+        amount,
+    });
+    if (repl === null) return; // replacement consumed the loss (ran its own fx)
+    if (repl.amount <= 0) return;
+    getPlayer(state, repl.playerId).life -= repl.amount;
+    emitLifeLost(state, repl.playerId, repl.amount, false);
+}
+
 /** Emits a PERMANENT_TAPPED event for a permanent that just transitioned from
  *  untapped to tapped (CR 701.20a). `forMana: true` marks the canonical
  *  "tapped for mana" condition (CR 605) read by Manabarbs / Mana Flare /
@@ -4781,6 +4837,8 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 );
                 if (reduced <= 0) return;
                 getPlayer(state, target.id).life -= reduced;
+                // CR 119.3 — damage dealt to a player causes life loss.
+                emitLifeLost(state, target.id, reduced, true);
                 bumpDamageDealtToPlayer(state, target.id, reduced);
                 // CR 120.3 (artifact-narrowed) — Reverse Polarity tally.
                 bumpArtifactDamageToPlayer(
@@ -5056,15 +5114,10 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         loseLife(playerId: string, amount: number) {
             if (amount <= 0) return;
             // CR 614 — Lich's "if you would lose life, sacrifice instead"
-            // intercepts here. The replacement may rewrite the amount or
-            // cancel it entirely (replacing with its own side-effects).
-            const repl = applyLifeChangeReplacements(state, {
-                kind: "lifeloss",
-                playerId,
-                amount,
-            });
-            if (repl === null) return;
-            getPlayer(state, repl.playerId).life -= repl.amount;
+            // intercepts inside `loseLifeEmitting`. After the resulting drop it
+            // emits LIFE_LOST (CR 119.3) so "whenever you lose life" triggers
+            // (Oath of Lim-Dûl) fire off this primitive too.
+            loseLifeEmitting(state, playerId, amount);
         },
         addPoisonCounters(playerId: string, n: number) {
             if (n <= 0) return;
@@ -8722,13 +8775,11 @@ export function payMayPayCost(
         commitLandsForCost(player, normalized);
     }
     if (norm.life !== undefined && norm.life > 0) {
-        // CR 118.4 — through the life-change replacement chain (Lich, etc.).
-        const repl = applyLifeChangeReplacements(state, {
-            kind: "lifeloss",
-            playerId,
-            amount: norm.life,
-        });
-        if (repl !== null) getPlayer(state, repl.playerId).life -= repl.amount;
+        // CR 118.4 — paying life is losing life. Routes through the shared
+        // choke point so it runs the CR 614 lifeloss replacement chain (Lich)
+        // AND emits LIFE_LOST (CR 119.3) like every other life-loss path
+        // (Oath of Lim-Dûl).
+        loseLifeEmitting(state, playerId, norm.life);
     }
     if (norm.sacrifice) {
         // CR 701.16 — sacrifice `count` matching permanents the payer controls.

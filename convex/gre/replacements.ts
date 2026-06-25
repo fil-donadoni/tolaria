@@ -39,6 +39,7 @@ import { turnFaceUp } from "./faceDown";
 import type { CardInstanceState, DamageRedirection, GameState } from "./state";
 import {
     bumpDamageDealtToPlayer,
+    emitLifeLost,
     getPlayer,
     matchesPermanentFilter,
     moveCard,
@@ -412,6 +413,9 @@ export function applyTransientDamageRedirections(
                 // here) rather than re-entering the full damage pipeline.
                 const reflectTo = current.sourceControllerId;
                 getPlayer(state, reflectTo).life -= current.amount;
+                // CR 119.3 — this reflected damage causes life loss; emit
+                // LIFE_LOST so "whenever you lose life" triggers fire.
+                emitLifeLost(state, reflectTo, current.amount, true);
                 bumpDamageDealtToPlayer(state, reflectTo, current.amount);
                 if (sh.remaining - 1 > 0) {
                     kept.push({ ...sh, remaining: sh.remaining - 1 });
@@ -491,6 +495,40 @@ export function applyLoseGameReplacements(
  *  Bodyguard's "except damage from sources with flying") can read them, and
  *  by `DAMAGE_DEALT` event emitters for last-known-information snapshots
  *  consumed by damage trigger factories (CR 603.10). */
+/** CardDefinition id of Ghostly Flame (ICE). While it is on the battlefield,
+ *  every black and/or red source of damage is treated as colourless for damage
+ *  purposes (CR 119.4 / 614). The override is applied inside
+ *  `describeDamageSource`, the single point every damage site reads source
+ *  colours from. */
+const GHOSTLY_FLAME_ID = "6314344b-6493-4142-9c76-da9b90b8d3e1";
+
+/** True if any player controls Ghostly Flame (the colour override exists only
+ *  while the enchantment does, CR 614). */
+function hasGhostlyFlameInPlay(state: GameState): boolean {
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            if ((card.card as { id?: string }).id === GHOSTLY_FLAME_ID) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/** Applies Ghostly Flame's "black and/or red sources of damage are colourless"
+ *  override (CR 614): a source whose colours include black or red becomes a
+ *  colourless source of damage (empty colour set) while Ghostly Flame is in
+ *  play. Other colours / colourless sources are unaffected. */
+function applyGhostlyFlameColorOverride(
+    state: GameState,
+    colors: ReadonlyArray<Color>
+): ReadonlyArray<Color> {
+    if (colors.length === 0) return colors;
+    if (!colors.includes("B") && !colors.includes("R")) return colors;
+    if (!hasGhostlyFlameInPlay(state)) return colors;
+    return [];
+}
+
 export function describeDamageSource(
     state: GameState,
     sourceInstanceId: string
@@ -505,9 +543,11 @@ export function describeDamageSource(
             if (card.id !== sourceInstanceId) continue;
             const cardId = (card.card as { id?: string }).id;
             const def = cardId ? tryGetCardById(cardId) : null;
-            const colors = def?.manaCost ? getColorsFromCost(def.manaCost) : [];
+            const rawColors = def?.manaCost
+                ? getColorsFromCost(def.manaCost)
+                : [];
             return {
-                colors,
+                colors: applyGhostlyFlameColorOverride(state, rawColors),
                 types: card.types,
                 subtypes: card.subtypes,
                 staticAbilities: card.staticAbilities,
@@ -518,9 +558,9 @@ export function describeDamageSource(
     if (stackItem) {
         const cardId = (stackItem.card as { id?: string }).id;
         const def = cardId ? tryGetCardById(cardId) : null;
-        const colors = def?.manaCost ? getColorsFromCost(def.manaCost) : [];
+        const rawColors = def?.manaCost ? getColorsFromCost(def.manaCost) : [];
         return {
-            colors,
+            colors: applyGhostlyFlameColorOverride(state, rawColors),
             types: stackItem.types,
             subtypes: stackItem.subtypes,
             staticAbilities: stackItem.staticAbilities,
