@@ -1675,6 +1675,24 @@ export type GameState = {
      *  one extra {U} per Island tap). Read by the single `applyLandManaReplacement`
      *  mana funnel. Cleared at CLEANUP (until end of turn). */
     highTideThisTurn?: string[];
+    /** Turn-scoped, parametrized land-mana riders (CR 614 / 514.2 — "until end
+     *  of turn" mana replacements set by an upkeep trigger). Generalizes the
+     *  blue-only High Tide / Deep Water shape to any basic land subtype and
+     *  either mode (Chaos Moon's parity rider): when a player taps a land of the
+     *  named `subtype` for mana,
+     *  - `mode: "additional"` adds an extra `color` mana on top of the land's
+     *    normal output (Chaos Moon odd — "adds an additional {R}"); stacks.
+     *  - `mode: "override"` rewrites the land's whole output to that TOTAL
+     *    quantity of `color` (Chaos Moon even — "produces colorless instead of
+     *    any other type", `color: "C"`).
+     *  Each entry applies to every player's taps (the printed riders are global).
+     *  Read by the single `applyLandManaReplacement` mana funnel; cleared at
+     *  CLEANUP. */
+    landManaRidersThisTurn?: Array<{
+        subtype: string;
+        color: Color;
+        mode: "additional" | "override";
+    }>;
     /** When true, no player may play a land and lands can't enter the
      *  battlefield (Worms of the Earth). Unlike the turn-scoped flags below,
      *  this is NOT cleared at CLEANUP — it is a cache of a battlefield-derived
@@ -6158,6 +6176,19 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const list = state.highTideThisTurn ?? [];
             list.push(playerId);
             state.highTideThisTurn = list;
+        },
+
+        addLandManaRider(rider: {
+            subtype: string;
+            color: Color;
+            mode: "additional" | "override";
+        }): void {
+            // CR 614 / 514.2 — additive list, NOT idempotent: each arm pushes an
+            // entry so two "additional" riders give two extra mana per tap.
+            // Cleared at CLEANUP.
+            const list = state.landManaRidersThisTurn ?? [];
+            list.push(rider);
+            state.landManaRidersThisTurn = list;
         },
 
         setIslandSanctuaryProtection(playerId: string): void {

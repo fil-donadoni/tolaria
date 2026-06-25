@@ -33,6 +33,30 @@ export type TextChange = {
     to: string;
 };
 
+/** A continuous land-mana colour substitution (CR 614 — a replacement of the
+ *  mana a land produces). Active while the declaring permanent is on the
+ *  battlefield; the engine scans every battlefield for sources at each tap and
+ *  rewrites the mana a LAND is about to add to the pool. Two shapes:
+ *
+ *  - `color` — a single-colour override: ANY land tapped for mana produces that
+ *    colour instead of any other type, in the same TOTAL quantity (Infernal
+ *    Darkness, "If a land is tapped for mana, it produces {B} instead of any
+ *    other type"). The type changes, the amount does not.
+ *  - `byBasicSubtype` — a per-basic-subtype permutation: a land whose subtypes
+ *    include a listed basic land subtype produces the mapped colour instead
+ *    (Naked Singularity, "Plains produce {R}, Islands produce {G}, …"). A land
+ *    whose subtype is not in the map is unaffected by THIS source.
+ *
+ *  Exactly one of `color` / `byBasicSubtype` is set. The substitution is
+ *  global (it affects every player's lands, like the printed cards), so the
+ *  source's controller is not consulted. Multiple active substitutions apply in
+ *  timestamp order; the engine applies them in battlefield order (CR 614.1
+ *  layering of replacements is not modelled to the letter — the cards in scope
+ *  never overlap on a single land in a legal board). */
+export type LandManaSubstitution =
+    | { color: Color }
+    | { byBasicSubtype: Partial<Record<string, Color>> };
+
 export type ManaCost = {
     X?: number | string;
     W?: number;
@@ -1585,6 +1609,19 @@ export interface SpellContext {
      *  `replaceLandManaWithBlue`, this is additive AND stacks — two High Tides
      *  give two extra {U} per Island tap. Cleared at CLEANUP. */
     addHighTide: (playerId: string) => void;
+    /** Arms a turn-scoped, parametrized land-mana rider until end of turn
+     *  (CR 614 / 514.2). The generalized form of `addHighTide`: when ANY player
+     *  taps a land of the named `subtype` for mana this turn,
+     *  - `mode: "additional"` adds one more `color` on top of normal output
+     *    (Chaos Moon odd — Mountain adds an additional {R}); stacks per arm.
+     *  - `mode: "override"` rewrites the land's whole output to that total
+     *    quantity of `color` (Chaos Moon even — Mountain produces {C} instead).
+     *  Cleared at CLEANUP. */
+    addLandManaRider: (rider: {
+        subtype: string;
+        color: Color;
+        mode: "additional" | "override";
+    }) => void;
     /** Sets Island Sanctuary protection: the given player can only be attacked
      *  by creatures with flying or islandwalk until their next turn. */
     setIslandSanctuaryProtection: (playerId: string) => void;
@@ -4203,6 +4240,15 @@ export interface CardDefinition {
      *  serialization/observability, but the consumption sites read the live
      *  helper, so the cache can never cause an incorrect ruling. */
     preventsLandPlayAndETB?: boolean;
+    /** Continuous land-mana colour substitution (CR 614). While ANY permanent
+     *  with this declaration is on the battlefield, a LAND tapped for mana has
+     *  its produced colours rewritten per the substitution before the mana
+     *  reaches the pool (Infernal Darkness — all lands produce {B}; Naked
+     *  Singularity — per-basic-subtype permutation). Read live from the
+     *  battlefield through the single `applyLandManaReplacement` mana funnel
+     *  (like `extraLandDrops`/`preventsLandPlayAndETB`), so the effect ends the
+     *  instant the source leaves play — no GameState flag, no stale state. */
+    landManaSubstitution?: LandManaSubstitution;
     /** CR 702.16n — an Aura that grants the enchanted permanent protection
      *  from its own color (e.g. White Ward gives pro-white and is itself
      *  white) normally falls off via 702.16c. Cards with this flag carry

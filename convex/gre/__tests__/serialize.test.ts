@@ -1298,6 +1298,18 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).highTideThisTurn).toEqual(["p1", "p1"]);
     });
 
+    it("landManaRidersThisTurn (Chaos Moon — parametrized riders)", () => {
+        const state = freshState();
+        state.landManaRidersThisTurn = [
+            { subtype: "Mountain", color: "R", mode: "additional" },
+            { subtype: "Mountain", color: "C", mode: "override" },
+        ];
+        expect(roundTrip(state).landManaRidersThisTurn).toEqual([
+            { subtype: "Mountain", color: "R", mode: "additional" },
+            { subtype: "Mountain", color: "C", mode: "override" },
+        ]);
+    });
+
     it("landPlayLocked (Worms of the Earth)", () => {
         const state = freshState();
         state.landPlayLocked = true;

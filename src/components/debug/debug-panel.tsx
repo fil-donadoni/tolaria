@@ -146,6 +146,78 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         turn: 2,
     },
     {
+        // ICE land-mana colour substitution (#665, PRD #628). Exercises the
+        // parametrizable CR 614 land-mana substitution end to end:
+        //   - Infernal Darkness (enchantment): tap ANY of your basic lands for
+        //     mana → it produces {B} instead of its normal colour.
+        //   - Naked Singularity (artifact): per-basic-type permutation — tap a
+        //     Plains → {R}, Island → {G}, Swamp → {W}, Mountain → {U}, Forest →
+        //     {B}. (Only ONE substitution applies per board; load this scenario
+        //     and sacrifice Infernal Darkness to its cumulative upkeep to watch
+        //     Naked Singularity take over.)
+        //   - Chaos Moon (enchantment): at your upkeep it counts permanents and,
+        //     by parity, arms a Mountain rider until end of turn — odd adds an
+        //     extra {R} per Mountain tap (and +1/+1 to red creatures); even
+        //     makes Mountains produce {C} (and -1/-1 to red creatures).
+        // One of each basic land is on the battlefield so the substitution is
+        // immediately observable. Goblin Ski Patrol (red 1/1) shows Chaos Moon's
+        // parity P/T swing. Turn 2 so lands are untapped and upkeep triggers can
+        // fire next turn; life 20.
+        label: "ICE: Land-mana colour substitution — Infernal Darkness / Chaos Moon / Naked Singularity (#665)",
+        cards: [
+            {
+                name: "Infernal Darkness",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Chaos Moon",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Naked Singularity",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            // One of each basic land — tap to observe the colour rewrite.
+            {
+                name: "Plains",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Island",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Swamp",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Mountain",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Forest",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            // Red creature — watch Chaos Moon's parity ±1/±1 swing.
+            {
+                name: "Goblin Ski Patrol",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        turn: 2,
+    },
+    {
         // ICE painland cycle (#662, PRD #628). Exercises the coloured-tap
         // self-damage rider on all five painlands end to end:
         //   - Each painland has TWO mana options when tapped: {C} (painless) and

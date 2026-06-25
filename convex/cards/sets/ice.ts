@@ -3964,15 +3964,30 @@ export const icequake: CardDefinition = {
         }
     },
 };
-// TODO(#628): implement.
-// export const infernalDarkness: CardDefinition = {
-//     id: "f3475eb3-909d-450b-9597-b241b259b425",
-//     name: "Infernal Darkness",
-//     rarity: "rare",
-//     oracleText: "Cumulative upkeep—Pay {B} and 1 life. (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nIf a land is tapped for mana, it produces {B} instead of any other type.",
-//     manaCost: { X: 2, B: 2 },
-//     types: ["Enchantment"],
-// };
+// Infernal Darkness — cumulative upkeep {B} and 1 life (CR 702.24, ADR 0042,
+// mixed mana+life cost so the scaled total repeats the {B} and sums the life)
+// plus a continuous land-mana colour substitution (CR 614): "If a land is
+// tapped for mana, it produces {B} instead of any other type." The
+// substitution is GLOBAL (every player's lands) and unconditional (any land),
+// so it's a single-`color` `landManaSubstitution` read live from the
+// battlefield by the `applyLandManaReplacement` mana funnel.
+export const infernalDarkness: CardDefinition = {
+    id: "f3475eb3-909d-450b-9597-b241b259b425",
+    name: "Infernal Darkness",
+    rarity: "rare",
+    oracleText:
+        "Cumulative upkeep—Pay {B} and 1 life. (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nIf a land is tapped for mana, it produces {B} instead of any other type.",
+    manaCost: { X: 2, B: 2 },
+    types: ["Enchantment"],
+    landManaSubstitution: { color: "B" },
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "infernal-darkness-cumulative-upkeep",
+            cost: { mana: { B: 1 }, life: 1 },
+            costLabel: "{B} and 1 life",
+        }),
+    ],
+};
 // Infernal Denizen — "At the beginning of your upkeep, sacrifice two Swamps. If
 // you can't, tap this creature, and an opponent may gain control of a creature
 // you control of their choice for as long as this creature remains on the
@@ -5623,15 +5638,67 @@ export const chaosLord: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
-// export const chaosMoon: CardDefinition = {
-//     id: "aae0543f-7f8b-4327-b735-ac21244e9936",
-//     name: "Chaos Moon",
-//     rarity: "rare",
-//     oracleText: "At the beginning of each upkeep, count the number of permanents. If the number is odd, until end of turn, red creatures get +1/+1 and whenever a player taps a Mountain for mana, that player adds an additional {R}. If the number is even, until end of turn, red creatures get -1/-1 and if a player taps a Mountain for mana, that Mountain produces colorless mana instead of any other type.",
-//     manaCost: { X: 3, R: 1 },
-//     types: ["Enchantment"],
-// };
+// Chaos Moon — "At the beginning of each upkeep, count the number of
+// permanents. If the number is odd, until end of turn, red creatures get +1/+1
+// and whenever a player taps a Mountain for mana, that player adds an
+// additional {R}. If the number is even, until end of turn, red creatures get
+// -1/-1 and if a player taps a Mountain for mana, that Mountain produces
+// colorless mana instead of any other type." (CR 603.6a each-upkeep trigger,
+// CR 700 permanent count, CR 611 until-EOT P/T, CR 614 / 514.2 turn-scoped
+// land-mana riders.) The parity-dependent Mountain rider is armed via the
+// generalized `addLandManaRider` turn-scoped primitive (the High Tide funnel):
+// odd → an "additional" {R} per Mountain tap; even → an "override" to {C}.
+export const chaosMoon: CardDefinition = {
+    id: "aae0543f-7f8b-4327-b735-ac21244e9936",
+    name: "Chaos Moon",
+    rarity: "rare",
+    oracleText:
+        "At the beginning of each upkeep, count the number of permanents. If the number is odd, until end of turn, red creatures get +1/+1 and whenever a player taps a Mountain for mana, that player adds an additional {R}. If the number is even, until end of turn, red creatures get -1/-1 and if a player taps a Mountain for mana, that Mountain produces colorless mana instead of any other type.",
+    manaCost: { X: 3, R: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "chaos-moon-parity",
+            oracleText:
+                "At the beginning of each upkeep, count the number of permanents. If the number is odd, red creatures get +1/+1 and a Mountain tapped for mana adds an additional {R} until end of turn; if even, red creatures get -1/-1 and a Mountain tapped for mana produces colorless instead.",
+            phase: "UPKEEP",
+            scope: "each",
+            resolve: (ctx) => {
+                // CR 700 — count every permanent on the battlefield.
+                let total = 0;
+                for (const pid of ctx.allPlayerIds) {
+                    total += ctx.getBattlefieldIds(pid).length;
+                }
+                const odd = total % 2 !== 0;
+                // Red creatures get ±1/±1 until end of turn (CR 611).
+                const delta = odd ? 1 : -1;
+                for (const pid of ctx.allPlayerIds) {
+                    for (const id of ctx.getBattlefieldIds(pid, {
+                        types: "Creature",
+                        colors: "R",
+                    })) {
+                        ctx.addTemporaryPTBuff(
+                            { type: "permanent", id },
+                            delta,
+                            delta,
+                            { phase: "end-of-turn" }
+                        );
+                    }
+                }
+                // Mountain land-mana rider until end of turn (CR 614 / 514.2).
+                ctx.addLandManaRider(
+                    odd
+                        ? {
+                              subtype: "Mountain",
+                              color: "R",
+                              mode: "additional",
+                          }
+                        : { subtype: "Mountain", color: "C", mode: "override" }
+                );
+            },
+        }),
+    ],
+};
 // Conquer — Aura granting control of the enchanted LAND (CR 613.1b, layer 2
 // control-change). The Control-Magic shape pointed at a land instead of a
 // creature; no upkeep tax, no P/T.
@@ -10541,17 +10608,38 @@ export const nacreTalisman: CardDefinition = makeTalisman({
     color: "W",
     colorWord: "white",
 });
-// DEFERRED (cumulative upkeep, ADR 0042) — owned by the cumulative-upkeep
-// capability cluster. The mana-substitution body ("Plains produce {R}, ...")
-// also needs a land-mana-replacement primitive not yet built.
-// export const nakedSingularity: CardDefinition = {
-//     id: "cabadfb2-93cd-4c7a-b901-59c3dd1a7c3c",
-//     name: "Naked Singularity",
-//     rarity: "rare",
-//     oracleText: "Cumulative upkeep {3} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nIf tapped for mana, Plains produce {R}, Islands produce {G}, Swamps produce {W}, Mountains produce {U}, and Forests produce {B} instead of any other type.",
-//     manaCost: { X: 5 },
-//     types: ["Artifact"],
-// };
+// Naked Singularity — cumulative upkeep {3} (CR 702.24, ADR 0042) plus a
+// continuous per-basic-subtype land-mana permutation (CR 614): "If tapped for
+// mana, Plains produce {R}, Islands produce {G}, Swamps produce {W}, Mountains
+// produce {U}, and Forests produce {B} instead of any other type." Modelled as
+// a `byBasicSubtype` `landManaSubstitution` (global, read live from the
+// battlefield by the `applyLandManaReplacement` mana funnel). A dual / nonbasic
+// land whose subtype isn't a basic type is unaffected.
+export const nakedSingularity: CardDefinition = {
+    id: "cabadfb2-93cd-4c7a-b901-59c3dd1a7c3c",
+    name: "Naked Singularity",
+    rarity: "rare",
+    oracleText:
+        "Cumulative upkeep {3} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nIf tapped for mana, Plains produce {R}, Islands produce {G}, Swamps produce {W}, Mountains produce {U}, and Forests produce {B} instead of any other type.",
+    manaCost: { X: 5 },
+    types: ["Artifact"],
+    landManaSubstitution: {
+        byBasicSubtype: {
+            Plains: "R",
+            Island: "G",
+            Swamp: "W",
+            Mountain: "U",
+            Forest: "B",
+        },
+    },
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "naked-singularity-cumulative-upkeep",
+            cost: { X: 3 },
+            costLabel: "{3}",
+        }),
+    ],
+};
 export const onyxTalisman: CardDefinition = makeTalisman({
     id: "a89b2368-1180-4821-bcb8-8161c18e5538",
     name: "Onyx Talisman",

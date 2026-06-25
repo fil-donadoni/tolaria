@@ -345,14 +345,49 @@ export function totalManaCount(produced: ManaCost): number {
     return total;
 }
 
-/** Applies the active per-turn land-mana replacement (CR 614 — Deep Water) to
- *  the mana a source is about to add to a pool. When the controller has an
- *  active "lands produce {U} instead" effect this turn AND `card` is a Land,
- *  the produced colours are rewritten to the same TOTAL quantity of {U}
- *  ("produces {U} instead of any other type" — Deep Water replaces the type,
- *  not the amount). Non-land sources (mana rocks, Birds) and players without
- *  the effect are returned unchanged. Pure — the single funnel every tap path
- *  routes its produced mana through so the rewrite can't desync across sites. */
+/** Scans every battlefield for an active continuous land-mana substitution
+ *  (CR 614 — Infernal Darkness / Naked Singularity) and returns the override
+ *  colour for `card`, or null when no source applies. A `byBasicSubtype`
+ *  source maps the FIRST of `card`'s basic land subtypes it covers; a `color`
+ *  source overrides any land unconditionally. The substitution is global —
+ *  every player's lands are affected — so all battlefields are scanned. First
+ *  applicable source wins (the in-scope cards never overlap on a legal board,
+ *  so battlefield order is sufficient — CR 614.1 fine-grained replacement
+ *  layering is not needed here). */
+function getContinuousLandManaOverride(
+    state: GameState,
+    card: CardInstanceState
+): Color | null {
+    if (!isLand(card)) return null;
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            const def = getCardById(source.card.id as string);
+            const sub = def.landManaSubstitution;
+            if (!sub) continue;
+            if ("color" in sub) return sub.color;
+            for (const subtype of card.subtypes) {
+                const mapped = sub.byBasicSubtype[subtype];
+                if (mapped) return mapped;
+            }
+        }
+    }
+    return null;
+}
+
+/** Applies the active land-mana colour substitutions (CR 614) to the mana a
+ *  source is about to add to a pool. Three families compose, in order:
+ *
+ *  1. Continuous battlefield substitution (Infernal Darkness — all lands →
+ *     {B}; Naked Singularity — per-basic-subtype permutation). Rewrites a
+ *     LAND's whole output to the same TOTAL quantity of the override colour.
+ *  2. Per-turn override (Deep Water — controller's lands → {U} until end of
+ *     turn). Same all-or-nothing type rewrite, scoped to the controller.
+ *  3. Per-turn riders (FEM High Tide — Island +{U}; Chaos Moon — Mountain +{R}
+ *     additional, or Mountain → {C} override). Keyed to a land subtype, global.
+ *
+ *  Non-land sources (mana rocks, Birds) and lands with no active effect are
+ *  returned unchanged. Pure — the single funnel every tap path routes its
+ *  produced mana through so the rewrite can't desync across sites. */
 export function applyLandManaReplacement(
     state: GameState,
     controllerId: string,
@@ -360,6 +395,14 @@ export function applyLandManaReplacement(
     produced: ManaCost
 ): ManaCost {
     let result = produced;
+    // (1) Continuous battlefield substitution (Infernal Darkness / Naked
+    // Singularity) — replaces the land's whole output with the override colour.
+    const override = getContinuousLandManaOverride(state, card);
+    if (override) {
+        const total = totalManaCount(result);
+        if (total > 0) result = { [override]: total };
+    }
+    // (2) Deep Water's per-turn "lands produce {U} instead" override.
     if (
         state.landManaReplacedToBlueThisTurn?.includes(controllerId) &&
         isLand(card)
@@ -367,13 +410,35 @@ export function applyLandManaReplacement(
         const total = totalManaCount(result);
         if (total > 0) result = { U: total };
     }
-    // FEM High Tide (CR 614-style additive rider): "Until end of turn, whenever
-    // a player taps an Island for mana, that player adds an additional {U}."
-    // It benefits EVERY player who taps an Island this turn (not just the
-    // caster), so the count is global. Folded into the single mana funnel so
-    // every tap path adds the bonus consistently. The replacement above runs
-    // first (Deep Water turns the Island's mana into {U}); High Tide then adds
-    // one MORE {U} per active High Tide, keyed to the Island subtype (CR 305.6).
+    // (3a) Turn-scoped parametrized riders (Chaos Moon's Mountain rider). An
+    // "override" rider rewrites the land's whole output to that colour; an
+    // "additional" rider adds one more of that colour per matching arm. Keyed to
+    // a land subtype, global. Overrides run before additionals so the override
+    // colour is what the additional then increments.
+    const riders = state.landManaRidersThisTurn ?? [];
+    if (riders.length > 0 && isLand(card)) {
+        for (const rider of riders) {
+            if (!card.subtypes.includes(rider.subtype)) continue;
+            if (rider.mode === "override") {
+                const total = totalManaCount(result);
+                if (total > 0) result = { [rider.color]: total };
+            }
+        }
+        for (const rider of riders) {
+            if (!card.subtypes.includes(rider.subtype)) continue;
+            if (rider.mode === "additional") {
+                result = {
+                    ...result,
+                    [rider.color]: (result[rider.color] ?? 0) + 1,
+                };
+            }
+        }
+    }
+    // (3b) FEM High Tide (CR 614-style additive rider): "Until end of turn,
+    // whenever a player taps an Island for mana, that player adds an additional
+    // {U}." Global (every player who taps an Island benefits), so the count is
+    // the number of active High Tides. Folded into the single mana funnel so
+    // every tap path adds the bonus consistently, keyed to Island (CR 305.6).
     if (card.subtypes.includes("Island")) {
         const highTides = state.highTideThisTurn?.length ?? 0;
         if (highTides > 0) {

@@ -337,7 +337,13 @@ import {
     riverDelta,
     timberlineRidge,
     veldt,
+    // Land-mana colour substitution (#665)
+    infernalDarkness,
+    chaosMoon,
+    nakedSingularity,
 } from "../ice";
+import { plains, island, swamp, mountain, forest } from "../lea";
+import { applyLandManaReplacement } from "../../../gre/constants";
 import { untapStep } from "../../../gre/phases";
 import {
     getCardById,
@@ -11326,5 +11332,290 @@ describe("Spoils of War ({X}{B} — distribute X +1/+1 counters as you choose; X
         const projected = projectPublicState(state, 1, "p1");
         const a = projected.players[0].battlefield.find((c) => c.id === "a")!;
         expect(getEffectivePower(projected, a)).toBe(4);
+    });
+});
+
+// --- Land-mana colour substitution (#665) -----------------------------------
+
+/** Make a battlefield instance of a basic land for `controllerId`. */
+function makeLand(landId: string, controllerId: string): CardInstanceState {
+    return makeInstance(landId, {
+        id: `${landId.slice(0, 4)}-${controllerId}`,
+        controllerId,
+        ownerId: controllerId,
+        zone: "battlefield",
+    });
+}
+
+/** The mana a basic land normally produces (its intrinsic subtype colour). */
+const BASIC_MANA: Record<string, ManaCost> = {
+    [plains.id]: { W: 1 },
+    [island.id]: { U: 1 },
+    [swamp.id]: { B: 1 },
+    [mountain.id]: { R: 1 },
+    [forest.id]: { G: 1 },
+};
+
+describe("Infernal Darkness — lands produce {B} (CR 614, #665)", () => {
+    it("shape: cumulative-upkeep {B} and 1 life + single-colour land substitution", () => {
+        expect(infernalDarkness.types).toContain("Enchantment");
+        expect(infernalDarkness.manaCost).toEqual({ X: 2, B: 2 });
+        expect(infernalDarkness.landManaSubstitution).toEqual({ color: "B" });
+        const cu = infernalDarkness.triggeredAbilities?.find((t) =>
+            t.id?.includes("cumulative-upkeep")
+        );
+        expect(cu).toBeTruthy();
+    });
+
+    it("every basic land tapped for mana produces {B} instead", () => {
+        const enchant = makeInstance(infernalDarkness.id, {
+            id: "id",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        for (const landId of Object.keys(BASIC_MANA)) {
+            const land = makeLand(landId, "p2");
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [enchant] }),
+                    makePlayer("p2", { battlefield: [land] }),
+                ],
+            });
+            const out = applyLandManaReplacement(
+                state,
+                "p2",
+                land,
+                BASIC_MANA[landId]
+            );
+            // Same total (1), type rewritten to {B}.
+            expect(out).toEqual({ B: 1 });
+        }
+    });
+
+    it("no effect once Infernal Darkness leaves the battlefield", () => {
+        const land = makeLand(plains.id, "p1");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        const out = applyLandManaReplacement(state, "p1", land, { W: 1 });
+        expect(out).toEqual({ W: 1 });
+    });
+});
+
+describe("Naked Singularity — per-basic-type permutation (CR 614, #665)", () => {
+    it("shape: cumulative-upkeep {3} + per-basic-subtype mapping", () => {
+        expect(nakedSingularity.types).toContain("Artifact");
+        expect(nakedSingularity.manaCost).toEqual({ X: 5 });
+        expect(nakedSingularity.landManaSubstitution).toEqual({
+            byBasicSubtype: {
+                Plains: "R",
+                Island: "G",
+                Swamp: "W",
+                Mountain: "U",
+                Forest: "B",
+            },
+        });
+    });
+
+    it("Plains→{R}, Island→{G}, Swamp→{W}, Mountain→{U}, Forest→{B}", () => {
+        const expected: Record<string, ManaCost> = {
+            [plains.id]: { R: 1 },
+            [island.id]: { G: 1 },
+            [swamp.id]: { W: 1 },
+            [mountain.id]: { U: 1 },
+            [forest.id]: { B: 1 },
+        };
+        const sing = makeInstance(nakedSingularity.id, {
+            id: "ns",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        for (const landId of Object.keys(BASIC_MANA)) {
+            const land = makeLand(landId, "p1");
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [sing, land] }),
+                    makePlayer("p2"),
+                ],
+            });
+            const out = applyLandManaReplacement(
+                state,
+                "p1",
+                land,
+                BASIC_MANA[landId]
+            );
+            expect(out).toEqual(expected[landId]);
+        }
+    });
+});
+
+describe("Chaos Moon — parity-dependent Mountain rider (CR 614/611, #665)", () => {
+    function fireParity(permanentsOnBoard: number) {
+        // Build a board with Chaos Moon + (permanentsOnBoard - 1) extra
+        // permanents so the total permanent count hits `permanentsOnBoard`.
+        const moon = makeInstance(chaosMoon.id, {
+            id: "moon",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        // Goblin Ski Patrol is a red 1/1 — observe the parity P/T pump on it.
+        const redCreature = makeInstance(goblinSkiPatrol.id, {
+            id: "red",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const fillers: CardInstanceState[] = [];
+        for (let i = 0; i < permanentsOnBoard - 2; i++) {
+            fillers.push(makeLand(plains.id, "p1"));
+        }
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [moon, redCreature, ...fillers],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            phase: "UPKEEP",
+        });
+        return { state, moon, redCreature };
+    }
+
+    it("shape: each-upkeep parity trigger, no continuous substitution", () => {
+        expect(chaosMoon.types).toContain("Enchantment");
+        expect(chaosMoon.manaCost).toEqual({ X: 3, R: 1 });
+        expect(chaosMoon.landManaSubstitution).toBeUndefined();
+        const parity = chaosMoon.triggeredAbilities?.find((t) =>
+            t.id?.includes("parity")
+        );
+        expect(parity).toBeTruthy();
+    });
+
+    it("odd permanent count: Mountain taps for {R} plus an additional {R}, red creature +1/+1", () => {
+        const { state, moon, redCreature } = fireParity(3); // odd
+        resolveTrigger(state, moon, "chaos-moon-parity", {
+            type: "PHASE_BEGIN" as const,
+            phase: "UPKEEP" as const,
+            activePlayerId: "p1",
+        } as StackItem["triggerEvent"]);
+        expect(state.landManaRidersThisTurn).toEqual([
+            { subtype: "Mountain", color: "R", mode: "additional" },
+        ]);
+        const mtn = makeLand(mountain.id, "p1");
+        const out = applyLandManaReplacement(state, "p1", mtn, { R: 1 });
+        expect(out).toEqual({ R: 2 });
+        // Red creature gets +1/+1 (1/1 → 2/2).
+        const onBoard = state.players[0].battlefield.find(
+            (c) => c.id === redCreature.id
+        )!;
+        expect(getEffectivePower(state, onBoard)).toBe(2);
+        expect(getEffectiveToughness(state, onBoard)).toBe(2);
+    });
+
+    it("even permanent count: Mountain produces {C} instead of {R}, red creature -1/-1", () => {
+        const { state, moon, redCreature } = fireParity(4); // even
+        resolveTrigger(state, moon, "chaos-moon-parity", {
+            type: "PHASE_BEGIN" as const,
+            phase: "UPKEEP" as const,
+            activePlayerId: "p1",
+        } as StackItem["triggerEvent"]);
+        expect(state.landManaRidersThisTurn).toEqual([
+            { subtype: "Mountain", color: "C", mode: "override" },
+        ]);
+        const mtn = makeLand(mountain.id, "p1");
+        const out = applyLandManaReplacement(state, "p1", mtn, { R: 1 });
+        expect(out).toEqual({ C: 1 });
+        // Red creature gets -1/-1 (1/1 → 0/0).
+        const onBoard = state.players[0].battlefield.find(
+            (c) => c.id === redCreature.id
+        )!;
+        expect(getEffectivePower(state, onBoard)).toBe(0);
+        expect(getEffectiveToughness(state, onBoard)).toBe(0);
+    });
+
+    it("rider is keyed to Mountain only — Plains unaffected", () => {
+        const { state, moon } = fireParity(3); // odd
+        resolveTrigger(state, moon, "chaos-moon-parity", {
+            type: "PHASE_BEGIN" as const,
+            phase: "UPKEEP" as const,
+            activePlayerId: "p1",
+        } as StackItem["triggerEvent"]);
+        const pl = makeLand(plains.id, "p1");
+        const out = applyLandManaReplacement(state, "p1", pl, { W: 1 });
+        expect(out).toEqual({ W: 1 });
+    });
+});
+
+describe("Land-mana substitution — wire-format survival (#665)", () => {
+    it("Naked Singularity substitution survives projectPublicState", () => {
+        const sing = makeInstance(nakedSingularity.id, {
+            id: "ns",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const mtn = makeLand(mountain.id, "p1");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sing, mtn] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Fat state: Mountain → {U}.
+        expect(applyLandManaReplacement(state, "p1", mtn, { R: 1 })).toEqual({
+            U: 1,
+        });
+        // Same ruling after projection (def looked up by id, so the {U}
+        // substitution survives the wire).
+        const projected = projectPublicState(state, 1, "p1");
+        const slimMtn = projected.players[0].battlefield.find(
+            (c) => c.id === mtn.id
+        )!;
+        expect(
+            applyLandManaReplacement(
+                projected as unknown as GameState,
+                "p1",
+                slimMtn,
+                { R: 1 }
+            )
+        ).toEqual({ U: 1 });
+    });
+
+    it("Infernal Darkness substitution survives projectPublicState", () => {
+        const enchant = makeInstance(infernalDarkness.id, {
+            id: "id",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const forestLand = makeLand(forest.id, "p2");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [enchant] }),
+                makePlayer("p2", { battlefield: [forestLand] }),
+            ],
+        });
+        expect(
+            applyLandManaReplacement(state, "p2", forestLand, { G: 1 })
+        ).toEqual({ B: 1 });
+        const projected = projectPublicState(state, 2, "p2");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === forestLand.id
+        )!;
+        expect(
+            applyLandManaReplacement(
+                projected as unknown as GameState,
+                "p2",
+                slim,
+                { G: 1 }
+            )
+        ).toEqual({ B: 1 });
     });
 });
