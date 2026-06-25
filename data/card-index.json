@@ -2922,6 +2922,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Ice Cauldron",
+        "scryfallId": "1a3e095a-7056-4df3-bf7d-9c217d591446",
+        "oracleId": "2b7e4e70-53b1-4d4f-bdcc-56c2e15f367a",
+        "firstSet": "ice"
+    },
+    {
         "name": "Ice Floe",
         "scryfallId": "85ce04fb-e687-41e0-ae9a-16a51df5d943",
         "oracleId": "cfaaead2-09e8-47cb-9e39-8570b8d8de86",
@@ -3219,6 +3225,12 @@
         "name": "Jester's Mask",
         "scryfallId": "daa1ba0c-cb89-4bb2-8a35-6a4a4eecccf7",
         "oracleId": "bcc797b9-d2e5-4fde-8d80-c890c871f344",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Jeweled Amulet",
+        "scryfallId": "34f7bad2-d28f-42d2-9246-fe3545ef49a7",
+        "oracleId": "e2ad4b4d-d5fe-4a64-9b40-296c8fc8bcce",
         "firstSet": "ice"
     },
     {

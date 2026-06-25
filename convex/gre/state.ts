@@ -600,6 +600,22 @@ export type CardInstanceState = {
      *  projection turns it into identity gating + the derived `seenByOpponent`
      *  flag. */
     knownTo?: string[];
+    /** Noted-mana battery (CR 106.10 — Jeweled Amulet, Ice Cauldron). The type
+     *  and amount of mana the artifact most recently noted ("note the type [and
+     *  amount] of mana spent to pay this activation cost"). `mana` is a
+     *  per-colour count (a single colour for Jeweled Amulet's {1}; possibly
+     *  several for Ice Cauldron's {X}). Read by the second ability ("add this
+     *  artifact's last noted ... mana"). `castableCardId` (Ice Cauldron)
+     *  restricts the replayed mana to casting that one exiled card; absent for
+     *  Jeweled Amulet (the mana is unrestricted). Overwritten on each note
+     *  ("LAST noted"). Battlefield-only; persisted across a DB round-trip. */
+    notedMana?: { mana: Record<string, number>; castableCardId?: string };
+    /** Cast-from-exile permission (CR 601.3e — Ice Cauldron: "You may cast that
+     *  card for as long as it remains exiled"). When set on a card in the exile
+     *  zone, the named player may cast it from exile as if it were in their
+     *  hand. Cleared when the card leaves exile (it has been cast). Persisted so
+     *  the permission survives a DB round-trip. */
+    castableFromExileBy?: string;
 };
 
 /** ADR 0026 — clears persistent card knowledge over a Hidden Zone. The single
@@ -836,6 +852,14 @@ export type StackItem = CardInstanceState & {
         mv: number;
         subtypes?: string[];
     };
+    /** Type and amount of mana spent to pay THIS activation's cost (CR 106.10).
+     *  Captured at activation commit (the manaPool delta) when the ability sets
+     *  `noteManaSpent: true`, so the resolve step can read which colours were
+     *  spent (`SpellContext.getNotedManaSpent`) and store them on the source —
+     *  Jeweled Amulet ("note the type of mana spent"), Ice Cauldron ("note the
+     *  type and amount of mana spent"). Per-colour counts. Undefined for the
+     *  overwhelming majority of activations that don't note their mana. */
+    notedManaSpent?: Record<string, number>;
     /** If set, this stack item is an activated ability (not a spell). Source permanent stays on battlefield. */
     abilityId?: string;
     /** When the activated ability was GRANTED to the source by another card
@@ -1059,6 +1083,11 @@ export type PendingActivation = {
      *  resolveTopOfStack reads the correct template. Undefined for native
      *  activated abilities. */
     grantedSourceCardId?: string;
+    /** Noted-mana battery (CR 106.10 — Jeweled Amulet / Ice Cauldron). Set when
+     *  the ability declares `noteManaSpent: true`. At commit the engine captures
+     *  the manaPool delta (which colours paid the cost) and writes it onto the
+     *  resulting stack item as `notedManaSpent`. */
+    noteManaSpent?: boolean;
 };
 
 /** Choice family taxonomy (definitions in `gre/types.ts` to avoid an import
@@ -1107,11 +1136,23 @@ export type {
  *  by effects like Metamorphosis ("Add X mana of any one color … Spend this
  *  mana only to cast creature spells"). Kept separate from the fungible
  *  `manaPool` so the spend restriction can be enforced at payment time; emptied
- *  alongside `manaPool` at end of step/phase (CR 500.4). */
+ *  alongside `manaPool` at end of step/phase (CR 500.4).
+ *
+ *  A unit carries EITHER a type-keyed `restriction` (Metamorphosis / Mishra's
+ *  Workshop / cumulative-upkeep) OR an instance-keyed `castableCardId` (Ice
+ *  Cauldron — "Spend this mana only to cast the last card exiled with this
+ *  artifact"). The two are mutually exclusive: type-keyed mana is eligible for
+ *  any spell whose card types match; instance-keyed mana is eligible only for
+ *  the one specific card instance. `restriction` is therefore optional. */
 export type RestrictedMana = {
     color: string;
     amount: number;
-    restriction: ManaRestriction;
+    restriction?: ManaRestriction;
+    /** Ice Cauldron (CR 106.6) — instance id of the single card this mana may
+     *  pay for. When set, the unit is eligible only when the spell being cast
+     *  is that exact instance, regardless of card type. Mutually exclusive with
+     *  `restriction`. */
+    castableCardId?: string;
 };
 
 /** Mid-resolution player choice requested by a spell/ability's resolve step
@@ -5566,6 +5607,68 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 addRestrictedManaToPool(player, color, amount, restriction);
             }
         },
+        getNotedManaSpent(): Record<string, number> {
+            // CR 106.10 — the type and amount of mana spent to pay this
+            // activation's cost, snapshotted at commit (Jeweled Amulet, Ice
+            // Cauldron). Per-colour counts; empty when the activation spent no
+            // mana or the ability didn't request the note.
+            return item.notedManaSpent ?? {};
+        },
+        noteMana(
+            cardInstanceId: string,
+            note: { mana: Record<string, number>; castableCardId?: string }
+        ): void {
+            // CR 106.10 — store the noted mana on the source permanent (a Mana
+            // Battery: Jeweled Amulet / Ice Cauldron) so the later "add the
+            // noted mana" activation can read it. Overwrites the previous note
+            // ("this artifact's LAST noted type"). No-op for an id not on the
+            // battlefield. Keeps only positive per-colour entries.
+            const found = findOnBattlefield(state, cardInstanceId);
+            if (!found) return;
+            const mana: Record<string, number> = {};
+            for (const [color, amount] of Object.entries(note.mana)) {
+                if (amount > 0) mana[color] = amount;
+            }
+            const noted: NonNullable<CardInstanceState["notedMana"]> = { mana };
+            if (note.castableCardId !== undefined) {
+                noted.castableCardId = note.castableCardId;
+            }
+            found.card.notedMana = noted;
+        },
+        addNotedMana(cardInstanceId: string, playerId: string): void {
+            // CR 106.10 — replay the noted mana into `playerId`'s pool. When the
+            // note carries a `castableCardId` (Ice Cauldron) the mana is added
+            // as instance-restricted mana spendable only to cast that card;
+            // otherwise it is ordinary mana (Jeweled Amulet). No-op for an id
+            // not on the battlefield or with no noted mana.
+            const found = findOnBattlefield(state, cardInstanceId);
+            const noted = found?.card.notedMana;
+            if (!noted) return;
+            const player = getPlayer(state, playerId);
+            for (const [color, amount] of Object.entries(noted.mana)) {
+                if (amount <= 0) continue;
+                if (noted.castableCardId !== undefined) {
+                    addRestrictedManaToPool(
+                        player,
+                        color,
+                        amount,
+                        undefined,
+                        noted.castableCardId
+                    );
+                } else {
+                    player.manaPool[color] =
+                        (player.manaPool[color] ?? 0) + amount;
+                }
+            }
+        },
+        grantCastFromExile(cardInstanceId: string, playerId: string): void {
+            // CR 601.3e — Ice Cauldron: mark a card in `playerId`'s exile as
+            // castable from exile by that player ("You may cast that card for as
+            // long as it remains exiled"). No-op for an id not in their exile.
+            const player = getPlayer(state, playerId);
+            const card = player.exile.find((c) => c.id === cardInstanceId);
+            if (card) card.castableFromExileBy = playerId;
+        },
         getX(): number {
             return item.chosenX ?? 0;
         },
@@ -7752,6 +7855,9 @@ export function removeFromZone(
     // to hand, or a bounce) it is hidden again unless freshly re-granted. Stale
     // `knownTo` never resurrects.
     delete card.knownTo;
+    // CR 601.3e — Ice Cauldron's cast-from-exile permission is consumed once the
+    // card leaves exile for the stack; clear the stale flag.
+    delete card.castableFromExileBy;
     return card;
 }
 
@@ -7946,6 +8052,23 @@ export function payManaCost(
     }
 }
 
+/** Per-colour delta between a mana pool snapshot taken BEFORE a payment and the
+ *  pool AFTER it (CR 106.10 — noted-mana battery). Returns only the colours that
+ *  decreased, mapped to the amount spent. Used to capture the TYPE and amount of
+ *  mana spent to pay an activation cost (Jeweled Amulet, Ice Cauldron). Empty
+ *  when nothing was spent. */
+export function manaSpentDelta(
+    before: Record<string, number>,
+    after: Record<string, number>
+): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const color of MANA_COLORS) {
+        const spent = (before[color] ?? 0) - (after[color] ?? 0);
+        if (spent > 0) out[color] = spent;
+    }
+    return out;
+}
+
 /** True if restricted mana with `restriction` may pay for a spell with the
  *  given card types (CR 106.6). Modelled restrictions:
  *  - `creature-spell` — spendable solely on creature spells (Metamorphosis).
@@ -7968,22 +8091,57 @@ export function restrictionAllowsSpell(
     }
 }
 
+/** True if a single restricted-mana unit may pay for a spell (CR 106.6).
+ *  Bridges the two restriction shapes:
+ *   - instance-keyed (`castableCardId`, Ice Cauldron) — eligible only when the
+ *     spell being cast is that exact instance (`spellCardId` must match);
+ *   - type-keyed (`restriction`) — delegates to `restrictionAllowsSpell`.
+ *  A unit with neither field is unrestricted and always eligible (defensive;
+ *  the engine never produces such a unit). `spellCardId` is the instance id of
+ *  the card being cast — undefined at sites that don't track it (then
+ *  instance-keyed mana is treated as ineligible). */
+export function restrictedUnitAllowsSpell(
+    unit: RestrictedMana,
+    spellTypes: readonly string[],
+    spellCardId?: string
+): boolean {
+    if (unit.castableCardId !== undefined) {
+        return spellCardId !== undefined && unit.castableCardId === spellCardId;
+    }
+    if (unit.restriction !== undefined) {
+        return restrictionAllowsSpell(unit.restriction, spellTypes);
+    }
+    return true;
+}
+
 /** Adds `amount` restricted mana of `color` to a player's pool, merging into
  *  an existing entry of the same color + restriction (CR 106.4 — mana of the
- *  same kind is fungible). */
+ *  same kind is fungible). When `castableCardId` is supplied (Ice Cauldron) the
+ *  unit is instance-keyed instead of type-keyed; merge is gated on the same
+ *  `castableCardId` so two activations against different exiled cards stay
+ *  distinct. */
 export function addRestrictedManaToPool(
     player: PlayerState,
     color: string,
     amount: number,
-    restriction: ManaRestriction
+    restriction: ManaRestriction | undefined,
+    castableCardId?: string
 ): void {
     if (amount <= 0) return;
     const list = player.restrictedMana ?? [];
     const existing = list.find(
-        (r) => r.color === color && r.restriction === restriction
+        (r) =>
+            r.color === color &&
+            r.restriction === restriction &&
+            r.castableCardId === castableCardId
     );
     if (existing) existing.amount += amount;
-    else list.push({ color, amount, restriction });
+    else {
+        const unit: RestrictedMana = { color, amount };
+        if (restriction !== undefined) unit.restriction = restriction;
+        if (castableCardId !== undefined) unit.castableCardId = castableCardId;
+        list.push(unit);
+    }
     player.restrictedMana = list;
 }
 
@@ -7993,11 +8151,12 @@ export function addRestrictedManaToPool(
  *  spell being cast is a creature spell. */
 export function spendablePoolForSpell(
     player: PlayerState,
-    spellTypes: readonly string[]
+    spellTypes: readonly string[],
+    spellCardId?: string
 ): Record<string, number> {
     const pool = { ...player.manaPool };
     for (const r of player.restrictedMana ?? []) {
-        if (restrictionAllowsSpell(r.restriction, spellTypes)) {
+        if (restrictedUnitAllowsSpell(r, spellTypes, spellCardId)) {
             pool[r.color] = (pool[r.color] ?? 0) + r.amount;
         }
     }
@@ -8015,10 +8174,11 @@ export function payManaCostForSpell(
     player: PlayerState,
     cost: Record<string, number>,
     spellTypes: readonly string[],
-    substitutions: ManaSubstitution[] = []
+    substitutions: ManaSubstitution[] = [],
+    spellCardId?: string
 ): void {
     const eligible = (player.restrictedMana ?? []).filter((r) =>
-        restrictionAllowsSpell(r.restriction, spellTypes)
+        restrictedUnitAllowsSpell(r, spellTypes, spellCardId)
     );
     if (eligible.length === 0) {
         payManaCost(player.manaPool, cost, substitutions);

@@ -192,6 +192,13 @@ function compactCard(
     if (card.linkedTokenId) out.linkedTokenId = card.linkedTokenId;
     // ADR 0026 / PRD #338 — persistent per-viewer card knowledge.
     if (card.knownTo?.length) out.knownTo = card.knownTo;
+    // CR 106.10 — noted-mana battery (Jeweled Amulet / Ice Cauldron); the noted
+    // type/amount lives on the artifact and must survive a save/load.
+    if (card.notedMana) out.notedMana = card.notedMana;
+    // CR 601.3e — Ice Cauldron's cast-from-exile permission on an exiled card.
+    if (card.castableFromExileBy) {
+        out.castableFromExileBy = card.castableFromExileBy;
+    }
     return out;
 }
 
@@ -384,6 +391,12 @@ function expandCard(
         result.linkedTokenId = compact.linkedTokenId as string;
     }
     if (compact.knownTo) result.knownTo = compact.knownTo as string[];
+    if (compact.notedMana) {
+        result.notedMana = compact.notedMana as CardInstanceState["notedMana"];
+    }
+    if (compact.castableFromExileBy) {
+        result.castableFromExileBy = compact.castableFromExileBy as string;
+    }
     return result;
 }
 
@@ -598,6 +611,11 @@ function compactStackItem(item: StackItem): CompactCard {
     if (item.additionalSacrificeSnapshot) {
         base.additionalSacrificeSnapshot = item.additionalSacrificeSnapshot;
     }
+    // CR 106.10 — noted-mana battery: the mana spent on the activation must
+    // survive a save/load while the ability is on the stack waiting to resolve.
+    if (item.notedManaSpent && Object.keys(item.notedManaSpent).length > 0) {
+        base.notedManaSpent = item.notedManaSpent;
+    }
     if (item.abilityId) base.abilityId = item.abilityId;
     if (item.grantedSourceCardId) {
         base.grantedSourceCardId = item.grantedSourceCardId;
@@ -640,6 +658,9 @@ function expandStackItem(compact: CompactCard): StackItem {
     if (compact.additionalSacrificeSnapshot) {
         item.additionalSacrificeSnapshot =
             compact.additionalSacrificeSnapshot as StackItem["additionalSacrificeSnapshot"];
+    }
+    if (compact.notedManaSpent) {
+        item.notedManaSpent = compact.notedManaSpent as Record<string, number>;
     }
     if (compact.abilityId) item.abilityId = compact.abilityId as string;
     if (compact.grantedSourceCardId) {

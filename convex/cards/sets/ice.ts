@@ -10369,15 +10369,102 @@ export const hematiteTalisman: CardDefinition = makeTalisman({
     color: "R",
     colorWord: "red",
 });
-// TODO(#628): implement.
-// export const iceCauldron: CardDefinition = {
-//     id: "1a3e095a-7056-4df3-bf7d-9c217d591446",
-//     name: "Ice Cauldron",
-//     rarity: "rare",
-//     oracleText: "{X}, {T}: You may exile a nonland card from your hand. You may cast that card for as long as it remains exiled. Put a charge counter on this artifact and note the type and amount of mana spent to pay this activation cost. Activate only if there are no charge counters on this artifact.\n{T}, Remove a charge counter from this artifact: Add this artifact's last noted type and amount of mana. Spend this mana only to cast the last card exiled with this artifact.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+// Ice Cauldron — noted-mana battery + cast-from-exile (CR 106.10, CR 601.3e).
+// "{X}, {T}: You may exile a nonland card from your hand. You may cast that card
+// for as long as it remains exiled. Put a charge counter and note the TYPE and
+// AMOUNT of mana spent to pay this activation cost. Activate only if there are
+// no charge counters." then "{T}, Remove a charge counter: Add this artifact's
+// last noted type and amount of mana. Spend this mana only to cast the last card
+// exiled with this artifact."
+//
+// Ability 1 (`noteManaSpent: true`) captures the colours spent on {X}, exiles
+// the chosen nonland card face down (`exileFaceDown` — hidden to the opponent,
+// CR 406.3), grants it cast-from-exile (`grantCastFromExile`), and stores the
+// noted mana on the artifact keyed to that card's instance id (so the replayed
+// mana is spendable only on it, CR 106.6 instance-restricted mana). Ability 2
+// removes the counter and replays the noted mana via `addNotedMana`; because the
+// note carries `castableCardId`, the mana floats as instance-restricted mana —
+// the cast pipeline accepts it only when the spell being cast is that exiled
+// card.
+//
+// SIMPLIFICATION (flagged, CR 605.1a): as with Jeweled Amulet, the "add the
+// noted mana" ability is a mana ability that this engine models as
+// `useStack: true` (the mana-ability path can't produce stored/variable mana).
+export const iceCauldron: CardDefinition = {
+    id: "1a3e095a-7056-4df3-bf7d-9c217d591446",
+    name: "Ice Cauldron",
+    rarity: "rare",
+    oracleText:
+        "{X}, {T}: You may exile a nonland card from your hand. You may cast that card for as long as it remains exiled. Put a charge counter on this artifact and note the type and amount of mana spent to pay this activation cost. Activate only if there are no charge counters on this artifact.\n{T}, Remove a charge counter from this artifact: Add this artifact's last noted type and amount of mana. Spend this mana only to cast the last card exiled with this artifact.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "ice-cauldron-charge",
+            oracleText:
+                "{X}, {T}: You may exile a nonland card from your hand. You may cast that card for as long as it remains exiled. Put a charge counter on this artifact and note the type and amount of mana spent to pay this activation cost. Activate only if there are no charge counters on this artifact.",
+            cost: { mana: { X: "X" }, tap: true },
+            useStack: true,
+            canActivate: (source) => (source.counters?.charge ?? 0) === 0,
+            // CR 106.10 — capture the TYPE and AMOUNT of mana spent on {X}.
+            noteManaSpent: true,
+            resolve: (ctx: SpellContext) => {
+                // CR 601.3e — "You may exile a nonland card from your hand."
+                const nonland = ctx
+                    .getHandCards(ctx.caster)
+                    .filter((c) => !c.types.includes("Land"))
+                    .map((c) => c.id);
+                let exiledCardId: string | undefined;
+                if (nonland.length > 0) {
+                    const picks = ctx.requestChoice({
+                        playerId: ctx.caster,
+                        choiceId: "ice-cauldron-exile",
+                        kind: "choose-hand-card",
+                        zone: "hand",
+                        count: { min: 0, max: 1 },
+                        candidateIds: nonland,
+                        prompt: "Ice Cauldron: exile a nonland card from your hand (or skip).",
+                    });
+                    if (picks === undefined) return; // suspended — resume later
+                    if (picks.length > 0) {
+                        exiledCardId = picks[0];
+                        // CR 406.3 — exiled face down (hidden to the opponent),
+                        // known to its controller.
+                        ctx.exileFaceDown(
+                            ctx.caster,
+                            exiledCardId,
+                            "hand",
+                            ctx.caster
+                        );
+                        // CR 601.3e — castable from exile by the controller.
+                        ctx.grantCastFromExile(exiledCardId, ctx.caster);
+                    }
+                }
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "charge",
+                    1
+                );
+                // CR 106.10 — note the type/amount spent, keyed to the exiled
+                // card so the replayed mana is spendable only to cast it.
+                ctx.noteMana(ctx.sourceInstanceId, {
+                    mana: ctx.getNotedManaSpent(),
+                    ...(exiledCardId ? { castableCardId: exiledCardId } : {}),
+                });
+            },
+        },
+        {
+            id: "ice-cauldron-add",
+            oracleText:
+                "{T}, Remove a charge counter from this artifact: Add this artifact's last noted type and amount of mana. Spend this mana only to cast the last card exiled with this artifact.",
+            cost: { tap: true, removeCounter: { type: "charge", count: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addNotedMana(ctx.sourceInstanceId, ctx.caster);
+            },
+        },
+    ],
+};
 // Icy Manipulator — {1}, {T}: Tap target artifact, creature, or land (CR 605
 // activated ability; CR 701.20a tap). The classic tapper; the multi-type target
 // is expressed as a CardType array.
@@ -10582,14 +10669,68 @@ export const jestersMask: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const jeweledAmulet: CardDefinition = {
-//     id: "34f7bad2-d28f-42d2-9246-fe3545ef49a7",
-//     name: "Jeweled Amulet",
-//     rarity: "uncommon",
-//     oracleText: "{1}, {T}: Put a charge counter on this artifact. Note the type of mana spent to pay this activation cost. Activate only if there are no charge counters on this artifact.\n{T}, Remove a charge counter from this artifact: Add one mana of this artifact's last noted type.",
-//     types: ["Artifact"],
-// };
+// Jeweled Amulet — noted-mana battery (CR 106.10). "{1}, {T}: Put a charge
+// counter on this artifact. Note the TYPE of mana spent to pay this activation
+// cost. Activate only if there are no charge counters." then "{T}, Remove a
+// charge counter: Add one mana of this artifact's last noted type."
+//
+// The first ability spends {1} (any one colour); `noteManaSpent: true` makes the
+// engine capture the colour actually spent (the manaPool delta), read on resolve
+// via `getNotedManaSpent()` and stored on the artifact with `noteMana`. The
+// second ability removes the counter and replays the noted colour via
+// `addNotedMana`. Both gate on the no-counter / has-counter invariant so only
+// one charge sits on the artifact at a time (CR 122 counters).
+//
+// SIMPLIFICATION (flagged, CR 605.1a): the "add the noted mana" ability is a
+// mana ability and should not use the stack. The engine's mana-ability path
+// (`useStack: false` / `manaProduced`) produces only fixed, definition-time
+// mana; it cannot read the artifact's stored note to produce a variable colour.
+// Both abilities are therefore `useStack: true` (resolve-driven). The only
+// observable difference is that an opponent could respond to the mana being
+// added — a rules-lawyer-level deviation with no effect in normal play.
+export const jeweledAmulet: CardDefinition = {
+    id: "34f7bad2-d28f-42d2-9246-fe3545ef49a7",
+    name: "Jeweled Amulet",
+    rarity: "uncommon",
+    oracleText:
+        "{1}, {T}: Put a charge counter on this artifact. Note the type of mana spent to pay this activation cost. Activate only if there are no charge counters on this artifact.\n{T}, Remove a charge counter from this artifact: Add one mana of this artifact's last noted type.",
+    manaCost: { X: 0 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "jeweled-amulet-charge",
+            oracleText:
+                "{1}, {T}: Put a charge counter on this artifact. Note the type of mana spent to pay this activation cost. Activate only if there are no charge counters on this artifact.",
+            cost: { mana: { X: 1 }, tap: true },
+            useStack: true,
+            // CR 122 — "Activate only if there are no charge counters on it."
+            canActivate: (source) => (source.counters?.charge ?? 0) === 0,
+            // CR 106.10 — capture the TYPE of mana spent to pay the {1}.
+            noteManaSpent: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "charge",
+                    1
+                );
+                // The {1} generic was paid with exactly one mana of some colour;
+                // note that colour (CR 106.10).
+                const spent = ctx.getNotedManaSpent();
+                ctx.noteMana(ctx.sourceInstanceId, { mana: spent });
+            },
+        },
+        {
+            id: "jeweled-amulet-add",
+            oracleText:
+                "{T}, Remove a charge counter from this artifact: Add one mana of this artifact's last noted type.",
+            cost: { tap: true, removeCounter: { type: "charge", count: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addNotedMana(ctx.sourceInstanceId, ctx.caster);
+            },
+        },
+    ],
+};
 export const lapisLazuliTalisman: CardDefinition = makeTalisman({
     id: "ce00bb19-983e-427d-be54-ae6daf0ccdde",
     name: "Lapis Lazuli Talisman",

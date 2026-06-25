@@ -165,6 +165,25 @@ describe("game_state serialize round-trip", () => {
         expect(top.targets).toEqual([{ type: "player", id: "p2" }]);
     });
 
+    it("preserves a stack item's notedManaSpent (noted-mana battery, #666, CR 106.10)", () => {
+        // A noted-mana battery ability waiting on the stack must reload the
+        // type/amount of mana spent on its activation after a DB round-trip, so
+        // the resolve step still notes the right colour.
+        const state = freshState();
+        const amulet = state.players[0].hand[0];
+        state.stack = [
+            {
+                ...amulet,
+                zone: "stack",
+                castById: "p1",
+                abilityId: "jeweled-amulet-charge",
+                notedManaSpent: { R: 1 },
+            },
+        ];
+        const top = expandState(compactState(state)).stack[0];
+        expect(top.notedManaSpent).toEqual({ R: 1 });
+    });
+
     it("preserves a stack item's divide-as-you-choose split (targetAmounts, #664)", () => {
         // CR 601.2d / 120.4 — a suspended divide spell must reload its
         // per-target split after a DB round-trip (Fire Covenant / Spoils of War).
@@ -421,6 +440,11 @@ describe("game_state serialize round-trip", () => {
             { supertype: "Snow", sourceId: "indefinite" },
         ];
         lion.removedSupertypes = [{ supertype: "Snow", sourceId: "melt-1" }];
+        // #666 (CR 106.10) — noted-mana battery: the artifact's last noted
+        // type/amount must survive a save/load while it sits on the battlefield.
+        lion.notedMana = { mana: { R: 1, U: 2 }, castableCardId: "noted-card" };
+        // #666 (CR 601.3e) — Ice Cauldron's cast-from-exile permission flag.
+        lion.castableFromExileBy = "p1";
 
         const expanded = expandState(compactState(state));
         const got = expanded.players[1].battlefield[0];
@@ -508,6 +532,11 @@ describe("game_state serialize round-trip", () => {
         expect(got.removedSupertypes).toEqual([
             { supertype: "Snow", sourceId: "melt-1" },
         ]);
+        expect(got.notedMana).toEqual({
+            mana: { R: 1, U: 2 },
+            castableCardId: "noted-card",
+        });
+        expect(got.castableFromExileBy).toBe("p1");
     });
 
     it("preserves phasedOut bundles across the round trip (CR 702.26)", () => {
