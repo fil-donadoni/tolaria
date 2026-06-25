@@ -906,6 +906,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Chaos Moon",
+        "scryfallId": "aae0543f-7f8b-4327-b735-ac21244e9936",
+        "oracleId": "728e2960-1d85-4b3f-8b5b-915f9b9ffd2f",
+        "firstSet": "ice"
+    },
+    {
         "name": "Chaoslace",
         "scryfallId": "72ea2048-57bc-43d5-8987-33ca727f1a97",
         "oracleId": "08842aa3-f923-46e9-a106-f542331e9cc1",
@@ -3024,6 +3030,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Infernal Darkness",
+        "scryfallId": "f3475eb3-909d-450b-9597-b241b259b425",
+        "oracleId": "dd821fca-79a0-48a9-b1cf-5a496bc04f65",
+        "firstSet": "ice"
+    },
+    {
         "name": "Infernal Denizen",
         "scryfallId": "b63ac9a6-aaa5-4659-97d1-c5f6b0d5ccfe",
         "oracleId": "2f33aced-c737-4b3c-ba25-aff7b340c2d7",
@@ -4108,6 +4120,12 @@
         "scryfallId": "965f722c-2b18-4c22-8c30-12552def5940",
         "oracleId": "da7bc9d6-a0cc-407a-bed9-d677c2dd74f2",
         "firstSet": "arn"
+    },
+    {
+        "name": "Naked Singularity",
+        "scryfallId": "cabadfb2-93cd-4c7a-b901-59c3dd1a7c3c",
+        "oracleId": "fb5ec55d-4a35-432a-be6e-c295f1b2e603",
+        "firstSet": "ice"
     },
     {
         "name": "Nameless Race",

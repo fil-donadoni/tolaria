@@ -1969,6 +1969,11 @@ function tickAllDurations(state: GameState): void {
     if (state.highTideThisTurn) {
         state.highTideThisTurn = undefined;
     }
+    // CR 514.2 — Chaos Moon's parametrized "until end of turn" land-mana riders
+    // expire (re-armed by the next upkeep trigger).
+    if (state.landManaRidersThisTurn) {
+        state.landManaRidersThisTurn = undefined;
+    }
     if (state.allCreaturesMustAttack) {
         state.allCreaturesMustAttack = undefined;
     }
