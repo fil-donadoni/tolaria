@@ -4769,13 +4769,12 @@ export const rapidFire: CardDefinition = {
             ctx.grantStaticAbility(target, "rampage 2", {
                 phase: "end-of-turn",
             });
-            ctx.grantTriggeredAbility(target, RAPID_FIRE_ID, "rampage-2", {
+            ctx.grantTriggeredAbility(target, rapidFire.id, "rampage-2", {
                 phase: "end-of-turn",
             });
         }
     },
 };
-const RAPID_FIRE_ID = "8f6c2b7a-1d4e-4c3a-9b8e-2f5a6d0c1e93";
 
 // Aerathi Berserker — {2}{R}{R}{R} 2/4, Rampage 3.
 export const aerathiBerserker: CardDefinition = {

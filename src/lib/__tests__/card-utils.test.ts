@@ -590,7 +590,7 @@ describe("getAnyPlayerStackAbilities", () => {
 
     // Clergy of the Holy Nimbus — "only your opponents may activate" (CR 602.1,
     // issue #491). Surfaced on the opponent's view; hidden on the controller's.
-    const CLERGY_ID = "7a817107-fa2b-55e0-883b-c3ed2b06ba04";
+    const CLERGY_ID = "db1f578f-fa3b-4447-953b-1490852b6c80";
 
     it("surfaces Clergy's opponents-only {1} ability on the opponent's view (CR 602.1)", () => {
         const card = makeCardInstance({
