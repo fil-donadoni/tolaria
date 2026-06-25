@@ -851,11 +851,23 @@ export function mayPayCanAfford(
     cost: MayPayCost | undefined,
     pool: ManaPool,
     chooserLife: number,
-    sacrificeCandidateCount: number
+    sacrificeCandidateCount: number,
+    /** Extra mana the mana leg may draw on beyond `pool` (CR 106.6, ADR 0042) —
+     *  restricted mana whose restriction the choice permits (e.g.
+     *  cumulative-upkeep mana from Adarkar Unicorn / Snowfall). Already filtered
+     *  to the eligible restriction by the caller and merged here so the Pay
+     *  button enables when restricted + fungible mana together cover the cost. */
+    extraMana?: ManaPool
 ): boolean {
     if (!cost) return true;
     const norm = normalizeMayPayCost(cost);
-    if (norm.mana && !isManaCostCovered(pool, norm.mana)) return false;
+    const effectivePool: ManaPool = extraMana ? { ...pool } : pool;
+    if (extraMana) {
+        for (const [c, n] of Object.entries(extraMana)) {
+            effectivePool[c] = (effectivePool[c] ?? 0) + (n ?? 0);
+        }
+    }
+    if (norm.mana && !isManaCostCovered(effectivePool, norm.mana)) return false;
     if (norm.life !== undefined && chooserLife < norm.life) return false;
     if (norm.sacrifice && sacrificeCandidateCount < norm.sacrifice.count) {
         return false;

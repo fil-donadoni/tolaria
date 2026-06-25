@@ -448,6 +448,14 @@ export type CardInstanceState = {
      *  regeneration: the SBA path treats this identically to `cantBeRegenerated`.
      *  Transient — cleared at CLEANUP (CR 514.2). */
     exileOnDeath?: boolean;
+    /** When set, this permanent is exiled instead of going to any other zone if
+     *  it would leave the battlefield (CR 614.1c — Dreams of the Dead). Read by
+     *  `removePermanentTo` for EVERY departure path (dies, sacrifice, bounce,
+     *  destroy), redirecting the destination to exile. PERSISTENT — unlike
+     *  `exileOnDeath` it is not cleared at CLEANUP and survives across turns;
+     *  it vanishes only when the permanent actually leaves play (the instance
+     *  is gone). Set by `setExileOnLeave`. */
+    exileOnLeave?: boolean;
     /** When set, this permanent can't be regenerated for the rest of the turn
      *  (CR 701.15c). Suppresses BOTH regeneration shields and the continuous
      *  auto-regeneration replacement granted by the `"auto-regenerate"` static
@@ -1139,6 +1147,12 @@ export type PendingChoice = {
      *  Undefined for cost-less yes/no choices ("may draw a card"). The submit
      *  path (`applyMayPaySubmit`) normalizes either shape. */
     cost?: MayPayCost;
+    /** For `kind: "may-pay"` only — a spend restriction the mana leg may draw
+     *  on in addition to the fungible pool (CR 106.6, ADR 0022 / 0042). Set to
+     *  `"cumulative-upkeep"` by the cumulative-upkeep trigger so Adarkar Unicorn
+     *  / Snowfall restricted mana pays the upkeep; the affordability gate and
+     *  the pay path both honor it. Undefined = fungible pool only. */
+    manaRestriction?: ManaRestriction;
     /** Precomputed allow-list of choosable instance ids — the chooser may
      *  pick only from these (in addition to the zone-membership check). Used
      *  when eligibility can't be expressed as a `PermanentFilter` (e.g.
@@ -3546,6 +3560,14 @@ export function removePermanentTo(
 ): void {
     const initial = findOnBattlefield(state, cardId);
     if (!initial) return;
+    // CR 614.1c — a persistent leave-the-battlefield → exile replacement
+    // (Dreams of the Dead's `exileOnLeave`) redirects EVERY departure path to
+    // exile, before any zone-specific handling. A card already heading to exile
+    // is unaffected. This is read here, the single funnel for all battlefield
+    // departures (dies / sacrifice / bounce / destroy).
+    if (initial.card.exileOnLeave && toZone !== "exile") {
+        toZone = "exile";
+    }
     // CR 603.10 last-known-information snapshot for PERMANENT_LEFT. Capture
     // attachedTo here because the aura cleanup below clears it on the
     // leaving card; LTB-triggers on the aura itself (Animate Dead) read this
@@ -5619,6 +5641,49 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 },
             ];
         },
+        // CR 113.1 / 611.2c: grants a triggered ability with NO duration and NO
+        // aura link — it persists for as long as the target stays on the
+        // battlefield (the duration tick and the aura-unapply pass both skip
+        // entries lacking duration/auraId). The template is looked up on the
+        // granting card's `triggeredGrantTemplates[]` by
+        // `effectiveTriggeredAbilities`, so the trigger collector scans / resolves
+        // it as if printed on the target. Used by Balduvian Shaman / Dreams of
+        // the Dead's "that permanent gains 'Cumulative upkeep {N}'".
+        grantTriggeredAbilityPermanent(
+            target: TargetSelection,
+            sourceCardId: string,
+            abilityId: string
+        ): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            // Idempotent: don't stack a second copy of the same grant from the
+            // same source on a permanent that already carries it (CR 113.1 —
+            // re-applying an identical grant has no extra effect).
+            const already = (found.card.grantedTriggeredAbilities ?? []).some(
+                (g) =>
+                    g.sourceCardId === sourceCardId &&
+                    g.abilityId === abilityId &&
+                    g.duration === undefined &&
+                    g.auraId === undefined
+            );
+            if (already) return;
+            found.card.grantedTriggeredAbilities = [
+                ...(found.card.grantedTriggeredAbilities ?? []),
+                { sourceCardId, abilityId },
+            ];
+        },
+        // CR 614.1c — persistent leave-the-battlefield → exile replacement on a
+        // single permanent (Dreams of the Dead). Unlike `setExileOnDeath` (death
+        // only, cleared at CLEANUP) this flag survives across turns and is read
+        // by `removePermanentTo` for EVERY departure path; cleared only when the
+        // permanent actually leaves play.
+        setExileOnLeave(target: TargetSelection): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.exileOnLeave = true;
+        },
         // CR 611.1b layer 6: removes every keyword matching `predicate` from
         // `staticAbilities` for the duration, recording each on
         // `temporaryRemovedKeywords` so the phase-boundary purge restores it on
@@ -6376,6 +6441,8 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 prompt: req.prompt,
             };
             if (req.cost) entry.cost = req.cost;
+            if (req.manaRestriction)
+                entry.manaRestriction = req.manaRestriction;
             if (routed.actingPlayerId)
                 entry.actingPlayerId = routed.actingPlayerId;
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
@@ -7539,6 +7606,10 @@ export function restrictionAllowsSpell(
             return spellTypes.includes("Creature");
         case "artifact-spell":
             return spellTypes.includes("Artifact");
+        case "cumulative-upkeep":
+            // CR 702.24 / ADR 0042 — cumulative-upkeep mana is never spendable
+            // on a spell; it is eligible only for the CU `may-pay` payment.
+            return false;
     }
 }
 
@@ -7966,21 +8037,89 @@ function sacrificeCandidates(
     );
 }
 
+/** Pool a `may-pay` payment may draw on: the fungible `manaPool` plus any
+ *  restricted mana whose restriction equals `restriction` (CR 106.6, ADR 0022 /
+ *  0042). Returns a plain `manaPool` copy when no restriction is given (the
+ *  historical mana-only path). Used by the cumulative-upkeep `may-pay`, which
+ *  passes `"cumulative-upkeep"` so Adarkar Unicorn / Snowfall mana counts. */
+function spendablePoolForRestriction(
+    player: PlayerState,
+    restriction?: ManaRestriction
+): Record<string, number> {
+    const pool = { ...player.manaPool };
+    if (!restriction) return pool;
+    for (const r of player.restrictedMana ?? []) {
+        if (r.restriction === restriction) {
+            pool[r.color] = (pool[r.color] ?? 0) + r.amount;
+        }
+    }
+    return pool;
+}
+
+/** Pays a `may-pay` mana leg drawing on eligible restricted mana FIRST, then
+ *  the fungible pool (CR 106.6, settlement policy from ADR 0022). Mirrors
+ *  `payManaCostForSpell` but keys eligibility on a `ManaRestriction` value
+ *  rather than spell types. Caller MUST have confirmed coverage against the
+ *  merged pool. */
+function payManaCostForRestriction(
+    player: PlayerState,
+    cost: Record<string, number>,
+    restriction: ManaRestriction | undefined,
+    substitutions: ManaSubstitution[]
+): void {
+    const eligible = (player.restrictedMana ?? []).filter(
+        (r) => restriction !== undefined && r.restriction === restriction
+    );
+    if (eligible.length === 0) {
+        payManaCost(player.manaPool, cost, substitutions);
+        return;
+    }
+    const merged = { ...player.manaPool };
+    const restrictedByColor: Record<string, number> = {};
+    for (const r of eligible) {
+        merged[r.color] = (merged[r.color] ?? 0) + r.amount;
+        restrictedByColor[r.color] =
+            (restrictedByColor[r.color] ?? 0) + r.amount;
+    }
+    const before = { ...merged };
+    payManaCost(merged, cost, substitutions);
+    for (const color of MANA_COLORS) {
+        const consumed = (before[color] ?? 0) - (merged[color] ?? 0);
+        if (consumed <= 0) continue;
+        let fromRestricted = Math.min(consumed, restrictedByColor[color] ?? 0);
+        const fromReal = consumed - fromRestricted;
+        for (const r of eligible) {
+            if (fromRestricted <= 0) break;
+            if (r.color !== color) continue;
+            const take = Math.min(r.amount, fromRestricted);
+            r.amount -= take;
+            fromRestricted -= take;
+        }
+        player.manaPool[color] = (player.manaPool[color] ?? 0) - fromReal;
+    }
+    const remaining = (player.restrictedMana ?? []).filter((r) => r.amount > 0);
+    player.restrictedMana = remaining.length > 0 ? remaining : undefined;
+}
+
 /** True if `playerId` can pay the whole `may-pay` cost union right now —
  *  mana pool covers the mana leg, life ≥ the life leg, and enough matching
  *  permanents exist for the sacrifice leg (CR 702.24c — all-or-nothing). A
- *  cost with no legs present is trivially payable. */
+ *  cost with no legs present is trivially payable. When `manaRestriction` is
+ *  given (the cumulative-upkeep `may-pay`, ADR 0042), the mana leg may also be
+ *  covered by restricted mana carrying that restriction. */
 export function canPayMayPayCost(
     state: GameState,
     playerId: string,
-    cost: MayPayCost
+    cost: MayPayCost,
+    manaRestriction?: ManaRestriction
 ): boolean {
     const norm = normalizeMayPayCost(cost);
     const player = getPlayer(state, playerId);
     if (norm.mana) {
         const normalized = normalizeManaCost(norm.mana);
         const subs = getManaSubstitutions(state, playerId);
-        if (!isManaCostCovered(player.manaPool, normalized, subs)) return false;
+        const pool = spendablePoolForRestriction(player, manaRestriction);
+        if (!isManaCostCovered(pool, normalized, subs)) return false;
     }
     if (norm.life !== undefined && player.life < norm.life) return false;
     if (norm.sacrifice) {
@@ -8006,17 +8145,19 @@ export function canPayMayPayCost(
 export function payMayPayCost(
     state: GameState,
     playerId: string,
-    cost: MayPayCost
+    cost: MayPayCost,
+    manaRestriction?: ManaRestriction
 ): void {
     const norm = normalizeMayPayCost(cost);
     const player = getPlayer(state, playerId);
     if (norm.mana) {
         const normalized = normalizeManaCost(norm.mana);
         const subs = getManaSubstitutions(state, playerId);
-        if (!isManaCostCovered(player.manaPool, normalized, subs)) {
+        const pool = spendablePoolForRestriction(player, manaRestriction);
+        if (!isManaCostCovered(pool, normalized, subs)) {
             throw new Error("Cannot pay the mana cost from your mana pool");
         }
-        payManaCost(player.manaPool, normalized, subs);
+        payManaCostForRestriction(player, normalized, manaRestriction, subs);
         commitLandsForCost(player, normalized);
     }
     if (norm.life !== undefined && norm.life > 0) {

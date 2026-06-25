@@ -185,6 +185,12 @@ import {
     fyndhornPollen,
     maddeningWind,
     soldeviSimulacrum,
+    // Cumulative upkeep — grant statics + restricted-CU mana (#639)
+    adarkarUnicorn,
+    breathOfDreams,
+    balduvianShaman,
+    dreamsOfTheDead,
+    snowfall,
 } from "../ice";
 import {
     getCardById,
@@ -197,8 +203,15 @@ import {
     canPayMayPayCost,
     payMayPayCost,
     normalizeMayPayCost,
+    applySourceStaticEffects,
+    unapplySourceStaticEffects,
+    applyExistingGrantsTo,
+    addRestrictedManaToPool,
+    removePermanentTo,
 } from "../../../gre/state";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
+import { effectiveTriggeredAbilities } from "../../../gre/copy";
+import { collectTriggers } from "../../../gre/triggers";
 import { projectPublicState } from "../../../gameProjections";
 import { emitBlockersConfirmedEvents } from "../../../gre/phases";
 import { recordBlockedAttackers } from "../../../gre/banding";
@@ -215,7 +228,7 @@ import {
 } from "../../__tests__/setup";
 import type { CardInstanceState, GameState } from "../../../gre/state";
 import type { StackItem } from "../../../gre/state";
-import type { CardType } from "../../types";
+import type { CardType, ManaCost } from "../../types";
 
 /** Push an activated ability onto the stack with its cost assumed already paid,
  *  then resolve it (mirrors post-activateAbility state). */
@@ -4610,6 +4623,496 @@ describe("cumulative upkeep — card definitions (CR 702.24, #638)", () => {
             (c) => c.id === "bear"
         )!;
         expect(getEffectivePower(projected, slim)).toBe(1);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cumulative upkeep — grant statics + restricted-CU mana (#639, ADR 0042).
+// CR 702.24 (cumulative upkeep), CR 611 / 613 (continuous ability-grant layer
+// 6), CR 106.6 (restricted mana, ADR 0022), CR 614.1c (leave → exile).
+// ─────────────────────────────────────────────────────────────────────────────
+
+const UPKEEP_P2_EVENT = {
+    type: "PHASE_BEGIN" as const,
+    phase: "UPKEEP" as const,
+    activePlayerId: "p2",
+};
+
+/** Fire a granted/printed cumulative-upkeep trigger on `host` via the stack,
+ *  suspending at the may-pay (the same handshake `submitMayPay` drives). */
+function fireCU(state: GameState, host: CardInstanceState, abilityId: string) {
+    state.stack.push({
+        ...host,
+        zone: "stack",
+        castById: host.controllerId,
+        triggeredAbilityId: abilityId,
+        triggerSourceId: host.id,
+        triggerEvent: {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: host.controllerId,
+        } as StackItem["triggerEvent"],
+        targets: [],
+    });
+    resolveTopOfStack(state);
+}
+
+describe("Breath of Dreams (group grant — CR 611/702.24, ADR 0042)", () => {
+    it("declares its own CU {U} plus a triggered-grant of CU {1} to green creatures", () => {
+        const kinds = (breathOfDreams.staticEffects ?? []).map((e) => e.kind);
+        expect(kinds).toContain("triggered-grant");
+        // Own CU lives on triggeredAbilities; the granted CU template lives on
+        // triggeredGrantTemplates (so Breath itself never fires the granted one).
+        expect(
+            breathOfDreams.triggeredAbilities?.some(
+                (t) => t.id === "breath-of-dreams-cumulative-upkeep"
+            )
+        ).toBe(true);
+        expect(
+            breathOfDreams.triggeredGrantTemplates?.some(
+                (t) => t.id === "breath-of-dreams-granted-cu"
+            )
+        ).toBe(true);
+    });
+
+    it("grants CU {1} to every green creature in play, both players (layer 6)", () => {
+        const state = makeState();
+        const breath = makeInstance(breathOfDreams.id, {
+            id: "breath",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const myBear = makeInstance(balduvianBears.id, {
+            id: "bear-p1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const oppBear = makeInstance(balduvianBears.id, {
+            id: "bear-p2",
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(breath, myBear);
+        state.players[1].battlefield.push(oppBear);
+        applySourceStaticEffects(state, breath);
+        for (const bear of [myBear, oppBear]) {
+            expect(
+                bear.grantedTriggeredAbilities?.some(
+                    (g) =>
+                        g.sourceCardId === breathOfDreams.id &&
+                        g.abilityId === "breath-of-dreams-granted-cu"
+                )
+            ).toBe(true);
+            expect(
+                effectiveTriggeredAbilities(bear).some(
+                    (a) => a.id === "breath-of-dreams-granted-cu"
+                )
+            ).toBe(true);
+        }
+    });
+
+    it("does NOT grant CU to a non-green creature, and reverts on leave", () => {
+        const state = makeState();
+        const breath = makeInstance(breathOfDreams.id, {
+            id: "breath",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        // Silver Erne — a blue flyer (not green).
+        const erne = makeInstance(silverErne.id, {
+            id: "erne",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const bear = makeInstance(balduvianBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(breath, erne, bear);
+        applySourceStaticEffects(state, breath);
+        expect(erne.grantedTriggeredAbilities).toBeUndefined();
+        expect(bear.grantedTriggeredAbilities?.length).toBe(1);
+        // CR 611.2 — Breath leaving play strips the grant.
+        unapplySourceStaticEffects(state, breath);
+        expect(
+            effectiveTriggeredAbilities(bear).some(
+                (a) => a.id === "breath-of-dreams-granted-cu"
+            )
+        ).toBe(false);
+    });
+
+    it("granted CU fires at the HOST controller's upkeep and accrues an age counter on the host", () => {
+        const state = makeState();
+        const breath = makeInstance(breathOfDreams.id, {
+            id: "breath",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const oppBear = makeInstance(balduvianBears.id, {
+            id: "bear-p2",
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(breath);
+        state.players[1].battlefield.push(oppBear);
+        applySourceStaticEffects(state, breath);
+        // The opponent's green creature fires the granted CU at p2's upkeep.
+        const triggers = collectTriggers(state, [UPKEEP_P2_EVENT]);
+        expect(
+            triggers.some(
+                (t) =>
+                    t.triggeredAbilityId === "breath-of-dreams-granted-cu" &&
+                    t.triggerSourceId === oppBear.id
+            )
+        ).toBe(true);
+        // Resolve: age counter on the host (the bear), may-pay to the host's
+        // controller (p2). p2 has no mana → decline → bear sacrificed.
+        fireCU(state, oppBear, "breath-of-dreams-granted-cu");
+        const live = state.players[1].battlefield.find(
+            (c) => c.id === "bear-p2"
+        );
+        expect(live?.counters?.age).toBe(1);
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "bear-p2")
+        ).toBe(false);
+    });
+
+    it("granted CU is paid by the host's controller from their pool ({1} generic)", () => {
+        const state = makeState();
+        const breath = makeInstance(breathOfDreams.id, {
+            id: "breath",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const myBear = makeInstance(balduvianBears.id, {
+            id: "bear-p1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(breath, myBear);
+        applySourceStaticEffects(state, breath);
+        state.players[0].manaPool = { C: 1 };
+        fireCU(state, myBear, "breath-of-dreams-granted-cu");
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p1");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "bear-p1")
+        ).toBe(true);
+        expect(state.players[0].manaPool.C ?? 0).toBe(0);
+    });
+
+    it("wire format: the granted CU survives projectPublicState", () => {
+        const state = makeState();
+        const breath = makeInstance(breathOfDreams.id, {
+            id: "breath",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const bear = makeInstance(balduvianBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(breath, bear);
+        applySourceStaticEffects(state, breath);
+        // GRE: the grant is on the host and unioned into its effective triggers.
+        expect(
+            effectiveTriggeredAbilities(bear).some(
+                (a) => a.id === "breath-of-dreams-granted-cu"
+            )
+        ).toBe(true);
+        // Same assertion after the projection — the grant is identity, not a
+        // stripped fat field (CR 611, mandatory wire-format check).
+        const projected = projectPublicState(state, 2, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(
+            slim.grantedTriggeredAbilities?.some(
+                (g) => g.abilityId === "breath-of-dreams-granted-cu"
+            )
+        ).toBe(true);
+        expect(
+            effectiveTriggeredAbilities(slim).some(
+                (a) => a.id === "breath-of-dreams-granted-cu"
+            )
+        ).toBe(true);
+    });
+
+    it("applies to a green creature that ENTERS after Breath (applyExistingGrantsTo)", () => {
+        const state = makeState();
+        const breath = makeInstance(breathOfDreams.id, {
+            id: "breath",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(breath);
+        applySourceStaticEffects(state, breath);
+        const newBear = makeInstance(balduvianBears.id, {
+            id: "bear-new",
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        state.players[1].battlefield.push(newBear);
+        applyExistingGrantsTo(state, newBear);
+        expect(
+            effectiveTriggeredAbilities(newBear).some(
+                (a) => a.id === "breath-of-dreams-granted-cu"
+            )
+        ).toBe(true);
+    });
+});
+
+describe("Balduvian Shaman (single-target CU grant — CR 113.1/611.2c/702.24)", () => {
+    it("declares the granted CU template, kept off triggeredAbilities", () => {
+        expect(balduvianShaman.triggeredAbilities ?? []).toHaveLength(0);
+        expect(
+            balduvianShaman.triggeredGrantTemplates?.some(
+                (t) => t.id === "balduvian-shaman-granted-cu"
+            )
+        ).toBe(true);
+    });
+
+    it("grants CU {1} permanently to the targeted enchantment (persists if Shaman leaves)", () => {
+        const state = makeState();
+        const shaman = makeInstance(balduvianShaman.id, {
+            id: "shaman",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        // A white non-Aura enchantment without CU — Hallowed Ground (ICE).
+        const cop = makeInstance(hallowedGround.id, {
+            id: "cop",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(shaman, cop);
+        resolveActivated(state, shaman, "balduvian-shaman-grant", [
+            { type: "permanent", id: "cop" },
+        ]);
+        // No color word in a CoP's text → no text-change option suspends; the
+        // grant lands directly.
+        const live = state.players[0].battlefield.find((c) => c.id === "cop")!;
+        expect(
+            live.grantedTriggeredAbilities?.some(
+                (g) =>
+                    g.sourceCardId === balduvianShaman.id &&
+                    g.abilityId === "balduvian-shaman-granted-cu" &&
+                    g.duration === undefined &&
+                    g.auraId === undefined
+            )
+        ).toBe(true);
+        // Shaman leaves — the permanent grant survives (independent of source).
+        removePermanentTo(state, "shaman", "graveyard");
+        expect(
+            effectiveTriggeredAbilities(live).some(
+                (a) => a.id === "balduvian-shaman-granted-cu"
+            )
+        ).toBe(true);
+    });
+
+    it("granted CU on the enchantment accrues age and is paid by its controller", () => {
+        const state = makeState();
+        const shaman = makeInstance(balduvianShaman.id, {
+            id: "shaman",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const cop = makeInstance(hallowedGround.id, {
+            id: "cop",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(shaman, cop);
+        resolveActivated(state, shaman, "balduvian-shaman-grant", [
+            { type: "permanent", id: "cop" },
+        ]);
+        const cu = state.players[0].battlefield.find((c) => c.id === "cop")!;
+        state.players[0].manaPool = { C: 1 };
+        fireCU(state, cu, "balduvian-shaman-granted-cu");
+        const live = state.players[0].battlefield.find((c) => c.id === "cop")!;
+        expect(live.counters?.age).toBe(1);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.players[0].battlefield.some((c) => c.id === "cop")).toBe(
+            true
+        );
+    });
+});
+
+describe("Dreams of the Dead (reanimate + granted CU {2} + exile-on-leave)", () => {
+    it("declares the granted CU template and a reanimation ability", () => {
+        expect(
+            dreamsOfTheDead.triggeredGrantTemplates?.some(
+                (t) => t.id === "dreams-of-the-dead-granted-cu"
+            )
+        ).toBe(true);
+        expect(
+            dreamsOfTheDead.activatedAbilities?.some(
+                (a) => a.id === "dreams-of-the-dead-reanimate"
+            )
+        ).toBe(true);
+    });
+
+    it("reanimates a white/black creature card, grants CU {2}, and sets exile-on-leave", () => {
+        const state = makeState();
+        const dreams = makeInstance(dreamsOfTheDead.id, {
+            id: "dreams",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        // A white creature card in p1's graveyard — Balduvian Bears is green, so
+        // use a white ICE creature: Kjeldoran Warrior.
+        const dead = makeInstance(kjeldoranWarrior.id, {
+            id: "dead",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        state.players[0].battlefield.push(dreams);
+        state.players[0].graveyard.push(dead);
+        resolveActivated(state, dreams, "dreams-of-the-dead-reanimate", [
+            { type: "graveyard-card", id: "dead", playerId: "p1" },
+        ]);
+        // Returned to the battlefield under p1's control.
+        const live = state.players[0].battlefield.find((c) => c.id === "dead");
+        expect(live).toBeDefined();
+        expect(live?.exileOnLeave).toBe(true);
+        expect(
+            effectiveTriggeredAbilities(live!).some(
+                (a) => a.id === "dreams-of-the-dead-granted-cu"
+            )
+        ).toBe(true);
+    });
+
+    it("a reanimated creature is EXILED (not graveyard) when it would die", () => {
+        const state = makeState();
+        const dreams = makeInstance(dreamsOfTheDead.id, {
+            id: "dreams",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const dead = makeInstance(kjeldoranWarrior.id, {
+            id: "dead",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        state.players[0].battlefield.push(dreams);
+        state.players[0].graveyard.push(dead);
+        resolveActivated(state, dreams, "dreams-of-the-dead-reanimate", [
+            { type: "graveyard-card", id: "dead", playerId: "p1" },
+        ]);
+        // CR 614.1c — destruction redirects to exile, not the graveyard.
+        removePermanentTo(state, "dead", "graveyard");
+        expect(state.players[0].graveyard.some((c) => c.id === "dead")).toBe(
+            false
+        );
+        expect(state.players[0].exile.some((c) => c.id === "dead")).toBe(true);
+    });
+});
+
+describe("Restricted-CU mana — Adarkar Unicorn / Snowfall (CR 106.6, ADR 0022/0042)", () => {
+    it("Adarkar Unicorn declares a CU-restricted choice mana ability", () => {
+        const ability = adarkarUnicorn.activatedAbilities?.[0];
+        expect(ability?.manaRestriction).toBe("cumulative-upkeep");
+        expect(ability?.manaChoices?.length).toBe(2);
+        expect(ability?.useStack).toBe(false);
+    });
+
+    it("CU-restricted mana PAYS a cumulative-upkeep cost", () => {
+        const forces = makeInstance(illusionaryForces.id, {
+            id: "forces",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [forces] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Float CU-restricted {U} (as Adarkar Unicorn / Snowfall would).
+        addRestrictedManaToPool(state.players[0], "U", 1, "cumulative-upkeep");
+        // Illusionary Forces' printed CU is {U}; pay it entirely from CU mana.
+        fireCU(state, forces, "illusionary-forces-cumulative-upkeep");
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        expect(state.pendingChoices?.[0]?.manaRestriction).toBe(
+            "cumulative-upkeep"
+        );
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "forces")
+        ).toBe(true);
+        // The CU-restricted mana was consumed; the fungible pool was untouched.
+        expect(state.players[0].restrictedMana ?? []).toHaveLength(0);
+        expect(state.players[0].manaPool.U ?? 0).toBe(0);
+    });
+
+    it("CU-restricted mana CANNOT pay a non-CU cost (a plain upkeep tax)", () => {
+        // Binding Grasp's upkeep tax {1}{U} is a normal may-pay (no
+        // manaRestriction). CU mana must NOT cover it.
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        addRestrictedManaToPool(state.players[0], "U", 2, "cumulative-upkeep");
+        // Without manaRestriction, the {1}{U} cost is unaffordable from CU mana.
+        expect(canPayMayPayCost(state, "p1", { X: 1, U: 1 } as ManaCost)).toBe(
+            false
+        );
+        // With the CU tag it WOULD be payable — confirms the gate is the tag.
+        expect(
+            canPayMayPayCost(
+                state,
+                "p1",
+                { X: 1, U: 1 } as ManaCost,
+                "cumulative-upkeep"
+            )
+        ).toBe(true);
+    });
+
+    it("Snowfall: an Island tapped for mana floats a CU-restricted {U} to its controller", () => {
+        const state = makeState();
+        const snow = makeInstance(snowfall.id, {
+            id: "snow",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const island = makeInstance(getCardByName("Island").id, {
+            id: "island",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(snow);
+        state.players[1].battlefield.push(island);
+        // Simulate "Island tapped for mana" — resolve Snowfall's trigger.
+        state.stack.push({
+            ...snow,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "snowfall-island-mana",
+            triggerSourceId: "snow",
+            triggerEvent: {
+                type: "PERMANENT_TAPPED",
+                permanentId: "island",
+                controllerId: "p2",
+                permanentTypes: ["Land"],
+                permanentSubtypes: ["Island"],
+                forMana: true,
+            } as StackItem["triggerEvent"],
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        // The Island's controller (p2) gets the bonus {U}, CU-restricted.
+        const cu = (state.players[1].restrictedMana ?? []).find(
+            (r) => r.restriction === "cumulative-upkeep"
+        );
+        expect(cu?.color).toBe("U");
+        expect(cu?.amount).toBe(1);
     });
 });
 

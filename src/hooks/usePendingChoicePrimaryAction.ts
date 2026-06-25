@@ -56,6 +56,18 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
         // CR 117.6 / 702.24 — Pay/Yes is legal only once every leg of the cost
         // union (mana / life / sacrifice) can be paid.
         const chooser = allPlayers.find((p) => p.id === choice.playerId);
+        // ADR 0042 — a cumulative-upkeep may-pay (`manaRestriction` set) may
+        // also be paid with restricted mana carrying that restriction; merge it
+        // into the affordability pool so the Pay button enables.
+        const extraMana =
+            chooser && choice.manaRestriction
+                ? chooser.restrictedMana
+                      ?.filter((r) => r.restriction === choice.manaRestriction)
+                      .reduce<Record<string, number>>((acc, r) => {
+                          acc[r.color] = (acc[r.color] ?? 0) + r.amount;
+                          return acc;
+                      }, {})
+                : undefined;
         canConfirm =
             !isBusy &&
             (!choice.cost ||
@@ -64,7 +76,11 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                           choice.cost,
                           chooser.manaPool,
                           chooser.life,
-                          mayPaySacrificeCount(choice.cost, chooser.battlefield)
+                          mayPaySacrificeCount(
+                              choice.cost,
+                              chooser.battlefield
+                          ),
+                          extraMana
                       )
                     : false));
     } else {

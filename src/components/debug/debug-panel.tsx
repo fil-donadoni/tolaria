@@ -176,6 +176,70 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 6,
     },
     {
+        // ICE Cumulative-upkeep GRANT statics + restricted-CU mana (#639, ADR
+        // 0042, CR 611/702.24/106.6). Exercises the grant cluster end to end:
+        //   - Breath of Dreams grants "Cumulative upkeep {1}" to every green
+        //     creature (its Balduvian Bears + the opponent's) — pass into each
+        //     upkeep to watch age counters accrue on the BEARS (the hosts) and a
+        //     scaling pay-or-sacrifice land on each controller.
+        //   - Dreams of the Dead reanimates the Kjeldoran Warrior in the
+        //     graveyard with a granted CU {2} + exile-on-leave (kill it → exile).
+        //   - Adarkar Unicorn / Snowfall float CU-restricted mana: tap the
+        //     Unicorn (or tap an Island under Snowfall) and spend it ONLY on a
+        //     cumulative-upkeep prompt — it can't pay anything else.
+        label: "ICE: Cumulative upkeep — grants + restricted-CU mana (#639)",
+        cards: [
+            {
+                name: "Breath of Dreams",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Dreams of the Dead",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Adarkar Unicorn",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Snowfall",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Shaman",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Hallowed Ground",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Kjeldoran Warrior",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
+    {
         // ICE Artifacts free tranche (#636, PRD #628). Exercises the colourless
         // artifact staples end to end:
         //   - Icy Manipulator ({1},{T}: tap an artifact/creature/land) taps the

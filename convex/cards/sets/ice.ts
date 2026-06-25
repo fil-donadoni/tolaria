@@ -18,6 +18,7 @@ import type {
     CardDefinition,
     CardPrint,
     ManaCost,
+    PermanentView,
     SpellContext,
     TriggeredAbility,
 } from "../types";
@@ -32,6 +33,18 @@ import { stateTrigger } from "../abilities/triggers/stateTrigger";
 import { untapRestriction } from "../abilities/static/untapRestriction";
 import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
 import { diedTrigger } from "../abilities/triggers/diedTrigger";
+import { tappedTrigger } from "../abilities/triggers/tappedTrigger";
+
+// Color-word options for Balduvian Shaman's text change (CR 612 — the five
+// color words). The chosen value is the lowercase color word `addTextChange`
+// expects (matching Sleight of Mind's `COLOR_WORD_LIST`).
+const COLOR_WORD_OPTIONS = [
+    { id: "white", label: "White" },
+    { id: "blue", label: "Blue" },
+    { id: "black", label: "Black" },
+    { id: "red", label: "Red" },
+    { id: "green", label: "Green" },
+];
 
 // "At the beginning of your upkeep, sacrifice this permanent unless you pay
 // <cost>" (CR 603.6a phase trigger + CR 117.3a may-pay with a hard action on
@@ -107,18 +120,40 @@ export const balduvianBears: CardDefinition = {
 //     capability cluster).
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TODO(#628): implement.
-// export const adarkarUnicorn: CardDefinition = {
-//     id: "0ba7526f-dba8-4483-b925-946164fc0ae9",
-//     name: "Adarkar Unicorn",
-//     rarity: "common",
-//     oracleText: "{T}: Add {U} or {C}{U}. Spend this mana only to pay cumulative upkeep costs.",
-//     manaCost: { X: 1, W: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Unicorn"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Adarkar Unicorn — {T}: Add {U} or {C}{U}, restricted to cumulative-upkeep
+// costs (CR 605.1a mana ability, CR 106.6 restricted mana — ADR 0022 / 0042).
+// A two-option mana ability (`manaChoices`); whichever option is chosen, the
+// produced mana lands in the controller's `restrictedMana` tagged
+// "cumulative-upkeep", so it pays CU upkeeps (Breath of Dreams, Illusionary
+// Forces, …) but nothing else. `useStack: false` resolves it immediately.
+export const adarkarUnicorn: CardDefinition = {
+    id: "0ba7526f-dba8-4483-b925-946164fc0ae9",
+    name: "Adarkar Unicorn",
+    rarity: "common",
+    oracleText:
+        "{T}: Add {U} or {C}{U}. Spend this mana only to pay cumulative upkeep costs.",
+    manaCost: { X: 1, W: 2 },
+    types: ["Creature"],
+    subtypes: ["Unicorn"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "adarkar-unicorn-mana",
+            oracleText:
+                "{T}: Add {U} or {C}{U}. Spend this mana only to pay cumulative upkeep costs.",
+            cost: { tap: true },
+            useStack: false,
+            // The engine adds the chosen option to the controller's
+            // `restrictedMana` pool (keyed by `manaRestriction`); `effect` is the
+            // representative fallback, like City of Brass's mana ability.
+            manaChoices: [{ U: 1 }, { C: 1, U: 1 }],
+            manaRestriction: "cumulative-upkeep",
+            manaProduced: { U: 1 },
+            effect: (ctx) => ctx.addMana({ U: 1 }),
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const arcticFoxes: CardDefinition = {
 //     id: "98f99c3e-dddc-492f-aab6-1d899346a385",
@@ -1106,18 +1141,82 @@ export const arnjlotsAscent: CardDefinition = {
 //     power: 0,
 //     toughness: 2,
 // };
-// TODO(#628): implement.
-// export const balduvianShaman: CardDefinition = {
-//     id: "74859723-8ddf-4ee6-a0a7-87192c84e8ad",
-//     name: "Balduvian Shaman",
-//     rarity: "common",
-//     oracleText: "{T}: Change the text of target white enchantment you control that doesn't have cumulative upkeep by replacing all instances of one color word with another. (For example, you may change \"black creatures can't attack\" to \"blue creatures can't attack.\") That enchantment gains \"Cumulative upkeep {1}.\" (At the beginning of its controller's upkeep, that player puts an age counter on it, then sacrifices it unless they pay its upkeep cost for each age counter on it.)",
-//     manaCost: { U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Cleric", "Shaman"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Balduvian Shaman — {T}: target a white enchantment you control without
+// cumulative upkeep, (a) replace one color word in its text with another
+// (CR 612 / 613 layer-3 text change — Sleight of Mind's primitive), and (b)
+// grant it "Cumulative upkeep {1}" PERMANENTLY (CR 702.24, CR 113.1 / 611.2c —
+// ADR 0042). The grant rides the enchantment indefinitely (independent of the
+// Shaman) via `grantTriggeredAbilityPermanent`, reading its template from
+// `triggeredGrantTemplates[]`; age counters accrue on the enchantment, paid by
+// its controller. The "to" color word is picked by the activator at resolution
+// (`requestOptionChoice`); the "from" word is the first present color word that
+// differs (matching Sleight of Mind's auto-pick). `useStack: true` — it goes on
+// the stack and can be responded to.
+const BALDUVIAN_SHAMAN_ID = "74859723-8ddf-4ee6-a0a7-87192c84e8ad";
+export const balduvianShaman: CardDefinition = {
+    id: BALDUVIAN_SHAMAN_ID,
+    name: "Balduvian Shaman",
+    rarity: "common",
+    oracleText:
+        '{T}: Change the text of target white enchantment you control that doesn\'t have cumulative upkeep by replacing all instances of one color word with another. (For example, you may change "black creatures can\'t attack" to "blue creatures can\'t attack.") That enchantment gains "Cumulative upkeep {1}." (At the beginning of its controller\'s upkeep, that player puts an age counter on it, then sacrifices it unless they pay its upkeep cost for each age counter on it.)',
+    manaCost: { U: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Cleric", "Shaman"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "balduvian-shaman-grant",
+            oracleText:
+                '{T}: Change the text of target white enchantment you control that doesn\'t have cumulative upkeep by replacing all instances of one color word with another. That enchantment gains "Cumulative upkeep {1}."',
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Enchantment",
+                count: 1,
+                controller: "you",
+                colorFilter: "W",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (!target || target.type !== "permanent") return;
+                // CR 612 — replace one color word with the chosen one.
+                const present = ctx.getColorWordsPresent(target);
+                if (present.length > 0) {
+                    const to = ctx.requestOptionChoice({
+                        playerId: ctx.controller,
+                        choiceId: "balduvian-shaman-color-word",
+                        options: COLOR_WORD_OPTIONS,
+                        prompt: "Replace a color word with:",
+                    });
+                    if (to === undefined) return; // suspended for the choice
+                    const from = present.find((w) => w !== to) ?? present[0];
+                    if (from) {
+                        ctx.addTextChange(target, {
+                            kind: "color-word",
+                            from,
+                            to,
+                        });
+                    }
+                }
+                // CR 113.1 / 702.24 — the enchantment gains "Cumulative upkeep
+                // {1}" permanently (independent of the Shaman).
+                ctx.grantTriggeredAbilityPermanent(
+                    target,
+                    BALDUVIAN_SHAMAN_ID,
+                    "balduvian-shaman-granted-cu"
+                );
+            },
+        },
+    ],
+    triggeredGrantTemplates: [
+        cumulativeUpkeepTrigger({
+            id: "balduvian-shaman-granted-cu",
+            cost: { X: 1 },
+            costLabel: "{1}",
+        }),
+    ],
+};
 // Binding Grasp — Aura granting control of the enchanted creature (CR 613.1b,
 // layer 2 control-change) plus a static +0/+1 (layer 7c) and an upkeep
 // pay-{1}{U}-or-sacrifice tax (CR 603.6a / 117.3a). The Control-Magic shape
@@ -1179,15 +1278,56 @@ export const brainstorm: CardDefinition = {
         }
     },
 };
-// TODO(#628): implement.
-// export const breathOfDreams: CardDefinition = {
-//     id: "e40c9657-fab4-489d-8eb0-960ba2605add",
-//     name: "Breath of Dreams",
-//     rarity: "uncommon",
-//     oracleText: "Cumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nGreen creatures have \"Cumulative upkeep {1}.\"",
-//     manaCost: { X: 2, U: 2 },
-//     types: ["Enchantment"],
-// };
+// Breath of Dreams — {2}{U}{U} Enchantment with cumulative upkeep {U} on itself,
+// plus a GROUP GRANT of "Cumulative upkeep {1}" to every green creature
+// (CR 702.24, CR 611 continuous triggered-ability grant — ADR 0042). Modeled
+// exactly like Energy Flux (atq.ts): a `triggered-grant` static whose `applies`
+// is the green-creature predicate, with the granted template — the
+// cumulative-upkeep trigger — living on `triggeredGrantTemplates[]` (kept off
+// `triggeredAbilities` so Breath of Dreams itself, an Enchantment, never fires
+// the granted CU). The age counter accrues on each green creature (the host),
+// paid by that creature's controller (CR 702.24a). New green creatures entering
+// while Breath of Dreams is in play receive the grant; it detaches when Breath
+// leaves. Both players' green creatures are affected (the text is not
+// controller-scoped).
+const IS_GREEN_CREATURE = (
+    target: PermanentView,
+    _source: PermanentView,
+    ctx: import("../types").StaticEffectContext
+): boolean => ctx.isCreature(target) && ctx.getColors(target).includes("G");
+export const breathOfDreams: CardDefinition = {
+    id: "e40c9657-fab4-489d-8eb0-960ba2605add",
+    name: "Breath of Dreams",
+    rarity: "uncommon",
+    oracleText:
+        'Cumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nGreen creatures have "Cumulative upkeep {1}."',
+    manaCost: { X: 2, U: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "breath-of-dreams-cumulative-upkeep",
+            cost: { U: 1 },
+            costLabel: "{U}",
+        }),
+    ],
+    staticEffects: [
+        // CR 113.1 / 611 — grant "Cumulative upkeep {1}" to every green creature.
+        {
+            kind: "triggered-grant",
+            applies: IS_GREEN_CREATURE,
+            abilityId: "breath-of-dreams-granted-cu",
+        },
+    ],
+    // The granted CU template lives here, NOT on `triggeredAbilities`, so Breath
+    // of Dreams (an Enchantment, not a green creature) never fires it itself.
+    triggeredGrantTemplates: [
+        cumulativeUpkeepTrigger({
+            id: "breath-of-dreams-granted-cu",
+            cost: { X: 1 },
+            costLabel: "{1}",
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const clairvoyance: CardDefinition = {
 //     id: "46740353-e2ba-4d80-a97d-1368bc67bf30",
@@ -1233,15 +1373,71 @@ export const deflection: CardDefinition = {
         ctx.requestRetarget(t.id, { type: "any", count: 1 });
     },
 };
-// TODO(#628): implement.
-// export const dreamsOfTheDead: CardDefinition = {
-//     id: "93372854-57e7-4db7-a1a6-376c9f49a514",
-//     name: "Dreams of the Dead",
-//     rarity: "uncommon",
-//     oracleText: "{1}{U}: Return target white or black creature card from your graveyard to the battlefield. That creature gains \"Cumulative upkeep {2}.\" If the creature would leave the battlefield, exile it instead of putting it anywhere else. (At the beginning of its controller's upkeep, that player puts an age counter on it, then sacrifices it unless they pay its upkeep cost for each age counter on it.)",
-//     manaCost: { X: 3, U: 1 },
-//     types: ["Enchantment"],
-// };
+// Dreams of the Dead — {3}{U} Enchantment with a {1}{U} reanimation ability:
+// "Return target white or black creature card from your graveyard to the
+// battlefield. That creature gains 'Cumulative upkeep {2}.' If the creature
+// would leave the battlefield, exile it instead of putting it anywhere else."
+// (CR 400.7 zone change, CR 702.24 granted CU — ADR 0042, CR 614.1c leave →
+// exile replacement.) The granted CU rides the reanimated creature permanently
+// (independent of Dreams) via `grantTriggeredAbilityPermanent`; the persistent
+// `setExileOnLeave` flag routes EVERY later departure (dies / sacrifice / bounce
+// / destroy) to exile, so the creature can't be re-reanimated. The {1}{U} cost
+// is paid at activation; the reanimation resolves from the stack (useStack: true).
+const DREAMS_OF_THE_DEAD_ID = "93372854-57e7-4db7-a1a6-376c9f49a514";
+export const dreamsOfTheDead: CardDefinition = {
+    id: DREAMS_OF_THE_DEAD_ID,
+    name: "Dreams of the Dead",
+    rarity: "uncommon",
+    oracleText:
+        '{1}{U}: Return target white or black creature card from your graveyard to the battlefield. That creature gains "Cumulative upkeep {2}." If the creature would leave the battlefield, exile it instead of putting it anywhere else. (At the beginning of its controller\'s upkeep, that player puts an age counter on it, then sacrifices it unless they pay its upkeep cost for each age counter on it.)',
+    manaCost: { X: 3, U: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "dreams-of-the-dead-reanimate",
+            oracleText:
+                '{1}{U}: Return target white or black creature card from your graveyard to the battlefield. That creature gains "Cumulative upkeep {2}." If the creature would leave the battlefield, exile it instead of putting it anywhere else.',
+            cost: { mana: { X: 1, U: 1 } },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                zone: "graveyard",
+                controller: "you",
+                colorFilterAny: ["W", "B"],
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (!t || t.type !== "graveyard-card" || !t.playerId) return;
+                // CR 400.7 — return to the battlefield under the controller's
+                // control. The instance keeps its id, so we grant CU and the
+                // exile-on-leave replacement to the same id afterwards.
+                const ok = ctx.returnToBattlefield(
+                    ctx.controller,
+                    t.id,
+                    "graveyard"
+                );
+                if (!ok) return;
+                const host = { type: "permanent" as const, id: t.id };
+                // CR 702.24 — the creature gains "Cumulative upkeep {2}".
+                ctx.grantTriggeredAbilityPermanent(
+                    host,
+                    DREAMS_OF_THE_DEAD_ID,
+                    "dreams-of-the-dead-granted-cu"
+                );
+                // CR 614.1c — if it would leave, exile it instead (all paths).
+                ctx.setExileOnLeave(host);
+            },
+        },
+    ],
+    triggeredGrantTemplates: [
+        cumulativeUpkeepTrigger({
+            id: "dreams-of-the-dead-granted-cu",
+            cost: { X: 2 },
+            costLabel: "{2}",
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const enervate: CardDefinition = {
 //     id: "c4fdfc5b-c2ab-4c4d-b120-301e17f3d9c6",
@@ -1876,15 +2072,54 @@ export const snowDevil: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const snowfall: CardDefinition = {
-//     id: "788ed793-3993-4a63-b9f9-9ac3947c3108",
-//     name: "Snowfall",
-//     rarity: "common",
-//     oracleText: "Cumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nWhenever an Island is tapped for mana, its controller may add an additional {U}. If that Island is snow, its controller may add an additional {U}{U} instead. Spend this mana only to pay cumulative upkeep costs.",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Enchantment"],
-// };
+// Snowfall — {2}{U} Enchantment with cumulative upkeep {U} (CR 702.24, ADR 0042)
+// plus a CU-mana engine: "Whenever an Island is tapped for mana, its controller
+// may add an additional {U}. … Spend this mana only to pay cumulative upkeep
+// costs." (CR 605 mana-tap trigger via `tappedTrigger({ forMana: true })`, CR
+// 106.6 restricted mana — ADR 0022.) The bonus {U} lands in the Island
+// controller's CU-restricted pool, feeding Snowfall's own upkeep (and any other
+// CU permanent). The added mana is auto-applied — it's strictly beneficial
+// restricted mana, so the "may" carries no real downside (ADR 0003 auto-resolve).
+//
+// SIMPLIFICATION (flagged): the printed "If that Island is snow, add {U}{U}
+// instead" doubles for snow Islands. The Ice Age pool ships NO snow-supertype
+// lands (snow mana is deferred — see CONTEXT.md "Snow" / PRD #628), so no Island
+// can ever satisfy the snow branch; Snowfall always takes the non-snow {U}
+// branch here. The doubling lands the day the block adds snow basics.
+export const snowfall: CardDefinition = {
+    id: "788ed793-3993-4a63-b9f9-9ac3947c3108",
+    name: "Snowfall",
+    rarity: "common",
+    oracleText:
+        "Cumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nWhenever an Island is tapped for mana, its controller may add an additional {U}. If that Island is snow, its controller may add an additional {U}{U} instead. Spend this mana only to pay cumulative upkeep costs.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "snowfall-cumulative-upkeep",
+            cost: { U: 1 },
+            costLabel: "{U}",
+        }),
+        tappedTrigger({
+            id: "snowfall-island-mana",
+            oracleText:
+                "Whenever an Island is tapped for mana, its controller may add an additional {U}. Spend this mana only to pay cumulative upkeep costs.",
+            scope: "any",
+            filter: { subtypes: "Island" },
+            forMana: true,
+            resolve: (ctx, _event, tapped) => {
+                // CR 106.6 — the Island controller gets the bonus {U} in their
+                // CU-restricted pool (ADR 0022). Snow doubling is deferred (no
+                // snow lands in pool); always the single-{U} branch.
+                ctx.addRestrictedMana(
+                    tapped.controllerId,
+                    { U: 1 },
+                    "cumulative-upkeep"
+                );
+            },
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const soldeviMachinist: CardDefinition = {
 //     id: "1f0999df-2f94-499e-b9af-fe377d515400",

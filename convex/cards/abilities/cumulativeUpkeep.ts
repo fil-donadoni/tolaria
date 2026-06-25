@@ -144,6 +144,9 @@ export function cumulativeUpkeepTrigger(
                     choiceId: `cumulative-upkeep-${ctx.sourceInstanceId}`,
                     cost: scaled,
                     prompt: `Pay cumulative upkeep (${args.costLabel} ×${ageCount}) to keep this permanent?`,
+                    // ADR 0042 — CU-restricted mana (Adarkar Unicorn / Snowfall)
+                    // may pay this upkeep, in addition to the fungible pool.
+                    manaRestriction: "cumulative-upkeep",
                 });
                 if (accept === undefined) return; // suspended for the choice
                 // CR 702.24c — declined or unable to pay: sacrifice it. The

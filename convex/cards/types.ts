@@ -1373,6 +1373,32 @@ export interface SpellContext {
         abilityId: string,
         duration: DurationSpec
     ) => void;
+    /** Grants a triggered ability to a single target permanent with NO
+     *  duration and NO aura link (CR 113.1 / 611.2c) — it persists for as long
+     *  as the target stays on the battlefield, independent of the granting
+     *  source. The template lives on the granting card's
+     *  `triggeredGrantTemplates[]` (`sourceCardId` + `abilityId`), unioned into
+     *  the target's effective triggers by `effectiveTriggeredAbilities` so the
+     *  engine scans / resolves it as if printed on the target. The permanent
+     *  (indefinite) sibling of `grantTriggeredAbility`; both the phase-boundary
+     *  purge and the aura-unapply pass skip entries lacking duration/auraId, so
+     *  it is cleared only when the target leaves play. Used by Balduvian Shaman
+     *  ("that enchantment gains 'Cumulative upkeep {1}'") and Dreams of the Dead
+     *  ("that creature gains 'Cumulative upkeep {2}'"). */
+    grantTriggeredAbilityPermanent: (
+        target: TargetSelection,
+        sourceCardId: string,
+        abilityId: string
+    ) => void;
+    /** Marks a permanent so that if it would leave the battlefield, it is
+     *  exiled instead of going to any other zone (CR 614.1c — a replacement
+     *  applied to every battlefield-departure path: dies, sacrifice, bounce,
+     *  destroy). Unlike `setExileOnDeath` (one-shot, cleared at CLEANUP, death
+     *  only) this is a PERSISTENT per-instance flag covering ALL leave paths and
+     *  surviving across turns, cleared only when the permanent actually leaves
+     *  play. Used by Dreams of the Dead's reanimation ("if the creature would
+     *  leave the battlefield, exile it instead of putting it anywhere else"). */
+    setExileOnLeave: (target: TargetSelection) => void;
     /** Removes every keyword static ability matching `predicate` from a
      *  permanent for a limited duration (CR 611.1b layer 6). Each removed
      *  keyword is spliced out of `staticAbilities` so combat / rules checks stop
@@ -1724,6 +1750,12 @@ export interface SpellContext {
          *  life, sacrifice, or a mix; ADR 0042). Omit for a cost-less yes/no. */
         cost?: MayPayCost;
         prompt: string;
+        /** Spend restriction the mana leg may additionally draw on (CR 106.6,
+         *  ADR 0022 / 0042). When set, the cost's mana leg may be paid from the
+         *  player's restricted mana carrying this restriction in addition to the
+         *  fungible pool. Set to `"cumulative-upkeep"` by the cumulative-upkeep
+         *  trigger so Adarkar Unicorn / Snowfall mana pays the upkeep. */
+        manaRestriction?: ManaRestriction;
     }) => boolean | undefined;
 
     /** Requests a single pick from a list of abstract options (CR 614.12 /
