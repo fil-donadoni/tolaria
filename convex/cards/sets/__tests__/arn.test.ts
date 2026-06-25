@@ -522,7 +522,7 @@ describe("Jandor's Ring ({2},{T}, discard last drawn: Draw a card)", () => {
         const player = state.players[0];
         drawCard(player);
         expect(player.hand.map((c) => c.id)).toEqual(["a"]);
-        payDiscardLastDrawn(player);
+        payDiscardLastDrawn(state, player);
         expect(player.hand).toHaveLength(0);
         expect(player.graveyard.map((c) => c.id)).toEqual(["a"]);
         expect(player.lastDrawnCardId).toBeUndefined();

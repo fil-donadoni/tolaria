@@ -42,6 +42,7 @@ import { untapTrigger } from "../abilities/triggers/untapTrigger";
 import { untapRestriction } from "../abilities/static/untapRestriction";
 import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
 import { diedTrigger } from "../abilities/triggers/diedTrigger";
+import { discardTrigger } from "../abilities/triggers/discardTrigger";
 import { tappedTrigger } from "../abilities/triggers/tappedTrigger";
 
 // Color-word options for Balduvian Shaman's text change (CR 612 — the five
@@ -3308,9 +3309,10 @@ export const zuranSpellcaster: CardDefinition = {
 //     (Legions of Lim-Dûl) (no supertype filter / snow-evasion keyword yet —
 //     snow cluster).
 //   • CARD_DISCARDED trigger — Necropotence's "whenever you discard a card,
-//     exile it from your graveyard" needs a discard event + discardTrigger
-//     factory the engine doesn't emit yet (skip-draw + pay-life-exile clauses
-//     are supported, but shipping a partial Necropotence is out — flagged).
+//     exile that card from your graveyard": ACTIVE (#667 — the CARD_DISCARDED
+//     event + `discardTrigger` factory shipped; Necropotence is composed from
+//     skip-draw + pay-life face-down exile + next-end-step return + the new
+//     discard→exile trigger).
 //   • "Spend only black/red mana on X" + black-mana-spent lifegain cap —
 //     Soul Burn (no mana-colour-spent tracking primitive).
 //   • Ashen Ghoul — graveyard-SOURCE activated ability (the engine only resolves
@@ -4832,15 +4834,108 @@ export const moorFiend: CardDefinition = {
     toughness: 3,
     staticAbilities: ["swampwalk"],
 };
-// TODO(#628): implement.
-// export const necropotence: CardDefinition = {
-//     id: "54d7a0c1-efb4-4a8d-ad92-a96d43835052",
-//     name: "Necropotence",
-//     rarity: "rare",
-//     oracleText: "Skip your draw step.\nWhenever you discard a card, exile that card from your graveyard.\nPay 1 life: Exile the top card of your library face down. Put that card into your hand at the beginning of your next end step.",
-//     manaCost: { B: 3 },
-//     types: ["Enchantment"],
-// };
+// Necropotence (#667) — the Ice Age card-advantage engine, composed from
+// shipped primitives plus the CARD_DISCARDED seam this slice added:
+//   1. "Skip your draw step." — CR 504 / 614 draw-step skip via the
+//      `drawStepReplacement` flag (Island Sanctuary precedent). Necropotence's
+//      skip is UNCONDITIONAL (no "may"), so the flag alone suffices — no DRAW
+//      phaseTrigger offers a choice (unlike Island Sanctuary / Fasting).
+//   2. "Whenever you discard a card, exile that card from your graveyard." —
+//      CR 701.8 discard event + CR 603 trigger via the new `discardTrigger`
+//      factory (CARD_DISCARDED). The card has already landed in the graveyard
+//      when the event fires, so the resolve moves it graveyard → exile.
+//   3. "Pay 1 life: Exile the top card of your library face down. Put that card
+//      into your hand at the beginning of your next end step." — a life-cost
+//      activated ability (CR 118.4) that exiles the top library card face down
+//      (`exileFaceDown`, ADR 0026 impulse-draw) and schedules a next-end-step
+//      delayed trigger (CR 603.7a) carrying that card's id; the delayed trigger
+//      moves it exile → hand. Each activation schedules its own delayed trigger,
+//      so any number of cards exiled this turn all return at the same next end
+//      step.
+const NECROPOTENCE_ID = "54d7a0c1-efb4-4a8d-ad92-a96d43835052";
+export const necropotence: CardDefinition = {
+    id: NECROPOTENCE_ID,
+    name: "Necropotence",
+    rarity: "rare",
+    oracleText:
+        "Skip your draw step.\nWhenever you discard a card, exile that card from your graveyard.\nPay 1 life: Exile the top card of your library face down. Put that card into your hand at the beginning of your next end step.",
+    manaCost: { B: 3 },
+    types: ["Enchantment"],
+    // 1. CR 504 / 614 — "Skip your draw step." Suppresses the turn-based draw
+    //    unconditionally (no DRAW phaseTrigger, unlike the "may skip" cards).
+    drawStepReplacement: true,
+    triggeredAbilities: [
+        // 2. CR 701.8 / 603 — "Whenever you discard a card, exile that card from
+        //    your graveyard." Fires off the CARD_DISCARDED choke point.
+        discardTrigger({
+            id: "necropotence-discard-exile",
+            oracleText:
+                "Whenever you discard a card, exile that card from your graveyard.",
+            scope: "your",
+            resolve: (ctx, _event, discardingPlayerId, discardedId) => {
+                // The discarded card is in the graveyard; exile it face up.
+                ctx.moveCardById(
+                    discardingPlayerId,
+                    discardedId,
+                    "graveyard",
+                    "exile"
+                );
+            },
+        }),
+    ],
+    activatedAbilities: [
+        // 3. CR 118.4 — "Pay 1 life: Exile the top card of your library face
+        //    down. Put that card into your hand at the beginning of your next
+        //    end step."
+        {
+            id: "necropotence-pay-life",
+            oracleText:
+                "Pay 1 life: Exile the top card of your library face down. Put that card into your hand at the beginning of your next end step.",
+            cost: { life: 1 },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                // CR 121.1 — the top card of the controller's library.
+                const topId = ctx.peekLibraryTop(ctx.controller, 1)[0];
+                if (topId === undefined) return; // empty library — nothing exiled
+                // CR 406.3 / ADR 0026 — exile FACE DOWN, known to the
+                // controller alone (opponents see a face-down card).
+                ctx.exileFaceDown(
+                    ctx.controller,
+                    topId,
+                    "library",
+                    ctx.controller
+                );
+                // CR 603.7a — schedule the return at the next end step. The
+                // exiled card's instance id rides in the payload; multiple
+                // activations queue independent delayed triggers.
+                ctx.scheduleDelayedTrigger(
+                    NECROPOTENCE_ID,
+                    "necropotence-return-to-hand",
+                    "next-end-step",
+                    { cardInstanceId: topId, ownerId: ctx.controller }
+                );
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: "necropotence-return-to-hand",
+            oracleText:
+                "At the beginning of your next end step, put the exiled card into your hand.",
+            timing: "next-end-step",
+            resolve: (ctx: SpellContext, payload) => {
+                // CR 400.7 — move the exiled card to its owner's hand. No-op if
+                // it has since left exile (e.g. a graveyard-hate effect).
+                ctx.moveCardById(
+                    payload.ownerId,
+                    payload.cardInstanceId,
+                    "exile",
+                    "hand"
+                );
+            },
+        },
+    ],
+};
 // Norritt — "{T}: Untap target blue creature. {T}: Choose target non-Wall
 // creature the active player has controlled continuously since the beginning of
 // the turn. That creature attacks this turn if able. Destroy it at the beginning

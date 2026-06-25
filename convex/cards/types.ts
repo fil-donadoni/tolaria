@@ -3327,7 +3327,8 @@ export type GameEventType =
     | "ATTACKERS_DECLARED"
     | "BLOCKERS_CONFIRMED"
     | "ATTACKER_UNBLOCKED"
-    | "CARD_DRAWN";
+    | "CARD_DRAWN"
+    | "CARD_DISCARDED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -3635,6 +3636,28 @@ export interface CardDrawnEvent {
     count: number;
 }
 
+/** Emitted whenever a card is discarded — moved from a player's hand to their
+ *  graveyard by a discard (CR 701.8). One event per card, emitted AFTER the
+ *  card has landed in the graveyard (and after CR 614 discard replacements such
+ *  as Library of Leng have had their chance) so "whenever you discard a card"
+ *  triggers (Necropotence — "exile that card from your graveyard") can find the
+ *  card in its destination zone. NOT emitted when a discard replacement
+ *  consumed the event and routed the card elsewhere (the card was not
+ *  discarded). Every discard path — the cleanup-step max-hand-size discard
+ *  (CR 514.1), effect-driven discards (`discardCard` / `discardAtRandom`), and
+ *  discard activation costs (Jandor's Ring, Coral Helm) — flows through the
+ *  single `discardToGraveyard` choke point that emits this. */
+export interface CardDiscardedEvent {
+    type: "CARD_DISCARDED";
+    /** Player who discarded the card (its owner — CR 701.8). */
+    playerId: string;
+    /** Instance id of the discarded card, now in `playerId`'s graveyard. */
+    cardInstanceId: string;
+    /** Card definition id of the discarded card, so type-based filters can run
+     *  without re-reading the graveyard. */
+    cardId?: string;
+}
+
 export type GameEvent =
     | DamageDealtEvent
     | PhaseBeginEvent
@@ -3650,7 +3673,8 @@ export type GameEvent =
     | AttackersDeclaredEvent
     | BlockersConfirmedEvent
     | AttackerUnblockedEvent
-    | CardDrawnEvent;
+    | CardDrawnEvent
+    | CardDiscardedEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can

@@ -952,7 +952,7 @@ export function tryAutoCommitPendingActivation(
             state.pendingActivation = undefined;
             return null;
         }
-        payDiscardLastDrawn(player);
+        payDiscardLastDrawn(state, player);
     }
     if (pa.discardAtRandomCount) {
         // CR 118.3 — re-check at commit: the hand may have emptied while mana
@@ -5956,7 +5956,7 @@ export const activateAbility = mutation({
             payRemoveCounterCost(card, ability.cost.removeCounter);
         }
         if (ability.cost.discardLastDrawn) {
-            payDiscardLastDrawn(player);
+            payDiscardLastDrawn(state, player);
         }
         if (ability.cost.discardAtRandom) {
             payDiscardAtRandomCost(

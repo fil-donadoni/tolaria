@@ -343,6 +343,8 @@ import {
     infernalDarkness,
     chaosMoon,
     nakedSingularity,
+    // Necropotence (#667)
+    necropotence,
 } from "../ice";
 import { plains, island, swamp, mountain, forest } from "../lea";
 import { applyLandManaReplacement } from "../../../gre/constants";
@@ -352,6 +354,7 @@ import {
     getCardByName,
     getAllCards,
     getAllSetCodes,
+    FACE_DOWN_CARD_ID,
 } from "../../index";
 import {
     resolveTopOfStack,
@@ -367,6 +370,7 @@ import {
     spendablePoolForSpell,
     payManaCostForSpell,
     restrictedUnitAllowsSpell,
+    discardCardsAtRandom,
 } from "../../../gre/state";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import {
@@ -382,6 +386,7 @@ import {
     emitBlockersConfirmedEvents,
     emitAttackersDeclaredEvents,
     fireDelayedTriggers,
+    advancePhase,
 } from "../../../gre/phases";
 import { recordBlockedAttackers } from "../../../gre/banding";
 import {
@@ -12061,5 +12066,276 @@ describe("Ice Cauldron (noted-mana battery + cast-from-exile, CR 106.10/601.3e)"
             (c) => c.id === "noted-spell"
         )! as CardInstanceState;
         expect(slimExiled.castableFromExileBy).toBe("p1");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Necropotence (#667) — CR 504/614 skip-draw + CR 701.8/603 discard→exile
+// trigger + CR 118.4 pay-life face-down exile + CR 603.7a next-end-step return.
+// ---------------------------------------------------------------------------
+
+describe("Necropotence (CR 504/614 skip-draw + CR 701.8 discard→exile)", () => {
+    // A distinct vanilla filler in the named zone (library/hand/graveyard).
+    const filler = (id: string, zone: CardInstanceState["zone"]) =>
+        makeInstance(balduvianBears.id, { id, controllerId: "p1", zone });
+
+    it("is a {B}{B}{B} Enchantment with the modern oracle wording (#667)", () => {
+        expect(necropotence.manaCost).toEqual({ B: 3 });
+        expect(necropotence.types).toEqual(["Enchantment"]);
+        expect(necropotence.rarity).toBe("rare");
+        expect(necropotence.oracleText).toBe(
+            "Skip your draw step.\nWhenever you discard a card, exile that card from your graveyard.\nPay 1 life: Exile the top card of your library face down. Put that card into your hand at the beginning of your next end step."
+        );
+        // CR 504/614 — skip-draw via the shipped flag.
+        expect(necropotence.drawStepReplacement).toBe(true);
+        // CR 701.8/603 — the discard→exile trigger subscribes to CARD_DISCARDED.
+        const trig = necropotence.triggeredAbilities?.[0];
+        expect(trig?.event).toBe("CARD_DISCARDED");
+    });
+
+    it("registers by id and name (#667)", () => {
+        expect(getCardById(necropotence.id)).toBe(necropotence);
+        expect(getCardByName("Necropotence")).toBe(necropotence);
+    });
+
+    // --- Skip-draw replacement (CR 504/614) --------------------------------
+    it("skips the controller's draw step while in play (CR 504.1/614)", () => {
+        const necro = makeInstance(necropotence.id, {
+            id: "necro",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            turn: 2,
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [necro],
+                    library: [filler("top", "library")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        advancePhase(state); // UPKEEP → DRAW
+        expect(state.phase).toBe("DRAW");
+        // No draw happened — the card stays on top of the library.
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["top"]);
+    });
+
+    // --- Discard → exile trigger (CR 701.8/603) ----------------------------
+    it("emits CARD_DISCARDED on a discard and exiles it from the graveyard", () => {
+        const necro = makeInstance(necropotence.id, {
+            id: "necro",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [necro],
+                    hand: [filler("discarded", "hand")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // CR 701.8 — discard the card (any discard path; random is the simplest
+        // engine driver and flows through the same discardToGraveyard choke).
+        discardCardsAtRandom(state, "p1", 1);
+
+        // The card landed in the graveyard and a CARD_DISCARDED event fired.
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual([
+            "discarded",
+        ]);
+        const events = state.pendingEvents ?? [];
+        const discardEv = events.find((e) => e.type === "CARD_DISCARDED");
+        expect(discardEv).toMatchObject({
+            type: "CARD_DISCARDED",
+            playerId: "p1",
+            cardInstanceId: "discarded",
+        });
+
+        // CR 603 — collectTriggers surfaces Necropotence's discard trigger.
+        const triggers = collectTriggers(state, events);
+        const necroTrigger = triggers.find(
+            (t) => t.triggeredAbilityId === "necropotence-discard-exile"
+        );
+        expect(necroTrigger).toBeDefined();
+
+        // Resolve it: the card moves graveyard → exile.
+        state.stack.push(necroTrigger!);
+        resolveTopOfStack(state);
+        expect(state.players[0].graveyard).toHaveLength(0);
+        expect(state.players[0].exile.map((c) => c.id)).toEqual(["discarded"]);
+    });
+
+    it("does NOT fire its discard trigger for an opponent's discard (scope: your)", () => {
+        const necro = makeInstance(necropotence.id, {
+            id: "necro",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [necro] }),
+                makePlayer("p2", {
+                    hand: [
+                        makeInstance(balduvianBears.id, {
+                            id: "p2card",
+                            controllerId: "p2",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        discardCardsAtRandom(state, "p2", 1);
+        const events = state.pendingEvents ?? [];
+        const triggers = collectTriggers(state, events);
+        expect(
+            triggers.find(
+                (t) => t.triggeredAbilityId === "necropotence-discard-exile"
+            )
+        ).toBeUndefined();
+    });
+
+    // --- Full engine loop: pay life → face-down exile → next-end-step hand --
+    it("pay 1 life exiles top face down, returns it to hand at next end step", () => {
+        const necro = makeInstance(necropotence.id, {
+            id: "necro",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            turn: 2,
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    life: 20,
+                    battlefield: [necro],
+                    library: [
+                        filler("top", "library"),
+                        filler("next", "library"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+        // Activate "Pay 1 life: exile the top card face down" (cost paid here).
+        state.players[0].life -= 1; // CR 118.4 — pay 1 life.
+        resolveActivated(state, necro, "necropotence-pay-life");
+
+        // CR 406.3 — the top card is exiled face down, library shrinks.
+        expect(state.players[0].life).toBe(19);
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["next"]);
+        expect(state.players[0].exile.map((c) => c.id)).toEqual(["top"]);
+        expect(state.players[0].hand).toHaveLength(0);
+        // It is hidden to the opponent (known only to its controller).
+        const exiled = state.players[0].exile[0];
+        expect(exiled.knownTo).toEqual(["p1"]);
+        // A next-end-step delayed trigger was scheduled (CR 603.7a).
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers![0].triggerId).toBe(
+            "necropotence-return-to-hand"
+        );
+
+        // CR 603.7a — fire the delayed trigger at the next end step and resolve.
+        fireDelayedTriggers(state, "next-end-step");
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+
+        // The exiled card is now in the controller's hand; exile is empty.
+        expect(state.players[0].exile).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["top"]);
+        expect(state.delayedTriggers).toBeUndefined();
+    });
+
+    it("multiple pay-life activations all return at the same next end step", () => {
+        const necro = makeInstance(necropotence.id, {
+            id: "necro",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            turn: 2,
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    life: 20,
+                    battlefield: [necro],
+                    library: [
+                        filler("a", "library"),
+                        filler("b", "library"),
+                        filler("c", "library"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+        // Two activations exile the top two cards (a, then b).
+        resolveActivated(state, necro, "necropotence-pay-life");
+        resolveActivated(state, necro, "necropotence-pay-life");
+        expect(state.players[0].exile.map((c) => c.id).sort()).toEqual([
+            "a",
+            "b",
+        ]);
+        expect(state.delayedTriggers).toHaveLength(2);
+
+        // Both delayed triggers fire at the next end step and resolve.
+        fireDelayedTriggers(state, "next-end-step");
+        expect(state.stack).toHaveLength(2);
+        resolveTopOfStack(state);
+        resolveTopOfStack(state);
+        expect(state.players[0].exile).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "a",
+            "b",
+        ]);
+    });
+
+    // --- Wire-format guard (visible exile/hand state) ----------------------
+    it("wire format: the exiled card survives projection face down to opponents", () => {
+        const necro = makeInstance(necropotence.id, {
+            id: "necro",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            turn: 2,
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    life: 20,
+                    battlefield: [necro],
+                    library: [filler("top", "library")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, necro, "necropotence-pay-life");
+
+        // Controller sees the exiled card's real identity survive the wire.
+        const forP1 = projectPublicState(state, 1, "p1");
+        const p1Exiled = forP1.players[0].exile.find((c) => c?.id === "top");
+        expect(p1Exiled).toBeDefined();
+        expect(p1Exiled!.card.id).toBe(balduvianBears.id);
+
+        // Opponent sees a face-down exile (CR 406.3 — identity hidden behind the
+        // face-down sentinel; the real def id never crosses the wire).
+        const forP2 = projectPublicState(state, 1, "p2");
+        const p2Exiled = forP2.players[0].exile.find((c) => c?.id === "top");
+        expect(p2Exiled).toBeDefined();
+        expect(p2Exiled!.card.id).toBe(FACE_DOWN_CARD_ID);
+        expect(p2Exiled!.card.id).not.toBe(balduvianBears.id);
     });
 });

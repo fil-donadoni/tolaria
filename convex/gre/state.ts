@@ -4206,6 +4206,28 @@ export function emitCardDrawn(
     ];
 }
 
+/** Emits a CARD_DISCARDED event for a card that just moved hand → graveyard as
+ *  a discard (CR 701.8). The single choke point for "whenever you discard a
+ *  card" triggers (Necropotence). Emitted by `discardToGraveyard` AFTER the
+ *  card has landed in the graveyard, so the trigger can locate the card in its
+ *  destination zone. */
+export function emitCardDiscarded(
+    state: GameState,
+    playerId: string,
+    cardInstanceId: string,
+    cardId?: string
+): void {
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "CARD_DISCARDED",
+            playerId,
+            cardInstanceId,
+            ...(cardId ? { cardId } : {}),
+        },
+    ];
+}
+
 /** Emits a PERMANENT_TAPPED event for a permanent that just transitioned from
  *  untapped to tapped (CR 701.20a). `forMana: true` marks the canonical
  *  "tapped for mana" condition (CR 605) read by Manabarbs / Mana Flare /
@@ -7158,14 +7180,10 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const player = getPlayer(state, playerId);
             const idx = player.hand.findIndex((c) => c.id === cardInstanceId);
             if (idx === -1) return;
-            // CR 614 — Library of Leng's discard replacement intercepts here.
-            const repl = applyDiscardReplacements(state, {
-                kind: "discard",
-                playerId,
-                cardInstanceId,
-            });
-            if (repl === null) return;
-            moveCard(player, repl.cardInstanceId, "hand", "graveyard");
+            // CR 614 — Library of Leng's discard replacement intercepts inside
+            // discardToGraveyard; on a real discard it emits CARD_DISCARDED
+            // (CR 701.8) so "whenever you discard" triggers fire (Necropotence).
+            if (!discardToGraveyard(state, playerId, cardInstanceId)) return;
             // ADR 0026 / PRD #338 (slice 4), clear trigger #2: an owner-chosen
             // discard (Disrupting Scepter, Wheel of Fortune, Balance, cleanup)
             // is a change the OWNER chose-and-witnessed but a non-owner knower
@@ -7926,14 +7944,48 @@ export function canPayDiscardLastDrawn(player: PlayerState): boolean {
 /** Pays a "discard the last card you drew this turn" cost by discarding that
  *  exact card. Throws if the card is no longer in hand (callers must check
  *  `canPayDiscardLastDrawn` first). Clears the tracker so the same draw can't
- *  pay a second activation this turn. */
-export function payDiscardLastDrawn(player: PlayerState): void {
+ *  pay a second activation this turn. Routes through `discardToGraveyard` so it
+ *  honors CR 614 discard replacements (Library of Leng) and emits CARD_DISCARDED
+ *  (CR 701.8) like every other discard path (Necropotence). */
+export function payDiscardLastDrawn(
+    state: GameState,
+    player: PlayerState
+): void {
     const id = player.lastDrawnCardId;
     if (!id || !player.hand.some((c) => c.id === id)) {
         throw new Error("No card drawn this turn left to discard");
     }
-    moveCard(player, id, "hand", "graveyard");
+    discardToGraveyard(state, player.id, id);
     player.lastDrawnCardId = undefined;
+}
+
+/** Single choke point for discarding one card hand → graveyard (CR 701.8).
+ *  Runs the CR 614 discard replacement layer (Library of Leng) first; if a
+ *  replacement consumed the event, the card was routed elsewhere and this
+ *  returns false WITHOUT emitting CARD_DISCARDED (the card was not discarded to
+ *  a graveyard). Otherwise it moves the card to the graveyard and emits
+ *  CARD_DISCARDED so "whenever you discard a card" triggers (Necropotence) fire
+ *  off EVERY discard path. Knowledge clearing (ADR 0026) stays at the call
+ *  sites because the conservative scope differs per path (owner-chosen vs
+ *  random vs cleanup). No-op (returns false) if the card is no longer in hand. */
+export function discardToGraveyard(
+    state: GameState,
+    playerId: string,
+    cardInstanceId: string
+): boolean {
+    const player = getPlayer(state, playerId);
+    if (!player.hand.some((c) => c.id === cardInstanceId)) return false;
+    // CR 614 — discard replacements (Library of Leng) intercept here.
+    const repl = applyDiscardReplacements(state, {
+        kind: "discard",
+        playerId,
+        cardInstanceId,
+    });
+    if (repl === null) return false; // replacement routed the card elsewhere
+    const moved = moveCard(player, repl.cardInstanceId, "hand", "graveyard");
+    const cardId = (moved.card as { id?: string }).id;
+    emitCardDiscarded(state, playerId, repl.cardInstanceId, cardId);
+    return true;
 }
 
 /** Discards `amount` cards at random from `playerId`'s hand (CR 701.8), using
@@ -7968,15 +8020,9 @@ export function discardCardsAtRandom(
         const cardId = candidateId();
         if (cardId === undefined) break;
         // CR 614 — Library of Leng's "may put it on top of library instead"
-        // intercepts each discard. If the replacement consumes the event the
-        // card has already been routed elsewhere; skip the default discard.
-        const repl = applyDiscardReplacements(state, {
-            kind: "discard",
-            playerId,
-            cardInstanceId: cardId,
-        });
-        if (repl === null) continue;
-        moveCard(player, repl.cardInstanceId, "hand", "graveyard");
+        // intercepts each discard inside discardToGraveyard; on a real discard
+        // it emits CARD_DISCARDED (CR 701.8 — Necropotence).
+        discardToGraveyard(state, playerId, cardId);
     }
     // ADR 0026 / PRD #338 (slice 3), clear trigger #2: a random discard is an
     // event the knower did not choose-and-witness — a player who knew this hand

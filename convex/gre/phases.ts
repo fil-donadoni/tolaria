@@ -30,7 +30,7 @@ import {
     getPlayer,
     isCombatDamageImmune,
     matchesPermanentFilter,
-    moveCard,
+    discardToGraveyard,
     resolveTopOfStack,
     runDamageReplacement,
     tapPermanent,
@@ -39,7 +39,7 @@ import {
 } from "./state";
 import { tryGetCardById } from "../cards";
 import { seededShuffle } from "./rng";
-import { applyDiscardReplacements, describeDamageSource } from "./replacements";
+import { describeDamageSource } from "./replacements";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -1609,13 +1609,9 @@ export function finalizeCleanupDiscard(
         // `discardCard` contract used by Disrupting Scepter / discardAtRandom.
         const idx = player.hand.findIndex((c) => c.id === cardInstanceId);
         if (idx === -1) continue;
-        const repl = applyDiscardReplacements(state, {
-            kind: "discard",
-            playerId: player.id,
-            cardInstanceId,
-        });
-        if (repl === null) continue;
-        moveCard(player, repl.cardInstanceId, "hand", "graveyard");
+        // CR 614 discard replacement (Library of Leng) runs inside
+        // discardToGraveyard; a real discard emits CARD_DISCARDED (CR 701.8).
+        discardToGraveyard(state, player.id, cardInstanceId);
     }
     // ADR 0026 / PRD #338 (slice 4), clear trigger #2: the cleanup discard
     // (CR 514.1) is chosen-and-witnessed by the hand's OWNER but not by any
