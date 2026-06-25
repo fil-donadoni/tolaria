@@ -11275,45 +11275,90 @@ export const karplusanForest: CardDefinition = {
         },
     ],
 };
-// DEFERRED (depletion-dual cycle — capability cluster). Needs a
-// per-permanent depletion-counter mechanic: tapping for mana adds a counter,
-// the upkeep removes one, and the land skips its untap step while any counter
-// remains (CR 122 counters + a conditional untap-skip keyed on counter count).
-// No existing primitive expresses "don't untap while this has a depletion
-// counter" — owned by the depletion capability cluster.
-// export const landCap: CardDefinition = {
-//     id: "c4806c02-7a4d-42e3-affd-0338084bd3ab",
-//     name: "Land Cap",
-//     rarity: "rare",
-//     oracleText: "This land doesn't untap during your untap step if it has a depletion counter on it.\nAt the beginning of your upkeep, remove a depletion counter from this land.\n{T}: Add {W} or {U}. Put a depletion counter on this land.",
-//     types: ["Land"],
-// };
-// DEFERRED (depletion-dual cycle — capability cluster). Needs a
-// per-permanent depletion-counter mechanic: tapping for mana adds a counter,
-// the upkeep removes one, and the land skips its untap step while any counter
-// remains (CR 122 counters + a conditional untap-skip keyed on counter count).
-// No existing primitive expresses "don't untap while this has a depletion
-// counter" — owned by the depletion capability cluster.
-// export const lavaTubes: CardDefinition = {
-//     id: "5e7c2cf6-f36f-451b-bba5-19a82c659c4c",
-//     name: "Lava Tubes",
-//     rarity: "rare",
-//     oracleText: "This land doesn't untap during your untap step if it has a depletion counter on it.\nAt the beginning of your upkeep, remove a depletion counter from this land.\n{T}: Add {B} or {R}. Put a depletion counter on this land.",
-//     types: ["Land"],
-// };
-// DEFERRED (depletion-dual cycle — capability cluster). Needs a
-// per-permanent depletion-counter mechanic: tapping for mana adds a counter,
-// the upkeep removes one, and the land skips its untap step while any counter
-// remains (CR 122 counters + a conditional untap-skip keyed on counter count).
-// No existing primitive expresses "don't untap while this has a depletion
-// counter" — owned by the depletion capability cluster.
-// export const riverDelta: CardDefinition = {
-//     id: "ea335fc0-0591-4acd-9ae8-7858222770da",
-//     name: "River Delta",
-//     rarity: "rare",
-//     oracleText: "This land doesn't untap during your untap step if it has a depletion counter on it.\nAt the beginning of your upkeep, remove a depletion counter from this land.\n{T}: Add {U} or {B}. Put a depletion counter on this land.",
-//     types: ["Land"],
-// };
+// Depletion-dual cycle (Land Cap, Lava Tubes, River Delta, Timberline Ridge,
+// Veldt — CR 605.1a / 502.1 / 603.6a / 122.1). Each:
+//   * "{T}: Add <c1> or <c2>. Put a depletion counter on this land." — ONE
+//     `manaChoices` tap mana ability (`useStack: false`, both options coloured)
+//     carrying the `putDepletionCounterOnTap` rider, so every tap for mana puts
+//     a depletion counter on the land (the engine adds it in both tap-for-mana
+//     paths, and reverses it if the land is untapped to refund unspent mana).
+//   * "This land doesn't untap during your untap step if it has a depletion
+//     counter on it." — the `does-not-untap-with-depletion-counter` static
+//     ability; the untap step skips the land while a depletion counter remains.
+//   * "At the beginning of your upkeep, remove a depletion counter from this
+//     land." — a `phaseTrigger` UPKEEP `your`-scoped trigger that removes one.
+// Net: the land taps for mana, sits tapped through the next untap step, and the
+// following upkeep clears the counter so it untaps every other turn. No new
+// GameState field — the `depletion` counter rides the existing per-instance
+// `counters` map (CR 122.1), which already persists across the DB round-trip.
+function depletionDual(args: {
+    id: string;
+    name: string;
+    c1: Exclude<Color, "C">;
+    c2: Exclude<Color, "C">;
+}): CardDefinition {
+    const oracleText = `This land doesn't untap during your untap step if it has a depletion counter on it.\nAt the beginning of your upkeep, remove a depletion counter from this land.\n{T}: Add {${args.c1}} or {${args.c2}}. Put a depletion counter on this land.`;
+    const slug = args.name.toLowerCase().replace(/[^a-z]+/g, "-");
+    return {
+        id: args.id,
+        name: args.name,
+        rarity: "rare",
+        oracleText,
+        types: ["Land"],
+        // CR 502.1 — conditional untap-skip keyed on the depletion counter.
+        staticAbilities: ["does-not-untap-with-depletion-counter"],
+        activatedAbilities: [
+            {
+                id: `${slug}-mana`,
+                oracleText: `{T}: Add {${args.c1}} or {${args.c2}}. Put a depletion counter on this land.`,
+                cost: { tap: true },
+                useStack: false,
+                manaChoices: [{ [args.c1]: 1 }, { [args.c2]: 1 }],
+                // CR 605.1a / 122.1 — every tap for mana puts a depletion
+                // counter on the source (both options are coloured).
+                putDepletionCounterOnTap: true,
+            },
+        ],
+        triggeredAbilities: [
+            // CR 603.6a / 122.1 — "At the beginning of your upkeep, remove a
+            // depletion counter from this land."
+            phaseTrigger({
+                id: `${slug}-upkeep-deplete`,
+                oracleText:
+                    "At the beginning of your upkeep, remove a depletion counter from this land.",
+                phase: "UPKEEP",
+                scope: "your",
+                resolve: (ctx) => {
+                    ctx.removeCounter(
+                        { type: "permanent", id: ctx.sourceInstanceId },
+                        "depletion",
+                        1
+                    );
+                },
+            }),
+        ],
+    };
+}
+export const landCap: CardDefinition = depletionDual({
+    id: "c4806c02-7a4d-42e3-affd-0338084bd3ab",
+    name: "Land Cap",
+    c1: "W",
+    c2: "U",
+});
+// Depletion-dual — see the `depletionDual` factory note above Land Cap.
+export const lavaTubes: CardDefinition = depletionDual({
+    id: "5e7c2cf6-f36f-451b-bba5-19a82c659c4c",
+    name: "Lava Tubes",
+    c1: "B",
+    c2: "R",
+});
+// Depletion-dual — see the `depletionDual` factory note above Land Cap.
+export const riverDelta: CardDefinition = depletionDual({
+    id: "ea335fc0-0591-4acd-9ae8-7858222770da",
+    name: "River Delta",
+    c1: "U",
+    c2: "B",
+});
 // Painland — see Adarkar Wastes note ({C} painless + coloured-tap self-damage).
 export const sulfurousSprings: CardDefinition = {
     id: "2fdeab50-b45f-412b-85a3-c6cf009ce567",
@@ -11334,19 +11379,13 @@ export const sulfurousSprings: CardDefinition = {
         },
     ],
 };
-// DEFERRED (depletion-dual cycle — capability cluster). Needs a
-// per-permanent depletion-counter mechanic: tapping for mana adds a counter,
-// the upkeep removes one, and the land skips its untap step while any counter
-// remains (CR 122 counters + a conditional untap-skip keyed on counter count).
-// No existing primitive expresses "don't untap while this has a depletion
-// counter" — owned by the depletion capability cluster.
-// export const timberlineRidge: CardDefinition = {
-//     id: "87cc2fc9-0a24-4ac1-afcc-9317b90c7178",
-//     name: "Timberline Ridge",
-//     rarity: "rare",
-//     oracleText: "This land doesn't untap during your untap step if it has a depletion counter on it.\nAt the beginning of your upkeep, remove a depletion counter from this land.\n{T}: Add {R} or {G}. Put a depletion counter on this land.",
-//     types: ["Land"],
-// };
+// Depletion-dual — see the `depletionDual` factory note above Land Cap.
+export const timberlineRidge: CardDefinition = depletionDual({
+    id: "87cc2fc9-0a24-4ac1-afcc-9317b90c7178",
+    name: "Timberline Ridge",
+    c1: "R",
+    c2: "G",
+});
 // Painland — see Adarkar Wastes note ({C} painless + coloured-tap self-damage).
 export const undergroundRiver: CardDefinition = {
     id: "92369d7e-5e5a-46f9-bb31-c57d62410283",
@@ -11367,19 +11406,13 @@ export const undergroundRiver: CardDefinition = {
         },
     ],
 };
-// DEFERRED (depletion-dual cycle — capability cluster). Needs a
-// per-permanent depletion-counter mechanic: tapping for mana adds a counter,
-// the upkeep removes one, and the land skips its untap step while any counter
-// remains (CR 122 counters + a conditional untap-skip keyed on counter count).
-// No existing primitive expresses "don't untap while this has a depletion
-// counter" — owned by the depletion capability cluster.
-// export const veldt: CardDefinition = {
-//     id: "987534fb-74a9-46a3-805f-fe2fe2df4a90",
-//     name: "Veldt",
-//     rarity: "rare",
-//     oracleText: "This land doesn't untap during your untap step if it has a depletion counter on it.\nAt the beginning of your upkeep, remove a depletion counter from this land.\n{T}: Add {G} or {W}. Put a depletion counter on this land.",
-//     types: ["Land"],
-// };
+// Depletion-dual — see the `depletionDual` factory note above Land Cap.
+export const veldt: CardDefinition = depletionDual({
+    id: "987534fb-74a9-46a3-805f-fe2fe2df4a90",
+    name: "Veldt",
+    c1: "G",
+    c2: "W",
+});
 // Plains — ICE reprint of the LEA basic land (CR 305.6 intrinsic mana ability).
 // CardPrint onto the LEA definition (ADR 0014); the stub id is the ICE print's
 // Scryfall id, used here as the printId.

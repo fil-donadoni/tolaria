@@ -336,6 +336,24 @@ export function untapStep(state: GameState): void {
                 card.chosenMana = undefined;
                 continue;
             }
+            // ICE depletion-dual cycle (Land Cap, Lava Tubes, River Delta,
+            // Timberline Ridge, Veldt — CR 502.1): "This land doesn't untap
+            // during your untap step if it has a depletion counter on it." A
+            // conditional, self-clearing untap restriction keyed on the
+            // `depletion` counter (CR 122.1): tapping for mana adds one, the
+            // upkeep removes one, so the land untaps every other turn. Per-turn
+            // commitment cleanup still runs (mirrors the branches above).
+            if (
+                card.staticAbilities.includes(
+                    "does-not-untap-with-depletion-counter"
+                ) &&
+                (card.counters?.["depletion"] ?? 0) > 0
+            ) {
+                card.manaCommitted = undefined;
+                card.isSummoningSick = undefined;
+                card.chosenMana = undefined;
+                continue;
+            }
             // ATQ cluster E (Ashnod's Battle Gear, Tawnos's Weaponry, Phyrexian
             // Gremlins, CR 502.1): "you may choose not to untap this" — defer
             // this permanent to the optional-untap pass after the data-driven

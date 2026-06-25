@@ -327,7 +327,14 @@ import {
     karplusanForest,
     sulfurousSprings,
     undergroundRiver,
+    // Depletion-dual cycle (#663)
+    landCap,
+    lavaTubes,
+    riverDelta,
+    timberlineRidge,
+    veldt,
 } from "../ice";
+import { untapStep } from "../../../gre/phases";
 import {
     getCardById,
     getCardByName,
@@ -10798,4 +10805,185 @@ describe("painland cycle (#662) — coloured-tap self-damage (CR 605.1a / 120)",
             });
         });
     }
+});
+
+// ---------------------------------------------------------------------------
+// Depletion-dual cycle (#663, CR 605.1a / 502.1 / 603.6a / 122.1)
+//
+// Land Cap (WU), Lava Tubes (BR), River Delta (UB), Timberline Ridge (RG),
+// Veldt (GW). Each: "{T}: Add <c1> or <c2>. Put a depletion counter on this
+// land." + "doesn't untap while it has a depletion counter" + "remove a
+// depletion counter at your upkeep". The depletion counter rides the existing
+// per-instance `counters` map — no new GameState field.
+// ---------------------------------------------------------------------------
+describe("ICE depletion-dual cycle (#663, CR 605.1a / 502.1 / 603.6a)", () => {
+    const depletionDuals = [
+        { def: landCap, colors: ["W", "U"] as const },
+        { def: lavaTubes, colors: ["B", "R"] as const },
+        { def: riverDelta, colors: ["U", "B"] as const },
+        { def: timberlineRidge, colors: ["R", "G"] as const },
+        { def: veldt, colors: ["G", "W"] as const },
+    ];
+
+    for (const { def, colors } of depletionDuals) {
+        describe(`${def.name}`, () => {
+            it("is a Land with the depletion-untap static and a {T} two-colour mana ability carrying the depletion rider", () => {
+                expect(def.types).toEqual(["Land"]);
+                expect(def.staticAbilities).toContain(
+                    "does-not-untap-with-depletion-counter"
+                );
+                const mana = def.activatedAbilities?.find(
+                    (a) => !a.useStack && a.manaChoices
+                );
+                expect(mana?.useStack).toBe(false);
+                expect(mana?.cost).toEqual({ tap: true });
+                // Both choices are coloured (no painless {C}).
+                expect(mana?.manaChoices).toEqual([
+                    { [colors[0]]: 1 },
+                    { [colors[1]]: 1 },
+                ]);
+                expect(mana?.putDepletionCounterOnTap).toBe(true);
+                expect(
+                    mana?.dealsDamageToControllerOnColoredTap
+                ).toBeUndefined();
+            });
+
+            it("declares an upkeep depletion-removal trigger", () => {
+                const slug = def.name.toLowerCase().replace(/[^a-z]+/g, "-");
+                const trig = def.triggeredAbilities?.find(
+                    (t) => t.id === `${slug}-upkeep-deplete`
+                );
+                expect(trig?.event).toBe("PHASE_BEGIN");
+            });
+
+            it(`tapping for ${colors[0]} adds {${colors[0]}} and one depletion counter, no life loss (CR 605.1a / 122.1)`, () => {
+                const land = makeInstance(def.id, {
+                    id: "land",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const player = makePlayer("p1", { battlefield: [land] });
+                const state = makeState({
+                    players: [player, makePlayer("p2")],
+                });
+                state.activePlayerId = "p1";
+                // Full-path through the payment tap (index 0 = first colour).
+                tapSourceIntoPayment(state, player, land, 0, []);
+                expect(player.manaPool[colors[0]]).toBe(1);
+                expect(player.life).toBe(20); // depletion ≠ pain
+                const live = player.battlefield.find((c) => c.id === "land")!;
+                expect(live.counters?.["depletion"]).toBe(1);
+            });
+
+            it(`tapping for ${colors[1]} also adds exactly one depletion counter`, () => {
+                const land = makeInstance(def.id, {
+                    id: "land",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const player = makePlayer("p1", { battlefield: [land] });
+                const state = makeState({
+                    players: [player, makePlayer("p2")],
+                });
+                state.activePlayerId = "p1";
+                tapSourceIntoPayment(state, player, land, 1, []);
+                expect(player.manaPool[colors[1]]).toBe(1);
+                const live = player.battlefield.find((c) => c.id === "land")!;
+                expect(live.counters?.["depletion"]).toBe(1);
+            });
+
+            it("upkeep trigger removes one depletion counter (CR 603.6a / 122.1)", () => {
+                const land = makeInstance(def.id, {
+                    id: "land",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    counters: { depletion: 1 },
+                });
+                const state = makeState({
+                    players: [
+                        makePlayer("p1", { battlefield: [land] }),
+                        makePlayer("p2"),
+                    ],
+                });
+                state.activePlayerId = "p1";
+                const slug = def.name.toLowerCase().replace(/[^a-z]+/g, "-");
+                resolveTrigger(state, land, `${slug}-upkeep-deplete`, {
+                    type: "PHASE_BEGIN",
+                    phase: "UPKEEP",
+                    activePlayerId: "p1",
+                } as StackItem["triggerEvent"]);
+                const live = state.players[0].battlefield.find(
+                    (c) => c.id === "land"
+                )!;
+                expect(live.counters?.["depletion"] ?? 0).toBe(0);
+            });
+        });
+    }
+
+    // The headline behaviour: walk TWO full turns and assert the land untaps
+    // every OTHER turn (CR 502.1). Uses Land Cap as the representative.
+    it("untaps every other turn: tap → skip untap (counter present) → upkeep clears → untap (two-turn cadence)", () => {
+        const slug = "land-cap";
+        const land = makeInstance(landCap.id, {
+            id: "land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [land] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        state.activePlayerId = "p1";
+
+        const live = () =>
+            state.players[0].battlefield.find((c) => c.id === "land")!;
+        const fireUpkeep = () =>
+            resolveTrigger(state, live(), `${slug}-upkeep-deplete`, {
+                type: "PHASE_BEGIN",
+                phase: "UPKEEP",
+                activePlayerId: "p1",
+            } as StackItem["triggerEvent"]);
+
+        // --- Turn 1: tap for mana → land tapped + depletion counter on it.
+        tapSourceIntoPayment(state, player, live(), 0, []);
+        expect(live().isTapped).toBe(true);
+        expect(live().counters?.["depletion"]).toBe(1);
+
+        // --- Turn 2 untap step: counter present → land STAYS tapped (CR 502.1).
+        untapStep(state);
+        expect(live().isTapped).toBe(true);
+        expect(live().counters?.["depletion"]).toBe(1);
+        // Turn 2 upkeep: remove a depletion counter → now zero.
+        fireUpkeep();
+        expect(live().counters?.["depletion"] ?? 0).toBe(0);
+        // (Land is still tapped this turn — it only untaps at the NEXT untap.)
+        expect(live().isTapped).toBe(true);
+
+        // --- Turn 3 untap step: no counter → land UNTAPS.
+        untapStep(state);
+        expect(live().isTapped).toBe(false);
+
+        // Tapping again restarts the cycle: counter back on, skips next untap.
+        tapSourceIntoPayment(state, player, live(), 1, []);
+        expect(live().counters?.["depletion"]).toBe(1);
+        untapStep(state);
+        expect(live().isTapped).toBe(true); // skipped again
+    });
+
+    it("wire format: the depletion counter and tapped state survive projectPublicState (CR 122.1, PublicGameState)", () => {
+        const land = makeInstance(landCap.id, {
+            id: "land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const player = makePlayer("p1", { battlefield: [land] });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        state.activePlayerId = "p1";
+        tapSourceIntoPayment(state, player, land, 0, []);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "land"
+        )!;
+        expect(slim.isTapped).toBe(true);
+        expect(slim.counters?.["depletion"]).toBe(1);
+    });
 });
