@@ -5409,27 +5409,110 @@ export const yavimayaGnats: CardDefinition = {
 //     power: 0,
 //     toughness: 1,
 // };
-// TODO(#628): implement.
-// export const altarOfBone: CardDefinition = {
-//     id: "75d5b014-8675-4d91-a539-ac5c31d44b35",
-//     name: "Altar of Bone",
-//     rarity: "rare",
-//     oracleText: "As an additional cost to cast this spell, sacrifice a creature.\nSearch your library for a creature card, reveal it, put it into your hand, then shuffle.",
-//     manaCost: { W: 1, G: 1 },
-//     types: ["Sorcery"],
-// };
-// TODO(#628): implement.
-// export const centaurArcher: CardDefinition = {
-//     id: "e275c295-72da-4a86-82c6-cfd75b38b19c",
-//     name: "Centaur Archer",
-//     rarity: "uncommon",
-//     oracleText: "{T}: This creature deals 1 damage to target creature with flying.",
-//     manaCost: { X: 1, R: 1, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Centaur", "Archer"],
-//     power: 3,
-//     toughness: 2,
-// };
+// ─────────────────────────────────────────────────────────────────────────────
+// MULTICOLOUR free tranche (#635) — the gold ICE cards expressible with
+// already-shipped primitives are active CardDefinitions below (Altar of Bone,
+// Centaur Archer, Essence Vortex, Giant Trap Door Spider; plus the gold cards
+// already activated by their colour batches: Diabolic Vision, Elemental Augury,
+// Glaciers, Skeleton Ship, Spectral Shield, Storm Spirit, Stormbind, Wings of
+// Aesthir).
+//
+// DEFERRED (remain commented stubs, owned by a later capability cluster):
+//   • Divided-as-you-choose damage — Fiery Justice, Fire Covenant (only the
+//     even-split `dealDividedDamage` exists; the player-chosen division
+//     primitive is unbuilt). Fire Covenant ALSO needs a pay-X-life additional
+//     cost.
+//   • Pay-life additional cost — Fumarole ("pay 3 life" as an additional cast
+//     cost; `additionalCosts` only models sacrifice/exile today).
+//   • Colour-creature attack tax — Flooded Woodlands / Reclamation ("X creatures
+//     can't attack unless their controller sacrifices a land per attacker"); a
+//     declare-attackers per-attacker sacrifice restriction is unbuilt.
+//   • Cross-graveyard reanimation under YOUR control — Hymn of Rebirth
+//     (`returnToBattlefield` returns the card under its OWNER's control; putting
+//     an opponent's graveyard creature under the caster's control needs a
+//     source-owner / controller split).
+//   • End-of-combat destroy of blocking-or-blocked-by — Kjeldoran Frostbeast
+//     (same delayed end-of-combat combat-relationship trigger flagged for
+//     Venomous Breath).
+//   • Choose-colour-on-ETB + dynamic protection swap — Chromatic Armor.
+//   • Specialized statics / triggers — Earthlink (dies → sac a land), Ghostly
+//     Flame (colourless-damage-source static), Monsoon (per-player end-step
+//     Island tap + damage), Mountain Titan (cast-trigger counter grant),
+//     Merieke Ri Berit (gain control + destroy-on-leave/untap). Each needs a
+//     primitive not yet built; flagged for its capability cluster.
+// ─────────────────────────────────────────────────────────────────────────────
+// Altar of Bone — {G}{W} Sorcery. "As an additional cost to cast this spell,
+// sacrifice a creature. Search your library for a creature card, reveal it, put
+// it into your hand, then shuffle." (CR 117.9 / 601.2f sacrifice additional cost
+// via `additionalCosts.sacrificeFilter`; CR 701.19 library search for a creature
+// card → hand; CR 701.20 shuffle.) The reveal is implicit — the searched card
+// moves to the caster's hand and the library is shuffled.
+export const altarOfBone: CardDefinition = {
+    id: "75d5b014-8675-4d91-a539-ac5c31d44b35",
+    name: "Altar of Bone",
+    rarity: "rare",
+    oracleText:
+        "As an additional cost to cast this spell, sacrifice a creature.\nSearch your library for a creature card, reveal it, put it into your hand, then shuffle.",
+    manaCost: { W: 1, G: 1 },
+    types: ["Sorcery"],
+    additionalCosts: {
+        sacrificeFilter: { types: "Creature", controllerRelation: "you" },
+    },
+    resolve: (ctx: SpellContext) => {
+        const creatures = ctx
+            .getLibraryCards(ctx.controller)
+            .filter((c) => c.types.includes("Creature"));
+        const found = ctx.requestChoice({
+            playerId: ctx.controller,
+            choiceId: "altar-of-bone-search",
+            kind: "search-library",
+            zone: "library",
+            candidateIds: creatures.map((c) => c.id),
+            count: { min: 0, max: 1 },
+            prompt: "Search your library for a creature card.",
+        });
+        if (found === undefined) return; // suspended for the search
+        const foundId = found[0];
+        if (foundId) {
+            ctx.moveCardById(ctx.controller, foundId, "library", "hand");
+        }
+        ctx.shuffleLibrary(ctx.controller);
+    },
+};
+// Centaur Archer — {1}{R}{G} 3/2. "{T}: This creature deals 1 damage to target
+// creature with flying." (CR 605 activated ability; CR 120.1 damage; the "with
+// flying" filter narrows legal targets via `requireAbility`. Modern Scryfall
+// Oracle text — ADR 0004.)
+export const centaurArcher: CardDefinition = {
+    id: "e275c295-72da-4a86-82c6-cfd75b38b19c",
+    name: "Centaur Archer",
+    rarity: "uncommon",
+    oracleText:
+        "{T}: This creature deals 1 damage to target creature with flying.",
+    manaCost: { X: 1, R: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Centaur", "Archer"],
+    power: 3,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "centaur-archer-ping",
+            oracleText:
+                "{T}: This creature deals 1 damage to target creature with flying.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                requireAbility: "flying",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") ctx.dealDamage(target, 1);
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const chromaticArmor: CardDefinition = {
 //     id: "2657e85b-8f77-41fa-9df2-233443efef43",
@@ -5538,15 +5621,43 @@ export const elementalAugury: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const essenceVortex: CardDefinition = {
-//     id: "fe07e496-5070-4116-a91a-a3bbe19c12af",
-//     name: "Essence Vortex",
-//     rarity: "uncommon",
-//     oracleText: "Destroy target creature unless its controller pays life equal to its toughness. A creature destroyed this way can't be regenerated.",
-//     manaCost: { X: 1, U: 1, B: 1 },
-//     types: ["Instant"],
-// };
+// Essence Vortex — {1}{U}{B} Instant. "Destroy target creature unless its
+// controller pays life equal to its toughness. A creature destroyed this way
+// can't be regenerated." (CR 117.3a / 118.4 — a "pay life unless" offer to the
+// target's controller via `requestMayPay` (no mana cost = a yes/no life gate);
+// pay `getToughness` life to keep it, else destroy with the no-regen rider
+// CR 701.15a.) The toughness is snapshotted at resolution (CR 608.2g).
+export const essenceVortex: CardDefinition = {
+    id: "fe07e496-5070-4116-a91a-a3bbe19c12af",
+    name: "Essence Vortex",
+    rarity: "uncommon",
+    oracleText:
+        "Destroy target creature unless its controller pays life equal to its toughness. A creature destroyed this way can't be regenerated.",
+    manaCost: { X: 1, U: 1, B: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "permanent") return;
+        const toughness = ctx.getToughness(target);
+        const controller = ctx.getController(target);
+        // CR 118.4 — only offer the life payment when the controller can
+        // afford it; otherwise the creature is destroyed outright.
+        if (toughness > 0 && ctx.getLife(controller) >= toughness) {
+            const pay = ctx.requestMayPay({
+                playerId: controller,
+                choiceId: `essence-vortex-${target.id}`,
+                prompt: `Pay ${toughness} life to keep this creature?`,
+            });
+            if (pay === undefined) return; // suspended for the choice
+            if (pay) {
+                ctx.loseLife(controller, toughness);
+                return;
+            }
+        }
+        ctx.destroy(target, { cantBeRegenerated: true });
+    },
+};
 // TODO(#628): implement.
 // export const fieryJustice: CardDefinition = {
 //     id: "8965ce61-0522-4f77-a82d-89441d1ba867",
@@ -5592,18 +5703,46 @@ export const elementalAugury: CardDefinition = {
 //     manaCost: { B: 1, R: 1 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const giantTrapDoorSpider: CardDefinition = {
-//     id: "8965dfa8-dc90-4cf2-a93b-72bf88b58936",
-//     name: "Giant Trap Door Spider",
-//     rarity: "uncommon",
-//     oracleText: "{1}{R}{G}, {T}: Exile this creature and target creature without flying that's attacking you.",
-//     manaCost: { X: 1, R: 1, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Spider"],
-//     power: 2,
-//     toughness: 3,
-// };
+// Giant Trap Door Spider — {1}{R}{G} 2/3. "{1}{R}{G}, {T}: Exile this creature
+// and target creature without flying that's attacking you." (CR 605 activated
+// ability; CR 118.5 / 406 exile. "Without flying" filters legal targets via
+// `excludeAbility`; "attacking you" is `combatRoleFilter: "attacking"` — in a
+// 2-player game every attacking creature is attacking the lone defender. The
+// ability exiles both its source and the chosen attacker.)
+export const giantTrapDoorSpider: CardDefinition = {
+    id: "8965dfa8-dc90-4cf2-a93b-72bf88b58936",
+    name: "Giant Trap Door Spider",
+    rarity: "uncommon",
+    oracleText:
+        "{1}{R}{G}, {T}: Exile this creature and target creature without flying that's attacking you.",
+    manaCost: { X: 1, R: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Spider"],
+    power: 2,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "giant-trap-door-spider-exile",
+            oracleText:
+                "{1}{R}{G}, {T}: Exile this creature and target creature without flying that's attacking you.",
+            cost: { mana: { X: 1, R: 1, G: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                combatRoleFilter: "attacking",
+                excludeAbility: "flying",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") ctx.exile(target);
+                // Exile the spider itself (CR 118.5) — its own ability paid the
+                // tap cost, so it is on the battlefield at resolution.
+                ctx.exile({ type: "permanent", id: ctx.sourceInstanceId });
+            },
+        },
+    ],
+};
 // Glaciers — upkeep pay-{W}{U}-or-sacrifice (CR 603.6a / 117.3a) plus the
 // Conversion-style global subtype replacement "All Mountains are Plains"
 // (CR 305.7, layer 4 subtype-set).

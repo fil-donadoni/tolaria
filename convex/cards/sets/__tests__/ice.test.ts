@@ -58,6 +58,11 @@ import {
     sibilantSpirit,
     silverErne,
     skeletonShip,
+    // Multicolour free tranche (#635)
+    altarOfBone,
+    centaurArcher,
+    essenceVortex,
+    giantTrapDoorSpider,
     sleightOfMindIce,
     snowDevil,
     soulBarrier,
@@ -158,7 +163,11 @@ import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import { projectPublicState } from "../../../gameProjections";
 import { emitBlockersConfirmedEvents } from "../../../gre/phases";
 import { recordBlockedAttackers } from "../../../gre/banding";
-import { applyPendingChoiceSubmit } from "../../../gre/pendingChoiceSubmit";
+import {
+    applyPendingChoiceSubmit,
+    applyMayPaySubmit,
+} from "../../../gre/pendingChoiceSubmit";
+import { getLegalTargets } from "../../../gre/rules";
 import {
     makeInstance,
     makePlayer,
@@ -1262,6 +1271,255 @@ describe("Spectral Shield (Aura +0/+2 + can't be targeted by spells, CR 113.3)",
             cantBeTargeted: true,
             targetSourceMustBeSpell: true,
         });
+    });
+});
+
+// --- Multicolour free tranche (#635) ---------------------------------------
+
+describe("Altar of Bone (sac-creature additional cost + tutor to hand, CR 117.9 / 701.19)", () => {
+    it("declares the sacrifice additional cost and a resolve body", () => {
+        expect(altarOfBone.types).toEqual(["Sorcery"]);
+        expect(altarOfBone.additionalCosts).toMatchObject({
+            sacrificeFilter: { types: "Creature", controllerRelation: "you" },
+        });
+        expect(typeof altarOfBone.resolve).toBe("function");
+    });
+    it("searches a creature card into hand and shuffles the library", () => {
+        const creature = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "tutored",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const noncreature = makeInstance(getCardByName("Brainstorm").id, {
+            id: "noncreature",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: [creature, noncreature] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, altarOfBone.id, "p1", []);
+        resolveTopOfStack(state);
+        // The search suspends; only the creature is a legal candidate.
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toEqual(["tutored"]);
+        submitChoice(state, ["tutored"]);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("tutored");
+        expect(state.players[0].library.some((c) => c.id === "tutored")).toBe(
+            false
+        );
+    });
+});
+
+describe("Centaur Archer ({T}: 1 damage to a flyer, CR 605 / 120.1)", () => {
+    it("only flyers are legal targets (requireAbility)", () => {
+        const flyer = makeInstance(getCardByName("Serra Angel").id, {
+            id: "flyer",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const ground = vanilla("ground", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [flyer, ground] }),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            centaurArcher.activatedAbilities![0].targetRequirement!,
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(legal).toContain("flyer");
+        expect(legal).not.toContain("ground");
+    });
+    it("deals 1 damage to the targeted flyer", () => {
+        const archer = makeInstance(centaurArcher.id, {
+            id: "archer",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const flyer = vanilla("flyer", 3, 3, {
+            controllerId: "p2",
+            ownerId: "p2",
+            staticAbilities: ["flying"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [archer] }),
+                makePlayer("p2", { battlefield: [flyer] }),
+            ],
+        });
+        resolveActivated(state, archer, "centaur-archer-ping", [
+            { type: "permanent", id: "flyer" },
+        ]);
+        const live = state.players[1].battlefield.find(
+            (c) => c.id === "flyer"
+        )!;
+        expect(live.damageMarked ?? 0).toBe(1);
+    });
+    it("wire format: the damage survives projectPublicState", () => {
+        const archer = makeInstance(centaurArcher.id, {
+            id: "archer",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const flyer = vanilla("flyer", 3, 3, {
+            controllerId: "p2",
+            ownerId: "p2",
+            staticAbilities: ["flying"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [archer] }),
+                makePlayer("p2", { battlefield: [flyer] }),
+            ],
+        });
+        resolveActivated(state, archer, "centaur-archer-ping", [
+            { type: "permanent", id: "flyer" },
+        ]);
+        const projected = projectPublicState(state, 2, "p2");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "flyer"
+        )!;
+        expect(slim.damageMarked ?? 0).toBe(1);
+    });
+});
+
+describe("Essence Vortex (destroy unless pay life = toughness, CR 118.4 / 701.15a)", () => {
+    function answerMayPay(state: GameState, accept: boolean): void {
+        // applyMayPaySubmit commits the answer and re-resumes the suspended
+        // resolution itself when the choice queue empties — no extra resolve.
+        const head = state.pendingChoices![0];
+        applyMayPaySubmit(state, { playerId: head.playerId, accept });
+    }
+    function setup(toughness: number, life = 20) {
+        const victim = vanilla("v", 2, toughness, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [victim], life }),
+            ],
+        });
+        return state;
+    }
+    it("paying life equal to toughness keeps the creature", () => {
+        const state = setup(3);
+        pushSpell(state, essenceVortex.id, "p1", [
+            { type: "permanent", id: "v" },
+        ]);
+        resolveTopOfStack(state); // suspends at the controller's may-pay
+        answerMayPay(state, true);
+        expect(state.players[1].battlefield.some((c) => c.id === "v")).toBe(
+            true
+        );
+        expect(state.players[1].life).toBe(17);
+    });
+    it("declining destroys the creature (can't be regenerated)", () => {
+        const state = setup(3);
+        pushSpell(state, essenceVortex.id, "p1", [
+            { type: "permanent", id: "v" },
+        ]);
+        resolveTopOfStack(state);
+        answerMayPay(state, false);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "v")
+        ).toBeUndefined();
+        expect(state.players[1].graveyard.some((c) => c.id === "v")).toBe(true);
+        expect(state.players[1].life).toBe(20);
+    });
+    it("destroys outright when the controller cannot afford the life (CR 118.4)", () => {
+        const state = setup(5, 3);
+        pushSpell(state, essenceVortex.id, "p1", [
+            { type: "permanent", id: "v" },
+        ]);
+        resolveTopOfStack(state);
+        // No may-pay was offered — the creature is already gone.
+        expect(state.pendingChoices ?? []).toEqual([]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "v")
+        ).toBeUndefined();
+        expect(state.players[1].life).toBe(3);
+    });
+});
+
+describe("Giant Trap Door Spider ({1}{R}{G},{T}: exile self + attacker, CR 605 / 118.5)", () => {
+    it("only non-flying attackers are legal targets", () => {
+        const groundAttacker = vanilla("ground", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const flyingAttacker = vanilla("flyer", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+            staticAbilities: ["flying"],
+        });
+        const idleGround = vanilla("idle", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [groundAttacker, flyingAttacker, idleGround],
+                }),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            giantTrapDoorSpider.activatedAbilities![0].targetRequirement!,
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(legal).toContain("ground");
+        expect(legal).not.toContain("flyer"); // flying excluded
+        expect(legal).not.toContain("idle"); // not attacking
+    });
+    it("exiles both the spider and the targeted attacker", () => {
+        const spider = makeInstance(giantTrapDoorSpider.id, {
+            id: "spider",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const attacker = vanilla("atk", 3, 3, {
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [spider] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+        });
+        resolveActivated(state, spider, "giant-trap-door-spider-exile", [
+            { type: "permanent", id: "atk" },
+        ]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "spider")
+        ).toBeUndefined();
+        expect(state.players[0].exile.some((c) => c.id === "spider")).toBe(
+            true
+        );
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "atk")
+        ).toBeUndefined();
+        expect(state.players[1].exile.some((c) => c.id === "atk")).toBe(true);
     });
 });
 

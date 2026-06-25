@@ -385,6 +385,66 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 6,
     },
     {
+        // ICE Multicolour free tranche (#635, PRD #628). Exercises the gold ICE
+        // cards expressible with shipped primitives end to end:
+        //   - Centaur Archer ({T}: 1 damage to a flyer) on the battlefield;
+        //     the opponent's Sibilant Spirit (flying) is its only legal target.
+        //   - Giant Trap Door Spider ({1}{R}{G},{T}: exile self + a non-flying
+        //     attacker) on the battlefield; declare the opponent's Balduvian
+        //     Bears as an attacker to feed it.
+        //   - Essence Vortex ({1}{U}{B}: destroy unless controller pays life =
+        //     toughness) in hand — aim at the opponent's Bears.
+        //   - Altar of Bone ({G}{W}: sac a creature, tutor a creature to hand)
+        //     in hand — sacrifice the spare Balduvian Bears, search the library.
+        // Five basics (W/U/B/R/G) cover every multi-pip gold cost.
+        label: "ICE: Multicolour free tranche — Centaur Archer / Giant Trap Door Spider / Essence Vortex / Altar of Bone (#635)",
+        cards: [
+            {
+                name: "Essence Vortex",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Altar of Bone",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Centaur Archer",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Giant Trap Door Spider",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            { name: "Plains", owner: "me" as const, count: 2 },
+            { name: "Island", owner: "me" as const, count: 2 },
+            { name: "Swamp", owner: "me" as const, count: 2 },
+            { name: "Mountain", owner: "me" as const, count: 2 },
+            { name: "Forest", owner: "me" as const, count: 2 },
+            {
+                name: "Sibilant Spirit",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Word of Command — controlled cast, TARGETED spell branch (#578, PRD
         // #575, ADR 0037, CR 601.2c). The classic line: choose the opponent's
         // Lightning Bolt and aim it back at them.
