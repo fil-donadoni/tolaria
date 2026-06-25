@@ -295,6 +295,32 @@ import {
     foxfire,
     pyknite,
     barbedSextant,
+    snowCoveredPlains,
+    snowCoveredIsland,
+    snowCoveredSwamp,
+    snowCoveredMountain,
+    snowCoveredForest,
+    arcticFoxes,
+    coldSnap,
+    balduvianConjurer,
+    driftOfTheDead,
+    gangrenousZombies,
+    icequake,
+    legionsOfLimDL,
+    witheringWisps,
+    avalanche,
+    barbarianGuides,
+    glacialCrevasses,
+    goblinSkiPatrol,
+    karplusanGiant,
+    melting,
+    rimeDryad,
+    snowblind,
+    whiteout,
+    woollyMammoths,
+    arcumsSleigh,
+    arcumsWeathervane,
+    sunstone,
 } from "../ice";
 import {
     getCardById,
@@ -314,6 +340,12 @@ import {
     removePermanentTo,
 } from "../../../gre/state";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
+import {
+    countSnowLands,
+    controlsSnowSubtype,
+    hasSnowSupertype,
+    hasSupertypeLive,
+} from "../../snowReads";
 import { effectiveTriggeredAbilities } from "../../../gre/copy";
 import { collectTriggers } from "../../../gre/triggers";
 import { projectPublicState } from "../../../gameProjections";
@@ -9782,5 +9814,863 @@ describe("Barbed Sextant (sac for any mana + next-upkeep cantrip, ADR 0040)", ()
         expect(ability?.useStack).toBe(false);
         expect(ability?.armsDelayedTriggerOnTap?.timing).toBe("next-upkeep");
         expect(barbedSextant.delayedTriggers?.[0]?.timing).toBe("next-upkeep");
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Snow supertype + snow-matters cluster (#661). Engine: the Snow supertype on
+// the five snow-covered basics, snow-land read helpers (CR 205.4a), and
+// supertype-mutation statics (Melting / Arcum's Weathervane). Cards: every
+// snow-matters card listed in #661.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A land instance for a given snow-covered basic, controlled by `controllerId`. */
+function snowLand(
+    cardId: string,
+    id: string,
+    controllerId = "p1"
+): CardInstanceState {
+    return makeInstance(cardId, { id, controllerId, ownerId: controllerId });
+}
+
+describe("Snow-Covered basics (CR 205.4a Snow supertype)", () => {
+    const basics = [
+        { def: snowCoveredPlains, sub: "Plains" },
+        { def: snowCoveredIsland, sub: "Island" },
+        { def: snowCoveredSwamp, sub: "Swamp" },
+        { def: snowCoveredMountain, sub: "Mountain" },
+        { def: snowCoveredForest, sub: "Forest" },
+    ];
+
+    for (const { def, sub } of basics) {
+        it(`${def.name} is a registered Basic Snow Land with the ${sub} subtype`, () => {
+            expect(getCardById(def.id)).toBe(def);
+            expect(getCardByName(def.name)).toBe(def);
+            expect(getAllCards()).toContain(def);
+            expect(def.types).toEqual(["Land"]);
+            expect(def.supertypes).toContain("Basic");
+            expect(def.supertypes).toContain("Snow");
+            expect(def.subtypes).toEqual([sub]);
+        });
+    }
+
+    it("reads as a snow land live (printed Snow supertype) and survives the wire", () => {
+        const land = snowLand(snowCoveredForest.id, "snow-forest", "p1");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(hasSnowSupertype(land)).toBe(true);
+        expect(countSnowLands(state.players[0].battlefield)).toBe(1);
+        // Wire format: snow status survives projectPublicState (card.card → {id}).
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "snow-forest"
+        )!;
+        expect(hasSnowSupertype(slim)).toBe(true);
+        expect(countSnowLands(projected.players[0].battlefield)).toBe(1);
+    });
+
+    it("a normal (non-snow) Plains is not a snow land", () => {
+        const plains = makeInstance("b1623d57-4729-4796-b3f7-f1837a05c6ed", {
+            id: "plain",
+        });
+        expect(hasSnowSupertype(plains)).toBe(false);
+        expect(countSnowLands([plains])).toBe(0);
+    });
+});
+
+describe("Snow read helpers (CR 205.4a)", () => {
+    it("countSnowLands counts only snow lands a player controls", () => {
+        const snowF = snowLand(snowCoveredForest.id, "sf", "p1");
+        const snowM = snowLand(snowCoveredMountain.id, "sm", "p1");
+        const plain = makeInstance("6f1c8cb0-38eb-408b-94e8-16db83999b3b", {
+            id: "pf", // normal Forest
+        });
+        expect(countSnowLands([snowF, snowM, plain])).toBe(2);
+    });
+
+    it("controlsSnowSubtype matches snow lands of a basic subtype only", () => {
+        const snowSwamp = snowLand(snowCoveredSwamp.id, "ss", "p1");
+        const snowMtn = snowLand(snowCoveredMountain.id, "sm", "p1");
+        expect(controlsSnowSubtype([snowSwamp, snowMtn], "Swamp")).toBe(true);
+        expect(controlsSnowSubtype([snowMtn], "Swamp")).toBe(false);
+        expect(controlsSnowSubtype([snowMtn], "Mountain")).toBe(true);
+    });
+});
+
+describe("Melting (CR 205.4a supertype-set static — remove Snow)", () => {
+    it("removes Snow from all lands while in play; restores on leave", () => {
+        const snowF = snowLand(snowCoveredForest.id, "sf", "p1");
+        const meltInst = makeInstance(melting.id, {
+            id: "melt",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [snowF, meltInst] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(hasSnowSupertype(snowF)).toBe(true);
+        applySourceStaticEffects(state, meltInst);
+        expect(hasSnowSupertype(snowF)).toBe(false);
+        expect(countSnowLands(state.players[0].battlefield)).toBe(0);
+        unapplySourceStaticEffects(state, meltInst);
+        expect(hasSnowSupertype(snowF)).toBe(true);
+    });
+
+    it("wire format: the un-snow status survives projectPublicState", () => {
+        const snowF = snowLand(snowCoveredForest.id, "sf", "p1");
+        const meltInst = makeInstance(melting.id, {
+            id: "melt",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [snowF, meltInst] }),
+                makePlayer("p2"),
+            ],
+        });
+        applySourceStaticEffects(state, meltInst);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "sf"
+        )!;
+        expect(hasSnowSupertype(slim)).toBe(false);
+    });
+
+    it("a snow land entering under Melting immediately loses Snow", () => {
+        const meltInst = makeInstance(melting.id, {
+            id: "melt",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [meltInst] }),
+                makePlayer("p2"),
+            ],
+        });
+        applySourceStaticEffects(state, meltInst);
+        const newSnow = snowLand(snowCoveredForest.id, "new-sf", "p1");
+        state.players[0].battlefield.push(newSnow);
+        applyExistingGrantsTo(state, newSnow);
+        expect(hasSnowSupertype(newSnow)).toBe(false);
+    });
+});
+
+describe("Arcum's Weathervane (CR 205.4a indefinite supertype mutation)", () => {
+    it("removes Snow from a target snow land indefinitely", () => {
+        const snowF = snowLand(snowCoveredForest.id, "sf", "p1");
+        const wv = makeInstance(arcumsWeathervane.id, {
+            id: "wv",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [snowF, wv] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, wv, "arcums-weathervane-unsnow", [
+            { type: "permanent", id: "sf" },
+        ]);
+        expect(hasSnowSupertype(state.players[0].battlefield[0])).toBe(false);
+    });
+
+    it("adds Snow to a nonsnow basic land indefinitely (survives the wire)", () => {
+        const plainForest = makeInstance(
+            "6f1c8cb0-38eb-408b-94e8-16db83999b3b",
+            { id: "pf", controllerId: "p1", ownerId: "p1" }
+        );
+        const wv = makeInstance(arcumsWeathervane.id, {
+            id: "wv",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [plainForest, wv] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, wv, "arcums-weathervane-snow", [
+            { type: "permanent", id: "pf" },
+        ]);
+        const land = state.players[0].battlefield.find((c) => c.id === "pf")!;
+        expect(hasSnowSupertype(land)).toBe(true);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "pf"
+        )!;
+        expect(hasSnowSupertype(slim)).toBe(true);
+    });
+
+    it("only snow lands are legal targets for the un-snow ability", () => {
+        const snowF = snowLand(snowCoveredForest.id, "sf", "p1");
+        const plainForest = makeInstance(
+            "6f1c8cb0-38eb-408b-94e8-16db83999b3b",
+            { id: "pf", controllerId: "p1", ownerId: "p1" }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [snowF, plainForest] }),
+                makePlayer("p2"),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            arcumsWeathervane.activatedAbilities![0].targetRequirement!,
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(legal).toContain("sf");
+        expect(legal).not.toContain("pf");
+    });
+});
+
+describe("Drift of the Dead (CR 604.3 snow-count CDA)", () => {
+    it("P/T equals the number of snow lands its controller controls", () => {
+        const drift = makeInstance(driftOfTheDead.id, {
+            id: "drift",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        drift,
+                        snowLand(snowCoveredForest.id, "s1", "p1"),
+                        snowLand(snowCoveredMountain.id, "s2", "p1"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, drift)).toBe(2);
+        expect(getEffectiveToughness(state, drift)).toBe(2);
+    });
+
+    it("wire format: snow-count P/T survives projectPublicState", () => {
+        const drift = makeInstance(driftOfTheDead.id, {
+            id: "drift",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        drift,
+                        snowLand(snowCoveredForest.id, "s1", "p1"),
+                        snowLand(snowCoveredMountain.id, "s2", "p1"),
+                        snowLand(snowCoveredSwamp.id, "s3", "p1"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectiveToughness(state, drift)).toBe(3);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "drift"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+
+    it("has defender", () => {
+        expect(driftOfTheDead.staticAbilities).toContain("defender");
+    });
+});
+
+describe("Cold Snap (CR 205.4a snow-count upkeep damage)", () => {
+    it("deals damage equal to the active player's snow lands at their upkeep", () => {
+        const cs = makeInstance(coldSnap.id, { id: "cs", controllerId: "p1" });
+        const state = makeState({
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        cs,
+                        snowLand(snowCoveredForest.id, "s1", "p1"),
+                        snowLand(snowCoveredMountain.id, "s2", "p1"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, cs, "cold-snap-upkeep-damage", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+        });
+        expect(state.players[0].life).toBe(18); // 20 − 2 snow lands
+    });
+});
+
+describe("Gangrenous Zombies (CR 205.4a conditional damage)", () => {
+    it("deals 1 to each creature and player without a snow Swamp", () => {
+        const gz = makeInstance(gangrenousZombies.id, {
+            id: "gz",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gz] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, gz, "gangrenous-zombies-blast");
+        expect(state.players[0].life).toBe(19);
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("deals 2 instead when the controller has a snow Swamp", () => {
+        const gz = makeInstance(gangrenousZombies.id, {
+            id: "gz",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        gz,
+                        snowLand(snowCoveredSwamp.id, "ss", "p1"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, gz, "gangrenous-zombies-blast");
+        expect(state.players[0].life).toBe(18);
+        expect(state.players[1].life).toBe(18);
+    });
+});
+
+describe("Icequake (CR 205.4a snow-land destroy rider)", () => {
+    it("destroys the land and deals 1 to its controller when it was snow", () => {
+        const snowF = snowLand(snowCoveredForest.id, "sf", "p2");
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [snowF] }),
+            ],
+        });
+        pushSpell(state, icequake.id, "p1", [{ type: "permanent", id: "sf" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "sf")
+        ).toBeUndefined();
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("destroys a non-snow land with no damage", () => {
+        const plain = makeInstance("6f1c8cb0-38eb-408b-94e8-16db83999b3b", {
+            id: "pf",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [plain] }),
+            ],
+        });
+        pushSpell(state, icequake.id, "p1", [{ type: "permanent", id: "pf" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "pf")
+        ).toBeUndefined();
+        expect(state.players[1].life).toBe(20);
+    });
+});
+
+describe("Avalanche (CR 205.4a snow-land targets)", () => {
+    it("only snow lands are legal targets", () => {
+        const snowF = snowLand(snowCoveredForest.id, "sf", "p2");
+        const plain = makeInstance("6f1c8cb0-38eb-408b-94e8-16db83999b3b", {
+            id: "pf",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [snowF, plain] }),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            { ...avalanche.targetRequirement!, count: 1 },
+            [],
+            "p1",
+            1
+        ).map((t) => t.id);
+        expect(legal).toContain("sf");
+        expect(legal).not.toContain("pf");
+    });
+});
+
+describe("snow landwalk (CR 702.13 / 205.4a)", () => {
+    it("Legions of Lim-Dûl has snow swampwalk and is unblockable vs a snow Swamp", () => {
+        expect(legionsOfLimDL.staticAbilities).toContain("snow swampwalk");
+        const attacker = makeInstance(legionsOfLimDL.id, {
+            id: "atk",
+            controllerId: "p1",
+        });
+        const blocker = vanilla("blk", 2, 2);
+        blocker.controllerId = "p2";
+        const snowSwamp = snowLand(snowCoveredSwamp.id, "ss", "p2");
+        const res = validateBlockerEligibility(attacker, blocker, [
+            snowSwamp,
+            blocker,
+        ]);
+        expect(res.eligible).toBe(false);
+    });
+
+    it("snow swampwalk does NOT evade when the defender's Swamp is non-snow", () => {
+        const attacker = makeInstance(legionsOfLimDL.id, {
+            id: "atk",
+            controllerId: "p1",
+        });
+        const blocker = vanilla("blk", 2, 2);
+        blocker.controllerId = "p2";
+        const plainSwamp = makeInstance(
+            "6176936d-72e2-4205-8871-4c5a4f1cb2d8",
+            { id: "ps", controllerId: "p2", ownerId: "p2" }
+        );
+        const res = validateBlockerEligibility(attacker, blocker, [
+            plainSwamp,
+            blocker,
+        ]);
+        expect(res.eligible).toBe(true);
+    });
+
+    it("Rime Dryad has snow forestwalk", () => {
+        expect(rimeDryad.staticAbilities).toContain("snow forestwalk");
+    });
+});
+
+describe("Arctic Foxes (CR 509.1b snow-gated block restriction)", () => {
+    it("a power-2 blocker can't block while the defender controls a snow land", () => {
+        const foxes = makeInstance(arcticFoxes.id, {
+            id: "fox",
+            controllerId: "p1",
+        });
+        const bigBlocker = vanilla("big", 2, 2);
+        bigBlocker.controllerId = "p2";
+        const snowF = snowLand(snowCoveredForest.id, "sf", "p2");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [foxes] }),
+                makePlayer("p2", { battlefield: [bigBlocker, snowF] }),
+            ],
+        });
+        const res = validateBlockerEligibility(
+            foxes,
+            bigBlocker,
+            state.players[1].battlefield,
+            state
+        );
+        expect(res.eligible).toBe(false);
+    });
+
+    it("a power-1 blocker can block regardless", () => {
+        const foxes = makeInstance(arcticFoxes.id, {
+            id: "fox",
+            controllerId: "p1",
+        });
+        const smallBlocker = vanilla("small", 1, 1);
+        smallBlocker.controllerId = "p2";
+        const snowF = snowLand(snowCoveredForest.id, "sf", "p2");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [foxes] }),
+                makePlayer("p2", { battlefield: [smallBlocker, snowF] }),
+            ],
+        });
+        const res = validateBlockerEligibility(
+            foxes,
+            smallBlocker,
+            state.players[1].battlefield,
+            state
+        );
+        expect(res.eligible).toBe(true);
+    });
+
+    it("a power-2 blocker CAN block when the defender has no snow land", () => {
+        const foxes = makeInstance(arcticFoxes.id, {
+            id: "fox",
+            controllerId: "p1",
+        });
+        const bigBlocker = vanilla("big", 2, 2);
+        bigBlocker.controllerId = "p2";
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [foxes] }),
+                makePlayer("p2", { battlefield: [bigBlocker] }),
+            ],
+        });
+        const res = validateBlockerEligibility(
+            foxes,
+            bigBlocker,
+            state.players[1].battlefield,
+            state
+        );
+        expect(res.eligible).toBe(true);
+    });
+});
+
+describe("Balduvian Conjurer (CR 208.2 animate snow land)", () => {
+    it("animates a target snow land into a 2/2 that stays a land", () => {
+        const conj = makeInstance(balduvianConjurer.id, {
+            id: "conj",
+            controllerId: "p1",
+        });
+        const snowF = snowLand(snowCoveredForest.id, "sf", "p1");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [conj, snowF] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, conj, "balduvian-conjurer-animate", [
+            { type: "permanent", id: "sf" },
+        ]);
+        const land = state.players[0].battlefield.find((c) => c.id === "sf")!;
+        expect(land.types).toContain("Creature");
+        expect(land.types).toContain("Land");
+        expect(getEffectivePower(state, land)).toBe(2);
+        expect(getEffectiveToughness(state, land)).toBe(2);
+    });
+
+    it("only snow lands are legal targets", () => {
+        const snowF = snowLand(snowCoveredForest.id, "sf", "p1");
+        const plain = makeInstance("6f1c8cb0-38eb-408b-94e8-16db83999b3b", {
+            id: "pf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [snowF, plain] }),
+                makePlayer("p2"),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            balduvianConjurer.activatedAbilities![0].targetRequirement!,
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(legal).toContain("sf");
+        expect(legal).not.toContain("pf");
+    });
+});
+
+describe("Karplusan Giant (CR 118.8 snow-land tap cost)", () => {
+    it("pumps +1/+1 when a snow land is tapped for the cost", () => {
+        const giant = makeInstance(karplusanGiant.id, {
+            id: "giant",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        giant,
+                        snowLand(snowCoveredMountain.id, "sm", "p1"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, giant, "karplusan-giant-pump");
+        expect(getEffectivePower(state, giant)).toBe(4);
+        expect(getEffectiveToughness(state, giant)).toBe(4);
+    });
+});
+
+describe("Glacial Crevasses / Sunstone (CR 118.5 snow-Mountain / snow-land sacrifice)", () => {
+    it("Glacial Crevasses requires a snow Mountain to pay its sacrifice cost", () => {
+        const ability = glacialCrevasses.activatedAbilities![0];
+        expect(ability.cost.sacrificeFilter?.subtypes).toBe("Mountain");
+        expect(ability.cost.sacrificeFilter?.supertypes).toEqual(["Snow"]);
+    });
+
+    it("Glacial Crevasses prevents all combat damage on resolution", () => {
+        const gc = makeInstance(glacialCrevasses.id, {
+            id: "gc",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        gc,
+                        snowLand(snowCoveredMountain.id, "sm", "p1"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, gc, "glacial-crevasses-fog");
+        expect(state.preventAllCombatDamageThisTurn).toBe(true);
+    });
+
+    it("Sunstone's sacrifice cost is a snow land", () => {
+        const ability = sunstone.activatedAbilities![0];
+        expect(ability.cost.sacrificeFilter?.types).toBe("Land");
+        expect(ability.cost.sacrificeFilter?.supertypes).toEqual(["Snow"]);
+    });
+});
+
+describe("Woolly Mammoths / Whiteout (snow-flavored green)", () => {
+    it("Woolly Mammoths has trample (unconditional, flagged)", () => {
+        expect(woollyMammoths.staticAbilities).toContain("trample");
+    });
+
+    it("Whiteout removes flying from all creatures until end of turn", () => {
+        const wo = makeInstance(whiteout.id, { id: "wo", controllerId: "p1" });
+        const flyer = vanilla("flyer", 2, 2);
+        flyer.controllerId = "p2";
+        flyer.staticAbilities = ["flying"];
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [flyer] }),
+            ],
+        });
+        pushSpell(state, whiteout.id, "p1");
+        void wo;
+        resolveTopOfStack(state);
+        const after = state.players[1].battlefield.find(
+            (c) => c.id === "flyer"
+        )!;
+        expect(after.staticAbilities).not.toContain("flying");
+    });
+});
+
+describe("Withering Wisps (CR 602.5f snow-Swamp activation cap)", () => {
+    it("can activate up to the number of snow Swamps controlled", () => {
+        const ww = makeInstance(witheringWisps.id, {
+            id: "ww",
+            controllerId: "p1",
+            activationsThisTurn: { "withering-wisps-blast": 1 },
+        });
+        const stateOneSwamp = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        ww,
+                        snowLand(snowCoveredSwamp.id, "ss", "p1"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const ability = witheringWisps.activatedAbilities![0];
+        // 1 snow Swamp, 1 use already → at cap (cannot activate again).
+        expect(
+            ability.canActivate!(
+                stateOneSwamp.players[0].battlefield[0],
+                stateOneSwamp
+            )
+        ).toBe(false);
+        // Two snow Swamps, 1 use → still under cap.
+        const stateTwoSwamps = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        ww,
+                        snowLand(snowCoveredSwamp.id, "ss", "p1"),
+                        snowLand(snowCoveredSwamp.id, "ss2", "p1"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(
+            ability.canActivate!(
+                stateTwoSwamps.players[0].battlefield[0],
+                stateTwoSwamps
+            )
+        ).toBe(true);
+    });
+});
+
+describe("Snowblind (CR 604.3 snow-count -X/-Y aura)", () => {
+    it("reduces P/T by the controller's snow-land count (toughness capped)", () => {
+        const creature = vanilla("c", 4, 4);
+        creature.controllerId = "p1";
+        const aura = makeInstance(snowblind.id, {
+            id: "aura",
+            controllerId: "p1",
+            attachedTo: "c",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        creature,
+                        aura,
+                        snowLand(snowCoveredForest.id, "s1", "p1"),
+                        snowLand(snowCoveredMountain.id, "s2", "p1"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        applySourceStaticEffects(state, aura);
+        // X = 2 snow lands → -2/-2 (toughness 4 → cap min(2, 3) = 2).
+        expect(getEffectivePower(state, creature)).toBe(2);
+        expect(getEffectiveToughness(state, creature)).toBe(2);
+    });
+});
+
+describe("Goblin Ski Patrol (CR 205.4a snow-Mountain activation gate)", () => {
+    it("can only activate while controlling a snow Mountain", () => {
+        const gsp = makeInstance(goblinSkiPatrol.id, {
+            id: "gsp",
+            controllerId: "p1",
+        });
+        const ability = goblinSkiPatrol.activatedAbilities![0];
+        const without = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gsp] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(
+            ability.canActivate!(without.players[0].battlefield[0], without)
+        ).toBe(false);
+        const withSnow = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        gsp,
+                        snowLand(snowCoveredMountain.id, "sm", "p1"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(
+            ability.canActivate!(withSnow.players[0].battlefield[0], withSnow)
+        ).toBe(true);
+    });
+});
+
+describe("Arcum's Sleigh (CR 205.4a defending-player snow gate)", () => {
+    it("can only activate while the defending (non-active) player has a snow land", () => {
+        const sleigh = makeInstance(arcumsSleigh.id, {
+            id: "sleigh",
+            controllerId: "p1",
+        });
+        const ability = arcumsSleigh.activatedAbilities![0];
+        // p1 is active; defender p2 has no snow land → cannot activate.
+        const without = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [sleigh] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(
+            ability.canActivate!(without.players[0].battlefield[0], without)
+        ).toBe(false);
+        // Defender p2 controls a snow land → can activate.
+        const withSnow = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [sleigh] }),
+                makePlayer("p2", {
+                    battlefield: [snowLand(snowCoveredForest.id, "sf", "p2")],
+                }),
+            ],
+        });
+        expect(
+            ability.canActivate!(withSnow.players[0].battlefield[0], withSnow)
+        ).toBe(true);
+    });
+
+    it("grants vigilance until end of turn on resolution", () => {
+        const sleigh = makeInstance(arcumsSleigh.id, {
+            id: "sleigh",
+            controllerId: "p1",
+        });
+        const creature = vanilla("c", 2, 2);
+        creature.controllerId = "p1";
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sleigh, creature] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, sleigh, "arcums-sleigh-vigilance", [
+            { type: "permanent", id: "c" },
+        ]);
+        const after = state.players[0].battlefield.find((c) => c.id === "c")!;
+        expect(after.staticAbilities).toContain("vigilance");
+    });
+});
+
+describe("Barbarian Guides (CR 702.13 chosen-type snow landwalk grant)", () => {
+    it("grants snow forestwalk and schedules a next-end-step bounce", () => {
+        const guides = makeInstance(barbarianGuides.id, {
+            id: "guides",
+            controllerId: "p1",
+        });
+        const target = vanilla("t", 2, 2);
+        target.controllerId = "p1";
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [guides, target] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Resolve the ability; auto-answers the land-type choice via the pending
+        // choice flow.
+        state.stack.push({
+            ...guides,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "barbarian-guides-snow-landwalk",
+            targets: [{ type: "permanent", id: "t" }],
+        });
+        resolveTopOfStack(state);
+        // The land-type choice suspends resolution; answer "Forest".
+        if (state.pendingChoices && state.pendingChoices.length > 0) {
+            submitChoice(state, ["Forest"]);
+        }
+        const after = state.players[0].battlefield.find((c) => c.id === "t")!;
+        expect(after.staticAbilities).toContain("snow forestwalk");
+        expect(
+            (state.delayedTriggers ?? []).some(
+                (d) => d.triggerId === "barbarian-guides-bounce"
+            )
+        ).toBe(true);
+    });
+});
+
+describe("supertype filter wire-format round-trip (CR 205.4a)", () => {
+    it("hasSupertypeLive reads an indefinite add/remove after projection", () => {
+        const land = snowLand(snowCoveredForest.id, "sf", "p1");
+        land.removedSupertypes = [
+            { supertype: "Snow", sourceId: "indefinite" },
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(hasSupertypeLive(land, "Snow")).toBe(false);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "sf"
+        )!;
+        expect(hasSupertypeLive(slim, "Snow")).toBe(false);
     });
 });

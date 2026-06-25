@@ -142,6 +142,12 @@ export interface TargetRequirement {
      *  or Stone Rain ("target land" with no extra subtype constraint — that
      *  case omits this field). Ignored for player / spell / graveyard targets. */
     subtypeFilter?: string | string[];
+    /** Restricts legal permanent targets to those that have ALL of these
+     *  supertypes (CR 205.4a). Read against the LIVE supertype status so
+     *  Melting / Arcum's Weathervane mutations are honored. Used by Avalanche
+     *  ("X target snow lands"). Single string is shorthand for one supertype.
+     *  Ignored for player / spell / graveyard targets. */
+    supertypeFilter?: CardSupertype | CardSupertype[];
     /** Restricts legal permanent targets by tap state (CR 701.20). Used by
      *  "target tapped creature" (Royal Assassin) and "target untapped
      *  creature" style filters. Ignored for player / spell targets. */
@@ -917,6 +923,18 @@ export interface SpellContext {
     /** Replaces a target permanent's subtypes (CR 305.7). One-shot mutation,
      *  not a continuous effect — used by Cyclopean Tomb's LTB trigger. */
     setSubtypes: (target: TargetSelection, subtypes: string[]) => void;
+    /** Adds or removes a supertype on a target permanent indefinitely
+     *  (CR 205.4a). `present: false` removes the supertype, `present: true`
+     *  adds it. Not tied to a source staying in play — the mutation lasts
+     *  until another effect changes it (Arcum's Weathervane: "Target snow land
+     *  is no longer snow." / "Target nonsnow basic land becomes snow.").
+     *  Writes the same instance markers as the `supertype-set` static effect,
+     *  source-keyed `"indefinite"`. No-op for non-permanent targets. */
+    setSupertype: (
+        target: TargetSelection,
+        supertype: CardSupertype,
+        present: boolean
+    ) => void;
     /** Returns a target permanent to its owner's hand (CR 701.10). The card
      *  becomes a new object on the zone change (CR 400.7) — battlefield-only
      *  transient state (tapped, marked damage, regen shields, summoning
@@ -2346,6 +2364,16 @@ export interface PermanentView {
      *  static-effect and trigger predicates can read the chosen mode (Jihad's
      *  chosen colour). Mirrors the `CardInstanceState` field. */
     chosenModeId?: string;
+    /** Supertypes added to this permanent by a continuous `supertype-set`
+     *  static effect or an indefinite `setSupertype` mutation (CR 205.4a).
+     *  Each entry is source-keyed (`"indefinite"` for non-source-bound
+     *  mutations) so unapply restores the printed supertypes. Read by
+     *  `hasSupertype` so the live (mutated) snow status is observed. */
+    grantedSupertypes?: ReadonlyArray<{ supertype: string; sourceId: string }>;
+    /** Supertypes removed from this permanent by a continuous `supertype-set`
+     *  static effect or an indefinite `setSupertype` mutation (Melting /
+     *  Arcum's Weathervane — CR 205.4a). Source-keyed like `grantedSupertypes`. */
+    removedSupertypes?: ReadonlyArray<{ supertype: string; sourceId: string }>;
     /** Raw card definition reference — predicates read manaCost for color, etc. */
     card: Record<string, unknown>;
 }
@@ -2851,6 +2879,32 @@ export interface StaticSubtypeSet {
     subtypes: string[];
 }
 
+/** Continuous supertype-mutation static effect (CR 205.4a, 611 — a layer-4-
+ *  adjacent supertype-setting effect). Adds and/or removes supertypes on every
+ *  permanent for which `applies` returns true while the source stays in play.
+ *  Tracked per-source on the affected permanent's `grantedSupertypes` /
+ *  `removedSupertypes` so `hasSupertype` reads the live (mutated) status and
+ *  unapply restores the printed supertypes when the source leaves.
+ *
+ *  Used by Melting ("All lands are no longer snow." — a board-wide
+ *  `remove: ["Snow"]` whose `applies` matches every Land). Per-target,
+ *  indefinite mutations that are NOT tied to a source staying in play
+ *  (Arcum's Weathervane) use the imperative `SpellContext.setSupertype`
+ *  primitive instead, which writes the same instance markers with an
+ *  `"indefinite"` sentinel source. */
+export interface StaticSupertypeSet {
+    kind: "supertype-set";
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** Supertypes added to the target (CR 205.4a). */
+    add?: CardSupertype[];
+    /** Supertypes removed from the target (CR 205.4a). */
+    remove?: CardSupertype[];
+}
+
 /** Layer 5 color grant (CR 305.7 — "is a black creature"). Adds colors to
  *  the target without affecting its mana cost. Tracked via `grantedColors`
  *  on CardInstanceState so unapply can restore the original color identity. */
@@ -3052,6 +3106,7 @@ export type StaticEffect =
     | StaticTriggeredGrant
     | StaticTypeAdd
     | StaticSubtypeSet
+    | StaticSupertypeSet
     | StaticColorGrant
     | StaticUntapRestriction
     | StaticBlockRestriction

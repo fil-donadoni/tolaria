@@ -82,6 +82,73 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ICE snow supertype + snow-matters cluster (#661, PRD #628). Exercises
+        // the Snow supertype on the five snow-covered basics and the
+        // snow-matters reads end to end:
+        //   - Snow-Covered Forest / Mountain / Swamp on your battlefield are
+        //     snow lands (CR 205.4a).
+        //   - Drift of the Dead (battlefield): its P/T equals the number of snow
+        //     lands you control — watch it grow/shrink as snow lands enter/leave.
+        //   - Cast Melting (hand) → "All lands are no longer snow": Drift drops to
+        //     0/0 (dies), snow landwalk stops evading, snow gates turn off.
+        //   - Activate Arcum's Weathervane (battlefield): un-snow a snow land or
+        //     make a basic land snow — Drift's P/T tracks the change.
+        //   - Cast Avalanche (hand) targeting your snow lands (only snow lands
+        //     are legal targets).
+        //   - Gangrenous Zombies (battlefield): {T}, Sacrifice → 1 damage to all
+        //     (2 if you control a snow Swamp).
+        //   - Legions of Lim-Dûl (battlefield): snow swampwalk — unblockable while
+        //     the opponent controls a snow Swamp.
+        label: "ICE: Snow supertype + snow-matters — Drift / Melting / Weathervane / Avalanche / Gangrenous (#661)",
+        cards: [
+            {
+                name: "Snow-Covered Forest",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Snow-Covered Mountain",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Snow-Covered Swamp",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Drift of the Dead",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Gangrenous Zombies",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Legions of Lim-Dûl",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Arcum's Weathervane",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            { name: "Melting", owner: "me" as const, zone: "hand" as const },
+            { name: "Avalanche", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Snow-Covered Swamp",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+        turn: 2,
+    },
+    {
         // ICE next-upkeep delayed-trigger cantrips (#660, PRD #628). Exercises
         // the "draw a card at the beginning of the next turn's upkeep" rider on
         // the new `next-upkeep` delayed-trigger timing:

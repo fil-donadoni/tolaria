@@ -373,6 +373,13 @@ describe("game_state serialize round-trip", () => {
         // CR 613.1f — "loses all abilities" suppression source list
         // (Titania's Song, #288).
         lion.abilitiesSuppressedBy = ["song-1", "song-2"];
+        // CR 205.4a — supertype mutation markers (Melting / Arcum's
+        // Weathervane, #661): source-keyed adds/removes must round-trip so the
+        // live snow status survives a mid-game save/load.
+        lion.grantedSupertypes = [
+            { supertype: "Snow", sourceId: "indefinite" },
+        ];
+        lion.removedSupertypes = [{ supertype: "Snow", sourceId: "melt-1" }];
 
         const expanded = expandState(compactState(state));
         const got = expanded.players[1].battlefield[0];
@@ -454,6 +461,12 @@ describe("game_state serialize round-trip", () => {
         expect(got.chosenPlayerId).toBe("p2");
         expect(got.copiedFrom).toBe("printed-clone-id");
         expect(got.abilitiesSuppressedBy).toEqual(["song-1", "song-2"]);
+        expect(got.grantedSupertypes).toEqual([
+            { supertype: "Snow", sourceId: "indefinite" },
+        ]);
+        expect(got.removedSupertypes).toEqual([
+            { supertype: "Snow", sourceId: "melt-1" },
+        ]);
     });
 
     it("preserves phasedOut bundles across the round trip (CR 702.26)", () => {
