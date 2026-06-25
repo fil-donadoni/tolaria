@@ -304,6 +304,94 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 5,
     },
     {
+        // ICE Artifacts completion (#658, PRD #628). Exercises the buildable-now
+        // Artifact cards the free tranche deferred:
+        //   - Talisman cycle (e.g. Hematite Talisman) — cast a matching-colour
+        //     spell, optionally pay {3} to untap target permanent.
+        //   - Crown of the Ages ({4},{T}: move an Aura) — a creature you control
+        //     wears an Aura; another creature is on the board to receive it.
+        //   - Pentagram of the Ages ({4},{T}: prevent next damage from a source).
+        //   - Time Bomb / Infinite Hourglass — time-counter accrual; the seeded
+        //     counters let you detonate / read the anthem immediately.
+        //   - Vexing Arcanix ({3},{T}: name + reveal) and Goblin Lyre (sac +
+        //     coin flip damage) round out the value engines.
+        //   - Walking Wall (Defender + {3} mobilize) and Runed Arch
+        //     ({X},{T},Sac: X unblockable) exercise combat overrides.
+        //   - Soldevi Golem (does-not-untap + upkeep untap) and Jester's Mask
+        //     ({1},{T},Sac: hand shuffle) complete the set.
+        label: "ICE: Artifacts completion — Talismans / Crown / Pentagram / Time Bomb / Vexing Arcanix (#658)",
+        cards: [
+            {
+                name: "Hematite Talisman",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Crown of the Ages",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Pentagram of the Ages",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Time Bomb",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                counters: { time: 3 },
+            },
+            {
+                name: "Infinite Hourglass",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                counters: { time: 2 },
+            },
+            {
+                name: "Vexing Arcanix",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Goblin Lyre",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Walking Wall",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Soldevi Golem",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                tapped: true,
+            },
+            {
+                name: "Holy Strength",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+                tapped: true,
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
+    {
         // ICE Lands free tranche (#637, PRD #628). Exercises the activated land
         // staples end to end:
         //   - Ice Floe ({T}: tap-lock a non-flying attacker) — an opponent's

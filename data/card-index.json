@@ -456,6 +456,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Baton of Morale",
+        "scryfallId": "8bc29872-b1a2-4851-9eca-f3e67ae6e14c",
+        "oracleId": "879011c6-550e-4e33-a664-fffb655321d9",
+        "firstSet": "ice"
+    },
+    {
         "name": "Battering Ram",
         "scryfallId": "f7a69e35-d209-41c0-aa3c-c78414617075",
         "oracleId": "e7b91fba-8d96-4040-95e8-f0023b65c497",
@@ -1084,6 +1090,12 @@
         "scryfallId": "7af6b119-7db4-49dd-aaa4-044b8c133f13",
         "oracleId": "61023b48-0433-4993-9534-308c08cef07e",
         "firstSet": "leg"
+    },
+    {
+        "name": "Crown of the Ages",
+        "scryfallId": "fce2991f-48e1-4cfe-af0a-18b6d9400493",
+        "oracleId": "0b772ef2-b760-400b-8e5b-f4b98e6c935d",
+        "firstSet": "ice"
     },
     {
         "name": "Crumble",
@@ -2262,6 +2274,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Goblin Lyre",
+        "scryfallId": "951114fb-5ae5-4eb0-8e03-6e39b0b634b5",
+        "oracleId": "0709e9c8-dbe7-4806-ae75-d2e2d745d6a4",
+        "firstSet": "ice"
+    },
+    {
         "name": "Goblin Mutant",
         "scryfallId": "6db54f95-6652-45a3-b960-c2fc118beca1",
         "oracleId": "540e1371-baa9-412f-a17a-22ea833ea3e8",
@@ -2500,6 +2518,12 @@
         "scryfallId": "3792c6ef-c4e6-4923-9a51-7d28fbc5c393",
         "oracleId": "948e3bb7-8265-4e95-acd1-a0c4f22441df",
         "firstSet": "lea"
+    },
+    {
+        "name": "Hematite Talisman",
+        "scryfallId": "83585337-56a9-44d2-9ed1-8a959bcfb010",
+        "oracleId": "586601dd-ac73-4451-848d-f21e64feb6a9",
+        "firstSet": "ice"
     },
     {
         "name": "Heroism",
@@ -2850,6 +2874,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Infinite Hourglass",
+        "scryfallId": "f9a42152-32c0-47ff-aaac-8deaf01873ca",
+        "oracleId": "7c59ad65-ad1f-4dc4-bcf2-ea6b2b48fad8",
+        "firstSet": "ice"
+    },
+    {
         "name": "Initiates of the Ebon Hand",
         "scryfallId": "5be87527-3b8f-4529-afdb-a61ad4e787e1",
         "oracleId": "0bf359ef-669f-41dc-8ab5-ba8e58b2f398",
@@ -2997,6 +3027,12 @@
         "name": "Jester's Cap",
         "scryfallId": "47ac44d0-8090-4e7b-ac47-c567294f185e",
         "oracleId": "8783a94a-d0b2-4291-a550-dbcf8e16bf4b",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Jester's Mask",
+        "scryfallId": "daa1ba0c-cb89-4bb2-8a35-6a4a4eecccf7",
+        "oracleId": "bcc797b9-d2e5-4fde-8d80-c890c871f344",
         "firstSet": "ice"
     },
     {
@@ -3252,6 +3288,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Lapis Lazuli Talisman",
+        "scryfallId": "ce00bb19-983e-427d-be54-ae6daf0ccdde",
+        "oracleId": "83447e57-06f7-4e7b-91d4-7b8f71ea0676",
+        "firstSet": "ice"
+    },
+    {
         "name": "Lava Burst",
         "scryfallId": "79dc0e20-5790-4927-8432-cf0e9b7381d4",
         "oracleId": "f7be3da5-55b2-46f2-a5aa-277dee242b94",
@@ -3436,6 +3478,12 @@
         "scryfallId": "36204ddd-ddf7-4b44-ae3c-b4a5a41ac9cb",
         "oracleId": "c39ea5f9-6ec0-4697-897b-779e326754a7",
         "firstSet": "lea"
+    },
+    {
+        "name": "Malachite Talisman",
+        "scryfallId": "63fb8a24-ce53-4a69-be2a-55c6dbba5ee7",
+        "oracleId": "0be4877d-72ff-4951-aa52-f4f816abc844",
+        "firstSet": "ice"
     },
     {
         "name": "Mana Clash",
@@ -3792,6 +3840,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Nacre Talisman",
+        "scryfallId": "06912236-8225-4eb0-8086-c6a163c69892",
+        "oracleId": "f87aaed9-7f78-4f8b-8af5-44d4be1d6f30",
+        "firstSet": "ice"
+    },
+    {
         "name": "Nafs Asp",
         "scryfallId": "965f722c-2b18-4c22-8c30-12552def5940",
         "oracleId": "da7bc9d6-a0cc-407a-bed9-d677c2dd74f2",
@@ -3916,6 +3970,12 @@
         "scryfallId": "d77fe8e2-8438-473e-ace5-01baddd2c4ed",
         "oracleId": "598f948b-bdd3-490f-b3e9-f0f9dc470522",
         "firstSet": "atq"
+    },
+    {
+        "name": "Onyx Talisman",
+        "scryfallId": "a89b2368-1180-4821-bcb8-8161c18e5538",
+        "oracleId": "d19a19ed-33f9-400d-9669-c393d7127652",
+        "firstSet": "ice"
     },
     {
         "name": "Orc General",
@@ -4072,6 +4132,12 @@
         "scryfallId": "79427109-c1f3-476d-a029-0049217237b5",
         "oracleId": "f70e72e1-9abe-485b-9fea-e8b35352f5b3",
         "firstSet": "leg"
+    },
+    {
+        "name": "Pentagram of the Ages",
+        "scryfallId": "b8d889a5-f6c7-410d-97f9-acf08b9091c8",
+        "oracleId": "265204a9-0ce2-4a0a-a9ea-8537cd94b079",
+        "firstSet": "ice"
     },
     {
         "name": "People of the Woods",
@@ -4578,6 +4644,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Runed Arch",
+        "scryfallId": "ca02861b-9639-480d-8e54-e024f0c70158",
+        "oracleId": "32717625-46c6-45c5-ad0a-fb6a91f9878c",
+        "firstSet": "ice"
+    },
+    {
         "name": "Sabretooth Tiger",
         "scryfallId": "6914c5a8-2114-41c5-a471-ca97524d622f",
         "oracleId": "8ea35158-1c1a-46da-b466-0eafb376e464",
@@ -4966,6 +5038,12 @@
         "scryfallId": "7a20dcb0-5350-40e0-82d3-c8d0186fc9d2",
         "oracleId": "b8aac8e8-4588-4cb9-8b95-5c4abab1c48b",
         "firstSet": "leg"
+    },
+    {
+        "name": "Soldevi Golem",
+        "scryfallId": "64d35e88-81d3-4a54-aa79-190615abc616",
+        "oracleId": "cd444267-712c-450f-a349-e27faf4f4c7c",
+        "firstSet": "ice"
     },
     {
         "name": "Soldevi Simulacrum",
@@ -5490,6 +5568,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Time Bomb",
+        "scryfallId": "092ec691-4729-46d3-a4e2-0cfc5df42a31",
+        "oracleId": "29062094-594d-4557-9496-11a15d7e3bb0",
+        "firstSet": "ice"
+    },
+    {
         "name": "Time Vault",
         "scryfallId": "902441dc-c976-4c92-b897-6376eaa0fe38",
         "oracleId": "99d4d99d-cf56-45aa-aa39-a250695612f2",
@@ -5802,6 +5886,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Vexing Arcanix",
+        "scryfallId": "0c9ea118-6a19-4e1b-aa5a-9b2729efc096",
+        "oracleId": "2fd5b7e5-496c-4f6d-85e0-256afb7544d1",
+        "firstSet": "ice"
+    },
+    {
         "name": "Vibrating Sphere",
         "scryfallId": "48f93ded-ecf6-4a70-8ca3-a9c0c3201c21",
         "oracleId": "8a8fe94f-81aa-4725-ace6-ed56a1e1ed91",
@@ -5854,6 +5944,12 @@
         "scryfallId": "d7533a72-77d1-40cd-b3a1-7597d566c428",
         "oracleId": "5791456c-7b3c-4e93-a6d1-94ab01858816",
         "firstSet": "leg"
+    },
+    {
+        "name": "Walking Wall",
+        "scryfallId": "cba1238c-1969-452d-8112-124cbbd49417",
+        "oracleId": "909201e5-5599-442a-9e4f-ff61f187e957",
+        "firstSet": "ice"
     },
     {
         "name": "Wall of Air",
