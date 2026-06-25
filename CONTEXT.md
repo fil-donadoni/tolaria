@@ -99,6 +99,10 @@ A card type that produces **Mana**. Played (not cast) — does not use the **Sta
 **Token**:
 A **Permanent** not represented by a physical card. Created by effects. Ceases to exist when it leaves the **Battlefield**.
 
+**Snow**:
+A supertype (CR 205.4a) marking a **Permanent** as snow. In the Ice Age block snow is referenced only _by type_ ("a snow-covered land", "sacrifice a snow Mountain"); the `{S}` snow-mana symbol is a later (Coldsnap) addition and is **not** used by these sets, so snow needs no mana-system support here — only the supertype on the five snow-covered basics and the few cards that filter on it.
+_Avoid_: Snow-covered (the printed basic-land name, not the supertype)
+
 **Face-Down Permanent**:
 A **Permanent** on the **Battlefield** whose identity is hidden from players other than its **Controller** (CR 708). Presented to everyone as a 2/2 colorless nameless **Creature** with no abilities; the real card underneath is known only to the **Controller** until it is **Turned Face Up**. The one exception to the otherwise-public **Battlefield** (Illusionary Mask).
 _Avoid_: Morph, hidden card, masked creature
@@ -127,6 +131,14 @@ _Avoid_: Tap for mana
 
 **Keyword**:
 A shorthand for a defined ability (flying, haste, first strike, etc.). Stored as `staticAbilities[]` on a **Card Instance**.
+
+**Cumulative Upkeep**:
+A **Keyword** ability (CR 702.24) on a **Permanent**: at the beginning of its **Controller**'s upkeep an **Age Counter** is put on it, then the controller _may_ pay the cumulative upkeep cost once for each age counter on it; declining — or being unable to pay — sacrifices it. The cost therefore grows by one increment each turn the **Permanent** survives. In the Ice Age era the cost is mana, life, or a sacrifice.
+_Avoid_: Maintenance cost (the obsolete pre-keyword wording)
+
+**Age Counter**:
+The counter **Cumulative Upkeep** accrues on a **Permanent** — one added each upkeep — whose running total is the multiplier on that turn's cumulative upkeep cost. A plain named counter, not a player resource like a **Poison Counter**.
+_Avoid_: Upkeep counter, age token
 
 **Text Change**:
 A continuous effect that rewrites a word in a card's text — a basic land type (Magical Hack) or a color word (Sleight of Mind) — lasting indefinitely until the object changes **Zone** (CR 612). Because the engine has no runtime text, a text change is modelled as a **Word Substitution** applied to structured data, not to prose.
