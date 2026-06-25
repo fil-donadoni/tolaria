@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { isManaCostCovered } from "~/lib/card-utils";
+import { mayPayCanAfford, mayPaySacrificeCount } from "~/lib/card-utils";
 import { isZonePickConfirmEnabled } from "~/lib/pending-choice-confirm";
 import { useGameContext } from "./useGameContext";
 import { usePendingChoiceBuffer } from "./usePendingChoiceBuffer";
@@ -53,13 +53,19 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
 
     let canConfirm: boolean;
     if (choice.kind === "may-pay") {
-        // CR 117.6 — Pay/Yes is legal only once the pool covers the cost.
+        // CR 117.6 / 702.24 — Pay/Yes is legal only once every leg of the cost
+        // union (mana / life / sacrifice) can be paid.
         const chooser = allPlayers.find((p) => p.id === choice.playerId);
         canConfirm =
             !isBusy &&
             (!choice.cost ||
                 (chooser
-                    ? isManaCostCovered(chooser.manaPool, choice.cost)
+                    ? mayPayCanAfford(
+                          choice.cost,
+                          chooser.manaPool,
+                          chooser.life,
+                          mayPaySacrificeCount(choice.cost, chooser.battlefield)
+                      )
                     : false));
     } else {
         // Zone picks (incl. Sylvan Library's 0–N topdeck range): Done enables

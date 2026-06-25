@@ -129,6 +129,53 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 5,
     },
     {
+        // ICE Cumulative upkeep cluster (#638, ADR 0042, CR 702.24). Exercises
+        // the headline keyword end to end across all four cost types:
+        //   - Illusionary Forces (CU {U}) and Polar Kraken (CU—Sacrifice a land)
+        //     are pre-seeded with two age counters, so the NEXT upkeep prompts a
+        //     ×3 cost (CU {U} → {U}{U}{U}; sacrifice → three lands). Pay or watch
+        //     them get sacrificed.
+        //   - Illusions of Grandeur shows the ETB +20 life swing and its CU {2}.
+        //   - Fyndhorn Pollen's "all creatures get -1/-0" anthem shrinks the
+        //     opponent's Bears while it racks up age counters.
+        // Pass priority into the next upkeep to watch the age counters accrue
+        // and the scaling may-pay (decline to see the sacrifice).
+        label: "ICE: Cumulative upkeep — age counters / scaling pay-or-sacrifice (#638)",
+        cards: [
+            {
+                name: "Illusionary Forces",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                counters: { age: 2 },
+            },
+            {
+                name: "Polar Kraken",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                tapped: true,
+                counters: { age: 2 },
+            },
+            {
+                name: "Illusions of Grandeur",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Fyndhorn Pollen",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
+    {
         // ICE Artifacts free tranche (#636, PRD #628). Exercises the colourless
         // artifact staples end to end:
         //   - Icy Manipulator ({1},{T}: tap an artifact/creature/land) taps the

@@ -18,6 +18,7 @@ import {
     getPendingChoiceMax,
     normalizeManaCost,
     isManaCostCovered,
+    normalizeMayPayCost,
 } from "@convex/gre";
 import { cardValueById } from "@convex/gre";
 import { manaValue } from "@convex/gre/constants";
@@ -210,7 +211,24 @@ function mayPayIsAffordable(
     if (!head.cost) return true;
     const bot = state.players.find((p) => p.id === botId);
     if (!bot) return false;
-    return isManaCostCovered(bot.manaPool, normalizeManaCost(head.cost));
+    // CR 702.24 — normalize the cost union (mana / life / sacrifice) and gate
+    // every present leg. A bare `ManaCost` widens to `{ mana }` (ADR 0042), so
+    // the historical mana-only path is unchanged.
+    const norm = normalizeMayPayCost(head.cost);
+    if (
+        norm.mana &&
+        !isManaCostCovered(bot.manaPool, normalizeManaCost(norm.mana))
+    ) {
+        return false;
+    }
+    if (norm.life !== undefined && bot.life < norm.life) return false;
+    if (norm.sacrifice) {
+        const have = bot.battlefield.filter((c) =>
+            matchesPermanentFilter(c, norm.sacrifice!.filter)
+        ).length;
+        if (have < norm.sacrifice.count) return false;
+    }
+    return true;
 }
 
 /** Project the active bot-owed `PendingChoice` into the {@link OwedChoice} the

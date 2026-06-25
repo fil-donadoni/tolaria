@@ -7,7 +7,7 @@ import { useGameContext } from "~/hooks/useGameContext";
 import { useDraggable } from "~/hooks/useDraggable";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { usePendingChoicePrimaryAction } from "~/hooks/usePendingChoicePrimaryAction";
-import { manaCostToString } from "~/lib/card-utils";
+import { mayPayCostLabel } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
 import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
 import {
@@ -73,7 +73,7 @@ export default function PendingChoicePrompt({
     const canConfirm = primary?.canConfirm ?? false;
     const costSymbols =
         isMayPay && choice.cost
-            ? formatOracleText(manaCostToString(choice.cost))
+            ? formatOracleText(mayPayCostLabel(choice.cost))
             : null;
 
     // Done/Skip label (ADR 0007): switches to "Skip" only when min === 0 and

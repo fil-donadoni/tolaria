@@ -175,6 +175,16 @@ import {
     swampIce,
     mountainIce,
     forestIce,
+    // Cumulative upkeep — self-CU cards (#638)
+    arnjlotsAscent,
+    illusionaryForces,
+    illusionaryWall,
+    illusionsOfGrandeur,
+    mesmericTrance,
+    polarKraken,
+    fyndhornPollen,
+    maddeningWind,
+    soldeviSimulacrum,
 } from "../ice";
 import {
     getCardById,
@@ -182,7 +192,12 @@ import {
     getAllCards,
     getAllSetCodes,
 } from "../../index";
-import { resolveTopOfStack } from "../../../gre/state";
+import {
+    resolveTopOfStack,
+    canPayMayPayCost,
+    payMayPayCost,
+    normalizeMayPayCost,
+} from "../../../gre/state";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import { projectPublicState } from "../../../gameProjections";
 import { emitBlockersConfirmedEvents } from "../../../gre/phases";
@@ -4227,6 +4242,374 @@ describe("ICE basic-land reprints (CardPrint wiring, ADR 0014 / CR 305.6)", () =
             expect(def.supertypes).toContain("Basic");
             expect(def.types).toEqual(["Land"]);
         }
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Cumulative upkeep — core template + self-CU cards (CR 702.24, ADR 0042, #638)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** A PHASE_BEGIN UPKEEP trigger event for `playerId`'s upkeep. */
+const CU_UPKEEP = (playerId: string): StackItem["triggerEvent"] =>
+    ({
+        type: "PHASE_BEGIN" as const,
+        phase: "UPKEEP" as const,
+        activePlayerId: playerId,
+    }) as StackItem["triggerEvent"];
+
+/** Fire a cumulative-upkeep trigger: push the named ability onto the stack with
+ *  the source's upkeep event and resolve it. Step 0 adds the age counter and
+ *  step 1 suspends at the may-pay (unless the controller can't pay anything —
+ *  then it sacrifices outright). */
+function fireCumulativeUpkeep(
+    state: GameState,
+    source: CardInstanceState,
+    abilityId: string
+): void {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        triggeredAbilityId: abilityId,
+        triggerSourceId: source.id,
+        triggerEvent: CU_UPKEEP(source.controllerId),
+        targets: [],
+    });
+    resolveTopOfStack(state);
+}
+
+/** Answer the head may-pay choice, auto-resuming the suspended resolution. */
+function answerMayPay(state: GameState, accept: boolean): void {
+    const head = state.pendingChoices![0];
+    applyMayPaySubmit(state, { playerId: head.playerId, accept });
+}
+
+describe("cumulative upkeep — core template (CR 702.24, ADR 0042)", () => {
+    function setup(opts: { life?: number; lands?: number } = {}) {
+        const kraken = makeInstance(polarKraken.id, {
+            id: "kraken",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const forces = makeInstance(illusionaryForces.id, {
+            id: "forces",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const lands: CardInstanceState[] = [];
+        for (let i = 0; i < (opts.lands ?? 0); i++) {
+            lands.push(
+                makeInstance(getCardByName("Forest").id, {
+                    id: `land${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                })
+            );
+        }
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [kraken, forces, ...lands],
+                    life: opts.life ?? 20,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, kraken, forces };
+    }
+
+    it("puts an age counter on the permanent at each upkeep (CR 702.24a)", () => {
+        const { state, forces } = setup();
+        fireCumulativeUpkeep(
+            state,
+            forces,
+            "illusionary-forces-cumulative-upkeep"
+        );
+        // Step 0 always runs (counter is added) before the may-pay suspends.
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "forces"
+        )!;
+        expect(live.counters?.age).toBe(1);
+        // Decline → it leaves; fire on a fresh second copy to see age 2.
+        answerMayPay(state, false);
+
+        const { state: s2 } = setup();
+        const f2 = s2.players[0].battlefield.find((c) => c.id === "forces")!;
+        f2.counters = { age: 1 }; // already survived one upkeep
+        fireCumulativeUpkeep(s2, f2, "illusionary-forces-cumulative-upkeep");
+        const live2 = s2.players[0].battlefield.find((c) => c.id === "forces")!;
+        expect(live2.counters?.age).toBe(2);
+    });
+
+    it("scales the mana cost by the age count (CR 702.24b)", () => {
+        const { state, forces } = setup();
+        // Second upkeep: already 1 age counter, this upkeep makes it 2.
+        forces.counters = { age: 1 };
+        state.players[0].manaPool = { U: 1 }; // only enough for ×1, need ×2
+        fireCumulativeUpkeep(
+            state,
+            forces,
+            "illusionary-forces-cumulative-upkeep"
+        );
+        const head = state.pendingChoices![0];
+        // The prompted may-pay cost is {U}{U} (×2). The pool ({U}) can't cover it.
+        expect(canPayMayPayCost(state, "p1", head.cost!)).toBe(false);
+        // Top up to {U}{U} → now payable, keeps it.
+        state.players[0].manaPool = { U: 2 };
+        answerMayPay(state, true);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "forces")
+        ).toBe(true);
+    });
+
+    it("declining sacrifices the permanent (CR 702.24c)", () => {
+        const { state, forces } = setup();
+        state.players[0].manaPool = { U: 5 };
+        fireCumulativeUpkeep(
+            state,
+            forces,
+            "illusionary-forces-cumulative-upkeep"
+        );
+        answerMayPay(state, false);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "forces")
+        ).toBeUndefined();
+        expect(state.players[0].graveyard.some((c) => c.id === "forces")).toBe(
+            true
+        );
+    });
+
+    it("inability to pay collapses to the decline branch → sacrifice", () => {
+        const { state, forces } = setup();
+        // Empty pool: at age 1 the {U} cost is unpayable. The may-pay still
+        // prompts (CR 117.3a) but accept is illegal; the bot/decline path
+        // sacrifices.
+        state.players[0].manaPool = {};
+        fireCumulativeUpkeep(
+            state,
+            forces,
+            "illusionary-forces-cumulative-upkeep"
+        );
+        const head = state.pendingChoices![0];
+        expect(canPayMayPayCost(state, "p1", head.cost!)).toBe(false);
+        answerMayPay(state, false);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "forces")
+        ).toBeUndefined();
+    });
+
+    it("paying keeps it and the age counter survives the wire projection", () => {
+        const { state, forces } = setup();
+        state.players[0].manaPool = { U: 1 };
+        fireCumulativeUpkeep(
+            state,
+            forces,
+            "illusionary-forces-cumulative-upkeep"
+        );
+        answerMayPay(state, true);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "forces"
+        )!;
+        expect(live.counters?.age).toBe(1);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "forces"
+        )!;
+        expect(slim.counters?.age).toBe(1);
+    });
+
+    it("sacrifice-cost CU (Polar Kraken) sacrifices N lands per age (CR 701.16)", () => {
+        const { state, kraken } = setup({ lands: 3 });
+        kraken.counters = { age: 1 }; // makes 2 this upkeep
+        fireCumulativeUpkeep(state, kraken, "polar-kraken-cumulative-upkeep");
+        const head = state.pendingChoices![0];
+        // 3 lands available, cost is "sacrifice 2 lands" — payable.
+        expect(canPayMayPayCost(state, "p1", head.cost!)).toBe(true);
+        answerMayPay(state, true);
+        // Kraken kept; exactly 2 of the 3 lands sacrificed.
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "kraken")
+        ).toBe(true);
+        const landsLeft = state.players[0].battlefield.filter((c) =>
+            c.id.startsWith("land")
+        );
+        expect(landsLeft.length).toBe(1);
+    });
+
+    it("sacrifice-cost CU with too few lands → can't pay → sacrifice", () => {
+        const { state, kraken } = setup({ lands: 1 });
+        kraken.counters = { age: 1 }; // needs 2 lands
+        fireCumulativeUpkeep(state, kraken, "polar-kraken-cumulative-upkeep");
+        const head = state.pendingChoices![0];
+        expect(canPayMayPayCost(state, "p1", head.cost!)).toBe(false);
+        answerMayPay(state, false);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "kraken")
+        ).toBeUndefined();
+    });
+});
+
+describe("may-pay cost union — life / mana+life legs (CR 118.4, ADR 0042)", () => {
+    function bf() {
+        const land = makeInstance(getCardByName("Forest").id, {
+            id: "l0",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land2 = makeInstance(getCardByName("Forest").id, {
+            id: "l1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [land, land2],
+                    life: 20,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("normalizes a bare ManaCost to { mana } (back-compat)", () => {
+        expect(normalizeMayPayCost({ U: 1 })).toEqual({ mana: { U: 1 } });
+    });
+
+    it("pay-life cost: affordable iff life ≥ amount, and loses the life", () => {
+        const state = bf();
+        // "Pay 2 life" — affordable at 20, not at 1.
+        expect(canPayMayPayCost(state, "p1", { life: 2 })).toBe(true);
+        state.players[0].life = 1;
+        expect(canPayMayPayCost(state, "p1", { life: 2 })).toBe(false);
+        state.players[0].life = 20;
+        payMayPayCost(state, "p1", { life: 2 });
+        expect(state.players[0].life).toBe(18);
+    });
+
+    it("mana+life cost (Infernal Darkness shape) pays both legs", () => {
+        const state = bf();
+        state.players[0].manaPool = { B: 1 };
+        const cost = { mana: { B: 1 }, life: 1 };
+        expect(canPayMayPayCost(state, "p1", cost)).toBe(true);
+        payMayPayCost(state, "p1", cost);
+        expect(state.players[0].life).toBe(19);
+        expect(state.players[0].manaPool.B ?? 0).toBe(0);
+    });
+
+    it("mana+life is unpayable when either leg is short (all-or-nothing)", () => {
+        const state = bf();
+        state.players[0].manaPool = { B: 1 };
+        state.players[0].life = 0;
+        // Has the {B} but not the life.
+        expect(canPayMayPayCost(state, "p1", { mana: { B: 1 }, life: 1 })).toBe(
+            false
+        );
+        // Has the life but not the {B}.
+        state.players[0].life = 20;
+        state.players[0].manaPool = {};
+        expect(canPayMayPayCost(state, "p1", { mana: { B: 1 }, life: 1 })).toBe(
+            false
+        );
+    });
+});
+
+describe("cumulative upkeep — card definitions (CR 702.24, #638)", () => {
+    it("each self-CU card carries the age-counter trigger", () => {
+        const cards = [
+            { c: arnjlotsAscent, id: "arnjlots-ascent-cumulative-upkeep" },
+            {
+                c: illusionaryForces,
+                id: "illusionary-forces-cumulative-upkeep",
+            },
+            { c: illusionaryWall, id: "illusionary-wall-cumulative-upkeep" },
+            {
+                c: illusionsOfGrandeur,
+                id: "illusions-of-grandeur-cumulative-upkeep",
+            },
+            { c: mesmericTrance, id: "mesmeric-trance-cumulative-upkeep" },
+            { c: polarKraken, id: "polar-kraken-cumulative-upkeep" },
+            { c: fyndhornPollen, id: "fyndhorn-pollen-cumulative-upkeep" },
+            { c: maddeningWind, id: "maddening-wind-cumulative-upkeep" },
+            {
+                c: soldeviSimulacrum,
+                id: "soldevi-simulacrum-cumulative-upkeep",
+            },
+        ];
+        for (const { c, id } of cards) {
+            expect(c.triggeredAbilities?.some((t) => t.id === id)).toBe(true);
+            expect(getCardByName(c.name)).toBe(c);
+        }
+    });
+
+    it("Illusionary Wall has its keyword statics; Forces has flying", () => {
+        expect(illusionaryWall.staticAbilities).toEqual([
+            "defender",
+            "flying",
+            "first strike",
+        ]);
+        expect(illusionaryForces.staticAbilities).toContain("flying");
+        expect(polarKraken.staticAbilities).toContain("trample");
+        expect(polarKraken.entersTapped).toBe(true);
+    });
+
+    it("Illusions of Grandeur gains 20 life on ETB and loses 20 on LTB", () => {
+        const enchant = makeInstance(illusionsOfGrandeur.id, {
+            id: "iog",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [enchant], life: 20 }),
+                makePlayer("p2"),
+            ],
+        });
+        // ETB: gain 20.
+        state.stack.push({
+            ...enchant,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "illusions-of-grandeur-etb",
+            triggerSourceId: "iog",
+            triggerEvent: {
+                type: "PERMANENT_ENTERED",
+                instanceId: "iog",
+                controllerId: "p1",
+                types: ["Enchantment"],
+            } as StackItem["triggerEvent"],
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(40);
+    });
+
+    it("Fyndhorn Pollen shrinks all creatures -1/-0 (anthem) through the wire", () => {
+        const pollen = makeInstance(fyndhornPollen.id, {
+            id: "pollen",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(balduvianBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [pollen] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        // Balduvian Bears 2/2 → 1/2 under the anthem.
+        expect(getEffectivePower(state, bear)).toBe(1);
+        expect(getEffectiveToughness(state, bear)).toBe(2);
+        const projected = projectPublicState(state, 2, "p2");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(1);
     });
 });
 

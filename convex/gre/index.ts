@@ -23,6 +23,7 @@ export type {
 } from "./state";
 export { getPendingChoiceMin, getPendingChoiceMax } from "./state";
 export { normalizeManaCost, isManaCostCovered } from "./state";
+export { normalizeMayPayCost, canPayMayPayCost } from "./state";
 export { getPlayer, matchesPermanentFilter } from "./state";
 export type { Phase, Zone } from "./types";
 

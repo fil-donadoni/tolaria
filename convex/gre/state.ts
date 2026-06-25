@@ -8,6 +8,7 @@ import type {
     DurationSpec,
     GameEvent,
     ManaCost as CardManaCost,
+    MayPayCost,
     MovableZone,
     PermanentFilter,
     PermanentView,
@@ -1132,9 +1133,12 @@ export type PendingChoice = {
     count: number | { min: number; max: number };
     /** Prompt text shown to the chooser (e.g. "Choose 2 lands to keep"). */
     prompt: string;
-    /** For `kind: "may-pay"`, the mana cost paid on accept (CR 117.3a /
-     *  118.4). Undefined for cost-less yes/no choices ("may draw a card"). */
-    cost?: ManaCost;
+    /** For `kind: "may-pay"`, the cost paid on accept (CR 117.3a / 118.4 /
+     *  702.24). A bare `ManaCost` (mana-only, historical shape) OR the
+     *  `{ mana?, life?, sacrifice? }` union (cumulative upkeep — ADR 0042).
+     *  Undefined for cost-less yes/no choices ("may draw a card"). The submit
+     *  path (`applyMayPaySubmit`) normalizes either shape. */
+    cost?: MayPayCost;
     /** Precomputed allow-list of choosable instance ids — the chooser may
      *  pick only from these (in addition to the zone-membership check). Used
      *  when eligibility can't be expressed as a `PermanentFilter` (e.g.
@@ -7909,4 +7913,130 @@ function formatManaCost(cost: ManaCost): string {
         for (let i = 0; i < n; i++) parts.push(`{${color}}`);
     }
     return parts.join("") || "0";
+}
+
+// ─── May-pay cost union (CR 117.3a / 118.4 / 702.24, ADR 0042) ──────────────
+
+/** Widened `may-pay` cost: the `{ mana?, life?, sacrifice? }` shape. */
+export interface NormalizedMayPayCost {
+    mana?: CardManaCost;
+    life?: number;
+    sacrifice?: { filter: PermanentFilter; count: number };
+}
+
+/** Distinguishes the union shape `{ mana?, life?, sacrifice? }` from a bare
+ *  `ManaCost`. The union is the ONLY value carrying a `mana` / `life` /
+ *  `sacrifice` key; a bare `ManaCost` carries only mana symbol keys. */
+function isMayPayUnion(cost: MayPayCost): cost is {
+    mana?: CardManaCost;
+    life?: number;
+    sacrifice?: { filter: PermanentFilter; count: number };
+} {
+    return "mana" in cost || "life" in cost || "sacrifice" in cost;
+}
+
+/** Normalizes either `may-pay` cost shape to `{ mana?, life?, sacrifice? }`.
+ *  A bare `ManaCost` (the historical mana-only shape) widens to `{ mana }` so
+ *  every legacy caller is unaffected (ADR 0042). */
+export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
+    if (isMayPayUnion(cost)) {
+        return {
+            ...(cost.mana ? { mana: cost.mana } : {}),
+            ...(cost.life !== undefined ? { life: cost.life } : {}),
+            ...(cost.sacrifice ? { sacrifice: cost.sacrifice } : {}),
+        };
+    }
+    return { mana: cost as CardManaCost };
+}
+
+/** Battlefield permanents controlled by `playerId` matching the sacrifice
+ *  filter (CR 701.16). Used to gate affordability and pick the victims. */
+function sacrificeCandidates(
+    state: GameState,
+    playerId: string,
+    filter: PermanentFilter
+): CardInstanceState[] {
+    const player = getPlayer(state, playerId);
+    return player.battlefield.filter((c) =>
+        matchesPermanentFilter(
+            { ...c, colors: STATIC_EFFECT_CTX.getColors(c) },
+            filter,
+            { selfControllerId: playerId }
+        )
+    );
+}
+
+/** True if `playerId` can pay the whole `may-pay` cost union right now —
+ *  mana pool covers the mana leg, life ≥ the life leg, and enough matching
+ *  permanents exist for the sacrifice leg (CR 702.24c — all-or-nothing). A
+ *  cost with no legs present is trivially payable. */
+export function canPayMayPayCost(
+    state: GameState,
+    playerId: string,
+    cost: MayPayCost
+): boolean {
+    const norm = normalizeMayPayCost(cost);
+    const player = getPlayer(state, playerId);
+    if (norm.mana) {
+        const normalized = normalizeManaCost(norm.mana);
+        const subs = getManaSubstitutions(state, playerId);
+        if (!isManaCostCovered(player.manaPool, normalized, subs)) return false;
+    }
+    if (norm.life !== undefined && player.life < norm.life) return false;
+    if (norm.sacrifice) {
+        const have = sacrificeCandidates(
+            state,
+            playerId,
+            norm.sacrifice.filter
+        ).length;
+        if (have < norm.sacrifice.count) return false;
+    }
+    return true;
+}
+
+/** Pays the whole `may-pay` cost union from `playerId`'s resources (CR 117.3a /
+ *  118.4 / 701.16). Caller MUST have already confirmed affordability with
+ *  `canPayMayPayCost` (the mana leg asserts coverage; the life and sacrifice
+ *  legs are applied unconditionally). Mana is taken from the pool (lands must
+ *  already be tapped, as for any `may-pay`); life is lost through the
+ *  replacement chain; the sacrifice leg sacrifices the first `count` matching
+ *  permanents (CR 701.16 — victim choice is the controller's, auto-selected
+ *  here in author order; a per-permanent pick is a future refinement, ADR 0042
+ *  ICE-scope). */
+export function payMayPayCost(
+    state: GameState,
+    playerId: string,
+    cost: MayPayCost
+): void {
+    const norm = normalizeMayPayCost(cost);
+    const player = getPlayer(state, playerId);
+    if (norm.mana) {
+        const normalized = normalizeManaCost(norm.mana);
+        const subs = getManaSubstitutions(state, playerId);
+        if (!isManaCostCovered(player.manaPool, normalized, subs)) {
+            throw new Error("Cannot pay the mana cost from your mana pool");
+        }
+        payManaCost(player.manaPool, normalized, subs);
+        commitLandsForCost(player, normalized);
+    }
+    if (norm.life !== undefined && norm.life > 0) {
+        // CR 118.4 — through the life-change replacement chain (Lich, etc.).
+        const repl = applyLifeChangeReplacements(state, {
+            kind: "lifeloss",
+            playerId,
+            amount: norm.life,
+        });
+        if (repl !== null) getPlayer(state, repl.playerId).life -= repl.amount;
+    }
+    if (norm.sacrifice) {
+        // CR 701.16 — sacrifice `count` matching permanents the payer controls.
+        const victims = sacrificeCandidates(
+            state,
+            playerId,
+            norm.sacrifice.filter
+        ).slice(0, norm.sacrifice.count);
+        for (const v of victims) {
+            removePermanentTo(state, v.id, "graveyard", "sacrifice");
+        }
+    }
 }
