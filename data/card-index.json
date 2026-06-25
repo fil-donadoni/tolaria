@@ -426,6 +426,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Barbed Sextant",
+        "scryfallId": "edb82654-de12-4dce-8c6b-f28d68f0fbe1",
+        "oracleId": "97ba11a1-16cd-47ee-a187-1e919c468e4e",
+        "firstSet": "ice"
+    },
+    {
         "name": "Barktooth Warbeard",
         "scryfallId": "0ea52228-f8ad-4623-9e05-f162473bfc03",
         "oracleId": "4a221518-c850-4e8a-a697-765c0a0e76e7",
@@ -562,6 +568,12 @@
         "scryfallId": "98fba951-c5bb-497c-9292-ce1b2a1e1247",
         "oracleId": "b330ac89-790e-4cc9-96a5-532c48252088",
         "firstSet": "lea"
+    },
+    {
+        "name": "Blessed Wine",
+        "scryfallId": "6b9a92f9-9bbc-4887-9fbc-0f7212fd5e66",
+        "oracleId": "8079007c-a07a-4d71-bb08-e1dd215297de",
+        "firstSet": "ice"
     },
     {
         "name": "Blessing",
@@ -916,6 +928,12 @@
         "scryfallId": "76e5ee8a-34e5-4a2e-a04e-9fcdc7e53dda",
         "oracleId": "043192d8-6077-46c3-b43f-b7caf6762869",
         "firstSet": "drk"
+    },
+    {
+        "name": "Clairvoyance",
+        "scryfallId": "46740353-e2ba-4d80-a97d-1368bc67bf30",
+        "oracleId": "851333be-d7d5-472a-95cb-0a28da09ce24",
+        "firstSet": "ice"
     },
     {
         "name": "Clay Statue",
@@ -1698,6 +1716,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Enervate",
+        "scryfallId": "c4fdfc5b-c2ab-4c4d-b120-301e17f3d9c6",
+        "oracleId": "f763d95e-87af-473f-9b1f-cf16221e5792",
+        "firstSet": "ice"
+    },
+    {
         "name": "Equinox",
         "scryfallId": "840c6586-a7a9-4ae8-96be-a995a0693eb6",
         "oracleId": "0fa2cb01-476e-4e82-94e6-9639e53a7743",
@@ -1908,6 +1932,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Flare",
+        "scryfallId": "d5350236-7bd2-462d-9768-50087626c764",
+        "oracleId": "ff8fae94-3a34-4bc6-aaa2-7ab7d2e2d0dd",
+        "firstSet": "ice"
+    },
+    {
         "name": "Flash Counter",
         "scryfallId": "3c3cd450-f1cd-416b-9271-37d95815c089",
         "oracleId": "75b2dd64-a2f5-4032-a19f-5b485dc44b16",
@@ -1986,6 +2016,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Force Void",
+        "scryfallId": "226555ba-22af-45f1-a3f4-d265f8685dd5",
+        "oracleId": "469bdca3-d373-4420-9266-921b6605f327",
+        "firstSet": "ice"
+    },
+    {
         "name": "Forcefield",
         "scryfallId": "3f2004c1-8efe-407f-bf48-27b807422eea",
         "oracleId": "bd6823fb-a696-4e6d-9c5e-3b55dfe03730",
@@ -2004,6 +2040,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Formation",
+        "scryfallId": "78446ead-61b0-485f-a5a9-b3e72d8075a7",
+        "oracleId": "ad5d27ea-cead-4c95-8561-283855ce952e",
+        "firstSet": "ice"
+    },
+    {
         "name": "Fortified Area",
         "scryfallId": "dc64f19c-5b2b-4697-b4dc-2be9c3790794",
         "oracleId": "cef37acf-ee97-48bf-a605-b17efcce5ce8",
@@ -2020,6 +2062,12 @@
         "scryfallId": "2b60eb23-cb9a-4203-86fb-60e47dbd870b",
         "oracleId": "b906923c-9997-4da5-a05e-53eb4d2dff32",
         "firstSet": "drk"
+    },
+    {
+        "name": "Foxfire",
+        "scryfallId": "88db9685-6a2f-4548-b6c4-669918d653b4",
+        "oracleId": "6c270e6a-12a7-4323-87ba-6d770986fb48",
+        "firstSet": "ice"
     },
     {
         "name": "Freyalise's Charm",
@@ -2370,6 +2418,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Gravebind",
+        "scryfallId": "4782fd4f-2474-4d0d-8301-e0b52af93746",
+        "oracleId": "0ce01e24-42db-42db-9ba2-38f653383991",
+        "firstSet": "ice"
+    },
+    {
         "name": "Gravity Sphere",
         "scryfallId": "a2749332-e99a-4a0c-b3a3-5578b552fa11",
         "oracleId": "8ddf93fe-980b-4dc4-b56f-6a2ee50100a6",
@@ -2494,6 +2548,12 @@
         "scryfallId": "d1aa37c8-98fa-4984-b09b-cf65ad84e97b",
         "oracleId": "5bb4961f-0a24-40f8-bfba-8618a9375c93",
         "firstSet": "leg"
+    },
+    {
+        "name": "Heal",
+        "scryfallId": "9e6b2704-685e-4c74-875a-25846175e5e4",
+        "oracleId": "013c42a4-d555-46c9-9d57-b50d6b59ae9e",
+        "firstSet": "ice"
     },
     {
         "name": "Healing Salve",
@@ -2892,6 +2952,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Infuse",
+        "scryfallId": "223287b6-224c-4e00-946c-e7ac5539bd45",
+        "oracleId": "6035303e-22b3-4b64-8160-1f46ae3dad55",
+        "firstSet": "ice"
+    },
+    {
         "name": "Initiates of the Ebon Hand",
         "scryfallId": "5be87527-3b8f-4529-afdb-a61ad4e787e1",
         "oracleId": "0bf359ef-669f-41dc-8ab5-ba8e58b2f398",
@@ -3270,6 +3336,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Krovikan Fetish",
+        "scryfallId": "844e73e6-b201-4b2e-b46a-b719484fba0e",
+        "oracleId": "20c7630d-a97f-4f09-9ec5-b7a1739107de",
+        "firstSet": "ice"
+    },
+    {
         "name": "Krovikan Sorcerer",
         "scryfallId": "9c5fc053-7b0b-4e76-bf87-ccdb1e8752ed",
         "oracleId": "00e6808c-1f9e-4b6a-807c-83f433b81a41",
@@ -3382,6 +3454,12 @@
         "scryfallId": "11add837-7ee4-4104-b031-c161bce459ae",
         "oracleId": "52ac09af-2aa7-4d80-be26-3e6a6efd5c23",
         "firstSet": "lea"
+    },
+    {
+        "name": "Lightning Blow",
+        "scryfallId": "d1a4ed99-f38c-4e0f-9ff2-2e1e9126e6ef",
+        "oracleId": "6b7bbdb7-bdd5-4eb1-912e-f2f810772ac8",
+        "firstSet": "ice"
     },
     {
         "name": "Lightning Bolt",
@@ -3682,6 +3760,12 @@
         "scryfallId": "0ee810a5-f0f9-4b73-8194-3d1344784050",
         "oracleId": "fad1562d-0ab9-4a3f-b80a-476d8132f66d",
         "firstSet": "drk"
+    },
+    {
+        "name": "Mind Ravel",
+        "scryfallId": "61cf3ac5-985d-4b48-b230-d5ae4ab1ace8",
+        "oracleId": "8cd0fcac-800a-431c-aca9-804998704606",
+        "firstSet": "ice"
     },
     {
         "name": "Mind Twist",
@@ -4140,6 +4224,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Panic",
+        "scryfallId": "a9ab85ac-311c-4e36-943a-817e43a3c8a8",
+        "oracleId": "e98429a7-a83f-4b69-afad-9eb68b09e38e",
+        "firstSet": "ice"
+    },
+    {
         "name": "Paralyze",
         "scryfallId": "be33a155-de26-43d1-88f1-c926f1b7cb7c",
         "oracleId": "e9b4e857-39e5-4a06-89ad-3dd94b3f252a",
@@ -4290,6 +4380,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Portent",
+        "scryfallId": "e040be83-3fb5-4da5-ba7a-4923b8854b74",
+        "oracleId": "e744dbb6-2d56-462a-8d49-d79c73944048",
+        "firstSet": "ice"
+    },
+    {
         "name": "Power Artifact",
         "scryfallId": "e48bc89e-6da5-43da-b4e0-60d5f850199c",
         "oracleId": "9a8c8d52-1701-4ae0-9d2d-cce4e476673b",
@@ -4404,6 +4500,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Pyknite",
+        "scryfallId": "6ffc64e4-ae3c-49f9-8ed6-518dd497bfe6",
+        "oracleId": "857f9a8d-ba77-4afd-922d-994f66e478ef",
+        "firstSet": "ice"
+    },
+    {
         "name": "Pyramids",
         "scryfallId": "d2e9decf-47b7-44e0-b380-8055b6011021",
         "oracleId": "da2f0d16-3cb4-492d-8535-52a31dbae95e",
@@ -4498,6 +4600,12 @@
         "scryfallId": "503256f8-3aab-49d0-b78b-6502aa29ce52",
         "oracleId": "fef452ee-9018-4175-bb79-476544e48433",
         "firstSet": "leg"
+    },
+    {
+        "name": "Ray of Erasure",
+        "scryfallId": "5a09fc0b-7b9c-4283-8336-f2607f5ffaf5",
+        "oracleId": "29d828fa-a813-48f6-8dcb-43f6047b88a3",
+        "firstSet": "ice"
     },
     {
         "name": "Recall",
@@ -5688,6 +5796,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Touch of Death",
+        "scryfallId": "a49c658f-e657-490b-af1f-e67e48d0046e",
+        "oracleId": "52a768eb-16eb-4643-b8be-7a4b5b32f28b",
+        "firstSet": "ice"
+    },
+    {
         "name": "Tourach's Chant",
         "scryfallId": "06883fd2-eccd-47c6-8c34-10d95e923685",
         "oracleId": "bdf4e225-23b5-47d9-9936-ddcec8aa1ca4",
@@ -5830,6 +5944,12 @@
         "scryfallId": "8512f2c1-6361-4b79-843f-80b6bceeeb99",
         "oracleId": "837182db-1bf3-4a2c-bd01-1af9d9873561",
         "firstSet": "lea"
+    },
+    {
+        "name": "Updraft",
+        "scryfallId": "d1bd4e16-27fe-4c7b-ae25-78ed77d8e8e7",
+        "oracleId": "ff0d5cbe-99d3-4d3b-9a5b-80223fc18869",
+        "firstSet": "ice"
     },
     {
         "name": "Urza's Avenger",

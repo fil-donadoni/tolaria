@@ -904,7 +904,8 @@ export type DelayedTriggerInstance = {
         | "next-end-step"
         | "next-end-of-combat"
         | "next-draw-step"
-        | "next-main-phase";
+        | "next-main-phase"
+        | "next-upkeep";
     /** Payload carried over from the scheduling spell's resolution. */
     payload: Record<string, string>;
     /** For `next-draw-step` and `next-main-phase`: the player whose
@@ -5781,7 +5782,8 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 | "next-end-step"
                 | "next-end-of-combat"
                 | "next-draw-step"
-                | "next-main-phase",
+                | "next-main-phase"
+                | "next-upkeep",
             payload: Record<string, string>,
             targetPlayerId?: string
         ): void {

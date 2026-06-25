@@ -82,6 +82,43 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ICE next-upkeep delayed-trigger cantrips (#660, PRD #628). Exercises
+        // the "draw a card at the beginning of the next turn's upkeep" rider on
+        // the new `next-upkeep` delayed-trigger timing:
+        //   - Cast Blessed Wine (gain 1 life), Flare (1 damage to any target),
+        //     or Touch of Death from hand. Each schedules a delayed draw.
+        //   - Pass to the next upkeep — the delayed trigger fires and you draw.
+        //     It fires at the VERY NEXT upkeep regardless of whose turn, and
+        //     exactly once.
+        //   - Pyknite (battlefield is fine too): its self-ETB arms the same
+        //     cantrip; recast from hand to watch the ETB schedule the draw.
+        // Turn 2 so the draw step isn't skipped and a real library exists.
+        label: "ICE: next-upkeep cantrips — Blessed Wine / Flare / Touch of Death / Pyknite (#660)",
+        cards: [
+            {
+                name: "Blessed Wine",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Flare", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Touch of Death",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            { name: "Pyknite", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 5,
+        turn: 2,
+        libraryCount: 12,
+    },
+    {
         // ICE Gold / miscellaneous completion (#659, PRD #628). Exercises the
         // buildable-now gold/misc cards end to end:
         //   - Merieke Ri Berit ({W}{U}{B}, untapped): {T} to gain control of the

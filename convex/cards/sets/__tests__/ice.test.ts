@@ -274,6 +274,27 @@ import {
     meriekeRiBerit,
     monsoon,
     mountainTitan,
+    // next-upkeep delayed-trigger cantrips (#660)
+    blessedWine,
+    heal,
+    lightningBlow,
+    formation,
+    clairvoyance,
+    enervate,
+    forceVoid,
+    infuse,
+    portent,
+    rayOfErasure,
+    updraft,
+    gravebind,
+    krovikanFetish,
+    mindRavel,
+    touchOfDeath,
+    flare,
+    panic,
+    foxfire,
+    pyknite,
+    barbedSextant,
 } from "../ice";
 import {
     getCardById,
@@ -299,6 +320,7 @@ import { projectPublicState } from "../../../gameProjections";
 import {
     emitBlockersConfirmedEvents,
     emitAttackersDeclaredEvents,
+    fireDelayedTriggers,
 } from "../../../gre/phases";
 import { recordBlockedAttackers } from "../../../gre/banding";
 import {
@@ -9178,5 +9200,587 @@ describe("Mountain Titan — arms an until-EOT black-cast +1/+1 rider (CR 605 / 
         )!;
         expect(getEffectivePower(projected, slim)).toBe(3);
         expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+});
+
+// ===========================================================================
+// next-upkeep delayed-trigger cantrips (#660) — CR 502.2 / 603.7d
+// ===========================================================================
+//
+// The ~22 ICE "draw a card at the beginning of the next turn's upkeep" cards
+// schedule a `next-upkeep` delayed trigger (the timing union added in #660).
+// These tests cover (a) the engine timing — scheduling, firing at the next
+// upkeep regardless of whose turn, and firing exactly once — and (b) each
+// card's unique body. The visible cantrip draw also gets a wire-format check.
+
+/** Build a library of N distinct vanilla cards owned by `playerId`. */
+function library(playerId: string, ids: string[]): CardInstanceState[] {
+    return ids.map((id) =>
+        vanilla(id, 1, 1, {
+            id,
+            controllerId: playerId,
+            ownerId: playerId,
+            zone: "library",
+        })
+    );
+}
+
+/** Resolve a cantrip spell cast by `castById` with the given targets, leaving
+ *  the delayed trigger scheduled (does NOT fire it). */
+function castCantrip(
+    state: GameState,
+    cardId: string,
+    castById: string,
+    targets: StackItem["targets"] = []
+): void {
+    pushSpell(state, cardId, castById, targets);
+    resolveTopOfStack(state);
+}
+
+/** Enter an UPKEEP step for `activePlayerId` and fire next-upkeep triggers,
+ *  mirroring `performPhaseEntry`'s UPKEEP branch. */
+function enterUpkeepAndFire(state: GameState, activePlayerId: string): void {
+    state.phase = "UPKEEP";
+    state.activePlayerId = activePlayerId;
+    fireDelayedTriggers(state, "next-upkeep");
+}
+
+describe("next-upkeep delayed-trigger timing (CR 502.2 / 603.7d, #660)", () => {
+    it("schedules a next-upkeep delayed trigger with no targetPlayerId", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: library("p1", ["a"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        castCantrip(state, blessedWine.id, "p1");
+        const dt = state.delayedTriggers?.[0];
+        expect(dt?.timing).toBe("next-upkeep");
+        // Fires at the next upkeep regardless of whose turn → no targetPlayerId.
+        expect(dt?.targetPlayerId).toBeUndefined();
+        expect(dt?.controller).toBe("p1");
+    });
+
+    it("fires at the VERY NEXT upkeep even on the opponent's turn", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: library("p1", ["a", "b"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        castCantrip(state, blessedWine.id, "p1");
+        // The opponent's upkeep is the next upkeep reached — it still fires.
+        enterUpkeepAndFire(state, "p2");
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        // The scheduling player (p1) drew, not the active player.
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+        expect(state.players[1].hand).toHaveLength(0);
+    });
+
+    it("fires EXACTLY ONCE — dequeued after the first upkeep", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: library("p1", ["a", "b"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        castCantrip(state, blessedWine.id, "p1");
+        enterUpkeepAndFire(state, "p1");
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(state.delayedTriggers).toBeUndefined();
+        // A subsequent upkeep does NOT re-fire it.
+        const handAfterFirst = state.players[0].hand.length;
+        enterUpkeepAndFire(state, "p2");
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].hand).toHaveLength(handAfterFirst);
+    });
+
+    it("wire format: the cantrip draw survives projectPublicState", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: library("p1", ["a"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        castCantrip(state, blessedWine.id, "p1");
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        // The owner sees the drawn card in hand after the wire projection.
+        expect(projected.players[0].hand.map((c) => c?.id)).toContain("a");
+    });
+});
+
+describe("Blessed Wine (gain 1 life + next-upkeep cantrip, CR 119.3)", () => {
+    it("gains 1 life and schedules the cantrip", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, library: library("p1", ["a"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        castCantrip(state, blessedWine.id, "p1");
+        expect(state.players[0].life).toBe(21);
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+});
+
+describe("Heal (prevent next 1 damage to any target, CR 615.1)", () => {
+    it("schedules the cantrip and has an 'any' target", () => {
+        const dummy = vanilla("d", 2, 2, {
+            id: "d",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [dummy],
+                    library: library("p1", ["a"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(heal.targetRequirement?.type).toBe("any");
+        castCantrip(state, heal.id, "p1", [{ type: "permanent", id: "d" }]);
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+});
+
+describe("Lightning Blow (grant first strike, CR 702.7)", () => {
+    it("grants first strike to the target and cantrips", () => {
+        const dummy = vanilla("d", 1, 1, {
+            id: "d",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [dummy],
+                    library: library("p1", ["a"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        castCantrip(state, lightningBlow.id, "p1", [
+            { type: "permanent", id: "d" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "d")!;
+        expect(live.staticAbilities).toContain("first strike");
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+});
+
+describe("Formation (grant banding, CR 702.22)", () => {
+    it("grants banding to the target and cantrips", () => {
+        const dummy = vanilla("d", 1, 1, {
+            id: "d",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [dummy],
+                    library: library("p1", ["a"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        castCantrip(state, formation.id, "p1", [
+            { type: "permanent", id: "d" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "d")!;
+        expect(live.staticAbilities).toContain("banding");
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+});
+
+describe("Clairvoyance (look at hand + cantrip, CR 401.4)", () => {
+    it("schedules the cantrip after looking (auto-ack)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: library("p1", ["a"]) }),
+                makePlayer("p2", {
+                    hand: [
+                        vanilla("h", 1, 1, {
+                            id: "h",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        castCantrip(state, clairvoyance.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        // revealHand enqueues a display-only choice; ack it to resume.
+        if (state.pendingChoices && state.pendingChoices.length > 0) {
+            const head = state.pendingChoices[0];
+            applyPendingChoiceSubmit(state, {
+                playerId: head.playerId,
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: [],
+            });
+        }
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+});
+
+describe("Enervate (tap target, CR 701.20)", () => {
+    it("taps the target and schedules the cantrip", () => {
+        const dummy = vanilla("d", 1, 1, {
+            id: "d",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: library("p1", ["a"]) }),
+                makePlayer("p2", { battlefield: [dummy] }),
+            ],
+        });
+        castCantrip(state, enervate.id, "p1", [{ type: "permanent", id: "d" }]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "d")?.isTapped
+        ).toBe(true);
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+});
+
+describe("Infuse (untap target, CR 701.20)", () => {
+    it("untaps the target and schedules the cantrip", () => {
+        const dummy = vanilla("d", 1, 1, {
+            id: "d",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [dummy],
+                    library: library("p1", ["a"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        castCantrip(state, infuse.id, "p1", [{ type: "permanent", id: "d" }]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "d")?.isTapped
+        ).toBe(false);
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+});
+
+describe("Force Void (counter unless pay {1}, CR 701.5a)", () => {
+    it("counters the targeted spell when controller declines, then cantrips", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: library("p1", ["a"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        // p2 has a spell on the stack to be countered.
+        const victim = pushSpell(state, blessedWine.id, "p2");
+        castCantrip(state, forceVoid.id, "p1", [
+            { type: "spell", id: victim.id },
+        ]);
+        // Suspended on the spell controller's may-pay; decline → counter.
+        const head = state.pendingChoices![0];
+        applyMayPaySubmit(state, { playerId: head.playerId, accept: false });
+        // The victim spell is no longer on the stack (countered).
+        expect(state.stack.find((s) => s.id === victim.id)).toBeUndefined();
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+});
+
+describe("Portent (look at top 3, reorder, may shuffle, CR 401)", () => {
+    it("definition declares the next-upkeep cantrip and player target", () => {
+        expect(portent.delayedTriggers?.[0]?.timing).toBe("next-upkeep");
+        expect(portent.targetRequirement?.type).toBe("player");
+        expect(portent.types).toContain("Sorcery");
+    });
+});
+
+describe("Ray of Erasure (mill a card, CR 701.13a)", () => {
+    it("mills the target's top card and schedules the cantrip", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: library("p1", ["a"]) }),
+                makePlayer("p2", { library: library("p2", ["m1", "m2"]) }),
+            ],
+        });
+        castCantrip(state, rayOfErasure.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("m1");
+        expect(state.players[1].library).toHaveLength(1);
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+});
+
+describe("Updraft (grant flying, CR 702.9)", () => {
+    it("grants flying until end of turn + cantrip", () => {
+        const dummy = vanilla("d", 1, 1, {
+            id: "d",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [dummy],
+                    library: library("p1", ["a"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        castCantrip(state, updraft.id, "p1", [{ type: "permanent", id: "d" }]);
+        const live = state.players[0].battlefield.find((c) => c.id === "d")!;
+        expect(live.staticAbilities).toContain("flying");
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+});
+
+describe("Gravebind (can't be regenerated, CR 701.15c)", () => {
+    it("flags the target and schedules the cantrip", () => {
+        const dummy = vanilla("d", 1, 1, {
+            id: "d",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: library("p1", ["a"]) }),
+                makePlayer("p2", { battlefield: [dummy] }),
+            ],
+        });
+        castCantrip(state, gravebind.id, "p1", [
+            { type: "permanent", id: "d" },
+        ]);
+        const live = state.players[1].battlefield.find((c) => c.id === "d")!;
+        expect(live.cantBeRegeneratedThisTurn).toBe(true);
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+});
+
+describe("Krovikan Fetish (Aura +1/+1 + ETB cantrip, CR 603.6a)", () => {
+    it("buffs the host (+1/+1) — wire format survives projection", () => {
+        const host = vanilla("h", 2, 2, {
+            id: "h",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(krovikanFetish.id, {
+            id: "fetish",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "h",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        const live = state.players[0].battlefield.find((c) => c.id === "h")!;
+        expect(getEffectivePower(state, live)).toBe(3);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "h"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+    it("ETB trigger schedules the next-upkeep cantrip", () => {
+        const aura = makeInstance(krovikanFetish.id, {
+            id: "fetish",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: library("p1", ["a"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, aura, "krovikan-fetish-etb", {
+            type: "PERMANENT_ENTERED",
+            instanceId: "fetish",
+            controllerId: "p1",
+            types: ["Enchantment"],
+        } as StackItem["triggerEvent"]);
+        expect(state.delayedTriggers?.[0]?.timing).toBe("next-upkeep");
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+});
+
+describe("Mind Ravel (target player discards a card, CR 701.8)", () => {
+    it("discards the chosen card then cantrips", () => {
+        const handCard = vanilla("h", 1, 1, {
+            id: "h",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: library("p1", ["a"]) }),
+                makePlayer("p2", { hand: [handCard] }),
+            ],
+        });
+        castCantrip(state, mindRavel.id, "p1", [{ type: "player", id: "p2" }]);
+        // Suspended on p2's discard choice.
+        submitChoice(state, ["h"]);
+        expect(state.players[1].hand).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("h");
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+});
+
+describe("Touch of Death (1 damage + gain 1 life + cantrip, CR 120.1)", () => {
+    it("deals 1 damage to the target player, gains 1 life, cantrips", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, library: library("p1", ["a"]) }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        castCantrip(state, touchOfDeath.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].life).toBe(19);
+        expect(state.players[0].life).toBe(21);
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+});
+
+describe("Flare (1 damage to any target + cantrip, CR 120.1)", () => {
+    it("deals 1 damage to a player and cantrips", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: library("p1", ["a"]) }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        castCantrip(state, flare.id, "p1", [{ type: "player", id: "p2" }]);
+        expect(state.players[1].life).toBe(19);
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+});
+
+describe("Panic (target creature can't block + cantrip, CR 509.1b)", () => {
+    it("declares the cast restriction and the cantrip shape", () => {
+        expect(panic.castPhaseRestriction).toContain("DECLARE_ATTACKERS");
+        expect(panic.castPhaseRestriction).toContain("BEGINNING_OF_COMBAT");
+        expect(panic.delayedTriggers?.[0]?.timing).toBe("next-upkeep");
+    });
+});
+
+describe("Foxfire (untap attacker + prevent combat damage, CR 615)", () => {
+    it("untaps the target attacking creature and cantrips", () => {
+        const attacker = vanilla("d", 2, 2, {
+            id: "d",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [attacker],
+                    library: library("p1", ["a"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        castCantrip(state, foxfire.id, "p1", [{ type: "permanent", id: "d" }]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "d")?.isTapped
+        ).toBe(false);
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+});
+
+describe("Pyknite (1/1 Ouphe with self-ETB cantrip, CR 603.6a)", () => {
+    it("ETB trigger schedules the next-upkeep cantrip", () => {
+        const pyk = makeInstance(pyknite.id, {
+            id: "pyk",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: library("p1", ["a"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, pyk, "pyknite-etb", {
+            type: "PERMANENT_ENTERED",
+            instanceId: "pyk",
+            controllerId: "p1",
+            types: ["Creature"],
+        } as StackItem["triggerEvent"]);
+        expect(state.delayedTriggers?.[0]?.timing).toBe("next-upkeep");
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+    it("is a 1/1 Ouphe", () => {
+        expect(pyknite.power).toBe(1);
+        expect(pyknite.toughness).toBe(1);
+        expect(pyknite.subtypes).toContain("Ouphe");
+    });
+});
+
+describe("Barbed Sextant (sac for any mana + next-upkeep cantrip, ADR 0040)", () => {
+    it("arms the next-upkeep cantrip on the tap-for-mana rider", () => {
+        const ability = barbedSextant.activatedAbilities?.[0];
+        expect(ability?.useStack).toBe(false);
+        expect(ability?.armsDelayedTriggerOnTap?.timing).toBe("next-upkeep");
+        expect(barbedSextant.delayedTriggers?.[0]?.timing).toBe("next-upkeep");
     });
 });
