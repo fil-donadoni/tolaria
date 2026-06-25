@@ -358,9 +358,17 @@ import {
     pox,
     forgottenLore,
     freyaliseSupplicant,
+    // One-off seams — parametric/timed effects & mana tracking (#671)
+    illusionaryPresence,
+    orcishFarmer,
+    soulBurn,
 } from "../ice";
 import { plains, island, swamp, mountain, forest } from "../lea";
-import { applyLandManaReplacement } from "../../../gre/constants";
+import {
+    applyLandManaReplacement,
+    getBasicLandMana,
+    manaValue,
+} from "../../../gre/constants";
 import { untapStep } from "../../../gre/phases";
 import {
     getCardById,
@@ -10715,6 +10723,258 @@ describe("Barbarian Guides (CR 702.13 chosen-type snow landwalk grant)", () => {
                 (d) => d.triggerId === "barbarian-guides-bounce"
             )
         ).toBe(true);
+    });
+});
+
+// ── #671: parametric/timed effects & mana tracking ──────────────────────────
+
+describe("Illusionary Presence (CR 603.6a upkeep + 702.13 chosen-type landwalk)", () => {
+    it("has cumulative upkeep {U} and an upkeep landwalk trigger", () => {
+        const cu = illusionaryPresence.triggeredAbilities?.find((t) =>
+            t.id.includes("cumulative-upkeep")
+        );
+        const lw = illusionaryPresence.triggeredAbilities?.find(
+            (t) => t.id === "illusionary-presence-landwalk"
+        );
+        expect(cu).toBeTruthy();
+        expect(lw).toBeTruthy();
+        expect(illusionaryPresence.manaCost).toEqual({ X: 1, U: 2 });
+    });
+
+    it("grants the chosen landwalk until end of turn, re-choosing each upkeep", () => {
+        const presence = makeInstance(illusionaryPresence.id, {
+            id: "ip",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [presence] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.activePlayerId = "p1";
+
+        // First upkeep: choose Swamp → swampwalk granted.
+        resolveTrigger(state, presence, "illusionary-presence-landwalk", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+        } as StackItem["triggerEvent"]);
+        submitChoice(state, ["Swamp"]);
+        let after = state.players[0].battlefield.find((c) => c.id === "ip")!;
+        expect(after.staticAbilities).toContain("swampwalk");
+        expect(after.grantedStaticAbilities?.[0].duration?.phase).toBe(
+            "end-of-turn"
+        );
+
+        // The until-end-of-turn grant expires at CLEANUP. Drive END_STEP and
+        // advance: CLEANUP is an auto-phase, so advancePhase passes through it
+        // (running finalizeCleanup, which ticks durations) and settles on the
+        // next turn's UPKEEP — the grant has expired by then.
+        state.phase = "END_STEP";
+        advancePhase(state);
+        after = state.players[0].battlefield.find((c) => c.id === "ip")!;
+        expect(after.staticAbilities).not.toContain("swampwalk");
+        expect(after.grantedStaticAbilities).toBeUndefined();
+
+        // Next upkeep: re-choose a DIFFERENT type → forestwalk, not swampwalk.
+        state.activePlayerId = "p1";
+        state.phase = "UPKEEP";
+        resolveTrigger(state, after, "illusionary-presence-landwalk", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+        } as StackItem["triggerEvent"]);
+        submitChoice(state, ["Forest"]);
+        after = state.players[0].battlefield.find((c) => c.id === "ip")!;
+        expect(after.staticAbilities).toContain("forestwalk");
+        expect(after.staticAbilities).not.toContain("swampwalk");
+    });
+
+    it("survives the wire-format projection with the granted landwalk", () => {
+        const presence = makeInstance(illusionaryPresence.id, {
+            id: "ip",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [presence] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.activePlayerId = "p1";
+        resolveTrigger(state, presence, "illusionary-presence-landwalk", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+        } as StackItem["triggerEvent"]);
+        submitChoice(state, ["Island"]);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "ip"
+        )!;
+        expect(slim.staticAbilities).toContain("islandwalk");
+    });
+});
+
+describe("Orcish Farmer (CR 305.7 / 502.1 timed land-type change to Swamp)", () => {
+    function setup(): {
+        state: GameState;
+        farmer: CardInstanceState;
+    } {
+        const farmer = makeInstance(orcishFarmer.id, {
+            id: "of",
+            controllerId: "p1",
+        });
+        const targetForest = makeInstance(forest.id, {
+            id: "tf",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [farmer, targetForest] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.activePlayerId = "p1";
+        return { state, farmer };
+    }
+
+    it("is a {1}{R}{R} 2/2 Orc with a {T} land-to-Swamp ability", () => {
+        expect(orcishFarmer.manaCost).toEqual({ X: 1, R: 2 });
+        expect(orcishFarmer.power).toBe(2);
+        const ability = orcishFarmer.activatedAbilities?.[0];
+        expect(ability?.cost).toEqual({ tap: true });
+        expect(ability?.targetRequirement).toEqual({ type: "Land", count: 1 });
+    });
+
+    it("makes the target land a Swamp that taps for {B}, reverting at the controller's next untap step", () => {
+        const { state } = setup();
+        // The forest taps for {G} before the ability resolves.
+        let land = state.players[0].battlefield.find((c) => c.id === "tf")!;
+        expect(getBasicLandMana(land)).toBe("G");
+
+        resolveActivated(
+            state,
+            state.players[0].battlefield[0],
+            "orcish-farmer-swamp",
+            [{ type: "permanent", id: "tf" }]
+        );
+
+        land = state.players[0].battlefield.find((c) => c.id === "tf")!;
+        expect(land.subtypes).toEqual(["Swamp"]);
+        // CR 305.6 / 605.1a — a Swamp taps for {B}.
+        expect(getBasicLandMana(land)).toBe("B");
+        expect(land.temporarySubtypeChange?.duration.phase).toBe("untap");
+
+        // Advance to p1's NEXT untap step. The change is scoped to p1 (the
+        // land's controller). Stage p2's END_STEP and advance: CLEANUP and UNTAP
+        // are auto-phases, so a single advancePhase passes through p2's CLEANUP,
+        // advanceTurn, and p1's UNTAP (where the untap-boundary tick fires),
+        // settling at p1's UPKEEP.
+        state.activePlayerId = "p2";
+        state.phase = "END_STEP";
+        advancePhase(state);
+        expect(state.activePlayerId).toBe("p1");
+        // Passed through p1's UNTAP — the timed change has reverted.
+
+        land = state.players[0].battlefield.find((c) => c.id === "tf")!;
+        // Reverted to a Forest tapping for {G}.
+        expect(land.subtypes).toEqual(["Forest"]);
+        expect(getBasicLandMana(land)).toBe("G");
+        expect(land.temporarySubtypeChange).toBeUndefined();
+    });
+
+    it("survives the wire-format projection while a Swamp", () => {
+        const { state } = setup();
+        resolveActivated(
+            state,
+            state.players[0].battlefield[0],
+            "orcish-farmer-swamp",
+            [{ type: "permanent", id: "tf" }]
+        );
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "tf"
+        )!;
+        expect(slim.subtypes).toEqual(["Swamp"]);
+        expect(getBasicLandMana(slim)).toBe("B");
+    });
+});
+
+describe("Soul Burn ({X}{2}{B} — X damage, lifegain capped by {B} spent on X, CR 119)", () => {
+    function setup(targetToughness = 9): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", { life: 10 }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeTargetCreature("victim", targetToughness),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    it("has the {X}{2}{B} cost (generic field), any-target requirement, and noteManaSpent", () => {
+        expect(soulBurn.manaCost).toEqual({ X: "X", generic: 2, B: 1 });
+        expect(soulBurn.targetRequirement).toEqual({ type: "any", count: 1 });
+        expect(soulBurn.noteManaSpent).toBe(true);
+        // {X}{2}{B} printed mana value = 3 (variable X counts as 0).
+        expect(manaValue(soulBurn.manaCost)).toBe(3);
+    });
+
+    it("deals X damage and gains life = {B} spent on X (all-black payment)", () => {
+        const state = setup();
+        const item = pushSpell(state, soulBurn.id, "p1", [
+            { type: "permanent", id: "victim" },
+        ]);
+        item.chosenX = 3;
+        // Paid {3}{2}{B} all in black: 6 black total, 1 is the fixed pip → 5
+        // black, but only 3 went to X (X=3). Cap = min(X, blackOnX) = 3.
+        item.notedManaSpent = { B: 6 };
+        resolveTopOfStack(state);
+        const victim = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(victim.damageMarked).toBe(3);
+        expect(state.players[0].life).toBe(13); // 10 + 3
+    });
+
+    it("caps lifegain by the {B} spent on X when X is paid mostly with red", () => {
+        const state = setup();
+        const item = pushSpell(state, soulBurn.id, "p1", [
+            { type: "permanent", id: "victim" },
+        ]);
+        item.chosenX = 4;
+        // X=4 paid with {2}{R}{R} + the fixed {2}{B}: only 1 black spent total,
+        // which is the fixed pip → 0 black on X → NO lifegain.
+        item.notedManaSpent = { B: 1, R: 2, C: 0 };
+        resolveTopOfStack(state);
+        const victim = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(victim.damageMarked).toBe(4);
+        expect(state.players[0].life).toBe(10); // damage dealt, no life gained
+    });
+
+    it("gains only the black-on-X portion when X is paid with a black/red mix", () => {
+        const state = setup();
+        const item = pushSpell(state, soulBurn.id, "p1", [
+            { type: "permanent", id: "victim" },
+        ]);
+        item.chosenX = 3;
+        // X=3 paid {B}{B}{R}; fixed {2}{B} paid {2}{B}. Total black = 3: 1 fixed
+        // pip + 2 on X → lifegain capped at 2.
+        item.notedManaSpent = { B: 3, R: 1, C: 0 };
+        resolveTopOfStack(state);
+        const victim = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(victim.damageMarked).toBe(3);
+        expect(state.players[0].life).toBe(12); // 10 + 2
     });
 });
 

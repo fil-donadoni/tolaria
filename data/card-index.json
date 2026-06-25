@@ -3024,6 +3024,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Illusionary Presence",
+        "scryfallId": "aa31efed-4a11-4f59-a623-bac45d20091d",
+        "oracleId": "8f319b31-efb0-4f48-a2a3-1f308e7b1dda",
+        "firstSet": "ice"
+    },
+    {
         "name": "Illusionary Wall",
         "scryfallId": "6430e8e2-fee3-4744-820e-d6e16cb992bd",
         "oracleId": "77a8945f-4d52-4445-8913-425007e7948c",
@@ -4344,6 +4350,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Orcish Farmer",
+        "scryfallId": "efa5beef-d609-4809-a813-621b0b4cff7f",
+        "oracleId": "c3039d19-8c98-4953-8943-9922b6ab45ef",
+        "firstSet": "ice"
+    },
+    {
         "name": "Orcish Healer",
         "scryfallId": "7ff511f3-416e-4919-acd6-fd8183bf5c60",
         "oracleId": "9b7a0c9d-1045-4fc0-b5e3-18616106da08",
@@ -5499,6 +5511,12 @@
         "name": "Soul Barrier",
         "scryfallId": "9ad7fac7-db4d-45b2-aba6-16f4fd1a586f",
         "oracleId": "3aab67bb-f287-4aa6-a3c5-e850b22dfff6",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Soul Burn",
+        "scryfallId": "eb8e00d2-2381-4d45-bed8-c9bf738a9419",
+        "oracleId": "063b0f5d-af27-4681-87b9-b553f6887061",
         "firstSet": "ice"
     },
     {

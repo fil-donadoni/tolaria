@@ -1384,6 +1384,13 @@ export function emitAttackersDeclaredEvents(state: GameState): void {
 function performPhaseEntry(state: GameState): void {
     switch (state.phase) {
         case "UNTAP":
+            // CR 502.1 — "until its controller's next untap step" effects expire
+            // as that controller's untap step begins (Orcish Farmer's land-type
+            // change). Ticked BEFORE the untap proper so the permanent is back to
+            // its printed characteristics for the rest of the step. The tick is
+            // keyed to the UNTAP boundary + the effect's controller via
+            // `tickDuration`; entries scoped to other boundaries are untouched.
+            tickAllDurations(state);
             untapStep(state);
             break;
         case "UPKEEP":
@@ -1991,6 +1998,23 @@ function tickAllDurations(state: GameState): void {
                 if (next !== null) kept.push({ ...entry, duration: next });
             }
             card.temporaryPTSet = kept.length > 0 ? kept : undefined;
+        }
+    }
+
+    // Timed subtype changes (CR 305.7 / 611.2 — Orcish Farmer "becomes a Swamp
+    // until its controller's next untap step"). On expiry, restore the captured
+    // printed subtypes so subtype-driven reads (intrinsic mana, landwalk) revert.
+    for (const p of state.players) {
+        for (const card of p.battlefield) {
+            const change = card.temporarySubtypeChange;
+            if (!change) continue;
+            const next = tickDuration(change.duration, view);
+            if (next === null) {
+                card.subtypes = [...change.restoreSubtypes];
+                card.temporarySubtypeChange = undefined;
+            } else {
+                card.temporarySubtypeChange = { ...change, duration: next };
+            }
         }
     }
 

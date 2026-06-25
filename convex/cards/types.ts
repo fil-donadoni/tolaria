@@ -65,6 +65,15 @@ export type ManaCost = {
     R?: number;
     G?: number;
     C?: number;
+    /** Fixed generic mana that coexists with a VARIABLE `{X}` pip (CR 107.3 /
+     *  202.3). The `X` field doubles as the generic-mana slot when it is a
+     *  number, so a cost that has BOTH a variable `{X}` and printed generic —
+     *  e.g. Soul Burn's `{X}{2}{B}` — cannot encode the `{2}` in `X` (that slot
+     *  holds the variable marker `"X"`). `generic` carries the fixed portion;
+     *  `normalizeManaCost` folds it into the total generic alongside the chosen
+     *  X, and `manaValue` counts it toward the printed mana value (variable X
+     *  still contributes 0). Omit (or 0) when there is no fixed generic. */
+    generic?: number;
     /** How many times the chosen X is added to the generic cost when `X` is
      *  the variable `"X"` (CR 107.3). Defaults to 1; set to 2 for `{X}{X}`
      *  costs (Recall — "{X}{X}{U}") so the player pays twice the announced X.
@@ -662,8 +671,11 @@ export interface DurationSpec {
      *  end-of-combat = END_OF_COMBAT step (CR 511.3); upkeep = the UPKEEP step
      *  (CR 500.2 — "until your next upkeep" effects end as the upkeep begins,
      *  combined with `player: "controller"` to scope to the controller's
-     *  upkeep, e.g. Xenic Poltergeist). */
-    phase: "end-of-turn" | "end-of-combat" | "upkeep";
+     *  upkeep, e.g. Xenic Poltergeist); untap = the UNTAP step (CR 502.1 —
+     *  "until its controller's next untap step", combined with
+     *  `player: "controller"` to scope to the affected permanent's controller,
+     *  e.g. Orcish Farmer's land-type change). */
+    phase: "end-of-turn" | "end-of-combat" | "upkeep" | "untap";
     /** Number of matching boundaries to skip before the effect expires. 0 =
      *  next occurrence (default, "this turn/combat"). 1 = one after. */
     skip?: number;
@@ -997,6 +1009,22 @@ export interface SpellContext {
     /** Replaces a target permanent's subtypes (CR 305.7). One-shot mutation,
      *  not a continuous effect — used by Cyclopean Tomb's LTB trigger. */
     setSubtypes: (target: TargetSelection, subtypes: string[]) => void;
+    /** Replaces a target permanent's subtypes for a limited duration (CR 305.7 /
+     *  611.2 — "Target land becomes a Swamp until its controller's next untap
+     *  step", Orcish Farmer). Overwrites `subtypes` so subtype-driven reads
+     *  (intrinsic mana — a land made a Swamp taps for {B} — and landwalk) see the
+     *  change immediately; the phase-boundary purge restores the captured printed
+     *  subtypes when `duration` expires. Pair with `duration: { phase: "untap",
+     *  player: "controller" }` for the canonical "until its controller's next
+     *  untap step" lifetime. Only one timed change is held per permanent — a
+     *  second call replaces the first (CR 305.7 — the most recent change wins),
+     *  restoring against the original printed subtypes. No-op for non-permanent
+     *  targets or a target no longer on the battlefield. */
+    setSubtypesUntil: (
+        target: TargetSelection,
+        subtypes: string[],
+        duration: DurationSpec
+    ) => void;
     /** Adds or removes a supertype on a target permanent indefinitely
      *  (CR 205.4a). `present: false` removes the supertype, `present: true`
      *  adds it. Not tied to a source staying in play — the mutation lasts
@@ -4353,6 +4381,18 @@ export interface CardDefinition {
      *  the first (CR 601.2f). Used by Fireball ("costs {1} more to cast for
      *  each target beyond the first"). */
     additionalGenericPerExtraTarget?: number;
+    /** Mana-spent tracking for the SPELL CAST (CR 106.4 / 202.3 — the cast-path
+     *  twin of the activated-ability `ActivatedAbility.noteManaSpent`). When
+     *  true, the engine snapshots the per-colour mana-pool delta around payment
+     *  and writes it onto the resulting stack item as `notedManaSpent`, readable
+     *  in `resolve` via `SpellContext.getNotedManaSpent()`. Used by Soul Burn to
+     *  cap its lifegain by the {B} spent on X. NOTE (flagged simplification): the
+     *  pool carries no provenance of which mana paid the variable {X} portion vs
+     *  the fixed pips, so the resolve derives "{B} spent on X" as the noted black
+     *  minus the card's fixed black pips, clamped to [0, X]; the oracle's "spend
+     *  ONLY black and/or red mana on X" payment restriction is not enforced at
+     *  tap time (no engine seam exists for colour-restricted generic payment). */
+    noteManaSpent?: boolean;
     /** Restricts cast timing to a specific subset of phases (CR 117.1b).
      *  When set, the spell is castable only while `state.phase` is in this
      *  list. Used by Berserk ("cast only before the combat damage step") —

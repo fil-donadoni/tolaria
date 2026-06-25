@@ -2296,18 +2296,73 @@ export const illusionaryForces: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
-// export const illusionaryPresence: CardDefinition = {
-//     id: "aa31efed-4a11-4f59-a623-bac45d20091d",
-//     name: "Illusionary Presence",
-//     rarity: "rare",
-//     oracleText: "Cumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nAt the beginning of your upkeep, choose a land type. This creature gains landwalk of the chosen type until end of turn. (It can't be blocked as long as defending player controls a land of that type.)",
-//     manaCost: { X: 1, U: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Illusion"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Illusionary Presence — cumulative upkeep {U} (CR 702.24, ADR 0042) plus an
+// "at the beginning of your upkeep, choose a land type" trigger that grants
+// THIS creature the matching landwalk until end of turn (CR 603.6a /
+// 702.13 / 611.1b). The land-type choice is a `requestOptionChoice` over the
+// five basic types (same single-pick primitive Barbarian Guides uses for its
+// snow-landwalk grant); the matching `<type>walk` keyword is granted until end
+// of turn via `grantStaticAbility`, so a fresh choice is made each upkeep. The
+// grant is self-scoped (`ctx.sourceInstanceId`), and the prior turn's keyword
+// has already expired at the CLEANUP boundary by the time this re-fires.
+const ILLUSIONARY_PRESENCE_LANDWALK_BY_TYPE: Record<string, string> = {
+    Plains: "plainswalk",
+    Island: "islandwalk",
+    Swamp: "swampwalk",
+    Mountain: "mountainwalk",
+    Forest: "forestwalk",
+};
+export const illusionaryPresence: CardDefinition = {
+    id: "aa31efed-4a11-4f59-a623-bac45d20091d",
+    name: "Illusionary Presence",
+    rarity: "rare",
+    oracleText:
+        "Cumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nAt the beginning of your upkeep, choose a land type. This creature gains landwalk of the chosen type until end of turn. (It can't be blocked as long as defending player controls a land of that type.)",
+    manaCost: { X: 1, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Illusion"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "illusionary-presence-cumulative-upkeep",
+            cost: { U: 1 },
+            costLabel: "{U}",
+        }),
+        phaseTrigger({
+            id: "illusionary-presence-landwalk",
+            oracleText:
+                "At the beginning of your upkeep, choose a land type. This creature gains landwalk of the chosen type until end of turn.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                // CR 702.13 — pick one of the five basic land types; the
+                // matching landwalk keyword is granted until end of turn.
+                const chosen = ctx.requestOptionChoice({
+                    playerId: ctx.controller,
+                    choiceId: "illusionary-presence-land-type",
+                    prompt: "Choose a land type for landwalk.",
+                    options: [
+                        { id: "Plains", label: "Plains" },
+                        { id: "Island", label: "Island" },
+                        { id: "Swamp", label: "Swamp" },
+                        { id: "Mountain", label: "Mountain" },
+                        { id: "Forest", label: "Forest" },
+                    ],
+                });
+                if (chosen === undefined) return; // suspended on the choice
+                const keyword = ILLUSIONARY_PRESENCE_LANDWALK_BY_TYPE[chosen];
+                if (keyword) {
+                    ctx.grantStaticAbility(
+                        { type: "permanent", id: ctx.sourceInstanceId },
+                        keyword,
+                        { phase: "end-of-turn" }
+                    );
+                }
+            },
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const illusionaryTerrain: CardDefinition = {
 //     id: "691f4a1b-4706-41aa-82da-ae920739f036",
@@ -5419,15 +5474,48 @@ export const songsOfTheDamned: CardDefinition = {
         if (creatures > 0) ctx.addMana({ B: creatures });
     },
 };
-// TODO(#628): implement.
-// export const soulBurn: CardDefinition = {
-//     id: "eb8e00d2-2381-4d45-bed8-c9bf738a9419",
-//     name: "Soul Burn",
-//     rarity: "common",
-//     oracleText: "Spend only black and/or red mana on X.\nSoul Burn deals X damage to any target. You gain life equal to the damage dealt, but not more than the amount of {B} spent on X, the player's life total before the damage was dealt, the planeswalker's loyalty before the damage was dealt, or the creature's toughness.",
-//     manaCost: { X: "X", B: 1 },
-//     types: ["Sorcery"],
-// };
+// Soul Burn — "{X}{2}{B}: Soul Burn deals X damage to any target. You gain life
+// equal to the damage dealt, but not more than the amount of {B} spent on X …"
+// (CR 107.3 X, CR 120 damage, CR 119 lifegain). The lifegain is capped by the
+// {B} actually spent on X: `noteManaSpent` records the per-colour pool delta
+// around payment, and the resolve reads it back via `getNotedManaSpent()` and
+// subtracts the one fixed {B} pip to isolate the black spent on the X portion.
+// The `{X}{2}{B}` cost uses the `generic` field (the `X` slot holds the
+// variable marker, so the fixed {2} lives in `generic`).
+//
+// SIMPLIFICATION (flagged): the oracle's "Spend only black and/or red mana on X"
+// payment restriction is NOT enforced at tap time — the engine has no
+// colour-restricted generic-payment seam, and the merged mana pool carries no
+// provenance of which colour paid the X portion. The observable game effect —
+// the lifegain cap by {B} spent on X — IS modelled faithfully (noted black
+// minus the fixed pip, clamped to [0, X]).
+const SOUL_BURN_FIXED_BLACK_PIPS = 1;
+export const soulBurn: CardDefinition = {
+    id: "eb8e00d2-2381-4d45-bed8-c9bf738a9419",
+    name: "Soul Burn",
+    rarity: "common",
+    oracleText:
+        "Spend only black and/or red mana on X.\nSoul Burn deals X damage to any target. You gain life equal to the damage dealt, but not more than the amount of {B} spent on X, the player's life total before the damage was dealt, the planeswalker's loyalty before the damage was dealt, or the creature's toughness.",
+    manaCost: { X: "X", generic: 2, B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "any", count: 1 },
+    noteManaSpent: true,
+    resolve: (ctx: SpellContext) => {
+        const x = ctx.getX();
+        ctx.dealDamage(ctx.targets[0], x);
+        // CR 119 — gain life equal to the damage dealt, but not more than the
+        // {B} spent on X. `notedManaSpent.B` includes the one fixed {B} pip; the
+        // remainder is the black spent on the X portion (clamped to [0, X]). The
+        // damage-dealt amount is X here (the toughness / life-total sub-caps are
+        // the same secondary clause Drain Life also leaves unmodelled).
+        const blackSpent = ctx.getNotedManaSpent().B ?? 0;
+        const blackOnX = Math.max(
+            0,
+            Math.min(x, blackSpent - SOUL_BURN_FIXED_BLACK_PIPS)
+        );
+        if (blackOnX > 0) ctx.gainLife(ctx.caster, blackOnX);
+    },
+};
 // Soul Kiss — "Enchant creature. {B}, Pay 1 life: Enchanted creature gets +2/+2
 // until end of turn. Activate no more than three times each turn." (CR 303.4
 // aura, CR 611.1b temp buff on the host, CR 602.5 hard per-turn activation cap.)
@@ -7162,18 +7250,46 @@ export const orcishCannoneers: CardDefinition = {
 //     power: 2,
 //     toughness: 2,
 // };
-// TODO(#628): implement.
-// export const orcishFarmer: CardDefinition = {
-//     id: "efa5beef-d609-4809-a813-621b0b4cff7f",
-//     name: "Orcish Farmer",
-//     rarity: "common",
-//     oracleText: "{T}: Target land becomes a Swamp until its controller's next untap step.",
-//     manaCost: { X: 1, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Orc"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Orcish Farmer — "{T}: Target land becomes a Swamp until its controller's next
+// untap step." (CR 305.7 land-type change, CR 502.1 / 611.2 timed duration.)
+// Making the land a Swamp overwrites its subtypes, so it sheds its old basic
+// land types and taps for {B} via the intrinsic Swamp mana ability (CR 305.6 /
+// 605.1a — the engine derives mana from `subtypes`). `setSubtypesUntil` with
+// `{ phase: "untap", player: "controller" }` reverts it at the affected
+// controller's next untap step. Modern Oracle: just `{T}` (no sacrifice).
+export const orcishFarmer: CardDefinition = {
+    id: "efa5beef-d609-4809-a813-621b0b4cff7f",
+    name: "Orcish Farmer",
+    rarity: "common",
+    oracleText:
+        "{T}: Target land becomes a Swamp until its controller's next untap step.",
+    manaCost: { X: 1, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Orc"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "orcish-farmer-swamp",
+            oracleText:
+                "{T}: Target land becomes a Swamp until its controller's next untap step.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Land", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "permanent") return;
+                // CR 305.7 / 502.1 — the land becomes a Swamp until its
+                // controller's next untap step, then reverts to its printed
+                // subtypes.
+                ctx.setSubtypesUntil(t, ["Swamp"], {
+                    phase: "untap",
+                    player: "controller",
+                });
+            },
+        },
+    ],
+};
 // Orcish Healer — three activated abilities (CR 605, CR 701.15c regen-lock /
 // CR 701.15a regeneration shield): a regen-lock on any creature, and two
 // regenerate-a-black-or-green-creature legs differing only in their mana cost

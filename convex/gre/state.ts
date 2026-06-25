@@ -86,7 +86,7 @@ import {
  *  match with `skip > 0`, skip decrements. On a match with `skip === 0`,
  *  the effect expires. */
 export type Duration = {
-    phase: "end-of-turn" | "end-of-combat" | "upkeep";
+    phase: "end-of-turn" | "end-of-combat" | "upkeep" | "untap";
     /** Number of matching boundaries still to skip. Undefined = 0. */
     skip?: number;
     /** Resolved at creation time. Undefined = any active player's boundary. */
@@ -123,7 +123,9 @@ export function tickDuration(
             ? "CLEANUP"
             : duration.phase === "upkeep"
               ? "UPKEEP"
-              : "END_OF_COMBAT";
+              : duration.phase === "untap"
+                ? "UNTAP"
+                : "END_OF_COMBAT";
     if (view.phase !== boundary) return duration;
     if (
         duration.playerId !== undefined &&
@@ -385,6 +387,20 @@ export type CardInstanceState = {
         toughness?: number;
         duration?: Duration;
     }[];
+    /** Timed subtype change (CR 305.7 / 611.2 — "becomes a Swamp until its
+     *  controller's next untap step", Orcish Farmer). While present, the
+     *  permanent's `subtypes` are overwritten with `subtypes` (so subtype-driven
+     *  reads — intrinsic mana, landwalk — observe the change); `restoreSubtypes`
+     *  captures the value to splice back when the `duration` expires. The
+     *  phase-boundary purge (`tickAllDurations`) reverts it. Distinct from the
+     *  indefinite `setSubtypes` (one-shot, no duration) and from the layer-4
+     *  `grantedSubtypes` static effect (source-bound). Pushed by
+     *  `SpellContext.setSubtypesUntil`. */
+    temporarySubtypeChange?: {
+        subtypes: string[];
+        restoreSubtypes: string[];
+        duration: Duration;
+    };
     /** Conditional P/T modifications held "for as long as [the source] remains
      *  tapped" (CR 611.2 — duration tied to a continuously re-evaluated game
      *  state rather than a phase boundary; ATQ cluster E — Ashnod's Battle Gear,
@@ -5332,6 +5348,36 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             found.card.grantedSubtypes = undefined;
             found.card.printedSubtypes = undefined;
         },
+        // CR 305.7 / 611.2 — timed subtype change ("becomes a Swamp until its
+        // controller's next untap step", Orcish Farmer). Overwrites `subtypes`
+        // so subtype-driven reads (intrinsic mana, landwalk) see the change at
+        // once; `temporarySubtypeChange` records the printed value so the
+        // phase-boundary purge (`tickAllDurations`) can restore it on expiry.
+        setSubtypesUntil(
+            target: TargetSelection,
+            subtypes: string[],
+            duration: DurationSpec
+        ): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            // Restore against the ORIGINAL printed subtypes even if a prior
+            // timed change is still active (CR 305.7 — the most recent change
+            // wins, and only one is held at a time).
+            const restoreSubtypes =
+                found.card.temporarySubtypeChange?.restoreSubtypes ??
+                found.card.subtypes;
+            found.card.subtypes = [...subtypes];
+            found.card.temporarySubtypeChange = {
+                subtypes: [...subtypes],
+                restoreSubtypes: [...restoreSubtypes],
+                duration: resolveDuration(
+                    duration,
+                    found.card.controllerId,
+                    state
+                ),
+            };
+        },
         // CR 205.4a — indefinite supertype mutation (Arcum's Weathervane).
         // Writes the same source-keyed markers as the `supertype-set` static
         // effect with the `"indefinite"` sentinel source so `hasSupertype`
@@ -8466,6 +8512,13 @@ export function normalizeManaCost(
         typeof cost.xFactor === "number" && cost.xFactor > 0 ? cost.xFactor : 1;
     for (const [key, val] of Object.entries(cost)) {
         if (key === "xFactor") continue;
+        // CR 107.3 — fixed generic that coexists with a variable `{X}` pip
+        // (Soul Burn `{X}{2}{B}`). Folded into the generic total, never a key
+        // of its own in the normalized record.
+        if (key === "generic") {
+            extraGeneric += typeof val === "number" ? val : 0;
+            continue;
+        }
         if (key === "X" && typeof val === "string") {
             extraGeneric += (opts.chosenX ?? 0) * xFactor;
             continue;
