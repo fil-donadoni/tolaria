@@ -126,7 +126,7 @@ function activateAbility(
         commitLandsForCost(player, manaCost);
     }
     if (ability.cost.discardLastDrawn) {
-        payDiscardLastDrawn(player);
+        payDiscardLastDrawn(state, player);
     }
     if (ability.cost.sacrifice) {
         removePermanentTo(state, card.id, "graveyard");
@@ -189,7 +189,7 @@ function tapForActivationPayment(
             state.pendingActivation = undefined;
             throw new Error("No card drawn this turn left to discard");
         }
-        payDiscardLastDrawn(player);
+        payDiscardLastDrawn(state, player);
     }
     if (pa.sacrificeSource) removePermanentTo(state, source.id, "graveyard");
 

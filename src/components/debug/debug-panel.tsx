@@ -118,6 +118,41 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         turn: 2,
     },
     {
+        // ICE Necropotence (#667, PRD #628). Exercises the CARD_DISCARDED event
+        // + skip-draw replacement and the composed card-advantage engine:
+        //   - "Skip your draw step." — on turn 2 the draw step's draw is
+        //     suppressed (CR 504/614); advance to DRAW and see no card drawn.
+        //   - "Pay 1 life: Exile the top card of your library face down. Put
+        //     that card into your hand at the beginning of your next end step."
+        //     — activate repeatedly to bank cards; they all return at the next
+        //     end step (CR 118.4 / 406.3 / 603.7a). libraryCount seeds enough
+        //     cards to exile.
+        //   - "Whenever you discard a card, exile that card from your
+        //     graveyard." — discard the Balduvian Bears in hand (e.g. via the
+        //     cleanup step at >7 cards, or any discard effect) and watch the new
+        //     CARD_DISCARDED trigger exile it from the graveyard (CR 701.8/603).
+        // Turn 2 so the skip-draw is observable; life 20 so pay-1-life is safe.
+        label: "ICE: Necropotence — skip draw / pay-life exile / discard→exile (#667)",
+        cards: [
+            {
+                name: "Necropotence",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            // A card in hand to discard and watch the CARD_DISCARDED trigger
+            // exile it from the graveyard.
+            {
+                name: "Balduvian Bears",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+        libraryCount: 20,
+        turn: 2,
+    },
+    {
         // ICE divide-as-you-choose cluster (#664, PRD #628). Exercises the
         // player-chosen division of a fixed total among ≥1-each targets for
         // damage AND counters (CR 601.2d / 120.4):
