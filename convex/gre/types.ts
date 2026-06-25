@@ -137,8 +137,16 @@ export type RealizedOutcome = {
  *  - `creature-spell`: spendable only to cast creature spells
  *    (Metamorphosis — "Spend this mana only to cast creature spells").
  *  - `artifact-spell`: spendable only to cast artifact spells
- *    (Mishra's Workshop — "Spend this mana only to cast artifact spells"). */
-export type ManaRestriction = "creature-spell" | "artifact-spell";
+ *    (Mishra's Workshop — "Spend this mana only to cast artifact spells").
+ *  - `cumulative-upkeep`: spendable only to pay cumulative-upkeep costs
+ *    (CR 702.24 — Adarkar Unicorn / Snowfall, ADR 0042). Unlike the two
+ *    spell-cast restrictions this one is NOT eligible at any spell-cast site;
+ *    it is consumed only by the cumulative-upkeep `may-pay` payment, which
+ *    tags its mana leg with this restriction. */
+export type ManaRestriction =
+    | "creature-spell"
+    | "artifact-spell"
+    | "cumulative-upkeep";
 export type PendingChoiceKind =
     | ZonePickKind
     | YesNoChoiceKind

@@ -164,6 +164,7 @@ function compactCard(
     // preserves the printed identity to restore on leave (`revertCopy`).
     if (card.copiedFrom) out.copiedFrom = card.copiedFrom;
     if (card.exileOnDeath) out.exileOnDeath = true;
+    if (card.exileOnLeave) out.exileOnLeave = true;
     if (card.cantBeRegeneratedThisTurn) out.cantBeRegeneratedThisTurn = true;
     if (card.mustAttackThisTurn) out.mustAttackThisTurn = true;
     if (card.canBlockAdditional !== undefined) {
@@ -344,6 +345,7 @@ function expandCard(
     }
     if (compact.copiedFrom) result.copiedFrom = compact.copiedFrom as string;
     if (compact.exileOnDeath) result.exileOnDeath = true;
+    if (compact.exileOnLeave) result.exileOnLeave = true;
     if (compact.cantBeRegeneratedThisTurn)
         result.cantBeRegeneratedThisTurn = true;
     if (compact.mustAttackThisTurn) result.mustAttackThisTurn = true;

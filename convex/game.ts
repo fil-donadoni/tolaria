@@ -5777,23 +5777,40 @@ export const tapUntap = mutation({
                     }
                 }
 
-                // Add chosen mana to pool
+                // Add chosen mana to pool. CR 106.6 / ADR 0042 — a choice mana
+                // ability with a `manaRestriction` (Adarkar Unicorn — "Spend
+                // this mana only to pay cumulative upkeep costs") floats its
+                // output in the parallel `restrictedMana` pool, not the fungible
+                // pool, so it pays only the costs the restriction permits.
+                const choiceRestriction = ability?.manaRestriction;
                 for (const [color, amount] of Object.entries(chosen)) {
                     if (
                         color !== "X" &&
                         typeof amount === "number" &&
                         amount > 0
                     ) {
-                        player.manaPool[color as keyof typeof player.manaPool] =
-                            (player.manaPool[
+                        if (choiceRestriction) {
+                            addRestrictedManaToPool(
+                                player,
+                                color,
+                                amount,
+                                choiceRestriction
+                            );
+                        } else {
+                            player.manaPool[
                                 color as keyof typeof player.manaPool
-                            ] ?? 0) + amount;
+                            ] =
+                                (player.manaPool[
+                                    color as keyof typeof player.manaPool
+                                ] ?? 0) + amount;
+                        }
                     }
                 }
             } else {
                 // Untap: refund exactly the mana that was chosen on tap.
                 // Falls back to manaProduced for legacy instances (pre-chosenMana).
                 const refund = card.chosenMana;
+                const choiceRestriction = ability?.manaRestriction;
                 if (refund) {
                     for (const [color, amount] of Object.entries(refund)) {
                         if (
@@ -5801,11 +5818,34 @@ export const tapUntap = mutation({
                             typeof amount === "number" &&
                             amount > 0
                         ) {
-                            const key = color as keyof typeof player.manaPool;
-                            player.manaPool[key] = Math.max(
-                                0,
-                                (player.manaPool[key] ?? 0) - amount
-                            );
+                            if (choiceRestriction) {
+                                // Reverse the restricted-pool deposit (CR 106.4).
+                                const list = player.restrictedMana ?? [];
+                                const entry = list.find(
+                                    (r) =>
+                                        r.color === color &&
+                                        r.restriction === choiceRestriction
+                                );
+                                if (entry) {
+                                    entry.amount = Math.max(
+                                        0,
+                                        entry.amount - amount
+                                    );
+                                }
+                                player.restrictedMana = list.filter(
+                                    (r) => r.amount > 0
+                                );
+                                if (player.restrictedMana.length === 0) {
+                                    player.restrictedMana = undefined;
+                                }
+                            } else {
+                                const key =
+                                    color as keyof typeof player.manaPool;
+                                player.manaPool[key] = Math.max(
+                                    0,
+                                    (player.manaPool[key] ?? 0) - amount
+                                );
+                            }
                         }
                     }
                 }

@@ -63,10 +63,17 @@ export function applyMayPaySubmit(
         // CR 117.3a / 118.4 / 702.24 — pay the whole cost union (mana, life,
         // sacrifice) all-or-nothing. `canPayMayPayCost` gates affordability for
         // every leg; the mana leg still requires the pool to already be tapped.
-        if (!canPayMayPayCost(state, args.playerId, head.cost)) {
+        if (
+            !canPayMayPayCost(
+                state,
+                args.playerId,
+                head.cost,
+                head.manaRestriction
+            )
+        ) {
             throw new Error("Cannot pay the cost");
         }
-        payMayPayCost(state, args.playerId, head.cost);
+        payMayPayCost(state, args.playerId, head.cost, head.manaRestriction);
     }
 
     const answer = [args.accept ? "yes" : "no"];

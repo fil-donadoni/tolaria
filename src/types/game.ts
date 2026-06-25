@@ -1,5 +1,6 @@
 import type { Color } from "./cards";
 import type { Zone, CardAction } from "@convex/gre/types";
+import type { RestrictedMana } from "@convex/gre/state";
 import type { PublicGrantedAbility } from "@convex/gameProjections";
 
 // Re-export from convex (single source of truth)
@@ -47,6 +48,11 @@ export interface Player {
     exile: CardInstance[];
     battlefield: CardInstance[];
     manaPool: ManaPool;
+    /** Restricted mana floating in the pool (CR 106.6, ADR 0022 / 0042) —
+     *  mana spendable only on costs its restriction permits (e.g.
+     *  `"cumulative-upkeep"` mana from Adarkar Unicorn / Snowfall). Emptied with
+     *  `manaPool` at end of step/phase. Absent means none. */
+    restrictedMana?: RestrictedMana[];
     /** Number of turns this player has taken so far (CR 500.1). Extra turns
      *  (CR 500.7) increment this normally. */
     turnsTaken?: number;
@@ -205,6 +211,7 @@ export type {
     PendingChoiceKind,
     PendingTarget,
 } from "@convex/gre/state";
+export type { RestrictedMana };
 
 export interface GameOver {
     winnerId: string;
