@@ -8,6 +8,7 @@
 
 import { tryGetCardById } from "../cards";
 import { getColorsFromCost } from "../cards/colors";
+import { hasSupertypeLive } from "./snow";
 import type {
     CardType,
     Color,
@@ -70,13 +71,11 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
         return card.subtypes.includes(subtype);
     },
     hasSupertype(card: PermanentView, supertype: string): boolean {
-        // CR 205.4 — supertypes live on the (possibly copied / tokenized) card
-        // definition, not on the instance's mutable `types`/`subtypes` arrays.
-        const embedded = (card.card as { supertypes?: string[] }).supertypes;
-        if (embedded) return embedded.includes(supertype);
-        const cardId = (card.card as { id?: string }).id;
-        const def = cardId ? tryGetCardById(cardId) : undefined;
-        return def?.supertypes?.includes(supertype as never) ?? false;
+        // CR 205.4a — printed supertypes live on the (possibly copied /
+        // tokenized) card definition, overlaid by any `supertype-set` static
+        // effect or indefinite `setSupertype` mutation (Melting / Arcum's
+        // Weathervane). `hasSupertypeLive` resolves the live status.
+        return hasSupertypeLive(card, supertype);
     },
     getPrintedTypes(card: PermanentView): CardType[] {
         // CR 205.2 — printed type line from the card definition; ignores the

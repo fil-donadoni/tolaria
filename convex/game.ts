@@ -88,6 +88,7 @@ import {
     getEffectiveToughness,
 } from "./gre/layers";
 import { projectFullState, projectPublicState } from "./gameProjections";
+import { hasSupertypeLive, liveSupertypesOf } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
 import { compactState, expandState } from "./gre/serialize";
 import { turnFaceDown } from "./gre/faceDown";
@@ -682,6 +683,7 @@ function tapOtherCandidates(
         };
         return matchesPermanentFilter(view, filter, {
             selfControllerId: player.id,
+            supertypesOf: liveSupertypesOf,
         });
     });
 }
@@ -2095,7 +2097,9 @@ export function finalizeTargetSelection(
         // if no matching permanent is on the activating player's battlefield.
         if (ability.cost.sacrificeFilter) {
             const candidates = player.battlefield.filter((c) =>
-                matchesPermanentFilter(c, ability.cost.sacrificeFilter!)
+                matchesPermanentFilter(c, ability.cost.sacrificeFilter!, {
+                    supertypesOf: liveSupertypesOf,
+                })
             );
             if (candidates.length === 0) {
                 throw new Error("No legal permanent to pay the sacrifice cost");
@@ -2541,6 +2545,11 @@ export const announceCast = mutation({
                     ? activeTargetRequirement.subtypeFilter
                     : [activeTargetRequirement.subtypeFilter]
                 : undefined;
+            const supertypeFilter = activeTargetRequirement.supertypeFilter
+                ? Array.isArray(activeTargetRequirement.supertypeFilter)
+                    ? activeTargetRequirement.supertypeFilter
+                    : [activeTargetRequirement.supertypeFilter]
+                : undefined;
             const excludeSubtypes = activeTargetRequirement.excludeSubtypes
                 ? Array.isArray(activeTargetRequirement.excludeSubtypes)
                     ? activeTargetRequirement.excludeSubtypes
@@ -2569,6 +2578,7 @@ export const announceCast = mutation({
                     ? { controller: activeTargetRequirement.controller }
                     : {}),
                 ...(subtypeFilter ? { subtypeFilter } : {}),
+                ...(supertypeFilter ? { supertypeFilter } : {}),
                 ...(activeTargetRequirement.powerFilter
                     ? { powerFilter: activeTargetRequirement.powerFilter }
                     : {}),
@@ -3333,7 +3343,11 @@ export const selectActivationCost = mutation({
         if (sc.pickedId) {
             throw new Error("Sacrifice cost already paid");
         }
-        if (!matchesPermanentFilter(candidate, sc.filter)) {
+        if (
+            !matchesPermanentFilter(candidate, sc.filter, {
+                supertypesOf: liveSupertypesOf,
+            })
+        ) {
             throw new Error(
                 "Selected permanent does not match the sacrifice cost filter"
             );
@@ -3557,6 +3571,18 @@ export const selectTarget = mutation({
                 if (!matchedSubtype) {
                     throw new Error(
                         `Target must be ${pt.subtypeFilter.join(" or ")}`
+                    );
+                }
+            }
+            // CR 205.4a: live supertype-restricted choice (Avalanche — "target
+            // snow lands"). Honors Melting / Arcum's Weathervane mutations.
+            if (pt.supertypeFilter && pt.supertypeFilter.length > 0) {
+                const matchedSupertype = pt.supertypeFilter.every((s) =>
+                    hasSupertypeLive(matchedCard!, s)
+                );
+                if (!matchedSupertype) {
+                    throw new Error(
+                        `Target must be ${pt.supertypeFilter.join(" and ")}`
                     );
                 }
             }
@@ -5305,6 +5331,11 @@ export const activateAbility = mutation({
                     ? effectiveTargetReq.excludeSubtypes
                     : [effectiveTargetReq.excludeSubtypes]
                 : undefined;
+            const abilitySupertypeFilter = effectiveTargetReq.supertypeFilter
+                ? Array.isArray(effectiveTargetReq.supertypeFilter)
+                    ? effectiveTargetReq.supertypeFilter
+                    : [effectiveTargetReq.supertypeFilter]
+                : undefined;
             state.pendingTarget = {
                 playerId: args.playerId,
                 cardInstanceId: card.id,
@@ -5333,6 +5364,9 @@ export const activateAbility = mutation({
                     : {}),
                 ...(abilitySubtypeFilter
                     ? { subtypeFilter: abilitySubtypeFilter }
+                    : {}),
+                ...(abilitySupertypeFilter
+                    ? { supertypeFilter: abilitySupertypeFilter }
                     : {}),
                 ...(effectiveTargetReq.powerFilter
                     ? { powerFilter: effectiveTargetReq.powerFilter }
@@ -5407,7 +5441,9 @@ export const activateAbility = mutation({
         // pendingActivation that can't be paid.
         if (ability.cost.sacrificeFilter) {
             const candidates = player.battlefield.filter((c) =>
-                matchesPermanentFilter(c, ability.cost.sacrificeFilter!)
+                matchesPermanentFilter(c, ability.cost.sacrificeFilter!, {
+                    supertypesOf: liveSupertypesOf,
+                })
             );
             if (candidates.length === 0) {
                 throw new Error("No legal permanent to pay the sacrifice cost");

@@ -154,6 +154,12 @@ function compactCard(
     if (card.grantedColors && card.grantedColors.length > 0) {
         out.grantedColors = card.grantedColors;
     }
+    if (card.grantedSupertypes && card.grantedSupertypes.length > 0) {
+        out.grantedSupertypes = card.grantedSupertypes;
+    }
+    if (card.removedSupertypes && card.removedSupertypes.length > 0) {
+        out.removedSupertypes = card.removedSupertypes;
+    }
     if (card.colorOverride && card.colorOverride.length > 0) {
         out.colorOverride = card.colorOverride;
     }
@@ -334,6 +340,14 @@ function expandCard(
     if (compact.grantedColors) {
         result.grantedColors =
             compact.grantedColors as CardInstanceState["grantedColors"];
+    }
+    if (compact.grantedSupertypes) {
+        result.grantedSupertypes =
+            compact.grantedSupertypes as CardInstanceState["grantedSupertypes"];
+    }
+    if (compact.removedSupertypes) {
+        result.removedSupertypes =
+            compact.removedSupertypes as CardInstanceState["removedSupertypes"];
     }
     if (compact.colorOverride) {
         result.colorOverride =

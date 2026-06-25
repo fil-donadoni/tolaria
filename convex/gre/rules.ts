@@ -24,6 +24,7 @@ import {
     getEffectiveToughness,
 } from "./layers";
 import { isProtectedFromColors } from "./protection";
+import { hasSupertypeLive } from "./snow";
 import { isGuardedAgainst } from "./permanentGuard";
 import { getInstanceManaCost, tryGetCardById } from "../cards";
 import { landPlayLockActive, normalizeManaCost } from "./state";
@@ -607,6 +608,11 @@ export function getLegalTargets(
             ? requirement.subtypeFilter
             : [requirement.subtypeFilter]
         : undefined;
+    const supertypeFilter = requirement.supertypeFilter
+        ? Array.isArray(requirement.supertypeFilter)
+            ? requirement.supertypeFilter
+            : [requirement.supertypeFilter]
+        : undefined;
     const excludeTypes = requirement.excludeTypes
         ? Array.isArray(requirement.excludeTypes)
             ? requirement.excludeTypes
@@ -661,6 +667,14 @@ export function getLegalTargets(
                 if (
                     subtypeFilter &&
                     !subtypeFilter.some((s) => card.subtypes.includes(s))
+                ) {
+                    continue;
+                }
+                // CR 205.4a: live supertype filter for "target snow lands"
+                // (Avalanche). Honors Melting / Arcum's Weathervane mutations.
+                if (
+                    supertypeFilter &&
+                    !supertypeFilter.every((s) => hasSupertypeLive(card, s))
                 ) {
                     continue;
                 }

@@ -26,6 +26,7 @@ import {
     isPrintedInSet as isCardPrintedInSet,
 } from "../cards";
 import { turnFaceDown } from "./faceDown";
+import { applyIndefiniteSupertypeMutation, liveSupertypesOf } from "./snow";
 import {
     buildAutoTapSources,
     manaFromPlan,
@@ -484,6 +485,17 @@ export type CardInstanceState = {
     /** Layer 5 color grants (CR 305.7). Each entry records one source's
      *  granted colors. Used by Kormus Bell ("black creatures"). */
     grantedColors?: { color: string; sourceId: string }[];
+    /** Supertypes added by a `supertype-set` static effect or an indefinite
+     *  `setSupertype` mutation (CR 205.4a). Source-keyed (`"indefinite"` for
+     *  non-source-bound mutations). Read by `hasSnowSupertype` / the
+     *  `STATIC_EFFECT_CTX.hasSupertype` helper so live snow status is observed
+     *  (Arcum's Weathervane "becomes snow"). */
+    grantedSupertypes?: { supertype: string; sourceId: string }[];
+    /** Supertypes removed by a `supertype-set` static effect or an indefinite
+     *  `setSupertype` mutation (Melting / Arcum's Weathervane "no longer
+     *  snow" — CR 205.4a). Source-keyed like `grantedSupertypes`; unapply
+     *  restores the printed supertype when the last source leaves. */
+    removedSupertypes?: { supertype: string; sourceId: string }[];
     /** Original printed subtypes, snapshotted before the first subtype-set
      *  static effect overwrites `subtypes`. Undefined until a subtype-set
      *  effect fires. Used by `unapplySourceStaticEffects` to restore the
@@ -1244,6 +1256,10 @@ export type PendingTarget = {
      *  Propagated from TargetRequirement.subtypeFilter. Match if the
      *  permanent's subtypes include at least one of these. */
     subtypeFilter?: string[];
+    /** If set, restricts legal permanent targets by LIVE supertype (CR 205.4a).
+     *  Propagated from TargetRequirement.supertypeFilter. Match if the
+     *  permanent currently has ALL of these (snow-aware — Avalanche). */
+    supertypeFilter?: string[];
     /** If set, restricts legal permanent targets by effective power
      *  (CR 613 layer 7c). Propagated from TargetRequirement.powerFilter.
      *  Both bounds inclusive. */
@@ -2525,6 +2541,65 @@ function getEffectiveStaticEffects(
  *  `source.id` so `unapplySourceStaticEffects` can splice it back out when
  *  the source leaves play. No-op if the source has no keyword-grant effects
  *  or no permanent matches its predicate. */
+/** Applies one source-bound `supertype-set` grant to `target` (CR 205.4a),
+ *  recording source-keyed markers in `grantedSupertypes` / `removedSupertypes`
+ *  so `unapplySupertypeSetGrant` can splice exactly this source's contribution
+ *  back out. Idempotent per `(sourceId, supertype, direction)`. */
+function applySupertypeSetGrant(
+    target: CardInstanceState,
+    sourceId: string,
+    effect: { add?: readonly string[]; remove?: readonly string[] }
+): void {
+    if (effect.remove?.length) {
+        const removed = target.removedSupertypes ?? [];
+        for (const supertype of effect.remove) {
+            if (
+                !removed.some(
+                    (r) => r.sourceId === sourceId && r.supertype === supertype
+                )
+            ) {
+                removed.push({ supertype, sourceId });
+            }
+        }
+        target.removedSupertypes = removed.length > 0 ? removed : undefined;
+    }
+    if (effect.add?.length) {
+        const granted = target.grantedSupertypes ?? [];
+        for (const supertype of effect.add) {
+            if (
+                !granted.some(
+                    (g) => g.sourceId === sourceId && g.supertype === supertype
+                )
+            ) {
+                granted.push({ supertype, sourceId });
+            }
+        }
+        target.grantedSupertypes = granted.length > 0 ? granted : undefined;
+    }
+}
+
+/** Reverse of `applySupertypeSetGrant`: drops every supertype marker keyed to
+ *  `sourceId` from `target` (CR 611.2 — the continuous effect ends when the
+ *  source leaves play). Indefinite mutations (sentinel `"indefinite"`) are
+ *  left untouched. */
+function unapplySupertypeSetGrant(
+    target: CardInstanceState,
+    sourceId: string
+): void {
+    if (target.grantedSupertypes?.length) {
+        const kept = target.grantedSupertypes.filter(
+            (g) => g.sourceId !== sourceId
+        );
+        target.grantedSupertypes = kept.length > 0 ? kept : undefined;
+    }
+    if (target.removedSupertypes?.length) {
+        const kept = target.removedSupertypes.filter(
+            (r) => r.sourceId !== sourceId
+        );
+        target.removedSupertypes = kept.length > 0 ? kept : undefined;
+    }
+}
+
 export function applySourceStaticEffects(
     state: GameState,
     source: CardInstanceState
@@ -2631,6 +2706,12 @@ export function applySourceStaticEffects(
                     target.grantedSubtypes =
                         grants.length > 0 ? grants : undefined;
                     target.subtypes = [...effect.subtypes];
+                } else if (effect.kind === "supertype-set") {
+                    // CR 205.4a — continuous supertype mutation (Melting).
+                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                        continue;
+                    }
+                    applySupertypeSetGrant(target, source.id, effect);
                 } else if (effect.kind === "keyword-remove") {
                     if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
                         continue;
@@ -2767,6 +2848,9 @@ export function unapplySourceStaticEffects(
                 );
                 target.grantedColors = kept.length > 0 ? kept : undefined;
             }
+            // CR 205.4a — release this source's supertype-set contribution
+            // (Melting leaving play restores lands' printed Snow supertype).
+            unapplySupertypeSetGrant(target, source.id);
             const removals = target.removedKeywords;
             if (removals && removals.length > 0) {
                 const kept: typeof removals = [];
@@ -2924,6 +3008,15 @@ export function applyExistingGrantsTo(
                     newPermanent.grantedSubtypes =
                         grants.length > 0 ? grants : undefined;
                     newPermanent.subtypes = [...effect.subtypes];
+                } else if (effect.kind === "supertype-set") {
+                    // CR 205.4a — a snow land entering while Melting is in
+                    // play immediately loses its Snow supertype.
+                    if (
+                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
+                    ) {
+                        continue;
+                    }
+                    applySupertypeSetGrant(newPermanent, source.id, effect);
                 } else if (effect.kind === "ability-loss") {
                     // CR 613.1f — a noncreature artifact entering under
                     // Titania's Song loses all its abilities too.
@@ -4917,6 +5010,21 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             found.card.grantedSubtypes = undefined;
             found.card.printedSubtypes = undefined;
         },
+        // CR 205.4a — indefinite supertype mutation (Arcum's Weathervane).
+        // Writes the same source-keyed markers as the `supertype-set` static
+        // effect with the `"indefinite"` sentinel source so `hasSupertype`
+        // reads the live status. Adding clears a prior removal (and vice
+        // versa) so toggling back and forth is consistent.
+        setSupertype(
+            target: TargetSelection,
+            supertype: string,
+            present: boolean
+        ): void {
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            applyIndefiniteSupertypeMutation(found.card, supertype, present);
+        },
         getCounterCount(target: TargetSelection, type: string): number {
             if (target.type !== "permanent") return 0;
             const found = findOnBattlefield(state, target.id);
@@ -6263,6 +6371,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     ? req.subtypeFilter
                     : [req.subtypeFilter]
                 : undefined;
+            const supertypeFilter = req.supertypeFilter
+                ? Array.isArray(req.supertypeFilter)
+                    ? req.supertypeFilter
+                    : [req.supertypeFilter]
+                : undefined;
             const excludeSubtypes = req.excludeSubtypes
                 ? Array.isArray(req.excludeSubtypes)
                     ? req.excludeSubtypes
@@ -6309,6 +6422,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 ...(req.zone ? { zone: req.zone } : {}),
                 ...(req.controller ? { controller: req.controller } : {}),
                 ...(subtypeFilter ? { subtypeFilter } : {}),
+                ...(supertypeFilter ? { supertypeFilter } : {}),
                 ...(req.powerFilter ? { powerFilter: req.powerFilter } : {}),
                 ...(req.toughnessFilter
                     ? { toughnessFilter: req.toughnessFilter }
@@ -6341,6 +6455,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     ? requirement.subtypeFilter
                     : [requirement.subtypeFilter]
                 : undefined;
+            const supertypeFilter = requirement.supertypeFilter
+                ? Array.isArray(requirement.supertypeFilter)
+                    ? requirement.supertypeFilter
+                    : [requirement.supertypeFilter]
+                : undefined;
             const excludeSubtypes = requirement.excludeSubtypes
                 ? Array.isArray(requirement.excludeSubtypes)
                     ? requirement.excludeSubtypes
@@ -6366,6 +6485,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     ? { controller: requirement.controller }
                     : {}),
                 ...(subtypeFilter ? { subtypeFilter } : {}),
+                ...(supertypeFilter ? { supertypeFilter } : {}),
                 ...(requirement.powerFilter
                     ? { powerFilter: requirement.powerFilter }
                     : {}),
@@ -6617,11 +6737,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (!filter) return bf.map((c) => c.id);
             // CR 202.2 — populate effective colors so color-scoped filters
             // (Magnetic Mountain's "blue creatures") match on the battlefield.
+            // CR 205.4a — `supertypesOf` resolves live snow status for
+            // `supertypes` filters (Cold Snap / Avalanche snow-land counts).
             return bf
                 .filter((c) =>
                     matchesPermanentFilter(
                         { ...c, colors: STATIC_EFFECT_CTX.getColors(c) },
-                        filter
+                        filter,
+                        { supertypesOf: liveSupertypesOf }
                     )
                 )
                 .map((c) => c.id);

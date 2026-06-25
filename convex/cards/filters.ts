@@ -26,6 +26,13 @@ export interface FilterMatchContext {
     /** Active player at trigger time (CR 500.1). Used by PlayerFilter's
      *  `"active"` / `"non-active"` relation. */
     activePlayerId?: string;
+    /** Resolves a permanent's LIVE supertypes (CR 205.4a) for `supertypes`
+     *  filters. Injected by engine call sites (`snowFilterCtx`) so the matcher
+     *  stays a leaf module with no registry/snow import. When a `supertypes`
+     *  filter is present and the card carries no `supertypes` field, the
+     *  matcher calls this; absent both, a `supertypes` filter matches nothing
+     *  (fail-closed). */
+    supertypesOf?: (card: MatchablePermanent) => ReadonlyArray<string>;
 }
 
 // --- PermanentFilter (CR 110.1) ---
@@ -42,6 +49,13 @@ export interface PermanentFilter {
      *  AND with every other field. */
     excludeTypes?: CardType | CardType[];
     subtypes?: string | string[];
+    /** Match permanents that have ALL of these supertypes (CR 205.4a — e.g.
+     *  "a snow land", "a snow Mountain"). Read against the LIVE supertype set
+     *  on `MatchablePermanent.supertypes`, which engine call sites populate
+     *  with `hasSnowSupertype` so `supertype-set` statics (Melting) and
+     *  indefinite mutations (Arcum's Weathervane) are honored. AND with every
+     *  other field. Single value is shorthand for one supertype. */
+    supertypes?: string | string[];
     /** Only match permanents whose `staticAbilities` contains this keyword. */
     requireAbility?: string;
     /** Skip permanents whose `staticAbilities` contains this keyword. */
@@ -159,6 +173,11 @@ export interface MatchablePermanent {
     id: string;
     types: ReadonlyArray<CardType | string>;
     subtypes: ReadonlyArray<string>;
+    /** Live supertypes (CR 205.4a). Optional: callers that use
+     *  `PermanentFilter.supertypes` must populate it from the live snow status
+     *  (`hasSnowSupertype`) since the printed value alone misses Melting /
+     *  Arcum's Weathervane mutations. */
+    supertypes?: ReadonlyArray<string>;
     staticAbilities: ReadonlyArray<string>;
     controllerId?: string;
     isToken?: boolean;
@@ -230,6 +249,14 @@ export function matchesPermanentFilter(
     if (filter.subtypes !== undefined) {
         const subtypes = asArray(filter.subtypes);
         if (!subtypes.some((s) => card.subtypes.includes(s))) return false;
+    }
+    if (filter.supertypes !== undefined) {
+        const supertypes = asArray(filter.supertypes);
+        // CR 205.4a — "a snow land" requires ALL listed supertypes. Prefer the
+        // card's own live supertypes; else resolve via the injected
+        // `supertypesOf` (snow-aware). Absent both → fail closed.
+        const have = card.supertypes ?? ctx?.supertypesOf?.(card) ?? [];
+        if (!supertypes.every((s) => have.includes(s))) return false;
     }
     if (
         filter.requireAbility !== undefined &&

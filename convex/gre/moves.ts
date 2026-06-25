@@ -39,6 +39,7 @@ import {
 } from "./combat";
 import { getInstanceManaCost, tryGetCardById } from "../cards";
 import { matchesPermanentFilter } from "../cards/filters";
+import { liveSupertypesOf } from "./snow";
 import { substituteColorFilter } from "./textChanges";
 
 /** One land tap the executor must perform to fund a cast/activation. */
@@ -515,7 +516,9 @@ function enumerateAbilityMoves(
         if (
             ability.cost.sacrificeFilter &&
             !player.battlefield.some((c) =>
-                matchesPermanentFilter(c, ability.cost.sacrificeFilter!)
+                matchesPermanentFilter(c, ability.cost.sacrificeFilter!, {
+                    supertypesOf: liveSupertypesOf,
+                })
             )
         ) {
             continue;
@@ -545,6 +548,7 @@ function enumerateAbilityMoves(
                     !c.isTapped &&
                     matchesPermanentFilter(c, filter, {
                         selfControllerId: player.id,
+                        supertypesOf: liveSupertypesOf,
                     })
             ).length;
             if (available < count) continue;

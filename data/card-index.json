@@ -228,6 +228,24 @@
         "firstSet": "leg"
     },
     {
+        "name": "Arctic Foxes",
+        "scryfallId": "98f99c3e-dddc-492f-aab6-1d899346a385",
+        "oracleId": "898f0824-cf4c-4e34-8407-9a32fdae6dcb",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Arcum's Sleigh",
+        "scryfallId": "e9780ce2-756c-48e5-9936-45f6a224f61d",
+        "oracleId": "40960ec8-e3be-45f2-8d27-316d82c69123",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Arcum's Weathervane",
+        "scryfallId": "9e142435-6930-4596-bc3b-60abde1229df",
+        "oracleId": "b4e57fba-5fa3-4fd5-8f0a-7b61593ade72",
+        "firstSet": "ice"
+    },
+    {
         "name": "Argivian Archaeologist",
         "scryfallId": "ce83a3cb-467d-44f6-a051-4855c8cf52a6",
         "oracleId": "4b889ec0-6130-4e31-bb02-03fdabd28bee",
@@ -348,6 +366,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Avalanche",
+        "scryfallId": "d3a925e5-0d0a-42ec-b1c6-9793b8e11625",
+        "oracleId": "a349e526-882c-454f-ba79-ad17340f8153",
+        "firstSet": "ice"
+    },
+    {
         "name": "Azure Drake",
         "scryfallId": "fb5f13a2-0896-4230-8957-6ad1cb2b895b",
         "oracleId": "15cc068c-f424-433e-b165-8457c62a4b35",
@@ -390,6 +414,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Balduvian Conjurer",
+        "scryfallId": "5b616963-fac0-451c-8df4-2cacc9466b17",
+        "oracleId": "3eb21641-90e1-4865-b7be-a21d52b7b56b",
+        "firstSet": "ice"
+    },
+    {
         "name": "Balduvian Hydra",
         "scryfallId": "c3a3b37f-daa6-4502-bb12-c72afe3df035",
         "oracleId": "29a12f75-d66d-457f-85c4-6b9450adc0d8",
@@ -418,6 +448,12 @@
         "scryfallId": "66eaa7d6-48b2-4b35-a834-790edd679e0e",
         "oracleId": "438546b8-0b67-4bec-a43b-f2fc7449c90e",
         "firstSet": "drk"
+    },
+    {
+        "name": "Barbarian Guides",
+        "scryfallId": "fe65a045-dacb-4392-bcb6-843394ef98c9",
+        "oracleId": "ef8c324a-582b-401e-add1-1985c5596908",
+        "firstSet": "ice"
     },
     {
         "name": "Barbary Apes",
@@ -990,6 +1026,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Cold Snap",
+        "scryfallId": "81b87a58-b20c-4f38-afa3-59d398195740",
+        "oracleId": "3dcbcf5e-bdbe-46b3-881e-5ac4030c6e38",
+        "firstSet": "ice"
+    },
+    {
         "name": "Colossus of Sardia",
         "scryfallId": "067c44e9-1b23-42fd-9acb-daafb62c32a2",
         "oracleId": "9be9625e-b98b-416b-aac4-9f7b2dfbd39d",
@@ -1455,6 +1497,12 @@
         "name": "Dreams of the Dead",
         "scryfallId": "93372854-57e7-4db7-a1a6-376c9f49a514",
         "oracleId": "3b6cf935-3b99-4371-a797-6f40b89adeeb",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Drift of the Dead",
+        "scryfallId": "d8b65656-9f8c-4179-81aa-4b15d8280baa",
+        "oracleId": "bcea5e7e-655d-48ea-871e-28ca49e5c574",
         "firstSet": "ice"
     },
     {
@@ -2160,6 +2208,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Gangrenous Zombies",
+        "scryfallId": "08be4d83-99be-4360-90f1-104dee1c3c2f",
+        "oracleId": "d0d844f2-6cf4-49f2-95db-64e932a15b17",
+        "firstSet": "ice"
+    },
+    {
         "name": "Gate to Phyrexia",
         "scryfallId": "1f372950-6693-4838-80ef-8fd9aa3e0349",
         "oracleId": "bbb005de-bbba-458e-87c1-912a004e80da",
@@ -2230,6 +2284,12 @@
         "scryfallId": "87e5fc19-3b10-476f-9a73-e8bf4b5fbec0",
         "oracleId": "9297c0a6-1a8e-4e6e-99d6-f0877b2ec46c",
         "firstSet": "leg"
+    },
+    {
+        "name": "Glacial Crevasses",
+        "scryfallId": "2726b192-f239-470b-8ad6-69887405e7f9",
+        "oracleId": "88e0551a-ada0-41d9-b5c3-39257ce56c3e",
+        "firstSet": "ice"
     },
     {
         "name": "Glacial Wall",
@@ -2356,6 +2416,12 @@
         "scryfallId": "cd69a6dc-27f3-42aa-9e63-4417796e4ef5",
         "oracleId": "5e35df8a-2404-4b3b-888a-25d663bd4383",
         "firstSet": "drk"
+    },
+    {
+        "name": "Goblin Ski Patrol",
+        "scryfallId": "fde1c8b5-1e01-4920-8d02-bf80d5b238c5",
+        "oracleId": "e98396d0-6952-4755-992f-813f565b9189",
+        "firstSet": "ice"
     },
     {
         "name": "Goblin Snowman",
@@ -2844,6 +2910,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Icequake",
+        "scryfallId": "14b4dd4d-c617-4603-8a87-761ec6fc6883",
+        "oracleId": "8c0a6ac1-b1cc-405a-95fb-f06b7fecbb54",
+        "firstSet": "ice"
+    },
+    {
         "name": "Icy Manipulator",
         "scryfallId": "29dc1596-a2e7-4d60-9f99-89babaef8a06",
         "oracleId": "3608f1f7-8dc5-4dd1-ae91-c830e1de9529",
@@ -3180,6 +3252,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Karplusan Giant",
+        "scryfallId": "c524ac2a-294c-4b19-b00b-999e370a3b95",
+        "oracleId": "f0fac3bc-a566-448e-a9a2-10927a49f182",
+        "firstSet": "ice"
+    },
+    {
         "name": "Karplusan Yeti",
         "scryfallId": "7dd9b214-d9fe-4c2e-b45b-7145ad98c408",
         "oracleId": "d6d84884-4a58-4187-aa5c-20b39b379590",
@@ -3387,6 +3465,12 @@
         "name": "Lava Burst",
         "scryfallId": "79dc0e20-5790-4927-8432-cf0e9b7381d4",
         "oracleId": "f7be3da5-55b2-46f2-a5aa-277dee242b94",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Legions of Lim-Dûl",
+        "scryfallId": "75b67eb2-b60e-46b4-9d48-11c284957bec",
+        "oracleId": "70b69803-1870-4441-954b-dba5b433fcb2",
         "firstSet": "ice"
     },
     {
@@ -3688,6 +3772,12 @@
         "scryfallId": "13a68a17-22ee-47c9-870a-83e911862b94",
         "oracleId": "5ba73182-30a7-4bad-9cb6-c0feecc2db33",
         "firstSet": "lea"
+    },
+    {
+        "name": "Melting",
+        "scryfallId": "8d90065e-2c7e-44e5-9f59-015d468214bf",
+        "oracleId": "599247f2-7f88-40ab-be08-e284e5f231d9",
+        "firstSet": "ice"
     },
     {
         "name": "Mercenaries",
@@ -4722,6 +4812,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Rime Dryad",
+        "scryfallId": "7a93e6ce-1295-41f8-b454-2dfe321481a6",
+        "oracleId": "0464176d-75d2-403a-aa9d-40e85f106d01",
+        "firstSet": "ice"
+    },
+    {
         "name": "Ring of Renewal",
         "scryfallId": "a532d38a-809b-4132-8690-be15fe23afab",
         "oracleId": "45964368-ea9e-415f-9faf-870c7bf550d4",
@@ -5166,6 +5262,42 @@
         "firstSet": "ice"
     },
     {
+        "name": "Snow-Covered Forest",
+        "scryfallId": "4c0ad95c-d62c-4138-ada0-fa39a63a449e",
+        "oracleId": "5f0d3be8-e63e-4ade-ae58-6b0c14f2ce6d",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Snow-Covered Island",
+        "scryfallId": "ad8b77cf-b53e-4da3-9c27-3851b7b25a98",
+        "oracleId": "5b2460a5-6ae5-4cad-ba94-1a9e98e6e4c0",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Snow-Covered Mountain",
+        "scryfallId": "ccd3afb3-5574-4f2d-adbe-969a428f1c63",
+        "oracleId": "ca9f660b-e07d-4f42-a46e-abd0ca72510c",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Snow-Covered Plains",
+        "scryfallId": "cb3ac778-fb45-4fd3-a9af-8a0791f833e8",
+        "oracleId": "ac8cc74d-e43b-4118-bba0-dfa8b9c04d45",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Snow-Covered Swamp",
+        "scryfallId": "65a3c27f-6b15-49b6-ac89-36cfb79b3b54",
+        "oracleId": "d8239a86-7184-4005-ba1e-2dddcd756c47",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Snowblind",
+        "scryfallId": "5f62c376-487a-42bc-bd85-ab8b0480f7dc",
+        "oracleId": "3f8bfa3d-7490-4259-a403-d13585ed2f66",
+        "firstSet": "ice"
+    },
+    {
         "name": "Snowfall",
         "scryfallId": "788ed793-3993-4a63-b9f9-9ac3947c3108",
         "oracleId": "5ffed544-1656-4753-ac8f-ad8fb4442c7f",
@@ -5452,6 +5584,12 @@
         "scryfallId": "f1e0f9ec-2b06-4bda-8b80-a716d82d1f13",
         "oracleId": "17841133-c526-42a3-a1d2-a874e9bb7138",
         "firstSet": "drk"
+    },
+    {
+        "name": "Sunstone",
+        "scryfallId": "3c1c67fa-ff88-4a61-b8a5-8a872b3dc44f",
+        "oracleId": "300ad0f7-92a7-450d-a9de-b658836fe3cb",
+        "firstSet": "ice"
     },
     {
         "name": "Svyelunite Priest",
@@ -6348,6 +6486,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Whiteout",
+        "scryfallId": "a8645e4f-eaa8-4420-a6a3-eb53c311fab1",
+        "oracleId": "9e8de3e1-1159-460f-99b7-1043e5814597",
+        "firstSet": "ice"
+    },
+    {
         "name": "Wiitigo",
         "scryfallId": "9ee86bf2-6c54-4c6e-8394-eb39f98d5a85",
         "oracleId": "7f956a21-854e-41cc-96f9-ad774e69fa8e",
@@ -6402,6 +6546,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Withering Wisps",
+        "scryfallId": "ad1e6ae5-c972-42c0-ae78-f203873aeeb1",
+        "oracleId": "ce65c6ed-e5d4-48d8-b569-4e2774b2912c",
+        "firstSet": "ice"
+    },
+    {
         "name": "Wolverine Pack",
         "scryfallId": "ba5aee52-095e-4c69-93eb-5adac11ed1fc",
         "oracleId": "d67d9d82-2786-48fc-8107-11d12c5813d0",
@@ -6412,6 +6562,12 @@
         "scryfallId": "bcae01a2-171b-47cd-87be-f1e4e5314326",
         "oracleId": "0bd8917c-bec4-4603-bc3f-8e0c2afae56a",
         "firstSet": "lea"
+    },
+    {
+        "name": "Woolly Mammoths",
+        "scryfallId": "eaca1216-99c8-4ad5-a51a-3c4ff3b82097",
+        "oracleId": "6e5f1088-a5ab-48ec-be27-c88eb164cf63",
+        "firstSet": "ice"
     },
     {
         "name": "Woolly Spider",

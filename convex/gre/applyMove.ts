@@ -35,6 +35,7 @@ import {
     tapPermanent,
 } from "./state";
 import { matchesPermanentFilter } from "../cards/filters";
+import { liveSupertypesOf } from "./snow";
 import { checkStateBasedActions } from "./sba";
 import { applyPlayLand } from "./playLand";
 import { applyAllCombatDamage, buildAutoDamageAssignments } from "./phases";
@@ -241,7 +242,8 @@ export function applyMoveForSearch(
                             (c) =>
                                 matchesPermanentFilter(
                                     c,
-                                    ability.cost.sacrificeFilter!
+                                    ability.cost.sacrificeFilter!,
+                                    { supertypesOf: liveSupertypesOf }
                                 )
                         );
                         if (candidates.length > 0) {
@@ -290,6 +292,7 @@ export function applyMoveForSearch(
                                     !c.isTapped &&
                                     matchesPermanentFilter(c, filter, {
                                         selfControllerId: owner?.id,
+                                        supertypesOf: liveSupertypesOf,
                                     })
                             )
                             .slice(0, count);

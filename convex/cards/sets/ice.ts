@@ -28,6 +28,7 @@ import type {
     TriggeredAbility,
 } from "../types";
 import type { Phase } from "../../gre/types";
+import { countSnowLands, controlsSnowSubtype } from "../snowReads";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../types";
 import { manaCostForCardId } from "../manaCostLookup";
 import { makeTapForMana } from "../abilities";
@@ -322,18 +323,46 @@ export const adarkarUnicorn: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const arcticFoxes: CardDefinition = {
-//     id: "98f99c3e-dddc-492f-aab6-1d899346a385",
-//     name: "Arctic Foxes",
-//     rarity: "common",
-//     oracleText: "This creature can't be blocked by creatures with power 2 or greater as long as defending player controls a snow land.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Fox"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Arctic Foxes — CR 509.1b block-restriction (side "attacker") gated on the
+// defending player's snow lands (CR 205.4a). A would-be blocker of power 2+ is
+// illegal only while the blocker's controller (the defending player) controls a
+// snow land — `countSnowLands` reads live snow status so Melting / Arcum's
+// Weathervane mutations are honored.
+export const arcticFoxes: CardDefinition = {
+    id: "98f99c3e-dddc-492f-aab6-1d899346a385",
+    name: "Arctic Foxes",
+    rarity: "common",
+    oracleText:
+        "This creature can't be blocked by creatures with power 2 or greater as long as defending player controls a snow land.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Fox"],
+    power: 1,
+    toughness: 1,
+    staticEffects: [
+        {
+            kind: "block-restriction",
+            id: "arctic-foxes-snow-evasion",
+            side: "attacker" as const,
+            // `self` = Arctic Foxes (attacker), `opponent` = candidate blocker.
+            // The block is legal unless the blocker has power 2+ AND its
+            // controller (the defending player) controls a snow land.
+            predicate: (_self, opponent, state) => {
+                const power = opponent.power ?? 0;
+                if (power < 2) return true;
+                // Defending player = the blocker's controller. Locate their
+                // battlefield by the player who controls the blocker.
+                const defender = state?.players.find((p) =>
+                    p.battlefield.some((c) => c.id === opponent.id)
+                );
+                if (!defender) return true;
+                return countSnowLands(defender.battlefield) === 0;
+            },
+            oracleText:
+                "Arctic Foxes can't be blocked by creatures with power 2 or greater as long as defending player controls a snow land.",
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const arensonsAura: CardDefinition = {
 //     id: "f94f3e87-1b39-49a8-ad0d-f18c854e298a",
@@ -651,15 +680,46 @@ export const circleOfProtectionWhiteIce: CardPrint = {
     setCode: "ice",
     rarity: "common",
 };
-// TODO(#628): implement.
-// export const coldSnap: CardDefinition = {
-//     id: "81b87a58-b20c-4f38-afa3-59d398195740",
-//     name: "Cold Snap",
-//     rarity: "uncommon",
-//     oracleText: "Cumulative upkeep {2} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nAt the beginning of each player's upkeep, this enchantment deals damage to that player equal to the number of snow lands they control.",
-//     manaCost: { X: 2, W: 1 },
-//     types: ["Enchantment"],
-// };
+// Cold Snap — cumulative upkeep {2} (CR 702.24, ADR 0042) plus a phase trigger
+// at the beginning of EACH player's upkeep (scope "each", CR 603.6a) that deals
+// damage to that player equal to the number of snow lands they control
+// (CR 205.4a snow read). The snow-land count is read live via a `supertypes`
+// filter on `getBattlefieldIds`.
+export const coldSnap: CardDefinition = {
+    id: "81b87a58-b20c-4f38-afa3-59d398195740",
+    name: "Cold Snap",
+    rarity: "uncommon",
+    oracleText:
+        "Cumulative upkeep {2} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nAt the beginning of each player's upkeep, this enchantment deals damage to that player equal to the number of snow lands they control.",
+    manaCost: { X: 2, W: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "cold-snap-cumulative-upkeep",
+            cost: { X: 2 },
+            costLabel: "{2}",
+        }),
+        phaseTrigger({
+            id: "cold-snap-upkeep-damage",
+            oracleText:
+                "At the beginning of each player's upkeep, this enchantment deals damage to that player equal to the number of snow lands they control.",
+            phase: "UPKEEP",
+            scope: "each",
+            resolve: (ctx, _event, scopedPlayerId) => {
+                const snowLands = ctx.getBattlefieldIds(scopedPlayerId, {
+                    types: "Land",
+                    supertypes: ["Snow"],
+                }).length;
+                if (snowLands > 0) {
+                    ctx.dealDamage(
+                        { type: "player", id: scopedPlayerId },
+                        snowLands
+                    );
+                }
+            },
+        }),
+    ],
+};
 // Cooperation — Aura that grants the enchanted creature banding (CR 702.22,
 // 611 keyword-grant on the host). Same shape as LEA's Flight.
 export const cooperation: CardDefinition = {
@@ -1015,8 +1075,16 @@ export const kelsinkoRanger: CardDefinition = {
 //     power: 2,
 //     toughness: 2,
 // };
-// DEFERRED (snow cluster): activation is gated on "defending player controls no
-// snow lands" — out of scope for #653 (snow supertype is a separate issue).
+// DEFERRED (instance-scoped leave-watch, NOT snow). The snow gate ("activate
+// only if defending player controls no snow lands") is now buildable via
+// `countSnowLands`, but Kjeldoran Guard shares Kjeldoran Elite Guard's genuine
+// engine gap: "When that creature leaves the battlefield this turn, sacrifice
+// this creature" needs a per-turn delayed trigger that watches a SPECIFIC
+// chosen instance leave the battlefield (CR 603.7a) — the delayed-trigger
+// system has timings (next-end-step, …) but no "when target X leaves" timing,
+// and `leftTrigger` only watches the source itself. Shipping the snow gate
+// alone would leave the sacrifice clause unimplemented (behavior-incorrect), so
+// the whole card waits on the leave-watch primitive (same as Elite Guard).
 // export const kjeldoranGuard: CardDefinition = {
 //     id: "bdf41f17-8f82-4a8c-adec-0f3804faff3b",
 //     name: "Kjeldoran Guard",
@@ -1620,18 +1688,46 @@ export const arnjlotsAscent: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const balduvianConjurer: CardDefinition = {
-//     id: "5b616963-fac0-451c-8df4-2cacc9466b17",
-//     name: "Balduvian Conjurer",
-//     rarity: "uncommon",
-//     oracleText: "{T}: Target snow land becomes a 2/2 creature until end of turn. It's still a land.",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Wizard"],
-//     power: 0,
-//     toughness: 2,
-// };
+// Balduvian Conjurer — {T}: animate a target SNOW land into a 2/2 creature
+// until end of turn (CR 208.2 / 611.1 — `animateAsCreature`; "it's still a
+// land" since animate ADDS the Creature type without removing Land). The target
+// is gated to snow lands via the live `supertypeFilter` (CR 205.4a).
+export const balduvianConjurer: CardDefinition = {
+    id: "5b616963-fac0-451c-8df4-2cacc9466b17",
+    name: "Balduvian Conjurer",
+    rarity: "uncommon",
+    oracleText:
+        "{T}: Target snow land becomes a 2/2 creature until end of turn. It's still a land.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 0,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "balduvian-conjurer-animate",
+            oracleText:
+                "{T}: Target snow land becomes a 2/2 creature until end of turn. It's still a land.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Land",
+                count: 1,
+                supertypeFilter: ["Snow"],
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.animateAsCreature(target, {
+                        power: 2,
+                        toughness: 2,
+                        duration: { phase: "end-of-turn" },
+                    });
+                }
+            },
+        },
+    ],
+};
 // Balduvian Shaman — {T}: target a white enchantment you control without
 // cumulative upkeep, (a) replace one color word in its text with another
 // (CR 612 / 613 layer-3 text change — Sleight of Mind's primitive), and (b)
@@ -2847,11 +2943,10 @@ export const snowDevil: CardDefinition = {
 // CU permanent). The added mana is auto-applied — it's strictly beneficial
 // restricted mana, so the "may" carries no real downside (ADR 0003 auto-resolve).
 //
-// SIMPLIFICATION (flagged): the printed "If that Island is snow, add {U}{U}
-// instead" doubles for snow Islands. The Ice Age pool ships NO snow-supertype
-// lands (snow mana is deferred — see CONTEXT.md "Snow" / PRD #628), so no Island
-// can ever satisfy the snow branch; Snowfall always takes the non-snow {U}
-// branch here. The doubling lands the day the block adds snow basics.
+// CR 205.4a — "If that Island is snow, add {U}{U} instead": now that the snow-
+// covered basics ship (#661), a tapped snow Island doubles the bonus. The
+// tapped view carries no supertype, so the resolve resolves the tapped land's
+// live snow status by id via the snow-aware battlefield filter.
 export const snowfall: CardDefinition = {
     id: "788ed793-3993-4a63-b9f9-9ac3947c3108",
     name: "Snowfall",
@@ -2875,11 +2970,21 @@ export const snowfall: CardDefinition = {
             forMana: true,
             resolve: (ctx, _event, tapped) => {
                 // CR 106.6 — the Island controller gets the bonus {U} in their
-                // CU-restricted pool (ADR 0022). Snow doubling is deferred (no
-                // snow lands in pool); always the single-{U} branch.
+                // CU-restricted pool (ADR 0022). CR 205.4a — if the tapped
+                // Island is SNOW, the bonus is {U}{U} instead (now that snow
+                // Islands ship, #661). The tapped view carries no supertype, so
+                // resolve the live snow status by id via the snow-aware
+                // battlefield filter.
+                const isSnowIsland = ctx
+                    .getBattlefieldIds(tapped.controllerId, {
+                        types: "Land",
+                        supertypes: ["Snow"],
+                        instanceIds: [tapped.id],
+                    })
+                    .includes(tapped.id);
                 ctx.addRestrictedMana(
                     tapped.controllerId,
-                    { U: 1 },
+                    { U: isSnowIsland ? 2 : 1 },
                     "cumulative-upkeep"
                 );
             },
@@ -2996,7 +3101,18 @@ export const windSpirit: CardDefinition = {
     toughness: 2,
     staticAbilities: ["flying", "menace"],
 };
-// TODO(#628): implement.
+// DEFERRED (non-snow primitives). The snow read ("X can't be greater than the
+// number of snow lands you control") is now available via `countSnowLands`, but
+// Winter's Chill still needs two engine primitives outside the snow scope:
+//   (1) a chosen-X UPPER-BOUND validator keyed to a board count (CR 107.3) —
+//       the engine resolves X-target counts but has no "X ≤ snow lands you
+//       control" cap hook at cast announcement; and
+//   (2) a per-target THREE-WAY may-pay ({1} / {2} / decline) whose outcomes are
+//       a delayed "destroy at end of combat" (decline) and a per-creature
+//       "prevent all combat damage to AND by that creature this combat" (pay
+//       {1}) — `requestMayPay` offers a single cost, not a {1}-or-{2} fork with
+//       distinct delayed effects per branch.
+// Both are general primitives unrelated to Snow; flagged for a follow-up.
 // export const wintersChill: CardDefinition = {
 //     id: "a779aca7-ff2c-48d8-9484-6ad04b2c6bcb",
 //     name: "Winter's Chill",
@@ -3530,16 +3646,45 @@ export const demonicConsultation: CardDefinition = {
 //     power: 3,
 //     toughness: 4,
 // };
-// TODO(#628): implement.
-// export const driftOfTheDead: CardDefinition = {
-//     id: "d8b65656-9f8c-4179-81aa-4b15d8280baa",
-//     name: "Drift of the Dead",
-//     rarity: "uncommon",
-//     oracleText: "Defender (This creature can't attack.)\nDrift of the Dead's power and toughness are each equal to the number of snow lands you control.",
-//     manaCost: { X: 3, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Wall"],
-// };
+// Drift of the Dead — Defender Wall whose P/T is a characteristic-defining
+// ability (CR 604.3, layer 7b) equal to the number of SNOW lands its controller
+// controls (CR 205.4a). Base 0/0; the `pt-cda` counts live snow lands via
+// `ctx.hasSupertype` (Melting / Arcum's Weathervane honored). Mirrors
+// Nightmare's Swamp-count CDA.
+export const driftOfTheDead: CardDefinition = {
+    id: "d8b65656-9f8c-4179-81aa-4b15d8280baa",
+    name: "Drift of the Dead",
+    rarity: "uncommon",
+    oracleText:
+        "Defender (This creature can't attack.)\nDrift of the Dead's power and toughness are each equal to the number of snow lands you control.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 0,
+    staticAbilities: ["defender"],
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: EFFECT_AFFECTS_SELF,
+            compute: (source, state, ctx) => {
+                let snow = 0;
+                for (const player of state.players) {
+                    for (const p of player.battlefield) {
+                        if (
+                            p.controllerId === source.controllerId &&
+                            p.types.includes("Land") &&
+                            ctx.hasSupertype(p, "Snow")
+                        ) {
+                            snow++;
+                        }
+                    }
+                }
+                return { power: snow, toughness: snow };
+            },
+        },
+    ],
+};
 // Fear — ICE reprint of the LEA original (ADR 0014). The fear-granting Aura
 // mechanics live on the existing LEA definition; this is a CardPrint.
 export const fearIce: CardPrint = {
@@ -3624,18 +3769,49 @@ export const foulFamiliar: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const gangrenousZombies: CardDefinition = {
-//     id: "08be4d83-99be-4360-90f1-104dee1c3c2f",
-//     name: "Gangrenous Zombies",
-//     rarity: "common",
-//     oracleText: "{T}, Sacrifice this creature: This creature deals 1 damage to each creature and each player. If you control a snow Swamp, this creature deals 2 damage to each creature and each player instead.",
-//     manaCost: { X: 1, B: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Zombie"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Gangrenous Zombies — {T}, Sacrifice this creature: deal 1 (or 2 if you
+// control a snow Swamp — CR 205.4a) damage to each creature and each player
+// (`dealDamageToEach`). The sacrifice is a COST, so the snow-Swamp check reads
+// the controller's battlefield at resolution via `controlsSnowSubtype` (live
+// snow status). The dealing source is gone by resolve, so the damage is dealt
+// without a source-creature reference — `dealDamageToEach` handles this.
+export const gangrenousZombies: CardDefinition = {
+    id: "08be4d83-99be-4360-90f1-104dee1c3c2f",
+    name: "Gangrenous Zombies",
+    rarity: "common",
+    oracleText:
+        "{T}, Sacrifice this creature: This creature deals 1 damage to each creature and each player. If you control a snow Swamp, this creature deals 2 damage to each creature and each player instead.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "gangrenous-zombies-blast",
+            oracleText:
+                "{T}, Sacrifice this creature: This creature deals 1 damage to each creature and each player. If you control a snow Swamp, this creature deals 2 damage to each creature and each player instead.",
+            cost: { tap: true, sacrifice: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                // CR 205.4a — "a snow Swamp": a Land with the Swamp subtype and
+                // the live Snow supertype. `getBattlefieldIds` resolves the
+                // supertype filter against live snow status.
+                const snowSwamp =
+                    ctx.getBattlefieldIds(ctx.controller, {
+                        types: "Land",
+                        subtypes: "Swamp",
+                        supertypes: ["Snow"],
+                    }).length > 0;
+                const amount = snowSwamp ? 2 : 1;
+                ctx.dealDamageToEach(amount, {
+                    creatures: true,
+                    players: true,
+                });
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const gazeOfPain: CardDefinition = {
 //     id: "48401643-ec4b-444a-8f9a-1a5ea471ff4a",
@@ -3746,15 +3922,37 @@ export const hyalopterousLemure: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const icequake: CardDefinition = {
-//     id: "14b4dd4d-c617-4603-8a87-761ec6fc6883",
-//     name: "Icequake",
-//     rarity: "uncommon",
-//     oracleText: "Destroy target land. If that land was a snow land, Icequake deals 1 damage to that land's controller.",
-//     manaCost: { X: 1, B: 2 },
-//     types: ["Sorcery"],
-// };
+// Icequake — destroy target land; if that land WAS a snow land (CR 205.4a),
+// deal 1 damage to its controller. The snow status and controller are captured
+// BEFORE the destroy (CR 608.2g — last-known information): the target is
+// matched against its controller's live snow lands via the snow-aware
+// `getBattlefieldIds` supertype filter while still on the battlefield.
+export const icequake: CardDefinition = {
+    id: "14b4dd4d-c617-4603-8a87-761ec6fc6883",
+    name: "Icequake",
+    rarity: "uncommon",
+    oracleText:
+        "Destroy target land. If that land was a snow land, Icequake deals 1 damage to that land's controller.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "Land", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "permanent") return;
+        const controller = ctx.getController(target);
+        const wasSnow = ctx
+            .getBattlefieldIds(controller, {
+                types: "Land",
+                supertypes: ["Snow"],
+                instanceIds: [target.id],
+            })
+            .includes(target.id);
+        ctx.destroy(target);
+        if (wasSnow) {
+            ctx.dealDamage({ type: "player", id: controller }, 1);
+        }
+    },
+};
 // TODO(#628): implement.
 // export const infernalDarkness: CardDefinition = {
 //     id: "f3475eb3-909d-450b-9597-b241b259b425",
@@ -4125,18 +4323,23 @@ export const krovikanVampire: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const legionsOfLimDL: CardDefinition = {
-//     id: "75b67eb2-b60e-46b4-9d48-11c284957bec",
-//     name: "Legions of Lim-Dûl",
-//     rarity: "common",
-//     oracleText: "Snow swampwalk (This creature can't be blocked as long as defending player controls a snow Swamp.)",
-//     manaCost: { X: 1, B: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Zombie"],
-//     power: 2,
-//     toughness: 3,
-// };
+// Legions of Lim-Dûl — snow swampwalk (CR 702.13 / 205.4a): can't be blocked
+// while the defending player controls a snow Swamp. Modeled as the
+// `snow swampwalk` keyword in `staticAbilities`; the combat registry's
+// `LANDWALK_SNOW_RULES` enforces it (`controlsSnowSubtype(..., "Swamp")`).
+export const legionsOfLimDL: CardDefinition = {
+    id: "75b67eb2-b60e-46b4-9d48-11c284957bec",
+    name: "Legions of Lim-Dûl",
+    rarity: "common",
+    oracleText:
+        "Snow swampwalk (This creature can't be blocked as long as defending player controls a snow Swamp.)",
+    manaCost: { X: 1, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 2,
+    toughness: 3,
+    staticAbilities: ["snow swampwalk"],
+};
 // Leshrac's Rite — Aura that grants swampwalk to its host (CR 702.13 landwalk,
 // CR 611 keyword grant via `keyword-grant` staticEffect on the host).
 export const leshracsRite: CardDefinition = {
@@ -4914,15 +5117,62 @@ export const touchOfDeath: CardDefinition = {
     },
     delayedTriggers: [nextUpkeepDrawTrigger()],
 };
-// TODO(#628): implement.
-// export const witheringWisps: CardDefinition = {
-//     id: "ad1e6ae5-c972-42c0-ae78-f203873aeeb1",
-//     name: "Withering Wisps",
-//     rarity: "uncommon",
-//     oracleText: "At the beginning of the end step, if no creatures are on the battlefield, sacrifice this enchantment.\n{B}: This enchantment deals 1 damage to each creature and each player. Activate no more times each turn than the number of snow Swamps you control.",
-//     manaCost: { X: 1, B: 2 },
-//     types: ["Enchantment"],
-// };
+// Withering Wisps — end-step self-sacrifice when no creatures are on the
+// battlefield (CR 603.6a phase trigger), plus "{B}: deal 1 to each creature and
+// each player" with a per-turn activation cap equal to the number of snow
+// Swamps you control (CR 205.4a / 602.5f). The cap is enforced in `canActivate`
+// by counting the controller's snow Swamps and comparing to this turn's tally.
+export const witheringWisps: CardDefinition = {
+    id: "ad1e6ae5-c972-42c0-ae78-f203873aeeb1",
+    name: "Withering Wisps",
+    rarity: "uncommon",
+    oracleText:
+        "At the beginning of the end step, if no creatures are on the battlefield, sacrifice this enchantment.\n{B}: This enchantment deals 1 damage to each creature and each player. Activate no more times each turn than the number of snow Swamps you control.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "withering-wisps-end-step-sacrifice",
+            oracleText:
+                "At the beginning of the end step, if no creatures are on the battlefield, sacrifice this enchantment.",
+            phase: "END_STEP",
+            scope: "each",
+            // CR 603.4d intervening-if — only sacrifice when the battlefield
+            // holds no creatures at all.
+            interveningIf: (_event, _self, state) =>
+                !(state?.players ?? []).some((p) =>
+                    p.battlefield.some((c) => c.types.includes("Creature"))
+                ),
+            resolve: (ctx) => {
+                ctx.sacrifice(ctx.sourceInstanceId);
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "withering-wisps-blast",
+            oracleText:
+                "{B}: This enchantment deals 1 damage to each creature and each player. Activate no more times each turn than the number of snow Swamps you control.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            // CR 602.5f / 205.4a — capped at the controller's snow-Swamp count.
+            canActivate: (source, state) => {
+                const me = source.controllerId;
+                const controller = state.players.find((p) => p.id === me);
+                if (!controller) return false;
+                const snowSwamps = controller.battlefield.filter((c) =>
+                    controlsSnowSubtype([c], "Swamp")
+                ).length;
+                const used =
+                    source.activationsThisTurn?.["withering-wisps-blast"] ?? 0;
+                return used < snowSwamps;
+            },
+            resolve: (ctx: SpellContext) => {
+                ctx.dealDamageToEach(1, { creatures: true, players: true });
+            },
+        },
+    ],
+};
 // ─────────────────────────────────────────────────────────────────────────────
 // Red free tranche (#633)
 //
@@ -5050,15 +5300,35 @@ export const anarchy: CardDefinition = {
         ctx.destroyAll({ colors: "W" });
     },
 };
-// TODO(#628): implement.
-// export const avalanche: CardDefinition = {
-//     id: "d3a925e5-0d0a-42ec-b1c6-9793b8e11625",
-//     name: "Avalanche",
-//     rarity: "uncommon",
-//     oracleText: "Destroy X target snow lands.",
-//     manaCost: { X: "X", R: 2 },
-//     types: ["Sorcery"],
-// };
+// Avalanche — Destroy X target SNOW lands (CR 205.4a). `count: "X"` resolves the
+// number of land targets against the chosen X; the `supertypeFilter: ["Snow"]`
+// keeps only live snow lands as legal targets (snow-aware — honors Melting /
+// Arcum's Weathervane).
+//
+// SIMPLIFICATION (flagged): the printed cost is {X}{2}{R}{R}. `ManaCost` encodes
+// `X` as EITHER the variable "X" OR a fixed generic, not both, so the fixed {2}
+// generic alongside variable X is not representable; this ships as {X}{R}{R}
+// (the stub's pre-existing encoding). The {2} lands when ManaCost grows a
+// separate "generic-with-variable-X" field — an engine limitation, not a snow
+// gap.
+export const avalanche: CardDefinition = {
+    id: "d3a925e5-0d0a-42ec-b1c6-9793b8e11625",
+    name: "Avalanche",
+    rarity: "uncommon",
+    oracleText: "Destroy X target snow lands.",
+    manaCost: { X: "X", R: 2 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: "Land",
+        count: "X",
+        supertypeFilter: ["Snow"],
+    },
+    resolve: (ctx: SpellContext) => {
+        for (const target of ctx.targets) {
+            if (target.type === "permanent") ctx.destroy(target);
+        }
+    },
+};
 // Balduvian Barbarians — {1}{R}{R} 3/2 vanilla Human Barbarian (CR 302).
 export const balduvianBarbarians: CardDefinition = {
     id: "efeabe8e-8107-4d19-8a43-362aa79cdd92",
@@ -5123,18 +5393,93 @@ export const balduvianHydra: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const barbarianGuides: CardDefinition = {
-//     id: "fe65a045-dacb-4392-bcb6-843394ef98c9",
-//     name: "Barbarian Guides",
-//     rarity: "common",
-//     oracleText: "{2}{R}, {T}: Choose a land type. Target creature you control gains snow landwalk of the chosen type until end of turn. Return that creature to its owner's hand at the beginning of the next end step. (It can't be blocked as long as defending player controls a snow land of that type.)",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Barbarian"],
-//     power: 1,
-//     toughness: 2,
-// };
+// Barbarian Guides — "{2}{R}, {T}: Choose a land type. Target creature you
+// control gains snow landwalk of the chosen type until end of turn. Return that
+// creature to its owner's hand at the beginning of the next end step."
+// (CR 702.13 / 205.4a snow landwalk.) The land-type choice is a
+// `requestOptionChoice` over the five basic types; the matching
+// `snow <type>walk` keyword (enforced by the combat registry's snow-landwalk
+// rules) is granted until end of turn, and a `next-end-step` delayed trigger
+// bounces the creature.
+const BARBARIAN_GUIDES_ID = "fe65a045-dacb-4392-bcb6-843394ef98c9";
+const SNOW_LANDWALK_BY_TYPE: Record<string, string> = {
+    Plains: "snow plainswalk",
+    Island: "snow islandwalk",
+    Swamp: "snow swampwalk",
+    Mountain: "snow mountainwalk",
+    Forest: "snow forestwalk",
+};
+export const barbarianGuides: CardDefinition = {
+    id: BARBARIAN_GUIDES_ID,
+    name: "Barbarian Guides",
+    rarity: "common",
+    oracleText:
+        "{2}{R}, {T}: Choose a land type. Target creature you control gains snow landwalk of the chosen type until end of turn. Return that creature to its owner's hand at the beginning of the next end step. (It can't be blocked as long as defending player controls a snow land of that type.)",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Barbarian"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "barbarian-guides-snow-landwalk",
+            oracleText:
+                "{2}{R}, {T}: Choose a land type. Target creature you control gains snow landwalk of the chosen type until end of turn. Return that creature to its owner's hand at the beginning of the next end step.",
+            cost: { mana: { X: 2, R: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "permanent") return;
+                const chosen = ctx.requestOptionChoice({
+                    playerId: ctx.controller,
+                    choiceId: "barbarian-guides-land-type",
+                    prompt: "Choose a land type for snow landwalk.",
+                    options: [
+                        { id: "Plains", label: "Plains" },
+                        { id: "Island", label: "Island" },
+                        { id: "Swamp", label: "Swamp" },
+                        { id: "Mountain", label: "Mountain" },
+                        { id: "Forest", label: "Forest" },
+                    ],
+                });
+                if (chosen === undefined) return; // suspended on the choice
+                const keyword = SNOW_LANDWALK_BY_TYPE[chosen];
+                if (keyword) {
+                    ctx.grantStaticAbility(t, keyword, {
+                        phase: "end-of-turn",
+                    });
+                }
+                ctx.scheduleDelayedTrigger(
+                    BARBARIAN_GUIDES_ID,
+                    "barbarian-guides-bounce",
+                    "next-end-step",
+                    { creatureId: t.id }
+                );
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: "barbarian-guides-bounce",
+            oracleText:
+                "Return that creature to its owner's hand at the beginning of the next end step.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                if (payload.creatureId) {
+                    ctx.returnToHand({
+                        type: "permanent",
+                        id: payload.creatureId,
+                    });
+                }
+            },
+        },
+    ],
+};
 // Battle Frenzy — {2}{R} Instant. One-shot batch pump (CR 611.1): a fixed
 // snapshot at resolution of the creatures you control, green ones get +1/+1 and
 // the rest +1/+0, both until end of turn. Composes `getBattlefieldIds` +
@@ -5496,15 +5841,38 @@ export const gameOfChaos: CardDefinition = {
         }
     },
 };
-// TODO(#628): implement.
-// export const glacialCrevasses: CardDefinition = {
-//     id: "2726b192-f239-470b-8ad6-69887405e7f9",
-//     name: "Glacial Crevasses",
-//     rarity: "rare",
-//     oracleText: "Sacrifice a snow Mountain: Prevent all combat damage that would be dealt this turn.",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Enchantment"],
-// };
+// Glacial Crevasses — "Sacrifice a snow Mountain: Prevent all combat damage
+// that would be dealt this turn." The cost is a snow-typed sacrifice
+// (CR 118.5 / 205.4a) via `sacrificeFilter` with `subtypes: "Mountain"` +
+// `supertypes: ["Snow"]` (resolved live). The effect is `preventAllCombatDamage`
+// (CR 615). Mana ability? No — it has no mana and uses the stack (CR 605.1a).
+export const glacialCrevasses: CardDefinition = {
+    id: "2726b192-f239-470b-8ad6-69887405e7f9",
+    name: "Glacial Crevasses",
+    rarity: "rare",
+    oracleText:
+        "Sacrifice a snow Mountain: Prevent all combat damage that would be dealt this turn.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "glacial-crevasses-fog",
+            oracleText:
+                "Sacrifice a snow Mountain: Prevent all combat damage that would be dealt this turn.",
+            cost: {
+                sacrificeFilter: {
+                    types: "Land",
+                    subtypes: "Mountain",
+                    supertypes: ["Snow"],
+                },
+            },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.preventAllCombatDamage();
+            },
+        },
+    ],
+};
 // Goblin Mutant — {2}{R}{R} 5/3 Goblin Mutant with trample. Two combat
 // restrictions, both `staticEffects`: an `attack-restriction` (CR 508.1c) whose
 // predicate scans the defending player's battlefield for an untapped creature of
@@ -5647,18 +6015,69 @@ export const goblinSappers: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const goblinSkiPatrol: CardDefinition = {
-//     id: "fde1c8b5-1e01-4920-8d02-bf80d5b238c5",
-//     name: "Goblin Ski Patrol",
-//     rarity: "common",
-//     oracleText: "{1}{R}: This creature gets +2/+0 and gains flying. Its controller sacrifices it at the beginning of the next end step. Activate only once and only if you control a snow Mountain.",
-//     manaCost: { X: 1, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Goblin"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Goblin Ski Patrol — "{1}{R}: +2/+0 and gains flying. Sacrifice it at the
+// beginning of the next end step. Activate only once and only if you control a
+// snow Mountain." (CR 205.4a snow gate.) The pump/flying ride until end of turn
+// (the creature is sacrificed by then anyway); a `next-end-step` delayed trigger
+// sacrifices it. "Activate only once" is `oncePerTurn` (functionally once, since
+// it self-destructs the same turn). The snow-Mountain gate is read in
+// `canActivate` via a snow-aware battlefield scan.
+const GOBLIN_SKI_PATROL_ID = "fde1c8b5-1e01-4920-8d02-bf80d5b238c5";
+export const goblinSkiPatrol: CardDefinition = {
+    id: GOBLIN_SKI_PATROL_ID,
+    name: "Goblin Ski Patrol",
+    rarity: "common",
+    oracleText:
+        "{1}{R}: This creature gets +2/+0 and gains flying. Its controller sacrifices it at the beginning of the next end step. Activate only once and only if you control a snow Mountain.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Goblin"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "goblin-ski-patrol-charge",
+            oracleText:
+                "{1}{R}: This creature gets +2/+0 and gains flying. Its controller sacrifices it at the beginning of the next end step. Activate only once and only if you control a snow Mountain.",
+            cost: { mana: { X: 1, R: 1 } },
+            useStack: true,
+            oncePerTurn: true,
+            canActivate: (source, state) => {
+                const me = source.controllerId;
+                const controller = state.players.find((p) => p.id === me);
+                if (!controller) return false;
+                return controlsSnowSubtype(controller.battlefield, "Mountain");
+            },
+            resolve: (ctx: SpellContext) => {
+                const self = {
+                    type: "permanent" as const,
+                    id: ctx.sourceInstanceId,
+                };
+                ctx.addTemporaryPTBuff(self, 2, 0, { phase: "end-of-turn" });
+                ctx.grantStaticAbility(self, "flying", {
+                    phase: "end-of-turn",
+                });
+                ctx.scheduleDelayedTrigger(
+                    GOBLIN_SKI_PATROL_ID,
+                    "goblin-ski-patrol-sacrifice",
+                    "next-end-step",
+                    { selfId: ctx.sourceInstanceId }
+                );
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: "goblin-ski-patrol-sacrifice",
+            oracleText:
+                "Its controller sacrifices it at the beginning of the next end step.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                if (payload.selfId) ctx.sacrifice(payload.selfId);
+            },
+        },
+    ],
+};
 // Goblin Snowman — "Whenever this creature blocks, prevent all combat damage to
 // and dealt by it this turn" (CR 509.4 block trigger, fired off
 // BLOCKERS_CONFIRMED matching self; CR 615 two-way prevention) plus "{T}: deals
@@ -5817,18 +6236,48 @@ export const jokulhaups: CardDefinition = {
         });
     },
 };
-// TODO(#628): implement.
-// export const karplusanGiant: CardDefinition = {
-//     id: "c524ac2a-294c-4b19-b00b-999e370a3b95",
-//     name: "Karplusan Giant",
-//     rarity: "uncommon",
-//     oracleText: "Tap an untapped snow land you control: This creature gets +1/+1 until end of turn.",
-//     manaCost: { X: 6, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Giant"],
-//     power: 3,
-//     toughness: 3,
-// };
+// Karplusan Giant — "Tap an untapped snow land you control: +1/+1 until end of
+// turn." The cost is a `tapOtherFilter` over snow lands (CR 118.8 / 205.4a),
+// resolved live so Melting / Arcum's Weathervane mutations gate the cost. The
+// effect is a +1/+1 self-pump until end of turn.
+export const karplusanGiant: CardDefinition = {
+    id: "c524ac2a-294c-4b19-b00b-999e370a3b95",
+    name: "Karplusan Giant",
+    rarity: "uncommon",
+    oracleText:
+        "Tap an untapped snow land you control: This creature gets +1/+1 until end of turn.",
+    manaCost: { X: 6, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Giant"],
+    power: 3,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "karplusan-giant-pump",
+            oracleText:
+                "Tap an untapped snow land you control: This creature gets +1/+1 until end of turn.",
+            cost: {
+                tapOtherFilter: {
+                    filter: {
+                        types: "Land",
+                        supertypes: ["Snow"],
+                        controllerRelation: "you",
+                    },
+                    count: 1,
+                },
+            },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
 // Karplusan Yeti — "{T}: This creature deals damage equal to its power to target
 // creature. That creature deals damage equal to its power to this creature." —
 // the mutual-damage "fight" shape (CR 701.12-style), expressed with the `fight`
@@ -5968,15 +6417,26 @@ export const mRtonStromgald: CardDefinition = {
 //     manaCost: { X: 4, R: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
-// export const melting: CardDefinition = {
-//     id: "8d90065e-2c7e-44e5-9f59-015d468214bf",
-//     name: "Melting",
-//     rarity: "uncommon",
-//     oracleText: "All lands are no longer snow.",
-//     manaCost: { X: 3, R: 1 },
-//     types: ["Enchantment"],
-// };
+// Melting — "All lands are no longer snow." A board-wide continuous
+// supertype-set static (CR 205.4a, layer-4-adjacent) that REMOVES the Snow
+// supertype from every Land while Melting is in play; `hasSupertype` reads the
+// removal so snow-matters effects (Drift of the Dead, Cold Snap, snow landwalk,
+// snow targets) see no snow lands. Restored when Melting leaves play.
+export const melting: CardDefinition = {
+    id: "8d90065e-2c7e-44e5-9f59-015d468214bf",
+    name: "Melting",
+    rarity: "uncommon",
+    oracleText: "All lands are no longer snow.",
+    manaCost: { X: 3, R: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "supertype-set",
+            applies: (target) => target.types.includes("Land"),
+            remove: ["Snow"],
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const meteorShower: CardDefinition = {
 //     id: "50b4851e-677b-468e-9baa-e47a3b4b8339",
@@ -7544,20 +8004,23 @@ export const regenerationIce: CardPrint = {
     setCode: "ice",
     rarity: "common",
 };
-// DEFERRED — Rime Dryad (snow forestwalk); snow-evasion plumbing is unbuilt
-// (snow cluster).
-// TODO(#628): implement.
-// export const rimeDryad: CardDefinition = {
-//     id: "7a93e6ce-1295-41f8-b454-2dfe321481a6",
-//     name: "Rime Dryad",
-//     rarity: "common",
-//     oracleText: "Snow forestwalk (This creature can't be blocked as long as defending player controls a snow Forest.)",
-//     manaCost: { G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Dryad"],
-//     power: 1,
-//     toughness: 2,
-// };
+// Rime Dryad — snow forestwalk (CR 702.13 / 205.4a): can't be blocked while the
+// defending player controls a snow Forest. The `snow forestwalk` keyword is
+// enforced by the combat registry's `LANDWALK_SNOW_RULES`
+// (`controlsSnowSubtype(..., "Forest")`).
+export const rimeDryad: CardDefinition = {
+    id: "7a93e6ce-1295-41f8-b454-2dfe321481a6",
+    name: "Rime Dryad",
+    rarity: "common",
+    oracleText:
+        "Snow forestwalk (This creature can't be blocked as long as defending player controls a snow Forest.)",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Dryad"],
+    power: 1,
+    toughness: 2,
+    staticAbilities: ["snow forestwalk"],
+};
 // Scaled Wurm — {7}{G} 7/6 vanilla Wurm (CR 302).
 export const scaledWurm: CardDefinition = {
     id: "499cd7fa-c86c-4a5f-b36d-8160e8a6af1f",
@@ -7600,18 +8063,69 @@ export const shamblingStrider: CardDefinition = {
         },
     ],
 };
-// DEFERRED — Snowblind (snow-land counting + attacking/defending branch); snow
-// cluster.
-// TODO(#628): implement.
-// export const snowblind: CardDefinition = {
-//     id: "5f62c376-487a-42bc-bd85-ab8b0480f7dc",
-//     name: "Snowblind",
-//     rarity: "rare",
-//     oracleText: "Enchant creature\nEnchanted creature gets -X/-Y. If that creature is attacking, X is the number of snow lands defending player controls. Otherwise, X is the number of snow lands its controller controls. Y is equal to X or to enchanted creature's toughness minus 1, whichever is smaller.",
-//     manaCost: { X: 3, G: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Snowblind — Aura: enchanted creature gets -X/-Y (CR 613 layer 7c, a `pt-cda`
+// since X/Y are characteristic-defined by board state — CR 604.3). X = number
+// of snow lands the DEFENDING player controls if the host is attacking,
+// otherwise the snow lands its CONTROLLER controls (CR 205.4a). Y = min(X,
+// toughness − 1), so the toughness reduction never reduces the host below 1
+// toughness on its own. The host's toughness read in `compute` is its toughness
+// WITHOUT this effect (the CDA delta is added on top), giving the intended cap.
+//
+// SIMPLIFICATION (flagged): the "defending player" while the host attacks is
+// resolved as the host's opponent (the non-controller in 2-player). Multiplayer
+// (3+) is out of scope (CLAUDE.md), so the single opponent is the defender.
+export const snowblind: CardDefinition = {
+    id: "5f62c376-487a-42bc-bd85-ab8b0480f7dc",
+    name: "Snowblind",
+    rarity: "rare",
+    oracleText:
+        "Enchant creature\nEnchanted creature gets -X/-Y. If that creature is attacking, X is the number of snow lands defending player controls. Otherwise, X is the number of snow lands its controller controls. Y is equal to X or to enchanted creature's toughness minus 1, whichever is smaller.",
+    manaCost: { X: 3, G: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: AURA_AFFECTS_HOST,
+            compute: (_source, state, ctx, target) => {
+                // CR 205.4a — count snow lands controlled by the relevant
+                // player. Attacking → the defending player (the host's
+                // opponent); otherwise → the host's controller. The view's
+                // players carry no `id`, so the opponent is identified as the
+                // player whose battlefield holds permanents NOT controlled by
+                // the host's controller (2-player; multiplayer out of scope).
+                const controllerId = target.controllerId;
+                const countSnow = (
+                    predicate: (c: string) => boolean
+                ): number => {
+                    let n = 0;
+                    for (const player of state.players) {
+                        for (const p of player.battlefield) {
+                            if (
+                                predicate(p.controllerId) &&
+                                p.types.includes("Land") &&
+                                ctx.hasSupertype(p, "Snow")
+                            ) {
+                                n++;
+                            }
+                        }
+                    }
+                    return n;
+                };
+                const x = target.isAttacking
+                    ? countSnow((cid) => cid !== controllerId)
+                    : countSnow((cid) => cid === controllerId);
+                // Y = min(X, toughness − 1). `target.toughness` here is the
+                // host's toughness before this CDA delta (CR 613 — the delta is
+                // added on top), so the cap keeps it from self-killing.
+                const baseToughness = target.toughness ?? 0;
+                const y = Math.min(x, Math.max(0, baseToughness - 1));
+                return { power: -x, toughness: -y };
+            },
+        },
+    ],
+};
 // Stampede — "Attacking creatures get +1/+0 and gain trample until end of turn."
 // (CR 611.1c temporary P/T + keyword grant on the set of attackers; CR 514.2
 // expiry.) Each currently-attacking creature receives the buff and trample.
@@ -7913,18 +8427,42 @@ export const wallOfPineNeedles: CardDefinition = {
         },
     ],
 };
-// DEFERRED — Whiteout ("all creatures lose flying" + snow-land-sacrifice
-// graveyard recursion); the snow-land sac cost is a snow-matters effect (snow
-// cluster).
-// TODO(#628): implement.
-// export const whiteout: CardDefinition = {
-//     id: "a8645e4f-eaa8-4420-a6a3-eb53c311fab1",
-//     name: "Whiteout",
-//     rarity: "uncommon",
-//     oracleText: "All creatures lose flying until end of turn.\nSacrifice a snow land: Return this card from your graveyard to your hand.",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Instant"],
-// };
+// Whiteout — Instant: "All creatures lose flying until end of turn." (CR 611.1b
+// layer-6 keyword removal via `removeStaticAbilities`, applied to every creature
+// on every battlefield.)
+//
+// DEFERRED (non-snow capability): the second ability — "Sacrifice a snow land:
+// Return this card from your graveyard to your hand." — is an ability ACTIVATED
+// FROM THE GRAVEYARD (CR 113.4 / 307.4-style graveyard-activated ability). The
+// engine's `activateAbility` only scans battlefield permanents, so abilities on
+// cards in the graveyard cannot be activated — a general engine gap unrelated to
+// Snow (the snow-land sacrifice cost itself is now buildable). Whiteout's main
+// spell ships; the graveyard-recursion ability waits on graveyard-activation
+// support. Flagged for a follow-up.
+export const whiteout: CardDefinition = {
+    id: "a8645e4f-eaa8-4420-a6a3-eb53c311fab1",
+    name: "Whiteout",
+    rarity: "uncommon",
+    oracleText:
+        "All creatures lose flying until end of turn.\nSacrifice a snow land: Return this card from your graveyard to your hand.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Instant"],
+    resolve: (ctx: SpellContext) => {
+        // CR 611.1b — every creature on every battlefield loses flying until
+        // end of turn (layer-6 keyword removal).
+        for (const pid of ctx.allPlayerIds) {
+            for (const id of ctx.getBattlefieldIds(pid, {
+                types: "Creature",
+            })) {
+                ctx.removeStaticAbilities(
+                    { type: "permanent", id },
+                    (kw) => kw === "flying",
+                    { phase: "end-of-turn" }
+                );
+            }
+        }
+    },
+};
 // Wiitigo — {3}{G}{G}{G} 0/0 Yeti. "This creature enters with six +1/+1 counters
 // on it.\nAt the beginning of your upkeep, put a +1/+1 counter on this creature
 // if it has blocked or been blocked since your last upkeep. Otherwise, remove a
@@ -8012,20 +8550,28 @@ export const wildGrowthIce: CardPrint = {
     setCode: "ice",
     rarity: "common",
 };
-// DEFERRED — Woolly Mammoths ("trample as long as you control a snow land");
-// the snow-land-conditional keyword is a snow-matters effect (snow cluster).
-// TODO(#628): implement.
-// export const woollyMammoths: CardDefinition = {
-//     id: "eaca1216-99c8-4ad5-a51a-3c4ff3b82097",
-//     name: "Woolly Mammoths",
-//     rarity: "common",
-//     oracleText: "This creature has trample as long as you control a snow land.",
-//     manaCost: { X: 1, G: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Elephant"],
-//     power: 3,
-//     toughness: 2,
-// };
+// Woolly Mammoths — "This creature has trample as long as you control a snow
+// land." (CR 205.4a.)
+//
+// SIMPLIFICATION (flagged, same treatment as Dire Wolves' conditional banding):
+// the "as long as you control a snow land" clause is a CONTINUOUS keyword gate
+// on board state, but `keyword-grant` is applied imperatively at ETB with no
+// board-aware re-evaluation. Trample is therefore granted UNCONDITIONALLY — a
+// strict superset of the printed behaviour (Woolly Mammoths is played in snow
+// decks in practice). A board-aware keyword-grant predicate would track snow
+// lands exactly; flagged for a follow-up.
+export const woollyMammoths: CardDefinition = {
+    id: "eaca1216-99c8-4ad5-a51a-3c4ff3b82097",
+    name: "Woolly Mammoths",
+    rarity: "common",
+    oracleText: "This creature has trample as long as you control a snow land.",
+    manaCost: { X: 1, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Elephant"],
+    power: 3,
+    toughness: 2,
+    staticAbilities: ["trample"],
+};
 // Woolly Spider — 2/3 with Reach and "Whenever this creature blocks a creature
 // with flying, this creature gets +0/+2 until end of turn." (CR 702.17 reach;
 // CR 509.1h blocks trigger; CR 514.2 expiry.) The blocks trigger fires on
@@ -8224,18 +8770,7 @@ export const maddeningWind: CardDefinition = {
 //     types: ["Enchantment"],
 //     subtypes: ["Aura"],
 // };
-// TODO(#628): implement.
-// export const rimeDryad: CardDefinition = {
-//     id: "7a93e6ce-1295-41f8-b454-2dfe321481a6",
-//     name: "Rime Dryad",
-//     rarity: "common",
-//     oracleText: "Snow forestwalk (This creature can't be blocked as long as defending player controls a snow Forest.)",
-//     manaCost: { G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Dryad"],
-//     power: 1,
-//     toughness: 2,
-// };
+// Rime Dryad — activated above (Green snow cluster); duplicate stub removed.
 // TODO(#628): implement.
 // export const ritualOfSubdual: CardDefinition = {
 //     id: "5c5c01e7-8116-45fc-afc3-d52a31a635cb",
@@ -8245,29 +8780,12 @@ export const maddeningWind: CardDefinition = {
 //     manaCost: { X: 4, G: 2 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const snowblind: CardDefinition = {
-//     id: "5f62c376-487a-42bc-bd85-ab8b0480f7dc",
-//     name: "Snowblind",
-//     rarity: "rare",
-//     oracleText: "Enchant creature\nEnchanted creature gets -X/-Y. If that creature is attacking, X is the number of snow lands defending player controls. Otherwise, X is the number of snow lands its controller controls. Y is equal to X or to enchanted creature's toughness minus 1, whichever is smaller.",
-//     manaCost: { X: 3, G: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Snowblind — activated above (Green snow cluster); duplicate stub removed.
 // Thermokarst — activated above (Green free tranche).
 // Thoughtleech — activated above (Green free tranche).
 // Touch of Vitae — deferred (#660); single stub kept above (duplicate removed).
 // Venomous Breath — activated above (Green free tranche).
-// TODO(#628): implement.
-// export const whiteout: CardDefinition = {
-//     id: "a8645e4f-eaa8-4420-a6a3-eb53c311fab1",
-//     name: "Whiteout",
-//     rarity: "uncommon",
-//     oracleText: "All creatures lose flying until end of turn.\nSacrifice a snow land: Return this card from your graveyard to your hand.",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Instant"],
-// };
+// Whiteout — activated above (Green snow cluster); duplicate stub removed.
 // Wiitigo — activated above (Green free tranche).
 // TODO(#628): implement.
 // export const wildGrowth: CardDefinition = {
@@ -8279,18 +8797,7 @@ export const maddeningWind: CardDefinition = {
 //     types: ["Enchantment"],
 //     subtypes: ["Aura"],
 // };
-// TODO(#628): implement.
-// export const woollyMammoths: CardDefinition = {
-//     id: "eaca1216-99c8-4ad5-a51a-3c4ff3b82097",
-//     name: "Woolly Mammoths",
-//     rarity: "common",
-//     oracleText: "This creature has trample as long as you control a snow land.",
-//     manaCost: { X: 1, G: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Elephant"],
-//     power: 3,
-//     toughness: 2,
-// };
+// Woolly Mammoths — activated above (Green snow cluster); duplicate stub removed.
 // ─────────────────────────────────────────────────────────────────────────────
 // MULTICOLOUR free tranche (#635) — the gold ICE cards expressible with
 // already-shipped primitives are active CardDefinitions below (Altar of Bone,
@@ -9233,24 +9740,104 @@ export const aegisOfTheMeek: CardDefinition = {
 //     manaCost: { X: 6 },
 //     types: ["Artifact"],
 // };
-// TODO(#628): implement.
-// export const arcumsSleigh: CardDefinition = {
-//     id: "e9780ce2-756c-48e5-9936-45f6a224f61d",
-//     name: "Arcum's Sleigh",
-//     rarity: "uncommon",
-//     oracleText: "{2}, {T}: Target creature gains vigilance until end of turn. Activate only during combat and only if defending player controls a snow land.",
-//     manaCost: { X: 1 },
-//     types: ["Artifact"],
-// };
-// TODO(#628): implement.
-// export const arcumsWeathervane: CardDefinition = {
-//     id: "9e142435-6930-4596-bc3b-60abde1229df",
-//     name: "Arcum's Weathervane",
-//     rarity: "uncommon",
-//     oracleText: "{2}, {T}: Target snow land is no longer snow.\n{2}, {T}: Target nonsnow basic land becomes snow.",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
+// Arcum's Sleigh — "{2}, {T}: Target creature gains vigilance until end of turn.
+// Activate only during combat and only if defending player controls a snow
+// land." (CR 205.4a.) `activationPhaseRestriction` to the combat steps;
+// `canActivate` gates on a non-active (defending) player controlling a snow land
+// (2-player — the defending player is the non-active player).
+export const arcumsSleigh: CardDefinition = {
+    id: "e9780ce2-756c-48e5-9936-45f6a224f61d",
+    name: "Arcum's Sleigh",
+    rarity: "uncommon",
+    oracleText:
+        "{2}, {T}: Target creature gains vigilance until end of turn. Activate only during combat and only if defending player controls a snow land.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "arcums-sleigh-vigilance",
+            oracleText:
+                "{2}, {T}: Target creature gains vigilance until end of turn. Activate only during combat and only if defending player controls a snow land.",
+            cost: { mana: { X: 2 }, tap: true },
+            useStack: true,
+            activationPhaseRestriction: [
+                "BEGINNING_OF_COMBAT",
+                "DECLARE_ATTACKERS",
+                "DECLARE_BLOCKERS",
+                "COMBAT_DAMAGE",
+                "END_OF_COMBAT",
+            ],
+            // CR 205.4a — the defending player (non-active, 2-player) controls a
+            // snow land.
+            canActivate: (_source, state) => {
+                const active = state.activePlayerId;
+                return state.players.some(
+                    (p) => p.id !== active && countSnowLands(p.battlefield) > 0
+                );
+            },
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") {
+                    ctx.grantStaticAbility(t, "vigilance", {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
+// Arcum's Weathervane — two activated abilities that mutate a target land's snow
+// supertype INDEFINITELY (CR 205.4a): one removes Snow from a snow land, the
+// other adds Snow to a nonsnow BASIC land. Both use the `setSupertype`
+// primitive (sentinel "indefinite" source — not tied to the artifact staying in
+// play). Target filtering: the remove ability targets live snow lands
+// (`supertypeFilter: ["Snow"]`); the add ability targets basic lands (the
+// "nonsnow" clause is enforced in resolve — a no-op if already snow).
+export const arcumsWeathervane: CardDefinition = {
+    id: "9e142435-6930-4596-bc3b-60abde1229df",
+    name: "Arcum's Weathervane",
+    rarity: "uncommon",
+    oracleText:
+        "{2}, {T}: Target snow land is no longer snow.\n{2}, {T}: Target nonsnow basic land becomes snow.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "arcums-weathervane-unsnow",
+            oracleText: "{2}, {T}: Target snow land is no longer snow.",
+            cost: { mana: { X: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Land",
+                count: 1,
+                supertypeFilter: ["Snow"],
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") ctx.setSupertype(t, "Snow", false);
+            },
+        },
+        {
+            id: "arcums-weathervane-snow",
+            oracleText: "{2}, {T}: Target nonsnow basic land becomes snow.",
+            cost: { mana: { X: 2 }, tap: true },
+            useStack: true,
+            // CR 205.4a — "nonsnow basic land": basic lands only; the nonsnow
+            // restriction is moot since adding Snow to an already-snow land is a
+            // no-op.
+            targetRequirement: {
+                type: "Land",
+                count: 1,
+                supertypeFilter: ["Basic"],
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") ctx.setSupertype(t, "Snow", true);
+            },
+        },
+    ],
+};
 // DEFERRED (#658) — Arcum's Whistle needs an "attacks this turn if able"
 // requirement plus a delayed end-step "destroy it if it didn't attack"
 // conditional, both keyed on whether the chosen creature actually attacked.
@@ -10248,15 +10835,34 @@ export const staffOfTheAges: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const sunstone: CardDefinition = {
-//     id: "3c1c67fa-ff88-4a61-b8a5-8a872b3dc44f",
-//     name: "Sunstone",
-//     rarity: "uncommon",
-//     oracleText: "{2}, Sacrifice a snow land: Prevent all combat damage that would be dealt this turn.",
-//     manaCost: { X: 3 },
-//     types: ["Artifact"],
-// };
+// Sunstone — "{2}, Sacrifice a snow land: Prevent all combat damage that would
+// be dealt this turn." The cost combines {2} mana with a snow-typed sacrifice
+// (CR 118.5 / 205.4a) via `sacrificeFilter` (Land + Snow supertype, resolved
+// live); the effect is `preventAllCombatDamage` (CR 615).
+export const sunstone: CardDefinition = {
+    id: "3c1c67fa-ff88-4a61-b8a5-8a872b3dc44f",
+    name: "Sunstone",
+    rarity: "uncommon",
+    oracleText:
+        "{2}, Sacrifice a snow land: Prevent all combat damage that would be dealt this turn.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "sunstone-fog",
+            oracleText:
+                "{2}, Sacrifice a snow land: Prevent all combat damage that would be dealt this turn.",
+            cost: {
+                mana: { X: 2 },
+                sacrificeFilter: { types: "Land", supertypes: ["Snow"] },
+            },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.preventAllCombatDamage();
+            },
+        },
+    ],
+};
 // Time Bomb — upkeep time-counter accrual + a {1},{T},Sac board-wipe scaled by
 // the time-counter count (CR 603.6a phase trigger; CR 122 counters; CR 605
 // activated ability with mana+tap+sacrifice cost; CR 119/120.1 damage via
@@ -10728,16 +11334,19 @@ export const plainsIce: CardPrint = {
     setCode: "ice",
     rarity: "common",
 };
-// DEFERRED (snow basic — Snow supertype, snow capability cluster).
-// export const snowCoveredPlains: CardDefinition = {
-//     id: "cb3ac778-fb45-4fd3-a9af-8a0791f833e8",
-//     name: "Snow-Covered Plains",
-//     rarity: "common",
-//     oracleText: "({T}: Add {W}.)",
-//     types: ["Land"],
-//     supertypes: ["Basic", "Snow"],
-//     subtypes: ["Plains"],
-// };
+// Snow-Covered Plains — basic land carrying the Snow supertype (CR 205.4a).
+// The intrinsic basic mana ability comes from the Plains subtype
+// (`LAND_SUBTYPE_MANA`); ICE snow is a TYPE reference only — there is no {S}
+// snow mana (that is a later Coldsnap addition; see CONTEXT.md "Snow").
+export const snowCoveredPlains: CardDefinition = {
+    id: "cb3ac778-fb45-4fd3-a9af-8a0791f833e8",
+    name: "Snow-Covered Plains",
+    rarity: "common",
+    oracleText: "({T}: Add {W}.)",
+    types: ["Land"],
+    supertypes: ["Basic", "Snow"],
+    subtypes: ["Plains"],
+};
 // Island — ICE reprint of the LEA basic land (CardPrint onto LEA, ADR 0014).
 export const islandIce: CardPrint = {
     printId: "ef2d6fc9-ddad-4dd2-b218-afa1a5449b7e",
@@ -10745,26 +11354,24 @@ export const islandIce: CardPrint = {
     setCode: "ice",
     rarity: "common",
 };
-// DEFERRED (snow basic — Snow supertype, snow capability cluster).
-// export const snowCoveredIsland: CardDefinition = {
-//     id: "ad8b77cf-b53e-4da3-9c27-3851b7b25a98",
-//     name: "Snow-Covered Island",
-//     rarity: "common",
-//     oracleText: "({T}: Add {U}.)",
-//     types: ["Land"],
-//     supertypes: ["Basic", "Snow"],
-//     subtypes: ["Island"],
-// };
-// DEFERRED (snow basic — Snow supertype, snow capability cluster).
-// export const snowCoveredSwamp: CardDefinition = {
-//     id: "65a3c27f-6b15-49b6-ac89-36cfb79b3b54",
-//     name: "Snow-Covered Swamp",
-//     rarity: "common",
-//     oracleText: "({T}: Add {B}.)",
-//     types: ["Land"],
-//     supertypes: ["Basic", "Snow"],
-//     subtypes: ["Swamp"],
-// };
+export const snowCoveredIsland: CardDefinition = {
+    id: "ad8b77cf-b53e-4da3-9c27-3851b7b25a98",
+    name: "Snow-Covered Island",
+    rarity: "common",
+    oracleText: "({T}: Add {U}.)",
+    types: ["Land"],
+    supertypes: ["Basic", "Snow"],
+    subtypes: ["Island"],
+};
+export const snowCoveredSwamp: CardDefinition = {
+    id: "65a3c27f-6b15-49b6-ac89-36cfb79b3b54",
+    name: "Snow-Covered Swamp",
+    rarity: "common",
+    oracleText: "({T}: Add {B}.)",
+    types: ["Land"],
+    supertypes: ["Basic", "Snow"],
+    subtypes: ["Swamp"],
+};
 // Swamp — ICE reprint of the LEA basic land (CardPrint onto LEA, ADR 0014).
 export const swampIce: CardPrint = {
     printId: "4695653a-5c4c-4ff3-b80c-f4b6c685f370",
@@ -10779,16 +11386,15 @@ export const mountainIce: CardPrint = {
     setCode: "ice",
     rarity: "common",
 };
-// DEFERRED (snow basic — Snow supertype, snow capability cluster).
-// export const snowCoveredMountain: CardDefinition = {
-//     id: "ccd3afb3-5574-4f2d-adbe-969a428f1c63",
-//     name: "Snow-Covered Mountain",
-//     rarity: "common",
-//     oracleText: "({T}: Add {R}.)",
-//     types: ["Land"],
-//     supertypes: ["Basic", "Snow"],
-//     subtypes: ["Mountain"],
-// };
+export const snowCoveredMountain: CardDefinition = {
+    id: "ccd3afb3-5574-4f2d-adbe-969a428f1c63",
+    name: "Snow-Covered Mountain",
+    rarity: "common",
+    oracleText: "({T}: Add {R}.)",
+    types: ["Land"],
+    supertypes: ["Basic", "Snow"],
+    subtypes: ["Mountain"],
+};
 // Forest — ICE reprint of the LEA basic land (CardPrint onto LEA, ADR 0014).
 export const forestIce: CardPrint = {
     printId: "fbdcbd97-90a9-45ea-94f6-2a1c6faaf965",
@@ -10796,13 +11402,12 @@ export const forestIce: CardPrint = {
     setCode: "ice",
     rarity: "common",
 };
-// DEFERRED (snow basic — Snow supertype, snow capability cluster).
-// export const snowCoveredForest: CardDefinition = {
-//     id: "4c0ad95c-d62c-4138-ada0-fa39a63a449e",
-//     name: "Snow-Covered Forest",
-//     rarity: "common",
-//     oracleText: "({T}: Add {G}.)",
-//     types: ["Land"],
-//     supertypes: ["Basic", "Snow"],
-//     subtypes: ["Forest"],
-// };
+export const snowCoveredForest: CardDefinition = {
+    id: "4c0ad95c-d62c-4138-ada0-fa39a63a449e",
+    name: "Snow-Covered Forest",
+    rarity: "common",
+    oracleText: "({T}: Add {G}.)",
+    types: ["Land"],
+    supertypes: ["Basic", "Snow"],
+    subtypes: ["Forest"],
+};

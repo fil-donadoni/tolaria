@@ -11,6 +11,7 @@ import type {
 } from "./types";
 import { cantBeEnchantedSelfGuard } from "./types";
 import { setCardManaCostLookup } from "./manaCostLookup";
+import { setCardSupertypeLookup } from "./supertypeLookup";
 import * as lea from "./sets/lea";
 import * as leb from "./sets/leb";
 import * as arn from "./sets/arn";
@@ -113,6 +114,9 @@ export const tryGetCardById = (cardId: string): CardDefinition | null =>
 // the (cycle-free) colors module so set runtime code can derive an opponent
 // permanent's colours from its slim `{ id }` reference (Jihad — CR 202.2).
 setCardManaCostLookup((cardId) => tryGetCardById(cardId)?.manaCost);
+// CR 205.4a — inject the printed-supertype lookup so snow-matters predicates
+// resolve live snow status off a slim `{ id }` reference (cycle-free).
+setCardSupertypeLookup((cardId) => tryGetCardById(cardId)?.supertypes);
 
 /** Registers a synthetic `CardDefinition` for a token (CR 111, 707.1).
  *  Tokens have no Scryfall print — their definition is derived from the

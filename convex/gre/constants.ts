@@ -48,6 +48,22 @@ export const LANDWALK_SUPERTYPE_KEYWORDS: Record<string, CardSupertype> = {
     "legendary landwalk": "Legendary",
 };
 
+/** Snow landwalk keywords (CR 702.13 / 205.4a) keyed on the basic land
+ *  *subtype* the snow land must also have — the attacker can't be blocked
+ *  while the defending player controls a SNOW land of that subtype (Legions
+ *  of Lim-Dûl's "snow swampwalk", Rime Dryad's "snow forestwalk"). Kept
+ *  separate from `LANDWALK_KEYWORDS` because the match additionally requires
+ *  the live Snow supertype (`hasSnowSupertype`), not just the subtype.
+ *  Barbarian Guides grants a chosen-subtype snow landwalk at runtime via the
+ *  same keyword strings. */
+export const LANDWALK_SNOW_SUBTYPE_KEYWORDS: Record<string, string> = {
+    "snow plainswalk": "Plains",
+    "snow islandwalk": "Island",
+    "snow swampwalk": "Swamp",
+    "snow mountainwalk": "Mountain",
+    "snow forestwalk": "Forest",
+};
+
 /** Card types that represent permanents on the battlefield. */
 export const PERMANENT_TYPES = [
     "Creature",

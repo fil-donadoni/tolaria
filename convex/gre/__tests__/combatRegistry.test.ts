@@ -48,8 +48,8 @@ function makeCard(
 // ---------------------------------------------------------------------------
 
 describe("EVASION_RULES registry", () => {
-    it("contains 10 entries: unblockable + 6 landwalk + legendary landwalk + fear + flying", () => {
-        expect(EVASION_RULES).toHaveLength(10);
+    it("contains 15 entries: unblockable + 6 landwalk + legendary landwalk + 5 snow landwalk + fear + flying", () => {
+        expect(EVASION_RULES).toHaveLength(15);
         const keywords = EVASION_RULES.map((r) => r.keyword);
         expect(keywords).toContain("unblockable");
         expect(keywords).toContain("plainswalk");
@@ -60,6 +60,13 @@ describe("EVASION_RULES registry", () => {
         expect(keywords).toContain("desertwalk");
         // CR 702.13 — supertype-keyed landwalk (Livonya Silone).
         expect(keywords).toContain("legendary landwalk");
+        // CR 702.13 / 205.4a — snow landwalk (#661, Legions of Lim-Dûl,
+        // Rime Dryad, Barbarian Guides grants).
+        expect(keywords).toContain("snow plainswalk");
+        expect(keywords).toContain("snow islandwalk");
+        expect(keywords).toContain("snow swampwalk");
+        expect(keywords).toContain("snow mountainwalk");
+        expect(keywords).toContain("snow forestwalk");
         expect(keywords).toContain("fear");
         expect(keywords).toContain("flying");
     });

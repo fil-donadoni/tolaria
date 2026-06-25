@@ -11,13 +11,18 @@
  */
 
 import type { CardInstanceState } from "./state";
-import { LANDWALK_KEYWORDS, LANDWALK_SUPERTYPE_KEYWORDS } from "./constants";
+import {
+    LANDWALK_KEYWORDS,
+    LANDWALK_SUPERTYPE_KEYWORDS,
+    LANDWALK_SNOW_SUBTYPE_KEYWORDS,
+} from "./constants";
 import { hasColor } from "./rules";
 import { applySubstitution } from "./textChanges";
 import {
     controlsLandWithSupertype,
     negatedLandwalkSubtypes,
 } from "../cards/landwalkNegation";
+import { controlsSnowSubtype } from "./snow";
 
 // ---------------------------------------------------------------------------
 // Rule types
@@ -119,6 +124,26 @@ const LANDWALK_SUPERTYPE_RULES: EvasionRule[] = Object.entries(
     reason: `Attacker can't be blocked while defender controls a ${supertype} land`,
 }));
 
+// CR 702.13 / 205.4a — Snow landwalk ("snow swampwalk", "snow forestwalk"):
+// the attacker can't be blocked while the defending player controls a SNOW
+// land of the named subtype. Same shape as subtype landwalk, but the match
+// additionally requires the live Snow supertype (`controlsSnowSubtype` reads
+// `hasSnowSupertype`, so Melting / Arcum's Weathervane mutations are honored).
+// Subtype landwalk negation (Great Wall / Undertow) doesn't name snow, so no
+// negation pass is applied here.
+const LANDWALK_SNOW_RULES: EvasionRule[] = Object.entries(
+    LANDWALK_SNOW_SUBTYPE_KEYWORDS
+).map(([keyword, subtype]) => ({
+    keyword,
+    cr: "702.13",
+    canBlock: (
+        _attacker: CardInstanceState,
+        _blocker: CardInstanceState,
+        defenderBattlefield: CardInstanceState[]
+    ) => !controlsSnowSubtype(defenderBattlefield, subtype),
+    reason: `Attacker can't be blocked while defender controls a snow ${subtype}`,
+}));
+
 // CR 702.36b — Fear: "This creature can't be blocked except by artifact
 // creatures and/or black creatures."
 const FEAR_RULE: EvasionRule = {
@@ -144,6 +169,7 @@ export const EVASION_RULES: readonly EvasionRule[] = [
     UNBLOCKABLE_RULE,
     ...LANDWALK_RULES,
     ...LANDWALK_SUPERTYPE_RULES,
+    ...LANDWALK_SNOW_RULES,
     FEAR_RULE,
     FLYING_RULE,
 ];
