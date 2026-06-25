@@ -1548,6 +1548,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Earthlink",
+        "scryfallId": "a83cb1c4-7c5b-4a5e-b15e-138d644f5cdb",
+        "oracleId": "c6e4a5c6-3c9b-49d5-8288-1be46be657dc",
+        "firstSet": "ice"
+    },
+    {
         "name": "Earthlore",
         "scryfallId": "319d252e-7c43-47d6-8873-f69b0e063256",
         "oracleId": "91fbffd1-0886-45fa-bf3e-4c9864458431",
@@ -2676,6 +2682,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Hymn of Rebirth",
+        "scryfallId": "61d0f2f2-f6e2-4b8a-8418-10b17c5e0ea9",
+        "oracleId": "f06fca68-593b-4fbd-a5a9-618060311172",
+        "firstSet": "ice"
+    },
+    {
         "name": "Hymn to Tourach",
         "scryfallId": "eb9273ea-9a41-42e3-8c9c-0d50b127a818",
         "oracleId": "992d9a72-d34d-47d7-96fb-37f0efb515ef",
@@ -3174,6 +3186,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Kjeldoran Frostbeast",
+        "scryfallId": "2fccb1d0-b324-4780-bb9e-4533240da06d",
+        "oracleId": "39050823-ccda-43c0-818d-d5db15d82b99",
+        "firstSet": "ice"
+    },
+    {
         "name": "Kjeldoran Knight",
         "scryfallId": "d5b9db8f-93b5-44e3-9e2b-728c80dfbb37",
         "oracleId": "5d7747b4-061d-4459-ba80-51361526cbfa",
@@ -3612,6 +3630,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Merieke Ri Berit",
+        "scryfallId": "3bf47c0a-5c17-47d0-b663-becff62fbdf8",
+        "oracleId": "288fdfbb-1236-4732-afd7-e7eaba860007",
+        "firstSet": "ice"
+    },
+    {
         "name": "Merseine",
         "scryfallId": "b1e96895-ef1d-44fa-b263-bce833fc3109",
         "oracleId": "b6b6e085-eef8-486d-9d66-1b7f1ee7d0dc",
@@ -3750,6 +3774,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Monsoon",
+        "scryfallId": "254fcc50-79a5-40cd-b028-e78dde3f8480",
+        "oracleId": "a86e7de8-8448-406c-b162-22c62bdc3813",
+        "firstSet": "ice"
+    },
+    {
         "name": "Moor Fiend",
         "scryfallId": "57089dd4-e30d-498d-9341-43c104c6f3f9",
         "oracleId": "ff1fd718-ee97-425c-b8bf-97fea192c631",
@@ -3790,6 +3820,12 @@
         "scryfallId": "314fd1d7-4bd8-4d95-b7c2-1aa6660ab88a",
         "oracleId": "af147bb6-aa46-4fc9-af96-de3740c19fd5",
         "firstSet": "leg"
+    },
+    {
+        "name": "Mountain Titan",
+        "scryfallId": "bcc1d589-02a2-4896-a283-9d0385534667",
+        "oracleId": "160c8e94-ccf9-4058-b7fd-04529456f0fa",
+        "firstSet": "ice"
     },
     {
         "name": "Mountain Yeti",

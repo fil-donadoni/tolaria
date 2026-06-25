@@ -82,6 +82,79 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ICE Gold / miscellaneous completion (#659, PRD #628). Exercises the
+        // buildable-now gold/misc cards end to end:
+        //   - Merieke Ri Berit ({W}{U}{B}, untapped): {T} to gain control of the
+        //     opponent's Bears; she "doesn't untap", so killing her (or force-
+        //     untapping) destroys the stolen Bears (no regen).
+        //   - Mountain Titan: {1}{R}{R} arms the until-EOT black-cast watcher,
+        //     then cast Dark Ritual to drop a +1/+1 counter on it.
+        //   - Monsoon: pass into the opponent's end step — their untapped Islands
+        //     tap and Monsoon deals that much damage to them.
+        //   - Earthlink: kill any creature to watch its controller sacrifice a
+        //     land of their choice (and an upkeep "pay {2} or sacrifice").
+        //   - Hymn of Rebirth (hand): reanimate the Bears in the opponent's
+        //     graveyard UNDER YOUR control.
+        //   - Kjeldoran Frostbeast: block/attack with it, then at end of combat
+        //     it destroys whatever it fought.
+        label: "ICE: Gold/misc — Merieke / Mountain Titan / Monsoon / Earthlink / Hymn / Frostbeast (#659)",
+        cards: [
+            {
+                name: "Merieke Ri Berit",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Mountain Titan",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Monsoon",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Earthlink",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Kjeldoran Frostbeast",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Hymn of Rebirth",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Dark Ritual",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Island",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+                count: 3,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "graveyard" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
+    {
         // ICE White free tranche (#630, PRD #628). Exercises the White ICE
         // staples end to end:
         //   - Swords to Plowshares ({W}) exiles a creature, its controller

@@ -267,6 +267,13 @@ import {
     timeBomb,
     vexingArcanix,
     walkingWall,
+    // Gold/misc buildable-now completion (#659)
+    earthlink,
+    hymnOfRebirth,
+    kjeldoranFrostbeast,
+    meriekeRiBerit,
+    monsoon,
+    mountainTitan,
 } from "../ice";
 import {
     getCardById,
@@ -8740,5 +8747,436 @@ describe("Jester's Mask ({1},{T},Sac: hand shuffle, CR 701.19 / 701.20)", () => 
         // Two cards drawn back into hand; library reshuffled (5 total minus 2).
         expect(state.players[1].hand).toHaveLength(2);
         expect(state.players[1].library).toHaveLength(3);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Gold / miscellaneous buildable-now completion (#659)
+// ---------------------------------------------------------------------------
+
+describe("Earthlink — upkeep pay {2} or sac + dies→sac-land (CR 603.6a / 603.2 / 701.16)", () => {
+    it("paying {2} at upkeep keeps Earthlink on the battlefield", () => {
+        const link = makeInstance(earthlink.id, {
+            id: "link",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [link] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.activePlayerId = "p1";
+        state.players[0].manaPool = { C: 2 }; // enough to pay {2}
+        resolveTrigger(
+            state,
+            link,
+            "earthlink-upkeep",
+            PHASE_EVENT("UPKEEP", "p1")
+        );
+        answerMayPay(state, true); // pay {2}
+        expect(state.players[0].battlefield.some((c) => c.id === "link")).toBe(
+            true
+        );
+    });
+
+    it("declining the {2} sacrifices Earthlink", () => {
+        const link = makeInstance(earthlink.id, {
+            id: "link",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [link] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.activePlayerId = "p1";
+        resolveTrigger(
+            state,
+            link,
+            "earthlink-upkeep",
+            PHASE_EVENT("UPKEEP", "p1")
+        );
+        answerMayPay(state, false); // decline → sacrifice
+        expect(state.players[0].battlefield.some((c) => c.id === "link")).toBe(
+            false
+        );
+        expect(state.players[0].graveyard.some((c) => c.id === "link")).toBe(
+            true
+        );
+    });
+
+    it("when a creature dies, its controller sacrifices a land of their choice", () => {
+        const link = makeInstance(earthlink.id, {
+            id: "link",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = makeInstance(forestIce.printId, {
+            id: "p2-forest",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [link] }),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        resolveTrigger(state, link, "earthlink-dies-sac-land", {
+            type: "CREATURE_DIED",
+            creatureInstanceId: "dead",
+            creatureControllerId: "p2",
+            creatureTypes: ["Creature"],
+            damagedBySources: [],
+            creaturePower: 2,
+            creatureToughness: 2,
+        } as StackItem["triggerEvent"]);
+        // p2 (the dead creature's controller) chooses which land to sacrifice.
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("sacrifice-permanents");
+        expect(head.playerId).toBe("p2");
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["p2-forest"],
+        });
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "p2-forest")
+        ).toBe(false);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "p2-forest")
+        ).toBe(true);
+    });
+});
+
+describe("Hymn of Rebirth — cross-graveyard reanimation under your control (CR 400.7 / 800.4a)", () => {
+    it("returns a creature from an opponent's graveyard under the caster's control", () => {
+        const buried = makeInstance(balduvianBears.id, {
+            id: "buried",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { graveyard: [buried] }),
+            ],
+        });
+        pushSpell(state, hymnOfRebirth.id, "p1", [
+            { type: "graveyard-card", id: "buried", playerId: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        // Reanimated under p1's control, but p2 stays the owner (CR 800.4a).
+        const onBoard = state.players[0].battlefield.find(
+            (c) => c.id === "buried"
+        );
+        expect(onBoard).toBeDefined();
+        expect(onBoard?.controllerId).toBe("p1");
+        expect(onBoard?.ownerId).toBe("p2");
+        expect(state.players[1].graveyard.some((c) => c.id === "buried")).toBe(
+            false
+        );
+    });
+
+    it("getLegalTargets sees creature cards in ANY graveyard (controller: 'any')", () => {
+        const mine = makeInstance(balduvianBears.id, {
+            id: "mine",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const theirs = makeInstance(balduvianBears.id, {
+            id: "theirs",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [mine] }),
+                makePlayer("p2", { graveyard: [theirs] }),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            hymnOfRebirth.targetRequirement!,
+            [],
+            "p1"
+        );
+        const ids = legal.map((t) => t.id);
+        expect(ids).toContain("mine");
+        expect(ids).toContain("theirs");
+    });
+});
+
+/** A PHASE_BEGIN trigger event for the END_OF_COMBAT step (CR 511.3). */
+const PHASE_EVENT_EOC = (activePlayerId: string): StackItem["triggerEvent"] =>
+    ({
+        type: "PHASE_BEGIN" as const,
+        phase: "END_OF_COMBAT",
+        activePlayerId,
+    }) as StackItem["triggerEvent"];
+
+describe("Kjeldoran Frostbeast — end-of-combat destroy blockers/blocked-by (CR 511.3 / 701.7)", () => {
+    function combatState(frostbeastAttacks: boolean) {
+        const frostbeast = makeInstance(kjeldoranFrostbeast.id, {
+            id: "frost",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const partner = vanilla("partner", 5, 5, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const blockerAssignments: Record<string, string[]> = frostbeastAttacks
+            ? { frost: ["partner"] } // frost attacks, partner blocks it
+            : { partner: ["frost"] }; // partner attacks, frost blocks it
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [frostbeast] }),
+                makePlayer("p2", { battlefield: [partner] }),
+            ],
+            combat: {
+                attackerIds: [frostbeastAttacks ? "frost" : "partner"],
+                confirmed: true,
+                blockerAssignments,
+                blockedAttackerIds: [frostbeastAttacks ? "frost" : "partner"],
+                blockersConfirmed: true,
+            },
+        });
+        return { state, frostbeast };
+    }
+
+    it("destroys the creature blocking Frostbeast (Frostbeast attacking)", () => {
+        const { state, frostbeast } = combatState(true);
+        resolveTrigger(
+            state,
+            frostbeast,
+            "kjeldoran-frostbeast-end-of-combat",
+            PHASE_EVENT_EOC("p1")
+        );
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "partner")
+        ).toBe(false);
+        expect(state.players[1].graveyard.some((c) => c.id === "partner")).toBe(
+            true
+        );
+    });
+
+    it("destroys the attacker Frostbeast blocked (Frostbeast blocking)", () => {
+        const { state, frostbeast } = combatState(false);
+        resolveTrigger(
+            state,
+            frostbeast,
+            "kjeldoran-frostbeast-end-of-combat",
+            PHASE_EVENT_EOC("p1")
+        );
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "partner")
+        ).toBe(false);
+    });
+});
+
+describe("Merieke Ri Berit — does-not-untap + {T} gain control + destroy-on-leave (CR 502.1 / 613.1b / 603.10)", () => {
+    it("carries the does-not-untap keyword", () => {
+        expect(meriekeRiBerit.staticAbilities).toContain("does-not-untap");
+    });
+
+    function setup() {
+        const merieke = makeInstance(meriekeRiBerit.id, {
+            id: "merieke",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const victim = vanilla("victim", 3, 3, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [merieke] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        return { state, merieke, victim };
+    }
+
+    it("{T} gains control of the target creature", () => {
+        const { state } = setup();
+        const merieke = state.players[0].battlefield.find(
+            (c) => c.id === "merieke"
+        )!;
+        resolveActivated(state, merieke, "merieke-ri-berit-steal", [
+            { type: "permanent", id: "victim" },
+        ]);
+        const stolen = state.players[0].battlefield.find(
+            (c) => c.id === "victim"
+        );
+        expect(stolen?.controllerId).toBe("p1");
+    });
+
+    it("destroys the stolen creature when Merieke leaves the battlefield", () => {
+        const { state } = setup();
+        const merieke = state.players[0].battlefield.find(
+            (c) => c.id === "merieke"
+        )!;
+        resolveActivated(state, merieke, "merieke-ri-berit-steal", [
+            { type: "permanent", id: "victim" },
+        ]);
+        const meriekeLive = state.players[0].battlefield.find(
+            (c) => c.id === "merieke"
+        )!;
+        resolveTrigger(state, meriekeLive, "merieke-ri-berit-on-leave", {
+            type: "PERMANENT_LEFT",
+            instanceId: "merieke",
+            controllerId: "p1",
+            ownerId: "p1",
+        } as StackItem["triggerEvent"]);
+        // The stolen creature is destroyed (and reverts to its owner first via
+        // the conditional-control SBA); it ends up in p2's graveyard.
+        const anyBoard = state.players.some((p) =>
+            p.battlefield.some((c) => c.id === "victim")
+        );
+        expect(anyBoard).toBe(false);
+        expect(state.players[1].graveyard.some((c) => c.id === "victim")).toBe(
+            true
+        );
+    });
+});
+
+describe("Monsoon — each end step: tap Islands + damage = count (CR 603.6a / 701.20a / 120.1)", () => {
+    function makeIsland(id: string, controllerId: string) {
+        return makeInstance(islandIce.printId, {
+            id,
+            controllerId,
+            ownerId: controllerId,
+        });
+    }
+
+    it("taps the player's untapped Islands and deals damage equal to the count", () => {
+        const monsoonPerm = makeInstance(monsoon.id, {
+            id: "monsoon",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const i1 = makeIsland("i1", "p2");
+        const i2 = makeIsland("i2", "p2");
+        const alreadyTapped = makeIsland("i3", "p2");
+        alreadyTapped.isTapped = true;
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [monsoonPerm] }),
+                makePlayer("p2", {
+                    battlefield: [i1, i2, alreadyTapped],
+                    life: 20,
+                }),
+            ],
+        });
+        resolveTrigger(
+            state,
+            monsoonPerm,
+            "monsoon-end-step",
+            PHASE_EVENT("END_STEP", "p2")
+        );
+        // Only the two untapped Islands are tapped this way → 2 damage.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "i1")?.isTapped
+        ).toBe(true);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "i2")?.isTapped
+        ).toBe(true);
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("deals no damage when the player controls no untapped Islands", () => {
+        const monsoonPerm = makeInstance(monsoon.id, {
+            id: "monsoon",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [monsoonPerm] }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        resolveTrigger(
+            state,
+            monsoonPerm,
+            "monsoon-end-step",
+            PHASE_EVENT("END_STEP", "p2")
+        );
+        expect(state.players[1].life).toBe(20);
+    });
+});
+
+describe("Mountain Titan — arms an until-EOT black-cast +1/+1 rider (CR 605 / 611.1b / 122.1)", () => {
+    it("the activated ability grants the cast-watch rider to self until end of turn", () => {
+        const titan = makeInstance(mountainTitan.id, {
+            id: "titan",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [titan] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, titan, "mountain-titan-arm-cast-watch");
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "titan"
+        )!;
+        const triggers = effectiveTriggeredAbilities(live);
+        expect(
+            triggers.some((t) => t.id === "mountain-titan-black-cast-rider")
+        ).toBe(true);
+    });
+
+    it("the rider adds a +1/+1 counter when you cast a black spell", () => {
+        const titan = makeInstance(mountainTitan.id, {
+            id: "titan",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [titan] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, titan, "mountain-titan-arm-cast-watch");
+        const titanLive = state.players[0].battlefield.find(
+            (c) => c.id === "titan"
+        )!;
+        resolveTrigger(state, titanLive, "mountain-titan-black-cast-rider", {
+            type: "SPELL_CAST",
+            casterId: "p1",
+            spellInstanceId: "some-black-spell",
+            spellCardId: "fake-black",
+            spellTypes: ["Sorcery"],
+            spellSubtypes: [],
+            spellColors: ["B"],
+        } as StackItem["triggerEvent"]);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "titan"
+        )!;
+        expect(live.counters?.["+1/+1"] ?? 0).toBe(1);
+        // The buff is visible on the board (wire format): power/toughness up.
+        expect(getEffectivePower(state, live)).toBe(3);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "titan"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
     });
 });

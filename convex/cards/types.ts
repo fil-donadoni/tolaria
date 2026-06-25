@@ -932,11 +932,17 @@ export interface SpellContext {
      *  summoning sickness is set for creatures (CR 302.1), and existing
      *  battlefield lord-grants reach the new permanent via
      *  `applyExistingGrantsTo`. The card's own `staticEffects` are pushed out
-     *  to matching battlefield permanents via `applySourceStaticEffects`. */
+     *  to matching battlefield permanents via `applySourceStaticEffects`.
+     *  `controllerId` defaults to `playerId` (owner == controller, Resurrection).
+     *  Pass a distinct `controllerId` to reanimate a card from any player's
+     *  graveyard/exile under a DIFFERENT player's control (CR 400.7 / 800.4a —
+     *  owner stays the pile's owner, controller becomes `controllerId`). Used by
+     *  Hymn of Rebirth ("from a graveyard ... under your control"). */
     returnToBattlefield: (
         playerId: string,
         cardInstanceId: string,
-        fromZone: "graveyard" | "exile"
+        fromZone: "graveyard" | "exile",
+        controllerId?: string
     ) => boolean;
     /** Library tutor → battlefield primitive (CR 400.7 zone change, ADR
      *  0027). Moves a card a player owns from their library onto their
