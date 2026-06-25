@@ -3060,6 +3060,12 @@
     "firstSet": "lea"
   },
   {
+    "name": "Krovikan Sorcerer",
+    "scryfallId": "9c5fc053-7b0b-4e76-bf87-ccdb1e8752ed",
+    "oracleId": "00e6808c-1f9e-4b6a-807c-83f433b81a41",
+    "firstSet": "ice"
+  },
+  {
     "name": "Krovikan Vampire",
     "scryfallId": "717c5dda-8e38-4c76-b241-685198402284",
     "oracleId": "8fa93c01-f9ea-4d48-a040-418d1ca6be19",
@@ -4624,6 +4630,12 @@
     "scryfallId": "fefbf149-f988-4f8b-9f53-56f5878116a6",
     "oracleId": "711eea87-0fa3-46e0-a42b-fa5a86455f04",
     "firstSet": "lea"
+  },
+  {
+    "name": "Shyft",
+    "scryfallId": "99a60c33-b641-42c4-870d-95d07bc975dc",
+    "oracleId": "40c3007a-be6c-4400-9139-12b9ca098ac4",
+    "firstSet": "ice"
   },
   {
     "name": "Sibilant Spirit",

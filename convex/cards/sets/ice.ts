@@ -17,6 +17,7 @@
 import type {
     CardDefinition,
     CardPrint,
+    Color,
     ManaCost,
     PermanentView,
     SpellContext,
@@ -1474,17 +1475,23 @@ export const whiteScarab: CardDefinition = makeScarab({
 //     Trigger` only exposes `next-draw-step`, which is not the same step).
 //   • Until-end-of-turn control gain + "tap it when you lose control" — Ray of
 //     Command, Magus of the Unseen (ControlChangeCondition has no EOT variant).
-//   • Specialized primitives still missing — Krovikan Sorcerer (discard a card
-//     of a chosen colour as a cost), Mistfolk (counter a spell that targets
-//     this creature — no "spell targeting source" target filter), Phantasmal
-//     Mount (linked leaves-the-battlefield sacrifices), Essence Vortex (pay
+//   • Specialized primitives still missing — Mistfolk (counter a spell that
+//     targets this creature — no "spell targeting source" target filter),
+//     Phantasmal Mount (linked leaves-the-battlefield sacrifices — no delayed
+//     "leaves the battlefield this turn" trigger timing), Essence Vortex (pay
 //     LIFE in a may-pay choice), Soldevi Machinist (mana spendable only on
 //     artifact ABILITIES — ManaRestriction has only spell variants), Merieke Ri
-//     Berit (conditional control + destroy-on-untap), Shyft (indefinite per-
-//     upkeep colour choice), Winter's Chill (combat-only X capped by snow
-//     lands), Balduvian Conjurer (animate a snow land), Balduvian Shaman /
-//     Sleight-of-Mind-style colour-word text change that also grants cumulative
-//     upkeep, Flooded Woodlands (attack restriction with per-attacker cost).
+//     Berit (conditional control + destroy-on-untap), Winter's Chill (combat-
+//     only X capped by snow lands), Balduvian Conjurer (animate a snow land),
+//     Balduvian Shaman / Sleight-of-Mind-style colour-word text change that
+//     also grants cumulative upkeep, Flooded Woodlands (attack restriction with
+//     per-attacker cost).
+//
+// COMPLETED (#654) — buildable-now Blue cards using shipped primitives only:
+//   • Krovikan Sorcerer — colour-filtered chosen-discard cost paid in-resolve
+//     (Mesmeric Trance pattern, `candidateIds` from hand colours) + draw.
+//   • Shyft — upkeep `may` → `requestOptionChoice` colour → indefinite layer-5
+//     `setColorOverride` (single-colour reading; multicolour deferred).
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Arnjlot's Ascent — {U}{U} Enchantment with cumulative upkeep {U} (CR 702.24)
@@ -2137,18 +2144,121 @@ export const illusionsOfGrandeur: CardDefinition = {
 //     manaCost: { X: 2, U: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
-// export const krovikanSorcerer: CardDefinition = {
-//     id: "9c5fc053-7b0b-4e76-bf87-ccdb1e8752ed",
-//     name: "Krovikan Sorcerer",
-//     rarity: "common",
-//     oracleText: "{T}, Discard a nonblack card: Draw a card.\n{T}, Discard a black card: Draw two cards, then discard one of them.",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Wizard", "Sorcerer"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Krovikan Sorcerer — two looters whose discard cost is colour-filtered
+// (CR 601.2h convention — the chosen-discard is paid in-resolve, Mesmeric
+// Trance pattern). `PermanentFilter` has no `excludeColors`, so "nonblack" is
+// expressed as a precomputed `candidateIds` allow-list from the hand's colours
+// (CR 105.2 — black = colour B). Each ability taps (CR 602.1) and goes on the
+// stack (`useStack: true`). The black branch is a draw-2-then-discard-1
+// (CR 121.1 draw, CR 701.8 discard) sequenced across `resolveSteps`.
+export const krovikanSorcerer: CardDefinition = {
+    id: "9c5fc053-7b0b-4e76-bf87-ccdb1e8752ed",
+    name: "Krovikan Sorcerer",
+    rarity: "common",
+    oracleText:
+        "{T}, Discard a nonblack card: Draw a card.\n{T}, Discard a black card: Draw two cards, then discard one of them.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard", "Sorcerer"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "krovikan-sorcerer-nonblack",
+            oracleText: "{T}, Discard a nonblack card: Draw a card.",
+            cost: { tap: true },
+            useStack: true,
+            resolveSteps: [
+                // Step 0 — pay the discard portion of the cost: a chosen
+                // nonblack card from hand (CR 601.2h convention).
+                (ctx: SpellContext) => {
+                    const candidateIds = ctx
+                        .getHandCards(ctx.controller)
+                        .filter((c) => !c.colors.includes("B"))
+                        .map((c) => c.id);
+                    if (candidateIds.length === 0) return;
+                    const picked = ctx.requestChoice({
+                        playerId: ctx.controller,
+                        choiceId: "krovikan-sorcerer-nonblack-discard",
+                        kind: "choose-hand-card",
+                        zone: "hand",
+                        count: 1,
+                        candidateIds,
+                        prompt: "Discard a nonblack card (Krovikan Sorcerer).",
+                    });
+                    if (!picked || picked.length === 0) return;
+                    ctx.discardCard(ctx.controller, picked[0]);
+                },
+                // Step 1 — draw a card (CR 121.1). Only if a discard was paid.
+                (ctx: SpellContext) => {
+                    const discarded = ctx.recallChoice(
+                        "krovikan-sorcerer-nonblack-discard"
+                    );
+                    if (!discarded || discarded.length === 0) return;
+                    ctx.drawCards(ctx.controller, 1);
+                },
+            ],
+        },
+        {
+            id: "krovikan-sorcerer-black",
+            oracleText:
+                "{T}, Discard a black card: Draw two cards, then discard one of them.",
+            cost: { tap: true },
+            useStack: true,
+            resolveSteps: [
+                // Step 0 — pay the discard portion of the cost: a chosen black
+                // card from hand (CR 601.2h convention).
+                (ctx: SpellContext) => {
+                    const candidateIds = ctx
+                        .getHandCards(ctx.controller)
+                        .filter((c) => c.colors.includes("B"))
+                        .map((c) => c.id);
+                    if (candidateIds.length === 0) return;
+                    const picked = ctx.requestChoice({
+                        playerId: ctx.controller,
+                        choiceId: "krovikan-sorcerer-black-discard",
+                        kind: "choose-hand-card",
+                        zone: "hand",
+                        count: 1,
+                        candidateIds,
+                        prompt: "Discard a black card (Krovikan Sorcerer).",
+                    });
+                    if (!picked || picked.length === 0) return;
+                    ctx.discardCard(ctx.controller, picked[0]);
+                },
+                // Step 1 — draw two cards (CR 121.1). Only if the discard cost
+                // was paid.
+                (ctx: SpellContext) => {
+                    const discarded = ctx.recallChoice(
+                        "krovikan-sorcerer-black-discard"
+                    );
+                    if (!discarded || discarded.length === 0) return;
+                    ctx.drawCards(ctx.controller, 2);
+                },
+                // Step 2 — then discard one of them (CR 701.8). A free choice
+                // among the cards now in hand.
+                (ctx: SpellContext) => {
+                    const discarded = ctx.recallChoice(
+                        "krovikan-sorcerer-black-discard"
+                    );
+                    if (!discarded || discarded.length === 0) return;
+                    const handIds = ctx.getHandIds(ctx.controller);
+                    if (handIds.length === 0) return;
+                    const picked = ctx.requestChoice({
+                        playerId: ctx.controller,
+                        choiceId: "krovikan-sorcerer-black-then-discard",
+                        kind: "choose-hand-card",
+                        zone: "hand",
+                        count: 1,
+                        prompt: "Discard one of the drawn cards (Krovikan Sorcerer).",
+                    });
+                    if (!picked || picked.length === 0) return;
+                    ctx.discardCard(ctx.controller, picked[0]);
+                },
+            ],
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const magusOfTheUnseen: CardDefinition = {
 //     id: "86da04e9-b94d-42af-add3-02baf772bd33",
@@ -2366,18 +2476,71 @@ export const seaSpirit: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const shyft: CardDefinition = {
-//     id: "99a60c33-b641-42c4-870d-95d07bc975dc",
-//     name: "Shyft",
-//     rarity: "rare",
-//     oracleText: "At the beginning of your upkeep, you may have this creature become the color or colors of your choice. (This effect lasts indefinitely.)",
-//     manaCost: { X: 4, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Shapeshifter"],
-//     power: 4,
-//     toughness: 2,
-// };
+// Shyft — at the controller's upkeep (CR 603.6a, `phaseTrigger` scope "your"),
+// the controller MAY (CR 117.3a, `requestMayPay` cost-less) set Shyft's colour
+// via a layer-5 colour override (CR 305.7 / 613.1d — `setColorOverride`). The
+// override rides the instance with no duration, so it lasts INDEFINITELY until
+// a zone change (CR 612.7) — exactly "this effect lasts indefinitely."
+//
+// SIMPLIFICATION (flagged, no engine change): the oracle "the color or colors
+// of your choice" permits any subset of the five colours (CR 105.2). The
+// `requestOptionChoice` primitive is a single pick, so this models the five
+// MONO-colour choices (each a one-element override, the common faithful
+// reading — the same single-colour pick Jihad/Metamorphosis use). Picking a
+// multicolour combination would need a multi-select colour primitive; the
+// mono-colour pick covers the tactical use (becoming a colour to dodge a
+// "protection from" / colour-hate effect). Full power-set picking lands when a
+// multi-colour choice primitive exists.
+const SHYFT_COLOR_OPTIONS: { id: Color; label: string }[] = [
+    { id: "W", label: "White" },
+    { id: "U", label: "Blue" },
+    { id: "B", label: "Black" },
+    { id: "R", label: "Red" },
+    { id: "G", label: "Green" },
+];
+export const shyft: CardDefinition = {
+    id: "99a60c33-b641-42c4-870d-95d07bc975dc",
+    name: "Shyft",
+    rarity: "rare",
+    oracleText:
+        "At the beginning of your upkeep, you may have this creature become the color or colors of your choice. (This effect lasts indefinitely.)",
+    manaCost: { X: 4, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Shapeshifter"],
+    power: 4,
+    toughness: 2,
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "shyft-upkeep-color",
+            oracleText:
+                "At the beginning of your upkeep, you may have this creature become the color or colors of your choice. (This effect lasts indefinitely.)",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                // CR 117.3a — the "you may" gate.
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: "shyft-may",
+                    prompt: "Have Shyft become a color of your choice?",
+                });
+                if (accept === undefined) return; // suspended
+                if (!accept) return;
+                // CR 305.7 — the chosen colour (layer 5 override).
+                const chosen = ctx.requestOptionChoice({
+                    playerId: ctx.controller,
+                    choiceId: "shyft-color",
+                    options: SHYFT_COLOR_OPTIONS,
+                    prompt: "Choose Shyft's new color.",
+                });
+                if (chosen === undefined) return; // suspended
+                ctx.setColorOverride(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    [chosen as Color]
+                );
+            },
+        }),
+    ],
+};
 // Sibilant Spirit — 5/6 flier whose attack hands the defending player an
 // optional card draw (CR 508.1 attack trigger, CR 117.3a may-draw). The
 // defending player is the single opponent in a duel.
