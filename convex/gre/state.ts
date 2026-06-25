@@ -3303,6 +3303,86 @@ export function runDamageReplacement(
     return { target: transient.target, amount: transient.amount };
 }
 
+/** Deals `amount` damage from an explicit battlefield-permanent source to a
+ *  player (CR 120), routing through the same CR 614 replacement → CR 615
+ *  prevention pipeline that `SpellContext.dealDamage` uses, but sourced from an
+ *  arbitrary permanent rather than the resolving stack item. This is the pure
+ *  building block for "this permanent deals N damage to its controller/a
+ *  player" effects that fire OUTSIDE a stack resolution — e.g. the painland
+ *  coloured-tap self-damage rider (Adarkar Wastes et al., CR 605.1a), where the
+ *  damage is part of a mana ability resolving immediately in `tapUntap` and so
+ *  has no `SpellContext`. A replacement may redirect the damage to a different
+ *  player, which is applied to the redirected player. No-op when `amount <= 0`,
+ *  the source has left the battlefield, or a replacement cancels the damage. */
+export function dealDamageFromPermanentToPlayer(
+    state: GameState,
+    source: CardInstanceState,
+    sourceControllerId: string,
+    playerId: string,
+    amount: number
+): void {
+    if (amount <= 0) return;
+    // CR 614 — replacement effects (redirects/cancels) run first, keyed on the
+    // permanent source's identity (colors/types).
+    const replaced = runDamageReplacement(
+        state,
+        source.id,
+        sourceControllerId,
+        { type: "player", id: playerId },
+        amount,
+        false
+    );
+    if (replaced === null) return;
+    const finalTarget = replaced.target;
+    const finalAmount = replaced.amount;
+    if (finalAmount <= 0) return;
+    if (finalTarget.type !== "player") {
+        // A replacement redirected the damage to a permanent (rare for self-
+        // damage). Route it through the permanent-source marker so protection/
+        // prevention still apply; lethal SBA is handled by the engine's SBA pass.
+        markDamageFromPermanentSource(
+            state,
+            source,
+            sourceControllerId,
+            finalTarget.id,
+            finalAmount
+        );
+        return;
+    }
+    // CR 615.1 — prevention shields (source-matched, then target-keyed).
+    if (consumePreventionIfAny(state, source.id, finalTarget.id)) return;
+    const desc = describeDamageSource(state, source.id);
+    let reduced = applyPlayerDamagePrevention(
+        state,
+        finalTarget.id,
+        source.id,
+        desc.staticAbilities,
+        finalAmount
+    );
+    if (reduced <= 0) return;
+    reduced = applyTargetPrevention(state, "player", finalTarget.id, reduced);
+    if (reduced <= 0) return;
+    getPlayer(state, finalTarget.id).life -= reduced;
+    bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
+    recordSourceDamagedOpponent(state, source.id, finalTarget.id);
+    bumpArtifactDamageToPlayer(state, finalTarget.id, reduced, desc.types);
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: source.id,
+            sourceControllerId,
+            target: finalTarget,
+            amount: reduced,
+            isCombat: false,
+            sourceColors: desc.colors,
+            sourceTypes: desc.types,
+            sourceSubtypes: desc.subtypes,
+            sourceStaticAbilities: desc.staticAbilities,
+        },
+    ];
+}
+
 /** Marks fight/redirect damage on a target permanent from an explicit
  *  battlefield-permanent source (CR 120). Unlike `SpellContext.dealDamage`
  *  (whose source is always the resolving stack item, `item.id`), this routes

@@ -82,6 +82,48 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ICE painland cycle (#662, PRD #628). Exercises the coloured-tap
+        // self-damage rider on all five painlands end to end:
+        //   - Each painland has TWO mana options when tapped: {C} (painless) and
+        //     its two colours. Tap one for {C} → life unchanged. Tap for a
+        //     colour → you take 1 damage (watch your life total drop by 1).
+        //   - Repeat across Adarkar Wastes (WU), Brushland (GW), Karplusan
+        //     Forest (RG), Sulfurous Springs (BR), Underground River (UB).
+        // Start at 20 life so the pings are easy to read; turn 2 so all the
+        // lands are untapped and free of summoning concerns.
+        label: "ICE: Painland cycle — coloured tap pings you for 1, {C} is painless (#662)",
+        cards: [
+            {
+                name: "Adarkar Wastes",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Brushland",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Karplusan Forest",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Sulfurous Springs",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Underground River",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+        turn: 2,
+    },
+    {
         // ICE snow supertype + snow-matters cluster (#661, PRD #628). Exercises
         // the Snow supertype on the five snow-covered basics and the
         // snow-matters reads end to end:

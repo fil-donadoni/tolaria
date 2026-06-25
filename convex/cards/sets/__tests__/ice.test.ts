@@ -321,6 +321,12 @@ import {
     arcumsSleigh,
     arcumsWeathervane,
     sunstone,
+    // Painland cycle (#662)
+    adarkarWastes,
+    brushland,
+    karplusanForest,
+    sulfurousSprings,
+    undergroundRiver,
 } from "../ice";
 import {
     getCardById,
@@ -362,6 +368,7 @@ import {
 } from "../../../gre/pendingChoiceSubmit";
 import { getLegalTargets } from "../../../gre/rules";
 import { validateBlockerEligibility } from "../../../gre/combat";
+import { tapSourceIntoPayment } from "../../../game";
 import {
     makeInstance,
     makePlayer,
@@ -10673,4 +10680,122 @@ describe("supertype filter wire-format round-trip (CR 205.4a)", () => {
         )!;
         expect(hasSupertypeLive(slim, "Snow")).toBe(false);
     });
+});
+
+// ── Painland cycle (#662) — coloured-tap self-damage rider ──────────────────
+// CR 605.1a — both lines are mana abilities (useStack: false). Modelled as ONE
+// choice mana ability: option 0 is the painless {C}; options 1-2 are the two
+// colours carrying `dealsDamageToControllerOnColoredTap: 1`. The engine deals 1
+// damage to the controller (CR 120, via the permanent-source player-damage
+// pipeline) only when a COLOURED option is chosen — never on the painless {C}.
+describe("painland cycle (#662) — coloured-tap self-damage (CR 605.1a / 120)", () => {
+    const painlands = [
+        { def: adarkarWastes, colors: ["W", "U"] as const, c1Idx: 1, c2Idx: 2 },
+        { def: brushland, colors: ["G", "W"] as const, c1Idx: 1, c2Idx: 2 },
+        {
+            def: karplusanForest,
+            colors: ["R", "G"] as const,
+            c1Idx: 1,
+            c2Idx: 2,
+        },
+        {
+            def: sulfurousSprings,
+            colors: ["B", "R"] as const,
+            c1Idx: 1,
+            c2Idx: 2,
+        },
+        {
+            def: undergroundRiver,
+            colors: ["U", "B"] as const,
+            c1Idx: 1,
+            c2Idx: 2,
+        },
+    ];
+
+    for (const { def, colors } of painlands) {
+        describe(`${def.name}`, () => {
+            it("is a Land with one {T} choice mana ability: {C} (index 0) + the two colours carrying a 1-damage rider", () => {
+                expect(def.types).toEqual(["Land"]);
+                const mana = def.activatedAbilities?.find(
+                    (a) => !a.useStack && a.manaChoices
+                );
+                expect(mana?.useStack).toBe(false);
+                expect(mana?.cost).toEqual({ tap: true });
+                // Index 0 is the painless {C}; 1 and 2 are the two colours.
+                expect(mana?.manaChoices).toEqual([
+                    { C: 1 },
+                    { [colors[0]]: 1 },
+                    { [colors[1]]: 1 },
+                ]);
+                expect(mana?.dealsDamageToControllerOnColoredTap).toBe(1);
+            });
+
+            it("tapping for {C} (the painless choice) costs NO life and adds {C} (CR 605.1a)", () => {
+                const land = makeInstance(def.id, {
+                    id: "land",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const player = makePlayer("p1", { battlefield: [land] });
+                const state = makeState({
+                    players: [player, makePlayer("p2")],
+                });
+                state.activePlayerId = "p1";
+                // Full-path through the payment tap (index 0 = {C}).
+                tapSourceIntoPayment(state, player, land, 0, []);
+                expect(player.manaPool.C).toBe(1);
+                expect(player.life).toBe(20); // painless
+            });
+
+            it(`tapping for ${colors[0]} (a coloured choice) costs 1 life and adds {${colors[0]}} (CR 120)`, () => {
+                const land = makeInstance(def.id, {
+                    id: "land",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const player = makePlayer("p1", { battlefield: [land] });
+                const state = makeState({
+                    players: [player, makePlayer("p2")],
+                });
+                state.activePlayerId = "p1";
+                // Index 1 = the first colour.
+                tapSourceIntoPayment(state, player, land, 1, []);
+                expect(player.manaPool[colors[0]]).toBe(1);
+                expect(player.life).toBe(19); // pinged for 1
+            });
+
+            it(`tapping for ${colors[1]} (the other colour) also costs 1 life`, () => {
+                const land = makeInstance(def.id, {
+                    id: "land",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const player = makePlayer("p1", { battlefield: [land] });
+                const state = makeState({
+                    players: [player, makePlayer("p2")],
+                });
+                state.activePlayerId = "p1";
+                tapSourceIntoPayment(state, player, land, 2, []);
+                expect(player.manaPool[colors[1]]).toBe(1);
+                expect(player.life).toBe(19);
+            });
+
+            it("the coloured-tap life loss survives the wire-format projection (CR 120, PublicGameState)", () => {
+                const land = makeInstance(def.id, {
+                    id: "land",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const player = makePlayer("p1", { battlefield: [land] });
+                const state = makeState({
+                    players: [player, makePlayer("p2")],
+                });
+                state.activePlayerId = "p1";
+                tapSourceIntoPayment(state, player, land, 1, []);
+                // Life loss is observed on the projected (slim) state too.
+                const projected = projectPublicState(state, 1, "p1");
+                expect(projected.players[0].life).toBe(19);
+            });
+        });
+    }
 });
