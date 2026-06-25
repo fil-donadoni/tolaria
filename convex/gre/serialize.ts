@@ -121,6 +121,9 @@ function compactCard(
     if (card.temporaryPTSet?.length) {
         out.temporaryPTSet = card.temporaryPTSet;
     }
+    if (card.temporarySubtypeChange) {
+        out.temporarySubtypeChange = card.temporarySubtypeChange;
+    }
     if (card.sourceTappedPTMods?.length) {
         out.sourceTappedPTMods = card.sourceTappedPTMods;
     }
@@ -310,6 +313,10 @@ function expandCard(
     if (compact.temporaryPTSet) {
         result.temporaryPTSet =
             compact.temporaryPTSet as CardInstanceState["temporaryPTSet"];
+    }
+    if (compact.temporarySubtypeChange) {
+        result.temporarySubtypeChange =
+            compact.temporarySubtypeChange as CardInstanceState["temporarySubtypeChange"];
     }
     if (compact.sourceTappedPTMods) {
         result.sourceTappedPTMods =

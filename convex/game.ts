@@ -1201,6 +1201,12 @@ export function tryAutoCommitPendingCast(
         return null;
     }
 
+    // CR 106.4 / 202.3 — cast-path mana-spent tracking (Soul Burn). Snapshot
+    // the pool before payment so the per-colour delta becomes `notedManaSpent`
+    // on the stack item (mirrors the activated-ability `noteManaSpent` path).
+    const castPoolBeforePayment = castDef?.noteManaSpent
+        ? { ...player.manaPool }
+        : undefined;
     payManaCostForSpell(
         player,
         state.pendingCast.manaCost,
@@ -1208,6 +1214,9 @@ export function tryAutoCommitPendingCast(
         getManaSubstitutions(state, player.id),
         castInstanceId
     );
+    const castNotedManaSpent = castPoolBeforePayment
+        ? manaSpentDelta(castPoolBeforePayment, player.manaPool)
+        : undefined;
     commitLandsForCost(player, state.pendingCast.manaCost);
 
     // Pay the picked permanent's additional cost (CR 117.9): sacrifice it
@@ -1284,6 +1293,7 @@ export function tryAutoCommitPendingCast(
             : {}),
         ...(pendingChosenModeId ? { chosenModeId: pendingChosenModeId } : {}),
         ...(additionalSacrificeSnapshot ? { additionalSacrificeSnapshot } : {}),
+        ...(castNotedManaSpent ? { notedManaSpent: castNotedManaSpent } : {}),
     };
     state.stack.push(stackItem);
 
@@ -2567,7 +2577,12 @@ export function finalizeTargetSelection(
             getManaSubstitutions(state, player.id)
         )
     ) {
+        // CR 106.4 / 202.3 — cast-path mana-spent tracking (Soul Burn).
+        let immediateNotedManaSpent: Record<string, number> | undefined;
         if (Object.keys(manaCost).length > 0) {
+            const poolBeforePayment = cardDef.noteManaSpent
+                ? { ...player.manaPool }
+                : undefined;
             payManaCostForSpell(
                 player,
                 manaCost,
@@ -2575,6 +2590,9 @@ export function finalizeTargetSelection(
                 getManaSubstitutions(state, player.id),
                 cardInstanceId
             );
+            immediateNotedManaSpent = poolBeforePayment
+                ? manaSpentDelta(poolBeforePayment, player.manaPool)
+                : undefined;
             commitLandsForCost(player, manaCost);
         }
         // CR 601.2b / 118.4 — pay the "pay X life" additional cost as the spell
@@ -2589,6 +2607,9 @@ export function finalizeTargetSelection(
             ...(chosenX !== undefined ? { chosenX } : {}),
             ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
             ...(chosenModeId ? { chosenModeId } : {}),
+            ...(immediateNotedManaSpent
+                ? { notedManaSpent: immediateNotedManaSpent }
+                : {}),
         };
         state.stack.push(stackItem);
         state.passCount = 0;

@@ -98,6 +98,33 @@ describe("game_state serialize round-trip", () => {
         expect(got.counters).toEqual({ depletion: 1 });
     });
 
+    it("preserves a timed subtype change (Orcish Farmer, CR 305.7 / 502.1, #671)", () => {
+        // The timed land-type change is a per-instance field that must survive
+        // the DB round-trip so a save/load mid-effect reverts at the right untap
+        // step (the duration is replay-deterministic with its resolved playerId).
+        const state = freshState();
+        const land = state.players[1].battlefield[0];
+        land.subtypes = ["Swamp"];
+        land.temporarySubtypeChange = {
+            subtypes: ["Swamp"],
+            restoreSubtypes: ["Forest"],
+            duration: { phase: "untap", playerId: "p2" },
+        };
+        const expanded = expandState(compactState(state));
+        const got = expanded.players[1].battlefield[0];
+        expect(got.subtypes).toEqual(["Swamp"]);
+        expect(got.temporarySubtypeChange).toEqual({
+            subtypes: ["Swamp"],
+            restoreSubtypes: ["Forest"],
+            duration: { phase: "untap", playerId: "p2" },
+        });
+        // Absent when no timed change is active.
+        const empty = expandState(compactState(freshState()));
+        expect(
+            empty.players[1].battlefield[0].temporarySubtypeChange
+        ).toBeUndefined();
+    });
+
     it("preserves a wind counter on a tapped permanent (Freyalise's Winds, CR 122.1 / 614.6)", () => {
         // Freyalise's Winds (#668) stores its untap-replacement state entirely
         // in the existing per-instance `counters` map (a `wind` counter) — no

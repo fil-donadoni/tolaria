@@ -107,7 +107,7 @@ export const MAX_HAND_SIZE = 7;
 export function manaValue(cost?: ManaCost): number {
     if (!cost) return 0;
     let total = 0;
-    for (const key of ["X", "W", "U", "B", "R", "G", "C"] as const) {
+    for (const key of ["X", "W", "U", "B", "R", "G", "C", "generic"] as const) {
         const v = cost[key];
         if (typeof v === "number") total += v;
     }

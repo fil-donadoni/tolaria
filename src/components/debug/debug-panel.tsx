@@ -367,6 +367,51 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         turn: 2,
     },
     {
+        // ICE parametric/timed effects & mana tracking (#671, PRD #628).
+        // Exercises all three one-off seams in a single board:
+        //   - Illusionary Presence (2/2 Illusion, cumulative upkeep {U}): at
+        //     each of your upkeeps choose a land type → it gains that landwalk
+        //     until end of turn (CR 702.13). Already on the battlefield so the
+        //     next upkeep fires the choose-land-type trigger.
+        //   - Orcish Farmer (2/2 Orc): "{T}: Target land becomes a Swamp until
+        //     its controller's next untap step." Tap it targeting a basic land
+        //     and watch the land tap for {B}, reverting next untap (CR 305.7 /
+        //     502.1).
+        //   - Soul Burn ({X}{2}{B} sorcery): X damage to any target, gain life
+        //     ≤ {B} spent on X. Cast it on the opponent's creature paying X with
+        //     black to see the capped lifegain (CR 119).
+        // Turn 2 so permanents are untapped; life 20.
+        label: "ICE: Parametric/timed effects & mana tracking — Illusionary Presence / Orcish Farmer / Soul Burn (#671)",
+        cards: [
+            {
+                name: "Illusionary Presence",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Orcish Farmer",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Soul Burn",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            // A target creature for Soul Burn / Orcish Farmer landwalk evasion.
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        // Plenty of basics so Soul Burn's {X}{2}{B} is payable with black and
+        // Orcish Farmer has a basic land to turn into a Swamp.
+        landCount: 6,
+        turn: 2,
+    },
+    {
         // ICE divide-as-you-choose cluster (#664, PRD #628). Exercises the
         // player-chosen division of a fixed total among ≥1-each targets for
         // damage AND counters (CR 601.2d / 120.4):
