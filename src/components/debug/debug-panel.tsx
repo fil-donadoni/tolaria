@@ -193,6 +193,48 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 5,
     },
     {
+        // ICE Lands free tranche (#637, PRD #628). Exercises the activated land
+        // staples end to end:
+        //   - Ice Floe ({T}: tap-lock a non-flying attacker) — an opponent's
+        //     ground Bear is on the board; advance to combat and attack with it,
+        //     then tap Ice Floe to tap-lock it (it stays tapped while Ice Floe
+        //     is tapped, CR 611.2).
+        //   - The basic-land reprints (Plains/Island/Mountain) come in as the
+        //     player's lands so the colour pips are visible.
+        // (Painlands, depletion duals, snow basics, and the cumulative-upkeep
+        // lands stay deferred to their capability clusters.)
+        label: "ICE: Lands free tranche — Ice Floe tap-lock + basic reprints (#637)",
+        cards: [
+            {
+                name: "Ice Floe",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Plains",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Island",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Mountain",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 5,
+    },
+    {
         // ICE Blue free tranche (#631, PRD #628). Exercises the Blue ICE
         // staples end to end:
         //   - Zuran Spellcaster ({T}: 1 damage any target) and Storm Spirit

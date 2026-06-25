@@ -6829,7 +6829,16 @@ export const zuranOrb: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
+// DEFERRED (painland cycle — capability cluster). "{T}: Add {C}." is free, but
+// "{T}: Add {W} or {U}. This land deals 1 damage to you." needs a self-damage
+// rider on the COLORED mana ability only (not on every tap, so City of Brass's
+// PERMANENT_TAPPED trigger can't model it). The mana-ability `effect` ctx
+// (`ActivatedAbilityContext`) exposes only `addMana` — dealing damage from it
+// needs the same declarative tap-side-effect seam as ADR 0040
+// (`armsDelayedTriggerOnTap`). A `dealsDamageToControllerOnTap` rider on
+// `ActivatedAbility`, fired in both tap paths (tapUntap + tapSourceIntoPayment)
+// when that ability produced mana, is the clean fix — owned by the painland
+// capability cluster, not this free tranche.
 // export const adarkarWastes: CardDefinition = {
 //     id: "09dd9023-f7ee-4e99-8821-7059deb83730",
 //     name: "Adarkar Wastes",
@@ -6837,7 +6846,8 @@ export const zuranOrb: CardDefinition = {
 //     oracleText: "{T}: Add {C}.\n{T}: Add {W} or {U}. This land deals 1 damage to you.",
 //     types: ["Land"],
 // };
-// TODO(#628): implement.
+// DEFERRED (painland cycle — see Adarkar Wastes note; needs the
+// `dealsDamageToControllerOnTap` rider, painland capability cluster).
 // export const brushland: CardDefinition = {
 //     id: "170e5ccd-54bf-4c6d-86b4-0359ca8f36e8",
 //     name: "Brushland",
@@ -6845,7 +6855,7 @@ export const zuranOrb: CardDefinition = {
 //     oracleText: "{T}: Add {C}.\n{T}: Add {G} or {W}. This land deals 1 damage to you.",
 //     types: ["Land"],
 // };
-// TODO(#628): implement.
+// DEFERRED (cumulative upkeep — ADR 0042 capability cluster).
 // export const glacialChasm: CardDefinition = {
 //     id: "3d23f800-7a6f-40e3-b242-9f5955e47a75",
 //     name: "Glacial Chasm",
@@ -6853,7 +6863,7 @@ export const zuranOrb: CardDefinition = {
 //     oracleText: "Cumulative upkeep—Pay 2 life. (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nWhen this land enters, sacrifice a land.\nCreatures you control can't attack.\nPrevent all damage that would be dealt to you.",
 //     types: ["Land"],
 // };
-// TODO(#628): implement.
+// DEFERRED (cumulative upkeep — ADR 0042 capability cluster).
 // export const hallsOfMist: CardDefinition = {
 //     id: "b926a189-90b6-47bb-b5d6-b033e57007b4",
 //     name: "Halls of Mist",
@@ -6861,15 +6871,45 @@ export const zuranOrb: CardDefinition = {
 //     oracleText: "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nCreatures that attacked during their controller's last turn can't attack.",
 //     types: ["Land"],
 // };
-// TODO(#628): implement.
-// export const iceFloe: CardDefinition = {
-//     id: "85ce04fb-e687-41e0-ae9a-16a51df5d943",
-//     name: "Ice Floe",
-//     rarity: "uncommon",
-//     oracleText: "You may choose not to untap this land during your untap step.\n{T}: Tap target creature without flying that's attacking you. It doesn't untap during its controller's untap step for as long as this land remains tapped.",
-//     types: ["Land"],
-// };
-// TODO(#628): implement.
+// Ice Floe — land-flavoured untap-lock twin of Mole Worms (CR 611.2 untap-lock
+// tied to the source's tapped state via `lockUntapWhileSourceTapped`; CR 502.1
+// optional untap via `may-choose-not-to-untap`). Target filter mirrors Giant
+// Trap Door Spider: a non-flying attacking creature ("attacking you" in
+// 2-player = an opponent's attacker, CR 508.1) via `combatRoleFilter:
+// "attacking"` + `excludeAbility: "flying"`.
+export const iceFloe: CardDefinition = {
+    id: "85ce04fb-e687-41e0-ae9a-16a51df5d943",
+    name: "Ice Floe",
+    rarity: "uncommon",
+    oracleText:
+        "You may choose not to untap this land during your untap step.\n{T}: Tap target creature without flying that's attacking you. It doesn't untap during its controller's untap step for as long as this land remains tapped.",
+    types: ["Land"],
+    staticAbilities: ["may-choose-not-to-untap"],
+    activatedAbilities: [
+        {
+            id: "ice-floe-tap-lock",
+            oracleText:
+                "{T}: Tap target creature without flying that's attacking you. It doesn't untap during its controller's untap step for as long as this land remains tapped.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                combatRoleFilter: "attacking",
+                excludeAbility: "flying",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.tap(target);
+                    ctx.lockUntapWhileSourceTapped(target);
+                }
+            },
+        },
+    ],
+};
+// DEFERRED (painland cycle — see Adarkar Wastes note; needs the
+// `dealsDamageToControllerOnTap` rider, painland capability cluster).
 // export const karplusanForest: CardDefinition = {
 //     id: "ba6f1263-d598-49fb-b5f8-09f11822ebd0",
 //     name: "Karplusan Forest",
@@ -6877,7 +6917,12 @@ export const zuranOrb: CardDefinition = {
 //     oracleText: "{T}: Add {C}.\n{T}: Add {R} or {G}. This land deals 1 damage to you.",
 //     types: ["Land"],
 // };
-// TODO(#628): implement.
+// DEFERRED (depletion-dual cycle — capability cluster). Needs a
+// per-permanent depletion-counter mechanic: tapping for mana adds a counter,
+// the upkeep removes one, and the land skips its untap step while any counter
+// remains (CR 122 counters + a conditional untap-skip keyed on counter count).
+// No existing primitive expresses "don't untap while this has a depletion
+// counter" — owned by the depletion capability cluster.
 // export const landCap: CardDefinition = {
 //     id: "c4806c02-7a4d-42e3-affd-0338084bd3ab",
 //     name: "Land Cap",
@@ -6885,7 +6930,12 @@ export const zuranOrb: CardDefinition = {
 //     oracleText: "This land doesn't untap during your untap step if it has a depletion counter on it.\nAt the beginning of your upkeep, remove a depletion counter from this land.\n{T}: Add {W} or {U}. Put a depletion counter on this land.",
 //     types: ["Land"],
 // };
-// TODO(#628): implement.
+// DEFERRED (depletion-dual cycle — capability cluster). Needs a
+// per-permanent depletion-counter mechanic: tapping for mana adds a counter,
+// the upkeep removes one, and the land skips its untap step while any counter
+// remains (CR 122 counters + a conditional untap-skip keyed on counter count).
+// No existing primitive expresses "don't untap while this has a depletion
+// counter" — owned by the depletion capability cluster.
 // export const lavaTubes: CardDefinition = {
 //     id: "5e7c2cf6-f36f-451b-bba5-19a82c659c4c",
 //     name: "Lava Tubes",
@@ -6893,7 +6943,12 @@ export const zuranOrb: CardDefinition = {
 //     oracleText: "This land doesn't untap during your untap step if it has a depletion counter on it.\nAt the beginning of your upkeep, remove a depletion counter from this land.\n{T}: Add {B} or {R}. Put a depletion counter on this land.",
 //     types: ["Land"],
 // };
-// TODO(#628): implement.
+// DEFERRED (depletion-dual cycle — capability cluster). Needs a
+// per-permanent depletion-counter mechanic: tapping for mana adds a counter,
+// the upkeep removes one, and the land skips its untap step while any counter
+// remains (CR 122 counters + a conditional untap-skip keyed on counter count).
+// No existing primitive expresses "don't untap while this has a depletion
+// counter" — owned by the depletion capability cluster.
 // export const riverDelta: CardDefinition = {
 //     id: "ea335fc0-0591-4acd-9ae8-7858222770da",
 //     name: "River Delta",
@@ -6901,7 +6956,8 @@ export const zuranOrb: CardDefinition = {
 //     oracleText: "This land doesn't untap during your untap step if it has a depletion counter on it.\nAt the beginning of your upkeep, remove a depletion counter from this land.\n{T}: Add {U} or {B}. Put a depletion counter on this land.",
 //     types: ["Land"],
 // };
-// TODO(#628): implement.
+// DEFERRED (painland cycle — see Adarkar Wastes note; needs the
+// `dealsDamageToControllerOnTap` rider, painland capability cluster).
 // export const sulfurousSprings: CardDefinition = {
 //     id: "2fdeab50-b45f-412b-85a3-c6cf009ce567",
 //     name: "Sulfurous Springs",
@@ -6909,7 +6965,12 @@ export const zuranOrb: CardDefinition = {
 //     oracleText: "{T}: Add {C}.\n{T}: Add {B} or {R}. This land deals 1 damage to you.",
 //     types: ["Land"],
 // };
-// TODO(#628): implement.
+// DEFERRED (depletion-dual cycle — capability cluster). Needs a
+// per-permanent depletion-counter mechanic: tapping for mana adds a counter,
+// the upkeep removes one, and the land skips its untap step while any counter
+// remains (CR 122 counters + a conditional untap-skip keyed on counter count).
+// No existing primitive expresses "don't untap while this has a depletion
+// counter" — owned by the depletion capability cluster.
 // export const timberlineRidge: CardDefinition = {
 //     id: "87cc2fc9-0a24-4ac1-afcc-9317b90c7178",
 //     name: "Timberline Ridge",
@@ -6917,7 +6978,8 @@ export const zuranOrb: CardDefinition = {
 //     oracleText: "This land doesn't untap during your untap step if it has a depletion counter on it.\nAt the beginning of your upkeep, remove a depletion counter from this land.\n{T}: Add {R} or {G}. Put a depletion counter on this land.",
 //     types: ["Land"],
 // };
-// TODO(#628): implement.
+// DEFERRED (painland cycle — see Adarkar Wastes note; needs the
+// `dealsDamageToControllerOnTap` rider, painland capability cluster).
 // export const undergroundRiver: CardDefinition = {
 //     id: "92369d7e-5e5a-46f9-bb31-c57d62410283",
 //     name: "Underground River",
@@ -6925,7 +6987,12 @@ export const zuranOrb: CardDefinition = {
 //     oracleText: "{T}: Add {C}.\n{T}: Add {U} or {B}. This land deals 1 damage to you.",
 //     types: ["Land"],
 // };
-// TODO(#628): implement.
+// DEFERRED (depletion-dual cycle — capability cluster). Needs a
+// per-permanent depletion-counter mechanic: tapping for mana adds a counter,
+// the upkeep removes one, and the land skips its untap step while any counter
+// remains (CR 122 counters + a conditional untap-skip keyed on counter count).
+// No existing primitive expresses "don't untap while this has a depletion
+// counter" — owned by the depletion capability cluster.
 // export const veldt: CardDefinition = {
 //     id: "987534fb-74a9-46a3-805f-fe2fe2df4a90",
 //     name: "Veldt",
@@ -6933,17 +7000,16 @@ export const zuranOrb: CardDefinition = {
 //     oracleText: "This land doesn't untap during your untap step if it has a depletion counter on it.\nAt the beginning of your upkeep, remove a depletion counter from this land.\n{T}: Add {G} or {W}. Put a depletion counter on this land.",
 //     types: ["Land"],
 // };
-// TODO(#628): implement.
-// export const plains: CardDefinition = {
-//     id: "7b68bdb0-41cc-48f6-905e-7da1ff4ba5e0",
-//     name: "Plains",
-//     rarity: "common",
-//     oracleText: "({T}: Add {W}.)",
-//     types: ["Land"],
-//     supertypes: ["Basic"],
-//     subtypes: ["Plains"],
-// };
-// TODO(#628): implement.
+// Plains — ICE reprint of the LEA basic land (CR 305.6 intrinsic mana ability).
+// CardPrint onto the LEA definition (ADR 0014); the stub id is the ICE print's
+// Scryfall id, used here as the printId.
+export const plainsIce: CardPrint = {
+    printId: "7b68bdb0-41cc-48f6-905e-7da1ff4ba5e0",
+    definitionId: "b1623d57-4729-4796-b3f7-f1837a05c6ed",
+    setCode: "ice",
+    rarity: "common",
+};
+// DEFERRED (snow basic — Snow supertype, snow capability cluster).
 // export const snowCoveredPlains: CardDefinition = {
 //     id: "cb3ac778-fb45-4fd3-a9af-8a0791f833e8",
 //     name: "Snow-Covered Plains",
@@ -6953,17 +7019,14 @@ export const zuranOrb: CardDefinition = {
 //     supertypes: ["Basic", "Snow"],
 //     subtypes: ["Plains"],
 // };
-// TODO(#628): implement.
-// export const island: CardDefinition = {
-//     id: "ef2d6fc9-ddad-4dd2-b218-afa1a5449b7e",
-//     name: "Island",
-//     rarity: "common",
-//     oracleText: "({T}: Add {U}.)",
-//     types: ["Land"],
-//     supertypes: ["Basic"],
-//     subtypes: ["Island"],
-// };
-// TODO(#628): implement.
+// Island — ICE reprint of the LEA basic land (CardPrint onto LEA, ADR 0014).
+export const islandIce: CardPrint = {
+    printId: "ef2d6fc9-ddad-4dd2-b218-afa1a5449b7e",
+    definitionId: "90a57c0e-fa61-45ef-955d-d296403967d5",
+    setCode: "ice",
+    rarity: "common",
+};
+// DEFERRED (snow basic — Snow supertype, snow capability cluster).
 // export const snowCoveredIsland: CardDefinition = {
 //     id: "ad8b77cf-b53e-4da3-9c27-3851b7b25a98",
 //     name: "Snow-Covered Island",
@@ -6973,7 +7036,7 @@ export const zuranOrb: CardDefinition = {
 //     supertypes: ["Basic", "Snow"],
 //     subtypes: ["Island"],
 // };
-// TODO(#628): implement.
+// DEFERRED (snow basic — Snow supertype, snow capability cluster).
 // export const snowCoveredSwamp: CardDefinition = {
 //     id: "65a3c27f-6b15-49b6-ac89-36cfb79b3b54",
 //     name: "Snow-Covered Swamp",
@@ -6983,27 +7046,21 @@ export const zuranOrb: CardDefinition = {
 //     supertypes: ["Basic", "Snow"],
 //     subtypes: ["Swamp"],
 // };
-// TODO(#628): implement.
-// export const swamp: CardDefinition = {
-//     id: "4695653a-5c4c-4ff3-b80c-f4b6c685f370",
-//     name: "Swamp",
-//     rarity: "common",
-//     oracleText: "({T}: Add {B}.)",
-//     types: ["Land"],
-//     supertypes: ["Basic"],
-//     subtypes: ["Swamp"],
-// };
-// TODO(#628): implement.
-// export const mountain: CardDefinition = {
-//     id: "4ecf39c3-3b5f-4263-a7b5-9881bded3494",
-//     name: "Mountain",
-//     rarity: "common",
-//     oracleText: "({T}: Add {R}.)",
-//     types: ["Land"],
-//     supertypes: ["Basic"],
-//     subtypes: ["Mountain"],
-// };
-// TODO(#628): implement.
+// Swamp — ICE reprint of the LEA basic land (CardPrint onto LEA, ADR 0014).
+export const swampIce: CardPrint = {
+    printId: "4695653a-5c4c-4ff3-b80c-f4b6c685f370",
+    definitionId: "6176936d-72e2-4205-8871-4c5a4f1cb2d8",
+    setCode: "ice",
+    rarity: "common",
+};
+// Mountain — ICE reprint of the LEA basic land (CardPrint onto LEA, ADR 0014).
+export const mountainIce: CardPrint = {
+    printId: "4ecf39c3-3b5f-4263-a7b5-9881bded3494",
+    definitionId: "eace2c85-976c-425e-9800-5a6ccbd91b56",
+    setCode: "ice",
+    rarity: "common",
+};
+// DEFERRED (snow basic — Snow supertype, snow capability cluster).
 // export const snowCoveredMountain: CardDefinition = {
 //     id: "ccd3afb3-5574-4f2d-adbe-969a428f1c63",
 //     name: "Snow-Covered Mountain",
@@ -7013,17 +7070,14 @@ export const zuranOrb: CardDefinition = {
 //     supertypes: ["Basic", "Snow"],
 //     subtypes: ["Mountain"],
 // };
-// TODO(#628): implement.
-// export const forest: CardDefinition = {
-//     id: "fbdcbd97-90a9-45ea-94f6-2a1c6faaf965",
-//     name: "Forest",
-//     rarity: "common",
-//     oracleText: "({T}: Add {G}.)",
-//     types: ["Land"],
-//     supertypes: ["Basic"],
-//     subtypes: ["Forest"],
-// };
-// TODO(#628): implement.
+// Forest — ICE reprint of the LEA basic land (CardPrint onto LEA, ADR 0014).
+export const forestIce: CardPrint = {
+    printId: "fbdcbd97-90a9-45ea-94f6-2a1c6faaf965",
+    definitionId: "6f1c8cb0-38eb-408b-94e8-16db83999b3b",
+    setCode: "ice",
+    rarity: "common",
+};
+// DEFERRED (snow basic — Snow supertype, snow capability cluster).
 // export const snowCoveredForest: CardDefinition = {
 //     id: "4c0ad95c-d62c-4138-ada0-fa39a63a449e",
 //     name: "Snow-Covered Forest",

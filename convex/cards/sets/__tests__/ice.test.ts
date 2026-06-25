@@ -168,6 +168,13 @@ import {
     warChariot,
     whaleboneGlider,
     zuranOrb,
+    // Lands free tranche (#637)
+    iceFloe,
+    plainsIce,
+    islandIce,
+    swampIce,
+    mountainIce,
+    forestIce,
 } from "../ice";
 import {
     getCardById,
@@ -4119,5 +4126,113 @@ describe("ICE Green tranche registry parity", () => {
         expect(getCardById(lureIce.printId).name).toBe("Lure");
         expect(getCardById(regenerationIce.printId).name).toBe("Regeneration");
         expect(getCardById(wildGrowthIce.printId).name).toBe("Wild Growth");
+    });
+});
+
+// ===========================================================================
+// Lands free tranche (#637)
+// ===========================================================================
+
+describe("Ice Floe ({T}: tap-lock a non-flying attacker, CR 611.2 / 508.1)", () => {
+    it("declares the may-choose-not-to-untap static ability (CR 502.1)", () => {
+        expect(iceFloe.staticAbilities).toContain("may-choose-not-to-untap");
+        expect(iceFloe.types).toEqual(["Land"]);
+    });
+
+    it("only non-flying attacking creatures are legal targets", () => {
+        const groundAttacker = vanilla("ground", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const flyingAttacker = vanilla("flyer", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+            staticAbilities: ["flying"],
+        });
+        const idleGround = vanilla("idle", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [groundAttacker, flyingAttacker, idleGround],
+                }),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            iceFloe.activatedAbilities![0].targetRequirement!,
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(legal).toContain("ground");
+        expect(legal).not.toContain("flyer"); // flying excluded
+        expect(legal).not.toContain("idle"); // not attacking
+    });
+
+    it("taps the targeted attacker (visible on the wire)", () => {
+        const floe = makeInstance(iceFloe.id, {
+            id: "floe",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Land"] as CardType[],
+        });
+        const attacker = vanilla("atk", 3, 3, {
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [floe] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+        });
+        resolveActivated(state, floe, "ice-floe-tap-lock", [
+            { type: "permanent", id: "atk" },
+        ]);
+        const live = state.players[1].battlefield.find((c) => c.id === "atk")!;
+        expect(live.isTapped).toBe(true);
+        // The tapped state survives projection to the client.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "atk"
+        )!;
+        expect(slim.isTapped).toBe(true);
+    });
+});
+
+describe("ICE basic-land reprints (CardPrint wiring, ADR 0014 / CR 305.6)", () => {
+    it("registers each basic by its ICE print id onto the LEA definition", () => {
+        expect(getCardById(plainsIce.printId).name).toBe("Plains");
+        expect(getCardById(islandIce.printId).name).toBe("Island");
+        expect(getCardById(swampIce.printId).name).toBe("Swamp");
+        expect(getCardById(mountainIce.printId).name).toBe("Mountain");
+        expect(getCardById(forestIce.printId).name).toBe("Forest");
+    });
+    it("each print declares setCode ice and points at the LEA basic", () => {
+        for (const print of [
+            plainsIce,
+            islandIce,
+            swampIce,
+            mountainIce,
+            forestIce,
+        ]) {
+            expect(print.setCode).toBe("ice");
+            const def = getCardById(print.definitionId);
+            expect(def.supertypes).toContain("Basic");
+            expect(def.types).toEqual(["Land"]);
+        }
+    });
+});
+
+describe("ICE Lands tranche registry parity (#637)", () => {
+    it("registers Ice Floe by name and in the deck-builder index", () => {
+        expect(getCardByName("Ice Floe").name).toBe("Ice Floe");
+        expect(getAllCards().some((c) => c.name === "Ice Floe")).toBe(true);
     });
 });
