@@ -602,6 +602,90 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 6,
     },
     {
+        // ICE Green completion (#657, PRD #628). Exercises the buildable-now
+        // Green ICE cards the free tranche under-delivered, end to end:
+        //   - Wiitigo (enters with six +1/+1; upkeep growth/shrink) and Dire
+        //     Wolves (banding) on the battlefield.
+        //   - Gorilla Pack on the battlefield (can't attack unless the defender
+        //     controls a Forest; sacs itself with no Forests).
+        //   - Folk of the Pines (firebreathing) + Earthlore/Forbidden Lore on a
+        //     land for combat pumps; Elder Druid taps/untaps.
+        //   - Fanatical Fever / Essence Filter / Thermokarst / Freyalise's Charm
+        //     in hand; Blizzard + Thoughtleech enchantments in play.
+        //   - Chub Toad blocks for +2/+2; Venomous Breath waits in hand.
+        label: "ICE: Green completion — Wiitigo / Gorilla Pack / Venomous Breath / Essence Filter (#657)",
+        cards: [
+            {
+                name: "Fanatical Fever",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Essence Filter",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Thermokarst",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Venomous Breath",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Wiitigo",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Dire Wolves",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Gorilla Pack",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Folk of the Pines",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Chub Toad",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Elder Druid",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Blizzard",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Thoughtleech",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
+    {
         // ICE Multicolour free tranche (#635, PRD #628). Exercises the gold ICE
         // cards expressible with shipped primitives end to end:
         //   - Centaur Archer ({T}: 1 damage to a flyer) on the battlefield;

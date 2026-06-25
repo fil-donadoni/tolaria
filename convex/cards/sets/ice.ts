@@ -17,6 +17,7 @@
 import type {
     CardDefinition,
     CardPrint,
+    DelayedTriggerDef,
     ManaCost,
     PermanentView,
     SpellContext,
@@ -4844,15 +4845,42 @@ export const wordOfBlasting: CardDefinition = {
 //     power: 2,
 //     toughness: 3,
 // };
-// TODO(#628): implement.
-// export const blizzard: CardDefinition = {
-//     id: "c369e4f9-0f2b-446c-9e2d-d3eefab0586d",
-//     name: "Blizzard",
-//     rarity: "rare",
-//     oracleText: "Cast this spell only if you control a snow land.\nCumulative upkeep {2} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nCreatures with flying don't untap during their controllers' untap steps.",
-//     manaCost: { G: 2 },
-//     types: ["Enchantment"],
-// };
+// Blizzard — {G}{G} Enchantment. Cumulative upkeep {2} (CR 702.24, ADR 0042) +
+// a continuous "Creatures with flying don't untap during their controllers'
+// untap steps" lock (CR 502.1 / 611 — the Winter Orb shape via
+// `untapRestriction` filtered to flyers).
+//
+// SIMPLIFICATION (flagged, no engine change): the printed "Cast this spell only
+// if you control a snow land" cast restriction degrades cleanly — the ICE pool
+// ships NO snow-supertype lands (snow mana is deferred; see CONTEXT.md "Snow" /
+// PRD #628), so the condition would never let it be cast at all. It is dropped
+// here (Blizzard is freely castable) until snow lands exist; the restriction is
+// not load-bearing for the enchantment's effect once in play.
+export const blizzard: CardDefinition = {
+    id: "c369e4f9-0f2b-446c-9e2d-d3eefab0586d",
+    name: "Blizzard",
+    rarity: "rare",
+    oracleText:
+        "Cast this spell only if you control a snow land.\nCumulative upkeep {2} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nCreatures with flying don't untap during their controllers' untap steps.",
+    manaCost: { G: 2 },
+    types: ["Enchantment"],
+    staticEffects: [
+        untapRestriction({
+            id: "blizzard-flyer-untap-lock",
+            oracleText:
+                "Creatures with flying don't untap during their controllers' untap steps (Blizzard).",
+            filter: { types: "Creature", requireAbility: "flying" },
+            maxUntap: 0,
+        }),
+    ],
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "blizzard-cumulative-upkeep",
+            cost: { X: 2 },
+            costLabel: "{2}",
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const brownOuphe: CardDefinition = {
 //     id: "e26ce35b-ba65-451d-a5ed-e1db6f1d0c6f",
@@ -4865,92 +4893,313 @@ export const wordOfBlasting: CardDefinition = {
 //     power: 1,
 //     toughness: 1,
 // };
-// TODO(#628): implement.
-// export const chubToad: CardDefinition = {
-//     id: "b6ebcc1d-0c5c-4bc2-ade7-41944f69162e",
-//     name: "Chub Toad",
-//     rarity: "common",
-//     oracleText: "Whenever this creature blocks or becomes blocked, it gets +2/+2 until end of turn.",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Frog"],
-//     power: 1,
-//     toughness: 1,
-// };
-// TODO(#628): implement.
-// export const direWolves: CardDefinition = {
-//     id: "a602c93d-e00f-4b4f-a7ff-95316b7e7641",
-//     name: "Dire Wolves",
-//     rarity: "common",
-//     oracleText: "This creature has banding as long as you control a Plains. (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Wolf"],
-//     power: 2,
-//     toughness: 2,
-// };
-// TODO(#628): implement.
-// export const earthlore: CardDefinition = {
-//     id: "319d252e-7c43-47d6-8873-f69b0e063256",
-//     name: "Earthlore",
-//     rarity: "common",
-//     oracleText: "Enchant land you control\nTap enchanted land: Target blocking creature gets +1/+2 until end of turn. Activate only if enchanted land is untapped.",
-//     manaCost: { G: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
-// TODO(#628): implement.
-// export const elderDruid: CardDefinition = {
-//     id: "210f6fab-62f0-42ab-bd01-00d647bd25e7",
-//     name: "Elder Druid",
-//     rarity: "rare",
-//     oracleText: "{3}{G}, {T}: You may tap or untap target artifact, creature, or land.",
-//     manaCost: { X: 3, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Elf", "Cleric", "Druid"],
-//     power: 2,
-//     toughness: 2,
-// };
-// TODO(#628): implement.
-// export const essenceFilter: CardDefinition = {
-//     id: "9b610103-dafd-4248-9d79-ce57f84b9e03",
-//     name: "Essence Filter",
-//     rarity: "common",
-//     oracleText: "Destroy all enchantments or all nonwhite enchantments.",
-//     manaCost: { X: 1, G: 2 },
-//     types: ["Sorcery"],
-// };
-// TODO(#628): implement.
-// export const fanaticalFever: CardDefinition = {
-//     id: "2abba7f1-5d07-4137-88a2-5967396a3e42",
-//     name: "Fanatical Fever",
-//     rarity: "uncommon",
-//     oracleText: "Target creature gets +3/+0 and gains trample until end of turn.",
-//     manaCost: { X: 2, G: 2 },
-//     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const folkOfThePines: CardDefinition = {
-//     id: "0c13311d-db83-483f-ba2b-4f54ceb8b026",
-//     name: "Folk of the Pines",
-//     rarity: "common",
-//     oracleText: "{1}{G}: This creature gets +1/+0 until end of turn.",
-//     manaCost: { X: 4, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Dryad"],
-//     power: 2,
-//     toughness: 5,
-// };
-// TODO(#628): implement.
-// export const forbiddenLore: CardDefinition = {
-//     id: "5fc225cf-4fe2-4a5b-828e-ffcb99e404e8",
-//     name: "Forbidden Lore",
-//     rarity: "rare",
-//     oracleText: "Enchant land\nEnchanted land has \"{T}: Target creature gets +2/+1 until end of turn.\"",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Chub Toad — {2}{G} 1/1. "Whenever this creature blocks or becomes blocked, it
+// gets +2/+2 until end of turn." (CR 509.1h blocks / becomes-blocked trigger;
+// CR 514.2 cleanup expiry.) Fires on BLOCKERS_CONFIRMED whenever self is the
+// blocker OR the blocked attacker (the Woolly Spider self-blocker shape widened
+// to either combat role), deduped to a single buff per confirmation.
+export const chubToad: CardDefinition = {
+    id: "b6ebcc1d-0c5c-4bc2-ade7-41944f69162e",
+    name: "Chub Toad",
+    rarity: "common",
+    oracleText:
+        "Whenever this creature blocks or becomes blocked, it gets +2/+2 until end of turn.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Frog"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        {
+            id: "chub-toad-combat-pump",
+            oracleText:
+                "Whenever this creature blocks or becomes blocked, it gets +2/+2 until end of turn.",
+            event: "BLOCKERS_CONFIRMED",
+            matches: (event, self, state) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return false;
+                const isBlocker = event.blockerId === self.id;
+                const isBlockedAttacker = event.attackerId === self.id;
+                if (!isBlocker && !isBlockedAttacker) return false;
+                // The engine emits one BLOCKERS_CONFIRMED per attacker-blocker
+                // pair. As the attacker, dedupe to the first blocker so a
+                // multi-blocked Toad pumps once (mirrors Johtull Wurm).
+                if (isBlockedAttacker && !isBlocker) {
+                    const assignments = state?.combat?.blockerAssignments;
+                    if (!assignments) return true;
+                    for (const [blockerId, attackerIds] of Object.entries(
+                        assignments
+                    )) {
+                        if (attackerIds.includes(self.id)) {
+                            return event.blockerId === blockerId;
+                        }
+                    }
+                }
+                return true;
+            },
+            resolve: (ctx: SpellContext, event) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return;
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    2,
+                    2,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+// Dire Wolves — {2}{G} 2/2 Wolf. "This creature has banding as long as you
+// control a Plains." (CR 702.21 banding; `gre/banding.ts` reads the keyword from
+// `staticAbilities`.)
+//
+// SIMPLIFICATION (flagged, no engine change): the "as long as you control a
+// Plains" condition is a CONTINUOUS keyword gate on board state. The engine's
+// `keyword-grant` static effect is applied imperatively at ETB and reversed only
+// when the source leaves play — its `applies` predicate gets no board view
+// (`StaticEffectContext` exposes only the target's own characteristics), so a
+// "controls a Plains" condition that re-evaluates as Plains come and go is not
+// expressible today. Banding is therefore granted UNCONDITIONALLY. This is a
+// strict superset of the printed behaviour (Dire Wolves is a green-white card
+// played alongside Plains in practice) and matches the engine's existing
+// treatment of conditional keywords (Snow Devil's conditional first strike).
+// A board-aware keyword-grant predicate would let this track Plains exactly;
+// flagged for a follow-up.
+export const direWolves: CardDefinition = {
+    id: "a602c93d-e00f-4b4f-a7ff-95316b7e7641",
+    name: "Dire Wolves",
+    rarity: "common",
+    oracleText:
+        "This creature has banding as long as you control a Plains. (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Wolf"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["banding"],
+};
+// Earthlore — Aura on a land you control granting it "Tap enchanted land:
+// Target blocking creature gets +1/+2 until end of turn." (CR 611 activated-
+// grant, CR 514.2 expiry.) The Hot Springs shape: the granted ability lives on
+// `grantTemplates` (so Earthlore itself exposes nothing) and `activated-grant`
+// pushes it onto the enchanted land. The cost is the LAND's own tap
+// (`cost.tap`), so "Activate only if enchanted land is untapped" is enforced
+// automatically — a tapped permanent can't pay a tap cost (CR 602.2 / 118.12).
+export const earthlore: CardDefinition = {
+    id: "319d252e-7c43-47d6-8873-f69b0e063256",
+    name: "Earthlore",
+    rarity: "common",
+    oracleText:
+        "Enchant land you control\nTap enchanted land: Target blocking creature gets +1/+2 until end of turn. Activate only if enchanted land is untapped.",
+    manaCost: { G: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Land", count: 1, controller: "you" },
+    staticEffects: [
+        {
+            kind: "activated-grant",
+            applies: AURA_AFFECTS_HOST,
+            abilityId: "earthlore-pump",
+        },
+    ],
+    grantTemplates: [
+        {
+            id: "earthlore-pump",
+            oracleText:
+                "Tap enchanted land: Target blocking creature gets +1/+2 until end of turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                combatRoleFilter: "blocking",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent")
+                    ctx.addTemporaryPTBuff(t, 1, 2, { phase: "end-of-turn" });
+            },
+        },
+    ],
+};
+// Elder Druid — {3}{G} 2/2. "{3}{G}, {T}: You may tap or untap target artifact,
+// creature, or land." (CR 605 activated ability; CR 701.20a tap/untap.) The
+// "tap or untap" choice is offered via `requestOptionChoice` at resolution — a
+// genuine tactical branch (CR 608.2). The "you may" permits choosing neither,
+// but with both branches always legal the engine auto-resolves to a real pick;
+// declining is equivalent to choosing the no-op direction, so two options
+// suffice.
+export const elderDruid: CardDefinition = {
+    id: "210f6fab-62f0-42ab-bd01-00d647bd25e7",
+    name: "Elder Druid",
+    rarity: "rare",
+    oracleText:
+        "{3}{G}, {T}: You may tap or untap target artifact, creature, or land.",
+    manaCost: { X: 3, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Elf", "Cleric", "Druid"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "elder-druid-tap-untap",
+            oracleText:
+                "{3}{G}, {T}: You may tap or untap target artifact, creature, or land.",
+            cost: { mana: { X: 3, G: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: ["Artifact", "Creature", "Land"],
+                count: 1,
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "permanent") return;
+                const choice = ctx.requestOptionChoice({
+                    playerId: ctx.controller,
+                    choiceId: "elder-druid-tap-untap-mode",
+                    options: [
+                        { id: "tap", label: "Tap it" },
+                        { id: "untap", label: "Untap it" },
+                    ],
+                    prompt: "Tap or untap the target?",
+                });
+                if (choice === undefined) return; // suspended for the choice
+                if (choice === "tap") ctx.tap(t);
+                else ctx.untap(t);
+            },
+        },
+    ],
+};
+// Essence Filter — {1}{G}{G} Sorcery. "Destroy all enchantments or all nonwhite
+// enchantments." (CR 700.2 modal — "or" between two mass-destroy effects; CR
+// 701.7 destroy.) Two `modes`, each a no-target resolve that scans every
+// battlefield for Enchantments and destroys the matching set (the nonwhite mode
+// skips white enchantments via `ctx.getColors`).
+export const essenceFilter: CardDefinition = {
+    id: "9b610103-dafd-4248-9d79-ce57f84b9e03",
+    name: "Essence Filter",
+    rarity: "common",
+    oracleText: "Destroy all enchantments or all nonwhite enchantments.",
+    manaCost: { X: 1, G: 2 },
+    types: ["Sorcery"],
+    modes: [
+        {
+            id: "all",
+            label: "Destroy all enchantments",
+            oracleText: "Destroy all enchantments.",
+            resolve: (ctx: SpellContext) => {
+                for (const pid of ctx.allPlayerIds) {
+                    for (const id of ctx.getBattlefieldIds(pid, {
+                        types: "Enchantment",
+                    })) {
+                        ctx.destroy({ type: "permanent", id });
+                    }
+                }
+            },
+        },
+        {
+            id: "nonwhite",
+            label: "Destroy all nonwhite enchantments",
+            oracleText: "Destroy all nonwhite enchantments.",
+            resolve: (ctx: SpellContext) => {
+                for (const pid of ctx.allPlayerIds) {
+                    for (const id of ctx.getBattlefieldIds(pid, {
+                        types: "Enchantment",
+                    })) {
+                        const target = { type: "permanent" as const, id };
+                        if (ctx.getColors(target).includes("W")) continue;
+                        ctx.destroy(target);
+                    }
+                }
+            },
+        },
+    ],
+};
+// Fanatical Fever — {2}{G}{G} Instant. "Target creature gets +3/+0 and gains
+// trample until end of turn." (CR 611.1c temporary P/T + keyword grant; CR
+// 514.2 expiry.) The Stampede single-target shape.
+export const fanaticalFever: CardDefinition = {
+    id: "2abba7f1-5d07-4137-88a2-5967396a3e42",
+    name: "Fanatical Fever",
+    rarity: "uncommon",
+    oracleText:
+        "Target creature gets +3/+0 and gains trample until end of turn.",
+    manaCost: { X: 2, G: 2 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type !== "permanent") return;
+        ctx.addTemporaryPTBuff(t, 3, 0, { phase: "end-of-turn" });
+        ctx.grantStaticAbility(t, "trample", { phase: "end-of-turn" });
+    },
+};
+// Folk of the Pines — {4}{G} 2/5 Dryad. "{1}{G}: This creature gets +1/+0 until
+// end of turn." (CR 605 activated ability; CR 514.2 cleanup expiry — the
+// firebreathing self-pump, the Shambling Strider shape without the toughness
+// downside.)
+export const folkOfThePines: CardDefinition = {
+    id: "0c13311d-db83-483f-ba2b-4f54ceb8b026",
+    name: "Folk of the Pines",
+    rarity: "common",
+    oracleText: "{1}{G}: This creature gets +1/+0 until end of turn.",
+    manaCost: { X: 4, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Dryad"],
+    power: 2,
+    toughness: 5,
+    activatedAbilities: [
+        {
+            id: "folk-of-the-pines-pump",
+            oracleText: "{1}{G}: This creature gets +1/+0 until end of turn.",
+            cost: { mana: { X: 1, G: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+// Forbidden Lore — Aura on any land granting it "{T}: Target creature gets +2/+1
+// until end of turn." (CR 611 activated-grant; CR 514.2 expiry.) The Hot Springs
+// / Earthlore shape; "Enchant land" with no controller clause, so it may sit on
+// an opponent's land (the land's controller activates).
+export const forbiddenLore: CardDefinition = {
+    id: "5fc225cf-4fe2-4a5b-828e-ffcb99e404e8",
+    name: "Forbidden Lore",
+    rarity: "rare",
+    oracleText:
+        'Enchant land\nEnchanted land has "{T}: Target creature gets +2/+1 until end of turn."',
+    manaCost: { X: 2, G: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Land", count: 1 },
+    staticEffects: [
+        {
+            kind: "activated-grant",
+            applies: AURA_AFFECTS_HOST,
+            abilityId: "forbidden-lore-pump",
+        },
+    ],
+    grantTemplates: [
+        {
+            id: "forbidden-lore-pump",
+            oracleText: "{T}: Target creature gets +2/+1 until end of turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent")
+                    ctx.addTemporaryPTBuff(t, 2, 1, { phase: "end-of-turn" });
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const forgottenLore: CardDefinition = {
 //     id: "fb01dd39-a957-4c1a-86cf-f31a699a154a",
@@ -4981,15 +5230,53 @@ export const wordOfBlasting: CardDefinition = {
 //     power: 1,
 //     toughness: 1,
 // };
-// TODO(#628): implement.
-// export const freyalisesCharm: CardDefinition = {
-//     id: "3e147ac1-d221-49c7-966e-5e665ddeab6b",
-//     name: "Freyalise's Charm",
-//     rarity: "uncommon",
-//     oracleText: "Whenever an opponent casts a black spell, you may pay {G}{G}. If you do, you draw a card.\n{G}{G}: Return this enchantment to its owner's hand.",
-//     manaCost: { G: 2 },
-//     types: ["Enchantment"],
-// };
+// Freyalise's Charm — {G}{G} Enchantment. "Whenever an opponent casts a black
+// spell, you may pay {G}{G}. If you do, you draw a card." (CR 603.2 spell-cast
+// trigger scoped to opponents + colour filter; CR 117.3a may-pay via
+// `requestMayPay`; CR 120 draw.) Plus "{G}{G}: Return this enchantment to its
+// owner's hand." (CR 605 activated ability; CR 400.7 return-to-hand bounce.)
+export const freyalisesCharm: CardDefinition = {
+    id: "3e147ac1-d221-49c7-966e-5e665ddeab6b",
+    name: "Freyalise's Charm",
+    rarity: "uncommon",
+    oracleText:
+        "Whenever an opponent casts a black spell, you may pay {G}{G}. If you do, you draw a card.\n{G}{G}: Return this enchantment to its owner's hand.",
+    manaCost: { G: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "freyalises-charm-black-draw",
+            oracleText:
+                "Whenever an opponent casts a black spell, you may pay {G}{G}. If you do, you draw a card.",
+            scope: "opponents",
+            filter: { colors: "B" },
+            resolve: (ctx: SpellContext) => {
+                const paid = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: "freyalises-charm-pay",
+                    cost: { G: 2 },
+                    prompt: "Pay {G}{G} to draw a card?",
+                });
+                if (paid === undefined) return; // suspended for the choice
+                if (paid) ctx.drawCards(ctx.controller, 1);
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "freyalises-charm-bounce",
+            oracleText: "{G}{G}: Return this enchantment to its owner's hand.",
+            cost: { mana: { G: 2 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.returnToHand({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const freyalisesWinds: CardDefinition = {
 //     id: "b11cd2e0-9419-4267-807e-5b73915c748a",
@@ -5010,21 +5297,34 @@ export const wordOfBlasting: CardDefinition = {
 // `pt-cda` (layer 7a) whose `compute` counts creature cards in all graveyards
 // from game state — MANDATORY wire-format test (projection keeps `.types`).
 //
+// GREEN-COMPLETION (#657): the buildable-now Green stubs the free tranche
+// under-delivered are now active CardDefinitions below — Blizzard, Chub Toad,
+// Dire Wolves, Earthlore, Elder Druid, Essence Filter, Fanatical Fever, Folk of
+// the Pines, Forbidden Lore, Freyalise's Charm, Gorilla Pack, Thermokarst,
+// Thoughtleech, Venomous Breath, Wiitigo. The earlier "needs primitive" defers
+// for Gorilla Pack (attack-restriction + state-sac — Sea Serpent shape),
+// Thoughtleech (`tappedTrigger`), Venomous Breath (delayed end-of-combat
+// destroy), Wiitigo (counter-as-flag tracking) and Dire Wolves (banding grant)
+// were STALE — every primitive ships today.
+//
 // DEFERRED (remain commented stubs, owned by a later cluster):
 //   • Cumulative upkeep — Fyndhorn Pollen, Maddening Wind, Ritual of Subdual
-//     (ADR 0042 cluster).
+//     (ADR 0042 cluster — note Pollen/Wind are already active in the CU section).
 //   • Next-upkeep delayed cantrip — Pyknite, Touch of Vitae ("draw a card at the
 //     beginning of the next turn's upkeep"); same gap flagged in the Black/Red
 //     tranches.
-//   • Snow-matters — Snowblind / Whiteout / Woolly Mammoths / Rime Dryad /
-//     Thermokarst (snow-land counting, snow landwalk evasion, snow-land sac
-//     recursion). No snow supertype filter / snow-evasion plumbing yet — snow
-//     cluster.
-//   • Specialized interactions — Gorilla Pack (Forest-gated attack + dies-when-
-//     no-Forest sac), Thoughtleech (opponent-Island-tap watcher trigger),
-//     Venomous Breath (end-of-combat destroy-blockers delayed combat trigger),
-//     Wiitigo ("blocked since last upkeep" per-creature tracking). Each needs a
-//     primitive not yet built; flagged for its capability cluster.
+//   • Snow-matters — Snowblind / Whiteout / Woolly Mammoths / Rime Dryad
+//     (snow-land counting, snow landwalk evasion, snow-land sac recursion). No
+//     snow supertype filter / snow-evasion plumbing yet — snow cluster.
+//     (Thermokarst is now active; its snow-land lifegain rider degrades to a
+//     no-op until snow lands exist.)
+//   • Forgotten Lore / Freyalise Supplicant / Freyalise's Winds — blocked
+//     one-offs owned by later clusters.
+//
+// FLAGGED SIMPLIFICATIONS (no new primitive): Blizzard drops its snow cast-
+// condition (no snow lands in pool); Dire Wolves grants banding unconditionally
+// (the "as long as you control a Plains" gate needs a board-aware keyword-grant
+// predicate the engine lacks); Thermokarst's snow-land lifegain is a no-op.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Fyndhorn Brownie — "{2}{G}, {T}: Untap target creature." (CR 605 activated
@@ -5100,22 +5400,58 @@ export const giantGrowthIce: CardPrint = {
     setCode: "ice",
     rarity: "common",
 };
-// DEFERRED — Gorilla Pack ("can't attack unless defending player controls a
-// Forest" + "when you control no Forests, sacrifice it"); the Forest-gated
-// attack restriction tied to a dies-when-no-Forest state trigger is owned by a
-// later cluster.
-// TODO(#628): implement.
-// export const gorillaPack: CardDefinition = {
-//     id: "046f6b76-5f17-4728-aa34-72b7eff1d4c9",
-//     name: "Gorilla Pack",
-//     rarity: "common",
-//     oracleText: "This creature can't attack unless defending player controls a Forest.\nWhen you control no Forests, sacrifice this creature.",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Ape"],
-//     power: 3,
-//     toughness: 3,
-// };
+// Gorilla Pack — {2}{G} 3/3 Ape. "This creature can't attack unless defending
+// player controls a Forest.\nWhen you control no Forests, sacrifice this
+// creature." The exact Sea Serpent (LEA) shape — a self `attack-restriction`
+// static (CR 508.1c) gated on the defender controlling a Forest, plus a
+// `stateTrigger` sacrifice (CR 603.8) when the controller has no Forests. Both
+// primitives ship; the "needs primitive" defer was stale.
+export const gorillaPack: CardDefinition = {
+    id: "046f6b76-5f17-4728-aa34-72b7eff1d4c9",
+    name: "Gorilla Pack",
+    rarity: "common",
+    oracleText:
+        "This creature can't attack unless defending player controls a Forest.\nWhen you control no Forests, sacrifice this creature.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Ape"],
+    power: 3,
+    toughness: 3,
+    staticEffects: [
+        {
+            // CR 508.1c — can't attack unless defending player controls a Forest
+            kind: "attack-restriction" as const,
+            id: "gorilla-pack-forest-restriction",
+            predicate: (
+                _self: PermanentView,
+                defenderBattlefield: readonly PermanentView[]
+            ) => defenderBattlefield.some((c) => c.subtypes.includes("Forest")),
+            oracleText:
+                "Gorilla Pack can't attack unless defending player controls a Forest.",
+        },
+    ],
+    triggeredAbilities: [
+        // CR 603.8 — state-triggered sacrifice; `stateTrigger` wires the
+        // STATE_CHECK narrowing and resolve-time re-check (intervening-if) so it
+        // fizzles if a Forest reappears before resolution.
+        stateTrigger({
+            id: "gorilla-pack-no-forest-sacrifice",
+            oracleText: "When you control no Forests, sacrifice Gorilla Pack.",
+            condition: (self, state) => {
+                const controller = state.players.find(
+                    (p) => p.id === self.controllerId
+                );
+                if (!controller) return false;
+                return !controller.battlefield.some((c) =>
+                    c.subtypes.includes("Forest")
+                );
+            },
+            resolve: (ctx) => {
+                ctx.sacrifice(ctx.sourceInstanceId);
+            },
+        }),
+    ],
+};
 // Hot Springs — Aura on a land you control granting it an activated prevention
 // ability (CR 611 activated-grant, CR 615 prevention). The granted "{T}:
 // Prevent the next 1 damage to any target this turn" lives on `grantTemplates`
@@ -5532,29 +5868,57 @@ export const tarpan: CardDefinition = {
         }),
     ],
 };
-// DEFERRED — Thermokarst ("destroy target land; if it was a snow land, gain 1
-// life"); the snow-supertype branch is a snow-matters effect with no
-// SpellContext supertype reader yet (snow cluster).
-// TODO(#628): implement.
-// export const thermokarst: CardDefinition = {
-//     id: "00ae906b-2c4d-48e9-9f2d-217777e22292",
-//     name: "Thermokarst",
-//     rarity: "uncommon",
-//     oracleText: "Destroy target land. If that land was a snow land, you gain 1 life.",
-//     manaCost: { X: 1, G: 2 },
-//     types: ["Sorcery"],
-// };
-// DEFERRED — Thoughtleech (opponent-Island-tap watcher trigger); no "becomes
-// tapped" watcher on opponent lands yet.
-// TODO(#628): implement.
-// export const thoughtleech: CardDefinition = {
-//     id: "d8fe7f9d-644f-48d0-93fa-d9a536f1f755",
-//     name: "Thoughtleech",
-//     rarity: "uncommon",
-//     oracleText: "Whenever an Island an opponent controls becomes tapped, you may gain 1 life.",
-//     manaCost: { G: 2 },
-//     types: ["Enchantment"],
-// };
+// Thermokarst — {1}{G}{G} Sorcery. "Destroy target land. If that land was a snow
+// land, you gain 1 life." (CR 701.7 destroy.)
+//
+// SIMPLIFICATION (flagged, no engine change): the "if that land was a snow land,
+// you gain 1 life" rider degrades to a no-op — the ICE pool ships NO snow-
+// supertype lands (snow mana is deferred; see CONTEXT.md "Snow" / PRD #628), so
+// no target can ever satisfy the snow branch. The destroy is the load-bearing
+// effect and is implemented fully; the lifegain lands the day snow lands exist.
+export const thermokarst: CardDefinition = {
+    id: "00ae906b-2c4d-48e9-9f2d-217777e22292",
+    name: "Thermokarst",
+    rarity: "uncommon",
+    oracleText:
+        "Destroy target land. If that land was a snow land, you gain 1 life.",
+    manaCost: { X: 1, G: 2 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "Land", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type === "permanent") ctx.destroy(t);
+        // Snow-land lifegain rider: no-op in the current pool (no snow lands).
+    },
+};
+// Thoughtleech — {G}{G} Enchantment. "Whenever an Island an opponent controls
+// becomes tapped, you may gain 1 life." (CR 603.2 becomes-tapped trigger via
+// `tappedTrigger`; CR 117.3a may + CR 119.3 lifegain.) The `tappedTrigger`
+// watcher (Snowfall precedent) scoped to opponents' Islands; the "needs
+// primitive" defer was stale. The "you may gain 1 life" is strictly beneficial,
+// so the engine auto-resolves the may (ADR 0003) — modelled as an unconditional
+// gain on resolution.
+export const thoughtleech: CardDefinition = {
+    id: "d8fe7f9d-644f-48d0-93fa-d9a536f1f755",
+    name: "Thoughtleech",
+    rarity: "uncommon",
+    oracleText:
+        "Whenever an Island an opponent controls becomes tapped, you may gain 1 life.",
+    manaCost: { G: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "thoughtleech-island-lifegain",
+            oracleText:
+                "Whenever an Island an opponent controls becomes tapped, you may gain 1 life.",
+            scope: "opponents",
+            filter: { types: "Land", subtypes: "Island" },
+            resolve: (ctx) => {
+                ctx.gainLife(ctx.controller, 1);
+            },
+        }),
+    ],
+};
 // Tinder Wall — 0/3 Wall with Defender, a sacrifice-for-{R}{R} mana ability, and
 // "{R}, Sacrifice this creature: It deals 2 damage to target creature it's
 // blocking." (CR 605.1a mana ability with sac cost; CR 605 activated ability;
@@ -5622,18 +5986,64 @@ export const trailblazer: CardDefinition = {
         if (t?.type === "permanent") ctx.setCantBeBlockedThisTurn(t);
     },
 };
-// DEFERRED — Venomous Breath (end-of-combat destroy of creatures that blocked
-// or were blocked by the target this turn); the delayed end-of-combat combat-
-// relationship trigger is owned by a later cluster.
-// TODO(#628): implement.
-// export const venomousBreath: CardDefinition = {
-//     id: "8eeb9e02-1d26-4959-a878-2ef8db2358bc",
-//     name: "Venomous Breath",
-//     rarity: "uncommon",
-//     oracleText: "Choose target creature. At this turn's next end of combat, destroy all creatures that blocked or were blocked by it this turn.",
-//     manaCost: { X: 3, G: 1 },
-//     types: ["Instant"],
-// };
+// Venomous Breath — {3}{G} Instant. "Choose target creature. At this turn's next
+// end of combat, destroy all creatures that blocked or were blocked by it this
+// turn." (CR 509.1h combat pairing; CR 603.7a delayed end-of-combat destroy;
+// CR 701.7 destroy.) The combat partners are captured from the live block graph
+// (`getBlockersByAttacker` / `getAttackersByBlocker`) at resolution and a single
+// delayed `next-end-of-combat` trigger destroys each. The combatPairKill factory
+// keys off the SOURCE permanent being in the pair; Venomous Breath instead reads
+// an ARBITRARY targeted creature's partners, so the capture is inline. The
+// "needs primitive" defer was stale — the delayed-trigger machinery ships.
+const VENOMOUS_BREATH_ID = "8eeb9e02-1d26-4959-a878-2ef8db2358bc";
+export const venomousBreath: CardDefinition = {
+    id: VENOMOUS_BREATH_ID,
+    name: "Venomous Breath",
+    rarity: "uncommon",
+    oracleText:
+        "Choose target creature. At this turn's next end of combat, destroy all creatures that blocked or were blocked by it this turn.",
+    manaCost: { X: 3, G: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type !== "permanent") return;
+        // CR 509.1h — "creatures that blocked or were blocked by it": the
+        // target's blockers (if it attacked) and the attackers it blocked.
+        // Only `getBlockersByAttacker` is exposed (attacker → blockers), so the
+        // "blocked by it" direction is the inverse — scan for attackers whose
+        // blocker list contains the target.
+        const blockGraph = ctx.getBlockersByAttacker();
+        const partners = new Set<string>();
+        for (const id of blockGraph[t.id] ?? []) partners.add(id);
+        for (const [attackerId, blockerIds] of Object.entries(blockGraph)) {
+            if (blockerIds.includes(t.id)) partners.add(attackerId);
+        }
+        if (partners.size === 0) return; // nothing to schedule
+        // Payload values are strings only; join the partner ids (CR 603.7a
+        // delayed trigger captures serializable state).
+        ctx.scheduleDelayedTrigger(
+            VENOMOUS_BREATH_ID,
+            "venomous-breath-destroy",
+            "next-end-of-combat",
+            { targetIds: [...partners].join(",") }
+        );
+    },
+    delayedTriggers: [
+        {
+            id: "venomous-breath-destroy",
+            oracleText:
+                "Destroy all creatures that blocked or were blocked by the target this turn.",
+            timing: "next-end-of-combat",
+            resolve: (ctx: SpellContext, payload: Record<string, string>) => {
+                if (!payload.targetIds) return;
+                for (const id of payload.targetIds.split(",")) {
+                    if (id) ctx.destroy({ type: "permanent", id });
+                }
+            },
+        } satisfies DelayedTriggerDef,
+    ],
+};
 // Wall of Pine Needles — 3/3 Wall with Defender and "{G}: Regenerate this
 // creature." (CR 702.3 defender; CR 605 activated ability; CR 701.15
 // regeneration shield.)
@@ -5676,21 +6086,84 @@ export const wallOfPineNeedles: CardDefinition = {
 //     manaCost: { X: 1, G: 1 },
 //     types: ["Instant"],
 // };
-// DEFERRED — Wiitigo ("put a +1/+1 counter if it has blocked or been blocked
-// since your last upkeep, else remove one"); the per-creature blocked-since-
-// last-upkeep tracking is owned by a later cluster.
-// TODO(#628): implement.
-// export const wiitigo: CardDefinition = {
-//     id: "9ee86bf2-6c54-4c6e-8394-eb39f98d5a85",
-//     name: "Wiitigo",
-//     rarity: "rare",
-//     oracleText: "This creature enters with six +1/+1 counters on it.\nAt the beginning of your upkeep, put a +1/+1 counter on this creature if it has blocked or been blocked since your last upkeep. Otherwise, remove a +1/+1 counter from it.",
-//     manaCost: { X: 3, G: 3 },
-//     types: ["Creature"],
-//     subtypes: ["Yeti"],
-//     power: 0,
-//     toughness: 0,
-// };
+// Wiitigo — {3}{G}{G}{G} 0/0 Yeti. "This creature enters with six +1/+1 counters
+// on it.\nAt the beginning of your upkeep, put a +1/+1 counter on this creature
+// if it has blocked or been blocked since your last upkeep. Otherwise, remove a
+// +1/+1 counter from it." (CR 122 counters at layer 7d; CR 603.2 upkeep
+// trigger.) Enters with six +1/+1 via `entersWith`.
+//
+// "Blocked or been blocked since your last upkeep" is tracked with a non-P/T
+// marker counter ("wiitigo-blocked"): a BLOCKERS_CONFIRMED trigger sets the
+// marker whenever Wiitigo is in a block pair (as blocker or blocked attacker),
+// and the upkeep trigger consumes it — add a +1/+1 and clear the marker if set,
+// else remove a +1/+1. The marker window is exactly upkeep-to-upkeep (counters
+// persist across the intervening turn), so this is the precise "since your last
+// upkeep" span. The "needs primitive" defer was stale — counters-as-flags ship.
+const WIITIGO_BLOCKED_MARKER = "wiitigo-blocked";
+export const wiitigo: CardDefinition = {
+    id: "9ee86bf2-6c54-4c6e-8394-eb39f98d5a85",
+    name: "Wiitigo",
+    rarity: "rare",
+    oracleText:
+        "This creature enters with six +1/+1 counters on it.\nAt the beginning of your upkeep, put a +1/+1 counter on this creature if it has blocked or been blocked since your last upkeep. Otherwise, remove a +1/+1 counter from it.",
+    manaCost: { X: 3, G: 3 },
+    types: ["Creature"],
+    subtypes: ["Yeti"],
+    power: 0,
+    toughness: 0,
+    entersWith: { counters: [{ type: "+1/+1", count: 6 }] },
+    triggeredAbilities: [
+        {
+            id: "wiitigo-block-marker",
+            oracleText:
+                "Mark this creature when it blocks or becomes blocked (tracks the +1/+1 upkeep growth).",
+            event: "BLOCKERS_CONFIRMED",
+            matches: (event, self) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return false;
+                return (
+                    event.blockerId === self.id || event.attackerId === self.id
+                );
+            },
+            resolve: (ctx: SpellContext, event) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return;
+                const self = {
+                    type: "permanent" as const,
+                    id: ctx.sourceInstanceId,
+                };
+                // Idempotent marker: keep at most one (multiple block pairs in
+                // one combat still mean "blocked since last upkeep").
+                if (ctx.getCounterCount(self, WIITIGO_BLOCKED_MARKER) === 0) {
+                    ctx.addCounter(self, WIITIGO_BLOCKED_MARKER, 1);
+                }
+            },
+        },
+        phaseTrigger({
+            id: "wiitigo-upkeep-growth",
+            oracleText:
+                "At the beginning of your upkeep, put a +1/+1 counter on this creature if it has blocked or been blocked since your last upkeep. Otherwise, remove a +1/+1 counter from it.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                const self = {
+                    type: "permanent" as const,
+                    id: ctx.sourceInstanceId,
+                };
+                const blocked =
+                    ctx.getCounterCount(self, WIITIGO_BLOCKED_MARKER) > 0;
+                if (blocked) {
+                    ctx.addCounter(self, "+1/+1", 1);
+                    ctx.removeCounter(
+                        self,
+                        WIITIGO_BLOCKED_MARKER,
+                        ctx.getCounterCount(self, WIITIGO_BLOCKED_MARKER)
+                    );
+                } else {
+                    ctx.removeCounter(self, "+1/+1", 1);
+                }
+            },
+        }),
+    ],
+};
 // Wild Growth — ICE reprint of the LEA Aura ("enchanted land's controller adds
 // an additional {G} when it's tapped for mana"). CardPrint onto the LEA
 // definition (ADR 0014).
@@ -5849,18 +6322,7 @@ export const fyndhornPollen: CardDefinition = {
 //     manaCost: { G: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
-// export const gorillaPack: CardDefinition = {
-//     id: "046f6b76-5f17-4728-aa34-72b7eff1d4c9",
-//     name: "Gorilla Pack",
-//     rarity: "common",
-//     oracleText: "This creature can't attack unless defending player controls a Forest.\nWhen you control no Forests, sacrifice this creature.",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Ape"],
-//     power: 3,
-//     toughness: 3,
-// };
+// Gorilla Pack — activated above (Green free tranche).
 // TODO(#628): implement.
 // export const hurricane: CardDefinition = {
 //     id: "a8cc6db7-1f40-40e3-a7ea-92f1d05e2e3d",
@@ -5965,24 +6427,8 @@ export const maddeningWind: CardDefinition = {
 //     types: ["Enchantment"],
 //     subtypes: ["Aura"],
 // };
-// TODO(#628): implement.
-// export const thermokarst: CardDefinition = {
-//     id: "00ae906b-2c4d-48e9-9f2d-217777e22292",
-//     name: "Thermokarst",
-//     rarity: "uncommon",
-//     oracleText: "Destroy target land. If that land was a snow land, you gain 1 life.",
-//     manaCost: { X: 1, G: 2 },
-//     types: ["Sorcery"],
-// };
-// TODO(#628): implement.
-// export const thoughtleech: CardDefinition = {
-//     id: "d8fe7f9d-644f-48d0-93fa-d9a536f1f755",
-//     name: "Thoughtleech",
-//     rarity: "uncommon",
-//     oracleText: "Whenever an Island an opponent controls becomes tapped, you may gain 1 life.",
-//     manaCost: { G: 2 },
-//     types: ["Enchantment"],
-// };
+// Thermokarst — activated above (Green free tranche).
+// Thoughtleech — activated above (Green free tranche).
 // TODO(#628): implement.
 // export const touchOfVitae: CardDefinition = {
 //     id: "48d2cd18-a24d-40e0-a654-777d9e623ae2",
@@ -5992,15 +6438,7 @@ export const maddeningWind: CardDefinition = {
 //     manaCost: { X: 2, G: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
-// export const venomousBreath: CardDefinition = {
-//     id: "8eeb9e02-1d26-4959-a878-2ef8db2358bc",
-//     name: "Venomous Breath",
-//     rarity: "uncommon",
-//     oracleText: "Choose target creature. At this turn's next end of combat, destroy all creatures that blocked or were blocked by it this turn.",
-//     manaCost: { X: 3, G: 1 },
-//     types: ["Instant"],
-// };
+// Venomous Breath — activated above (Green free tranche).
 // TODO(#628): implement.
 // export const whiteout: CardDefinition = {
 //     id: "a8645e4f-eaa8-4420-a6a3-eb53c311fab1",
@@ -6010,18 +6448,7 @@ export const maddeningWind: CardDefinition = {
 //     manaCost: { X: 1, G: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
-// export const wiitigo: CardDefinition = {
-//     id: "9ee86bf2-6c54-4c6e-8394-eb39f98d5a85",
-//     name: "Wiitigo",
-//     rarity: "rare",
-//     oracleText: "This creature enters with six +1/+1 counters on it.\nAt the beginning of your upkeep, put a +1/+1 counter on this creature if it has blocked or been blocked since your last upkeep. Otherwise, remove a +1/+1 counter from it.",
-//     manaCost: { X: 3, G: 3 },
-//     types: ["Creature"],
-//     subtypes: ["Yeti"],
-//     power: 0,
-//     toughness: 0,
-// };
+// Wiitigo — activated above (Green free tranche).
 // TODO(#628): implement.
 // export const wildGrowth: CardDefinition = {
 //     id: "f8047ab9-a0fc-4933-bcbc-e761aa0f622b",
