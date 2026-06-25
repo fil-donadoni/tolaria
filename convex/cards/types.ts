@@ -427,7 +427,8 @@ export interface ActivatedAbility {
             | "next-end-step"
             | "next-end-of-combat"
             | "next-draw-step"
-            | "next-main-phase";
+            | "next-main-phase"
+            | "next-upkeep";
     };
     /** Mana abilities don't use the stack — they resolve immediately (CR 605.3a). */
     useStack: boolean;
@@ -1440,8 +1441,15 @@ export interface SpellContext {
      *  `timing: "next-main-phase"` fires at the beginning of a specific player's
      *  next main phase (CR 505) — the next PRECOMBAT_MAIN or POSTCOMBAT_MAIN of
      *  the player passed as `targetPlayerId`, on that player's own turn. Used by
-     *  Mana Drain ("add {C} at the beginning of your next main phase"). The
-     *  remaining timings ignore `targetPlayerId` and fire at the next global
+     *  Mana Drain ("add {C} at the beginning of your next main phase").
+     *
+     *  `timing: "next-upkeep"` fires at the beginning of the next upkeep step
+     *  (CR 502) regardless of whose turn it is — the immediate next UPKEEP any
+     *  player reaches consumes it, exactly once (CR 603.7d). Used by the Ice Age
+     *  cantrips ("draw a card at the beginning of the next turn's upkeep").
+     *  Pass no `targetPlayerId` so it fires at the very next upkeep.
+     *
+     *  The remaining timings ignore `targetPlayerId` and fire at the next global
      *  boundary. */
     scheduleDelayedTrigger: (
         sourceCardId: string,
@@ -1450,7 +1458,8 @@ export interface SpellContext {
             | "next-end-step"
             | "next-end-of-combat"
             | "next-draw-step"
-            | "next-main-phase",
+            | "next-main-phase"
+            | "next-upkeep",
         payload: Record<string, string>,
         targetPlayerId?: string
     ) => void;
@@ -2217,7 +2226,8 @@ export interface DelayedTriggerDef {
         | "next-end-step"
         | "next-end-of-combat"
         | "next-draw-step"
-        | "next-main-phase";
+        | "next-main-phase"
+        | "next-upkeep";
     /** Invoked when the trigger resolves from the stack. `payload` carries
      *  serialized references (ids) chosen at scheduling time. */
     resolve: (ctx: SpellContext, payload: Record<string, string>) => void;

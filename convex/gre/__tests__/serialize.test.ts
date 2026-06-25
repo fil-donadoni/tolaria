@@ -1023,6 +1023,21 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).delayedTriggers).toEqual(state.delayedTriggers);
     });
 
+    it("delayedTriggers — next-upkeep timing (#660)", () => {
+        const state = freshState();
+        state.delayedTriggers = [
+            {
+                id: "dt-upkeep-1",
+                sourceCardId: "blessed-wine",
+                triggerId: "next-upkeep-cantrip",
+                controller: "p1",
+                timing: "next-upkeep",
+                payload: {},
+            },
+        ];
+        expect(roundTrip(state).delayedTriggers).toEqual(state.delayedTriggers);
+    });
+
     it("nextDelayedSeq", () => {
         const state = freshState();
         state.nextDelayedSeq = 3;

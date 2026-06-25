@@ -1324,6 +1324,12 @@ function performPhaseEntry(state: GameState): void {
             // `tickDuration`; entries scoped to end-of-turn / end-of-combat are
             // left untouched here.
             tickAllDurations(state);
+            // CR 502.2 / 603.7d — "at the beginning of the next turn's upkeep"
+            // delayed triggers (Ice Age cantrips: Blessed Wine, Heal, Flare, …)
+            // fire on ENTRY of the very next upkeep regardless of whose turn it
+            // is. They carry no `targetPlayerId`, so a single fire dequeues each
+            // one exactly once at the first upkeep reached after scheduling.
+            fireDelayedTriggers(state, "next-upkeep");
             break;
         case "DRAW":
             drawStep(state);

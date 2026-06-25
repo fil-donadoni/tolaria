@@ -83,6 +83,45 @@ function makeUpkeepPayOrElse(args: {
     });
 }
 
+// "Draw a card at the beginning of the next turn's upkeep" cantrip rider
+// (CR 502.2 / 603.7d) — the signature kicker on ~22 Ice Age commons. The
+// scheduling spell/ability calls `scheduleNextUpkeepDraw` from its `resolve`;
+// the matching `DelayedTriggerDef` (from `nextUpkeepDrawTrigger`) lives on the
+// card's `delayedTriggers[]`. The trigger carries no `targetPlayerId`, so it
+// fires at the VERY NEXT upkeep regardless of whose turn it is and dequeues
+// exactly once (`fireDelayedTriggers` in gre/phases.ts). The drawing player is
+// the spell's controller, captured in `payload.controller` (CR 113.7).
+//
+// Shared because the rider repeats verbatim across the whole cantrip cycle —
+// extracting it keeps each card definition to its unique body (per the
+// "extract on the second occurrence" convention).
+const NEXT_UPKEEP_DRAW_TRIGGER_ID = "next-upkeep-cantrip";
+
+function scheduleNextUpkeepDraw(ctx: SpellContext, sourceCardId: string): void {
+    ctx.scheduleDelayedTrigger(
+        sourceCardId,
+        NEXT_UPKEEP_DRAW_TRIGGER_ID,
+        "next-upkeep",
+        {}
+    );
+}
+
+function nextUpkeepDrawTrigger(): DelayedTriggerDef {
+    return {
+        id: NEXT_UPKEEP_DRAW_TRIGGER_ID,
+        oracleText: "At the beginning of the next turn's upkeep, draw a card.",
+        timing: "next-upkeep",
+        resolve: (ctx) => {
+            // CR 121.1 — the trigger's controller (the scheduling spell's
+            // controller, or the activator on the tap-rider path) draws one
+            // card. `ctx.controller` is the delayed trigger's controller in
+            // both scheduling paths (`fireDelayedTriggers` sets the stack
+            // item's controller to the instance's `controller`).
+            ctx.drawCards(ctx.controller, 1);
+        },
+    };
+}
+
 // Colors (CR 202.2) of a battlefield-view permanent, derived from its mana
 // cost. The engine stores only the slim `{ id }` card reference, so the colour
 // comes from the registry's `manaCost` (an embedded cost is honored first if a
@@ -230,8 +269,8 @@ export const balduvianBears: CardDefinition = {
 //   • Power-conditional block restriction with a per-block cost — Hipparion
 //     ("can't block power 3+ unless you pay {1}" — no pay-as-block primitive).
 //   • "Draw a card at the beginning of the next turn's upkeep" delayed cantrips —
-//     Blessed Wine, Heal, Lightning Blow, Formation (no `next-upkeep` delayed
-//     timing yet).
+//     Blessed Wine, Heal, Lightning Blow, Formation: ACTIVE (#660 — the
+//     `next-upkeep` delayed-trigger timing shipped; see `nextUpkeepDrawTrigger`).
 //   • Specialized interactions still missing a primitive — Arenson's Aura,
 //     Battle Cry, Drought, Enduring Renewal, General Jarkeld.
 //   • Sacred Boon — "+0/+1 counter for each 1 damage prevented this way" needs
@@ -359,15 +398,22 @@ export const blackScarab: CardDefinition = makeScarab({
     rarity: "uncommon",
     color: "B",
 });
-// TODO(#628): implement.
-// export const blessedWine: CardDefinition = {
-//     id: "6b9a92f9-9bbc-4887-9fbc-0f7212fd5e66",
-//     name: "Blessed Wine",
-//     rarity: "common",
-//     oracleText: "You gain 1 life.\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Instant"],
-// };
+// Blessed Wine — {1}{W} Instant. "You gain 1 life." plus the next-upkeep
+// cantrip rider (CR 119.3 lifegain; CR 502.2 / 603.7d delayed draw).
+export const blessedWine: CardDefinition = {
+    id: "6b9a92f9-9bbc-4887-9fbc-0f7212fd5e66",
+    name: "Blessed Wine",
+    rarity: "common",
+    oracleText:
+        "You gain 1 life.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Instant"],
+    resolve: (ctx: SpellContext) => {
+        ctx.gainLife(ctx.controller, 1);
+        scheduleNextUpkeepDraw(ctx, blessedWine.id);
+    },
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // Blinking Spirit — {0}: Return this creature to its owner's hand (CR 701.14
 // move-to-hand). A repeatable bounce that dodges targeted removal.
 export const blinkingSpirit: CardDefinition = {
@@ -712,15 +758,27 @@ export const elvishHealer: CardDefinition = {
 //     manaCost: { X: 1, W: 1 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const formation: CardDefinition = {
-//     id: "78446ead-61b0-485f-a5a9-b3e72d8075a7",
-//     name: "Formation",
-//     rarity: "rare",
-//     oracleText: "Target creature gains banding until end of turn. (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding a player controls are blocking or being blocked by a creature, that player divides that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Instant"],
-// };
+// Formation — {1}{W} Instant. "Target creature gains banding until end of turn"
+// (CR 702.22 banding granted via layer 6 for the turn) plus the next-upkeep
+// cantrip rider.
+export const formation: CardDefinition = {
+    id: "78446ead-61b0-485f-a5a9-b3e72d8075a7",
+    name: "Formation",
+    rarity: "rare",
+    oracleText:
+        "Target creature gains banding until end of turn. (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding a player controls are blocking or being blocked by a creature, that player divides that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type === "permanent") {
+            ctx.grantStaticAbility(t, "banding", { phase: "end-of-turn" });
+        }
+        scheduleNextUpkeepDraw(ctx, formation.id);
+    },
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // Fylgja — {W} Aura. Enters with four healing counters (CR 122.1, 614.1c
 // `entersWith`); "Remove a healing counter: prevent the next 1 damage to the
 // enchanted creature this turn" (CR 602.1 counter-removal cost + CR 615
@@ -823,15 +881,27 @@ export const hallowedGround: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const heal: CardDefinition = {
-//     id: "9e6b2704-685e-4c74-875a-25846175e5e4",
-//     name: "Heal",
-//     rarity: "common",
-//     oracleText: "Prevent the next 1 damage that would be dealt to any target this turn.\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { W: 1 },
-//     types: ["Instant"],
-// };
+// Heal — {W} Instant. "Prevent the next 1 damage that would be dealt to any
+// target this turn" (CR 615.1 prevention shield, Samite Healer pattern) plus
+// the next-upkeep cantrip rider.
+export const heal: CardDefinition = {
+    id: "9e6b2704-685e-4c74-875a-25846175e5e4",
+    name: "Heal",
+    rarity: "common",
+    oracleText:
+        "Prevent the next 1 damage that would be dealt to any target this turn.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { W: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "any", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t) {
+            ctx.preventNextNDamageToTarget(t, 1, { phase: "end-of-turn" });
+        }
+        scheduleNextUpkeepDraw(ctx, heal.id);
+    },
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // TODO(#628): implement.
 // export const hipparion: CardDefinition = {
 //     id: "5969875a-f647-4daf-b76c-d1514d45c312",
@@ -1072,15 +1142,29 @@ export const kjeldoranWarrior: CardDefinition = {
     toughness: 1,
     staticAbilities: ["banding"],
 };
-// TODO(#628): implement.
-// export const lightningBlow: CardDefinition = {
-//     id: "d1a4ed99-f38c-4e0f-9ff2-2e1e9126e6ef",
-//     name: "Lightning Blow",
-//     rarity: "rare",
-//     oracleText: "Target creature gains first strike until end of turn.\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Instant"],
-// };
+// Lightning Blow — {1}{W} Instant. "Target creature gains first strike until
+// end of turn" (CR 702.7 keyword grant via layer 6) plus the next-upkeep
+// cantrip rider.
+export const lightningBlow: CardDefinition = {
+    id: "d1a4ed99-f38c-4e0f-9ff2-2e1e9126e6ef",
+    name: "Lightning Blow",
+    rarity: "rare",
+    oracleText:
+        "Target creature gains first strike until end of turn.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type === "permanent") {
+            ctx.grantStaticAbility(t, "first strike", {
+                phase: "end-of-turn",
+            });
+        }
+        scheduleNextUpkeepDraw(ctx, lightningBlow.id);
+    },
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // Lost Order of Jarkeld — as it enters, choose an opponent (CR 603.6b); its P/T
 // is a characteristic-defining ability (CR 604.3, layer 7a) equal to 1 plus the
 // number of creatures the chosen player controls. The pt-cda reads the stored
@@ -1477,8 +1561,8 @@ export const whiteScarab: CardDefinition = makeScarab({
 //     (grants cumulative upkeep on reanimation).
 //   • "Draw a card at the beginning of the next turn's upkeep" delayed cantrips
 //     — Clairvoyance, Enervate, Force Void, Infuse, Portent, Ray of Erasure,
-//     Updraft (no `next-upkeep` delayed-trigger timing yet; `scheduleDelayed-
-//     Trigger` only exposes `next-draw-step`, which is not the same step).
+//     Updraft: ACTIVE (#660 — the `next-upkeep` delayed-trigger timing shipped;
+//     the cantrips schedule it via `scheduleNextUpkeepDraw`).
 //   • Until-end-of-turn control gain + "tap it when you lose control" — Ray of
 //     Command, Magus of the Unseen (ControlChangeCondition has no EOT variant).
 //   • Specialized primitives still missing — Mistfolk (counter a spell that
@@ -1735,15 +1819,30 @@ export const breathOfDreams: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
-// export const clairvoyance: CardDefinition = {
-//     id: "46740353-e2ba-4d80-a97d-1368bc67bf30",
-//     name: "Clairvoyance",
-//     rarity: "common",
-//     oracleText: "Look at target player's hand.\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { U: 1 },
-//     types: ["Instant"],
-// };
+// Clairvoyance — {U} Instant. "Look at target player's hand" (CR 401.4 look,
+// via the `revealHand` display-only choice) plus the next-upkeep cantrip rider.
+export const clairvoyance: CardDefinition = {
+    id: "46740353-e2ba-4d80-a97d-1368bc67bf30",
+    name: "Clairvoyance",
+    rarity: "common",
+    oracleText:
+        "Look at target player's hand.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "player", count: 1 },
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            const t = ctx.targets[0];
+            if (t?.type === "player") {
+                // CR 401.4 — display the target's hand to the controller; the
+                // step suspends until the controller dismisses it.
+                if (ctx.revealHand(t.id) === undefined) return;
+            }
+            scheduleNextUpkeepDraw(ctx, clairvoyance.id);
+        },
+    ],
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // Counterspell — ICE reprint of the LEA instant ("Counter target spell").
 // CardPrint onto the LEA definition (ADR 0014).
 export const counterspellIce: CardPrint = {
@@ -1845,15 +1944,24 @@ export const dreamsOfTheDead: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
-// export const enervate: CardDefinition = {
-//     id: "c4fdfc5b-c2ab-4c4d-b120-301e17f3d9c6",
-//     name: "Enervate",
-//     rarity: "common",
-//     oracleText: "Tap target artifact, creature, or land.\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Instant"],
-// };
+// Enervate — {1}{U} Instant. "Tap target artifact, creature, or land"
+// (CR 701.20 tap) plus the next-upkeep cantrip rider.
+export const enervate: CardDefinition = {
+    id: "c4fdfc5b-c2ab-4c4d-b120-301e17f3d9c6",
+    name: "Enervate",
+    rarity: "common",
+    oracleText:
+        "Tap target artifact, creature, or land.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: ["Artifact", "Creature", "Land"], count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type === "permanent") ctx.tap(t);
+        scheduleNextUpkeepDraw(ctx, enervate.id);
+    },
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // TODO(#628): implement.
 // export const errantMinion: CardDefinition = {
 //     id: "61648ddb-6efb-43d0-b2b1-418cc957854c",
@@ -1896,15 +2004,40 @@ export const essenceFlare: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
-// export const forceVoid: CardDefinition = {
-//     id: "226555ba-22af-45f1-a3f4-d265f8685dd5",
-//     name: "Force Void",
-//     rarity: "uncommon",
-//     oracleText: "Counter target spell unless its controller pays {1}.\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Instant"],
-// };
+// Force Void — {2}{U} Instant. "Counter target spell unless its controller
+// pays {1}" (CR 701.5a counter-unless-pay; CR 117.3a may-pay billed to the
+// spell's controller — Vodalian Mage pattern) plus the next-upkeep cantrip
+// rider. The schedule lands in a SEPARATE resolve step AFTER the may-pay so a
+// suspension on the {1} prompt never double-schedules the draw.
+export const forceVoid: CardDefinition = {
+    id: "226555ba-22af-45f1-a3f4-d265f8685dd5",
+    name: "Force Void",
+    rarity: "uncommon",
+    oracleText:
+        "Counter target spell unless its controller pays {1}.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "spell", count: 1 },
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            const target = ctx.targets[0];
+            if (!target || target.type !== "spell") return;
+            const spellController = ctx.getController(target);
+            const accept = ctx.requestMayPay({
+                playerId: spellController,
+                choiceId: `force-void-${ctx.sourceInstanceId}`,
+                cost: { X: 1 },
+                prompt: "Pay {1} or your spell is countered (Force Void)?",
+            });
+            if (accept === undefined) return; // suspended on the may-pay
+            if (!accept) ctx.counter(target);
+        },
+        (ctx: SpellContext) => {
+            scheduleNextUpkeepDraw(ctx, forceVoid.id);
+        },
+    ],
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // Glacial Wall — 0/7 Wall with Defender (CR 702.3).
 export const glacialWall: CardDefinition = {
     id: "07b71bc1-d9a2-4e99-a8fa-cd696925328d",
@@ -2141,15 +2274,24 @@ export const illusionsOfGrandeur: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
-// export const infuse: CardDefinition = {
-//     id: "223287b6-224c-4e00-946c-e7ac5539bd45",
-//     name: "Infuse",
-//     rarity: "common",
-//     oracleText: "Untap target artifact, creature, or land.\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Instant"],
-// };
+// Infuse — {2}{U} Instant. "Untap target artifact, creature, or land"
+// (CR 701.20 untap) plus the next-upkeep cantrip rider.
+export const infuse: CardDefinition = {
+    id: "223287b6-224c-4e00-946c-e7ac5539bd45",
+    name: "Infuse",
+    rarity: "common",
+    oracleText:
+        "Untap target artifact, creature, or land.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: ["Artifact", "Creature", "Land"], count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type === "permanent") ctx.untap(t);
+        scheduleNextUpkeepDraw(ctx, infuse.id);
+    },
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // Krovikan Sorcerer — two looters whose discard cost is colour-filtered
 // (CR 601.2h convention — the chosen-discard is paid in-resolve, Mesmeric
 // Trance pattern). `PermanentFilter` has no `excludeColors`, so "nonblack" is
@@ -2410,15 +2552,63 @@ export const polarKraken: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
-// export const portent: CardDefinition = {
-//     id: "e040be83-3fb5-4da5-ba7a-4923b8854b74",
-//     name: "Portent",
-//     rarity: "common",
-//     oracleText: "Look at the top three cards of target player's library, then put them back in any order. You may have that player shuffle.\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { U: 1 },
-//     types: ["Sorcery"],
-// };
+// Portent — {U} Sorcery. "Look at the top three cards of target player's
+// library, then put them back in any order. You may have that player shuffle."
+// (CR 401.4 look, CR 401 reorder, CR 701.20 shuffle.) Composed from existing
+// primitives: `peekLibraryTop(3)` + a `reorder-library` choice over those ids
+// (Drafna's Restoration pattern), then an optional may-shuffle, then the
+// next-upkeep cantrip rider. Each interactive step is its own `resolveSteps`
+// entry so a suspension never re-applies an earlier step.
+export const portent: CardDefinition = {
+    id: "e040be83-3fb5-4da5-ba7a-4923b8854b74",
+    name: "Portent",
+    rarity: "common",
+    oracleText:
+        "Look at the top three cards of target player's library, then put them back in any order. You may have that player shuffle.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { U: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1 },
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            const t = ctx.targets[0];
+            if (t?.type !== "player") return;
+            const topIds = ctx.peekLibraryTop(t.id, 3);
+            if (topIds.length === 0) return;
+            // The controller looks at and reorders the top cards (CR 401.4).
+            const ordered = ctx.requestChoice({
+                playerId: ctx.controller,
+                choiceId: `portent-reorder-${ctx.sourceInstanceId}`,
+                kind: "reorder-library",
+                zone: "library",
+                count: topIds.length,
+                zoneOwnerId: t.id,
+                candidateIds: topIds,
+                prompt: "Put these cards back on top in any order (first = top).",
+            });
+            if (ordered === undefined) return; // suspended on the reorder
+            const allIds = ctx.peekLibraryTop(t.id, Number.MAX_SAFE_INTEGER);
+            const orderedSet = new Set(ordered);
+            const rest = allIds.filter((id) => !orderedSet.has(id));
+            ctx.reorderLibraryTop(t.id, [...ordered, ...rest]);
+        },
+        (ctx: SpellContext) => {
+            const t = ctx.targets[0];
+            if (t?.type === "player") {
+                // "You may have that player shuffle" — a no-cost may decision
+                // made by the controller (CR 117.3a may, cost undefined).
+                const shuffle = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: `portent-shuffle-${ctx.sourceInstanceId}`,
+                    prompt: "Have that player shuffle their library (Portent)?",
+                });
+                if (shuffle === undefined) return; // suspended on the may
+                if (shuffle) ctx.shuffleLibrary(t.id);
+            }
+            scheduleNextUpkeepDraw(ctx, portent.id);
+        },
+    ],
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // Power Sink — ICE reprint of the LEA instant. CardPrint onto the LEA
 // definition (ADR 0014).
 export const powerSinkIce: CardPrint = {
@@ -2436,15 +2626,28 @@ export const powerSinkIce: CardPrint = {
 //     manaCost: { X: 3, U: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
-// export const rayOfErasure: CardDefinition = {
-//     id: "5a09fc0b-7b9c-4283-8336-f2607f5ffaf5",
-//     name: "Ray of Erasure",
-//     rarity: "common",
-//     oracleText: "Target player mills a card.\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { U: 1 },
-//     types: ["Instant"],
-// };
+// Ray of Erasure — {U} Instant. "Target player mills a card" (CR 701.13a mill —
+// move the top library card to its owner's graveyard, via `moveCardById` on the
+// live top id; Millstone pattern) plus the next-upkeep cantrip rider.
+export const rayOfErasure: CardDefinition = {
+    id: "5a09fc0b-7b9c-4283-8336-f2607f5ffaf5",
+    name: "Ray of Erasure",
+    rarity: "common",
+    oracleText:
+        "Target player mills a card.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "player", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type === "player") {
+            const [topId] = ctx.peekLibraryTop(t.id, 1);
+            if (topId) ctx.moveCardById(t.id, topId, "library", "graveyard");
+        }
+        scheduleNextUpkeepDraw(ctx, rayOfErasure.id);
+    },
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // TODO(#628): implement.
 // export const realityTwist: CardDefinition = {
 //     id: "1b7e955c-3de2-430c-93b9-0b39ccea5420",
@@ -2760,15 +2963,26 @@ export const thunderWall: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const updraft: CardDefinition = {
-//     id: "d1bd4e16-27fe-4c7b-ae25-78ed77d8e8e7",
-//     name: "Updraft",
-//     rarity: "uncommon",
-//     oracleText: "Target creature gains flying until end of turn.\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Instant"],
-// };
+// Updraft — {1}{U} Instant. "Target creature gains flying until end of turn"
+// (CR 702.9 keyword grant via layer 6) plus the next-upkeep cantrip rider.
+export const updraft: CardDefinition = {
+    id: "d1bd4e16-27fe-4c7b-ae25-78ed77d8e8e7",
+    name: "Updraft",
+    rarity: "uncommon",
+    oracleText:
+        "Target creature gains flying until end of turn.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type === "permanent") {
+            ctx.grantStaticAbility(t, "flying", { phase: "end-of-turn" });
+        }
+        scheduleNextUpkeepDraw(ctx, updraft.id);
+    },
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // Wind Spirit — 3/2 flying + menace keyword creature (CR 702.9, 702.111).
 export const windSpirit: CardDefinition = {
     id: "4d882447-9594-4aab-b1a7-8bb275f250cf",
@@ -2971,8 +3185,8 @@ export const zuranSpellcaster: CardDefinition = {
 // STILL DEFERRED (remain commented stubs, owned by a later cluster):
 //   • Cumulative upkeep — Infernal Darkness (mana-color-replacement clause).
 //   • "Draw a card at the beginning of the next turn's upkeep" delayed cantrips —
-//     Gravebind, Krovikan Fetish, Mind Ravel, Touch of Death (no `next-upkeep`
-//     delayed-trigger timing yet).
+//     Gravebind, Krovikan Fetish, Mind Ravel, Touch of Death: ACTIVE (#660 —
+//     the `next-upkeep` delayed-trigger timing shipped).
 //   • Snow-land-counting effects — Drift of the Dead (P/T = snow lands),
 //     Gangrenous Zombies, Icequake, Withering Wisps; snow swampwalk
 //     (Legions of Lim-Dûl) (no supertype filter / snow-evasion keyword yet —
@@ -3431,15 +3645,27 @@ export const foulFamiliar: CardDefinition = {
 //     manaCost: { X: 1, B: 1 },
 //     types: ["Sorcery"],
 // };
-// TODO(#628): implement.
-// export const gravebind: CardDefinition = {
-//     id: "4782fd4f-2474-4d0d-8301-e0b52af93746",
-//     name: "Gravebind",
-//     rarity: "rare",
-//     oracleText: "Target creature can't be regenerated this turn.\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { B: 1 },
-//     types: ["Instant"],
-// };
+// Gravebind — {B} Instant. "Target creature can't be regenerated this turn"
+// (CR 701.15c regeneration lock, via `setTargetCantBeRegeneratedThisTurn`) plus
+// the next-upkeep cantrip rider.
+export const gravebind: CardDefinition = {
+    id: "4782fd4f-2474-4d0d-8301-e0b52af93746",
+    name: "Gravebind",
+    rarity: "rare",
+    oracleText:
+        "Target creature can't be regenerated this turn.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { B: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type === "permanent") {
+            ctx.setTargetCantBeRegeneratedThisTurn(t);
+        }
+        scheduleNextUpkeepDraw(ctx, gravebind.id);
+    },
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // TODO(#628): implement.
 // export const hecatomb: CardDefinition = {
 //     id: "8f59620f-ff9e-44d8-9c4e-be9de1a919e8",
@@ -3804,16 +4030,36 @@ export const krovikanElementalist: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const krovikanFetish: CardDefinition = {
-//     id: "844e73e6-b201-4b2e-b46a-b719484fba0e",
-//     name: "Krovikan Fetish",
-//     rarity: "common",
-//     oracleText: "Enchant creature\nWhen this Aura enters, draw a card at the beginning of the next turn's upkeep.\nEnchanted creature gets +1/+1.",
-//     manaCost: { X: 2, B: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Krovikan Fetish — {2}{B} Aura. Static +1/+1 on the host (CR 611.2c layer 7c)
+// plus a self-ETB trigger (CR 603.6a) that arms the next-upkeep cantrip rider.
+// Unlike the instant cantrips the schedule rides an ENTERS trigger, not a spell
+// resolve — but the delayed-trigger template is identical.
+export const krovikanFetish: CardDefinition = {
+    id: "844e73e6-b201-4b2e-b46a-b719484fba0e",
+    name: "Krovikan Fetish",
+    rarity: "common",
+    oracleText:
+        "Enchant creature\nWhen this Aura enters, draw a card at the beginning of the next turn's upkeep.\nEnchanted creature gets +1/+1.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        { kind: "pt-buff", applies: AURA_AFFECTS_HOST, power: 1, toughness: 1 },
+    ],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "krovikan-fetish-etb",
+            oracleText:
+                "When this Aura enters, draw a card at the beginning of the next turn's upkeep.",
+            scope: "self",
+            resolve: (ctx) => {
+                scheduleNextUpkeepDraw(ctx, krovikanFetish.id);
+            },
+        }),
+    ],
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // Krovikan Vampire — "At the beginning of each end step, if a creature dealt
 // damage by this creature this turn died, put that card onto the battlefield
 // under your control. Sacrifice it when you lose control of this creature."
@@ -4077,15 +4323,41 @@ export const limDLsHex: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
-// export const mindRavel: CardDefinition = {
-//     id: "61cf3ac5-985d-4b48-b230-d5ae4ab1ace8",
-//     name: "Mind Ravel",
-//     rarity: "common",
-//     oracleText: "Target player discards a card.\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { X: 2, B: 1 },
-//     types: ["Sorcery"],
-// };
+// Mind Ravel — {2}{B} Sorcery. "Target player discards a card" (CR 701.8 —
+// chosen by the discarding player; Zuran Enchanter pattern) plus the next-upkeep
+// cantrip rider. The discard choice and the schedule live in separate resolve
+// steps so a suspension on the discard never double-schedules.
+export const mindRavel: CardDefinition = {
+    id: "61cf3ac5-985d-4b48-b230-d5ae4ab1ace8",
+    name: "Mind Ravel",
+    rarity: "common",
+    oracleText:
+        "Target player discards a card.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1 },
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            const target = ctx.targets[0];
+            if (target?.type !== "player") return;
+            if (ctx.getHandSize(target.id) === 0) return;
+            const picks = ctx.requestChoice({
+                playerId: target.id,
+                choiceId: `mind-ravel-${ctx.sourceInstanceId}-${target.id}`,
+                kind: "discard-hand",
+                zone: "hand",
+                count: 1,
+                prompt: "Mind Ravel: discard a card.",
+            });
+            if (picks === undefined) return; // suspended on the discard choice
+            for (const id of picks) ctx.discardCard(target.id, id);
+        },
+        (ctx: SpellContext) => {
+            scheduleNextUpkeepDraw(ctx, mindRavel.id);
+        },
+    ],
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // Mind Warp — "Look at target player's hand and choose X cards from it. That
 // player discards those cards." (CR 702.x reveal-to-caster + CR 701.8 discard.)
 // The caster (not the target) chooses which X cards via a `discard-hand`
@@ -4622,15 +4894,26 @@ export const stromgaldCabal: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const touchOfDeath: CardDefinition = {
-//     id: "a49c658f-e657-490b-af1f-e67e48d0046e",
-//     name: "Touch of Death",
-//     rarity: "common",
-//     oracleText: "Touch of Death deals 1 damage to target player or planeswalker. You gain 1 life.\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { X: 2, B: 1 },
-//     types: ["Sorcery"],
-// };
+// Touch of Death — {2}{B} Sorcery. "Touch of Death deals 1 damage to target
+// player or planeswalker. You gain 1 life." (CR 120.1 damage, CR 119.3
+// lifegain) plus the next-upkeep cantrip rider.
+export const touchOfDeath: CardDefinition = {
+    id: "a49c658f-e657-490b-af1f-e67e48d0046e",
+    name: "Touch of Death",
+    rarity: "common",
+    oracleText:
+        "Touch of Death deals 1 damage to target player or planeswalker. You gain 1 life.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: ["player", "Planeswalker"], count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t) ctx.dealDamage(t, 1);
+        ctx.gainLife(ctx.controller, 1);
+        scheduleNextUpkeepDraw(ctx, touchOfDeath.id);
+    },
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // TODO(#628): implement.
 // export const witheringWisps: CardDefinition = {
 //     id: "ad1e6ae5-c972-42c0-ae78-f203873aeeb1",
@@ -4672,7 +4955,8 @@ export const stromgaldCabal: CardDefinition = {
 //     Shower (only `dealDividedDamage`, divided EVENLY, exists; the
 //     player-chosen division primitive is unbuilt).
 //   • Next-upkeep delayed cantrip — Flare, Panic ("draw a card at the beginning
-//     of the next turn's upkeep"); same gap flagged in the Black tranche.
+//     of the next turn's upkeep"): ACTIVE (#660 — the `next-upkeep` timing
+//     shipped).
 //   • Count-of-declared-attackers attack restrictions — Errantry ("can only
 //     attack alone"), Orcish Conscripts ("can't attack/block unless two other
 //     creatures attack/block"). `StaticAttackRestriction.predicate` only sees
@@ -5127,18 +5411,24 @@ export const flameSpirit: CardDefinition = {
         },
     ],
 };
-// Flare — DEFERRED (the "draw a card at the beginning of the next turn's
-// upkeep" delayed cantrip has no next-upkeep delayed-trigger timing yet; the
-// 1-damage leg is trivial but partial ship is not allowed).
-// TODO(#628): implement.
-// export const flare: CardDefinition = {
-//     id: "d5350236-7bd2-462d-9768-50087626c764",
-//     name: "Flare",
-//     rarity: "common",
-//     oracleText: "Flare deals 1 damage to any target.\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Instant"],
-// };
+// Flare — {2}{R} Instant. "Flare deals 1 damage to any target" (CR 120.1
+// damage) plus the next-upkeep cantrip rider (CR 502.2 / 603.7d).
+export const flare: CardDefinition = {
+    id: "d5350236-7bd2-462d-9768-50087626c764",
+    name: "Flare",
+    rarity: "common",
+    oracleText:
+        "Flare deals 1 damage to any target.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "any", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t) ctx.dealDamage(t, 1);
+        scheduleNextUpkeepDraw(ctx, flare.id);
+    },
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // Game of Chaos — {R}{R}{R} Sorcery. A coin-flip doubling loop (CR 705.2 reveal
 // + CR 119/118 life swing). Each round the caster flips: on a WIN the caster
 // gains `stake` life and the opponent loses `stake`, then the CASTER decides
@@ -6003,18 +6293,28 @@ export const orcishSquatters: CardDefinition = {
         },
     ],
 };
-// Panic — DEFERRED (the "draw a card at the beginning of the next turn's
-// upkeep" delayed cantrip has no next-upkeep delayed-trigger timing yet; same
-// gap flagged for Flare and the Black tranche's delayed cantrips).
-// TODO(#628): implement.
-// export const panic: CardDefinition = {
-//     id: "a9ab85ac-311c-4e36-943a-817e43a3c8a8",
-//     name: "Panic",
-//     rarity: "common",
-//     oracleText: "Cast this spell only during combat before blockers are declared.\nTarget creature can't block this turn.\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { R: 1 },
-//     types: ["Instant"],
-// };
+// Panic — {R} Instant. "Cast this spell only during combat before blockers are
+// declared" (CR 601.3e cast restriction, via `castPhaseRestriction` —
+// BEGINNING_OF_COMBAT + DECLARE_ATTACKERS, Blaze of Glory pattern); "Target
+// creature can't block this turn" (CR 509.1b, via `setCantBlockThisTurn`) plus
+// the next-upkeep cantrip rider.
+export const panic: CardDefinition = {
+    id: "a9ab85ac-311c-4e36-943a-817e43a3c8a8",
+    name: "Panic",
+    rarity: "common",
+    oracleText:
+        "Cast this spell only during combat before blockers are declared.\nTarget creature can't block this turn.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { R: 1 },
+    types: ["Instant"],
+    castPhaseRestriction: ["BEGINNING_OF_COMBAT", "DECLARE_ATTACKERS"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type === "permanent") ctx.setCantBlockThisTurn(t);
+        scheduleNextUpkeepDraw(ctx, panic.id);
+    },
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // Pyroblast — modal "choose one" (CR 700.2): counter a blue spell OR destroy a
 // blue permanent. The colour-mirror of Hydroblast, gating each mode's target on
 // blue via `colorFilter: "U"`.
@@ -6708,15 +7008,34 @@ export const forbiddenLore: CardDefinition = {
 //     manaCost: { G: 1 },
 //     types: ["Sorcery"],
 // };
-// TODO(#628): implement.
-// export const foxfire: CardDefinition = {
-//     id: "88db9685-6a2f-4548-b6c4-669918d653b4",
-//     name: "Foxfire",
-//     rarity: "common",
-//     oracleText: "Untap target attacking creature. Prevent all combat damage that would be dealt to and dealt by that creature this turn.\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Instant"],
-// };
+// Foxfire — {2}{G} Instant. "Untap target attacking creature. Prevent all
+// combat damage that would be dealt to and dealt by that creature this turn"
+// (CR 701.20 untap; CR 615 two-way combat-damage shield, via
+// `preventAllCombatDamageToAndBy` — Ebony Horse pattern) plus the next-upkeep
+// cantrip rider.
+export const foxfire: CardDefinition = {
+    id: "88db9685-6a2f-4548-b6c4-669918d653b4",
+    name: "Foxfire",
+    rarity: "common",
+    oracleText:
+        "Untap target attacking creature. Prevent all combat damage that would be dealt to and dealt by that creature this turn.\nDraw a card at the beginning of the next turn's upkeep.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: "Creature",
+        count: 1,
+        combatRoleFilter: "attacking",
+    },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type === "permanent") {
+            ctx.untap(t);
+            ctx.preventAllCombatDamageToAndBy(t, { phase: "end-of-turn" });
+        }
+        scheduleNextUpkeepDraw(ctx, foxfire.id);
+    },
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // TODO(#628): implement.
 // export const freyaliseSupplicant: CardDefinition = {
 //     id: "5b1e718a-882a-4bdc-9d62-4dda88da0ba0",
@@ -6809,9 +7128,10 @@ export const freyalisesCharm: CardDefinition = {
 // DEFERRED (remain commented stubs, owned by a later cluster):
 //   • Cumulative upkeep — Fyndhorn Pollen, Maddening Wind, Ritual of Subdual
 //     (ADR 0042 cluster — note Pollen/Wind are already active in the CU section).
-//   • Next-upkeep delayed cantrip — Pyknite, Touch of Vitae ("draw a card at the
-//     beginning of the next turn's upkeep"); same gap flagged in the Black/Red
-//     tranches.
+//   • Next-upkeep delayed cantrip — Pyknite: ACTIVE (#660). Touch of Vitae
+//     remains deferred: its cantrip + haste legs are buildable but the granted
+//     "{0}: Untap this creature. Activate only once." activated ability needs a
+//     duration-scoped activated-ability grant primitive (see its stub below).
 //   • Snow-matters — Snowblind / Whiteout / Woolly Mammoths / Rime Dryad
 //     (snow-land counting, snow landwalk evasion, snow-land sac recursion). No
 //     snow supertype filter / snow-evasion plumbing yet — snow cluster.
@@ -7190,21 +7510,32 @@ export const pygmyAllosaurus: CardDefinition = {
     toughness: 2,
     staticAbilities: ["swampwalk"],
 };
-// DEFERRED — Pyknite (next-turn-upkeep delayed cantrip "draw a card at the
-// beginning of the next turn's upkeep"); same gap flagged in the Black/Red
-// tranches.
-// TODO(#628): implement.
-// export const pyknite: CardDefinition = {
-//     id: "6ffc64e4-ae3c-49f9-8ed6-518dd497bfe6",
-//     name: "Pyknite",
-//     rarity: "common",
-//     oracleText: "When this creature enters, draw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Ouphe"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Pyknite — {2}{G} 1/1 Ouphe. Self-ETB cantrip rider (CR 603.6a ETB trigger
+// arming the CR 502.2 / 603.7d next-upkeep delayed draw).
+export const pyknite: CardDefinition = {
+    id: "6ffc64e4-ae3c-49f9-8ed6-518dd497bfe6",
+    name: "Pyknite",
+    rarity: "common",
+    oracleText:
+        "When this creature enters, draw a card at the beginning of the next turn's upkeep.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Ouphe"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "pyknite-etb",
+            oracleText:
+                "When this creature enters, draw a card at the beginning of the next turn's upkeep.",
+            scope: "self",
+            resolve: (ctx) => {
+                scheduleNextUpkeepDraw(ctx, pyknite.id);
+            },
+        }),
+    ],
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // Regeneration — ICE reprint of the LEA Aura ("{G}: Regenerate enchanted
 // creature"). CardPrint onto the LEA definition (ADR 0014).
 export const regenerationIce: CardPrint = {
@@ -7458,10 +7789,19 @@ export const tinderWall: CardDefinition = {
         },
     ],
 };
-// DEFERRED — Touch of Vitae (next-turn-upkeep delayed cantrip "draw a card at
-// the beginning of the next turn's upkeep" plus a one-shot untap-grant); same
-// gap flagged in the Black/Red tranches.
-// TODO(#628): implement.
+// DEFERRED (#660) — Touch of Vitae. The next-upkeep cantrip and the haste leg
+// are now buildable (the `next-upkeep` delayed-trigger timing shipped with this
+// issue; `grantStaticAbility(t, "haste", …)` covers the keyword). The remaining
+// blocker is the granted ACTIVATED ability: "{0}: Untap this creature. Activate
+// only once." There is a duration-scoped TRIGGERED-ability grant
+// (`grantTriggeredAbility`, looked up via `triggeredGrantTemplates[]`) but NO
+// activated-ability analogue a one-shot spell can grant to a target for a turn,
+// and the "activate only once" cap has no per-grant counter. Faithful modeling
+// needs a new `grantActivatedAbility(target, sourceCardId, abilityId,
+// duration)` primitive (the activated sibling of `grantTriggeredAbility`) plus a
+// once-per-grant guard — explicitly out of #660's "no new primitive beyond the
+// timing union" scope, so flagged for a follow-up cluster. Stub kept verbatim.
+// TODO(#628): implement (needs duration-scoped activated-ability grant + cap).
 // export const touchOfVitae: CardDefinition = {
 //     id: "48d2cd18-a24d-40e0-a654-777d9e623ae2",
 //     name: "Touch of Vitae",
@@ -7873,18 +8213,7 @@ export const maddeningWind: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
-// export const pyknite: CardDefinition = {
-//     id: "6ffc64e4-ae3c-49f9-8ed6-518dd497bfe6",
-//     name: "Pyknite",
-//     rarity: "common",
-//     oracleText: "When this creature enters, draw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Ouphe"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Pyknite — activated above (Green tranche; duplicate stub removed, #660).
 // TODO(#628): implement.
 // export const regeneration: CardDefinition = {
 //     id: "1dacfaec-6b61-450d-a134-2087c38a298a",
@@ -7928,15 +8257,7 @@ export const maddeningWind: CardDefinition = {
 // };
 // Thermokarst — activated above (Green free tranche).
 // Thoughtleech — activated above (Green free tranche).
-// TODO(#628): implement.
-// export const touchOfVitae: CardDefinition = {
-//     id: "48d2cd18-a24d-40e0-a654-777d9e623ae2",
-//     name: "Touch of Vitae",
-//     rarity: "uncommon",
-//     oracleText: "Until end of turn, target creature gains haste and \"{0}: Untap this creature. Activate only once.\"\nDraw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Instant"],
-// };
+// Touch of Vitae — deferred (#660); single stub kept above (duplicate removed).
 // Venomous Breath — activated above (Green free tranche).
 // TODO(#628): implement.
 // export const whiteout: CardDefinition = {
@@ -8945,15 +9266,39 @@ export const aegisOfTheMeek: CardDefinition = {
 //     manaCost: { X: 3 },
 //     types: ["Artifact"],
 // };
-// TODO(#628): implement.
-// export const barbedSextant: CardDefinition = {
-//     id: "edb82654-de12-4dce-8c6b-f28d68f0fbe1",
-//     name: "Barbed Sextant",
-//     rarity: "common",
-//     oracleText: "{1}, {T}, Sacrifice this artifact: Add one mana of any color. Draw a card at the beginning of the next turn's upkeep.",
-//     manaCost: { X: 1 },
-//     types: ["Artifact"],
-// };
+// Barbed Sextant — {1} Artifact. "{1}, {T}, Sacrifice this artifact: Add one
+// mana of any color. Draw a card at the beginning of the next turn's upkeep."
+// The mana add is a mana ability (CR 605.1a — adds mana, doesn't target), so it
+// resolves without the stack (`useStack: false`) with the any-colour pick on
+// `manaChoices` (Black Lotus shape). The "draw at the next upkeep" rider can't
+// live in the mana-ability `effect` context (which only exposes `addMana`), so
+// it rides `armsDelayedTriggerOnTap` (ADR 0040): tapping for mana arms the
+// shared `next-upkeep` cantrip delayed trigger, controlled by the activator.
+export const barbedSextant: CardDefinition = {
+    id: "edb82654-de12-4dce-8c6b-f28d68f0fbe1",
+    name: "Barbed Sextant",
+    rarity: "common",
+    oracleText:
+        "{1}, {T}, Sacrifice this artifact: Add one mana of any color. Draw a card at the beginning of the next turn's upkeep.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "barbed-sextant-mana",
+            oracleText:
+                "{1}, {T}, Sacrifice this artifact: Add one mana of any color. Draw a card at the beginning of the next turn's upkeep.",
+            cost: { mana: { X: 1 }, tap: true, sacrifice: true },
+            useStack: false,
+            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
+            // ADR 0040 — arm the next-upkeep cantrip when tapped for mana.
+            armsDelayedTriggerOnTap: {
+                triggerId: NEXT_UPKEEP_DRAW_TRIGGER_ID,
+                timing: "next-upkeep",
+            },
+        },
+    ],
+    delayedTriggers: [nextUpkeepDrawTrigger()],
+};
 // Baton of Morale — {2}: Target creature gains banding until end of turn
 // (CR 605 activated ability; CR 702.22 banding granted via the layer system,
 // CR 613 layer 6).
@@ -9964,7 +10309,17 @@ export const timeBomb: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
+// DEFERRED (#660) — Urza's Bauble. The next-upkeep cantrip is now buildable
+// (the `next-upkeep` delayed-trigger timing shipped with this issue). The
+// blocker is "Look at a card AT RANDOM in target player's hand": there is no
+// SpellContext primitive that reveals a randomly-chosen card from a hand to the
+// looker — the only random-from-hand surface is the `discardAtRandom` COST,
+// which discards (not reveals) from the activating player's OWN hand. This is
+// the SAME missing general primitive that defers Wand of Ith (drk.ts) — a
+// seeded-PRNG "look at a card at random from a hand" pick + `markKnown` to the
+// looker. Out of #660's "no new primitive beyond the timing union" scope, so
+// flagged for the random-from-hand primitive follow-up. Stub kept verbatim.
+// TODO(#628): implement (needs random-from-hand reveal primitive).
 // export const urzasBauble: CardDefinition = {
 //     id: "58c9e9a7-e170-4361-b7d5-22fc0771c489",
 //     name: "Urza's Bauble",
