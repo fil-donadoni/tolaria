@@ -5984,28 +5984,71 @@ export const wingsOfAesthir: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const adarkarSentinel: CardDefinition = {
-//     id: "ff62754b-f4f0-4731-8dd7-327a820f60a8",
-//     name: "Adarkar Sentinel",
-//     rarity: "uncommon",
-//     oracleText: "{1}: This creature gets +0/+1 until end of turn.",
-//     manaCost: { X: 5 },
-//     types: ["Artifact", "Creature"],
-//     subtypes: ["Soldier"],
-//     power: 3,
-//     toughness: 3,
-// };
-// TODO(#628): implement.
-// export const aegisOfTheMeek: CardDefinition = {
-//     id: "5d272051-f442-4f6e-8c64-df28b398d2e8",
-//     name: "Aegis of the Meek",
-//     rarity: "rare",
-//     oracleText: "{1}, {T}: Target 1/1 creature gets +1/+2 until end of turn.",
-//     manaCost: { X: 3 },
-//     types: ["Artifact"],
-// };
-// TODO(#628): implement.
+// Adarkar Sentinel — {1}: This creature gets +0/+1 until end of turn (CR 605
+// self-pump activated ability; CR 613 layer 7c temporary buff). A colourless
+// artifact creature.
+export const adarkarSentinel: CardDefinition = {
+    id: "ff62754b-f4f0-4731-8dd7-327a820f60a8",
+    name: "Adarkar Sentinel",
+    rarity: "uncommon",
+    oracleText: "{1}: This creature gets +0/+1 until end of turn.",
+    manaCost: { X: 5 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Soldier"],
+    power: 3,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "adarkar-sentinel-pump",
+            oracleText: "{1}: This creature gets +0/+1 until end of turn.",
+            cost: { mana: { X: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    0,
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+// Aegis of the Meek — {1}, {T}: Target 1/1 creature gets +1/+2 until end of
+// turn (CR 605 activated ability; CR 613 layer 7c). The "1/1 creature" filter
+// is the target's effective power AND toughness (powerFilter + toughnessFilter
+// both pinned to 1).
+export const aegisOfTheMeek: CardDefinition = {
+    id: "5d272051-f442-4f6e-8c64-df28b398d2e8",
+    name: "Aegis of the Meek",
+    rarity: "rare",
+    oracleText: "{1}, {T}: Target 1/1 creature gets +1/+2 until end of turn.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "aegis-of-the-meek-pump",
+            oracleText:
+                "{1}, {T}: Target 1/1 creature gets +1/+2 until end of turn.",
+            cost: { mana: { X: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                powerFilter: { min: 1, max: 1 },
+                toughnessFilter: { min: 1, max: 1 },
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") {
+                    ctx.addTemporaryPTBuff(t, 1, 2, { phase: "end-of-turn" });
+                }
+            },
+        },
+    ],
+};
+// DEFERRED — Amulet of Quoz is an ante card (CR 407 / ADR 0010 — ante &
+// subgames are out of scope). Stays a commented stub permanently.
 // export const amuletOfQuoz: CardDefinition = {
 //     id: "764ec6a8-a878-446c-b7e4-6026c2a3e9a4",
 //     name: "Amulet of Quoz",
@@ -6059,15 +6102,88 @@ export const wingsOfAesthir: CardDefinition = {
 //     manaCost: { X: 2 },
 //     types: ["Artifact"],
 // };
-// TODO(#628): implement.
-// export const celestialSword: CardDefinition = {
-//     id: "2bc0e8d3-633b-4281-863f-c51c69eed0b6",
-//     name: "Celestial Sword",
-//     rarity: "rare",
-//     oracleText: "{3}, {T}: Target creature you control gets +3/+3 until end of turn. Its controller sacrifices it at the beginning of the next end step.",
-//     manaCost: { X: 6 },
-//     types: ["Artifact"],
-// };
+// Celestial Sword — {3}, {T}: Target creature you control gets +3/+3 until end
+// of turn, then is sacrificed at the next end step (CR 605 activated ability;
+// CR 613 layer 7c buff; CR 603.7b delayed triggered ability for the sacrifice).
+const CELESTIAL_SWORD_ID = "2bc0e8d3-633b-4281-863f-c51c69eed0b6";
+export const celestialSword: CardDefinition = {
+    id: CELESTIAL_SWORD_ID,
+    name: "Celestial Sword",
+    rarity: "rare",
+    oracleText:
+        "{3}, {T}: Target creature you control gets +3/+3 until end of turn. Its controller sacrifices it at the beginning of the next end step.",
+    manaCost: { X: 6 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "celestial-sword-pump",
+            oracleText:
+                "{3}, {T}: Target creature you control gets +3/+3 until end of turn. Its controller sacrifices it at the beginning of the next end step.",
+            cost: { mana: { X: 3 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "permanent") return;
+                ctx.addTemporaryPTBuff(t, 3, 3, { phase: "end-of-turn" });
+                ctx.scheduleDelayedTrigger(
+                    CELESTIAL_SWORD_ID,
+                    "celestial-sword-sacrifice",
+                    "next-end-step",
+                    { targetId: t.id }
+                );
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: "celestial-sword-sacrifice",
+            oracleText:
+                "Its controller sacrifices it at the beginning of the next end step.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                const targetId = payload.targetId;
+                if (targetId) ctx.sacrifice(targetId);
+            },
+        },
+    ],
+};
+// Despotic Scepter — {T}: Destroy target permanent you own. It can't be
+// regenerated (CR 605 activated ability; CR 701.7 destroy; the
+// can't-be-regenerated rider suppresses the regen shield).
+export const despoticScepter: CardDefinition = {
+    id: "53e381a4-810e-4b75-aed3-c16cf0eb06fa",
+    name: "Despotic Scepter",
+    rarity: "rare",
+    oracleText:
+        "{T}: Destroy target permanent you own. It can't be regenerated.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "despotic-scepter-destroy",
+            oracleText:
+                "{T}: Destroy target permanent you own. It can't be regenerated.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: ["Artifact", "Creature", "Enchantment", "Land"],
+                count: 1,
+                controller: "you",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") {
+                    ctx.destroy(t, { cantBeRegenerated: true });
+                }
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const crownOfTheAges: CardDefinition = {
 //     id: "fce2991f-48e1-4cfe-af0a-18b6d9400493",
@@ -6095,15 +6211,36 @@ export const wingsOfAesthir: CardDefinition = {
 //     manaCost: { X: 3 },
 //     types: ["Artifact"],
 // };
-// TODO(#628): implement.
-// export const fyndhornBow: CardDefinition = {
-//     id: "65dd0a41-cc51-4728-b597-fdb2510accd8",
-//     name: "Fyndhorn Bow",
-//     rarity: "uncommon",
-//     oracleText: "{3}, {T}: Target creature gains first strike until end of turn.",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
+// Fyndhorn Bow — {3}, {T}: Target creature gains first strike until end of turn
+// (CR 605 activated ability; CR 702.7 first strike granted via the layer system,
+// CR 613 layer 6).
+export const fyndhornBow: CardDefinition = {
+    id: "65dd0a41-cc51-4728-b597-fdb2510accd8",
+    name: "Fyndhorn Bow",
+    rarity: "uncommon",
+    oracleText:
+        "{3}, {T}: Target creature gains first strike until end of turn.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "fyndhorn-bow-first-strike",
+            oracleText:
+                "{3}, {T}: Target creature gains first strike until end of turn.",
+            cost: { mana: { X: 3 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") {
+                    ctx.grantStaticAbility(t, "first strike", {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const goblinLyre: CardDefinition = {
 //     id: "951114fb-5ae5-4eb0-8e03-6e39b0b634b5",
@@ -6131,15 +6268,33 @@ export const wingsOfAesthir: CardDefinition = {
 //     manaCost: { X: 4 },
 //     types: ["Artifact"],
 // };
-// TODO(#628): implement.
-// export const icyManipulator: CardDefinition = {
-//     id: "1eda936f-7691-4440-9b83-eb0c6035b109",
-//     name: "Icy Manipulator",
-//     rarity: "uncommon",
-//     oracleText: "{1}, {T}: Tap target artifact, creature, or land.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+// Icy Manipulator — {1}, {T}: Tap target artifact, creature, or land (CR 605
+// activated ability; CR 701.20a tap). The classic tapper; the multi-type target
+// is expressed as a CardType array.
+export const icyManipulator: CardDefinition = {
+    id: "1eda936f-7691-4440-9b83-eb0c6035b109",
+    name: "Icy Manipulator",
+    rarity: "uncommon",
+    oracleText: "{1}, {T}: Tap target artifact, creature, or land.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "icy-manipulator-tap",
+            oracleText: "{1}, {T}: Tap target artifact, creature, or land.",
+            cost: { mana: { X: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: ["Artifact", "Creature", "Land"],
+                count: 1,
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t) ctx.tap(t);
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const infiniteHourglass: CardDefinition = {
 //     id: "f9a42152-32c0-47ff-aaac-8deaf01873ca",
@@ -6149,15 +6304,49 @@ export const wingsOfAesthir: CardDefinition = {
 //     manaCost: { X: 4 },
 //     types: ["Artifact"],
 // };
-// TODO(#628): implement.
-// export const jestersCap: CardDefinition = {
-//     id: "47ac44d0-8090-4e7b-ac47-c567294f185e",
-//     name: "Jester's Cap",
-//     rarity: "rare",
-//     oracleText: "{2}, {T}, Sacrifice this artifact: Search target player's library for three cards and exile them. Then that player shuffles.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+// Jester's Cap — {2}, {T}, Sacrifice this artifact: Search target player's
+// library for three cards and exile them. Then that player shuffles (CR 605
+// activated ability with sacrifice cost; CR 701.19 library search of another
+// player's zone via `requestChoice` with `zoneOwnerId`; CR 406 exile;
+// CR 701.20 shuffle). The activating player makes the search.
+export const jestersCap: CardDefinition = {
+    id: "47ac44d0-8090-4e7b-ac47-c567294f185e",
+    name: "Jester's Cap",
+    rarity: "rare",
+    oracleText:
+        "{2}, {T}, Sacrifice this artifact: Search target player's library for three cards and exile them. Then that player shuffles.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "jesters-cap-strip",
+            oracleText:
+                "{2}, {T}, Sacrifice this artifact: Search target player's library for three cards and exile them. Then that player shuffles.",
+            cost: { mana: { X: 2 }, tap: true, sacrifice: true },
+            useStack: true,
+            targetRequirement: { type: "player", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "player") return;
+                const targetPlayer = t.id;
+                const picked = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: "jesters-cap-search",
+                    kind: "search-library",
+                    zone: "library",
+                    zoneOwnerId: targetPlayer,
+                    count: { min: 0, max: 3 },
+                    prompt: "Search the target player's library for up to three cards to exile.",
+                });
+                if (picked === undefined) return; // suspended for the search
+                for (const id of picked) {
+                    ctx.moveCardById(targetPlayer, id, "library", "exile");
+                }
+                ctx.shuffleLibrary(targetPlayer);
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const jestersMask: CardDefinition = {
 //     id: "daa1ba0c-cb89-4bb2-8a35-6a4a4eecccf7",
@@ -6202,7 +6391,9 @@ export const wingsOfAesthir: CardDefinition = {
 //     manaCost: { X: 2 },
 //     types: ["Artifact"],
 // };
-// TODO(#628): implement.
+// DEFERRED (cumulative upkeep, ADR 0042) — owned by the cumulative-upkeep
+// capability cluster. The mana-substitution body ("Plains produce {R}, ...")
+// also needs a land-mana-replacement primitive not yet built.
 // export const nakedSingularity: CardDefinition = {
 //     id: "cabadfb2-93cd-4c7a-b901-59c3dd1a7c3c",
 //     name: "Naked Singularity",
@@ -6229,15 +6420,40 @@ export const wingsOfAesthir: CardDefinition = {
 //     manaCost: { X: 4 },
 //     types: ["Artifact"],
 // };
-// TODO(#628): implement.
-// export const pitTrap: CardDefinition = {
-//     id: "c588fe7f-945d-4459-904c-67442f88b4e1",
-//     name: "Pit Trap",
-//     rarity: "uncommon",
-//     oracleText: "{2}, {T}, Sacrifice this artifact: Destroy target attacking creature without flying. It can't be regenerated.",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
+// Pit Trap — {2}, {T}, Sacrifice this artifact: Destroy target attacking
+// creature without flying. It can't be regenerated (CR 605 activated ability
+// with sacrifice cost; CR 508.1 attacking filter; CR 702.9 "without flying"
+// via excludeAbility; CR 701.7 destroy).
+export const pitTrap: CardDefinition = {
+    id: "c588fe7f-945d-4459-904c-67442f88b4e1",
+    name: "Pit Trap",
+    rarity: "uncommon",
+    oracleText:
+        "{2}, {T}, Sacrifice this artifact: Destroy target attacking creature without flying. It can't be regenerated.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "pit-trap-destroy",
+            oracleText:
+                "{2}, {T}, Sacrifice this artifact: Destroy target attacking creature without flying. It can't be regenerated.",
+            cost: { mana: { X: 2 }, tap: true, sacrifice: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                combatRoleFilter: "attacking",
+                excludeAbility: "flying",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") {
+                    ctx.destroy(t, { cantBeRegenerated: true });
+                }
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const runedArch: CardDefinition = {
 //     id: "ca02861b-9639-480d-8e54-e024f0c70158",
@@ -6247,36 +6463,136 @@ export const wingsOfAesthir: CardDefinition = {
 //     manaCost: { X: 3 },
 //     types: ["Artifact"],
 // };
-// TODO(#628): implement.
-// export const shieldOfTheAges: CardDefinition = {
-//     id: "7411ab40-47f6-44d1-8e33-9ff5301dcd9b",
-//     name: "Shield of the Ages",
-//     rarity: "uncommon",
-//     oracleText: "{2}: Prevent the next 1 damage that would be dealt to you this turn.",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
-// TODO(#628): implement.
-// export const skullCatapult: CardDefinition = {
-//     id: "eb92a3e6-dc30-4a08-baba-e125290cadc5",
-//     name: "Skull Catapult",
-//     rarity: "uncommon",
-//     oracleText: "{1}, {T}, Sacrifice a creature: This artifact deals 2 damage to any target.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
-// TODO(#628): implement.
-// export const snowFortress: CardDefinition = {
-//     id: "1c480e07-fb26-4760-865f-47985f7447bb",
-//     name: "Snow Fortress",
-//     rarity: "rare",
-//     oracleText: "Defender (This creature can't attack.)\n{1}: This creature gets +1/+0 until end of turn.\n{1}: This creature gets +0/+1 until end of turn.\n{3}: This creature deals 1 damage to target creature without flying that's attacking you.",
-//     manaCost: { X: 5 },
-//     types: ["Artifact", "Creature"],
-//     subtypes: ["Wall"],
-//     power: 0,
-//     toughness: 4,
-// };
+// Shield of the Ages — {2}: Prevent the next 1 damage that would be dealt to
+// you this turn (CR 605 activated ability; CR 615.1 prevention shield on the
+// controller).
+export const shieldOfTheAges: CardDefinition = {
+    id: "7411ab40-47f6-44d1-8e33-9ff5301dcd9b",
+    name: "Shield of the Ages",
+    rarity: "uncommon",
+    oracleText:
+        "{2}: Prevent the next 1 damage that would be dealt to you this turn.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "shield-of-the-ages-prevent",
+            oracleText:
+                "{2}: Prevent the next 1 damage that would be dealt to you this turn.",
+            cost: { mana: { X: 2 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.preventNextNDamageToTarget(
+                    { type: "player", id: ctx.controller },
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
+// Skull Catapult — {1}, {T}, Sacrifice a creature: This artifact deals 2 damage
+// to any target (CR 605 activated ability with a sacrifice-a-creature cost via
+// `sacrificeFilter`; CR 120.1 / 115.4 "any target" damage).
+export const skullCatapult: CardDefinition = {
+    id: "eb92a3e6-dc30-4a08-baba-e125290cadc5",
+    name: "Skull Catapult",
+    rarity: "uncommon",
+    oracleText:
+        "{1}, {T}, Sacrifice a creature: This artifact deals 2 damage to any target.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "skull-catapult-fling",
+            oracleText:
+                "{1}, {T}, Sacrifice a creature: This artifact deals 2 damage to any target.",
+            cost: {
+                mana: { X: 1 },
+                tap: true,
+                sacrificeFilter: {
+                    types: "Creature",
+                    controllerRelation: "you",
+                },
+            },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t) ctx.dealDamage(t, 2);
+            },
+        },
+    ],
+};
+// Snow Fortress — Defender Wall with two self-pumps and a {3} ping (CR 702.3
+// defender; CR 605 activated abilities; CR 613 layer 7c buffs; CR 120.1 damage).
+//
+// SIMPLIFICATION (flagged, no engine change): the printed ping targets a
+// non-flying creature "that's attacking you". The engine's combat-role filter
+// can express "attacking" and "without flying" but not the "attacking YOU"
+// (the controller is the defending player) refinement. In a duel every
+// attacker is attacking Snow Fortress's controller, so the narrower filter
+// matches play exactly.
+export const snowFortress: CardDefinition = {
+    id: "1c480e07-fb26-4760-865f-47985f7447bb",
+    name: "Snow Fortress",
+    rarity: "rare",
+    oracleText:
+        "Defender (This creature can't attack.)\n{1}: This creature gets +1/+0 until end of turn.\n{1}: This creature gets +0/+1 until end of turn.\n{3}: This creature deals 1 damage to target creature without flying that's attacking you.",
+    manaCost: { X: 5 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 4,
+    staticAbilities: ["defender"],
+    activatedAbilities: [
+        {
+            id: "snow-fortress-pump-power",
+            oracleText: "{1}: This creature gets +1/+0 until end of turn.",
+            cost: { mana: { X: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+        {
+            id: "snow-fortress-pump-toughness",
+            oracleText: "{1}: This creature gets +0/+1 until end of turn.",
+            cost: { mana: { X: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    0,
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+        {
+            id: "snow-fortress-ping",
+            oracleText:
+                "{3}: This creature deals 1 damage to target creature without flying that's attacking you.",
+            cost: { mana: { X: 3 } },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                combatRoleFilter: "attacking",
+                excludeAbility: "flying",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") ctx.dealDamage(t, 1);
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const soldeviGolem: CardDefinition = {
 //     id: "64d35e88-81d3-4a54-aa79-190615abc616",
@@ -6289,7 +6605,9 @@ export const wingsOfAesthir: CardDefinition = {
 //     power: 5,
 //     toughness: 3,
 // };
-// TODO(#628): implement.
+// DEFERRED (cumulative upkeep, ADR 0042) — owned by the cumulative-upkeep
+// capability cluster. The {1} self-pump is trivial; only the cumulative-upkeep
+// clause is missing.
 // export const soldeviSimulacrum: CardDefinition = {
 //     id: "9fabc7b6-e766-4e3c-816e-04cfeceaff09",
 //     name: "Soldevi Simulacrum",
@@ -6301,15 +6619,29 @@ export const wingsOfAesthir: CardDefinition = {
 //     power: 2,
 //     toughness: 4,
 // };
-// TODO(#628): implement.
-// export const staffOfTheAges: CardDefinition = {
-//     id: "5c709836-55b6-4de9-b190-b5f66dc53c87",
-//     name: "Staff of the Ages",
-//     rarity: "rare",
-//     oracleText: "Creatures with landwalk abilities can be blocked as though they didn't have those abilities.",
-//     manaCost: { X: 3 },
-//     types: ["Artifact"],
-// };
+// Staff of the Ages — Creatures with landwalk abilities can be blocked as
+// though they didn't have those abilities (CR 509.1b / 702.13 landwalk-negation
+// static, battlefield-scanned). Expressed with the parametric landwalk-negation
+// kind (shared with Great Wall / Undertow) listing every basic land subtype, so
+// all basic landwalk variants are suppressed at once.
+export const staffOfTheAges: CardDefinition = {
+    id: "5c709836-55b6-4de9-b190-b5f66dc53c87",
+    name: "Staff of the Ages",
+    rarity: "rare",
+    oracleText:
+        "Creatures with landwalk abilities can be blocked as though they didn't have those abilities.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    staticEffects: [
+        {
+            kind: "landwalk-negation",
+            id: "staff-of-the-ages-landwalk-negation",
+            subtypes: ["Plains", "Island", "Swamp", "Mountain", "Forest"],
+            oracleText:
+                "Creatures with landwalk abilities can be blocked as though they didn't have those abilities.",
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const sunstone: CardDefinition = {
 //     id: "3c1c67fa-ff88-4a61-b8a5-8a872b3dc44f",
@@ -6345,15 +6677,42 @@ export const wingsOfAesthir: CardDefinition = {
 //     manaCost: { X: 4 },
 //     types: ["Artifact"],
 // };
-// TODO(#628): implement.
-// export const vibratingSphere: CardDefinition = {
-//     id: "48f93ded-ecf6-4a70-8ca3-a9c0c3201c21",
-//     name: "Vibrating Sphere",
-//     rarity: "rare",
-//     oracleText: "During your turn, creatures you control get +2/+0.\nDuring turns other than yours, creatures you control get -0/-2.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+// Vibrating Sphere — During your turn, creatures you control get +2/+0; during
+// turns other than yours, creatures you control get -0/-2 (CR 611.2c
+// turn-conditional anthem via two `pt-buff` static effects gated by
+// `state.activePlayerId === source.controllerId`, CR 102.1 turn ownership;
+// CR 613 layer 7c). "You" is the controller of Vibrating Sphere.
+export const vibratingSphere: CardDefinition = {
+    id: "48f93ded-ecf6-4a70-8ca3-a9c0c3201c21",
+    name: "Vibrating Sphere",
+    rarity: "rare",
+    oracleText:
+        "During your turn, creatures you control get +2/+0.\nDuring turns other than yours, creatures you control get -0/-2.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: (target, source, ctx) =>
+                ctx.isCreature(target) &&
+                target.controllerId === source.controllerId,
+            condition: (source, state) =>
+                state.activePlayerId === source.controllerId,
+            power: 2,
+            toughness: 0,
+        },
+        {
+            kind: "pt-buff",
+            applies: (target, source, ctx) =>
+                ctx.isCreature(target) &&
+                target.controllerId === source.controllerId,
+            condition: (source, state) =>
+                state.activePlayerId !== source.controllerId,
+            power: 0,
+            toughness: -2,
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const walkingWall: CardDefinition = {
 //     id: "cba1238c-1969-452d-8112-124cbbd49417",
@@ -6366,44 +6725,110 @@ export const wingsOfAesthir: CardDefinition = {
 //     power: 0,
 //     toughness: 6,
 // };
-// TODO(#628): implement.
-// export const wallOfShields: CardDefinition = {
-//     id: "6376c7c4-aaca-4625-83d4-a49f01aec535",
-//     name: "Wall of Shields",
-//     rarity: "uncommon",
-//     oracleText: "Defender (This creature can't attack.)\nBanding (If any creatures with banding you control are blocking a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by.)",
-//     manaCost: { X: 3 },
-//     types: ["Artifact", "Creature"],
-//     subtypes: ["Wall"],
-//     power: 0,
-//     toughness: 4,
-// };
-// TODO(#628): implement.
-// export const warChariot: CardDefinition = {
-//     id: "d0ea0c6c-aa76-4b16-bc99-2ff46dc56d4e",
-//     name: "War Chariot",
-//     rarity: "uncommon",
-//     oracleText: "{3}, {T}: Target creature gains trample until end of turn.",
-//     manaCost: { X: 3 },
-//     types: ["Artifact"],
-// };
-// TODO(#628): implement.
-// export const whaleboneGlider: CardDefinition = {
-//     id: "4b75adf0-9501-4776-a213-456c2b821070",
-//     name: "Whalebone Glider",
-//     rarity: "uncommon",
-//     oracleText: "{2}, {T}: Target creature with power 3 or less gains flying until end of turn.",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
-// TODO(#628): implement.
-// export const zuranOrb: CardDefinition = {
-//     id: "3a9d1082-a862-45d4-9e5e-392e879fead6",
-//     name: "Zuran Orb",
-//     rarity: "uncommon",
-//     oracleText: "Sacrifice a land: You gain 2 life.",
-//     types: ["Artifact"],
-// };
+// Wall of Shields — Defender + Banding artifact Wall (CR 702.3 defender,
+// CR 702.22 banding). Pure keyword data.
+export const wallOfShields: CardDefinition = {
+    id: "6376c7c4-aaca-4625-83d4-a49f01aec535",
+    name: "Wall of Shields",
+    rarity: "uncommon",
+    oracleText:
+        "Defender (This creature can't attack.)\nBanding (If any creatures with banding you control are blocking a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by.)",
+    manaCost: { X: 3 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 4,
+    staticAbilities: ["defender", "banding"],
+};
+// War Chariot — {3}, {T}: Target creature gains trample until end of turn
+// (CR 605 activated ability; CR 702.19 trample granted via the layer system,
+// CR 613 layer 6).
+export const warChariot: CardDefinition = {
+    id: "d0ea0c6c-aa76-4b16-bc99-2ff46dc56d4e",
+    name: "War Chariot",
+    rarity: "uncommon",
+    oracleText: "{3}, {T}: Target creature gains trample until end of turn.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "war-chariot-trample",
+            oracleText:
+                "{3}, {T}: Target creature gains trample until end of turn.",
+            cost: { mana: { X: 3 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") {
+                    ctx.grantStaticAbility(t, "trample", {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
+// Whalebone Glider — {2}, {T}: Target creature with power 3 or less gains
+// flying until end of turn (CR 605 activated ability; CR 702.9 flying granted
+// via the layer system; the "power 3 or less" filter narrows legal targets via
+// powerFilter, CR 613 layer 7c effective power).
+export const whaleboneGlider: CardDefinition = {
+    id: "4b75adf0-9501-4776-a213-456c2b821070",
+    name: "Whalebone Glider",
+    rarity: "uncommon",
+    oracleText:
+        "{2}, {T}: Target creature with power 3 or less gains flying until end of turn.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "whalebone-glider-flying",
+            oracleText:
+                "{2}, {T}: Target creature with power 3 or less gains flying until end of turn.",
+            cost: { mana: { X: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                powerFilter: { max: 3 },
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") {
+                    ctx.grantStaticAbility(t, "flying", {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
+// Zuran Orb — Sacrifice a land: You gain 2 life (CR 605 activated ability with
+// a sacrifice-a-land cost via `sacrificeFilter`; CR 119.3 life gain). A {0}
+// artifact (no mana cost). The ability has no mana/tap component — its only
+// cost is the land sacrifice.
+export const zuranOrb: CardDefinition = {
+    id: "3a9d1082-a862-45d4-9e5e-392e879fead6",
+    name: "Zuran Orb",
+    rarity: "uncommon",
+    oracleText: "Sacrifice a land: You gain 2 life.",
+    manaCost: {},
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "zuran-orb-gain-life",
+            oracleText: "Sacrifice a land: You gain 2 life.",
+            cost: {
+                sacrificeFilter: { types: "Land", controllerRelation: "you" },
+            },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.gainLife(ctx.controller, 2);
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const adarkarWastes: CardDefinition = {
 //     id: "09dd9023-f7ee-4e99-8821-7059deb83730",

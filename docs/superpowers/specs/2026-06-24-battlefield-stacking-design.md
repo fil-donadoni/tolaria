@@ -76,11 +76,11 @@ render with the usual 90° rotation, grouped at the tail.
 
 ### Size-driven presentation
 
-| Stack size | Resting presentation | On hover |
-| ---------- | -------------------- | -------- |
-| `1` (or singleton) | normal single card | normal card behaviour |
-| `2 … 8` | **horizontal fan** — fixed reveal offset (base 34px), clamped so the fan never exceeds **360px** wide | per-card **hover-lift**: the hovered instance rises in z and pops up (~16px) so it can be read/clicked exactly |
-| `> 8` | **depth-pile** — tight diagonal offset (~4px), ~1-card footprint, `×N` badge | the pile **expands to the fan in overlay** (no reflow); then per-card hover-lift applies |
+| Stack size         | Resting presentation                                                                                  | On hover                                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `1` (or singleton) | normal single card                                                                                    | normal card behaviour                                                                                          |
+| `2 … 8`            | **horizontal fan** — fixed reveal offset (base 34px), clamped so the fan never exceeds **360px** wide | per-card **hover-lift**: the hovered instance rises in z and pops up (~16px) so it can be read/clicked exactly |
+| `> 8`              | **depth-pile** — tight diagonal offset (~4px), ~1-card footprint, `×N` badge                          | the pile **expands to the fan in overlay** (no reflow); then per-card hover-lift applies                       |
 
 - `×N` count badge on every stack with ≥2 members (top-right).
 - Clamp: for `2…8`, reveal offset = `min(34, (360 − cardW) / (N−1))`.
