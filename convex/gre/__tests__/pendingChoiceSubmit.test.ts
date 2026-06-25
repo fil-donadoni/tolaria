@@ -8,9 +8,12 @@ import { advancePhase, untapStep } from "../phases";
 import { recordDeclaration, makeMulliganState } from "../mulligan";
 import {
     applyPendingChoiceSubmit,
+    applyMayPaySubmit,
     applyNameCardSubmit,
     applyRandomRevealAck,
 } from "../pendingChoiceSubmit";
+import { illusionaryForces, polarKraken } from "../../cards/sets/ice";
+import { getCardByName } from "../../cards";
 import { checkStateBasedActions } from "../sba";
 import {
     darkRitual,
@@ -545,6 +548,115 @@ describe("applyPendingChoiceSubmit — may-pay rejected", () => {
                 cardInstanceIds: [],
             })
         ).toThrow(/submitMayPay/i);
+    });
+});
+
+describe("applyMayPaySubmit — cumulative-upkeep cost union (CR 702.24, #638)", () => {
+    /** Fire a CU trigger via the stack, suspending at the may-pay (the same
+     *  handshake the `submitMayPay` mutation drives end to end). */
+    function fireCU(
+        state: GameState,
+        source: ReturnType<typeof makeInstance>,
+        abilityId: string
+    ): void {
+        state.stack.push({
+            ...source,
+            zone: "stack",
+            castById: source.controllerId,
+            triggeredAbilityId: abilityId,
+            triggerSourceId: source.id,
+            triggerEvent: {
+                type: "PHASE_BEGIN",
+                phase: "UPKEEP",
+                activePlayerId: source.controllerId,
+            } as StackItem["triggerEvent"],
+            targets: [],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("mana CU: submitMayPay(accept) pays {U} from the pool and keeps it", () => {
+        const forces = makeInstance(illusionaryForces.id, {
+            id: "forces",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [forces] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.players[0].manaPool = { U: 1 };
+        fireCU(state, forces, "illusionary-forces-cumulative-upkeep");
+        // Suspended at the may-pay; the mutation's primitive commits the pay.
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "forces")
+        ).toBe(true);
+        expect(state.players[0].manaPool.U ?? 0).toBe(0);
+    });
+
+    it("sacrifice CU: submitMayPay(accept) sacrifices a land via the union leg", () => {
+        const kraken = makeInstance(polarKraken.id, {
+            id: "kraken",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const land = makeInstance(getCardByName("Forest").id, {
+            id: "forest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [kraken, land] }),
+                makePlayer("p2"),
+            ],
+        });
+        fireCU(state, kraken, "polar-kraken-cumulative-upkeep");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        // Kraken kept; the Forest paid the sacrifice leg.
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "kraken")
+        ).toBe(true);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "forest")
+        ).toBeUndefined();
+        expect(state.players[0].graveyard.some((c) => c.id === "forest")).toBe(
+            true
+        );
+    });
+
+    it("sacrifice CU: submitMayPay(decline) sacrifices the Kraken itself", () => {
+        const kraken = makeInstance(polarKraken.id, {
+            id: "kraken",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const land = makeInstance(getCardByName("Forest").id, {
+            id: "forest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [kraken, land] }),
+                makePlayer("p2"),
+            ],
+        });
+        fireCU(state, kraken, "polar-kraken-cumulative-upkeep");
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "kraken")
+        ).toBeUndefined();
+        // The land is untouched on decline.
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "forest")
+        ).toBe(true);
     });
 });
 

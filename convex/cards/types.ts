@@ -618,6 +618,30 @@ export interface AnimateSpec {
 import type { PermanentFilter } from "./filters";
 export type { PermanentFilter } from "./filters";
 
+// --- May-pay cost union (CR 117.3a / 118.4 / 702.24) ---
+
+/** The cost a `requestMayPay` decision offers to pay. Generalized from a bare
+ *  `ManaCost` to the small union the Ice Age block's cumulative upkeep
+ *  (CR 702.24) actually demands (ADR 0042): any combination of mana, a flat
+ *  life payment, and a typed sacrifice. All present legs must be paid together
+ *  (all-or-nothing); an absent leg costs nothing.
+ *
+ *  A plain `ManaCost` is still a legal value (the historical mana-only shape) —
+ *  `normalizeMayPayCost` widens it to `{ mana }`, so every existing mana-only
+ *  caller is unaffected. */
+export type MayPayCost =
+    | ManaCost
+    | {
+          /** Mana leg (CR 117.3a). */
+          mana?: ManaCost;
+          /** Flat life leg (CR 118.4 — "Pay N life"). */
+          life?: number;
+          /** Typed sacrifice leg (CR 701.16 — "Sacrifice a land"). `count`
+           *  permanents matching `filter` controlled by the payer are
+           *  sacrificed on accept. */
+          sacrifice?: { filter: PermanentFilter; count: number };
+      };
+
 // --- Token specification (CR 111, 707.1) ---
 
 /** Structural definition of a token permanent created at resolution time
@@ -1695,7 +1719,10 @@ export interface SpellContext {
     requestMayPay: (req: {
         playerId: string;
         choiceId: string;
-        cost?: ManaCost;
+        /** The cost paid on accept. A bare `ManaCost` (mana-only, the historical
+         *  shape) or the `{ mana?, life?, sacrifice? }` union (CR 702.24 — pay
+         *  life, sacrifice, or a mix; ADR 0042). Omit for a cost-less yes/no. */
+        cost?: MayPayCost;
         prompt: string;
     }) => boolean | undefined;
 

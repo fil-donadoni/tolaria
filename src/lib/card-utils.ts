@@ -1,7 +1,11 @@
 import type { CardInstance, ManaPool } from "~/types/game";
 import type { CardType, Color, ManaCost } from "~/types/cards";
 import type { Phase } from "@convex/gre/types";
-import type { PermanentView, TriggerStateView } from "@convex/cards/types";
+import type {
+    MayPayCost,
+    PermanentView,
+    TriggerStateView,
+} from "@convex/cards/types";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
     LAND_SUBTYPE_MANA,
@@ -806,6 +810,96 @@ export function manaCostToString(cost?: ManaCost): string {
         for (let i = 0; i < n; i++) parts.push(`{${c}}`);
     }
     return parts.join("");
+}
+
+/** Normalized `may-pay` cost shape (CR 117.3a / 118.4 / 702.24). Mirrors the
+ *  backend `normalizeMayPayCost` so the UI affordability gate and the cost
+ *  label read the same shape whether the cost arrived as a bare `ManaCost`
+ *  (mana-only) or the `{ mana?, life?, sacrifice? }` union (ADR 0042). */
+export interface NormalizedMayPayCost {
+    mana?: ManaCost;
+    life?: number;
+    sacrifice?: { count: number };
+}
+
+function isMayPayUnion(
+    cost: MayPayCost
+): cost is Exclude<MayPayCost, ManaCost> {
+    return "mana" in cost || "life" in cost || "sacrifice" in cost;
+}
+
+/** Widens either `may-pay` cost shape to `{ mana?, life?, sacrifice? }`. */
+export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
+    if (isMayPayUnion(cost)) {
+        return {
+            ...(cost.mana ? { mana: cost.mana } : {}),
+            ...(cost.life !== undefined ? { life: cost.life } : {}),
+            ...(cost.sacrifice
+                ? { sacrifice: { count: cost.sacrifice.count } }
+                : {}),
+        };
+    }
+    return { mana: cost as ManaCost };
+}
+
+/** UI affordability gate for a `may-pay` cost union (CR 117.6). The mana leg
+ *  must be coverable by `pool`; `life` must be ≤ the chooser's life; the
+ *  sacrifice leg needs at least `count` candidate permanents. Life / sacrifice
+ *  candidate counts come from the caller (the UI knows the chooser's life and a
+ *  precomputed candidate count). A cost with no constraining leg is affordable. */
+export function mayPayCanAfford(
+    cost: MayPayCost | undefined,
+    pool: ManaPool,
+    chooserLife: number,
+    sacrificeCandidateCount: number
+): boolean {
+    if (!cost) return true;
+    const norm = normalizeMayPayCost(cost);
+    if (norm.mana && !isManaCostCovered(pool, norm.mana)) return false;
+    if (norm.life !== undefined && chooserLife < norm.life) return false;
+    if (norm.sacrifice && sacrificeCandidateCount < norm.sacrifice.count) {
+        return false;
+    }
+    return true;
+}
+
+/** Count of a chooser's battlefield permanents that satisfy a `may-pay` cost's
+ *  sacrifice leg (CR 701.16). Returns 0 when the cost has no sacrifice leg.
+ *  Used by the UI affordability gate to know whether the Pay button is legal. */
+export function mayPaySacrificeCount(
+    cost: MayPayCost | undefined,
+    battlefield: CardInstance[]
+): number {
+    if (!cost || !("sacrifice" in cost) || !cost.sacrifice) return 0;
+    // The backend `PermanentFilter` is wider than the UI matcher's shape; the
+    // matcher reads only the fields it knows (types/subtypes/…), which is all
+    // the Ice Age sacrifice legs use ("Sacrifice a land" → { types: "Land" }).
+    const filter = cost.sacrifice.filter as Parameters<
+        typeof matchesPermanentFilter
+    >[1];
+    return battlefield.filter((c) => matchesPermanentFilter(c, filter)).length;
+}
+
+/** Human-readable label for a `may-pay` cost union, rendered after "Pay" on the
+ *  prompt button. Mana renders as symbol tokens (formatOracleText-ready); life
+ *  and sacrifice render as words, joined with " and " (Infernal Darkness:
+ *  "{B} and 1 life"). Returns "" for a cost-less choice. */
+export function mayPayCostLabel(cost?: MayPayCost): string {
+    if (!cost) return "";
+    const norm = normalizeMayPayCost(cost);
+    const parts: string[] = [];
+    if (norm.mana) {
+        const s = manaCostToString(norm.mana);
+        if (s) parts.push(s);
+    }
+    if (norm.life !== undefined && norm.life > 0) {
+        parts.push(`${norm.life} life`);
+    }
+    if (norm.sacrifice) {
+        const n = norm.sacrifice.count;
+        parts.push(n === 1 ? "sacrifice" : `sacrifice ${n}`);
+    }
+    return parts.join(" and ");
 }
 
 export function groupByName(cards: CardInstance[]): CardInstance[][] {

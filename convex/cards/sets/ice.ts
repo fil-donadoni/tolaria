@@ -23,6 +23,7 @@ import type {
 } from "../types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../types";
 import { makeTapForMana } from "../abilities";
+import { cumulativeUpkeepTrigger } from "../abilities/cumulativeUpkeep";
 import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
@@ -1057,15 +1058,42 @@ export const warning: CardDefinition = {
 //     upkeep, Flooded Woodlands (attack restriction with per-attacker cost).
 // ─────────────────────────────────────────────────────────────────────────────
 
-// TODO(#628): implement (cumulative upkeep — ADR 0042 cluster).
-// export const arnjlotsAscent: CardDefinition = {
-//     id: "2307fb16-8b77-45b5-8a02-51a13214791d",
-//     name: "Arnjlot's Ascent",
-//     rarity: "common",
-//     oracleText: "Cumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\n{1}: Target creature gains flying until end of turn.",
-//     manaCost: { X: 1, U: 2 },
-//     types: ["Enchantment"],
-// };
+// Arnjlot's Ascent — {U}{U} Enchantment with cumulative upkeep {U} (CR 702.24)
+// and "{1}: Target creature gains flying until end of turn." The CU keyword is
+// the ADR 0042 template; the activated grant mirrors Flying Carpet (arn.ts).
+export const arnjlotsAscent: CardDefinition = {
+    id: "2307fb16-8b77-45b5-8a02-51a13214791d",
+    name: "Arnjlot's Ascent",
+    rarity: "common",
+    oracleText:
+        "Cumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\n{1}: Target creature gains flying until end of turn.",
+    manaCost: { X: 1, U: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "arnjlots-ascent-cumulative-upkeep",
+            cost: { U: 1 },
+            costLabel: "{U}",
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "arnjlots-ascent-grant-flying",
+            oracleText: "{1}: Target creature gains flying until end of turn.",
+            cost: { mana: { X: 1 } },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.grantStaticAbility(target, "flying", {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const balduvianConjurer: CardDefinition = {
 //     id: "5b616963-fac0-451c-8df4-2cacc9466b17",
@@ -1411,18 +1439,28 @@ export const icyPrison: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
-// export const illusionaryForces: CardDefinition = {
-//     id: "ab02268e-01cf-4729-95ca-5773afd40b56",
-//     name: "Illusionary Forces",
-//     rarity: "common",
-//     oracleText: "Flying\nCumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)",
-//     manaCost: { X: 3, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Illusion"],
-//     power: 4,
-//     toughness: 4,
-// };
+// Illusionary Forces — {3}{U} 4/4 flier with cumulative upkeep {U} (CR 702.24,
+// ADR 0042). Flying is a plain keyword static; the CU keyword is the template.
+export const illusionaryForces: CardDefinition = {
+    id: "ab02268e-01cf-4729-95ca-5773afd40b56",
+    name: "Illusionary Forces",
+    rarity: "common",
+    oracleText:
+        "Flying\nCumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)",
+    manaCost: { X: 3, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Illusion"],
+    power: 4,
+    toughness: 4,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "illusionary-forces-cumulative-upkeep",
+            cost: { U: 1 },
+            costLabel: "{U}",
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const illusionaryPresence: CardDefinition = {
 //     id: "aa31efed-4a11-4f59-a623-bac45d20091d",
@@ -1444,27 +1482,62 @@ export const icyPrison: CardDefinition = {
 //     manaCost: { U: 2 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const illusionaryWall: CardDefinition = {
-//     id: "6430e8e2-fee3-4744-820e-d6e16cb992bd",
-//     name: "Illusionary Wall",
-//     rarity: "common",
-//     oracleText: "Defender, flying, first strike\nCumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)",
-//     manaCost: { X: 4, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Illusion", "Wall"],
-//     power: 7,
-//     toughness: 4,
-// };
-// TODO(#628): implement.
-// export const illusionsOfGrandeur: CardDefinition = {
-//     id: "17eeeef2-2ced-42b8-a5e0-1095c9e13b02",
-//     name: "Illusions of Grandeur",
-//     rarity: "rare",
-//     oracleText: "Cumulative upkeep {2} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nWhen this enchantment enters, you gain 20 life.\nWhen this enchantment leaves the battlefield, you lose 20 life.",
-//     manaCost: { X: 3, U: 1 },
-//     types: ["Enchantment"],
-// };
+// Illusionary Wall — {4}{U} 7/4 with defender, flying, first strike and
+// cumulative upkeep {U} (CR 702.24, ADR 0042). All keywords are plain statics.
+export const illusionaryWall: CardDefinition = {
+    id: "6430e8e2-fee3-4744-820e-d6e16cb992bd",
+    name: "Illusionary Wall",
+    rarity: "common",
+    oracleText:
+        "Defender, flying, first strike\nCumulative upkeep {U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)",
+    manaCost: { X: 4, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Illusion", "Wall"],
+    power: 7,
+    toughness: 4,
+    staticAbilities: ["defender", "flying", "first strike"],
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "illusionary-wall-cumulative-upkeep",
+            cost: { U: 1 },
+            costLabel: "{U}",
+        }),
+    ],
+};
+// Illusions of Grandeur — {3}{U} Enchantment with cumulative upkeep {2}
+// (CR 702.24), an ETB "gain 20 life" and an LTB "lose 20 life" (the classic
+// Donate combo half). CU is the ADR 0042 template; the life swings are self-
+// scoped enter/left triggers (CR 603.6).
+export const illusionsOfGrandeur: CardDefinition = {
+    id: "17eeeef2-2ced-42b8-a5e0-1095c9e13b02",
+    name: "Illusions of Grandeur",
+    rarity: "rare",
+    oracleText:
+        "Cumulative upkeep {2} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nWhen this enchantment enters, you gain 20 life.\nWhen this enchantment leaves the battlefield, you lose 20 life.",
+    manaCost: { X: 3, U: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "illusions-of-grandeur-cumulative-upkeep",
+            cost: { X: 2 },
+            costLabel: "{2}",
+        }),
+        enteredTrigger({
+            id: "illusions-of-grandeur-etb",
+            oracleText: "When this enchantment enters, you gain 20 life.",
+            scope: "self",
+            resolve: (ctx: SpellContext) => ctx.gainLife(ctx.controller, 20),
+        }),
+        leftTrigger({
+            id: "illusions-of-grandeur-ltb",
+            oracleText:
+                "When this enchantment leaves the battlefield, you lose 20 life.",
+            scope: "self",
+            resolve: (ctx: SpellContext, _event, leaving) =>
+                ctx.loseLife(leaving.controllerId, 20),
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const infuse: CardDefinition = {
 //     id: "223287b6-224c-4e00-946c-e7ac5539bd45",
@@ -1498,15 +1571,59 @@ export const icyPrison: CardDefinition = {
 //     power: 1,
 //     toughness: 1,
 // };
-// TODO(#628): implement.
-// export const mesmericTrance: CardDefinition = {
-//     id: "ae3df593-e9d5-479d-9a9a-1c7262dd9c6c",
-//     name: "Mesmeric Trance",
-//     rarity: "rare",
-//     oracleText: "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\n{U}, Discard a card: Draw a card.",
-//     manaCost: { X: 1, U: 2 },
-//     types: ["Enchantment"],
-// };
+// Mesmeric Trance — {1}{U}{U} Enchantment with cumulative upkeep {1}
+// (CR 702.24) and "{U}, Discard a card: Draw a card." The chosen-discard cost
+// is paid in-resolve (CR 601.2h convention, Dwarven Armorer pattern): step 0
+// discards a chosen card, step 1 draws only if the discard was paid.
+export const mesmericTrance: CardDefinition = {
+    id: "ae3df593-e9d5-479d-9a9a-1c7262dd9c6c",
+    name: "Mesmeric Trance",
+    rarity: "rare",
+    oracleText:
+        "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\n{U}, Discard a card: Draw a card.",
+    manaCost: { X: 1, U: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "mesmeric-trance-cumulative-upkeep",
+            cost: { X: 1 },
+            costLabel: "{1}",
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "mesmeric-trance-loot",
+            oracleText: "{U}, Discard a card: Draw a card.",
+            cost: { mana: { U: 1 } },
+            useStack: true,
+            resolveSteps: [
+                // Step 0 — pay the discard portion of the cost (a chosen card).
+                (ctx: SpellContext) => {
+                    const handIds = ctx.getHandIds(ctx.controller);
+                    if (handIds.length === 0) return;
+                    const picked = ctx.requestChoice({
+                        playerId: ctx.controller,
+                        choiceId: "mesmeric-trance-discard",
+                        kind: "choose-hand-card",
+                        zone: "hand",
+                        count: 1,
+                        prompt: "Discard a card (Mesmeric Trance).",
+                    });
+                    if (!picked || picked.length === 0) return;
+                    ctx.discardCard(ctx.controller, picked[0]);
+                },
+                // Step 1 — draw a card (CR 121.1). Only if a discard was paid.
+                (ctx: SpellContext) => {
+                    const discarded = ctx.recallChoice(
+                        "mesmeric-trance-discard"
+                    );
+                    if (!discarded || discarded.length === 0) return;
+                    ctx.drawCards(ctx.controller, 1);
+                },
+            ],
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const mistfolk: CardDefinition = {
 //     id: "4f3f4d4e-ca4a-4fba-b9fd-cd1d9457cfa1",
@@ -1562,18 +1679,31 @@ export const icyPrison: CardDefinition = {
 //     power: 1,
 //     toughness: 1,
 // };
-// TODO(#628): implement.
-// export const polarKraken: CardDefinition = {
-//     id: "aee01e9c-0445-4228-a73a-3e5744844ed3",
-//     name: "Polar Kraken",
-//     rarity: "rare",
-//     oracleText: "Trample\nThis creature enters tapped.\nCumulative upkeep—Sacrifice a land. (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)",
-//     manaCost: { X: 8, U: 3 },
-//     types: ["Creature"],
-//     subtypes: ["Kraken"],
-//     power: 11,
-//     toughness: 11,
-// };
+// Polar Kraken — {8}{U}{U}{U} 11/11 with trample, enters tapped, and the only
+// SACRIFICE-cost cumulative upkeep in the set: "Cumulative upkeep—Sacrifice a
+// land." (CR 702.24, ADR 0042). At N age counters the controller sacrifices N
+// lands or sacrifices the Kraken.
+export const polarKraken: CardDefinition = {
+    id: "aee01e9c-0445-4228-a73a-3e5744844ed3",
+    name: "Polar Kraken",
+    rarity: "rare",
+    oracleText:
+        "Trample\nThis creature enters tapped.\nCumulative upkeep—Sacrifice a land. (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)",
+    manaCost: { X: 8, U: 3 },
+    types: ["Creature"],
+    subtypes: ["Kraken"],
+    power: 11,
+    toughness: 11,
+    entersTapped: true,
+    staticAbilities: ["trample"],
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "polar-kraken-cumulative-upkeep",
+            cost: { sacrifice: { filter: { types: "Land" }, count: 1 } },
+            costLabel: "Sacrifice a land",
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const portent: CardDefinition = {
 //     id: "e040be83-3fb5-4da5-ba7a-4923b8854b74",
@@ -5030,15 +5160,57 @@ export const yavimayaGnats: CardDefinition = {
     ],
 };
 // ── Green capability-cluster stubs (cumulative upkeep — ADR 0042) ────────────
-// TODO(#628): implement.
-// export const fyndhornPollen: CardDefinition = {
-//     id: "3efbe59d-bebc-40b1-85ac-2e4c1ff3731e",
-//     name: "Fyndhorn Pollen",
-//     rarity: "rare",
-//     oracleText: "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nAll creatures get -1/-0.\n{1}{G}: All creatures get -1/-0 until end of turn.",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Enchantment"],
-// };
+// Fyndhorn Pollen — {2}{G} Enchantment with cumulative upkeep {1} (CR 702.24),
+// a continuous "All creatures get -1/-0" anthem (layer 7c) and "{1}{G}: All
+// creatures get -1/-0 until end of turn." Static mirrors Weakstone (atq.ts);
+// the mass EOT pump mirrors Bone Flute (drk.ts).
+export const fyndhornPollen: CardDefinition = {
+    id: "3efbe59d-bebc-40b1-85ac-2e4c1ff3731e",
+    name: "Fyndhorn Pollen",
+    rarity: "rare",
+    oracleText:
+        "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nAll creatures get -1/-0.\n{1}{G}: All creatures get -1/-0 until end of turn.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            // CR 611 layer 7c — every creature gets -1/-0 (no controller clause).
+            kind: "pt-buff",
+            applies: (target, _source, ctx) => ctx.isCreature(target),
+            power: -1,
+            toughness: 0,
+        },
+    ],
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "fyndhorn-pollen-cumulative-upkeep",
+            cost: { X: 1 },
+            costLabel: "{1}",
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "fyndhorn-pollen-mass-shrink",
+            oracleText: "{1}{G}: All creatures get -1/-0 until end of turn.",
+            cost: { mana: { X: 1, G: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                for (const pid of ctx.allPlayerIds) {
+                    for (const id of ctx.getBattlefieldIds(pid, {
+                        types: "Creature",
+                    })) {
+                        ctx.addTemporaryPTBuff(
+                            { type: "permanent", id },
+                            -1,
+                            0,
+                            { phase: "end-of-turn" }
+                        );
+                    }
+                }
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const giantGrowth: CardDefinition = {
 //     id: "431c9749-fd7b-4960-a910-8d41d3704e6c",
@@ -5123,16 +5295,38 @@ export const yavimayaGnats: CardDefinition = {
 //     types: ["Enchantment"],
 //     subtypes: ["Aura"],
 // };
-// TODO(#628): implement.
-// export const maddeningWind: CardDefinition = {
-//     id: "5277656c-70f5-4660-bd58-7d9261d53fb5",
-//     name: "Maddening Wind",
-//     rarity: "uncommon",
-//     oracleText: "Enchant creature\nCumulative upkeep {G} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nAt the beginning of the upkeep of enchanted creature's controller, this Aura deals 2 damage to that player.",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Maddening Wind — {2}{G} Aura "Enchant creature" with cumulative upkeep {G}
+// (CR 702.24, paid by the Aura's controller — scope "your") and a host-
+// controller upkeep trigger dealing 2 damage to the enchanted creature's
+// controller (Feedback pattern, lea.ts).
+export const maddeningWind: CardDefinition = {
+    id: "5277656c-70f5-4660-bd58-7d9261d53fb5",
+    name: "Maddening Wind",
+    rarity: "uncommon",
+    oracleText:
+        "Enchant creature\nCumulative upkeep {G} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nAt the beginning of the upkeep of enchanted creature's controller, this Aura deals 2 damage to that player.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "maddening-wind-cumulative-upkeep",
+            cost: { G: 1 },
+            costLabel: "{G}",
+        }),
+        phaseTrigger({
+            id: "maddening-wind-upkeep-damage",
+            oracleText:
+                "At the beginning of the upkeep of enchanted creature's controller, this Aura deals 2 damage to that player.",
+            phase: "UPKEEP",
+            scope: "host-controller",
+            resolve: (ctx, _event, hostController) => {
+                ctx.dealDamage({ type: "player", id: hostController }, 2);
+            },
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const naturesLore: CardDefinition = {
 //     id: "668d2969-b6b7-4507-bdd4-20bbaa68035a",
@@ -6605,20 +6799,44 @@ export const snowFortress: CardDefinition = {
 //     power: 5,
 //     toughness: 3,
 // };
-// DEFERRED (cumulative upkeep, ADR 0042) — owned by the cumulative-upkeep
-// capability cluster. The {1} self-pump is trivial; only the cumulative-upkeep
-// clause is missing.
-// export const soldeviSimulacrum: CardDefinition = {
-//     id: "9fabc7b6-e766-4e3c-816e-04cfeceaff09",
-//     name: "Soldevi Simulacrum",
-//     rarity: "uncommon",
-//     oracleText: "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\n{1}: This creature gets +1/+0 until end of turn.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact", "Creature"],
-//     subtypes: ["Soldier"],
-//     power: 2,
-//     toughness: 4,
-// };
+// Soldevi Simulacrum — {4} Artifact Creature 2/4 with cumulative upkeep {1}
+// (CR 702.24, ADR 0042) and firebreathing "{1}: This creature gets +1/+0 until
+// end of turn." (CR 611.1 temporary P/T mod, Dragon Engine pattern).
+export const soldeviSimulacrum: CardDefinition = {
+    id: "9fabc7b6-e766-4e3c-816e-04cfeceaff09",
+    name: "Soldevi Simulacrum",
+    rarity: "uncommon",
+    oracleText:
+        "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\n{1}: This creature gets +1/+0 until end of turn.",
+    manaCost: { X: 4 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Soldier"],
+    power: 2,
+    toughness: 4,
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "soldevi-simulacrum-cumulative-upkeep",
+            cost: { X: 1 },
+            costLabel: "{1}",
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "soldevi-simulacrum-firebreathing",
+            oracleText: "{1}: This creature gets +1/+0 until end of turn.",
+            cost: { mana: { X: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
 // Staff of the Ages — Creatures with landwalk abilities can be blocked as
 // though they didn't have those abilities (CR 509.1b / 702.13 landwalk-negation
 // static, battlefield-scanned). Expressed with the parametric landwalk-negation

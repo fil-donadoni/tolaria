@@ -16,6 +16,10 @@ import {
     getManaChoices,
     hasManaAbility,
     isLandwalkUnblockable,
+    mayPayCanAfford,
+    mayPayCostLabel,
+    mayPaySacrificeCount,
+    normalizeMayPayCost,
     type DisplayAbilities,
 } from "../card-utils";
 import type { CardInstance } from "~/types/game";
@@ -1322,5 +1326,72 @@ describe("isLandwalkUnblockable (landwalk-negation parity, CR 509.1b / 702.13)",
                 }),
             ])
         ).toBe(false);
+    });
+});
+
+describe("may-pay cost union helpers (CR 117.3a / 118.4 / 702.24, #638)", () => {
+    it("normalizeMayPayCost widens a bare ManaCost to { mana }", () => {
+        expect(normalizeMayPayCost({ U: 1 })).toEqual({ mana: { U: 1 } });
+        expect(normalizeMayPayCost({ mana: { B: 1 }, life: 1 })).toEqual({
+            mana: { B: 1 },
+            life: 1,
+        });
+    });
+
+    it("mayPayCostLabel renders mana symbols, life, and sacrifice words", () => {
+        expect(mayPayCostLabel({ X: 1, U: 1 })).toBe("{1}{U}");
+        expect(mayPayCostLabel({ life: 2 })).toBe("2 life");
+        expect(mayPayCostLabel({ mana: { B: 1 }, life: 1 })).toBe(
+            "{B} and 1 life"
+        );
+        expect(
+            mayPayCostLabel({
+                sacrifice: { filter: { types: "Land" as const }, count: 1 },
+            })
+        ).toBe("sacrifice");
+        expect(
+            mayPayCostLabel({
+                sacrifice: { filter: { types: "Land" as const }, count: 2 },
+            })
+        ).toBe("sacrifice 2");
+    });
+
+    it("mayPayCanAfford gates each leg (mana / life / sacrifice)", () => {
+        const pool = { U: 1 };
+        // mana leg
+        expect(mayPayCanAfford({ U: 1 }, pool, 20, 0)).toBe(true);
+        expect(mayPayCanAfford({ U: 2 }, pool, 20, 0)).toBe(false);
+        // life leg
+        expect(mayPayCanAfford({ life: 2 }, {}, 20, 0)).toBe(true);
+        expect(mayPayCanAfford({ life: 2 }, {}, 1, 0)).toBe(false);
+        // sacrifice leg (candidate count supplied by the caller)
+        const sac = {
+            sacrifice: { filter: { types: "Land" as const }, count: 2 },
+        };
+        expect(mayPayCanAfford(sac, {}, 20, 2)).toBe(true);
+        expect(mayPayCanAfford(sac, {}, 20, 1)).toBe(false);
+        // mixed: all-or-nothing
+        const mix = { mana: { B: 1 }, life: 1 };
+        expect(mayPayCanAfford(mix, { B: 1 }, 20, 0)).toBe(true);
+        expect(mayPayCanAfford(mix, { B: 1 }, 0, 0)).toBe(false);
+        // cost-less is always affordable
+        expect(mayPayCanAfford(undefined, {}, 0, 0)).toBe(true);
+    });
+
+    it("mayPaySacrificeCount counts matching battlefield permanents", () => {
+        const bf = [
+            makeCardInstance({ id: "l1", types: ["Land"] }),
+            makeCardInstance({ id: "l2", types: ["Land"] }),
+            makeCardInstance({ id: "c1", types: ["Creature"] }),
+        ];
+        expect(
+            mayPaySacrificeCount(
+                { sacrifice: { filter: { types: "Land" as const }, count: 1 } },
+                bf
+            )
+        ).toBe(2);
+        // No sacrifice leg → 0.
+        expect(mayPaySacrificeCount({ U: 1 }, bf)).toBe(0);
+        expect(mayPaySacrificeCount(undefined, bf)).toBe(0);
     });
 });
