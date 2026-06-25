@@ -121,6 +121,25 @@ For each ability on the card, classify:
 
 Report clearly what works and what needs engine extensions.
 
+### Step 7 — Refresh the card-index lockfile (mandatory)
+
+`data/card-index.json` (ADR 0041) is the committed index of every implemented
+card and the only thing the worklist importer (`list-to-cards.mjs`) dedups
+against. It does **not** auto-update — adding a card leaves it stale until you
+regenerate it from the registry:
+
+```sh
+printf '[]\n' > data/card-index.json && bun run scripts/backfill-card-index.ts
+```
+
+(Reset to `[]` first: `backfill` is additive and cannot remove stale/pollution
+entries on its own. The fetch is online — Scryfall, ~1 req/75 cards.)
+
+The drift guard `bun run check:index` (part of `check:all`) fails when the
+lockfile is out of sync — both directions: implemented-but-not-indexed
+(stale) and indexed-but-not-implemented (pollution). If it fails, run the
+command above; never hand-edit the lockfile.
+
 ## Validation checklist
 
 - [ ] ManaCost matches Scryfall oracle
@@ -131,8 +150,10 @@ Report clearly what works and what needs engine extensions.
 - [ ] resolve() uses only existing SpellContext methods
 - [ ] `id` == the card's `identifiers.scryfallId` from `data/json/<SET>.json` (NOT a generated UUID)
 - [ ] All matching `CardPrint` stubs in `convex/cards/sets/*.ts` uncommented (Step 5b)
+- [ ] `data/card-index.json` regenerated via `backfill-card-index.ts` (Step 7) — `bun run check:index` passes
 
 The deck builder's card list is computed in-memory from
 `convex/cards/sets/*.ts` on every query call (see `convex/cardIndex.ts`),
 so a new card appears in the builder as soon as the Convex deploy picks up
-the new module — no sync step required.
+the new module — no sync step required. The **lockfile** is the one artifact
+that needs the explicit refresh in Step 7.

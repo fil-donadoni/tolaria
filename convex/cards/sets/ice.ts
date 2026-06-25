@@ -23,6 +23,7 @@ import type {
     TriggeredAbility,
 } from "../types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../types";
+import { manaCostForCardId } from "../manaCostLookup";
 import { makeTapForMana } from "../abilities";
 import { cumulativeUpkeepTrigger } from "../abilities/cumulativeUpkeep";
 import { enteredTrigger } from "../abilities/triggers/enteredTrigger";
@@ -75,6 +76,106 @@ function makeUpkeepPayOrElse(args: {
     });
 }
 
+// Colors (CR 202.2) of a battlefield-view permanent, derived from its mana
+// cost. The engine stores only the slim `{ id }` card reference, so the colour
+// comes from the registry's `manaCost` (an embedded cost is honored first if a
+// fat view ever provides one). Mirrors fem.ts's `colorsOfView` / leg.ts's
+// `colorsOf` exactly — including the inlined colour list — so this set module
+// never imports `../colors` (which sits in a `colors → gre/constants → index →
+// sets` cycle and would create a TDZ hazard under strict ESM evaluation). Used
+// by predicates that have no `StaticEffectContext` (block-restriction).
+function colorsOfView(view: {
+    card?: Record<string, unknown>;
+}): readonly ("W" | "U" | "B" | "R" | "G")[] {
+    const card = view.card ?? {};
+    const inlined = (card as { manaCost?: ManaCost }).manaCost;
+    const cardId = (card as { id?: string }).id;
+    const cost = inlined ?? (cardId ? manaCostForCardId(cardId) : undefined);
+    if (!cost) return [];
+    return (["W", "U", "B", "R", "G"] as const).filter(
+        (c) => (cost[c] ?? 0) > 0
+    );
+}
+
+// Scarab cycle (Black/Blue/Green/Red/White Scarab) — {W} Aura. Two effects on
+// the host: (1) "can't be blocked by {color} creatures" (CR 509.1b
+// block-restriction, side "attacker" — restricts the host's would-be blockers);
+// (2) "+2/+2 as long as an opponent controls a {color} permanent" (CR 611.2c
+// conditional `pt-buff` gated on board state). The colour is fixed per card.
+const SCARAB_COLOR_NAMES: Record<"W" | "U" | "B" | "R" | "G", string> = {
+    W: "white",
+    U: "blue",
+    B: "black",
+    R: "red",
+    G: "green",
+};
+
+/** True when SOME permanent of `color` is controlled by a player other than
+ *  `myControllerId` — i.e. (in a 2-player game) the opponent controls a
+ *  permanent of the Scarab's colour. Unlike Jihad's clause this is NOT
+ *  nontoken-restricted (CR 202.2 — "a {color} permanent"). */
+function opponentControlsColor(
+    state: import("../types").StaticEffectStateView,
+    myControllerId: string,
+    color: "W" | "U" | "B" | "R" | "G",
+    colorsOf: (perm: PermanentView) => readonly string[]
+): boolean {
+    return state.players.some((p) =>
+        p.battlefield.some(
+            (c) =>
+                c.controllerId !== myControllerId && colorsOf(c).includes(color)
+        )
+    );
+}
+
+function makeScarab(args: {
+    id: string;
+    name: string;
+    rarity: CardDefinition["rarity"];
+    color: "W" | "U" | "B" | "R" | "G";
+}): CardDefinition {
+    const colorName = SCARAB_COLOR_NAMES[args.color];
+    return {
+        id: args.id,
+        name: args.name,
+        rarity: args.rarity,
+        oracleText: `Enchant creature\nEnchanted creature can't be blocked by ${colorName} creatures.\nEnchanted creature gets +2/+2 as long as an opponent controls a ${colorName} permanent.`,
+        manaCost: { W: 1 },
+        types: ["Enchantment"],
+        subtypes: ["Aura"],
+        targetRequirement: { type: "Creature", count: 1 },
+        staticEffects: [
+            {
+                kind: "block-restriction",
+                id: `${args.id}-cant-be-blocked-by-${colorName}`,
+                // The block-restriction is collected from this Aura and applied
+                // to its host (CR 303.4). side "attacker": `self` = the enchanted
+                // creature (attacker), `opponent` = the candidate blocker. Legal
+                // (true) unless the blocker is the Scarab's colour.
+                side: "attacker",
+                predicate: (_self, blocker) =>
+                    !colorsOfView(blocker).includes(args.color),
+                oracleText: `Enchanted creature can't be blocked by ${colorName} creatures.`,
+            },
+            {
+                kind: "pt-buff",
+                applies: AURA_AFFECTS_HOST,
+                // CR 611.2c — the buff only contributes while an opponent
+                // controls a permanent of the Scarab's colour.
+                condition: (source, state, ctx) =>
+                    opponentControlsColor(
+                        state,
+                        source.controllerId,
+                        args.color,
+                        (c) => ctx.getColors(c)
+                    ),
+                power: 2,
+                toughness: 2,
+            },
+        ],
+    };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Active tracer
 // ─────────────────────────────────────────────────────────────────────────────
@@ -105,19 +206,40 @@ export const balduvianBears: CardDefinition = {
 // their existing definitions (ADR 0014); new-to-ICE White cards are full
 // CardDefinitions.
 //
+// COMPLETED in the buildable-now follow-up (#653) — activated below from
+// already-shipped primitives: the five Scarabs (block-restriction +
+// conditional pt-buff), Caribou Range (activated-grant + sacrifice-filter
+// lifegain), Call to Arms (Jihad-style conditional anthem with strict
+// plurality + state-trigger sacrifice), Fylgja (entersWith counters +
+// counter-removal prevention), Justice (upkeep pay-or-sac + red-damage
+// reflect), Seraph (Krovikan-Vampire-style next-end-step reanimate).
+//
 // DEFERRED (remain commented stubs, owned by a later cluster):
 //   • Cumulative upkeep — Cold Snap, Energy Storm (ADR 0042 cluster).
 //   • Restricted-mana CU support — Adarkar Unicorn (CU mana cluster).
-//   • Color/power-conditional block restrictions — Arctic Foxes, Hipparion, the
-//     five Scarabs (no TargetRequirement/static support yet).
+//   • Snow-gated combat eligibility — Arctic Foxes (block restriction keyed on
+//     "defending player controls a snow land"), Kjeldoran Guard (snow-land
+//     activation gate) — owned by the Snow cluster.
+//   • Power-conditional block restriction with a per-block cost — Hipparion
+//     ("can't block power 3+ unless you pay {1}" — no pay-as-block primitive).
 //   • "Draw a card at the beginning of the next turn's upkeep" delayed cantrips —
 //     Blessed Wine, Heal, Lightning Blow, Formation (no `next-upkeep` delayed
 //     timing yet).
-//   • Specialized interactions — Arenson's Aura, Battle Cry, Call to Arms,
-//     Caribou Range, Drought, Enduring Renewal, Fylgja, General Jarkeld, Justice,
-//     Kjeldoran Elite Guard / Guard, Kjeldoran Royal Guard, Prismatic Ward,
-//     Sacred Boon, Seraph (each needs a primitive not yet built; flagged for its
-//     capability cluster).
+//   • Specialized interactions still missing a primitive — Arenson's Aura,
+//     Battle Cry, Drought, Enduring Renewal, General Jarkeld.
+//   • Sacred Boon — "+0/+1 counter for each 1 damage prevented this way" needs
+//     the prevention pipeline to report the amount actually consumed; no
+//     primitive exposes prevented-amount today (#653 flagged, deferred).
+//   • Prismatic Ward — needs a colour-keyed ALL-damage prevention shield that
+//     applies to an Aura's HOST plus a stored colour choice; the shipped
+//     `combat-damage-prevention` static is self-only and combat-only (#653
+//     flagged, deferred).
+//   • Kjeldoran Elite Guard — "+2/+2 until that creature leaves the battlefield
+//     this turn, then sacrifice this" needs a per-turn linked-trigger watching a
+//     specific instance leave; not modelled (#653 flagged, deferred).
+//   • Kjeldoran Royal Guard — "all combat damage to you from unblocked
+//     creatures is dealt to this creature instead" needs a global combat-damage
+//     redirect shield; not modelled (#653 flagged, deferred).
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Adarkar Unicorn — {T}: Add {U} or {C}{U}, restricted to cumulative-upkeep
@@ -224,16 +346,12 @@ export const armorOfFaith: CardDefinition = {
 //     manaCost: { X: 2, W: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
-// export const blackScarab: CardDefinition = {
-//     id: "5bfd4ee1-05f9-45ae-a31d-1225b271dbe6",
-//     name: "Black Scarab",
-//     rarity: "uncommon",
-//     oracleText: "Enchant creature\nEnchanted creature can't be blocked by black creatures.\nEnchanted creature gets +2/+2 as long as an opponent controls a black permanent.",
-//     manaCost: { W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+export const blackScarab: CardDefinition = makeScarab({
+    id: "5bfd4ee1-05f9-45ae-a31d-1225b271dbe6",
+    name: "Black Scarab",
+    rarity: "uncommon",
+    color: "B",
+});
 // TODO(#628): implement.
 // export const blessedWine: CardDefinition = {
 //     id: "6b9a92f9-9bbc-4887-9fbc-0f7212fd5e66",
@@ -270,35 +388,181 @@ export const blinkingSpirit: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const blueScarab: CardDefinition = {
-//     id: "b423bb5a-eaac-4c1d-981a-1c635001fc5a",
-//     name: "Blue Scarab",
-//     rarity: "uncommon",
-//     oracleText: "Enchant creature\nEnchanted creature can't be blocked by blue creatures.\nEnchanted creature gets +2/+2 as long as an opponent controls a blue permanent.",
-//     manaCost: { W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
-// TODO(#628): implement.
-// export const callToArms: CardDefinition = {
-//     id: "a92f0d4a-23d8-47d4-b910-d142e0eefd3d",
-//     name: "Call to Arms",
-//     rarity: "rare",
-//     oracleText: "As this enchantment enters, choose a color and an opponent.\nWhite creatures get +1/+1 as long as the chosen color is the most common color among nontoken permanents the chosen player controls but isn't tied for most common.\nWhen the chosen color isn't the most common color among nontoken permanents the chosen player controls or is tied for most common, sacrifice this enchantment.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Enchantment"],
-// };
-// TODO(#628): implement.
-// export const caribouRange: CardDefinition = {
-//     id: "1e5f8041-67fc-4e00-b119-d216e5cc5a3a",
-//     name: "Caribou Range",
-//     rarity: "rare",
-//     oracleText: "Enchant land you control\nEnchanted land has \"{W}{W}, {T}: Create a 0/1 white Caribou creature token.\"\nSacrifice a Caribou token: You gain 1 life.",
-//     manaCost: { X: 2, W: 2 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+export const blueScarab: CardDefinition = makeScarab({
+    id: "b423bb5a-eaac-4c1d-981a-1c635001fc5a",
+    name: "Blue Scarab",
+    rarity: "uncommon",
+    color: "U",
+});
+// Call to Arms — {1}{W} Enchantment. "As this enchantment enters, choose a
+// color and an opponent. White creatures get +1/+1 as long as the chosen color
+// is the most common color among nontoken permanents the chosen player controls
+// but isn't tied for most common. When the chosen color isn't the strict
+// plurality, sacrifice this enchantment." (CR 611.2c conditional anthem +
+// CR 603.8 state-triggered self-sacrifice.) Built on the Jihad template
+// (arn.ts): the colour is a cast-time modal pick (CR 700.2, `chosenModeId`);
+// "an opponent" auto-resolves to the single opponent in a duel — the clause
+// keys off "nontoken permanents a player other than the source's controller
+// controls". The difference from Jihad is the activeness test: STRICT plurality
+// of the chosen colour among that opponent's nontoken permanents, computed live.
+const CALL_TO_ARMS_COLORS: ("W" | "U" | "B" | "R" | "G")[] = [
+    "W",
+    "U",
+    "B",
+    "R",
+    "G",
+];
+
+/** Battlefield-permanent shape both `StaticEffectStateView` (layer reads) and
+ *  `TriggerStateView` (state-trigger reads) satisfy — the only fields the
+ *  plurality count needs. */
+type ColorCountablePerm = {
+    controllerId: string;
+    isToken?: boolean;
+    card?: Record<string, unknown>;
+};
+
+/** True when `color` is the strict plurality (most common, not tied) among the
+ *  colours of the nontoken permanents controlled by a player OTHER than
+ *  `myControllerId`. A permanent contributes to EVERY colour it is (CR 105.2 —
+ *  a multicolor permanent counts for each). Returns false when the opponent has
+ *  no coloured nontoken permanents (no plurality exists). Generic over the
+ *  battlefield-item shape so it serves both the layer view and the trigger
+ *  view; `colorsOf` abstracts each view's colour derivation. */
+function chosenColorIsStrictPlurality<T extends ColorCountablePerm>(
+    battlefield: ReadonlyArray<T>,
+    myControllerId: string,
+    color: "W" | "U" | "B" | "R" | "G",
+    colorsOf: (perm: T) => readonly string[]
+): boolean {
+    const tally: Record<string, number> = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+    for (const c of battlefield) {
+        if (c.controllerId === myControllerId) continue;
+        if (c.isToken) continue;
+        for (const col of colorsOf(c)) {
+            if (col in tally) tally[col]++;
+        }
+    }
+    const mine = tally[color];
+    if (mine === 0) return false;
+    return CALL_TO_ARMS_COLORS.every((c) => c === color || tally[c] < mine);
+}
+
+export const callToArms: CardDefinition = {
+    id: "a92f0d4a-23d8-47d4-b910-d142e0eefd3d",
+    name: "Call to Arms",
+    rarity: "rare",
+    oracleText:
+        "As this enchantment enters, choose a color and an opponent.\nWhite creatures get +1/+1 as long as the chosen color is the most common color among nontoken permanents the chosen player controls but isn't tied for most common.\nWhen the chosen color isn't the most common color among nontoken permanents the chosen player controls or is tied for most common, sacrifice this enchantment.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Enchantment"],
+    // CR 700.2 — the colour is chosen as the enchantment enters (modal pick).
+    modes: CALL_TO_ARMS_COLORS.map((color) => ({
+        id: color,
+        label: SCARAB_COLOR_NAMES[color],
+        oracleText: `White creatures get +1/+1 as long as ${SCARAB_COLOR_NAMES[color]} is the strict plurality colour among nontoken permanents the chosen player controls.`,
+        staticEffects: [
+            {
+                kind: "pt-buff" as const,
+                // CR 202.2 — the anthem always boosts WHITE creatures; only the
+                // active-condition keys off the chosen colour's plurality.
+                applies: (target, _source, ctx) =>
+                    ctx.isCreature(target) &&
+                    ctx.getColors(target).includes("W"),
+                condition: (source, state, ctx) =>
+                    chosenColorIsStrictPlurality(
+                        state.players.flatMap((p) => p.battlefield),
+                        source.controllerId,
+                        color,
+                        (c) => ctx.getColors(c)
+                    ),
+                power: 1,
+                toughness: 1,
+            },
+        ],
+    })),
+    triggeredAbilities: [
+        stateTrigger({
+            id: "call-to-arms-sacrifice",
+            oracleText:
+                "When the chosen color isn't the strict plurality among nontoken permanents the chosen player controls, sacrifice this enchantment.",
+            condition: (self, state) => {
+                const color = self.chosenModeId as
+                    | "W"
+                    | "U"
+                    | "B"
+                    | "R"
+                    | "G"
+                    | undefined;
+                if (!color) return false;
+                return !chosenColorIsStrictPlurality(
+                    state.players.flatMap((p) => p.battlefield),
+                    self.controllerId,
+                    color,
+                    (c) => colorsOfView(c)
+                );
+            },
+            resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+        }),
+    ],
+};
+// Caribou Range — {2}{W}{W} Aura on a land you control. Grants the enchanted
+// land an activated token-maker ("{W}{W}, {T}: Create a 0/1 white Caribou")
+// via `activated-grant` (CR 113.1, 611 — the granted ability resolves with the
+// HOST land as `sourceInstanceId`, so {T} taps the land and the token is
+// controlled by the land's controller), plus a card-level lifegain ability that
+// uses a Caribou token as its sacrifice cost (CR 602.1, 118.5 sacrificeFilter).
+export const caribouRange: CardDefinition = {
+    id: "1e5f8041-67fc-4e00-b119-d216e5cc5a3a",
+    name: "Caribou Range",
+    rarity: "rare",
+    oracleText:
+        'Enchant land you control\nEnchanted land has "{W}{W}, {T}: Create a 0/1 white Caribou creature token."\nSacrifice a Caribou token: You gain 1 life.',
+    manaCost: { X: 2, W: 2 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Land", count: 1, controller: "you" },
+    staticEffects: [
+        {
+            kind: "activated-grant",
+            applies: AURA_AFFECTS_HOST,
+            abilityId: "caribou-range-make-caribou",
+        },
+    ],
+    grantTemplates: [
+        {
+            id: "caribou-range-make-caribou",
+            oracleText:
+                "{W}{W}, {T}: Create a 0/1 white Caribou creature token.",
+            cost: { mana: { W: 2 }, tap: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.createToken(
+                    {
+                        name: "Caribou",
+                        types: ["Creature"],
+                        subtypes: ["Caribou"],
+                        power: 0,
+                        toughness: 1,
+                        colors: ["W"],
+                    },
+                    ctx.controller
+                );
+            },
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "caribou-range-gain-life",
+            oracleText: "Sacrifice a Caribou token: You gain 1 life.",
+            cost: { sacrificeFilter: { subtypes: "Caribou", isToken: true } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.gainLife(ctx.controller, 1);
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // Circle of Protection cycle — ICE reprints of the LEA/LEB Circles (CR 615
 // prevention). Mechanics live on the existing definitions; these are CardPrints
@@ -450,16 +714,54 @@ export const elvishHealer: CardDefinition = {
 //     manaCost: { X: 1, W: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
-// export const fylgja: CardDefinition = {
-//     id: "3c6358a1-37f0-4b40-93d4-4f1652c38404",
-//     name: "Fylgja",
-//     rarity: "common",
-//     oracleText: "Enchant creature\nThis Aura enters with four healing counters on it.\nRemove a healing counter from this Aura: Prevent the next 1 damage that would be dealt to enchanted creature this turn.\n{2}{W}: Put a healing counter on this Aura.",
-//     manaCost: { W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Fylgja — {W} Aura. Enters with four healing counters (CR 122.1, 614.1c
+// `entersWith`); "Remove a healing counter: prevent the next 1 damage to the
+// enchanted creature this turn" (CR 602.1 counter-removal cost + CR 615
+// prevention shield on the host); "{2}{W}: put a healing counter on this Aura"
+// (replenishes the pool). The prevention targets the host via `getAttachedTo`.
+export const fylgja: CardDefinition = {
+    id: "3c6358a1-37f0-4b40-93d4-4f1652c38404",
+    name: "Fylgja",
+    rarity: "common",
+    oracleText:
+        "Enchant creature\nThis Aura enters with four healing counters on it.\nRemove a healing counter from this Aura: Prevent the next 1 damage that would be dealt to enchanted creature this turn.\n{2}{W}: Put a healing counter on this Aura.",
+    manaCost: { W: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    entersWith: { counters: [{ type: "healing", count: 4 }] },
+    activatedAbilities: [
+        {
+            id: "fylgja-prevent",
+            oracleText:
+                "Remove a healing counter from this Aura: Prevent the next 1 damage that would be dealt to enchanted creature this turn.",
+            cost: { removeCounter: { type: "healing", count: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (!hostId) return;
+                ctx.preventNextNDamageToTarget(
+                    { type: "permanent", id: hostId },
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+        {
+            id: "fylgja-add-counter",
+            oracleText: "{2}{W}: Put a healing counter on this Aura.",
+            cost: { mana: { X: 2, W: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "healing",
+                    1
+                );
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const generalJarkeld: CardDefinition = {
 //     id: "6a4f5a28-0bd2-4cc4-b67f-324e89193caa",
@@ -473,16 +775,12 @@ export const elvishHealer: CardDefinition = {
 //     power: 1,
 //     toughness: 2,
 // };
-// TODO(#628): implement.
-// export const greenScarab: CardDefinition = {
-//     id: "0fbf9266-c97e-4666-b0fa-1802a69a62cc",
-//     name: "Green Scarab",
-//     rarity: "uncommon",
-//     oracleText: "Enchant creature\nEnchanted creature can't be blocked by green creatures.\nEnchanted creature gets +2/+2 as long as an opponent controls a green permanent.",
-//     manaCost: { W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+export const greenScarab: CardDefinition = makeScarab({
+    id: "0fbf9266-c97e-4666-b0fa-1802a69a62cc",
+    name: "Green Scarab",
+    rarity: "uncommon",
+    color: "G",
+});
 // Hallowed Ground — {W}{W}: Return target nonsnow land you control to its
 // owner's hand (CR 701.14). A blink/protection engine for your own lands.
 //
@@ -539,15 +837,55 @@ export const hallowedGround: CardDefinition = {
 //     power: 1,
 //     toughness: 3,
 // };
-// TODO(#628): implement.
-// export const justice: CardDefinition = {
-//     id: "9a6e0c8d-0fc1-4f52-8357-e550b0ac579a",
-//     name: "Justice",
-//     rarity: "uncommon",
-//     oracleText: "At the beginning of your upkeep, sacrifice this enchantment unless you pay {W}{W}.\nWhenever a red creature or spell deals damage, this enchantment deals that much damage to that creature's or spell's controller.",
-//     manaCost: { X: 2, W: 2 },
-//     types: ["Enchantment"],
-// };
+// Justice — {2}{W}{W} Enchantment. Upkeep pay-{W}{W}-or-sacrifice (CR 603.6a +
+// 117.3a, the `makeUpkeepPayOrElse` template) + a damage-watch trigger
+// (CR 603.4): whenever a red creature or spell deals damage, Justice deals that
+// much to the damage source's controller. The trigger filters the source on
+// colour red and restricts to creature/spell sources via `sourceTypes` (a red
+// noncreature permanent's damage is excluded, matching the Oracle wording).
+export const justice: CardDefinition = {
+    id: "9a6e0c8d-0fc1-4f52-8357-e550b0ac579a",
+    name: "Justice",
+    rarity: "uncommon",
+    oracleText:
+        "At the beginning of your upkeep, sacrifice this enchantment unless you pay {W}{W}.\nWhenever a red creature or spell deals damage, this enchantment deals that much damage to that creature's or spell's controller.",
+    manaCost: { X: 2, W: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        makeUpkeepPayOrElse({
+            id: "justice-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, sacrifice this enchantment unless you pay {W}{W}.",
+            cost: { W: 2 },
+            prompt: "Pay {W}{W} to keep Justice?",
+            onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+        }),
+        damageDealtTrigger({
+            id: "justice-reflect",
+            oracleText:
+                "Whenever a red creature or spell deals damage, this enchantment deals that much damage to that creature's or spell's controller.",
+            source: "any",
+            sourceFilter: { colors: "R" },
+            // CR 205 — "creature or spell": include sources whose snapshot types
+            // mark them a creature, an instant, or a sorcery (a cast red spell).
+            condition: (event) => {
+                const t = event.sourceTypes ?? [];
+                return (
+                    t.includes("Creature") ||
+                    t.includes("Instant") ||
+                    t.includes("Sorcery")
+                );
+            },
+            resolve: (ctx, event) => {
+                if (event.amount <= 0) return;
+                ctx.dealDamage(
+                    { type: "player", id: event.sourceControllerId },
+                    event.amount
+                );
+            },
+        }),
+    ],
+};
 // Kelsinko Ranger — {1}{W}: Target green creature gains first strike until end
 // of turn (CR 611.1b temporary keyword grant). Targeting is scoped to green
 // creatures via the color filter.
@@ -585,7 +923,10 @@ export const kelsinkoRanger: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
+// DEFERRED (#653): "+2/+2 until that creature leaves the battlefield this turn,
+// then sacrifice this creature" needs a per-turn linked-trigger that watches a
+// SPECIFIC chosen instance leave the battlefield. The engine has no
+// instance-scoped "watch target X leave this turn" delayed trigger.
 // export const kjeldoranEliteGuard: CardDefinition = {
 //     id: "a73bc4b6-f7d0-494c-9e60-48279c11b7b6",
 //     name: "Kjeldoran Elite Guard",
@@ -597,7 +938,8 @@ export const kelsinkoRanger: CardDefinition = {
 //     power: 2,
 //     toughness: 2,
 // };
-// TODO(#628): implement.
+// DEFERRED (snow cluster): activation is gated on "defending player controls no
+// snow lands" — out of scope for #653 (snow supertype is a separate issue).
 // export const kjeldoranGuard: CardDefinition = {
 //     id: "bdf41f17-8f82-4a8c-adec-0f3804faff3b",
 //     name: "Kjeldoran Guard",
@@ -667,7 +1009,10 @@ export const kjeldoranPhalanx: CardDefinition = {
     toughness: 5,
     staticAbilities: ["first strike", "banding"],
 };
-// TODO(#628): implement.
+// DEFERRED (#653): "All combat damage that would be dealt to you by unblocked
+// creatures this turn is dealt to this creature instead" needs a global
+// combat-damage redirect shield (every unblocked attacker → this creature).
+// The shipped redirect kinds are per-source, not an all-unblocked redirect.
 // export const kjeldoranRoyalGuard: CardDefinition = {
 //     id: "66343008-c38a-48a9-b767-fd2243103690",
 //     name: "Kjeldoran Royal Guard",
@@ -899,7 +1244,10 @@ export const orderOfTheWhiteShield: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
+// DEFERRED (#653): needs a colour-keyed ALL-damage prevention shield that
+// applies to an Aura's HOST plus a stored colour choice. The shipped
+// `combat-damage-prevention` static is self-only (no AURA_AFFECTS_HOST) and
+// combat-only; Prismatic Ward prevents ALL damage from the chosen colour.
 // export const prismaticWard: CardDefinition = {
 //     id: "6f8b50fd-3d1d-4ea8-a3c7-98ca7a8a455e",
 //     name: "Prismatic Ward",
@@ -934,17 +1282,16 @@ export const rally: CardDefinition = {
         }
     },
 };
-// TODO(#628): implement.
-// export const redScarab: CardDefinition = {
-//     id: "9a734154-5944-42f4-a02e-c426a45847f3",
-//     name: "Red Scarab",
-//     rarity: "uncommon",
-//     oracleText: "Enchant creature\nEnchanted creature can't be blocked by red creatures.\nEnchanted creature gets +2/+2 as long as an opponent controls a red permanent.",
-//     manaCost: { W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
-// TODO(#628): implement.
+export const redScarab: CardDefinition = makeScarab({
+    id: "9a734154-5944-42f4-a02e-c426a45847f3",
+    name: "Red Scarab",
+    rarity: "uncommon",
+    color: "R",
+});
+// DEFERRED (#653): "put a +0/+1 counter on that creature for each 1 damage
+// prevented this way" needs the prevention pipeline to report the amount
+// actually consumed by the shield. No primitive exposes prevented-amount today,
+// so the counter count can't be composed faithfully.
 // export const sacredBoon: CardDefinition = {
 //     id: "d721569d-9cf2-4c3c-b11c-4c46c258a0d2",
 //     name: "Sacred Boon",
@@ -953,18 +1300,69 @@ export const rally: CardDefinition = {
 //     manaCost: { X: 1, W: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
-// export const seraph: CardDefinition = {
-//     id: "ab675291-3189-43f3-b11b-0724eca8b941",
-//     name: "Seraph",
-//     rarity: "rare",
-//     oracleText: "Flying\nWhenever a creature dealt damage by this creature this turn dies, put that card onto the battlefield under your control at the beginning of the next end step. Sacrifice the creature when you lose control of this creature.",
-//     manaCost: { X: 6, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Angel"],
-//     power: 4,
-//     toughness: 4,
-// };
+// Seraph — {6}{W} 4/4 flying Angel. "Whenever a creature dealt damage by this
+// creature this turn dies, put that card onto the battlefield under your control
+// at the beginning of the next end step." (CR 603.2 death trigger keyed on
+// `damagedBySources` — the Sengir/Krovikan Vampire check — composed with a
+// next-end-step delayed reanimation, CR 603.7c, exactly like Krovikan Vampire.)
+//
+// SIMPLIFICATION (flagged, no engine change — identical to Krovikan Vampire):
+// the "Sacrifice the creature when you lose control of this creature" clause
+// requires per-permanent control-loss tracking the engine doesn't model yet.
+// The reanimation (the card's main effect) is faithful; the
+// sacrifice-on-loss-of-control clause — only reachable via a control-change
+// effect on Seraph, which the current pool barely exercises — is deferred.
+const SERAPH_ID = "ab675291-3189-43f3-b11b-0724eca8b941";
+export const seraph: CardDefinition = {
+    id: SERAPH_ID,
+    name: "Seraph",
+    rarity: "rare",
+    oracleText:
+        "Flying\nWhenever a creature dealt damage by this creature this turn dies, put that card onto the battlefield under your control at the beginning of the next end step. Sacrifice the creature when you lose control of this creature.",
+    manaCost: { X: 6, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Angel"],
+    power: 4,
+    toughness: 4,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        diedTrigger({
+            id: "seraph-mark",
+            oracleText:
+                "Whenever a creature dealt damage by this creature this turn dies, reanimate it under your control at the beginning of the next end step.",
+            scope: "any-other",
+            condition: (event, self) =>
+                event.damagedBySources.includes(self.id),
+            resolve: (ctx, _event, deadCreature) => {
+                ctx.scheduleDelayedTrigger(
+                    SERAPH_ID,
+                    "seraph-reanimate",
+                    "next-end-step",
+                    {
+                        deadId: deadCreature.id,
+                        controllerId: ctx.controller,
+                    }
+                );
+            },
+        }),
+    ],
+    delayedTriggers: [
+        {
+            id: "seraph-reanimate",
+            oracleText:
+                "Put that card onto the battlefield under your control at the beginning of the next end step.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                if (!payload.deadId || !payload.controllerId) return;
+                ctx.returnToBattlefield(
+                    payload.controllerId,
+                    payload.deadId,
+                    "graveyard"
+                );
+            },
+        },
+    ],
+};
 // Shield Bearer — 0/3 banding wall-style creature (CR 702.22).
 export const shieldBearer: CardDefinition = {
     id: "318ff2da-d309-469c-8e2f-fa3c7517a15a",
@@ -1047,16 +1445,12 @@ export const warning: CardDefinition = {
         if (t?.type === "permanent") ctx.markAssignsNoCombatDamage(t);
     },
 };
-// TODO(#628): implement.
-// export const whiteScarab: CardDefinition = {
-//     id: "c57726b5-dfdd-4e47-bc52-ebf6eedbf3bd",
-//     name: "White Scarab",
-//     rarity: "uncommon",
-//     oracleText: "Enchant creature\nEnchanted creature can't be blocked by white creatures.\nEnchanted creature gets +2/+2 as long as an opponent controls a white permanent.",
-//     manaCost: { W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+export const whiteScarab: CardDefinition = makeScarab({
+    id: "c57726b5-dfdd-4e47-bc52-ebf6eedbf3bd",
+    name: "White Scarab",
+    rarity: "uncommon",
+    color: "W",
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Blue free tranche (#631)
