@@ -1,5 +1,5 @@
 import type { CardInstanceState, GameState } from "./state";
-import { getPlayer, getOpponentId } from "./state";
+import { getPlayer, getOpponentId, untapPermanent } from "./state";
 import { tryGetCardById } from "../cards";
 
 /**
@@ -192,6 +192,35 @@ export function recordBlockedAttackers(state: GameState): void {
     if (!state.combat) return;
     state.combat.blockedAttackerIds = Object.keys(
         getEffectiveBlockGraph(state).blockersByAttacker
+    );
+}
+
+/**
+ * Melee's untap-unblocked rider (CR 509.1 variant, #669): "Whenever a creature
+ * attacks and isn't blocked this combat, untap it and remove it from combat."
+ *
+ * Called once at blocker confirmation, after `recordBlockedAttackers` has
+ * populated `combat.blockedAttackerIds`. Every declared attacker NOT in the
+ * blocked set is untapped and removed from combat (cleared `isAttacking`,
+ * dropped from `attackerIds`). Pure over game state and idempotent — a
+ * re-invocation after the attackers are already removed is a no-op. Only runs
+ * while `state.meleeCombat` is set; a normal combat leaves attackers untouched.
+ */
+export function applyMeleeUnblockedRider(state: GameState): void {
+    if (!state.meleeCombat || !state.combat) return;
+    const activePlayer = getPlayer(state, state.activePlayerId);
+    const blocked = new Set(state.combat.blockedAttackerIds ?? []);
+    const unblocked = state.combat.attackerIds.filter((id) => !blocked.has(id));
+    for (const attackerId of unblocked) {
+        const card = activePlayer.battlefield.find((c) => c.id === attackerId);
+        if (card) {
+            // CR 701.20 — untap, then CR 506.4 — remove from combat.
+            untapPermanent(state, card);
+            card.isAttacking = undefined;
+        }
+    }
+    state.combat.attackerIds = state.combat.attackerIds.filter((id) =>
+        blocked.has(id)
     );
 }
 

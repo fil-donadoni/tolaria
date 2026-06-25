@@ -242,6 +242,7 @@ export default function Board({
     const autoPassPlayers = state.autoPassPlayers;
     const queuedEndTurn = state.queuedEndTurn;
     const combat = state.combat;
+    const meleeCombat = state.meleeCombat;
     const pendingTarget = state.pendingTarget;
     const pendingChoices = state.pendingChoices;
     const mulligan = state.mulligan;
@@ -259,6 +260,7 @@ export default function Board({
                   priorityPlayerId,
                   phase,
                   combat,
+                  meleeCombat,
                   pendingCast,
                   pendingActivation,
                   pendingTarget,
@@ -298,6 +300,7 @@ export default function Board({
                 autoPassPlayers,
                 queuedEndTurn,
                 combat,
+                meleeCombat,
                 gameOver,
                 allPlayers,
                 showAllCards,

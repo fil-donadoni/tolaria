@@ -896,6 +896,19 @@ export type StackItem = CardInstanceState & {
      *  `${step}:${choiceId}` (e.g. "0:p1"). Read by `requestChoice` at resume
      *  to return prior selections without re-enqueueing them. */
     collectedChoices?: Record<string, string[]>;
+    /** Scratch list of player ids carried between resolve steps for a
+     *  per-permanent "pay-or-penalty" rider over a mass effect (CR 608.2 /
+     *  608.3 — Stench of Evil: "Destroy all Plains. For each land destroyed
+     *  this way, that land's controller takes 1 damage unless they pay {2}").
+     *  Step 0 destroys the permanents and records the controller of each one
+     *  actually destroyed here (one entry per destroyed permanent, so a player
+     *  controlling N destroyed lands appears N times); the irreversible destroy
+     *  is gone from the board by step 1, so the billing list must persist. Step
+     *  1 walks this list issuing one may-pay per entry. Read via
+     *  `SpellContext.noteMassRiderTargets` / `getMassRiderTargets`. Persisted so
+     *  a mid-resolution save (suspended on a may-pay choice) survives a DB
+     *  round-trip. */
+    massRiderTargets?: string[];
     /** True iff this stack item is a COPY of a spell (CR 707.10, Fork). A
      *  copy is not a real card: when it finishes resolving it ceases to exist
      *  rather than moving to a graveyard (CR 707.10/112.5), and it can never
@@ -1661,6 +1674,19 @@ export type GameState = {
      *  cleared at end of combat. Persisted so a mid-combat stable-point save
      *  preserves the "blockers already declared" state. */
     camouflageCombat?: boolean;
+    /** Combat-scoped flag set by Melee (CR 509.1 variant — attacker-driven
+     *  block override, #669). When true, the ATTACKING (active) player declares
+     *  this combat's blocks instead of the defending player: the block-selection
+     *  mutations (`selectBlocker` / `assignBlockerTarget` / `confirmBlockers`)
+     *  route to the active player, while the same `validateBlockerEligibility`
+     *  legality still gates every assignment (the attacker can only force LEGAL
+     *  blocks — flying, protection, etc. are honoured). Melee's rider — "Whenever
+     *  a creature attacks and isn't blocked this combat, untap it and remove it
+     *  from combat" — fires at blocker confirmation against every attacker not in
+     *  `combat.blockedAttackerIds`. Combat-scoped: cleared at end of combat
+     *  alongside the other combat-scoped state. Persisted so a mid-combat
+     *  stable-point save preserves the "attacker chooses blocks" routing. */
+    meleeCombat?: boolean;
     /** Per-player preferences that drive "may"-style replacement opt-ins.
      *  Persisted in state so the choice is replay-stable and toggleable
      *  through a mutation rather than requiring mid-event suspension.
@@ -6734,6 +6760,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 }
             }
         },
+        enableAttackerChoosesBlocks(): void {
+            // Melee (CR 509.1 variant, #669) — for THIS combat the attacking
+            // (active) player declares blocks instead of the defender. The flag
+            // is consumed by the block-selection mutations (which route to the
+            // active player) and the blocker-confirmation rider; cleared at end
+            // of combat alongside the other combat-scoped state.
+            if (!state.combat) return;
+            state.meleeCombat = true;
+        },
         copyStackItem(targetStackItemId, modifications): string | null {
             const original = state.stack.find(
                 (s) => s.id === targetStackItemId
@@ -6977,6 +7012,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 entry.actingPlayerId = routed.actingPlayerId;
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
+        },
+        noteMassRiderTargets(playerIds: string[]): void {
+            // CR 608.2 — persist the per-permanent billing list on the stack
+            // item so it survives the irreversible mass effect (step 0) and any
+            // suspension on a later may-pay (step 1). Stench of Evil.
+            item.massRiderTargets = [...playerIds];
+        },
+        getMassRiderTargets(): string[] {
+            return item.massRiderTargets ? [...item.massRiderTargets] : [];
         },
         requestOptionChoice(req): string | undefined {
             // CR 614.12 / 701.x "as it enters, choose …" — pick exactly one

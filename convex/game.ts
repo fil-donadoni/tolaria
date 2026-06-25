@@ -140,6 +140,7 @@ import {
     outstandingDamageAssigner,
     isLegalBandComposition,
     recordBlockedAttackers,
+    applyMeleeUnblockedRider,
 } from "./gre/banding";
 import { checkStateBasedActions } from "./gre/sba";
 import { applyPlayLand } from "./gre/playLand";
@@ -1328,6 +1329,7 @@ export const getPublicState = query({
                           state.priorityPlayerId ?? state.activePlayerId,
                       phase: state.phase,
                       combat: state.combat,
+                      meleeCombat: state.meleeCombat,
                       pendingCast: state.pendingCast,
                       pendingActivation: state.pendingActivation,
                       pendingTarget: state.pendingTarget,
@@ -4576,6 +4578,16 @@ export const confirmAttackers = mutation({
     },
 });
 
+/** Who declares this combat's blocks (CR 509.1). Normally the defending
+ *  player; under Melee (`meleeCombat`, #669) the ATTACKING (active) player
+ *  drives the block declaration instead. The blocking creatures are always the
+ *  defender's — only the chooser changes. */
+function getBlockDeclarerId(state: GameState): string {
+    return state.meleeCombat
+        ? state.activePlayerId
+        : getOpponentId(state, state.activePlayerId);
+}
+
 /** Select a blocker (or deselect/unassign if already selected/assigned). */
 export const selectBlocker = mutation({
     args: {
@@ -4596,9 +4608,15 @@ export const selectBlocker = mutation({
         if (!state.combat || state.combat.blockersConfirmed) {
             throw new Error("Blocker selection is not open");
         }
-        if (args.playerId === state.activePlayerId) {
-            throw new Error("Only the defending player can declare blockers");
+        // Melee (CR 509.1 variant, #669) — under `meleeCombat` the ATTACKING
+        // (active) player declares blocks; otherwise the defending player does.
+        if (args.playerId !== getBlockDeclarerId(state)) {
+            throw new Error("You can't declare blockers right now");
         }
+
+        // The blocking creatures are always the DEFENDING player's, even when
+        // Melee routes the declaration to the attacker.
+        const defenderId = getOpponentId(state, state.activePlayerId);
 
         // If this card is already assigned as a blocker, unassign it
         if (state.combat.blockerAssignments[args.cardInstanceId]?.length > 0) {
@@ -4611,7 +4629,7 @@ export const selectBlocker = mutation({
             state.combat.pendingBlockerId = undefined;
         } else {
             // Select as pending: validate it's an eligible creature
-            const player = getPlayer(state, args.playerId);
+            const player = getPlayer(state, defenderId);
             const card = player.battlefield.find(
                 (c) => c.id === args.cardInstanceId
             );
@@ -4654,8 +4672,9 @@ export const assignBlockerTarget = mutation({
         if (!state.combat || state.combat.blockersConfirmed) {
             throw new Error("Blocker selection is not open");
         }
-        if (args.playerId === state.activePlayerId) {
-            throw new Error("Only the defending player can assign blockers");
+        // Melee (#669) — the attacker assigns blocks under `meleeCombat`.
+        if (args.playerId !== getBlockDeclarerId(state)) {
+            throw new Error("You can't assign blockers right now");
         }
         if (!state.combat.pendingBlockerId) {
             throw new Error("No blocker selected");
@@ -4669,7 +4688,12 @@ export const assignBlockerTarget = mutation({
         const attacker = activePlayer.battlefield.find(
             (c) => c.id === args.attackerId
         );
-        const defender = getPlayer(state, args.playerId);
+        // The blocking creatures are the DEFENDING player's, even when Melee
+        // routes the declaration to the attacker.
+        const defender = getPlayer(
+            state,
+            getOpponentId(state, state.activePlayerId)
+        );
         const blocker = defender.battlefield.find(
             (c) => c.id === state.combat!.pendingBlockerId
         );
@@ -4746,11 +4770,17 @@ export const confirmBlockers = mutation({
         if (!state.combat || state.combat.blockersConfirmed) {
             throw new Error("Blocker selection is not open");
         }
-        if (args.playerId === state.activePlayerId) {
-            throw new Error("Only the defending player can confirm blockers");
+        // Melee (#669) — the attacker confirms blocks under `meleeCombat`.
+        if (args.playerId !== getBlockDeclarerId(state)) {
+            throw new Error("You can't confirm blockers right now");
         }
 
-        const player = getPlayer(state, args.playerId);
+        // The blocking creatures are the DEFENDING player's, even when Melee
+        // routes the declaration to the attacker.
+        const player = getPlayer(
+            state,
+            getOpponentId(state, state.activePlayerId)
+        );
 
         // CR 509.1c: auto-assign must-block requirements (Lure, Blaze of Glory)
         const activePlayer = getPlayer(state, state.activePlayerId);
@@ -4788,6 +4818,9 @@ export const confirmBlockers = mutation({
         state.combat.pendingBlockerId = undefined;
         state.combat.blockersConfirmed = true;
         recordBlockedAttackers(state);
+        // Melee (#669) — untap and remove from combat every attacker that ended
+        // up unblocked this combat. No-op unless `meleeCombat` is set.
+        applyMeleeUnblockedRider(state);
         emitBlockersConfirmedEvents(state);
 
         // CR 509.2 — active player gets priority immediately after blockers

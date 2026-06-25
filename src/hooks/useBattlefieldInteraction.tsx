@@ -73,9 +73,15 @@ export function useBattlefieldInteraction(player: Player) {
         pendingTarget,
         pendingChoices,
         combat,
+        meleeCombat,
         allPlayers,
     } = useGameContext();
     const isMe = player.id === playerId;
+    // Melee (#669) — under `meleeCombat` the attacking (active) player declares
+    // blocks; otherwise the defending (non-active) player does.
+    const blockDeclarerId = meleeCombat
+        ? activePlayerId
+        : allPlayers.find((p) => p.id !== activePlayerId)?.id;
 
     // Mutations
     const tapUntap = useMutation(api.game.tapUntap);
@@ -193,20 +199,24 @@ export function useBattlefieldInteraction(player: Player) {
         isMe &&
         playerId === activePlayerId;
 
+    // The declarer selects from the DEFENDING player's creatures, so the
+    // clickable battlefield is always the non-active player's — even under Melee
+    // where the attacker is the one choosing.
+    const defenderId = allPlayers.find((p) => p.id !== activePlayerId)?.id;
     const isSelectingBlockers =
         phase === "DECLARE_BLOCKERS" &&
         !!combat &&
         !combat.blockersConfirmed &&
-        isMe &&
-        playerId !== activePlayerId;
+        playerId === blockDeclarerId &&
+        player.id === defenderId;
 
     const isBlockerTarget =
-        !isMe &&
         phase === "DECLARE_BLOCKERS" &&
         !!combat &&
         !combat.blockersConfirmed &&
         !!combat.pendingBlockerId &&
-        playerId !== activePlayerId;
+        playerId === blockDeclarerId &&
+        player.id !== defenderId;
 
     // CR 702.21j-k: the player who assigns may be the defender, so gate on the
     // outstanding assigner rather than always the active player.

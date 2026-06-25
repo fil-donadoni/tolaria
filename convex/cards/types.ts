@@ -1805,6 +1805,15 @@ export interface SpellContext {
      *  `state.camouflageCombat` so the DECLARE_BLOCKERS step auto-confirms with
      *  no blocking priority. No-op if there is no active combat. */
     applyCamouflagePileBlocks: (defenderId: string, piles: string[][]) => void;
+    /** Melee (CR 509.1 variant — attacker-driven block override, #669). Sets
+     *  `state.meleeCombat` so that, for THIS combat, the ATTACKING (active)
+     *  player declares blocks instead of the defending player: the
+     *  block-selection mutations route to the active player, with the same
+     *  `validateBlockerEligibility` legality gating every assignment (only LEGAL
+     *  blocks can be forced). Distinct from `applyCamouflagePileBlocks`, which
+     *  assigns the defender's piles at random — Melee hands the live choice to
+     *  the attacker. No-op if there is no active combat. */
+    enableAttackerChoosesBlocks: () => void;
     /** Copies a spell on the stack (CR 707.10, Fork). Clones the target stack
      *  item, inserts the copy directly above the original (so the copy
      *  resolves first), and returns the copy's new stack id — or `null` if the
@@ -1927,6 +1936,18 @@ export interface SpellContext {
          *  trigger so Adarkar Unicorn / Snowfall mana pays the upkeep. */
         manaRestriction?: ManaRestriction;
     }) => boolean | undefined;
+
+    /** Records the per-permanent billing list for a "pay-or-penalty over a mass
+     *  effect" rider (CR 608.2 — Stench of Evil). Pass one entry per permanent
+     *  actually affected (typically the controller id of each destroyed
+     *  permanent — repeated when a player controlled several). Persisted on the
+     *  stack item so it survives the irreversible mass effect and any
+     *  suspension on a later may-pay. Read back with `getMassRiderTargets`. */
+    noteMassRiderTargets: (playerIds: string[]) => void;
+    /** Returns the billing list recorded by `noteMassRiderTargets` (empty if
+     *  none). The rider loop walks this list, issuing one may-pay / penalty per
+     *  entry. */
+    getMassRiderTargets: () => string[];
 
     /** Requests a single pick from a list of abstract options (CR 614.12 /
      *  701.x "as it enters, choose …"). On first call, enqueues an
@@ -3234,6 +3255,40 @@ export interface StaticCombatDamagePrevention {
     oracleText: string;
 }
 
+/** Battlefield-scanned, PLAYER-scoped casting restriction (CR 601.3a / 601.2 —
+ *  a continuous effect that forbids a player from CASTING a class of spell).
+ *  Unlike every other `StaticEffect`, this kind does NOT mutate any permanent —
+ *  it is a read-time gate evaluated when the engine lists a player's legal hand
+ *  actions (`getLegalActions`) and again server-side at the cast mutation. The
+ *  scan mirrors `StaticGlobalAttackRestriction`: any permanent on either
+ *  battlefield can forbid casting, so the predicate receives the candidate
+ *  caster, the spell about to be cast, the source carrying the effect, and the
+ *  live board view.
+ *
+ *  Brand of Ill Omen ("Enchanted creature's controller can't cast creature
+ *  spells") is expressed with this kind: the source is the Aura, and `forbids`
+ *  returns true when `caster` controls the Aura's host and the spell is a
+ *  creature spell. */
+export interface StaticCastRestriction {
+    kind: "cast-restriction";
+    id: string;
+    /** Returns `true` when `caster` is FORBIDDEN from casting `spell` by
+     *  `source` (note the inverted polarity, like
+     *  `StaticGlobalAttackRestriction.forbids`).
+     *  `caster` = id of the player attempting to cast.
+     *  `spell` = the card about to be cast (its live `types` are authoritative).
+     *  `source` = the permanent carrying this effect (the Aura). */
+    forbids: (
+        caster: string,
+        spell: PermanentView,
+        source: PermanentView,
+        state: StaticEffectStateView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** Oracle text displayed as the rejection reason. */
+    oracleText: string;
+}
+
 export type StaticEffect =
     | StaticPTBuff
     | StaticPTCDA
@@ -3259,7 +3314,8 @@ export type StaticEffect =
     | StaticPermanentGuard
     | StaticCombatDamagePrevention
     | StaticKeywordRemove
-    | StaticAbilityLoss;
+    | StaticAbilityLoss
+    | StaticCastRestriction;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared
  *  by every aura's `applies` callback (CR 303.4 — auras affect their enchanted

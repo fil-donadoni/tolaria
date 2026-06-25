@@ -5296,15 +5296,68 @@ export const spoilsOfEvil: CardDefinition = {
     },
 };
 // Spoils of War is implemented below (divide-as-you-choose cluster, #664).
-// TODO(#628): implement.
-// export const stenchOfEvil: CardDefinition = {
-//     id: "4c7065a2-f819-4cbe-b453-a55e904f0461",
-//     name: "Stench of Evil",
-//     rarity: "uncommon",
-//     oracleText: "Destroy all Plains. For each land destroyed this way, Stench of Evil deals 1 damage to that land's controller unless they pay {2}.",
-//     manaCost: { X: 2, B: 2 },
-//     types: ["Sorcery"],
-// };
+// Stench of Evil — {2}{B} Sorcery. "Destroy all Plains. For each land destroyed
+// this way, Stench of Evil deals 1 damage to that land's controller unless they
+// pay {2}." A per-permanent pay-or-damage rider over a mass effect (#669):
+//   • step 0 — destroy every Plains, recording the controller of each one that
+//     actually reached a graveyard (CR 614.5 — `destroy` reports real movement,
+//     so an indestructible/regenerated Plains is not billed). The list persists
+//     on the stack item (`noteMassRiderTargets`) because the destroy is
+//     irreversible and step 1 may suspend on a may-pay.
+//   • step 1 — for each recorded entry, the controller MAY pay {2}; on decline
+//     (or inability) they take 1 damage. Decisions are collected FIRST and
+//     damage applied in a single final pass (CR 608.2 — the idempotent
+//     "collect then apply" pattern shared with Lim-Dûl's Hex), so a suspension
+//     on a later entry never re-fires an earlier entry's damage.
+export const stenchOfEvil: CardDefinition = {
+    id: "4c7065a2-f819-4cbe-b453-a55e904f0461",
+    name: "Stench of Evil",
+    rarity: "uncommon",
+    oracleText:
+        "Destroy all Plains. For each land destroyed this way, Stench of Evil deals 1 damage to that land's controller unless they pay {2}.",
+    manaCost: { X: 2, B: 2 },
+    types: ["Sorcery"],
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            // CR 701.7 — destroy each Plains individually so the controller of
+            // every land that actually dies is captured for the rider. (A
+            // bulk `destroyAll` would not report which/whose lands moved.)
+            const billed: string[] = [];
+            ctx.forEachPlayer((playerId) => {
+                for (const id of ctx.getBattlefieldIds(playerId, {
+                    subtypes: "Plains",
+                })) {
+                    if (ctx.destroy({ type: "permanent", id })) {
+                        billed.push(playerId);
+                    }
+                }
+            });
+            ctx.noteMassRiderTargets(billed);
+        },
+        (ctx: SpellContext) => {
+            const billed = ctx.getMassRiderTargets();
+            const takesDamage: string[] = [];
+            for (let i = 0; i < billed.length; i++) {
+                const playerId = billed[i];
+                // CR 118 — the land's controller may pay {2} to avoid 1 damage.
+                // A distinct choiceId per destroyed land keeps the prompts apart
+                // under stepped resolution (CR 608.2).
+                const paid = ctx.requestMayPay({
+                    playerId,
+                    choiceId: `stench-of-evil-${i}`,
+                    cost: { X: 2 },
+                    prompt: "Pay {2} to avoid 1 damage from Stench of Evil?",
+                });
+                if (paid === undefined) return; // suspended — resumes on submit.
+                if (!paid) takesDamage.push(playerId);
+            }
+            // All decisions in — apply damage exactly once.
+            for (const playerId of takesDamage) {
+                ctx.dealDamage({ type: "player", id: playerId }, 1);
+            }
+        },
+    ],
+};
 // Stromgald Cabal — "{T}, Pay 1 life: Counter target white spell." (CR 602.1
 // tap + CR 118.4 life cost; CR 701.5 counter restricted to white spells via the
 // spell-target `colorFilter`.)
@@ -5795,16 +5848,56 @@ export const boneShaman: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
-// export const brandOfIllOmen: CardDefinition = {
-//     id: "ceeb7bbc-2d41-4709-95be-1ceb952ed1fb",
-//     name: "Brand of Ill Omen",
-//     rarity: "rare",
-//     oracleText: "Enchant creature\nCumulative upkeep {R} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nEnchanted creature's controller can't cast creature spells.",
-//     manaCost: { X: 3, R: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Brand of Ill Omen — {3}{R} Aura. "Enchant creature / Cumulative upkeep {R} /
+// Enchanted creature's controller can't cast creature spells." The cast clause
+// is a player-scoped `cast-restriction` static (CR 601.3a, #669): scanned at the
+// cast gate (`getLegalActions` / cast mutation) and client-side, it forbids the
+// HOST creature's controller from casting any creature spell. The restriction is
+// read-time only — it never mutates a permanent and auto-reverts when the Aura
+// leaves play (the host loses its host, or the Aura is sacrificed to cumulative
+// upkeep). Cumulative upkeep {R} reuses `cumulativeUpkeepTrigger` (ADR 0042).
+export const brandOfIllOmen: CardDefinition = {
+    id: "ceeb7bbc-2d41-4709-95be-1ceb952ed1fb",
+    name: "Brand of Ill Omen",
+    rarity: "rare",
+    oracleText:
+        "Enchant creature\nCumulative upkeep {R} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nEnchanted creature's controller can't cast creature spells.",
+    manaCost: { X: 3, R: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({ cost: { R: 1 }, costLabel: "{R}" }),
+    ],
+    staticEffects: [
+        {
+            kind: "cast-restriction",
+            id: "brand-of-ill-omen-no-creature-spells",
+            // CR 601.3a — the host creature's controller can't cast creature
+            // spells. `forbids` returns true (cast FORBIDDEN) when `caster`
+            // controls this Aura's host AND the spell is a creature spell. The
+            // host is found via `source.attachedTo`; an unattached Aura (still
+            // on the stack, or its host gone) forbids nothing.
+            forbids: (caster, spell, source, state, ctx) => {
+                if (!spell.types.includes("Creature")) return false;
+                const hostId = (source as { attachedTo?: string }).attachedTo;
+                if (!hostId) return false;
+                for (const player of state.players) {
+                    const host = player.battlefield.find(
+                        (c) => c.id === hostId
+                    );
+                    if (host) return host.controllerId === caster;
+                }
+                // `ctx` unused for this predicate; spell typing is read off the
+                // live `types` array, which a `type-add` effect keeps current.
+                void ctx;
+                return false;
+            },
+            oracleText:
+                "Enchanted creature's controller can't cast creature spells.",
+        },
+    ],
+};
 // Chaos Lord — {4}{R}{R}{R} 7/7 Human with first strike. "At the beginning of
 // your upkeep, target opponent gains control of this creature if the number of
 // permanents is even" — an upkeep trigger (CR 603.6a, scope "your") that counts
@@ -6698,15 +6791,37 @@ export const mRtonStromgald: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const melee: CardDefinition = {
-//     id: "b13a064d-bff4-4a48-a158-1b61951b0ac3",
-//     name: "Melee",
-//     rarity: "uncommon",
-//     oracleText: "Cast this spell only during combat on your turn before blockers are declared.\nYou choose which creatures block this combat and how those creatures block.\nWhenever a creature attacks and isn't blocked this combat, untap it and remove it from combat.",
-//     manaCost: { X: 4, R: 1 },
-//     types: ["Instant"],
-// };
+// Melee — {4}{R} Instant. "Cast this spell only during combat on your turn
+// before blockers are declared. You choose which creatures block this combat
+// and how those creatures block. Whenever a creature attacks and isn't blocked
+// this combat, untap it and remove it from combat." (#669)
+//
+// The cast window is the controller's DECLARE_ATTACKERS step (CR 117.1b — "your
+// turn, before blockers are declared"; attackers are already declared by the
+// time priority opens in that step, so `getBattlefieldIds(..., isAttacking)` is
+// populated). On resolution `ctx.enableAttackerChoosesBlocks()` sets the
+// combat-scoped `meleeCombat` flag: the DECLARE_BLOCKERS step routes the block
+// declaration to the ATTACKING player, with every assignment still gated by
+// `validateBlockerEligibility` (only LEGAL blocks can be forced). The
+// untap-unblocked rider is applied by `applyMeleeUnblockedRider` at blocker
+// confirmation (CR 509.1) — every attacker left unblocked is untapped and
+// removed from combat.
+export const melee: CardDefinition = {
+    id: "b13a064d-bff4-4a48-a158-1b61951b0ac3",
+    name: "Melee",
+    rarity: "uncommon",
+    oracleText:
+        "Cast this spell only during combat on your turn before blockers are declared.\nYou choose which creatures block this combat and how those creatures block.\nWhenever a creature attacks and isn't blocked this combat, untap it and remove it from combat.",
+    manaCost: { X: 4, R: 1 },
+    types: ["Instant"],
+    // CR 117.1b — castable only during the controller's declare-attackers step
+    // (the "during combat on your turn before blockers are declared" window).
+    castPhaseRestriction: ["DECLARE_ATTACKERS"],
+    castTurnRestriction: "self",
+    resolve: (ctx: SpellContext) => {
+        ctx.enableAttackerChoosesBlocks();
+    },
+};
 // Melting — "All lands are no longer snow." A board-wide continuous
 // supertype-set static (CR 205.4a, layer-4-adjacent) that REMOVES the Snow
 // supertype from every Land while Melting is in play; `hasSupertype` reads the

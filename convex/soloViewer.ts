@@ -29,6 +29,10 @@ export type SoloViewerCtx = {
     priorityPlayerId: string;
     phase: string;
     combat?: GameState["combat"];
+    /** Melee (#669) — when set, the ATTACKING (active) player declares this
+     *  combat's blocks, so the solo viewer steers to them instead of the
+     *  defender during DECLARE_BLOCKERS. */
+    meleeCombat?: boolean;
     pendingCast?: PendingCast;
     pendingActivation?: PendingActivation;
     pendingTarget?: PendingTarget;
@@ -52,6 +56,9 @@ export function computeSoloViewerId(ctx: SoloViewerCtx): string {
         ctx.combat &&
         !ctx.combat.blockersConfirmed
     ) {
+        // Melee (#669) — the attacker declares blocks, so steer to the active
+        // player; otherwise steer to the defender (CR 509.1).
+        if (ctx.meleeCombat) return ctx.activePlayerId;
         const defender = ctx.playerIds.find((id) => id !== ctx.activePlayerId);
         if (defender) return defender;
     }

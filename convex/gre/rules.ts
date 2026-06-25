@@ -26,6 +26,7 @@ import {
 import { isProtectedFromColors } from "./protection";
 import { hasSupertypeLive } from "./snow";
 import { isGuardedAgainst } from "./permanentGuard";
+import { castProhibitionReason } from "../cards/castRestrictions";
 import { getInstanceManaCost, tryGetCardById } from "../cards";
 import { landPlayLockActive, normalizeManaCost } from "./state";
 
@@ -129,6 +130,13 @@ export function getLegalActions(
         if (
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
+            // CR 601.3a — a player-scoped cast-type restriction (Brand of Ill
+            // Omen: "Enchanted creature's controller can't cast creature
+            // spells") forbids the cast outright. Scanned across both
+            // battlefields; suppressing "cast" here also blocks the server
+            // path, since `assertLegalAction` rejects the cast mutation when
+            // "cast" is absent.
+            castProhibitionReason(player.id, card, state) === undefined &&
             canPotentiallyPayCost(player, card) &&
             hasEnoughLegalTargets(state, player, card)
         ) {

@@ -637,6 +637,34 @@ describe("game_state serialize round-trip", () => {
         expect(expanded.camouflageCombat).toBe(true);
     });
 
+    it("preserves the meleeCombat flag across the round trip (#669)", () => {
+        // Melee's attacker-chooses-blocks routing must survive a mid-combat
+        // stable-point save so the block declaration stays with the attacker.
+        const state = freshState();
+        state.meleeCombat = true;
+        const expanded = expandState(compactState(state));
+        expect(expanded.meleeCombat).toBe(true);
+    });
+
+    it("preserves a stack item's massRiderTargets across the round trip (#669)", () => {
+        // Stench of Evil's per-land billing list must reload after a DB
+        // round-trip when the spell is suspended on a may-pay, so the rider
+        // bills the right controllers on resume.
+        const state = freshState();
+        const spell = state.players[0].hand[0];
+        state.stack = [
+            {
+                ...spell,
+                zone: "stack",
+                castById: "p1",
+                resolutionStep: 1,
+                massRiderTargets: ["p1", "p2", "p2"],
+            },
+        ];
+        const top = expandState(compactState(state)).stack[0];
+        expect(top.massRiderTargets).toEqual(["p1", "p2", "p2"]);
+    });
+
     it("compact form is materially smaller than raw JSON", () => {
         const state = freshState();
         const rawSize = JSON.stringify(state).length;
