@@ -990,6 +990,13 @@ export function tryAutoCommitPendingActivation(
             ...(sacrificed.subtypes && sacrificed.subtypes.length > 0
                 ? { subtypes: [...sacrificed.subtypes] }
                 : {}),
+            // CR 613 layer 7c / 608.2h — capture the EFFECTIVE power before the
+            // permanent leaves play so `getAdditionalSacrificePower` reads it at
+            // resolve (Freyalise Supplicant: "damage equal to half the
+            // sacrificed creature's power"). Only creatures have power.
+            ...(sacrificed.types.includes("Creature")
+                ? { power: getEffectivePower(state, sacrificed) }
+                : {}),
         };
         removePermanentTo(state, sacrificed.id, "graveyard", "sacrifice");
     }

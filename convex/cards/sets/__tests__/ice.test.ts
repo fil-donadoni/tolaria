@@ -353,6 +353,11 @@ import {
     seizures,
     freyalisesWinds,
     ghostlyFlame,
+    // One-off seams — resolution & cost mechanics (#670)
+    hecatomb,
+    pox,
+    forgottenLore,
+    freyaliseSupplicant,
 } from "../ice";
 import { plains, island, swamp, mountain, forest } from "../lea";
 import { applyLandManaReplacement } from "../../../gre/constants";
@@ -13073,5 +13078,446 @@ describe("Stench of Evil (destroy all Plains + pay-{2}-or-1 rider, CR 701.7 / 11
         answerMayPay(state, false); // p2 declines → 1
         expect(state.players[0].life).toBe(19);
         expect(state.players[1].life).toBe(19);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// One-off seams — resolution & cost mechanics (#670)
+// ---------------------------------------------------------------------------
+
+/** Submit the head pending zone-pick choice with the given ids (mirrors the
+ *  game.ts mutation), auto-resuming the suspended resolution. */
+function submitPick(state: GameState, cardInstanceIds: string[]): void {
+    const head = state.pendingChoices![0];
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds,
+    });
+}
+
+/** Answer the head may-pay choice (yes/no), auto-resuming resolution. */
+function answerHeadMayPay(state: GameState, accept: boolean): void {
+    const head = state.pendingChoices![0];
+    applyMayPaySubmit(state, { playerId: head.playerId, accept });
+}
+
+describe("Forgotten Lore (iterative may-pay over a shrinking set, CR 608.2 / 117.3a)", () => {
+    function setup(graveCount: number) {
+        const grave: CardInstanceState[] = [];
+        for (let i = 0; i < graveCount; i++) {
+            grave.push(
+                makeInstance(balduvianBears.id, {
+                    id: `g${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "graveyard",
+                })
+            );
+        }
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: grave,
+                    // {G} available so the controller can pay to repeat.
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 2, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("walks ≥2 iterations then returns the LAST chosen card to hand", () => {
+        const state = setup(3);
+        pushSpell(state, forgottenLore.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        // Iteration 0: opponent (p2) picks g0 from p1's graveyard.
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].playerId).toBe("p2");
+        submitPick(state, ["g0"]);
+        // Controller (p1) may pay {G} to repeat — yes.
+        expect(state.pendingChoices![0].playerId).toBe("p1");
+        answerHeadMayPay(state, true);
+        // Iteration 1: opponent picks g1 (g0 already chosen, excluded).
+        expect(state.pendingChoices![0].playerId).toBe("p2");
+        expect(state.pendingChoices![0].candidateIds).not.toContain("g0");
+        submitPick(state, ["g1"]);
+        // Controller pays {G} again — yes.
+        answerHeadMayPay(state, true);
+        // Iteration 2: only g2 left.
+        expect(state.pendingChoices![0].candidateIds).toEqual(["g2"]);
+        submitPick(state, ["g2"]);
+        // Controller declines — loop stops, LAST chosen (g2) → hand.
+        answerHeadMayPay(state, false);
+        expect(state.pendingChoices ?? []).toEqual([]);
+        const me = state.players[0];
+        expect(me.hand.some((c) => c.id === "g2")).toBe(true);
+        // The non-final picks stay in the graveyard (g0, g1; the resolved
+        // Forgotten Lore sorcery itself also lands there, CR 608.2m).
+        const gIds = me.graveyard
+            .map((c) => c.id)
+            .filter((id) => /^g\d/.test(id));
+        expect(gIds.sort()).toEqual(["g0", "g1"]);
+        // Paid {G} twice from the pool of 2.
+        expect(me.manaPool.G).toBe(0);
+    });
+
+    it("decline path on the first iteration returns the first card", () => {
+        const state = setup(3);
+        pushSpell(state, forgottenLore.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        submitPick(state, ["g0"]);
+        // Controller declines immediately — g0 goes to hand, no {G} spent.
+        answerHeadMayPay(state, false);
+        expect(state.pendingChoices ?? []).toEqual([]);
+        const me = state.players[0];
+        expect(me.hand.some((c) => c.id === "g0")).toBe(true);
+        const gIds = me.graveyard
+            .map((c) => c.id)
+            .filter((id) => /^g\d/.test(id));
+        expect(gIds.sort()).toEqual(["g1", "g2"]);
+        expect(me.manaPool.G).toBe(2);
+    });
+
+    it("empty graveyard resolves with no effect", () => {
+        const state = setup(0);
+        pushSpell(state, forgottenLore.id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.pendingChoices ?? []).toEqual([]);
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
+    it("targets an opponent (definition shape, CR 115)", () => {
+        expect(forgottenLore.targetRequirement).toEqual({
+            type: "player",
+            count: 1,
+            controller: "opponent",
+        });
+    });
+});
+
+describe("Pox (proportional mass loss/sacrifice/discard, CR 107.2 round-up)", () => {
+    it("asserts the fractions at a representative board", () => {
+        // p1: 20 life, 4 hand, 5 creatures, 6 lands.
+        // p2: 13 life, 2 hand, 2 creatures, 3 lands.
+        const p1Hand = [0, 1, 2, 3].map((i) =>
+            makeInstance(balduvianBears.id, {
+                id: `h1-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            })
+        );
+        const p1Creatures = [0, 1, 2, 3, 4].map((i) =>
+            vanilla(`c1-${i}`, 1, 1, { controllerId: "p1", ownerId: "p1" })
+        );
+        const p1Lands = [0, 1, 2, 3, 4, 5].map((i) =>
+            makeInstance(forest.id, {
+                id: `l1-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield",
+            })
+        );
+        const p2Hand = [0, 1].map((i) =>
+            makeInstance(balduvianBears.id, {
+                id: `h2-${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            })
+        );
+        const p2Creatures = [0, 1].map((i) =>
+            vanilla(`c2-${i}`, 1, 1, { controllerId: "p2", ownerId: "p2" })
+        );
+        const p2Lands = [0, 1, 2].map((i) =>
+            makeInstance(swamp.id, {
+                id: `l2-${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "battlefield",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    life: 20,
+                    hand: p1Hand,
+                    battlefield: [...p1Creatures, ...p1Lands],
+                }),
+                makePlayer("p2", {
+                    life: 13,
+                    hand: p2Hand,
+                    battlefield: [...p2Creatures, ...p2Lands],
+                }),
+            ],
+            activePlayerId: "p1",
+        });
+        pushSpell(state, pox.id, "p1");
+        // Step 1 (life) is no-choice. Steps 2-4 prompt each player to keep.
+        // Drive each suspension by keeping the lowest-index eligible ids
+        // (mirrors selectResolutionChoice; eligibility is the player's own
+        // zone filtered by the choice's `filter`).
+        resolveTopOfStack(state);
+        let guard = 0;
+        while ((state.pendingChoices ?? []).length > 0 && guard++ < 20) {
+            const head = state.pendingChoices![0];
+            const count =
+                typeof head.count === "number" ? head.count : head.count.min;
+            const owner = state.players.find(
+                (p) => p.id === (head.zoneOwnerId ?? head.playerId)
+            )!;
+            const pool = head.zone === "hand" ? owner.hand : owner.battlefield;
+            // Pox's filters are single-type (`Creature` / `Land`); match on the
+            // `types` field directly (no layer view needed for these picks).
+            const wantType =
+                typeof head.filter?.types === "string"
+                    ? head.filter.types
+                    : undefined;
+            const eligible = pool
+                .filter((c) => (wantType ? c.types.includes(wantType) : true))
+                .map((c) => c.id);
+            const keepIds = eligible.slice(0, count);
+            submitPick(state, keepIds);
+        }
+        expect(state.pendingChoices ?? []).toEqual([]);
+
+        // Life: lose ceil(20/3)=7 and ceil(13/3)=5.
+        expect(state.players[0].life).toBe(20 - 7);
+        expect(state.players[1].life).toBe(13 - 5);
+        // Hand: discard ceil(4/3)=2 → keep 2; ceil(2/3)=1 → keep 1.
+        expect(state.players[0].hand).toHaveLength(2);
+        expect(state.players[1].hand).toHaveLength(1);
+        // Creatures: sac ceil(5/3)=2 → keep 3; ceil(2/3)=1 → keep 1.
+        const p1Cre = state.players[0].battlefield.filter((c) =>
+            c.types.includes("Creature")
+        );
+        const p2Cre = state.players[1].battlefield.filter((c) =>
+            c.types.includes("Creature")
+        );
+        expect(p1Cre).toHaveLength(3);
+        expect(p2Cre).toHaveLength(1);
+        // Lands: sac ceil(6/3)=2 → keep 4; ceil(3/3)=1 → keep 2.
+        const p1Land = state.players[0].battlefield.filter((c) =>
+            c.types.includes("Land")
+        );
+        const p2Land = state.players[1].battlefield.filter((c) =>
+            c.types.includes("Land")
+        );
+        expect(p1Land).toHaveLength(4);
+        expect(p2Land).toHaveLength(2);
+    });
+
+    it("auto-resolves with no prompts when each phase has no real choice", () => {
+        // 3 life (lose 1), empty hand, 1 creature (sac 1 → keep 0), 1 land
+        // (sac 1 → keep 0): every phase is forced, no pick prompts.
+        const c = vanilla("c", 1, 1, { controllerId: "p1", ownerId: "p1" });
+        const l = makeInstance(forest.id, {
+            id: "l",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 3, battlefield: [c, l] }),
+                makePlayer("p2", { life: 3 }),
+            ],
+        });
+        pushSpell(state, pox.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices ?? []).toEqual([]);
+        expect(state.players[0].life).toBe(2); // ceil(3/3)=1
+        expect(state.players[0].battlefield).toHaveLength(0);
+    });
+});
+
+describe("Freyalise Supplicant ({T}, Sac R/W creature: damage = floor(power/2), CR 608.2h)", () => {
+    function setup(sacPower: number) {
+        const supplicant = makeInstance(freyaliseSupplicant.id, {
+            id: "supplicant",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const fuel = vanilla("fuel", sacPower, 3, {
+            controllerId: "p1",
+            ownerId: "p1",
+            // Red so it matches the R/W sacrifice filter.
+            card: { id: "fake-fuel" },
+            staticAbilities: [],
+        });
+        // Tag the fuel creature red via an instance-level colour override.
+        (fuel as CardInstanceState & { colors?: string[] }).colors = ["R"];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [supplicant, fuel] }),
+                makePlayer("p2", { life: 20 }),
+            ],
+            priorityPlayerId: "p1",
+        });
+        return state;
+    }
+
+    function activate(state: GameState): void {
+        const pa: PendingActivation = {
+            playerId: "p1",
+            cardInstanceId: "supplicant",
+            abilityId: "freyalise-supplicant-sacrifice-ping",
+            manaCost: {},
+            tappedLandIds: [],
+            tapSource: true,
+            sacrificeSource: false,
+            sacrificeChoice: {
+                filter: { types: "Creature", colors: ["R", "W"] },
+                pickedId: "fuel",
+            },
+            targets: [{ type: "player", id: "p2" }],
+        };
+        state.pendingActivation = pa;
+        const committed = tryAutoCommitPendingActivation(state, "p1");
+        expect(committed).not.toBeNull();
+        resolveTopOfStack(state);
+    }
+
+    it("deals floor(power/2) damage to the target (power 4 → 2)", () => {
+        const state = setup(4);
+        activate(state);
+        expect(state.players[1].life).toBe(18);
+        // The sacrificed creature is gone; Freyalise Supplicant is tapped.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "fuel")
+        ).toBeUndefined();
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "supplicant")
+                ?.isTapped
+        ).toBe(true);
+    });
+
+    it("rounds down odd power (power 3 → 1)", () => {
+        const state = setup(3);
+        activate(state);
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("power 1 deals 0 damage (floor(1/2)=0)", () => {
+        const state = setup(1);
+        activate(state);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("wire format: the dealt damage (life total) survives projection", () => {
+        const state = setup(4);
+        activate(state);
+        // The visible effect is p2's reduced life; re-assert after projection.
+        const projected = projectPublicState(state, 1, "p1");
+        const p2 = projected.players.find((p) => p.id === "p2")!;
+        expect(p2.life).toBe(18);
+    });
+
+    it("the sacrifice filter excludes the green source itself (R/W only)", () => {
+        const ability = freyaliseSupplicant.activatedAbilities![0];
+        expect(ability.cost.tap).toBe(true);
+        expect(ability.cost.sacrificeFilter).toEqual({
+            types: "Creature",
+            colors: ["R", "W"],
+        });
+    });
+});
+
+describe("Hecatomb (tap-a-Swamp activation cost + ETB sac-4, CR 602.1 / 118.8)", () => {
+    it("the ping ability requires tapping an untapped Swamp (definition shape)", () => {
+        const ability = hecatomb.activatedAbilities![0];
+        expect(ability.cost.tapOtherFilter).toEqual({
+            filter: { subtypes: "Swamp", controllerRelation: "you" },
+            count: 1,
+        });
+        expect(ability.cost.tap ?? false).toBe(false); // not the source's own {T}
+        expect(ability.targetRequirement).toEqual({ type: "any", count: 1 });
+    });
+
+    it("commit taps the chosen Swamp and the ability deals 1 damage", () => {
+        const hec = makeInstance(hecatomb.id, {
+            id: "hec",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const swampInst = makeInstance(swamp.id, {
+            id: "sw",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hec, swampInst] }),
+                makePlayer("p2", { life: 20 }),
+            ],
+            priorityPlayerId: "p1",
+        });
+        const pa: PendingActivation = {
+            playerId: "p1",
+            cardInstanceId: "hec",
+            abilityId: "hecatomb-ping",
+            manaCost: {},
+            tappedLandIds: [],
+            tapSource: false,
+            sacrificeSource: false,
+            tapOtherChoice: {
+                filter: { subtypes: "Swamp", controllerRelation: "you" },
+                count: 1,
+                pickedIds: ["sw"],
+            },
+            targets: [{ type: "player", id: "p2" }],
+        };
+        state.pendingActivation = pa;
+        const committed = tryAutoCommitPendingActivation(state, "p1");
+        expect(committed).not.toBeNull();
+        // The Swamp was tapped to pay the cost; Hecatomb itself stays untapped.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "sw")?.isTapped
+        ).toBe(true);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "hec")
+                ?.isTapped ?? false
+        ).toBe(false);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("ETB sacrifices Hecatomb when fewer than four creatures are controlled", () => {
+        const hec = makeInstance(hecatomb.id, {
+            id: "hec",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hec] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, hec, "hecatomb-etb", {
+            type: "PERMANENT_ENTERED",
+            instanceId: "hec",
+            controllerId: "p1",
+            types: ["Enchantment"],
+        } as StackItem["triggerEvent"]);
+        // No creatures → unpayable "unless" cost → Hecatomb is sacrificed.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "hec")
+        ).toBeUndefined();
+        expect(state.players[0].graveyard.some((c) => c.id === "hec")).toBe(
+            true
+        );
     });
 });

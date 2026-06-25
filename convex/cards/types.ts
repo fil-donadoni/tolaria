@@ -1252,6 +1252,13 @@ export interface SpellContext {
      *  Exchange ("Put a +2/+2 counter on that creature if the exiled creature
      *  was a Thrull") to read the exiled creature's subtypes at resolve. */
     getAdditionalCostSubtypes: () => string[] | undefined;
+    /** Effective POWER snapshotted on the stack item when this ability's
+     *  additional sacrifice cost (CR 117.9 / 613 layer 7c) was paid. Captured
+     *  at cost commit because the sacrificed permanent is gone by resolution
+     *  (CR 608.2h last-known information). Returns `undefined` when no creature
+     *  was sacrificed for the cost. Used by Freyalise Supplicant ("deals damage
+     *  equal to half the sacrificed creature's power, rounded down"). */
+    getAdditionalSacrificePower: () => number | undefined;
     /** Deals `totalAmount` damage divided evenly, rounded down, among the
      *  given targets (CR 120.1, 603.3). Remainder (if any) is discarded.
      *  Used by Fireball and other "divided among any number of targets"
