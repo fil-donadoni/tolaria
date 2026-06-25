@@ -576,6 +576,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Blizzard",
+        "scryfallId": "c369e4f9-0f2b-446c-9e2d-d3eefab0586d",
+        "oracleId": "698feaaa-2fff-4809-81d1-4caad44c6c0a",
+        "firstSet": "ice"
+    },
+    {
         "name": "Blood Lust",
         "scryfallId": "fbbf1a9c-8b94-4ee7-92db-65b531149990",
         "oracleId": "55a253f9-f44d-4898-af83-fea68b7b279d",
@@ -844,6 +850,12 @@
         "scryfallId": "8cd7d7e1-f928-4429-9a59-ba0590a78e98",
         "oracleId": "7c91ae5d-0320-46a7-98d2-df0918202478",
         "firstSet": "leg"
+    },
+    {
+        "name": "Chub Toad",
+        "scryfallId": "b6ebcc1d-0c5c-4bc2-ade7-41944f69162e",
+        "oracleId": "a0daace2-92fc-4c7d-b497-94b4ba775559",
+        "firstSet": "ice"
     },
     {
         "name": "Circle of Protection: Artifacts",
@@ -1332,6 +1344,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Dire Wolves",
+        "scryfallId": "a602c93d-e00f-4b4f-a7ff-95316b7e7641",
+        "oracleId": "7d72a2f4-cce6-4a2b-9507-0ee1c3e1e4ae",
+        "firstSet": "ice"
+    },
+    {
         "name": "Disenchant",
         "scryfallId": "2722d7e2-61c6-4934-9c21-875ee78fd06c",
         "oracleId": "a7e97fa9-4b72-4548-b854-5be5f18a6f1a",
@@ -1518,6 +1536,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Earthlore",
+        "scryfallId": "319d252e-7c43-47d6-8873-f69b0e063256",
+        "oracleId": "91fbffd1-0886-45fa-bf3e-4c9864458431",
+        "firstSet": "ice"
+    },
+    {
         "name": "Earthquake",
         "scryfallId": "e68ac362-6cdc-48a6-bdd3-4f8ea32add64",
         "oracleId": "9a40614b-50a3-422c-849e-53c8b7d3d204",
@@ -1552,6 +1576,12 @@
         "scryfallId": "c4b610d3-2005-4347-bcda-c30b5b7972e5",
         "oracleId": "f92c9a5d-853f-4157-89ba-8d8c8033c533",
         "firstSet": "arn"
+    },
+    {
+        "name": "Elder Druid",
+        "scryfallId": "210f6fab-62f0-42ab-bd01-00d647bd25e7",
+        "oracleId": "a440a4f7-843f-4186-8ca9-df99f6aa321e",
+        "firstSet": "ice"
     },
     {
         "name": "Electric Eel",
@@ -1674,6 +1704,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Essence Filter",
+        "scryfallId": "9b610103-dafd-4248-9d79-ce57f84b9e03",
+        "oracleId": "b9f63388-d1ac-4895-84c5-e5b1db187463",
+        "firstSet": "ice"
+    },
+    {
         "name": "Essence Flare",
         "scryfallId": "13ebb5dd-d7f1-4b06-8585-7004045be542",
         "oracleId": "9bdc79c9-c8b0-4db1-89d9-0ca7920b6576",
@@ -1726,6 +1762,12 @@
         "scryfallId": "7eb71ac4-796d-4011-9002-1129bc09c284",
         "oracleId": "38c5c952-8153-4d98-89b5-a75260383345",
         "firstSet": "lea"
+    },
+    {
+        "name": "Fanatical Fever",
+        "scryfallId": "2abba7f1-5d07-4137-88a2-5967396a3e42",
+        "oracleId": "f1231def-96fb-4408-a0c9-25d6932d7ead",
+        "firstSet": "ice"
     },
     {
         "name": "Farmstead",
@@ -1902,6 +1944,18 @@
         "firstSet": "lea"
     },
     {
+        "name": "Folk of the Pines",
+        "scryfallId": "0c13311d-db83-483f-ba2b-4f54ceb8b026",
+        "oracleId": "6cd8cf2a-972f-41b7-ab0c-b4953accc2fe",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Forbidden Lore",
+        "scryfallId": "5fc225cf-4fe2-4a5b-828e-ffcb99e404e8",
+        "oracleId": "d2853bad-a751-45ee-8269-24b0cdbc5c6b",
+        "firstSet": "ice"
+    },
+    {
         "name": "Force of Nature",
         "scryfallId": "21551cb6-3a53-42dd-9bbd-4bc56304d6d3",
         "oracleId": "e3c4c27d-f263-4c69-a4fe-2928136ff68b",
@@ -1948,6 +2002,12 @@
         "scryfallId": "2b60eb23-cb9a-4203-86fb-60e47dbd870b",
         "oracleId": "b906923c-9997-4da5-a05e-53eb4d2dff32",
         "firstSet": "drk"
+    },
+    {
+        "name": "Freyalise's Charm",
+        "scryfallId": "3e147ac1-d221-49c7-966e-5e665ddeab6b",
+        "oracleId": "e0d638d2-2c5b-415c-95e7-74bf8d88794f",
+        "firstSet": "ice"
     },
     {
         "name": "Frost Giant",
@@ -2260,6 +2320,12 @@
         "scryfallId": "856be1dd-a20b-49c2-be9d-7db76c7efd8b",
         "oracleId": "95197f8f-c24e-4d13-a106-7186b3cc59e0",
         "firstSet": "atq"
+    },
+    {
+        "name": "Gorilla Pack",
+        "scryfallId": "046f6b76-5f17-4728-aa34-72b7eff1d4c9",
+        "oracleId": "f2c8814b-581b-483b-a7ae-d3d7b962aec1",
+        "firstSet": "ice"
     },
     {
         "name": "Granite Gargoyle",
@@ -5340,6 +5406,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Thermokarst",
+        "scryfallId": "00ae906b-2c4d-48e9-9f2d-217777e22292",
+        "oracleId": "f3b071a1-7501-4424-979a-780fa90eecb8",
+        "firstSet": "ice"
+    },
+    {
         "name": "Thicket Basilisk",
         "scryfallId": "e92cce01-b3bd-4307-aae5-9a7c8fa386ab",
         "oracleId": "c4822813-cd81-465d-9fe8-3a4c2dcd31ef",
@@ -5356,6 +5428,12 @@
         "scryfallId": "23749375-1416-47a4-9251-52f41fe2fae9",
         "oracleId": "6452b6a6-6235-46a3-a712-a26592450438",
         "firstSet": "lea"
+    },
+    {
+        "name": "Thoughtleech",
+        "scryfallId": "d8fe7f9d-644f-48d0-93fa-d9a536f1f755",
+        "oracleId": "b74d3768-74bb-413c-b7c7-41028ff48225",
+        "firstSet": "ice"
     },
     {
         "name": "Throne of Bone",
@@ -5694,6 +5772,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Venomous Breath",
+        "scryfallId": "8eeb9e02-1d26-4959-a878-2ef8db2358bc",
+        "oracleId": "fc73bd1b-c713-4825-9f2d-f6ae95dddf09",
+        "firstSet": "ice"
+    },
+    {
         "name": "Verduran Enchantress",
         "scryfallId": "9f87178b-1221-4d7a-a7a5-20d7f01b8089",
         "oracleId": "cd98a31b-cc7e-43f9-982e-109ad9850908",
@@ -6010,6 +6094,12 @@
         "scryfallId": "49b22665-1501-420a-82ad-f71f6768bcf8",
         "oracleId": "860468b3-625a-4663-a5ae-336ae10fc7d0",
         "firstSet": "lea"
+    },
+    {
+        "name": "Wiitigo",
+        "scryfallId": "9ee86bf2-6c54-4c6e-8394-eb39f98d5a85",
+        "oracleId": "7f956a21-854e-41cc-96f9-ad774e69fa8e",
+        "firstSet": "ice"
     },
     {
         "name": "Wild Growth",
