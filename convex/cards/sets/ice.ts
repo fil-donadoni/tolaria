@@ -5468,16 +5468,6 @@ export const fyndhornPollen: CardDefinition = {
 //     toughness: 3,
 // };
 // TODO(#628): implement.
-// export const hotSprings: CardDefinition = {
-//     id: "1d4fe072-81a7-424e-8d21-aaca010d5b1d",
-//     name: "Hot Springs",
-//     rarity: "rare",
-//     oracleText: "Enchant land you control\nEnchanted land has \"{T}: Prevent the next 1 damage that would be dealt to any target this turn.\"",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
-// TODO(#628): implement.
 // export const hurricane: CardDefinition = {
 //     id: "a8cc6db7-1f40-40e3-a7ea-92f1d05e2e3d",
 //     name: "Hurricane",
@@ -5485,40 +5475,6 @@ export const fyndhornPollen: CardDefinition = {
 //     oracleText: "Hurricane deals X damage to each creature with flying and each player.",
 //     manaCost: { X: "X", G: 1 },
 //     types: ["Sorcery"],
-// };
-// TODO(#628): implement.
-// export const johtullWurm: CardDefinition = {
-//     id: "64a22e88-f7b1-48c8-a199-e57edcd50654",
-//     name: "Johtull Wurm",
-//     rarity: "uncommon",
-//     oracleText: "Whenever this creature becomes blocked, it gets -2/-1 until end of turn for each creature blocking it beyond the first.",
-//     manaCost: { X: 5, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Wurm"],
-//     power: 6,
-//     toughness: 6,
-// };
-// TODO(#628): implement.
-// export const juniperOrderDruid: CardDefinition = {
-//     id: "cb211704-ff8e-498b-b7bb-f8384f198ffd",
-//     name: "Juniper Order Druid",
-//     rarity: "common",
-//     oracleText: "{T}: Untap target land.",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Cleric", "Druid"],
-//     power: 1,
-//     toughness: 1,
-// };
-// TODO(#628): implement.
-// export const lhurgoyf: CardDefinition = {
-//     id: "fee6d385-d44b-4f1a-beb1-13aeebde063e",
-//     name: "Lhurgoyf",
-//     rarity: "rare",
-//     oracleText: "Lhurgoyf's power is equal to the number of creature cards in all graveyards and its toughness is equal to that number plus 1.",
-//     manaCost: { X: 2, G: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Lhurgoyf"],
 // };
 // TODO(#628): implement.
 // export const lure: CardDefinition = {
@@ -5563,39 +5519,6 @@ export const maddeningWind: CardDefinition = {
     ],
 };
 // TODO(#628): implement.
-// export const naturesLore: CardDefinition = {
-//     id: "668d2969-b6b7-4507-bdd4-20bbaa68035a",
-//     name: "Nature's Lore",
-//     rarity: "uncommon",
-//     oracleText: "Search your library for a Forest card, put that card onto the battlefield, then shuffle.",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Sorcery"],
-// };
-// TODO(#628): implement.
-// export const paleBears: CardDefinition = {
-//     id: "7f19c2a3-6403-4a78-bf45-6e339578d673",
-//     name: "Pale Bears",
-//     rarity: "rare",
-//     oracleText: "Islandwalk (This creature can't be blocked as long as defending player controls an Island.)",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Bear"],
-//     power: 2,
-//     toughness: 2,
-// };
-// TODO(#628): implement.
-// export const pygmyAllosaurus: CardDefinition = {
-//     id: "88a68767-9822-4f15-895e-32164e2159be",
-//     name: "Pygmy Allosaurus",
-//     rarity: "rare",
-//     oracleText: "Swampwalk (This creature can't be blocked as long as defending player controls a Swamp.)",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Dinosaur"],
-//     power: 2,
-//     toughness: 2,
-// };
-// TODO(#628): implement.
 // export const pyknite: CardDefinition = {
 //     id: "6ffc64e4-ae3c-49f9-8ed6-518dd497bfe6",
 //     name: "Pyknite",
@@ -5639,30 +5562,6 @@ export const maddeningWind: CardDefinition = {
 //     types: ["Enchantment"],
 // };
 // TODO(#628): implement.
-// export const scaledWurm: CardDefinition = {
-//     id: "499cd7fa-c86c-4a5f-b36d-8160e8a6af1f",
-//     name: "Scaled Wurm",
-//     rarity: "common",
-//     oracleText: "",
-//     manaCost: { X: 7, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Wurm"],
-//     power: 7,
-//     toughness: 6,
-// };
-// TODO(#628): implement.
-// export const shamblingStrider: CardDefinition = {
-//     id: "8886ba2d-b25a-4b74-9299-911c509ae864",
-//     name: "Shambling Strider",
-//     rarity: "common",
-//     oracleText: "{R}{G}: This creature gets +1/-1 until end of turn.",
-//     manaCost: { X: 4, G: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Yeti"],
-//     power: 5,
-//     toughness: 5,
-// };
-// TODO(#628): implement.
 // export const snowblind: CardDefinition = {
 //     id: "5f62c376-487a-42bc-bd85-ab8b0480f7dc",
 //     name: "Snowblind",
@@ -5671,36 +5570,6 @@ export const maddeningWind: CardDefinition = {
 //     manaCost: { X: 3, G: 1 },
 //     types: ["Enchantment"],
 //     subtypes: ["Aura"],
-// };
-// TODO(#628): implement.
-// export const stampede: CardDefinition = {
-//     id: "bc8265a1-4621-4d25-8f7f-f0179951a694",
-//     name: "Stampede",
-//     rarity: "rare",
-//     oracleText: "Attacking creatures get +1/+0 and gain trample until end of turn.",
-//     manaCost: { X: 1, G: 2 },
-//     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const stuntedGrowth: CardDefinition = {
-//     id: "4c9b7393-eb35-4c99-bbf5-bcf924aa8ff3",
-//     name: "Stunted Growth",
-//     rarity: "rare",
-//     oracleText: "Target player chooses three cards from their hand and puts them on top of their library in any order.",
-//     manaCost: { X: 3, G: 2 },
-//     types: ["Sorcery"],
-// };
-// TODO(#628): implement.
-// export const tarpan: CardDefinition = {
-//     id: "b1420ec5-367c-4514-86c5-3993bf339e37",
-//     name: "Tarpan",
-//     rarity: "common",
-//     oracleText: "When this creature dies, you gain 1 life.",
-//     manaCost: { G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Horse"],
-//     power: 1,
-//     toughness: 1,
 // };
 // TODO(#628): implement.
 // export const thermokarst: CardDefinition = {
@@ -5721,33 +5590,12 @@ export const maddeningWind: CardDefinition = {
 //     types: ["Enchantment"],
 // };
 // TODO(#628): implement.
-// export const tinderWall: CardDefinition = {
-//     id: "2a7c6489-21e9-4b86-a54a-b1e2f1fce318",
-//     name: "Tinder Wall",
-//     rarity: "common",
-//     oracleText: "Defender (This creature can't attack.)\nSacrifice this creature: Add {R}{R}.\n{R}, Sacrifice this creature: It deals 2 damage to target creature it's blocking.",
-//     manaCost: { G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Plant", "Wall"],
-//     power: 0,
-//     toughness: 3,
-// };
-// TODO(#628): implement.
 // export const touchOfVitae: CardDefinition = {
 //     id: "48d2cd18-a24d-40e0-a654-777d9e623ae2",
 //     name: "Touch of Vitae",
 //     rarity: "uncommon",
 //     oracleText: "Until end of turn, target creature gains haste and \"{0}: Untap this creature. Activate only once.\"\nDraw a card at the beginning of the next turn's upkeep.",
 //     manaCost: { X: 2, G: 1 },
-//     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const trailblazer: CardDefinition = {
-//     id: "9194c69d-c849-4c4a-976c-d1382bd5cf32",
-//     name: "Trailblazer",
-//     rarity: "rare",
-//     oracleText: "Target creature can't be blocked this turn.",
-//     manaCost: { X: 2, G: 2 },
 //     types: ["Instant"],
 // };
 // TODO(#628): implement.
@@ -5758,18 +5606,6 @@ export const maddeningWind: CardDefinition = {
 //     oracleText: "Choose target creature. At this turn's next end of combat, destroy all creatures that blocked or were blocked by it this turn.",
 //     manaCost: { X: 3, G: 1 },
 //     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const wallOfPineNeedles: CardDefinition = {
-//     id: "5d879923-55fc-46ab-9306-5e1f10441c89",
-//     name: "Wall of Pine Needles",
-//     rarity: "uncommon",
-//     oracleText: "Defender (This creature can't attack.)\n{G}: Regenerate this creature.",
-//     manaCost: { X: 3, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Plant", "Wall"],
-//     power: 3,
-//     toughness: 3,
 // };
 // TODO(#628): implement.
 // export const whiteout: CardDefinition = {
@@ -5813,30 +5649,6 @@ export const maddeningWind: CardDefinition = {
 //     subtypes: ["Elephant"],
 //     power: 3,
 //     toughness: 2,
-// };
-// TODO(#628): implement.
-// export const woollySpider: CardDefinition = {
-//     id: "e10520b2-b5a7-4328-84c8-20443b6f588a",
-//     name: "Woolly Spider",
-//     rarity: "common",
-//     oracleText: "Reach (This creature can block creatures with flying.)\nWhenever this creature blocks a creature with flying, this creature gets +0/+2 until end of turn.",
-//     manaCost: { X: 1, G: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Spider"],
-//     power: 2,
-//     toughness: 3,
-// };
-// TODO(#628): implement.
-// export const yavimayaGnats: CardDefinition = {
-//     id: "9d8b7020-ca8f-4867-bc51-13d824daf154",
-//     name: "Yavimaya Gnats",
-//     rarity: "uncommon",
-//     oracleText: "Flying\n{G}: Regenerate this creature.",
-//     manaCost: { X: 2, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Insect"],
-//     power: 0,
-//     toughness: 1,
 // };
 // ─────────────────────────────────────────────────────────────────────────────
 // MULTICOLOUR free tranche (#635) — the gold ICE cards expressible with
@@ -6620,15 +6432,6 @@ export const despoticScepter: CardDefinition = {
 //     rarity: "rare",
 //     oracleText: "{4}, {T}: Attach target Aura attached to a creature to another creature.",
 //     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
-// TODO(#628): implement.
-// export const despoticScepter: CardDefinition = {
-//     id: "53e381a4-810e-4b75-aed3-c16cf0eb06fa",
-//     name: "Despotic Scepter",
-//     rarity: "rare",
-//     oracleText: "{T}: Destroy target permanent you own. It can't be regenerated.",
-//     manaCost: { X: 1 },
 //     types: ["Artifact"],
 // };
 // TODO(#628): implement.
