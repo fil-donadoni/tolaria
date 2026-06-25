@@ -201,6 +201,36 @@ describe("game_state serialize round-trip", () => {
         expect(top.notedManaSpent).toEqual({ R: 1 });
     });
 
+    it("preserves a stack item's additionalSacrificeSnapshot incl. power (#670, CR 608.2h)", () => {
+        // Freyalise Supplicant snapshots the sacrificed creature's effective
+        // POWER at cost commit (the creature is gone by resolution). The whole
+        // snapshot — mv, subtypes, AND the new `power` field — must survive a DB
+        // round-trip so a suspended ability still deals floor(power/2).
+        const state = freshState();
+        const supplicant = state.players[0].hand[0];
+        state.stack = [
+            {
+                ...supplicant,
+                zone: "stack",
+                castById: "p1",
+                abilityId: "freyalise-supplicant-sacrifice-ping",
+                additionalSacrificeSnapshot: {
+                    cardInstanceId: "fuel",
+                    mv: 3,
+                    subtypes: ["Goblin"],
+                    power: 4,
+                },
+            },
+        ];
+        const top = expandState(compactState(state)).stack[0];
+        expect(top.additionalSacrificeSnapshot).toEqual({
+            cardInstanceId: "fuel",
+            mv: 3,
+            subtypes: ["Goblin"],
+            power: 4,
+        });
+    });
+
     it("preserves a stack item's divide-as-you-choose split (targetAmounts, #664)", () => {
         // CR 601.2d / 120.4 — a suspended divide spell must reload its
         // per-target split after a DB round-trip (Fire Covenant / Spoils of War).

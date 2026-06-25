@@ -22,6 +22,7 @@ import type {
     DelayedTriggerDef,
     GameEvent,
     ManaCost,
+    PermanentFilter,
     PermanentView,
     SpellContext,
     TargetSelection,
@@ -3856,15 +3857,93 @@ export const gravebind: CardDefinition = {
     },
     delayedTriggers: [nextUpkeepDrawTrigger()],
 };
-// TODO(#628): implement.
-// export const hecatomb: CardDefinition = {
-//     id: "8f59620f-ff9e-44d8-9c4e-be9de1a919e8",
-//     name: "Hecatomb",
-//     rarity: "rare",
-//     oracleText: "When this enchantment enters, sacrifice this enchantment unless you sacrifice four creatures.\nTap an untapped Swamp you control: This enchantment deals 1 damage to any target.",
-//     manaCost: { X: 1, B: 2 },
-//     types: ["Enchantment"],
-// };
+// Hecatomb — ETB "sacrifice this enchantment unless you sacrifice four
+// creatures" (CR 603.6a ETB + CR 117.3a unless-cost + CR 701.16 sacrifice,
+// same shape as Mold Demon) plus an activated "Tap an untapped Swamp you
+// control: deal 1 damage to any target." The tap-a-Swamp leg is a
+// `tapOtherFilter` activation cost (CR 602.1 / 118.8) — the same generic
+// tap-another-permanent cost Hand of Justice / Vodalian War Machine use, here
+// pointed at a LAND subtype rather than a creature. The damage is a standard
+// `type: "any"` targeted ability (CR 115.4).
+export const hecatomb: CardDefinition = {
+    id: "8f59620f-ff9e-44d8-9c4e-be9de1a919e8",
+    name: "Hecatomb",
+    rarity: "rare",
+    oracleText:
+        "When this enchantment enters, sacrifice this enchantment unless you sacrifice four creatures.\nTap an untapped Swamp you control: This enchantment deals 1 damage to any target.",
+    manaCost: { X: 1, B: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "hecatomb-etb",
+            oracleText:
+                "When this enchantment enters, sacrifice this enchantment unless you sacrifice four creatures.",
+            scope: "self",
+            resolve: (ctx) => {
+                const controller = ctx.controller;
+                const creatureIds = ctx.getBattlefieldIds(controller, {
+                    types: "Creature",
+                });
+                // CR 117.3a — an unpayable "unless" cost (fewer than four
+                // creatures, counting Hecatomb itself? No: Hecatomb is an
+                // Enchantment, not a creature) forces the consequence: sacrifice
+                // Hecatomb. No prompt with no real choice.
+                if (creatureIds.length < 4) {
+                    ctx.sacrifice(ctx.sourceInstanceId);
+                    return;
+                }
+                const accept = ctx.requestMayPay({
+                    playerId: controller,
+                    choiceId: `hecatomb-${ctx.sourceInstanceId}`,
+                    prompt: "Sacrifice four creatures to keep Hecatomb?",
+                });
+                if (accept === undefined) return; // suspended
+                if (!accept) {
+                    ctx.sacrifice(ctx.sourceInstanceId);
+                    return;
+                }
+                const picked = ctx.requestChoice({
+                    playerId: controller,
+                    choiceId: `hecatomb-${ctx.sourceInstanceId}-creatures`,
+                    kind: "sacrifice-permanents",
+                    zone: "battlefield",
+                    filter: { types: "Creature" },
+                    count: 4,
+                    prompt: "Sacrifice four creatures.",
+                });
+                if (picked === undefined) return; // suspended
+                if (picked.length < 4) {
+                    // Failed to pay the full cost → sacrifice Hecatomb.
+                    ctx.sacrifice(ctx.sourceInstanceId);
+                    return;
+                }
+                for (const id of picked) ctx.sacrifice(id);
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "hecatomb-ping",
+            oracleText:
+                "Tap an untapped Swamp you control: This enchantment deals 1 damage to any target.",
+            // CR 602.1 / 118.8 — "Tap an untapped Swamp you control" is a
+            // tap-ANOTHER-permanent cost (not the source's own {T}). The Swamp
+            // is a land, exercising the tap-a-land seam of `tapOtherFilter`.
+            cost: {
+                tapOtherFilter: {
+                    filter: { subtypes: "Swamp", controllerRelation: "you" },
+                    count: 1,
+                },
+            },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target) ctx.dealDamage(target, 1);
+            },
+        },
+    ],
+};
 // Hoar Shade — classic Shade pump (CR 611.1b). "{B}: This creature gets +1/+1
 // until end of turn."
 export const hoarShade: CardDefinition = {
@@ -5146,15 +5225,139 @@ export const pestilenceRats: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const pox: CardDefinition = {
-//     id: "a914138c-a593-414c-bbcb-83d3c1bc4f6f",
-//     name: "Pox",
-//     rarity: "rare",
-//     oracleText: "Each player loses a third of their life, then discards a third of the cards in their hand, then sacrifices a third of the creatures they control of their choice, then sacrifices a third of the lands they control of their choice. Round up each time.",
-//     manaCost: { B: 3 },
-//     types: ["Sorcery"],
-// };
+// Pox — "Each player loses a third of their life, rounds up, then discards a
+// third of the cards in their hand, rounds up, then sacrifices a third of the
+// creatures they control, rounds up, then sacrifices a third of the lands they
+// control, rounds up. (Each player chooses which cards to discard and which
+// permanents to sacrifice.)" — modern Oracle text (CR 119.3 life loss; CR 701.8
+// discard; CR 701.16 sacrifice; CR 107.2 "round up"). The four phases happen in
+// APNAP order (CR 101.4) and each is a SEPARATE suspension point so a player's
+// choice in one phase doesn't leak into another; modeled as four `resolveSteps`.
+//
+// "A third, rounded up" of n is `Math.ceil(n / 3)`. For the permanent/hand
+// phases each player CHOOSES which to keep, so the engine prompts the player to
+// pick the KEEP set (count = n − ceil(n/3)) and sacrifices/discards the rest —
+// the same shrink-to-a-target-count primitive Balance uses.
+function poxThird(n: number): number {
+    return Math.ceil(n / 3); // CR 107.2 — "round up"
+}
+
+// Each player chooses which `loseCount = ceil(n/3)` permanents (matching
+// `filter`) to sacrifice — i.e. which `n − loseCount` to KEEP. Mirrors the
+// Balance equalize helper; the keep-pick is auto-resolved when there is no real
+// choice (lose all, or lose none).
+function poxSacrificeThird(
+    ctx: SpellContext,
+    filter: PermanentFilter,
+    label: { singular: string; plural: string }
+): void {
+    const players = ctx.apNapOrder();
+    const keepByPlayer: Record<string, string[] | undefined> = {};
+    for (const p of players) {
+        const ids = ctx.getBattlefieldIds(p, filter);
+        const n = ids.length;
+        const keep = n - poxThird(n);
+        if (keep <= 0) {
+            keepByPlayer[p] = []; // sacrifice everything — no choice
+            continue;
+        }
+        if (keep >= n) {
+            keepByPlayer[p] = ids; // sacrifice nothing — no choice
+            continue;
+        }
+        keepByPlayer[p] = ctx.requestChoice({
+            playerId: p,
+            choiceId: `pox-${label.plural}-${p}`,
+            kind: "keep-permanents",
+            zone: "battlefield",
+            filter,
+            count: keep,
+            prompt:
+                keep === 1
+                    ? `Pox: choose the ${label.singular} to keep`
+                    : `Pox: choose ${keep} ${label.plural} to keep`,
+        });
+    }
+    if (Object.values(keepByPlayer).some((v) => v === undefined)) return;
+    for (const p of players) {
+        const keep = new Set(keepByPlayer[p]);
+        for (const id of ctx.getBattlefieldIds(p, filter)) {
+            if (!keep.has(id)) ctx.sacrifice(id);
+        }
+    }
+}
+
+export const pox: CardDefinition = {
+    id: "a914138c-a593-414c-bbcb-83d3c1bc4f6f",
+    name: "Pox",
+    rarity: "rare",
+    oracleText:
+        "Each player loses a third of their life, rounds up, then discards a third of the cards in their hand, rounds up, then sacrifices a third of the creatures they control, rounds up, then sacrifices a third of the lands they control, rounds up.",
+    manaCost: { B: 3 },
+    types: ["Sorcery"],
+    resolveSteps: [
+        // 1) Each player loses a third of their life (round up). No choice.
+        (ctx: SpellContext) => {
+            for (const p of ctx.apNapOrder()) {
+                const loss = poxThird(ctx.getLife(p));
+                if (loss > 0) ctx.loseLife(p, loss);
+            }
+        },
+        // 2) Each player discards a third of their hand (round up), their choice.
+        (ctx: SpellContext) => {
+            const players = ctx.apNapOrder();
+            const keepByPlayer: Record<string, string[] | undefined> = {};
+            for (const p of players) {
+                const ids = ctx.getHandIds(p);
+                const n = ids.length;
+                const keep = n - poxThird(n);
+                if (keep <= 0) {
+                    keepByPlayer[p] = [];
+                    continue;
+                }
+                if (keep >= n) {
+                    keepByPlayer[p] = ids;
+                    continue;
+                }
+                keepByPlayer[p] = ctx.requestChoice({
+                    playerId: p,
+                    choiceId: `pox-hand-${p}`,
+                    kind: "keep-hand",
+                    zone: "hand",
+                    count: keep,
+                    prompt:
+                        keep === 1
+                            ? "Pox: choose 1 card to keep"
+                            : `Pox: choose ${keep} cards to keep`,
+                });
+            }
+            if (Object.values(keepByPlayer).some((v) => v === undefined))
+                return;
+            for (const p of players) {
+                const keep = new Set(keepByPlayer[p]);
+                for (const id of ctx.getHandIds(p)) {
+                    if (!keep.has(id)) ctx.discardCard(p, id);
+                }
+            }
+        },
+        // 3) Each player sacrifices a third of their creatures (round up).
+        (ctx: SpellContext) => {
+            poxSacrificeThird(
+                ctx,
+                { types: "Creature" },
+                { singular: "creature", plural: "creatures" }
+            );
+        },
+        // 4) Each player sacrifices a third of their lands (round up).
+        (ctx: SpellContext) => {
+            poxSacrificeThird(
+                ctx,
+                { types: "Land" },
+                { singular: "land", plural: "lands" }
+            );
+        },
+    ],
+};
 // Seizures (#668) — Aura demonstrating the host-scoped "becomes tapped"
 // trigger seam.
 //   "Enchant creature. Whenever enchanted creature becomes tapped, this Aura
@@ -7856,15 +8059,84 @@ export const forbiddenLore: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const forgottenLore: CardDefinition = {
-//     id: "fb01dd39-a957-4c1a-86cf-f31a699a154a",
-//     name: "Forgotten Lore",
-//     rarity: "uncommon",
-//     oracleText: "Target opponent chooses a card in your graveyard. You may pay {G}. If you do, repeat this process except that opponent can't choose a card already chosen for Forgotten Lore. Then put the last chosen card into your hand.",
-//     manaCost: { G: 1 },
-//     types: ["Sorcery"],
-// };
+// Forgotten Lore — "Target opponent chooses a card in your graveyard. You may
+// pay {G}. If you do, repeat this process except that opponent can't choose a
+// card already chosen for Forgotten Lore. Then put the last chosen card into
+// your hand." (CR 115 target opponent; CR 608.2 iterative resolution; CR 117.3a
+// may-pay; CR 400.7 graveyard → hand.)
+//
+// This is an UNBOUNDED iterative may-pay loop over a SHRINKING candidate set —
+// the fixed-length `resolveSteps` model cannot express a loop whose length is
+// decided at runtime. It is expressed with a SINGLE `resolve()` closure plus
+// iteration-indexed choice ids: the non-stepped resolve re-runs from the top on
+// every resume, replaying already-collected choices from `collectedChoices`
+// (CR 608.2 stepped-resolution checkpointing) and enqueuing the next pick / pay.
+// Each iteration `i`:
+//   1. The opponent picks one card from the controller's graveyard, scoped to
+//      the candidate set MINUS every card chosen in iterations 0..i-1 (the
+//      shrinking set; `choiceId: forgotten-lore-pick-${i}`).
+//   2. The controller may pay {G} (`choiceId: forgotten-lore-pay-${i}`). On
+//      "yes" the loop advances to iteration i+1; on "no" (or no candidates
+//      remain) the loop stops and the LAST chosen card moves to the controller's
+//      hand. CR 117.3a — declining to pay ends the repeat.
+export const forgottenLore: CardDefinition = {
+    id: "fb01dd39-a957-4c1a-86cf-f31a699a154a",
+    name: "Forgotten Lore",
+    rarity: "uncommon",
+    oracleText:
+        "Target opponent chooses a card in your graveyard. You may pay {G}. If you do, repeat this process except that opponent can't choose a card already chosen for Forgotten Lore. Then put the last chosen card into your hand.",
+    manaCost: { G: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1, controller: "opponent" },
+    resolve: (ctx: SpellContext) => {
+        const me = ctx.controller;
+        const t = ctx.targets[0];
+        if (t?.type !== "player") return;
+        const opponent = t.id;
+
+        // Walk the iterations: replay completed picks/pays from prior resumes,
+        // and enqueue the next pending choice. `chosen` accumulates the cards
+        // picked so far (in order); the LAST one is what goes to hand.
+        const chosen: string[] = [];
+        for (let i = 0; ; i++) {
+            const graveIds = ctx.getGraveyardCards(me).map((c) => c.id);
+            // The shrinking candidate set: cards still in the graveyard that
+            // the opponent has not yet chosen for Forgotten Lore.
+            const candidateIds = graveIds.filter((id) => !chosen.includes(id));
+            if (candidateIds.length === 0) break; // nothing left to choose
+
+            const pick = ctx.requestChoice({
+                playerId: opponent,
+                choiceId: `forgotten-lore-pick-${i}`,
+                kind: "choose-graveyard-card",
+                zone: "graveyard",
+                zoneOwnerId: me,
+                candidateIds,
+                count: 1,
+                prompt: "Choose a card in the opponent's graveyard.",
+            });
+            if (pick === undefined) return; // suspended on the opponent's pick
+            if (pick.length === 0) break; // defensive — no card chosen
+            chosen.push(pick[0]);
+
+            // CR 117.3a — the controller may pay {G} to repeat the process.
+            const repeat = ctx.requestMayPay({
+                playerId: me,
+                choiceId: `forgotten-lore-pay-${i}`,
+                cost: { G: 1 },
+                prompt: "Pay {G} to repeat Forgotten Lore?",
+            });
+            if (repeat === undefined) return; // suspended on the may-pay
+            if (!repeat) break; // declined — stop the loop
+            // Paid — loop continues to iteration i+1 over the shrunken set.
+        }
+
+        // CR 400.7 — put the LAST chosen card into the controller's hand. (If
+        // no card was ever chosen — empty graveyard — nothing happens.)
+        const last = chosen[chosen.length - 1];
+        if (last) ctx.moveCardById(me, last, "graveyard", "hand");
+    },
+};
 // Foxfire — {2}{G} Instant. "Untap target attacking creature. Prevent all
 // combat damage that would be dealt to and dealt by that creature this turn"
 // (CR 701.20 untap; CR 615 two-way combat-damage shield, via
@@ -7893,18 +8165,52 @@ export const foxfire: CardDefinition = {
     },
     delayedTriggers: [nextUpkeepDrawTrigger()],
 };
-// TODO(#628): implement.
-// export const freyaliseSupplicant: CardDefinition = {
-//     id: "5b1e718a-882a-4bdc-9d62-4dda88da0ba0",
-//     name: "Freyalise Supplicant",
-//     rarity: "uncommon",
-//     oracleText: "{T}, Sacrifice a red or white creature: This creature deals damage to any target equal to half the sacrificed creature's power, rounded down.",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Cleric"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Freyalise Supplicant — "{T}, Sacrifice a red or white creature: This creature
+// deals damage to any target equal to half the sacrificed creature's power,
+// rounded down." (CR 602.1 / 118.5 — {T} + sacrifice-a-filtered-creature cost;
+// CR 115.4 any-target; CR 120.1 damage.) The sacrificed creature's EFFECTIVE
+// power is snapshotted onto the stack item at cost commit (CR 613 layer 7c,
+// 608.2h last-known information) because the creature is gone by resolution;
+// the resolve reads it via `getAdditionalSacrificePower`. Mana value alone
+// would be wrong — power can diverge from mana value (pumps, X/1 bodies).
+export const freyaliseSupplicant: CardDefinition = {
+    id: "5b1e718a-882a-4bdc-9d62-4dda88da0ba0",
+    name: "Freyalise Supplicant",
+    rarity: "uncommon",
+    oracleText:
+        "{T}, Sacrifice a red or white creature: This creature deals damage to any target equal to half the sacrificed creature's power, rounded down.",
+    manaCost: { X: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Cleric"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "freyalise-supplicant-sacrifice-ping",
+            oracleText:
+                "{T}, Sacrifice a red or white creature: This creature deals damage to any target equal to half the sacrificed creature's power, rounded down.",
+            cost: {
+                tap: true,
+                // CR 602.1 / 118.5 — "Sacrifice a red or white creature": the
+                // activator picks a matching creature on their battlefield;
+                // the source (Freyalise Supplicant, a green creature) is NOT a
+                // legal pick (not red/white), so it can't sacrifice itself.
+                sacrificeFilter: { types: "Creature", colors: ["R", "W"] },
+            },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (!target) return;
+                // CR 608.2h — the sacrificed creature's power was snapshotted
+                // at cost payment (it has left play by now). Half, rounded
+                // down (CR 107.2).
+                const power = ctx.getAdditionalSacrificePower() ?? 0;
+                ctx.dealDamage(target, Math.floor(power / 2));
+            },
+        },
+    ],
+};
 // Freyalise's Charm — {G}{G} Enchantment. "Whenever an opponent casts a black
 // spell, you may pay {G}{G}. If you do, you draw a card." (CR 603.2 spell-cast
 // trigger scoped to opponents + colour filter; CR 117.3a may-pay via

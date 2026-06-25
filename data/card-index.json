@@ -2118,6 +2118,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Forgotten Lore",
+        "scryfallId": "fb01dd39-a957-4c1a-86cf-f31a699a154a",
+        "oracleId": "ca9f538d-4191-448a-870d-f645b7c37c1b",
+        "firstSet": "ice"
+    },
+    {
         "name": "Fork",
         "scryfallId": "e6b43916-fe2d-417a-a550-d7c795023297",
         "oracleId": "50c53ae0-51ba-4046-ac74-87c65e688032",
@@ -2151,6 +2157,12 @@
         "name": "Foxfire",
         "scryfallId": "88db9685-6a2f-4548-b6c4-669918d653b4",
         "oracleId": "6c270e6a-12a7-4323-87ba-6d770986fb48",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Freyalise Supplicant",
+        "scryfallId": "5b1e718a-882a-4bdc-9d62-4dda88da0ba0",
+        "oracleId": "c28a7641-49e3-43b1-a366-8d6e9c8dab9c",
         "firstSet": "ice"
     },
     {
@@ -2674,6 +2686,12 @@
         "scryfallId": "e28de37e-84d5-4dc7-b36c-e14da5924729",
         "oracleId": "8da8644c-75a1-4fe9-8e94-900d948d631c",
         "firstSet": "lea"
+    },
+    {
+        "name": "Hecatomb",
+        "scryfallId": "8f59620f-ff9e-44d8-9c4e-be9de1a919e8",
+        "oracleId": "0ec153ee-2a91-4196-9105-212dd1864aea",
+        "firstSet": "ice"
     },
     {
         "name": "Hell Swarm",
@@ -4618,6 +4636,12 @@
         "scryfallId": "ae1d7b09-3a1f-410f-b330-04ae768b0455",
         "oracleId": "877d42be-f74d-4521-87b7-bb59824d0acc",
         "firstSet": "atq"
+    },
+    {
+        "name": "Pox",
+        "scryfallId": "a914138c-a593-414c-bbcb-83d3c1bc4f6f",
+        "oracleId": "539d7c1a-b5e9-4204-9109-ddb2e8dec168",
+        "firstSet": "ice"
     },
     {
         "name": "Pradesh Gypsies",

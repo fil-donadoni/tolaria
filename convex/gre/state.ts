@@ -851,6 +851,15 @@ export type StackItem = CardInstanceState & {
         cardInstanceId: string;
         mv: number;
         subtypes?: string[];
+        /** Effective POWER of the permanent at the moment it was sacrificed
+         *  (CR 613 layer 7c, last-known-information CR 608.2h). Captured at cost
+         *  commit because the permanent is gone by resolution. Read at resolve
+         *  via `SpellContext.getAdditionalSacrificePower` for "deal damage equal
+         *  to the sacrificed creature's power" effects (Freyalise Supplicant).
+         *  Mana value alone (`mv`) cannot express this — power can diverge from
+         *  mana value (pumps, X/1 creatures, etc.). Omitted for sacrificed
+         *  permanents without a power characteristic. */
+        power?: number;
     };
     /** Type and amount of mana spent to pay THIS activation's cost (CR 106.10).
      *  Captured at activation commit (the manaPool delta) when the ability sets
@@ -5783,6 +5792,9 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         },
         getAdditionalCostSubtypes(): string[] | undefined {
             return item.additionalSacrificeSnapshot?.subtypes;
+        },
+        getAdditionalSacrificePower(): number | undefined {
+            return item.additionalSacrificeSnapshot?.power;
         },
         getManaValue(target: TargetSelection): number {
             if (target.type === "permanent") {

@@ -289,6 +289,84 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         turn: 2,
     },
     {
+        // ICE one-off resolution & cost mechanics (#670, PRD #628). Exercises
+        // the four new seams in a single board:
+        //   - Forgotten Lore ({G} sorcery): unbounded iterative may-pay loop
+        //     over a SHRINKING graveyard set (CR 608.2 / 117.3a). Three cards
+        //     are pre-seeded in your graveyard; cast it — the opponent picks
+        //     one, you may pay {G} to repeat over the remaining cards, and the
+        //     last-chosen card returns to your hand.
+        //   - Pox ({B}{B}{B} sorcery): proportional round-up mass life-loss /
+        //     sacrifice creatures / sacrifice lands / discard (CR 107.2), each
+        //     player choosing. A few creatures/lands/hand cards on each side
+        //     make the ⅓ fractions visible.
+        //   - Freyalise Supplicant ({X}{G} 1/1): {T}, sacrifice a red/white
+        //     creature → deal floor(power/2) to any target (CR 608.2h power
+        //     snapshot). A red 4/4-ish body is on the battlefield to feed it.
+        //   - Hecatomb ({X}{B}{B} enchantment) sits in hand: its ETB asks to
+        //     sacrifice four creatures, then "Tap an untapped Swamp you
+        //     control: deal 1 to any target" (tap-a-land cost, CR 602.1/118.8).
+        // Turn 2, life 20; Swamps come from the basic land seed so Hecatomb has
+        // a Swamp to tap.
+        label: "ICE: Resolution & cost mechanics — Forgotten Lore / Pox / Freyalise Supplicant / Hecatomb (#670)",
+        cards: [
+            // Forgotten Lore + three graveyard cards for it to walk over.
+            {
+                name: "Forgotten Lore",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "me" as const,
+                zone: "graveyard" as const,
+                count: 3,
+            },
+            // Pox — proportional mass effect.
+            {
+                name: "Pox",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            // Freyalise Supplicant + a red creature to sacrifice for damage.
+            {
+                name: "Freyalise Supplicant",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Goblin Ski Patrol",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            // Hecatomb — tap-a-Swamp ping + ETB sacrifice-four.
+            {
+                name: "Hecatomb",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            // Extra creatures/lands on each side so Pox's ⅓ fractions and
+            // Hecatomb's sac-four ETB have material to work on.
+            {
+                name: "Balduvian Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                count: 4,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        // Swamps among the seeded basics so Hecatomb's tap-a-Swamp cost is
+        // payable; extra lands feed Pox's land-sacrifice third.
+        landCount: 6,
+        turn: 2,
+    },
+    {
         // ICE divide-as-you-choose cluster (#664, PRD #628). Exercises the
         // player-chosen division of a fixed total among ≥1-each targets for
         // damage AND counters (CR 601.2d / 120.4):
