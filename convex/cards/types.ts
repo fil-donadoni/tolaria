@@ -2310,6 +2310,13 @@ export interface PermanentView {
      *  -1/-0) contributes at stat-read time. Other types are inert to layers
      *  and read by card-specific abilities only. */
     counters?: Readonly<Record<string, number>>;
+    /** Per-turn activation tally keyed by ability id (CR 602.5). Mirrors
+     *  `CardInstanceState.activationsThisTurn`; the activation validator passes
+     *  the raw `CardInstanceState` as `source` to `canActivate`, so this is
+     *  populated there. Exposed read-only so a `canActivate` predicate can
+     *  enforce a hard per-turn cap (Soul Kiss — "activate no more than three
+     *  times each turn"). Reset at turn start. */
+    activationsThisTurn?: Readonly<Record<string, number>>;
     /** True for tokens (CR 111). Predicates that scope to "nontoken
      *  permanents" (Jihad's chosen-color clause) read this; populated from the
      *  raw `CardInstanceState` the engine passes through as the view. */

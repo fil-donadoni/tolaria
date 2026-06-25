@@ -455,6 +455,85 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 5,
     },
     {
+        // ICE Black buildable-now completion (#655, PRD #628). Exercises the
+        // Black cards completed from shipped primitives only. The Auras (Mind
+        // Whip, Soul Kiss, Dance of the Dead) start in HAND so they attach to a
+        // target when cast — a battlefield-seeded Aura would be unattached.
+        //   - Lim-Dûl's Hex (your upkeep: each player pays {B} or {3} or takes
+        //     1). Pass to your next upkeep to fire it.
+        //   - Mind Whip from hand → enchant the opponent's Grizzly Bears
+        //     (their upkeep: pay {3} or 2 damage + tap).
+        //   - Soul Kiss from hand → enchant your Hill Giant; {B}, Pay 1 life for
+        //     +2/+2, hard-capped at three activations per turn.
+        //   - Minion of Leshrac (upkeep sac-a-creature-or-5-damage-and-tap;
+        //     {T}: destroy a creature/land) and Infernal Denizen ({T}: steal a
+        //     creature for as long as it stays out).
+        //   - Norritt ({T}: untap a blue creature / force a creature to attack).
+        //   - Dance of the Dead from hand reanimates the creature card seeded in
+        //     the opponent's graveyard.
+        //   - Leshrac's Sigil punishes the opponent casting a green spell.
+        label: "ICE: Black completion — Lim-Dûl's Hex / Mind Whip / Soul Kiss / reanimate / steal (#655)",
+        cards: [
+            {
+                name: "Lim-Dûl's Hex",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Minion of Leshrac",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Infernal Denizen",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Norritt",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Leshrac's Sigil",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Hill Giant",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Soul Kiss",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Mind Whip",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Dance of the Dead",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "graveyard" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
+    {
         // ICE Black free tranche (#632, PRD #628). Exercises the Black ICE
         // staples end to end:
         //   - Abyssal Specter (flying; deals damage to a player → that player
