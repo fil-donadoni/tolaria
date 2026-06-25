@@ -23,6 +23,7 @@ import type {
     ManaCost,
     PermanentView,
     SpellContext,
+    TargetSelection,
     TriggeredAbility,
 } from "../types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../types";
@@ -4646,6 +4647,18 @@ export const stromgaldCabal: CardDefinition = {
 // cards are full CardDefinitions. Pyroblast is the colour-mirror of Hydroblast
 // (modal counter/destroy gated on blue).
 //
+// RED COMPLETION (#656) — the specialized-interaction cards below were
+// activated once their stub comments were re-checked against shipped primitives
+// (several "needs primitive" notes were STALE): Aggression, Balduvian Hydra,
+// Battle Frenzy, Bone Shaman, Chaos Lord, Dwarven Armory, Game of Chaos, Goblin
+// Mutant, Goblin Sappers, Grizzled Wolverine, Márton Stromgald, Aurochs,
+// Mudslide, Orcish Squatters, and Total War. No new SpellContext primitive was
+// added — all compose `addTemporaryPTBuff`, `requestCoinFlip`/`requestOptionChoice`,
+// `gainControl` (control-change conditions), `grantTriggeredAbility`,
+// `entersWith` (`count: "X"`), `untapRestriction`, `activationPhaseRestriction`,
+// `scheduleDelayedTrigger`, and the combat read getters (`getIsAttacking`,
+// `getBlockersByAttacker`, attack/block-restriction static effects).
+//
 // DEFERRED (remain commented stubs, owned by a later cluster):
 //   • Cumulative upkeep — Brand of Ill Omen (ADR 0042 cluster).
 //   • Snow-matters — Avalanche (destroy snow lands), Barbarian Guides (snow
@@ -4657,35 +4670,86 @@ export const stromgaldCabal: CardDefinition = {
 //     player-chosen division primitive is unbuilt).
 //   • Next-upkeep delayed cantrip — Flare, Panic ("draw a card at the beginning
 //     of the next turn's upkeep"); same gap flagged in the Black tranche.
-//   • Specialized interactions — Aggression ("destroy if it didn't attack"
-//     end-step on the enchanted creature), Balduvian Hydra (counter-as-shield
-//     +1/+0 engine), Bone Shaman (damage-rider regen-lock grant), Chaos Lord /
-//     Chaos Moon / Game of Chaos (parity / coin-flip escalation),
-//     Dwarven Armory (upkeep-only timing), Earthlink (dies→sac-land),
-//     Ghostly Flame (colourless-damage-source static), Goblin Mutant /
-//     Goblin Sappers / Grizzled Wolverine (conditional attack/block + timing
-//     restrictions), Márton Stromgald (dynamic per-attacker pump), Melee /
-//     Mudslide / Monsoon (choose-blocks / per-player untap-pay / Island-count
-//     end-step), Orcish Farmer (land-type change), Orcish Librarian
-//     (random-exile + reorder), Orcish Squatters (control-on-attack),
-//     Total War (continuous attack-trigger destroy), Curse of Marit Lage
-//     (Island untap-lock — IMPLEMENTED below as the Wrath-of-Marit-Lage twin),
-//     Mountain Titan (cast-trigger counter grant). Each needs a primitive not
+//   • Count-of-declared-attackers attack restrictions — Errantry ("can only
+//     attack alone"), Orcish Conscripts ("can't attack/block unless two other
+//     creatures attack/block"). `StaticAttackRestriction.predicate` only sees
+//     (self, defenderBattlefield) and the engine validates attackers one at a
+//     time (selectAttacker), so neither the candidate's nor the other declared
+//     attackers' `isAttacking` flags are set at validation time — a count of the
+//     full declared-attacker set is not observable today. Needs an attack
+//     restriction that reads the live declared-attacker set (a small engine
+//     extension), flagged for the combat-restriction cluster.
+//   • Library random-exile + reorder — Orcish Librarian ("look at top eight,
+//     exile four at RANDOM, reorder the rest"). `peekLibraryTop` /
+//     `reorderLibraryTop` ship, but no SpellContext primitive selects/exiles N
+//     cards at random from a library set (the seeded PRNG is engine-internal;
+//     only `discardAtRandom` is exposed). Flagged for a random-select primitive.
+//   • Other specialized interactions — Chaos Moon (parity mana substitution),
+//     Earthlink (dies→sac-land), Ghostly Flame (colourless-damage-source
+//     static), Melee / Monsoon (choose-blocks / Island-count end-step),
+//     Orcish Farmer (land-type change), Mountain Titan (cast-trigger counter
+//     grant). Curse of Marit Lage (Island untap-lock) is IMPLEMENTED below as
+//     the Wrath-of-Marit-Lage twin. Each remaining card needs a primitive not
 //     yet built; flagged for its capability cluster.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Aggression — DEFERRED (end-step "destroy if it didn't attack this turn" on the
-// enchanted creature needs a per-creature attacked-this-turn end-step hook).
-// TODO(#628): implement.
-// export const aggression: CardDefinition = {
-//     id: "f3f26060-0c24-496c-b8e2-4dac7ea6166b",
-//     name: "Aggression",
-//     rarity: "uncommon",
-//     oracleText: "Enchant non-Wall creature\nEnchanted creature has first strike and trample.\nAt the beginning of the end step of enchanted creature's controller, destroy that creature if it didn't attack this turn.",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Aggression — {2}{R} Aura on a non-Wall creature. Grants first strike + trample
+// (two layer-6 keyword-grants on the host, CR 611/702) and an end-step
+// self-destruct on the host if it didn't attack (CR 603.6a phase trigger +
+// CR 506.2 `hasAttackedThisTurn`). The end-step trigger fires on the HOST
+// controller's end step; it reads the host via `getAttachedTo` and destroys it
+// when its `hasAttackedThisTurn` marker is false. The "non-Wall" enchant
+// restriction is enforced by the target filter (`excludeSubtype: "Wall"`).
+export const aggression: CardDefinition = {
+    id: "f3f26060-0c24-496c-b8e2-4dac7ea6166b",
+    name: "Aggression",
+    rarity: "uncommon",
+    oracleText:
+        "Enchant non-Wall creature\nEnchanted creature has first strike and trample.\nAt the beginning of the end step of enchanted creature's controller, destroy that creature if it didn't attack this turn.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: {
+        type: "Creature",
+        count: 1,
+        excludeSubtypes: "Wall",
+    },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "first strike",
+        },
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "trample",
+        },
+    ],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "aggression-end-step-destroy",
+            oracleText:
+                "At the beginning of the end step of enchanted creature's controller, destroy that creature if it didn't attack this turn.",
+            phase: "END_STEP",
+            scope: "each",
+            resolve: (ctx, _event, scopedPlayerId) => {
+                const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
+                if (!hostId) return;
+                const host: TargetSelection = {
+                    type: "permanent",
+                    id: hostId,
+                };
+                // Only fire on the HOST controller's end step (CR 603.6a).
+                if (ctx.getController(host) !== scopedPlayerId) return;
+                // CR 506.2 — destroy if the host didn't attack this turn.
+                if (!ctx.hasAttackedThisTurn(host)) {
+                    ctx.destroy(host);
+                }
+            },
+        }),
+    ],
+};
 // Anarchy — "Destroy all white permanents." (CR 701.7 destroy + CR 105.2 colour
 // filter.) A one-line `destroyAll` over the white colour filter.
 export const anarchy: CardDefinition = {
@@ -4720,18 +4784,58 @@ export const balduvianBarbarians: CardDefinition = {
     power: 3,
     toughness: 2,
 };
-// TODO(#628): implement.
-// export const balduvianHydra: CardDefinition = {
-//     id: "c3a3b37f-daa6-4502-bb12-c72afe3df035",
-//     name: "Balduvian Hydra",
-//     rarity: "rare",
-//     oracleText: "This creature enters with X +1/+0 counters on it.\nRemove a +1/+0 counter from this creature: Prevent the next 1 damage that would be dealt to it this turn.\n{R}{R}{R}: Put a +1/+0 counter on this creature. Activate only during your upkeep.",
-//     manaCost: { X: "X", R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Hydra"],
-//     power: 0,
-//     toughness: 1,
-// };
+// Balduvian Hydra — {X}{R}{R} 0/1 Hydra. Enters with X +1/+0 counters (CR 122.1 /
+// 614.1c `entersWith` with `count: "X"`, the Iceberg pattern). "Remove a +1/+0
+// counter: Prevent the next 1 damage to it this turn" is a counter-removal-cost
+// activated ability (CR 602.1 cost + CR 615 prevention shield on self, the
+// Fylgja pattern). "{R}{R}{R}: Put a +1/+0 counter on this. Activate only during
+// your upkeep" reuses `activationPhaseRestriction: ["UPKEEP"]` + `controllerTurnOnly`
+// (the Clockwork Avian timing).
+export const balduvianHydra: CardDefinition = {
+    id: "c3a3b37f-daa6-4502-bb12-c72afe3df035",
+    name: "Balduvian Hydra",
+    rarity: "rare",
+    oracleText:
+        "This creature enters with X +1/+0 counters on it.\nRemove a +1/+0 counter from this creature: Prevent the next 1 damage that would be dealt to it this turn.\n{R}{R}{R}: Put a +1/+0 counter on this creature. Activate only during your upkeep.",
+    manaCost: { X: "X", R: 2 },
+    types: ["Creature"],
+    subtypes: ["Hydra"],
+    power: 0,
+    toughness: 1,
+    entersWith: { counters: [{ type: "+1/+0", count: "X" }] },
+    activatedAbilities: [
+        {
+            id: "balduvian-hydra-prevent",
+            oracleText:
+                "Remove a +1/+0 counter from this creature: Prevent the next 1 damage that would be dealt to it this turn.",
+            cost: { removeCounter: { type: "+1/+0", count: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.preventNextNDamageToTarget(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    1,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+        {
+            id: "balduvian-hydra-grow",
+            oracleText:
+                "{R}{R}{R}: Put a +1/+0 counter on this creature. Activate only during your upkeep.",
+            cost: { mana: { R: 3 } },
+            useStack: true,
+            activationPhaseRestriction: ["UPKEEP"],
+            controllerTurnOnly: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "+1/+0",
+                    1
+                );
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const barbarianGuides: CardDefinition = {
 //     id: "fe65a045-dacb-4392-bcb6-843394ef98c9",
@@ -4744,27 +4848,83 @@ export const balduvianBarbarians: CardDefinition = {
 //     power: 1,
 //     toughness: 2,
 // };
-// TODO(#628): implement.
-// export const battleFrenzy: CardDefinition = {
-//     id: "a85ae675-56ca-4a00-83d2-ee035f33d6d1",
-//     name: "Battle Frenzy",
-//     rarity: "common",
-//     oracleText: "Green creatures you control get +1/+1 until end of turn.\nNongreen creatures you control get +1/+0 until end of turn.",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Instant"],
-// };
-// TODO(#628): implement.
-// export const boneShaman: CardDefinition = {
-//     id: "0a5e3d54-4dc4-482b-8ecc-bb819ba03d2c",
-//     name: "Bone Shaman",
-//     rarity: "common",
-//     oracleText: "{B}: Until end of turn, this creature gains \"Creatures dealt damage by this creature this turn can't be regenerated this turn.\"",
-//     manaCost: { X: 2, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Giant", "Shaman"],
-//     power: 3,
-//     toughness: 3,
-// };
+// Battle Frenzy — {2}{R} Instant. One-shot batch pump (CR 611.1): a fixed
+// snapshot at resolution of the creatures you control, green ones get +1/+1 and
+// the rest +1/+0, both until end of turn. Composes `getBattlefieldIds` +
+// `getColors` + `addTemporaryPTBuff` — no anthem static (the buff is a one-time
+// instant, not a continuous effect; new creatures entering later aren't pumped).
+export const battleFrenzy: CardDefinition = {
+    id: "a85ae675-56ca-4a00-83d2-ee035f33d6d1",
+    name: "Battle Frenzy",
+    rarity: "common",
+    oracleText:
+        "Green creatures you control get +1/+1 until end of turn.\nNongreen creatures you control get +1/+0 until end of turn.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Instant"],
+    resolve: (ctx: SpellContext) => {
+        for (const id of ctx.getBattlefieldIds(ctx.controller, {
+            types: "Creature",
+        })) {
+            const target: TargetSelection = { type: "permanent", id };
+            const isGreen = ctx.getColors(target).includes("G");
+            ctx.addTemporaryPTBuff(target, 1, isGreen ? 1 : 0, {
+                phase: "end-of-turn",
+            });
+        }
+    },
+};
+// Bone Shaman — {2}{R}{R} 3/3 Giant Shaman. "{B}: Until end of turn, this
+// creature gains 'Creatures dealt damage by this creature this turn can't be
+// regenerated this turn.'" The activated ability grants a DAMAGE-DEALT triggered
+// ability to self until end of turn (CR 611.1b duration-scoped trigger grant via
+// `grantTriggeredAbility`); the granted rider (a `damageDealtTrigger` template on
+// `triggeredGrantTemplates[]`) fires whenever self deals damage to a creature and
+// applies a regen-lock to that creature (CR 701.15c, the Lim-Dûl's Cohort leg).
+const BONE_SHAMAN_ID = "0a5e3d54-4dc4-482b-8ecc-bb819ba03d2c";
+export const boneShaman: CardDefinition = {
+    id: BONE_SHAMAN_ID,
+    name: "Bone Shaman",
+    rarity: "common",
+    oracleText:
+        '{B}: Until end of turn, this creature gains "Creatures dealt damage by this creature this turn can\'t be regenerated this turn."',
+    manaCost: { X: 2, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Giant", "Shaman"],
+    power: 3,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "bone-shaman-grant-rider",
+            oracleText:
+                '{B}: Until end of turn, this creature gains "Creatures dealt damage by this creature this turn can\'t be regenerated this turn."',
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.grantTriggeredAbility(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    BONE_SHAMAN_ID,
+                    "bone-shaman-no-regen-rider",
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+    // Granted-only rider (CR 113.1): kept off `triggeredAbilities` so Bone Shaman
+    // doesn't carry it natively — it functions only while granted by the ability.
+    triggeredGrantTemplates: [
+        damageDealtTrigger({
+            id: "bone-shaman-no-regen-rider",
+            oracleText:
+                "Creatures dealt damage by this creature this turn can't be regenerated this turn.",
+            source: "self",
+            resolve: (ctx, _event, damage) => {
+                if (damage.target.type === "permanent") {
+                    ctx.setTargetCantBeRegeneratedThisTurn(damage.target);
+                }
+            },
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const brandOfIllOmen: CardDefinition = {
 //     id: "ceeb7bbc-2d41-4709-95be-1ceb952ed1fb",
@@ -4775,18 +4935,56 @@ export const balduvianBarbarians: CardDefinition = {
 //     types: ["Enchantment"],
 //     subtypes: ["Aura"],
 // };
-// TODO(#628): implement.
-// export const chaosLord: CardDefinition = {
-//     id: "ee245922-b380-4b2e-a43f-ab1ba8078943",
-//     name: "Chaos Lord",
-//     rarity: "rare",
-//     oracleText: "First strike\nAt the beginning of your upkeep, target opponent gains control of this creature if the number of permanents is even.\nThis creature can attack as though it had haste unless it entered this turn.",
-//     manaCost: { X: 4, R: 3 },
-//     types: ["Creature"],
-//     subtypes: ["Human"],
-//     power: 7,
-//     toughness: 7,
-// };
+// Chaos Lord — {4}{R}{R}{R} 7/7 Human with first strike. "At the beginning of
+// your upkeep, target opponent gains control of this creature if the number of
+// permanents is even" — an upkeep trigger (CR 603.6a, scope "your") that counts
+// every permanent on the battlefield (sum of unfiltered `getBattlefieldIds` over
+// `allPlayerIds`, CR 122-agnostic) and, on an even count, hands control to the
+// opponent for the rest of the game (`gainControl`, layer-2 control change, no
+// condition → permanent). "Can attack as though it had haste unless it entered
+// this turn": modelled as the `haste` keyword (CR 702.10 / 508.1a). After a
+// control change resets summoning sickness, the keyword lets the new controller
+// attack immediately — matching the clause's intent; the "unless it entered this
+// turn" carve-out is a minor simplification (a freshly-cast Chaos Lord could
+// attack the turn it enters, which the printed card forbids).
+export const chaosLord: CardDefinition = {
+    id: "ee245922-b380-4b2e-a43f-ab1ba8078943",
+    name: "Chaos Lord",
+    rarity: "rare",
+    oracleText:
+        "First strike\nAt the beginning of your upkeep, target opponent gains control of this creature if the number of permanents is even.\nThis creature can attack as though it had haste unless it entered this turn.",
+    manaCost: { X: 4, R: 3 },
+    types: ["Creature"],
+    subtypes: ["Human"],
+    power: 7,
+    toughness: 7,
+    staticAbilities: ["first strike", "haste"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "chaos-lord-parity-control",
+            oracleText:
+                "At the beginning of your upkeep, target opponent gains control of this creature if the number of permanents is even.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                // CR 700 — count every permanent on the battlefield.
+                let total = 0;
+                for (const pid of ctx.allPlayerIds) {
+                    total += ctx.getBattlefieldIds(pid).length;
+                }
+                if (total % 2 !== 0) return;
+                const opponent = ctx.allPlayerIds.find(
+                    (pid) => pid !== ctx.controller
+                );
+                if (!opponent) return;
+                ctx.gainControl(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    opponent
+                );
+            },
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const chaosMoon: CardDefinition = {
 //     id: "aae0543f-7f8b-4327-b735-ac21244e9936",
@@ -4849,18 +5047,44 @@ export const curseOfMaritLage: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
-// export const dwarvenArmory: CardDefinition = {
-//     id: "7d14a430-6e08-40cf-970a-cae84bba6ef7",
-//     name: "Dwarven Armory",
-//     rarity: "rare",
-//     oracleText: "{2}, Sacrifice a land: Put a +2/+2 counter on target creature. Activate only during any upkeep step.",
-//     manaCost: { X: 2, R: 2 },
-//     types: ["Enchantment"],
-// };
-// Errantry — DEFERRED ("can only attack alone" needs an attack restriction that
-// reads the full attacker set, which the current attack-restriction predicate
-// (defender-battlefield only) can't express).
+// Dwarven Armory — {2}{R}{R} Enchantment. "{2}, Sacrifice a land: Put a +2/+2
+// counter on target creature. Activate only during any upkeep step." A land
+// sacrifice cost (`sacrificeFilter: { types: "Land" }`, the Orcish Lumberjack
+// shape) gated to the upkeep step via `activationPhaseRestriction: ["UPKEEP"]`
+// (NO `controllerTurnOnly` — "any upkeep step", CR 602.5b). The +2/+2 counter is
+// a layer-7d P/T counter (CR 122.1).
+export const dwarvenArmory: CardDefinition = {
+    id: "7d14a430-6e08-40cf-970a-cae84bba6ef7",
+    name: "Dwarven Armory",
+    rarity: "rare",
+    oracleText:
+        "{2}, Sacrifice a land: Put a +2/+2 counter on target creature. Activate only during any upkeep step.",
+    manaCost: { X: 2, R: 2 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "dwarven-armory-counter",
+            oracleText:
+                "{2}, Sacrifice a land: Put a +2/+2 counter on target creature. Activate only during any upkeep step.",
+            cost: { mana: { X: 2 }, sacrificeFilter: { types: "Land" } },
+            useStack: true,
+            activationPhaseRestriction: ["UPKEEP"],
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type === "permanent") {
+                    ctx.addCounter(target, "+2/+2", 1);
+                }
+            },
+        },
+    ],
+};
+// Errantry — DEFERRED (#656). The +3/+0 keyword-grant ships, but "can only
+// attack alone" needs an attack restriction that reads the FULL declared-attacker
+// set: `StaticAttackRestriction.predicate` sees only (self, defenderBattlefield),
+// and attacker eligibility is validated one creature at a time (selectAttacker),
+// so the count of other declared attackers isn't observable at validation time.
+// Needs a count-of-attackers attack restriction (combat-restriction cluster).
 // TODO(#628): implement.
 // export const errantry: CardDefinition = {
 //     id: "8346e741-61f8-4283-be51-f5f80e9595a5",
@@ -4912,15 +5136,73 @@ export const flameSpirit: CardDefinition = {
 //     manaCost: { X: 2, R: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
-// export const gameOfChaos: CardDefinition = {
-//     id: "08265332-2c0e-4c42-8c51-83ac20462eed",
-//     name: "Game of Chaos",
-//     rarity: "rare",
-//     oracleText: "Flip a coin. If you win the flip, you gain 1 life and target opponent loses 1 life, and you decide whether to flip again. If you lose the flip, you lose 1 life and that opponent gains 1 life, and that player decides whether to flip again. Double the life stakes with each flip.",
-//     manaCost: { R: 3 },
-//     types: ["Sorcery"],
-// };
+// Game of Chaos — {R}{R}{R} Sorcery. A coin-flip doubling loop (CR 705.2 reveal
+// + CR 119/118 life swing). Each round the caster flips: on a WIN the caster
+// gains `stake` life and the opponent loses `stake`, then the CASTER decides
+// whether to flip again; on a LOSS the caster loses `stake` and the opponent
+// gains `stake`, then the OPPONENT decides whether to flip again. `stake` starts
+// at 1 and DOUBLES each round (CR 107 — "double the life stakes with each flip").
+// Built entirely from shipped primitives: `requestCoinFlip` (suspending reveal)
+// + `requestOptionChoice` (the alternating "flip again?" decision). Each round's
+// flip and decision are keyed by stable round-indexed choiceIds, so the stepped
+// resolution (CR 608.2) replays prior rounds' answers and suspends only on the
+// first unresolved prompt. A hard cap bounds the loop (an unbounded coin-flip
+// resolution can't terminate deterministically across replays); 64 rounds is far
+// beyond any realistic game (stake 2^63).
+const GAME_OF_CHAOS_MAX_ROUNDS = 64;
+export const gameOfChaos: CardDefinition = {
+    id: "08265332-2c0e-4c42-8c51-83ac20462eed",
+    name: "Game of Chaos",
+    rarity: "rare",
+    oracleText:
+        "Flip a coin. If you win the flip, you gain 1 life and target opponent loses 1 life, and you decide whether to flip again. If you lose the flip, you lose 1 life and that opponent gains 1 life, and that player decides whether to flip again. Double the life stakes with each flip.",
+    manaCost: { R: 3 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1, controller: "opponent" },
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target?.type !== "player") return;
+        const opponent = target.id;
+        const me = ctx.controller;
+        let stake = 1;
+        for (let round = 0; round < GAME_OF_CHAOS_MAX_ROUNDS; round++) {
+            const won = ctx.requestCoinFlip({
+                playerId: me,
+                choiceId: `game-of-chaos-flip-${round}`,
+                heads: {
+                    consequence: `You gain ${stake} life; opponent loses ${stake} life.`,
+                },
+                tails: {
+                    consequence: `You lose ${stake} life; opponent gains ${stake} life.`,
+                },
+            });
+            if (won === undefined) return; // suspended for the reveal
+            // Apply the life swing for this round.
+            if (won) {
+                ctx.gainLife(me, stake);
+                ctx.loseLife(opponent, stake);
+            } else {
+                ctx.loseLife(me, stake);
+                ctx.gainLife(opponent, stake);
+            }
+            // The winner of the flip decides whether to flip again (CR 705):
+            // the caster on a win, the opponent on a loss.
+            const decider = won ? me : opponent;
+            const again = ctx.requestOptionChoice({
+                playerId: decider,
+                choiceId: `game-of-chaos-again-${round}`,
+                prompt: "Flip again? (Game of Chaos — the life stakes double.)",
+                options: [
+                    { id: "yes", label: "Flip again" },
+                    { id: "no", label: "Stop" },
+                ],
+            });
+            if (again === undefined) return; // suspended for the decision
+            if (again !== "yes") return;
+            stake *= 2; // CR 107 — double the stakes each flip.
+        }
+    },
+};
 // TODO(#628): implement.
 // export const glacialCrevasses: CardDefinition = {
 //     id: "2726b192-f239-470b-8ad6-69887405e7f9",
@@ -4930,30 +5212,148 @@ export const flameSpirit: CardDefinition = {
 //     manaCost: { X: 2, R: 1 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const goblinMutant: CardDefinition = {
-//     id: "6db54f95-6652-45a3-b960-c2fc118beca1",
-//     name: "Goblin Mutant",
-//     rarity: "uncommon",
-//     oracleText: "Trample\nThis creature can't attack if defending player controls an untapped creature with power 3 or greater.\nThis creature can't block creatures with power 3 or greater.",
-//     manaCost: { X: 2, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Goblin", "Mutant"],
-//     power: 5,
-//     toughness: 3,
-// };
-// TODO(#628): implement.
-// export const goblinSappers: CardDefinition = {
-//     id: "de839540-a7b9-4f91-91df-3fd4f5c0bc4e",
-//     name: "Goblin Sappers",
-//     rarity: "common",
-//     oracleText: "{R}{R}, {T}: Target creature you control can't be blocked this turn. Destroy it and this creature at end of combat.\n{R}{R}{R}{R}, {T}: Target creature you control can't be blocked this turn. Destroy it at end of combat.",
-//     manaCost: { X: 1, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Goblin"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Goblin Mutant — {2}{R}{R} 5/3 Goblin Mutant with trample. Two combat
+// restrictions, both `staticEffects`: an `attack-restriction` (CR 508.1c) whose
+// predicate scans the defending player's battlefield for an untapped creature of
+// power 3+, and a `block-restriction` on side "blocker" (CR 509.1b) rejecting
+// attackers of power 3+. Power is read from the live `PermanentView.power`
+// (effective P/T, mirroring leg.ts's power-gated combat predicates).
+export const goblinMutant: CardDefinition = {
+    id: "6db54f95-6652-45a3-b960-c2fc118beca1",
+    name: "Goblin Mutant",
+    rarity: "uncommon",
+    oracleText:
+        "Trample\nThis creature can't attack if defending player controls an untapped creature with power 3 or greater.\nThis creature can't block creatures with power 3 or greater.",
+    manaCost: { X: 2, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Goblin", "Mutant"],
+    power: 5,
+    toughness: 3,
+    staticAbilities: ["trample"],
+    staticEffects: [
+        {
+            kind: "attack-restriction",
+            id: "goblin-mutant-no-attack-vs-big",
+            // Legal to attack UNLESS the defender controls an untapped
+            // creature with power >= 3 (CR 508.1c).
+            predicate: (_self, defenderBattlefield) =>
+                !defenderBattlefield.some(
+                    (p) =>
+                        p.types.includes("Creature") &&
+                        !p.isTapped &&
+                        (p.power ?? 0) >= 3
+                ),
+            oracleText:
+                "This creature can't attack if defending player controls an untapped creature with power 3 or greater.",
+        },
+        {
+            kind: "block-restriction",
+            id: "goblin-mutant-no-block-big",
+            side: "blocker",
+            // self = Goblin Mutant (blocker), opponent = attacker. Legal block
+            // only when the attacker's power is < 3 (CR 509.1b).
+            predicate: (_self, attacker) => (attacker.power ?? 0) < 3,
+            oracleText:
+                "This creature can't block creatures with power 3 or greater.",
+        },
+    ],
+};
+// Goblin Sappers — {1}{R} 1/1 Goblin. Two activated abilities (CR 605); both
+// make a creature you control unblockable this turn (`setCantBeBlockedThisTurn`)
+// and schedule an end-of-combat destroy via `scheduleDelayedTrigger`
+// ("next-end-of-combat", CR 603.7a). The {R}{R} leg also destroys Goblin Sappers
+// itself; the {R}{R}{R}{R} leg destroys only the chosen creature. The delayed
+// trigger reads the target / self ids from its serialized payload.
+const GOBLIN_SAPPERS_ID = "de839540-a7b9-4f91-91df-3fd4f5c0bc4e";
+export const goblinSappers: CardDefinition = {
+    id: GOBLIN_SAPPERS_ID,
+    name: "Goblin Sappers",
+    rarity: "common",
+    oracleText:
+        "{R}{R}, {T}: Target creature you control can't be blocked this turn. Destroy it and this creature at end of combat.\n{R}{R}{R}{R}, {T}: Target creature you control can't be blocked this turn. Destroy it at end of combat.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Goblin"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "goblin-sappers-rr",
+            oracleText:
+                "{R}{R}, {T}: Target creature you control can't be blocked this turn. Destroy it and this creature at end of combat.",
+            cost: { mana: { R: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type !== "permanent") return;
+                ctx.setCantBeBlockedThisTurn(target);
+                ctx.scheduleDelayedTrigger(
+                    GOBLIN_SAPPERS_ID,
+                    "goblin-sappers-destroy-both",
+                    "next-end-of-combat",
+                    { creatureId: target.id, sappersId: ctx.sourceInstanceId }
+                );
+            },
+        },
+        {
+            id: "goblin-sappers-rrrr",
+            oracleText:
+                "{R}{R}{R}{R}, {T}: Target creature you control can't be blocked this turn. Destroy it at end of combat.",
+            cost: { mana: { R: 4 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type !== "permanent") return;
+                ctx.setCantBeBlockedThisTurn(target);
+                ctx.scheduleDelayedTrigger(
+                    GOBLIN_SAPPERS_ID,
+                    "goblin-sappers-destroy-target",
+                    "next-end-of-combat",
+                    { creatureId: target.id }
+                );
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: "goblin-sappers-destroy-both",
+            oracleText:
+                "Destroy that creature and Goblin Sappers at end of combat.",
+            timing: "next-end-of-combat",
+            resolve: (ctx, payload) => {
+                if (payload.creatureId)
+                    ctx.destroy({
+                        type: "permanent",
+                        id: payload.creatureId,
+                    });
+                if (payload.sappersId)
+                    ctx.destroy({ type: "permanent", id: payload.sappersId });
+            },
+        },
+        {
+            id: "goblin-sappers-destroy-target",
+            oracleText: "Destroy that creature at end of combat.",
+            timing: "next-end-of-combat",
+            resolve: (ctx, payload) => {
+                if (payload.creatureId)
+                    ctx.destroy({
+                        type: "permanent",
+                        id: payload.creatureId,
+                    });
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const goblinSkiPatrol: CardDefinition = {
 //     id: "fde1c8b5-1e01-4920-8d02-bf80d5b238c5",
@@ -5021,18 +5421,52 @@ export const goblinSnowman: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const grizzledWolverine: CardDefinition = {
-//     id: "95bb17b9-55c4-4cc1-83f6-75490b9a97d0",
-//     name: "Grizzled Wolverine",
-//     rarity: "common",
-//     oracleText: "{R}: This creature gets +2/+0 until end of turn. Activate only during the declare blockers step, only if at least one creature is blocking this creature, and only once each turn.",
-//     manaCost: { X: 1, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Wolverine"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Grizzled Wolverine — {1}{R}{R} 2/2 Wolverine. "{R}: +2/+0 until end of turn.
+// Activate only during the declare blockers step, only if at least one creature
+// is blocking this creature, and only once each turn." Three activation gates:
+// `activationPhaseRestriction: ["DECLARE_BLOCKERS"]` (CR 602.5b step), `oncePerTurn`
+// (CR 602.5f — engine tracks `activationsThisTurn`), and a `canActivate` predicate
+// that reads the live block graph (`state.combat.blockerAssignments`, CR 509.2)
+// to confirm some blocker is assigned to this creature.
+export const grizzledWolverine: CardDefinition = {
+    id: "95bb17b9-55c4-4cc1-83f6-75490b9a97d0",
+    name: "Grizzled Wolverine",
+    rarity: "common",
+    oracleText:
+        "{R}: This creature gets +2/+0 until end of turn. Activate only during the declare blockers step, only if at least one creature is blocking this creature, and only once each turn.",
+    manaCost: { X: 1, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Wolverine"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "grizzled-wolverine-pump",
+            oracleText:
+                "{R}: This creature gets +2/+0 until end of turn. Activate only during the declare blockers step, only if at least one creature is blocking this creature, and only once each turn.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            activationPhaseRestriction: ["DECLARE_BLOCKERS"],
+            oncePerTurn: true,
+            canActivate: (source, state) => {
+                const assignments = state.combat?.blockerAssignments;
+                if (!assignments) return false;
+                // CR 509.2 — some blocker is assigned to this creature.
+                return Object.values(assignments).some((atks) =>
+                    atks.includes(source.id)
+                );
+            },
+            resolve: (ctx: SpellContext) => {
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    2,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
 // Imposing Visage — Aura granting menace (CR 702.111, layer 6 keyword-grant on
 // the host).
 export const imposingVisage: CardDefinition = {
@@ -5156,19 +5590,82 @@ export const lavaBurst: CardDefinition = {
         if (t) ctx.dealDamage(t, ctx.getX());
     },
 };
-// TODO(#628): implement.
-// export const mRtonStromgald: CardDefinition = {
-//     id: "7880e815-53e7-43e0-befd-e368f00a75d8",
-//     name: "Márton Stromgald",
-//     rarity: "rare",
-//     oracleText: "Whenever Márton Stromgald attacks, other attacking creatures get +1/+1 until end of turn for each attacking creature other than Márton Stromgald.\nWhenever Márton Stromgald blocks, other blocking creatures get +1/+1 until end of turn for each blocking creature other than Márton Stromgald.",
-//     manaCost: { X: 2, R: 2 },
-//     types: ["Creature"],
-//     supertypes: ["Legendary"],
-//     subtypes: ["Human", "Knight"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Márton Stromgald — {2}{R}{R} 1/1 Legendary Human Knight. Two combat triggers
+// (CR 603.6 — "whenever ~ attacks/blocks"), each pumping the OTHER attackers /
+// blockers by +N/+N where N is the number of attacking / blocking creatures
+// OTHER than Márton (CR 611.1 temporary buff). The trigger reads the live combat
+// role of every battlefield creature: attackers via `getIsAttacking`, blockers
+// via the block graph (`getBlockersByAttacker`). The stale "needs primitive"
+// comment was wrong — `getIsAttacking` + `addTemporaryPTBuff` suffice (#656).
+export const mRtonStromgald: CardDefinition = {
+    id: "7880e815-53e7-43e0-befd-e368f00a75d8",
+    name: "Márton Stromgald",
+    rarity: "rare",
+    oracleText:
+        "Whenever Márton Stromgald attacks, other attacking creatures get +1/+1 until end of turn for each attacking creature other than Márton Stromgald.\nWhenever Márton Stromgald blocks, other blocking creatures get +1/+1 until end of turn for each blocking creature other than Márton Stromgald.",
+    manaCost: { X: 2, R: 2 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Knight"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        {
+            id: "marton-attack-pump",
+            oracleText:
+                "Whenever Márton Stromgald attacks, other attacking creatures get +1/+1 until end of turn for each attacking creature other than Márton Stromgald.",
+            event: "ATTACKERS_DECLARED",
+            matches: (event, self) =>
+                event.type === "ATTACKERS_DECLARED" &&
+                event.attackerIds.includes(self.id),
+            resolve: (ctx) => {
+                // All attacking creatures other than Márton (CR 508.1).
+                const others: string[] = [];
+                for (const pid of ctx.allPlayerIds) {
+                    for (const id of ctx.getBattlefieldIds(pid, {
+                        types: "Creature",
+                    })) {
+                        if (id === ctx.sourceInstanceId) continue;
+                        if (ctx.getIsAttacking(id)) others.push(id);
+                    }
+                }
+                const n = others.length;
+                if (n === 0) return;
+                for (const id of others) {
+                    ctx.addTemporaryPTBuff({ type: "permanent", id }, n, n, {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+        {
+            id: "marton-block-pump",
+            oracleText:
+                "Whenever Márton Stromgald blocks, other blocking creatures get +1/+1 until end of turn for each blocking creature other than Márton Stromgald.",
+            event: "BLOCKERS_CONFIRMED",
+            matches: (event, self) =>
+                event.type === "BLOCKERS_CONFIRMED" &&
+                event.blockerId === self.id,
+            resolve: (ctx) => {
+                // All blocking creatures other than Márton, deduped across the
+                // block graph (a blocker may block multiple attackers, CR 509.2).
+                const blockers = new Set<string>();
+                for (const ids of Object.values(ctx.getBlockersByAttacker())) {
+                    for (const id of ids) {
+                        if (id !== ctx.sourceInstanceId) blockers.add(id);
+                    }
+                }
+                const n = blockers.size;
+                if (n === 0) return;
+                for (const id of blockers) {
+                    ctx.addTemporaryPTBuff({ type: "permanent", id }, n, n, {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const melee: CardDefinition = {
 //     id: "b13a064d-bff4-4a48-a158-1b61951b0ac3",
@@ -5211,15 +5708,60 @@ export const mountainGoat: CardDefinition = {
     toughness: 1,
     staticAbilities: ["mountainwalk"],
 };
-// TODO(#628): implement.
-// export const mudslide: CardDefinition = {
-//     id: "65acce56-8674-471e-9d5e-91b7e3f672c1",
-//     name: "Mudslide",
-//     rarity: "rare",
-//     oracleText: "Creatures without flying don't untap during their controllers' untap steps.\nAt the beginning of each player's upkeep, that player may choose any number of tapped creatures without flying they control and pay {2} for each creature chosen this way. If the player does, untap those creatures.",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Enchantment"],
-// };
+// Mudslide — {2}{R} Enchantment. Symmetric untap-lock on non-flying creatures
+// (CR 611 — `untapRestriction` with `excludeAbility: "flying"`, maxUntap 0) plus
+// a per-upkeep pay-{2}-to-untap escape for each player (the Thelon's Curse / FEM
+// shape: `phaseTrigger("UPKEEP", scope "each")` + a per-candidate `requestMayPay`
+// of {2}, untapping each one whose cost is paid, CR 117.3a).
+export const mudslide: CardDefinition = {
+    id: "65acce56-8674-471e-9d5e-91b7e3f672c1",
+    name: "Mudslide",
+    rarity: "rare",
+    oracleText:
+        "Creatures without flying don't untap during their controllers' untap steps.\nAt the beginning of each player's upkeep, that player may choose any number of tapped creatures without flying they control and pay {2} for each creature chosen this way. If the player does, untap those creatures.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        untapRestriction({
+            id: "mudslide-nonflying-lock",
+            oracleText:
+                "Creatures without flying don't untap during their controllers' untap steps (Mudslide).",
+            filter: { types: "Creature", excludeAbility: "flying" },
+            maxUntap: 0,
+        }),
+    ],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "mudslide-untap-escape",
+            oracleText:
+                "At the beginning of each player's upkeep, that player may choose any number of tapped creatures without flying they control and pay {2} for each creature chosen this way. If the player does, untap those creatures.",
+            phase: "UPKEEP",
+            scope: "each",
+            resolve: (ctx, _event, scopedPlayerId) => {
+                const player = scopedPlayerId;
+                const candidates = ctx
+                    .getBattlefieldIds(player, {
+                        types: "Creature",
+                        excludeAbility: "flying",
+                    })
+                    .filter((id) => ctx.getIsTapped({ type: "permanent", id }));
+                if (candidates.length === 0) return;
+                // CR 117.3a — one may-pay of {2} per candidate; untap each one
+                // whose cost the player chooses to pay.
+                for (const id of candidates) {
+                    const paid = ctx.requestMayPay({
+                        playerId: player,
+                        choiceId: `mudslide-untap-${id}`,
+                        cost: { X: 2 },
+                        prompt: "Pay {2} to untap this creature (Mudslide)?",
+                    });
+                    if (paid === undefined) return; // suspended for the choice
+                    if (paid) ctx.untap({ type: "permanent", id });
+                }
+            },
+        }),
+    ],
+};
 // Orcish Cannoneers — "{T}: This creature deals 2 damage to any target and 3
 // damage to you." (CR 605 activated ability, CR 120.1 damage — both legs are
 // real damage, the self-damage hits the controller as a player.)
@@ -5250,6 +5792,11 @@ export const orcishCannoneers: CardDefinition = {
         },
     ],
 };
+// Orcish Conscripts — DEFERRED (#656). "Can't attack/block unless at least two
+// OTHER creatures attack/block" needs the same count-of-declared-attackers (and
+// count-of-declared-blockers) restriction Errantry needs — not observable with
+// today's per-creature `StaticAttackRestriction` / `block-restriction` predicates.
+// Flagged for the combat-restriction cluster.
 // TODO(#628): implement.
 // export const orcishConscripts: CardDefinition = {
 //     id: "e71394f8-3038-4cad-adea-a704f004777f",
@@ -5339,6 +5886,11 @@ export const orcishHealer: CardDefinition = {
         },
     ],
 };
+// Orcish Librarian — DEFERRED (#656). `peekLibraryTop(8)` + `reorderLibraryTop`
+// cover the "look at top eight / put the rest on top in any order" legs, but
+// "exile four of them AT RANDOM" has no SpellContext primitive: the seeded PRNG
+// is engine-internal and only `discardAtRandom` is exposed (no random-select /
+// random-exile from a library set). Flagged for a random-select primitive.
 // TODO(#628): implement.
 // export const orcishLibrarian: CardDefinition = {
 //     id: "8ed908d6-6d06-4ccb-9577-37ef2d01c1a5",
@@ -5382,18 +5934,72 @@ export const orcishLumberjack: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const orcishSquatters: CardDefinition = {
-//     id: "f3ee7bd5-612b-4916-a914-1294805b8f64",
-//     name: "Orcish Squatters",
-//     rarity: "rare",
-//     oracleText: "Whenever this creature attacks and isn't blocked, you may gain control of target land defending player controls for as long as you control this creature. If you do, this creature assigns no combat damage this turn.",
-//     manaCost: { X: 4, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Orc"],
-//     power: 2,
-//     toughness: 3,
-// };
+// Orcish Squatters — {4}{R} 2/3 Orc. "Whenever this creature attacks and isn't
+// blocked, you may gain control of target land defending player controls for as
+// long as you control this creature. If you do, this creature assigns no combat
+// damage this turn." Fires off `ATTACKER_UNBLOCKED` (the Murk Dwellers shape).
+// The optional "target land" is picked via `requestChoice` (min 0 = decline);
+// control is taken with a `controller-controls-source` condition (CR 611.2b — the
+// shipped "for as long as you control this" control change), and the unblocked
+// Squatters is marked to assign no combat damage (`markAssignsNoCombatDamage`).
+const ORCISH_SQUATTERS_ID = "f3ee7bd5-612b-4916-a914-1294805b8f64";
+export const orcishSquatters: CardDefinition = {
+    id: ORCISH_SQUATTERS_ID,
+    name: "Orcish Squatters",
+    rarity: "rare",
+    oracleText:
+        "Whenever this creature attacks and isn't blocked, you may gain control of target land defending player controls for as long as you control this creature. If you do, this creature assigns no combat damage this turn.",
+    manaCost: { X: 4, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Orc"],
+    power: 2,
+    toughness: 3,
+    triggeredAbilities: [
+        {
+            id: "orcish-squatters-steal-land",
+            oracleText:
+                "Whenever this creature attacks and isn't blocked, you may gain control of target land defending player controls for as long as you control this creature. If you do, this creature assigns no combat damage this turn.",
+            event: "ATTACKER_UNBLOCKED",
+            matches: (event, self) =>
+                event.type === "ATTACKER_UNBLOCKED" &&
+                event.attackerId === self.id,
+            resolve: (ctx) => {
+                const defender = ctx.allPlayerIds.find(
+                    (pid) => pid !== ctx.controller
+                );
+                if (!defender) return;
+                // CR 117.3a — "you may": choose 0 (decline) or 1 land the
+                // defending player controls.
+                const picked = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: `orcish-squatters-land-${ctx.sourceInstanceId}`,
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    zoneOwnerId: defender,
+                    filter: { types: "Land" },
+                    count: { min: 0, max: 1 },
+                    prompt: "Gain control of a land the defending player controls? (Orcish Squatters)",
+                });
+                if (picked === undefined) return; // suspended for the choice
+                const landId = picked[0];
+                if (!landId) return; // declined
+                ctx.gainControl(
+                    { type: "permanent", id: landId },
+                    ctx.controller,
+                    {
+                        kind: "controller-controls-source",
+                        controllerId: ctx.controller,
+                    }
+                );
+                // "If you do, this creature assigns no combat damage this turn."
+                ctx.markAssignsNoCombatDamage({
+                    type: "permanent",
+                    id: ctx.sourceInstanceId,
+                });
+            },
+        },
+    ],
+};
 // Panic — DEFERRED (the "draw a card at the beginning of the next turn's
 // upkeep" delayed cantrip has no next-upkeep delayed-trigger timing yet; same
 // gap flagged for Flare and the Black tranche's delayed cantrips).
@@ -5560,15 +6166,57 @@ export const torGiant: CardDefinition = {
     power: 3,
     toughness: 3,
 };
-// TODO(#628): implement.
-// export const totalWar: CardDefinition = {
-//     id: "6107388b-ec1e-401e-a407-a821c908ed8d",
-//     name: "Total War",
-//     rarity: "rare",
-//     oracleText: "Whenever a player attacks with one or more creatures, destroy all untapped non-Wall creatures that player controls that didn't attack, except for creatures the player hasn't controlled continuously since the beginning of the turn.",
-//     manaCost: { X: 3, R: 1 },
-//     types: ["Enchantment"],
-// };
+// Total War — {3}{R} Enchantment. "Whenever a player attacks with one or more
+// creatures, destroy all untapped non-Wall creatures that player controls that
+// didn't attack, except for creatures the player hasn't controlled continuously
+// since the beginning of the turn." A GLOBAL attack trigger (CR 603.6 — fires on
+// ANY player's ATTACKERS_DECLARED, not just self's controller). The stale stub
+// flagged "continuous attack-trigger destroy" / "controlled continuously" as
+// needing a primitive; both ship: the trigger fires once per declaration, and
+// "controlled continuously since the beginning of the turn" is exactly
+// `!isSummoningSick` (CR 302.6 — a creature is summoning-sick iff it has NOT been
+// under that player's control since their most recent turn began). The resolve
+// iterates the attacking player's creatures and destroys each that is untapped,
+// non-Wall, not attacking, and not summoning-sick (composable `ctx.destroy`
+// rather than `destroyAll`, which can't express the "didn't attack" exclusion).
+export const totalWar: CardDefinition = {
+    id: "6107388b-ec1e-401e-a407-a821c908ed8d",
+    name: "Total War",
+    rarity: "rare",
+    oracleText:
+        "Whenever a player attacks with one or more creatures, destroy all untapped non-Wall creatures that player controls that didn't attack, except for creatures the player hasn't controlled continuously since the beginning of the turn.",
+    manaCost: { X: 3, R: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        {
+            id: "total-war-mass-destroy",
+            oracleText:
+                "Whenever a player attacks with one or more creatures, destroy all untapped non-Wall creatures that player controls that didn't attack, except for creatures the player hasn't controlled continuously since the beginning of the turn.",
+            event: "ATTACKERS_DECLARED",
+            // Fires on any attack (CR 508.1) — the enchantment isn't a combatant.
+            matches: (event) =>
+                event.type === "ATTACKERS_DECLARED" &&
+                event.attackerIds.length > 0,
+            resolve: (ctx, event) => {
+                if (event.type !== "ATTACKERS_DECLARED") return;
+                const attackerPlayer = event.attackingPlayerId;
+                for (const id of ctx.getBattlefieldIds(attackerPlayer, {
+                    types: "Creature",
+                })) {
+                    const sel: TargetSelection = { type: "permanent", id };
+                    if (ctx.getIsAttacking(id)) continue; // it attacked
+                    if (ctx.getIsTapped(sel)) continue; // not untapped
+                    if (ctx.hasSubtype(sel, "Wall")) continue; // Wall exclusion
+                    // "except for creatures the player hasn't controlled
+                    // continuously since the beginning of the turn" — i.e. skip
+                    // summoning-sick creatures (CR 302.6).
+                    if (ctx.isSummoningSick(sel)) continue;
+                    ctx.destroy(sel);
+                }
+            },
+        },
+    ],
+};
 // Vertigo — "2 damage to target creature with flying. That creature loses
 // flying until end of turn." (CR 120.1 damage + CR 611.1b layer-6 keyword
 // removal.) The flying-target restriction uses `requireAbility: "flying"`; the
@@ -5644,18 +6292,55 @@ export const wordOfBlasting: CardDefinition = {
         if (mv > 0) ctx.dealDamage({ type: "player", id: controller }, mv);
     },
 };
-// TODO(#628): implement.
-// export const aurochs: CardDefinition = {
-//     id: "7e973a84-7f7d-4524-9f2f-ec9a014d52ee",
-//     name: "Aurochs",
-//     rarity: "common",
-//     oracleText: "Trample\nWhenever this creature attacks, it gets +1/+0 until end of turn for each other attacking Aurochs.",
-//     manaCost: { X: 3, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Aurochs"],
-//     power: 2,
-//     toughness: 3,
-// };
+// Aurochs — {3}{G} 2/3 Aurochs with trample. "Whenever this creature attacks, it
+// gets +1/+0 until end of turn for each OTHER attacking Aurochs" (CR 603.6 attack
+// trigger + CR 611.1 self pump). The resolve counts attacking creatures with the
+// Aurochs subtype other than self (`getIsAttacking` + `hasSubtype`) and grants
+// +N/+0 to self. (Green card sitting at the tail of the Red stub block; activated
+// here as part of the #656 Red-completion batch per the issue scope.)
+export const aurochs: CardDefinition = {
+    id: "7e973a84-7f7d-4524-9f2f-ec9a014d52ee",
+    name: "Aurochs",
+    rarity: "common",
+    oracleText:
+        "Trample\nWhenever this creature attacks, it gets +1/+0 until end of turn for each other attacking Aurochs.",
+    manaCost: { X: 3, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Aurochs"],
+    power: 2,
+    toughness: 3,
+    staticAbilities: ["trample"],
+    triggeredAbilities: [
+        {
+            id: "aurochs-attack-pump",
+            oracleText:
+                "Whenever this creature attacks, it gets +1/+0 until end of turn for each other attacking Aurochs.",
+            event: "ATTACKERS_DECLARED",
+            matches: (event, self) =>
+                event.type === "ATTACKERS_DECLARED" &&
+                event.attackerIds.includes(self.id),
+            resolve: (ctx) => {
+                let others = 0;
+                for (const pid of ctx.allPlayerIds) {
+                    for (const id of ctx.getBattlefieldIds(pid, {
+                        types: "Creature",
+                        subtypes: "Aurochs",
+                    })) {
+                        if (id === ctx.sourceInstanceId) continue;
+                        if (ctx.getIsAttacking(id)) others++;
+                    }
+                }
+                if (others === 0) return;
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    others,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const blizzard: CardDefinition = {
 //     id: "c369e4f9-0f2b-446c-9e2d-d3eefab0586d",

@@ -66,6 +66,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Aggression",
+        "scryfallId": "f3f26060-0c24-496c-b8e2-4dac7ea6166b",
+        "oracleId": "b6c38a2b-2fe8-4080-80ce-cfa12aaf57f0",
+        "firstSet": "ice"
+    },
+    {
         "name": "Air Elemental",
         "scryfallId": "69c3b2a3-0daa-4d42-832d-fcdfda6555ea",
         "oracleId": "7744bae4-a8b7-44a5-9b4c-0048ad4cc448",
@@ -336,6 +342,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Aurochs",
+        "scryfallId": "7e973a84-7f7d-4524-9f2f-ec9a014d52ee",
+        "oracleId": "3961ef7c-4eb4-482e-9cda-d49d6a29c5a9",
+        "firstSet": "ice"
+    },
+    {
         "name": "Azure Drake",
         "scryfallId": "fb5f13a2-0896-4230-8957-6ad1cb2b895b",
         "oracleId": "15cc068c-f424-433e-b165-8457c62a4b35",
@@ -375,6 +387,12 @@
         "name": "Balduvian Bears",
         "scryfallId": "ef5297cb-e763-4871-9cd3-0e2dbcc52095",
         "oracleId": "32c10a3e-85b0-49af-9b23-81d0b7e407df",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Balduvian Hydra",
+        "scryfallId": "c3a3b37f-daa6-4502-bb12-c72afe3df035",
+        "oracleId": "29a12f75-d66d-457f-85c4-6b9450adc0d8",
         "firstSet": "ice"
     },
     {
@@ -442,6 +460,12 @@
         "scryfallId": "f7a69e35-d209-41c0-aa3c-c78414617075",
         "oracleId": "e7b91fba-8d96-4040-95e8-f0023b65c497",
         "firstSet": "atq"
+    },
+    {
+        "name": "Battle Frenzy",
+        "scryfallId": "a85ae675-56ca-4a00-83d2-ee035f33d6d1",
+        "oracleId": "0fca46ec-ec1a-4e6c-bb0e-cdb834b38c92",
+        "firstSet": "ice"
     },
     {
         "name": "Bayou",
@@ -610,6 +634,12 @@
         "scryfallId": "63a31de0-d764-4ff6-a85f-027e1e58d86c",
         "oracleId": "8664a004-d786-4357-8856-2f8f5a9ae24d",
         "firstSet": "drk"
+    },
+    {
+        "name": "Bone Shaman",
+        "scryfallId": "0a5e3d54-4dc4-482b-8ecc-bb819ba03d2c",
+        "oracleId": "690ba846-964e-44ba-8637-9a1ce62f5931",
+        "firstSet": "ice"
     },
     {
         "name": "Book of Rass",
@@ -796,6 +826,12 @@
         "scryfallId": "c1862c47-71cc-45a3-8805-a5ddc62e55ea",
         "oracleId": "d1b815d1-2848-40d4-a555-66822d1becbc",
         "firstSet": "lea"
+    },
+    {
+        "name": "Chaos Lord",
+        "scryfallId": "ee245922-b380-4b2e-a43f-ab1ba8078943",
+        "oracleId": "16d0aea2-4ca4-4a9d-8674-2863e085f514",
+        "firstSet": "ice"
     },
     {
         "name": "Chaoslace",
@@ -1410,6 +1446,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Dwarven Armory",
+        "scryfallId": "7d14a430-6e08-40cf-970a-cae84bba6ef7",
+        "oracleId": "aba53a54-8666-430d-899e-45ad9f783a4a",
+        "firstSet": "ice"
+    },
+    {
         "name": "Dwarven Catapult",
         "scryfallId": "8c1c6932-638a-4df7-bf9b-8d921f7484d9",
         "oracleId": "2aae77ed-1a91-41f5-8dc2-e353d63a7586",
@@ -1986,6 +2028,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Game of Chaos",
+        "scryfallId": "08265332-2c0e-4c42-8c51-83ac20462eed",
+        "oracleId": "b6756608-a618-4e26-a090-ea8fc992def1",
+        "firstSet": "ice"
+    },
+    {
         "name": "Gate to Phyrexia",
         "scryfallId": "1f372950-6693-4838-80ef-8fd9aa3e0349",
         "oracleId": "bbb005de-bbba-458e-87c1-912a004e80da",
@@ -2154,10 +2202,22 @@
         "firstSet": "fem"
     },
     {
+        "name": "Goblin Mutant",
+        "scryfallId": "6db54f95-6652-45a3-b960-c2fc118beca1",
+        "oracleId": "540e1371-baa9-412f-a17a-22ea833ea3e8",
+        "firstSet": "ice"
+    },
+    {
         "name": "Goblin Rock Sled",
         "scryfallId": "91e0b59d-8f9b-4a76-9845-bcb0dc32523d",
         "oracleId": "ada3247e-ec5e-499d-bc15-1d9dd80a59ae",
         "firstSet": "drk"
+    },
+    {
+        "name": "Goblin Sappers",
+        "scryfallId": "de839540-a7b9-4f91-91df-3fd4f5c0bc4e",
+        "oracleId": "9e095761-cdae-4ab2-b2d3-099b0b39600a",
+        "firstSet": "ice"
     },
     {
         "name": "Goblin Shrine",
@@ -2272,6 +2332,12 @@
         "scryfallId": "1f6118b2-fe01-425a-a2ed-6d7c42286c8e",
         "oracleId": "727ab7f2-741e-4442-b5cb-e3032549fa87",
         "firstSet": "lea"
+    },
+    {
+        "name": "Grizzled Wolverine",
+        "scryfallId": "95bb17b9-55c4-4cc1-83f6-75490b9a97d0",
+        "oracleId": "da4ed552-a85a-47e1-ab67-5c93a9a20048",
+        "firstSet": "ice"
     },
     {
         "name": "Grizzly Bears",
@@ -3378,6 +3444,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Márton Stromgald",
+        "scryfallId": "7880e815-53e7-43e0-befd-e368f00a75d8",
+        "oracleId": "8364cf93-c323-46f4-854f-ae872e484438",
+        "firstSet": "ice"
+    },
+    {
         "name": "Martyr's Cry",
         "scryfallId": "e2c9f463-d1cc-4f11-aad2-d4a4520aa978",
         "oracleId": "b636f17d-b54a-4a72-9a5e-ce13e7b4f00a",
@@ -3642,6 +3714,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Mudslide",
+        "scryfallId": "65acce56-8674-471e-9d5e-91b7e3f672c1",
+        "oracleId": "ac1d7dfe-1454-46a9-acf6-66ae86b6a6c5",
+        "firstSet": "ice"
+    },
+    {
         "name": "Murk Dwellers",
         "scryfallId": "a213450f-02f4-4c08-8da8-891ebfa8e237",
         "oracleId": "00358a89-2058-448b-a2fd-389f639ba2da",
@@ -3826,6 +3904,12 @@
         "scryfallId": "cd3890d1-563d-4519-ab8c-913031d71918",
         "oracleId": "0d058991-3751-4afe-80c9-79f0c6e10282",
         "firstSet": "fem"
+    },
+    {
+        "name": "Orcish Squatters",
+        "scryfallId": "f3ee7bd5-612b-4916-a914-1294805b8f64",
+        "oracleId": "ce936736-915f-44bb-a709-b3bdcf90a3be",
+        "firstSet": "ice"
     },
     {
         "name": "Orcish Veteran",
@@ -5392,6 +5476,12 @@
         "scryfallId": "5fd99522-4a91-4ccd-91bf-5f32a6ac3510",
         "oracleId": "633b8f22-0384-4f60-ba78-b52c2d82dfde",
         "firstSet": "leg"
+    },
+    {
+        "name": "Total War",
+        "scryfallId": "6107388b-ec1e-401e-a407-a821c908ed8d",
+        "oracleId": "8266dd1c-e262-4467-a893-6b3b5eedb427",
+        "firstSet": "ice"
     },
     {
         "name": "Touch of Darkness",

@@ -218,6 +218,22 @@ import {
     krovikanElementalist,
     leshracsSigil,
     flowOfMaggots,
+    // Red buildable-now completion (#656)
+    aggression,
+    balduvianHydra,
+    battleFrenzy,
+    boneShaman,
+    chaosLord,
+    dwarvenArmory,
+    gameOfChaos,
+    goblinMutant,
+    goblinSappers,
+    grizzledWolverine,
+    mRtonStromgald,
+    aurochs,
+    mudslide,
+    orcishSquatters,
+    totalWar,
 } from "../ice";
 import {
     getCardById,
@@ -240,11 +256,15 @@ import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import { effectiveTriggeredAbilities } from "../../../gre/copy";
 import { collectTriggers } from "../../../gre/triggers";
 import { projectPublicState } from "../../../gameProjections";
-import { emitBlockersConfirmedEvents } from "../../../gre/phases";
+import {
+    emitBlockersConfirmedEvents,
+    emitAttackersDeclaredEvents,
+} from "../../../gre/phases";
 import { recordBlockedAttackers } from "../../../gre/banding";
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
+    applyRandomRevealAck,
 } from "../../../gre/pendingChoiceSubmit";
 import { getLegalTargets } from "../../../gre/rules";
 import { validateBlockerEligibility } from "../../../gre/combat";
@@ -6467,5 +6487,869 @@ describe("Flow of Maggots (cumulative upkeep {1} + Walls-only block, CR 702.24 /
                 state
             ).eligible
         ).toBe(false);
+    });
+});
+
+// ===========================================================================
+// Red buildable-now completion (#656). Each non-trivial card gets a dedicated
+// describe block citing the CR section it exercises; combat triggers run via
+// the real combat path (emitAttackersDeclaredEvents / emitBlockersConfirmedEvents
+// + collectTriggers), and visible static/counter effects re-assert after
+// projectPublicState (wire format).
+// ===========================================================================
+
+/** A PHASE_BEGIN trigger event for `playerId`'s upkeep/end step. */
+const PHASE_EVENT = (
+    phase: "UPKEEP" | "END_STEP",
+    activePlayerId: string
+): StackItem["triggerEvent"] =>
+    ({
+        type: "PHASE_BEGIN" as const,
+        phase,
+        activePlayerId,
+    }) as StackItem["triggerEvent"];
+
+describe("Aggression — Aura: first strike + trample + end-step destroy (CR 611/702/506.2)", () => {
+    it("grants first strike and trample to the host (keyword-grant statics)", () => {
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(aggression.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        const live = state.players[0].battlefield.find((c) => c.id === "host")!;
+        // The aura's keyword-grant statics attach to the host via the grant pass.
+        applyExistingGrantsTo(state, live);
+        expect(live.staticAbilities).toContain("first strike");
+        expect(live.staticAbilities).toContain("trample");
+        // Definition wiring: two keyword-grant statics on the host.
+        const grants = (aggression.staticEffects ?? []).filter(
+            (e) => e.kind === "keyword-grant"
+        );
+        expect(grants.map((g) => (g as { keyword: string }).keyword)).toEqual([
+            "first strike",
+            "trample",
+        ]);
+    });
+
+    it("destroys the host at its controller's end step if it didn't attack", () => {
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+            hasAttackedThisTurn: false,
+        });
+        const aura = makeInstance(aggression.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+        });
+        resolveTrigger(
+            state,
+            aura,
+            "aggression-end-step-destroy",
+            PHASE_EVENT("END_STEP", "p1")
+        );
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "host")
+        ).toBeUndefined();
+    });
+
+    it("does NOT destroy the host if it attacked this turn", () => {
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+            hasAttackedThisTurn: true,
+        });
+        const aura = makeInstance(aggression.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+        });
+        resolveTrigger(
+            state,
+            aura,
+            "aggression-end-step-destroy",
+            PHASE_EVENT("END_STEP", "p1")
+        );
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "host")
+        ).toBeDefined();
+    });
+
+    it("enchant restriction excludes Walls (target filter)", () => {
+        expect(aggression.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+            excludeSubtypes: "Wall",
+        });
+        expect(aggression.manaCost).toEqual({ X: 2, R: 1 });
+    });
+});
+
+describe("Balduvian Hydra — ETB X +1/+0, remove-counter prevent, upkeep grow (CR 122/615/602.5b)", () => {
+    it("enters with X +1/+0 counters (entersWith count: X)", () => {
+        expect(balduvianHydra.entersWith).toEqual({
+            counters: [{ type: "+1/+0", count: "X" }],
+        });
+        expect(balduvianHydra.manaCost).toEqual({ X: "X", R: 2 });
+    });
+
+    it("the X counters raise effective power (layer 7d), surviving the wire", () => {
+        const hydra = makeInstance(balduvianHydra.id, {
+            id: "hydra",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+0": 3 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hydra] }),
+                makePlayer("p2"),
+            ],
+        });
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "hydra"
+        )!;
+        expect(getEffectivePower(state, live)).toBe(3); // base 0 + 3
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "hydra"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+    });
+
+    it("the upkeep grow ability is gated to your upkeep", () => {
+        const grow = balduvianHydra.activatedAbilities!.find(
+            (a) => a.id === "balduvian-hydra-grow"
+        )!;
+        expect(grow.activationPhaseRestriction).toEqual(["UPKEEP"]);
+        expect(grow.controllerTurnOnly).toBe(true);
+        const hydra = makeInstance(balduvianHydra.id, {
+            id: "hydra",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+0": 1 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hydra] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, hydra, "balduvian-hydra-grow");
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "hydra"
+        )!;
+        expect(live.counters?.["+1/+0"]).toBe(2);
+    });
+});
+
+describe("Battle Frenzy — instant batch pump (CR 611.1)", () => {
+    it("buffs green creatures +1/+1 and nongreen +1/+0", () => {
+        const greenC = makeInstance(getCardByName("Balduvian Bears").id, {
+            id: "green",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const redC = makeInstance(getCardByName("Balduvian Barbarians").id, {
+            id: "red",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [greenC, redC] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, battleFrenzy.id, "p1");
+        resolveTopOfStack(state);
+        const g = state.players[0].battlefield.find((c) => c.id === "green")!;
+        const r = state.players[0].battlefield.find((c) => c.id === "red")!;
+        expect(getEffectivePower(state, g)).toBe(3); // 2/2 +1/+1
+        expect(getEffectiveToughness(state, g)).toBe(3);
+        expect(getEffectivePower(state, r)).toBe(4); // 3/2 +1/+0
+        expect(getEffectiveToughness(state, r)).toBe(2);
+    });
+});
+
+describe("Bone Shaman — grants a damage-rider regen-lock (CR 113.1 / 701.15c)", () => {
+    it("the rider template locks regeneration on a creature it damages", () => {
+        const shaman = makeInstance(boneShaman.id, {
+            id: "shaman",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shaman] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Grant the rider to self until end of turn.
+        resolveActivated(state, shaman, "bone-shaman-grant-rider");
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "shaman"
+        )!;
+        // The granted trigger is unioned into the source's effective triggers.
+        const triggers = effectiveTriggeredAbilities(live);
+        expect(
+            triggers.some((t) => t.id === "bone-shaman-no-regen-rider")
+        ).toBe(true);
+    });
+
+    it("the rider sets cant-be-regenerated on the damaged creature", () => {
+        const shaman = makeInstance(boneShaman.id, {
+            id: "shaman",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const victim = vanilla("victim", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shaman] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        // Grant the rider first so it is unioned into the source's effective
+        // triggers (the resolve path looks it up there).
+        resolveActivated(state, shaman, "bone-shaman-grant-rider");
+        const shamanLive = state.players[0].battlefield.find(
+            (c) => c.id === "shaman"
+        )!;
+        const event = {
+            type: "DAMAGE_DEALT" as const,
+            sourceInstanceId: "shaman",
+            sourceControllerId: "p1",
+            target: { type: "permanent" as const, id: "victim" },
+            amount: 3,
+            isCombat: true,
+        } as StackItem["triggerEvent"];
+        resolveTrigger(state, shamanLive, "bone-shaman-no-regen-rider", event);
+        const live = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        // The regen-lock flag is set on the instance (CR 701.15c).
+        expect(live.cantBeRegeneratedThisTurn).toBe(true);
+    });
+});
+
+describe("Chaos Lord — first strike + parity control-give + haste (CR 603.6a / 613.1b)", () => {
+    it("carries first strike and haste", () => {
+        expect(chaosLord.staticAbilities).toContain("first strike");
+        expect(chaosLord.staticAbilities).toContain("haste");
+        expect(chaosLord.manaCost).toEqual({ X: 4, R: 3 });
+        expect(chaosLord.power).toBe(7);
+        expect(chaosLord.toughness).toBe(7);
+    });
+
+    it("gives control to the opponent when the permanent count is even", () => {
+        const lord = makeInstance(chaosLord.id, {
+            id: "lord",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // p1 has the Lord (1) + 1 land = 2 → even total.
+        const land = makeInstance(getCardByName("Mountain").id, {
+            id: "mtn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lord, land] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+        });
+        resolveTrigger(
+            state,
+            lord,
+            "chaos-lord-parity-control",
+            PHASE_EVENT("UPKEEP", "p1")
+        );
+        const live =
+            state.players[0].battlefield.find((c) => c.id === "lord") ??
+            state.players[1].battlefield.find((c) => c.id === "lord")!;
+        expect(live.controllerId).toBe("p2");
+    });
+
+    it("does NOT change control when the permanent count is odd", () => {
+        const lord = makeInstance(chaosLord.id, {
+            id: "lord",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lord] }), // count 1 → odd
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+        });
+        resolveTrigger(
+            state,
+            lord,
+            "chaos-lord-parity-control",
+            PHASE_EVENT("UPKEEP", "p1")
+        );
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "lord")!
+                .controllerId
+        ).toBe("p1");
+    });
+});
+
+describe("Dwarven Armory — {2}, sac a land: +2/+2 counter, any upkeep (CR 602.5b / 122)", () => {
+    it("is gated to the upkeep step with a land sacrifice cost", () => {
+        const ability = dwarvenArmory.activatedAbilities![0];
+        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
+        expect(ability.controllerTurnOnly).toBeUndefined(); // ANY upkeep
+        expect(ability.cost.sacrificeFilter).toEqual({ types: "Land" });
+        expect(ability.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+        });
+    });
+
+    it("puts a +2/+2 counter on the target creature", () => {
+        const armory = makeInstance(dwarvenArmory.id, {
+            id: "armory",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const target = vanilla("t", 1, 1, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [armory, target] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, armory, "dwarven-armory-counter", [
+            { type: "permanent", id: "t" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "t")!;
+        expect(live.counters?.["+2/+2"]).toBe(1);
+        expect(getEffectivePower(state, live)).toBe(3);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+    });
+});
+
+describe("Game of Chaos — coin-flip doubling life swing (CR 705.2 / 119)", () => {
+    it("targets an opponent and resolves a single flip with a life swing", () => {
+        expect(gameOfChaos.targetRequirement).toEqual({
+            type: "player",
+            count: 1,
+            controller: "opponent",
+        });
+        const state = makeState({
+            rngSeed: 1,
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        pushSpell(state, gameOfChaos.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        // First flip suspends on a random-reveal; ack it.
+        const reveal = state.pendingChoices?.[0];
+        expect(reveal?.kind).toBe("random-reveal");
+        applyRandomRevealAck(state, {
+            playerId: reveal!.playerId,
+            stackItemId: reveal!.stackItemId,
+            choiceId: reveal!.choiceId,
+        });
+        // The life total of exactly one player moved by 1 (stake 1, round 0).
+        const p1 = state.players[0].life;
+        const p2 = state.players[1].life;
+        // Winner +1 / loser -1 either way: the sum is unchanged, the spread is 2.
+        expect(Math.abs(p1 - p2)).toBe(2);
+        // After the flip the deciding player is offered "flip again?".
+        const again = state.pendingChoices?.[0];
+        expect(again?.kind).toBe("option-pick");
+    });
+
+    it("stops when the decider declines the next flip", () => {
+        const state = makeState({
+            rngSeed: 1,
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        pushSpell(state, gameOfChaos.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const reveal = state.pendingChoices![0];
+        applyRandomRevealAck(state, {
+            playerId: reveal.playerId,
+            stackItemId: reveal.stackItemId,
+            choiceId: reveal.choiceId,
+        });
+        const again = state.pendingChoices![0];
+        expect(again.kind).toBe("option-pick");
+        applyPendingChoiceSubmit(state, {
+            playerId: again.playerId,
+            stackItemId: again.stackItemId,
+            step: again.step,
+            choiceId: again.choiceId,
+            cardInstanceIds: ["no"],
+        });
+        // Resolution complete — no further pending choices, stack empty.
+        expect(state.pendingChoices?.length ?? 0).toBe(0);
+        expect(state.stack.length).toBe(0);
+    });
+});
+
+describe("Goblin Mutant — trample + conditional attack/block restrictions (CR 508.1c / 509.1b)", () => {
+    it("can't attack while the defender has an untapped power-3+ creature", () => {
+        const restriction = (goblinMutant.staticEffects ?? []).find(
+            (e) => e.kind === "attack-restriction"
+        );
+        expect(restriction?.kind).toBe("attack-restriction");
+        if (restriction?.kind === "attack-restriction") {
+            const self = {} as never;
+            const bigUntapped = [
+                { types: ["Creature"], isTapped: false, power: 4 },
+            ] as never;
+            const bigTapped = [
+                { types: ["Creature"], isTapped: true, power: 4 },
+            ] as never;
+            const small = [
+                { types: ["Creature"], isTapped: false, power: 2 },
+            ] as never;
+            expect(restriction.predicate(self, bigUntapped)).toBe(false);
+            expect(restriction.predicate(self, bigTapped)).toBe(true);
+            expect(restriction.predicate(self, small)).toBe(true);
+        }
+        expect(goblinMutant.staticAbilities).toContain("trample");
+    });
+
+    it("can't block creatures with power 3 or greater", () => {
+        const restriction = (goblinMutant.staticEffects ?? []).find(
+            (e) => e.kind === "block-restriction"
+        );
+        expect(restriction?.kind).toBe("block-restriction");
+        if (restriction?.kind === "block-restriction") {
+            expect(restriction.side).toBe("blocker");
+            const self = {} as never;
+            expect(restriction.predicate(self, { power: 2 } as never)).toBe(
+                true
+            );
+            expect(restriction.predicate(self, { power: 3 } as never)).toBe(
+                false
+            );
+        }
+    });
+});
+
+describe("Goblin Sappers — unblockable + end-of-combat destroy (CR 605 / 603.7a)", () => {
+    it("the {R}{R} leg arms a destroy-both delayed trigger", () => {
+        const sappers = makeInstance(goblinSappers.id, {
+            id: "sappers",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const ally = vanilla("ally", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sappers, ally] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, sappers, "goblin-sappers-rr", [
+            { type: "permanent", id: "ally" },
+        ]);
+        const allyLive = state.players[0].battlefield.find(
+            (c) => c.id === "ally"
+        )!;
+        expect(allyLive.cantBeBlockedThisTurn).toBe(true);
+        expect(
+            (state.delayedTriggers ?? []).some(
+                (d) => d.triggerId === "goblin-sappers-destroy-both"
+            )
+        ).toBe(true);
+    });
+
+    it("the {R}{R}{R}{R} leg arms a destroy-target-only delayed trigger", () => {
+        const sappers = makeInstance(goblinSappers.id, {
+            id: "sappers",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const ally = vanilla("ally", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sappers, ally] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, sappers, "goblin-sappers-rrrr", [
+            { type: "permanent", id: "ally" },
+        ]);
+        expect(
+            (state.delayedTriggers ?? []).some(
+                (d) => d.triggerId === "goblin-sappers-destroy-target"
+            )
+        ).toBe(true);
+    });
+});
+
+describe("Grizzled Wolverine — +2/+0 only while blocked, declare-blockers, once (CR 602.5)", () => {
+    it("gates activation on the declare-blockers step, once per turn", () => {
+        const ability = grizzledWolverine.activatedAbilities![0];
+        expect(ability.activationPhaseRestriction).toEqual([
+            "DECLARE_BLOCKERS",
+        ]);
+        expect(ability.oncePerTurn).toBe(true);
+    });
+
+    it("canActivate is true only when a blocker is assigned to it", () => {
+        const ability = grizzledWolverine.activatedAbilities![0];
+        const source = { id: "wolv" } as never;
+        const blocked = {
+            combat: { blockerAssignments: { blk: ["wolv"] } },
+        } as never;
+        const unblocked = {
+            combat: { blockerAssignments: {} },
+        } as never;
+        expect(ability.canActivate!(source, blocked)).toBe(true);
+        expect(ability.canActivate!(source, unblocked)).toBe(false);
+    });
+
+    it("the pump adds +2/+0 until end of turn", () => {
+        const wolv = makeInstance(grizzledWolverine.id, {
+            id: "wolv",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wolv] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, wolv, "grizzled-wolverine-pump");
+        const live = state.players[0].battlefield.find((c) => c.id === "wolv")!;
+        expect(getEffectivePower(state, live)).toBe(4); // 2 +2
+    });
+});
+
+describe("Márton Stromgald — per-attacker / per-blocker team pump (CR 603.6 / 611.1)", () => {
+    it("attack: other attackers get +N/+N for N other attackers (real combat path)", () => {
+        const marton = makeInstance(mRtonStromgald.id, {
+            id: "marton",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const ally1 = vanilla("a1", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const ally2 = vanilla("a2", 1, 1, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [marton, ally1, ally2] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            phase: "DECLARE_ATTACKERS",
+            combat: {
+                attackerIds: ["marton", "a1", "a2"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        emitAttackersDeclaredEvents(state);
+        const trig = state.stack.find(
+            (s) => s.triggeredAbilityId === "marton-attack-pump"
+        );
+        expect(trig).toBeDefined();
+        resolveTopOfStack(state);
+        // 2 other attackers → +2/+2 each (Márton itself is excluded).
+        const a1 = state.players[0].battlefield.find((c) => c.id === "a1")!;
+        const a2 = state.players[0].battlefield.find((c) => c.id === "a2")!;
+        const m = state.players[0].battlefield.find((c) => c.id === "marton")!;
+        expect(getEffectivePower(state, a1)).toBe(4); // 2 +2
+        expect(getEffectivePower(state, a2)).toBe(3); // 1 +2
+        expect(getEffectivePower(state, m)).toBe(1); // unbuffed
+    });
+});
+
+describe("Aurochs — trample + attack pump per other attacking Aurochs (CR 603.6 / 611.1)", () => {
+    it("gets +1/+0 for each OTHER attacking Aurochs", () => {
+        const a1 = makeInstance(aurochs.id, {
+            id: "ox1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const a2 = makeInstance(aurochs.id, {
+            id: "ox2",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const a3 = makeInstance(aurochs.id, {
+            id: "ox3",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a1, a2, a3] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            phase: "DECLARE_ATTACKERS",
+            combat: {
+                attackerIds: ["ox1", "ox2", "ox3"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        emitAttackersDeclaredEvents(state);
+        // Resolve each Aurochs's attack-pump trigger.
+        while (
+            state.stack.some(
+                (s) => s.triggeredAbilityId === "aurochs-attack-pump"
+            )
+        ) {
+            resolveTopOfStack(state);
+        }
+        const ox1 = state.players[0].battlefield.find((c) => c.id === "ox1")!;
+        expect(getEffectivePower(state, ox1)).toBe(4); // 2 + 2 others
+        expect(aurochs.staticAbilities).toContain("trample");
+    });
+});
+
+describe("Mudslide — non-flying untap-lock + per-upkeep pay-{2}-to-untap (CR 611 / 117.3a)", () => {
+    it("declares a non-flying untap restriction with maxUntap 0", () => {
+        const restriction = (mudslide.staticEffects ?? []).find(
+            (e) => e.kind === "untap-restriction"
+        );
+        expect(restriction?.kind).toBe("untap-restriction");
+    });
+
+    it("pays {2} per chosen tapped non-flying creature to untap it", () => {
+        const slide = makeInstance(mudslide.id, {
+            id: "slide",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // A real registered non-flying creature (the pay path scans the
+        // battlefield for land mana and rejects fake card ids).
+        const ground = makeInstance(getCardByName("Balduvian Bears").id, {
+            id: "ground",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [slide, ground] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+        });
+        state.players[0].manaPool = { C: 2 }; // enough to pay {2}
+        resolveTrigger(
+            state,
+            slide,
+            "mudslide-untap-escape",
+            PHASE_EVENT("UPKEEP", "p1")
+        );
+        // The trigger suspends on a may-pay for the tapped non-flying creature.
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "ground"
+        )!;
+        expect(live.isTapped).toBe(false);
+    });
+});
+
+describe("Orcish Squatters — unblocked attack steals a land (CR 509.1h / 611.2b)", () => {
+    it("gains control of a chosen defender land and assigns no combat damage", () => {
+        const squatters = makeInstance(orcishSquatters.id, {
+            id: "sq",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const land = makeInstance(getCardByName("Mountain").id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [squatters] }),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+            activePlayerId: "p1",
+        });
+        const event = {
+            type: "ATTACKER_UNBLOCKED" as const,
+            attackerId: "sq",
+            attackerControllerId: "p1",
+            attackerTypes: ["Creature"],
+            attackerSubtypes: ["Orc"],
+        } as StackItem["triggerEvent"];
+        resolveTrigger(state, squatters, "orcish-squatters-steal-land", event);
+        // Suspends on the optional land choice; pick the land.
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("choose-permanents");
+        submitChoice(state, ["land"]);
+        const stolen =
+            state.players[0].battlefield.find((c) => c.id === "land") ??
+            state.players[1].battlefield.find((c) => c.id === "land")!;
+        expect(stolen.controllerId).toBe("p1");
+        expect(state.assignsNoCombatDamageThisTurn ?? []).toContain("sq");
+    });
+
+    it("declining the choice keeps the land with its owner", () => {
+        const squatters = makeInstance(orcishSquatters.id, {
+            id: "sq",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const land = makeInstance(getCardByName("Mountain").id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [squatters] }),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+            activePlayerId: "p1",
+        });
+        const event = {
+            type: "ATTACKER_UNBLOCKED" as const,
+            attackerId: "sq",
+            attackerControllerId: "p1",
+            attackerTypes: ["Creature"],
+            attackerSubtypes: ["Orc"],
+        } as StackItem["triggerEvent"];
+        resolveTrigger(state, squatters, "orcish-squatters-steal-land", event);
+        submitChoice(state, []); // decline
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "land")!
+                .controllerId
+        ).toBe("p2");
+    });
+});
+
+describe("Total War — attack-trigger mass destroy of stay-back creatures (CR 508.1 / 302.6)", () => {
+    it("destroys untapped non-Wall non-attacking established creatures of the attacker", () => {
+        const war = makeInstance(totalWar.id, {
+            id: "war",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const attacker = vanilla("atk", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+            isSummoningSick: false,
+        });
+        // Stays back, untapped, established (not summoning-sick) → destroyed.
+        const stayBack = vanilla("stay", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: false,
+            isSummoningSick: false,
+        });
+        // Tapped → survives.
+        const tapped = vanilla("tap", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+            isSummoningSick: false,
+        });
+        // Summoning-sick (not controlled continuously) → survives.
+        const fresh = vanilla("fresh", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: true,
+        });
+        // Wall → survives.
+        const wall = vanilla("wall", 0, 4, {
+            controllerId: "p1",
+            ownerId: "p1",
+            subtypes: ["Wall"],
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [attacker, stayBack, tapped, fresh, wall],
+                }),
+                makePlayer("p2", { battlefield: [war] }),
+            ],
+            activePlayerId: "p1",
+        });
+        const event = {
+            type: "ATTACKERS_DECLARED" as const,
+            attackingPlayerId: "p1",
+            attackerIds: ["atk"],
+        } as StackItem["triggerEvent"];
+        resolveTrigger(state, war, "total-war-mass-destroy", event);
+        const bf = state.players[0].battlefield.map((c) => c.id);
+        expect(bf).not.toContain("stay"); // destroyed
+        expect(bf).toContain("atk"); // attacked → safe
+        expect(bf).toContain("tap"); // tapped → safe
+        expect(bf).toContain("fresh"); // summoning-sick → safe
+        expect(bf).toContain("wall"); // Wall → safe
     });
 });

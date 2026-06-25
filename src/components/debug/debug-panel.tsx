@@ -534,6 +534,80 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 6,
     },
     {
+        // ICE Red completion (#656, PRD #628). Exercises the buildable-now Red
+        // ICE cards activated from stale stubs:
+        //   - Márton Stromgald (pump other attackers by the attacker count) and
+        //     two Aurochs (pump per other attacking Aurochs) — attack to fire
+        //     the per-attacker buffs.
+        //   - Goblin Mutant (trample; can't attack vs an untapped power-3+
+        //     defender; can't block power 3+) and Chaos Lord (7/7 first strike;
+        //     even-permanent-count upkeep control-give).
+        //   - Mudslide (non-flying untap-lock + pay-{2}-to-untap) and Dwarven
+        //     Armory ({2}, sac a land: +2/+2 counter, upkeep-only) enchantments.
+        //   - Balduvian Hydra (enters with X +1/+0; remove-counter prevent;
+        //     upkeep grow) on the battlefield.
+        //   - Battle Frenzy (team pump) and Game of Chaos (coin-flip life swing)
+        //     in hand. rngSeed 1 pins the first Game of Chaos flip to a WIN.
+        label: "ICE: Red completion — Márton / Aurochs / Chaos Lord / Mudslide / Game of Chaos (#656)",
+        cards: [
+            {
+                name: "Márton Stromgald",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Aurochs",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+            {
+                name: "Goblin Mutant",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Chaos Lord",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Hydra",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                counters: { "+1/+0": 3 },
+            },
+            {
+                name: "Mudslide",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Dwarven Armory",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Battle Frenzy",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Game of Chaos",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+        rngSeed: 1,
+    },
+    {
         // ICE Black free tranche (#632, PRD #628). Exercises the Black ICE
         // staples end to end:
         //   - Abyssal Specter (flying; deals damage to a player → that player
