@@ -9,6 +9,12 @@ export default defineConfig([
     globalIgnores([
         "dist",
         "convex/_generated",
+        // Worklist importer staging output (ADR 0041): regenerable `.ts` files
+        // emitted by `list-to-cards.mjs` into `data/worklists/*.out/`. They are
+        // gitignored staging (capability cards are commented-out stubs, so the
+        // `CardDefinition` import reads as unused) — wired into real set files
+        // by hand, not linted in place.
+        "data/worklists/*.out",
         // Throwaway exploration code (PRD #249): the WebGL/FX prototype boards
         // were spikes to validate the DOM-only direction and are slated for
         // removal once the new board (#250+) is proven. They predate the
