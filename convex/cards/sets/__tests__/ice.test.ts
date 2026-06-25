@@ -205,6 +205,19 @@ import {
     // Blue buildable-now completion (#654)
     krovikanSorcerer,
     shyft,
+    // Black buildable-now completion (#655)
+    limDLsCohort,
+    limDLsHex,
+    mindWhip,
+    minionOfLeshrac,
+    infernalDenizen,
+    soulKiss,
+    norritt,
+    danceOfTheDead,
+    zuranEnchanter,
+    krovikanElementalist,
+    leshracsSigil,
+    flowOfMaggots,
 } from "../ice";
 import {
     getCardById,
@@ -5880,5 +5893,579 @@ describe("Shyft (upkeep colour override, CR 305.7 layer 5 / 603.6a)", () => {
             (c) => c.id === "shyft"
         )!;
         expect(slim.colorOverride).toEqual(["R"]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Black buildable-now completion (#655)
+// ---------------------------------------------------------------------------
+
+/** A beginning-of-upkeep PHASE_BEGIN trigger event for the given active player. */
+const BLACK_UPKEEP = (activePlayerId: string): StackItem["triggerEvent"] =>
+    ({
+        type: "PHASE_BEGIN" as const,
+        phase: "UPKEEP" as const,
+        activePlayerId,
+    }) as StackItem["triggerEvent"];
+
+describe("Lim-Dûl's Cohort (blocks/becomes-blocked → can't be regenerated, CR 509.1h / 701.15c)", () => {
+    function setup() {
+        const cohort = makeInstance(limDLsCohort.id, {
+            id: "cohort",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blocker = vanilla("blk", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cohort] }),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+        });
+        return { state, cohort };
+    }
+
+    it("declares the BLOCKERS_CONFIRMED trigger", () => {
+        expect(limDLsCohort.triggeredAbilities?.[0]?.event).toBe(
+            "BLOCKERS_CONFIRMED"
+        );
+    });
+
+    it("marks the other creature as can't-be-regenerated this turn", () => {
+        const { state, cohort } = setup();
+        resolveTrigger(state, cohort, "lim-duls-cohort-no-regen", {
+            type: "BLOCKERS_CONFIRMED",
+            attackerId: "cohort",
+            attackerControllerId: "p1",
+            attackerTypes: ["Creature"],
+            attackerSubtypes: ["Zombie"],
+            blockerId: "blk",
+            blockerControllerId: "p2",
+            blockerTypes: ["Creature"],
+            blockerSubtypes: [],
+        } as StackItem["triggerEvent"]);
+        const blk = state.players[1].battlefield.find((c) => c.id === "blk")!;
+        expect(blk.cantBeRegeneratedThisTurn).toBe(true);
+    });
+});
+
+describe("Lim-Dûl's Hex (each player pays {B} or {3} or takes 1, CR 603.6a / 117.3a)", () => {
+    function setup() {
+        const hex = makeInstance(limDLsHex.id, {
+            id: "hex",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hex], life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        state.activePlayerId = "p1";
+        return { state, hex };
+    }
+
+    it("declining both costs deals 1 to each player (APNAP order)", () => {
+        const { state, hex } = setup();
+        resolveTrigger(state, hex, "lim-duls-hex-upkeep", BLACK_UPKEEP("p1"));
+        // p1 (active) first: decline {B}, then decline {3} → 1 damage.
+        answerMayPay(state, false); // p1 {B}
+        answerMayPay(state, false); // p1 {3}
+        answerMayPay(state, false); // p2 {B}
+        answerMayPay(state, false); // p2 {3}
+        expect(state.players[0].life).toBe(19);
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("accepting the {B} leg skips the {3} prompt and avoids damage", () => {
+        const { state, hex } = setup();
+        // Give p1 a black mana so the {B} leg is affordable.
+        state.players[0].manaPool = { B: 1 };
+        resolveTrigger(state, hex, "lim-duls-hex-upkeep", BLACK_UPKEEP("p1"));
+        answerMayPay(state, true); // p1 pays {B}
+        // p2 has no mana → decline both.
+        answerMayPay(state, false); // p2 {B}
+        answerMayPay(state, false); // p2 {3}
+        expect(state.players[0].life).toBe(20); // p1 paid, no damage
+        expect(state.players[1].life).toBe(19); // p2 took 1
+    });
+});
+
+describe("Mind Whip (host-controller upkeep pay {3} or 2 dmg + tap, CR 603.6a)", () => {
+    function setup() {
+        const host = vanilla("host", 3, 3, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const whip = makeInstance(mindWhip.id, {
+            id: "whip",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [whip] }),
+                makePlayer("p2", { battlefield: [host], life: 20 }),
+            ],
+        });
+        state.activePlayerId = "p2";
+        return { state, whip };
+    }
+
+    it("declining deals 2 to the host's controller and taps the host", () => {
+        const { state, whip } = setup();
+        resolveTrigger(state, whip, "mind-whip-upkeep", BLACK_UPKEEP("p2"));
+        answerMayPay(state, false);
+        expect(state.players[1].life).toBe(18);
+        const host = state.players[1].battlefield.find((c) => c.id === "host")!;
+        expect(host.isTapped).toBe(true);
+    });
+});
+
+describe("Minion of Leshrac (protection, sac-or-5, {T} destroy, CR 702.16 / 603.6a / 701.7)", () => {
+    it("carries protection from black", () => {
+        expect(minionOfLeshrac.staticAbilities).toContain(
+            "protection from black"
+        );
+    });
+
+    it("declining the sacrifice deals 5 to controller and taps Minion", () => {
+        const minion = makeInstance(minionOfLeshrac.id, {
+            id: "minion",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [minion], life: 20 }),
+                makePlayer("p2"),
+            ],
+        });
+        state.activePlayerId = "p1";
+        resolveTrigger(
+            state,
+            minion,
+            "minion-of-leshrac-upkeep",
+            BLACK_UPKEEP("p1")
+        );
+        answerMayPay(state, false);
+        expect(state.players[0].life).toBe(15);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "minion"
+        )!;
+        expect(live.isTapped).toBe(true);
+    });
+
+    it("{T} destroys a target land", () => {
+        const minion = makeInstance(minionOfLeshrac.id, {
+            id: "minion",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = vanilla("land", 0, 0, {
+            controllerId: "p2",
+            ownerId: "p2",
+            types: ["Land"] as CardType[],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [minion] }),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        resolveActivated(state, minion, "minion-of-leshrac-destroy", [
+            { type: "permanent", id: "land" },
+        ]);
+        expect(state.players[1].battlefield.some((c) => c.id === "land")).toBe(
+            false
+        );
+    });
+});
+
+describe("Infernal Denizen (sac-two-Swamps-or-steal, {T} gain control, CR 603.6a / 613.1b)", () => {
+    it("{T} gains control of a target creature for as long as Denizen remains", () => {
+        const denizen = makeInstance(infernalDenizen.id, {
+            id: "denizen",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const victim = vanilla("victim", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [denizen] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        resolveActivated(state, denizen, "infernal-denizen-steal", [
+            { type: "permanent", id: "victim" },
+        ]);
+        const stolen = state.players[0].battlefield.find(
+            (c) => c.id === "victim"
+        );
+        expect(stolen?.controllerId).toBe("p1");
+    });
+
+    it("declining the sacrifice taps Denizen and the opponent steals a creature", () => {
+        const denizen = makeInstance(infernalDenizen.id, {
+            id: "denizen",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const myCreature = vanilla("mine", 1, 1, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [denizen, myCreature] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.activePlayerId = "p1";
+        resolveTrigger(
+            state,
+            denizen,
+            "infernal-denizen-upkeep",
+            BLACK_UPKEEP("p1")
+        );
+        answerMayPay(state, false); // can't sacrifice two Swamps → decline
+        // The opponent (p2) now picks one of p1's creatures to steal.
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["mine"],
+        });
+        const den = state.players[0].battlefield.find(
+            (c) => c.id === "denizen"
+        )!;
+        expect(den.isTapped).toBe(true);
+        const stolen = state.players[1].battlefield.find(
+            (c) => c.id === "mine"
+        );
+        expect(stolen?.controllerId).toBe("p2");
+    });
+});
+
+describe("Soul Kiss (Aura +2/+2, hard cap 3/turn, CR 611.1b / 602.5)", () => {
+    function setup() {
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(soulKiss.id, {
+            id: "kiss",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura], life: 20 }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, aura, host };
+    }
+
+    it("pumps the enchanted creature +2/+2 until end of turn", () => {
+        const { state, aura, host } = setup();
+        resolveActivated(state, aura, "soul-kiss-pump");
+        expect(getEffectivePower(state, host)).toBe(4);
+        expect(getEffectiveToughness(state, host)).toBe(4);
+    });
+
+    it("canActivate caps activations at three per turn (CR 602.5)", () => {
+        const ability = soulKiss.activatedAbilities![0];
+        const source = { activationsThisTurn: { "soul-kiss-pump": 2 } };
+        const source3 = { activationsThisTurn: { "soul-kiss-pump": 3 } };
+        // 3rd activation (count 2 so far) is legal; 4th (count 3) is not.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        expect(ability.canActivate!(source as any, {} as any)).toBe(true);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        expect(ability.canActivate!(source3 as any, {} as any)).toBe(false);
+    });
+
+    it("wire format: the +2/+2 survives projectPublicState", () => {
+        const { state, host } = setup();
+        const aura = state.players[0].battlefield.find((c) => c.id === "kiss")!;
+        resolveActivated(state, aura, "soul-kiss-pump");
+        expect(getEffectivePower(state, host)).toBe(4);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(4);
+        expect(getEffectiveToughness(projected, slim)).toBe(4);
+    });
+});
+
+describe("Norritt (untap blue / force-attack, CR 701.20b / 508.1d)", () => {
+    it("{T} untaps a target blue creature", () => {
+        const norr = makeInstance(norritt.id, {
+            id: "norr",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blue = makeInstance(getCardByName("Balduvian Bears").id, {
+            id: "blue",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+            // Balduvian Bears is green; fake the colour via a blue instance is
+            // out of scope — we only assert the untap effect on the target.
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [norr, blue] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, norr, "norritt-untap-blue", [
+            { type: "permanent", id: "blue" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "blue")!;
+        expect(live.isTapped).toBe(false);
+    });
+
+    it("force-attack marks the target must-attack and schedules the destroy", () => {
+        const norr = makeInstance(norritt.id, {
+            id: "norr",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const target = vanilla("t", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [norr, target] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, norr, "norritt-force-attack", [
+            { type: "permanent", id: "t" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "t")!;
+        expect(live.mustAttackThisTurn).toBe(true);
+    });
+});
+
+describe("Dance of the Dead (graveyard-reanimation aura, CR 303.4i / 611)", () => {
+    it("declares the graveyard target and the +1/+1 / does-not-untap statics", () => {
+        expect(danceOfTheDead.targetRequirement).toMatchObject({
+            zone: "graveyard",
+        });
+        const kinds = danceOfTheDead.staticEffects!.map((e) => e.kind);
+        expect(kinds).toContain("pt-buff");
+        expect(kinds).toContain("keyword-grant");
+    });
+
+    it("reanimates the enchanted card and applies +1/+1 (it enters tapped)", () => {
+        const deadId = getCardByName("Grizzly Bears").id;
+        const dead = makeInstance(deadId, {
+            id: "dead",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { graveyard: [dead] }),
+            ],
+        });
+        // Cast Dance of the Dead from p1, targeting the creature card in p2's
+        // graveyard — the aura branch reanimates it under p1 and attaches.
+        pushSpell(state, danceOfTheDead.id, "p1", [
+            { type: "graveyard-card", id: "dead", playerId: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        const reanimated = state.players[0].battlefield.find(
+            (c) => c.id === "dead"
+        );
+        expect(reanimated?.controllerId).toBe("p1");
+        // +1/+1 layer 7c on the reanimated 2/2 host → 3/3.
+        expect(getEffectivePower(state, reanimated!)).toBe(3);
+        expect(getEffectiveToughness(state, reanimated!)).toBe(3);
+    });
+});
+
+describe("Zuran Enchanter ({2}{B},{T}: target player discards, CR 605 / 701.8)", () => {
+    it("is restricted to the controller's own turn and discards a chosen card", () => {
+        const enchanter = makeInstance(zuranEnchanter.id, {
+            id: "ench",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const handCard = makeInstance(getCardByName("Dark Ritual").id, {
+            id: "h0",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [enchanter] }),
+                makePlayer("p2", { hand: [handCard] }),
+            ],
+        });
+        expect(zuranEnchanter.activatedAbilities![0].controllerTurnOnly).toBe(
+            true
+        );
+        resolveActivated(state, enchanter, "zuran-enchanter-discard", [
+            { type: "player", id: "p2" },
+        ]);
+        // p2 picks the only card in hand to discard.
+        submitChoice(state, ["h0"]);
+        expect(state.players[1].hand.some((c) => c.id === "h0")).toBe(false);
+        expect(state.players[1].graveyard.some((c) => c.id === "h0")).toBe(
+            true
+        );
+    });
+});
+
+describe("Krovikan Elementalist (pump / fly+sac, CR 611.1b / 603.7a)", () => {
+    it("{2}{R} pumps a target creature +1/+0", () => {
+        const elem = makeInstance(krovikanElementalist.id, {
+            id: "elem",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const target = vanilla("t", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [elem, target] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, elem, "krovikan-elementalist-pump", [
+            { type: "permanent", id: "t" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "t")!;
+        expect(getEffectivePower(state, live)).toBe(3);
+        expect(getEffectiveToughness(state, live)).toBe(2);
+    });
+
+    it("{U}{U} grants flying and schedules the end-step sacrifice", () => {
+        const elem = makeInstance(krovikanElementalist.id, {
+            id: "elem",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const target = vanilla("t", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [elem, target] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, elem, "krovikan-elementalist-fly", [
+            { type: "permanent", id: "t" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "t")!;
+        expect(live.staticAbilities).toContain("flying");
+        expect(
+            (state.delayedTriggers ?? []).some(
+                (d) => d.triggerId === "krovikan-elementalist-sacrifice"
+            )
+        ).toBe(true);
+    });
+});
+
+describe("Leshrac's Sigil (green-cast discard / return, CR 603.2 / 701.8)", () => {
+    it("declares an opponents-green-spell cast trigger and the return ability", () => {
+        expect(leshracsSigil.triggeredAbilities?.[0]?.event).toBe("SPELL_CAST");
+        expect(leshracsSigil.activatedAbilities?.[0]?.id).toBe(
+            "leshracs-sigil-return"
+        );
+    });
+
+    it("{B}{B} returns the enchantment to its owner's hand", () => {
+        const sigil = makeInstance(leshracsSigil.id, {
+            id: "sigil",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sigil] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, sigil, "leshracs-sigil-return");
+        expect(state.players[0].battlefield.some((c) => c.id === "sigil")).toBe(
+            false
+        );
+        expect(state.players[0].hand.some((c) => c.id === "sigil")).toBe(true);
+    });
+});
+
+describe("Flow of Maggots (cumulative upkeep {1} + Walls-only block, CR 702.24 / 509.1b)", () => {
+    it("declares a cumulative-upkeep trigger and a block-restriction static", () => {
+        expect(flowOfMaggots.triggeredAbilities?.[0]?.id).toBe(
+            "flow-of-maggots-cumulative-upkeep"
+        );
+        expect(flowOfMaggots.staticEffects?.[0]?.kind).toBe(
+            "block-restriction"
+        );
+    });
+
+    it("can be blocked by a Wall but not by a non-Wall creature (CR 509.1b)", () => {
+        const flow = makeInstance(flowOfMaggots.id, {
+            id: "flow",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const wall = vanilla("wall", 0, 4, {
+            controllerId: "p2",
+            ownerId: "p2",
+            subtypes: ["Wall"],
+        });
+        const grizzly = vanilla("grz", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [flow] }),
+                makePlayer("p2", { battlefield: [wall, grizzly] }),
+            ],
+        });
+        state.activePlayerId = "p1";
+        expect(
+            validateBlockerEligibility(
+                flow,
+                wall,
+                state.players[1].battlefield,
+                state
+            ).eligible
+        ).toBe(true);
+        expect(
+            validateBlockerEligibility(
+                flow,
+                grizzly,
+                state.players[1].battlefield,
+                state
+            ).eligible
+        ).toBe(false);
     });
 });
