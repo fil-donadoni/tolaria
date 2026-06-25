@@ -1938,10 +1938,22 @@
         "firstSet": "fem"
     },
     {
+        "name": "Fiery Justice",
+        "scryfallId": "8965ce61-0522-4f77-a82d-89441d1ba867",
+        "oracleId": "333809cb-e196-45f2-8a67-31374438e56e",
+        "firstSet": "ice"
+    },
+    {
         "name": "Fire and Brimstone",
         "scryfallId": "d5208dbb-63d2-4789-8ef9-f82499a43b3a",
         "oracleId": "b1f857c5-cd22-4a4e-8039-1e7eeb3754d8",
         "firstSet": "drk"
+    },
+    {
+        "name": "Fire Covenant",
+        "scryfallId": "6a0139c2-ad86-4c71-ab6d-4840c37d5d20",
+        "oracleId": "025939a0-424a-41bf-8fc9-2ef9ea5485f7",
+        "firstSet": "ice"
     },
     {
         "name": "Fire Drake",
@@ -3858,6 +3870,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Meteor Shower",
+        "scryfallId": "50b4851e-677b-468e-9baa-e47a3b4b8339",
+        "oracleId": "d2110083-b30f-43f1-9352-7536f5e19d3c",
+        "firstSet": "ice"
+    },
+    {
         "name": "Mightstone",
         "scryfallId": "b28ba599-5299-4831-a118-1712ada10ef6",
         "oracleId": "2f578020-9b39-4c61-8b0b-6d29187e022a",
@@ -5463,6 +5481,12 @@
         "name": "Spoils of Evil",
         "scryfallId": "fd368eb6-72f0-42d4-afa5-3daa7de949ff",
         "oracleId": "a40c52ee-4b45-4b14-8fbc-6529b42bfc9d",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Spoils of War",
+        "scryfallId": "b38af8bd-d927-46d0-a1b1-fb437ea9ea66",
+        "oracleId": "f3240a86-28b6-4338-9a59-1fb6f795d713",
         "firstSet": "ice"
     },
     {

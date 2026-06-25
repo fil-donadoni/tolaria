@@ -814,6 +814,14 @@ export type StackItem = CardInstanceState & {
      *  (CR 107.3, 601.2b). Undefined for spells without X. Read on
      *  resolution by SpellContext.getX(). */
     chosenX?: number;
+    /** Divide-as-you-choose split (CR 601.2d / 120.4). Maps a target key
+     *  (`${type}:${id}`) to the amount of damage / counters the caster assigned
+     *  to that target at announcement, each ≥ 1, summing to the spell's total.
+     *  Read at resolve by `dealDamageDividedAsChosen` /
+     *  `distributeCountersAsChosen`. Undefined when the caster did not record an
+     *  explicit split (the resolver then auto-divides ≥1-each). Used by Fire
+     *  Covenant, Fiery Justice, Meteor Shower, Spoils of War. */
+    targetAmounts?: Record<string, number>;
     /** Mode id chosen at announcement for modal spells (CR 700.2). On
      *  resolution, dispatch lookups the matching entry in
      *  `card.modes` and runs `mode.resolve` instead of `card.resolve`. */
@@ -938,6 +946,16 @@ export type PendingCast = {
     keepPriority?: boolean;
     /** Value chosen for X at announce time. Propagated to the stack item. */
     chosenX?: number;
+    /** Divide-as-you-choose split assigned at target selection (CR 601.2d).
+     *  Carried through the deferred-payment commit (`commitSpellCast`) onto the
+     *  stack item's `targetAmounts`. Keyed by `${type}:${id}`. Undefined for
+     *  non-divide spells. */
+    targetAmounts?: Record<string, number>;
+    /** "Pay X life" additional cost still owed at commit (CR 601.2b / 118.4,
+     *  Fire Covenant). Carried through the deferred-payment commit so the life
+     *  is paid the instant the spell moves hand → stack. Undefined / 0 when no
+     *  life cost applies. */
+    payLife?: number;
     /** Mode id chosen at announcement for modal spells (CR 700.2 / 700.2c).
      *  Undefined for non-modal spells. Propagated to the stack item. */
     chosenModeId?: string;
@@ -1227,6 +1245,48 @@ export function getPendingChoiceMax(count: PendingChoice["count"]): number {
  *  choices min === count (the player must pick exactly N). For range
  *  choices min is the floor — typically 0 for cap-style restrictions where
  *  ADR 0003's "tactical zero-branch" applies (Winter Orb skip, Smoke skip). */
+/** Stable key for a `TargetSelection` used to index a divide-as-you-choose
+ *  split (`StackItem.targetAmounts` / `PendingTarget.divideAmounts`). The
+ *  `${type}:${id}` shape is unambiguous because a divide-as-you-choose spell
+ *  never targets the same object twice (CR 601.2c — each target must be
+ *  distinct). */
+export function targetKey(target: TargetSelection): string {
+    return `${target.type}:${target.id}`;
+}
+
+/** Resolves the per-target division for a divide-as-you-choose spell
+ *  (CR 601.2d / 120.4). When the caster recorded an explicit split at
+ *  announcement (`targetAmounts`), it is used verbatim. Otherwise the engine
+ *  falls back to a deterministic "≥1 each, remainder front-loaded" division so
+ *  GRE-driven callers that pre-set `targets` without amounts still get a legal
+ *  ≥1-each split summing to `totalAmount`. The result maps each target's
+ *  `targetKey` to its amount. */
+export function resolveChosenDivision(
+    targetAmounts: Record<string, number> | undefined,
+    targets: TargetSelection[],
+    totalAmount: number
+): Map<string, number> {
+    const result = new Map<string, number>();
+    if (targetAmounts) {
+        for (const target of targets) {
+            const key = targetKey(target);
+            result.set(key, targetAmounts[key] ?? 0);
+        }
+        return result;
+    }
+    // Fallback: each target gets at least 1; the remainder is front-loaded
+    // onto the earliest targets (a deterministic legal split, CR 601.2d).
+    const n = targets.length;
+    const base = Math.floor(totalAmount / n);
+    let remainder = totalAmount - base * n;
+    for (const target of targets) {
+        const extra = remainder > 0 ? 1 : 0;
+        if (remainder > 0) remainder -= 1;
+        result.set(targetKey(target), base + extra);
+    }
+    return result;
+}
+
 export function getPendingChoiceMin(count: PendingChoice["count"]): number {
     return typeof count === "number" ? count : count.min;
 }
@@ -1302,6 +1362,19 @@ export type PendingTarget = {
     controller?: "you" | "opponent" | "any";
     /** Targets already selected. */
     selected: TargetSelection[];
+    /** Divide-as-you-choose budget (CR 601.2d / 120.4). When set, this spell
+     *  divides this total of damage / counters among the chosen targets, each
+     *  target receiving at least 1. Propagated from the card's resolved total
+     *  (Fire Covenant = chosen X, Meteor Shower = X+1, Fiery Justice = 5,
+     *  Spoils of War = derived X). Drives the cap on target count (a player
+     *  can't choose more targets than the total) and the per-target amount UI. */
+    divideTotal?: number;
+    /** Per-target amounts assigned during divide-as-you-choose selection,
+     *  keyed by `${type}:${id}` (parallels `selected`). Each entry is ≥ 1.
+     *  Written to the stack item as `targetAmounts` at finalization. Undefined
+     *  until the caster assigns amounts; an all-1s default is filled in at
+     *  finalize when the totals leave no real choice. */
+    divideAmounts?: Record<string, number>;
     /** Mirrors PendingCast.keepPriority — propagated when the pending cast is created. */
     keepPriority?: boolean;
     /** Propagated from announceCast when the spell has X in its mana cost. */
@@ -5519,6 +5592,48 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (per <= 0) return;
             for (const target of targets) {
                 this.dealDamage(target, per);
+            }
+        },
+        // CR 601.2d / 120.4 — divide AS YOU CHOOSE among the chosen targets,
+        // each target getting at least 1. The split was assigned at
+        // announcement and snapshotted on the stack item (`targetAmounts`);
+        // when absent (e.g. a GRE-driven test that pre-set `targets` but no
+        // amounts), fall back to the deterministic ≥1-each division below so
+        // the call is always safe. Empty targets / total <= 0 is a no-op.
+        dealDamageDividedAsChosen(
+            targets: TargetSelection[],
+            totalAmount: number
+        ): void {
+            if (targets.length === 0 || totalAmount <= 0) return;
+            const split = resolveChosenDivision(
+                item.targetAmounts,
+                targets,
+                totalAmount
+            );
+            for (const target of targets) {
+                const amount = split.get(targetKey(target)) ?? 0;
+                if (amount > 0) this.dealDamage(target, amount);
+            }
+        },
+        // CR 601.2d / 120.4 — distribute counters AS YOU CHOOSE, each chosen
+        // target getting at least 1. Same announcement-time split / fallback
+        // rules as `dealDamageDividedAsChosen`. Non-permanent targets are
+        // skipped (counters live on permanents, CR 122).
+        distributeCountersAsChosen(
+            targets: TargetSelection[],
+            totalAmount: number,
+            type: string
+        ): void {
+            if (targets.length === 0 || totalAmount <= 0) return;
+            const split = resolveChosenDivision(
+                item.targetAmounts,
+                targets,
+                totalAmount
+            );
+            for (const target of targets) {
+                if (target.type !== "permanent") continue;
+                const amount = split.get(targetKey(target)) ?? 0;
+                if (amount > 0) this.addCounter(target, type, amount);
             }
         },
         // CR 120.3: damage is dealt simultaneously to every matching entity.

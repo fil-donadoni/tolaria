@@ -593,6 +593,7 @@ function compactStackItem(item: StackItem): CompactCard {
     base.castById = item.castById;
     if (item.targets?.length) base.targets = item.targets;
     if (item.chosenX !== undefined) base.chosenX = item.chosenX;
+    if (item.targetAmounts) base.targetAmounts = item.targetAmounts;
     if (item.chosenModeId) base.chosenModeId = item.chosenModeId;
     if (item.additionalSacrificeSnapshot) {
         base.additionalSacrificeSnapshot = item.additionalSacrificeSnapshot;
@@ -631,6 +632,9 @@ function expandStackItem(compact: CompactCard): StackItem {
         item.targets = compact.targets as StackItem["targets"];
     }
     if (compact.chosenX !== undefined) item.chosenX = compact.chosenX as number;
+    if (compact.targetAmounts) {
+        item.targetAmounts = compact.targetAmounts as Record<string, number>;
+    }
     if (compact.chosenModeId)
         item.chosenModeId = compact.chosenModeId as string;
     if (compact.additionalSacrificeSnapshot) {

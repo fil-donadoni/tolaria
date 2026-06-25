@@ -70,6 +70,7 @@ import type {
     ManaCost,
     PermanentFilter,
     SpellMode,
+    TargetSelection,
 } from "./cards/types";
 import {
     assertLegalAction,
@@ -1223,11 +1224,22 @@ export function tryAutoCommitPendingCast(
         .targets as StackItem["targets"] | undefined;
     const pendingChosenX = state.pendingCast.chosenX;
     const pendingChosenModeId = state.pendingCast.chosenModeId;
+    const pendingTargetAmounts = state.pendingCast.targetAmounts;
+    // CR 601.2b / 118.4 — pay the "pay X life" additional cost the instant the
+    // spell moves hand → stack (Fire Covenant). Affordability was validated at
+    // announcement; SBA handles a fatal payment.
+    const pendingPayLife = state.pendingCast.payLife;
+    if (pendingPayLife && pendingPayLife > 0) {
+        player.life -= pendingPayLife;
+    }
     const stackItem: StackItem = {
         ...spellCard,
         castById: playerId,
         ...(pendingTargets ? { targets: pendingTargets } : {}),
         ...(pendingChosenX !== undefined ? { chosenX: pendingChosenX } : {}),
+        ...(pendingTargetAmounts
+            ? { targetAmounts: pendingTargetAmounts }
+            : {}),
         ...(pendingChosenModeId ? { chosenModeId: pendingChosenModeId } : {}),
         ...(additionalSacrificeSnapshot ? { additionalSacrificeSnapshot } : {}),
     };
@@ -2105,6 +2117,42 @@ function isTargetCountMaxReached(
     return selected >= count.max;
 }
 
+/** Finalizes the divide-as-you-choose split at commit (CR 601.2d / 120.4).
+ *  Uses the caster's assigned amounts when present and complete; otherwise
+ *  auto-divides the total ≥1-each (the "no real choice" / Arena-UX default —
+ *  e.g. a single target takes the whole total). The returned map is keyed by
+ *  `${type}:${id}` and always sums to `pt.divideTotal`. */
+function finalizeDivideAmounts(
+    pt: PendingTarget,
+    targets: TargetSelection[]
+): Record<string, number> {
+    const total = pt.divideTotal ?? 0;
+    const assigned = pt.divideAmounts;
+    // Use the caster's split iff every target has a positive amount and the
+    // amounts sum to the total (a complete, legal division). Otherwise fall
+    // back to an even ≥1-each split.
+    if (assigned) {
+        let sum = 0;
+        let complete = true;
+        for (const t of targets) {
+            const a = assigned[`${t.type}:${t.id}`] ?? 0;
+            if (a < 1) complete = false;
+            sum += a;
+        }
+        if (complete && sum === total) return assigned;
+    }
+    const out: Record<string, number> = {};
+    const n = targets.length;
+    const base = Math.floor(total / n);
+    let remainder = total - base * n;
+    for (const t of targets) {
+        const extra = remainder > 0 ? 1 : 0;
+        if (remainder > 0) remainder -= 1;
+        out[`${t.type}:${t.id}`] = base + extra;
+    }
+    return out;
+}
+
 /** Finalizes target selection and either places the spell on the stack (if
  *  the caster can already pay) or transitions into the payment phase.
  *  Mutates `state` in place. Handles chosenX propagation and the per-target
@@ -2123,6 +2171,14 @@ export function finalizeTargetSelection(
     const chosenModeId = pt.chosenModeId;
     const kind = pt.kind ?? "cast";
     const abilityId = pt.abilityId;
+    // CR 601.2d / 120.4 — divide-as-you-choose split assigned during target
+    // selection. Fill in a deterministic ≥1-each default when the caster did
+    // not assign explicit amounts (auto-resolve when there's no real choice —
+    // e.g. one target gets the whole total). Computed against `pt.divideTotal`.
+    const divideAmounts =
+        pt.divideTotal !== undefined && targets.length > 0
+            ? finalizeDivideAmounts(pt, targets)
+            : undefined;
     state.pendingTarget = undefined;
 
     // Copy-retarget branch (CR 707.10b — Fork's "you may choose new targets
@@ -2407,6 +2463,12 @@ export function finalizeTargetSelection(
         : {};
     applyCostModifiers(manaCost, getCostModifiers(state, cardInHand, "spell"));
 
+    // CR 601.2b / 118.4 — "pay X life" additional cost (Fire Covenant). X was
+    // chosen at announcement and rides on `pt.chosenX`; the life is paid the
+    // instant the spell hits the stack (immediate or deferred commit below).
+    const payLife =
+        cardDef.additionalCosts?.payXLife === true ? (chosenX ?? 0) : 0;
+
     // CR 601.2c → 601.2f — targets have just been chosen; now the additional
     // cost is paid. A spell with both a target and an additional cost (FEM Soul
     // Exchange: target a graveyard creature, then exile a creature you control)
@@ -2454,12 +2516,17 @@ export function finalizeTargetSelection(
             );
             commitLandsForCost(player, manaCost);
         }
+        // CR 601.2b / 118.4 — pay the "pay X life" additional cost as the spell
+        // moves hand → stack (Fire Covenant). Affordability validated at
+        // announcement; SBA handles a fatal payment.
+        if (payLife > 0) player.life -= payLife;
         const card = removeFromZone(player, cardInstanceId, "hand");
         const stackItem: StackItem = {
             ...card,
             castById: playerId,
             targets,
             ...(chosenX !== undefined ? { chosenX } : {}),
+            ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
             ...(chosenModeId ? { chosenModeId } : {}),
         };
         state.stack.push(stackItem);
@@ -2477,6 +2544,8 @@ export function finalizeTargetSelection(
             tappedLandIds: [],
             keepPriority,
             chosenX,
+            ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
+            ...(payLife > 0 ? { payLife } : {}),
             ...(chosenModeId ? { chosenModeId } : {}),
         };
         // Targets ride along on pendingCast until payment completes.
@@ -2509,6 +2578,38 @@ function buildAdditionalCostPicker(
         throw new Error("No legal permanent to pay the additional cost");
     }
     return { kind, filter };
+}
+
+/** CR 107.3 / 608.2g — counts cards of the given types in the casting player's
+ *  opponents' graveyards (2-player: the single opponent). A card matches if its
+ *  `types` include ANY of `cardTypes` (Spoils of War: "artifact and/or creature
+ *  cards"), so a single artifact creature is counted once. Used to derive X at
+ *  cast time for `additionalCosts.xFromOpponentGraveyard`. */
+function countOpponentGraveyardCards(
+    state: GameState,
+    casterId: string,
+    cardTypes: CardType[]
+): number {
+    let count = 0;
+    for (const p of state.players) {
+        if (p.id === casterId) continue;
+        for (const card of p.graveyard) {
+            if (cardTypes.some((t) => card.types.includes(t))) count += 1;
+        }
+    }
+    return count;
+}
+
+/** Resolves a divide-as-you-choose total spec against the chosen / derived X
+ *  (CR 601.2d / 120.4). `"X"` → X, `"X+1"` → X+1 (Meteor Shower), a number → the
+ *  fixed total (Fiery Justice). A missing X is treated as 0. Never negative. */
+function resolveDivideTotal(
+    spec: number | "X" | "X+1",
+    chosenX: number | undefined
+): number {
+    if (typeof spec === "number") return Math.max(0, spec);
+    const x = chosenX ?? 0;
+    return Math.max(0, spec === "X+1" ? x + 1 : x);
 }
 
 /** Step 1 of casting: announce the spell, enter payment phase (CR 601.2a). */
@@ -2565,7 +2666,35 @@ export const announceCast = mutation({
         if (hasX && (args.chosenX === undefined || args.chosenX < 0)) {
             throw new Error("Must choose X (≥ 0) for this spell");
         }
-        const chosenX = hasX ? args.chosenX : undefined;
+        // CR 601.2b / 118.4 — "pay X life" additional cost (Fire Covenant):
+        // the caster chooses X independently of the mana cost. Validate it's
+        // present, non-negative, and affordable from current life (you can't
+        // pay more life than you have, CR 118.4). The life itself is paid at
+        // cast commit (finalizeTargetSelection / no-target commit), CR 601.2h.
+        const payXLife = cardDef.additionalCosts?.payXLife === true;
+        if (payXLife) {
+            if (args.chosenX === undefined || args.chosenX < 0) {
+                throw new Error("Must choose X (≥ 0) life to pay");
+            }
+            if (args.chosenX > player.life) {
+                throw new Error("Cannot pay more life than you have");
+            }
+        }
+        // CR 107.3 / 608.2g — X derived from an opponent's graveyard at cast
+        // time (Spoils of War). Computed by the engine, not chosen / paid.
+        const gyDeriv = cardDef.additionalCosts?.xFromOpponentGraveyard;
+        const derivedGraveyardX = gyDeriv
+            ? countOpponentGraveyardCards(
+                  state,
+                  args.playerId,
+                  gyDeriv.cardTypes
+              )
+            : undefined;
+        const chosenX = hasX
+            ? args.chosenX
+            : payXLife
+              ? args.chosenX
+              : derivedGraveyardX;
 
         // Modal spell — caster locks in a mode at announcement (CR 700.2c).
         // The chosen mode's targetRequirement / resolve drive the rest of
@@ -2599,12 +2728,36 @@ export const announceCast = mutation({
         // resolves to 0 (X chosen as 0), the spell takes no targets — fall
         // through to the no-target cast path (CR 107.3, e.g. Volcanic
         // Eruption with X=0 destroys 0 Mountains and deals 0 damage).
-        const resolvedCount = activeTargetRequirement
+        // CR 601.2d / 120.4 — divide-as-you-choose total. Resolve the budget
+        // from the card's `divideAsChosen.total` against the chosen / derived
+        // X. Used to cap the target count (each target needs ≥ 1) and to drive
+        // the per-target amount UI.
+        const divideTotal = activeTargetRequirement?.divideAsChosen
+            ? resolveDivideTotal(
+                  activeTargetRequirement.divideAsChosen.total,
+                  chosenX
+              )
+            : undefined;
+        let resolvedCount = activeTargetRequirement
             ? resolveTargetCount(activeTargetRequirement.count, chosenX)
             : undefined;
+        // A divide spell can target at most `total` permanents (one point each,
+        // CR 601.2d). Cap the open-ended `{ min }` count so the UI can't offer
+        // more targets than there are points to assign.
+        if (
+            divideTotal !== undefined &&
+            typeof resolvedCount === "object" &&
+            resolvedCount.max === undefined
+        ) {
+            resolvedCount = { min: resolvedCount.min, max: divideTotal };
+        }
         const requiresTargets =
             activeTargetRequirement !== undefined &&
-            (typeof resolvedCount !== "number" || resolvedCount > 0);
+            (typeof resolvedCount !== "number" || resolvedCount > 0) &&
+            // A divide-as-you-choose spell with a zero total (Fire Covenant /
+            // Meteor Shower with X = 0) takes no targets — CR 601.2d, there is
+            // nothing to divide. Fall through to the no-target cast path.
+            divideTotal !== 0;
 
         if (activeTargetRequirement && requiresTargets) {
             // CR 202.2 / 702.16b: source colors derived from the casting
@@ -2658,6 +2811,7 @@ export const announceCast = mutation({
                 selected: [],
                 keepPriority: args.keepPriority,
                 chosenX,
+                ...(divideTotal !== undefined ? { divideTotal } : {}),
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
@@ -3551,6 +3705,12 @@ export const selectTarget = mutation({
          *  battlefield zones (e.g. "graveyard-card") so the same instance id
          *  is unambiguous; ignored for battlefield/player/spell targets. */
         targetPlayerId: v.optional(v.string()),
+        /** Divide-as-you-choose amount (CR 601.2d / 120.4) assigned to THIS
+         *  target — the points of damage / counters this target receives. Only
+         *  meaningful for a spell whose `targetRequirement.divideAsChosen` is
+         *  set; must be ≥ 1 and not exceed the remaining budget. Omitted for
+         *  non-divide spells (the engine auto-divides ≥1-each on finalize). */
+        amount: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -3928,10 +4088,35 @@ export const selectTarget = mutation({
 
         pt.selected.push(target);
 
-        const maxReached = isTargetCountMaxReached(
-            pt.count,
-            pt.selected.length
-        );
+        // CR 601.2d / 120.4 — divide-as-you-choose: record the amount assigned
+        // to this target. Validate ≥ 1 and that the running total never exceeds
+        // the spell's budget. When the caller omits an amount the engine
+        // auto-divides ≥1-each at finalize, so the field stays optional.
+        if (pt.divideTotal !== undefined && args.amount !== undefined) {
+            if (args.amount < 1) {
+                throw new Error("Each target must receive at least 1");
+            }
+            const amounts = pt.divideAmounts ?? {};
+            const priorSum = Object.values(amounts).reduce((a, b) => a + b, 0);
+            if (priorSum + args.amount > pt.divideTotal) {
+                throw new Error("Assigned amount exceeds the spell's total");
+            }
+            amounts[`${target.type}:${target.id}`] = args.amount;
+            pt.divideAmounts = amounts;
+        }
+
+        // CR 601.2d — a divide-as-you-choose spell auto-finalizes once the whole
+        // budget has been assigned, even before the (open-ended) max target
+        // count is hit: there are no points left to give a further target.
+        const divideBudgetSpent =
+            pt.divideTotal !== undefined &&
+            pt.divideAmounts !== undefined &&
+            Object.values(pt.divideAmounts).reduce((a, b) => a + b, 0) >=
+                pt.divideTotal;
+
+        const maxReached =
+            isTargetCountMaxReached(pt.count, pt.selected.length) ||
+            divideBudgetSpent;
         if (maxReached) {
             finalizeTargetSelection(state, pt, args.playerId);
         }

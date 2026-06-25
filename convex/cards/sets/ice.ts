@@ -3812,7 +3812,18 @@ export const gangrenousZombies: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
+// DEFERRED (#664 shipped divide-as-you-choose; Gaze of Pain is a separate
+// combat-redirect capability that does NOT use divided damage). It needs a
+// player-scoped, turn-long, EVENT-WATCHING delayed trigger: "until end of turn,
+// whenever a creature YOU CONTROL attacks and isn't blocked" must hook every
+// `ATTACKER_UNBLOCKED` this turn (CR 509.1h), then offer an optional
+// (`you may`) "deal damage = its power to a target creature; if you do, it
+// assigns no combat damage" choice. The building blocks exist
+// (`ATTACKER_UNBLOCKED` event, `markAssignsNoCombatDamage`, `dealDamage`), but
+// the turn-scoped event-watcher + optional-redirect-with-target orchestration
+// is unbuilt — the engine's `delayedTriggers` are one-shot phase-boundary
+// timings, not event-watching. Flagged for the combat-redirect cluster (twin:
+// Cloak of Confusion's discard rider). Stub kept for the art mapping.
 // export const gazeOfPain: CardDefinition = {
 //     id: "48401643-ec4b-444a-8f9a-1a5ea471ff4a",
 //     name: "Gaze of Pain",
@@ -5052,15 +5063,7 @@ export const spoilsOfEvil: CardDefinition = {
         }
     },
 };
-// TODO(#628): implement.
-// export const spoilsOfWar: CardDefinition = {
-//     id: "b38af8bd-d927-46d0-a1b1-fb437ea9ea66",
-//     name: "Spoils of War",
-//     rarity: "rare",
-//     oracleText: "X is the number of artifact and/or creature cards in an opponent's graveyard as you cast this spell.\nDistribute X +1/+1 counters among any number of target creatures.",
-//     manaCost: { X: "X", B: 1 },
-//     types: ["Sorcery"],
-// };
+// Spoils of War is implemented below (divide-as-you-choose cluster, #664).
 // TODO(#628): implement.
 // export const stenchOfEvil: CardDefinition = {
 //     id: "4c7065a2-f819-4cbe-b453-a55e904f0461",
@@ -5201,9 +5204,12 @@ export const witheringWisps: CardDefinition = {
 //     landwalk grant), Glacial Crevasses / Goblin Ski Patrol / Karplusan Giant
 //     (snow Mountain cost / requirement), Melting (un-snow lands) (no snow
 //     supertype filter / snow-evasion plumbing yet — snow cluster).
-//   • Divided-as-you-choose damage — Fire Covenant, Fiery Justice, Meteor
-//     Shower (only `dealDividedDamage`, divided EVENLY, exists; the
-//     player-chosen division primitive is unbuilt).
+//   • Divided-as-you-choose damage / counters — Fire Covenant, Fiery Justice,
+//     Meteor Shower, Spoils of War: SHIPPED (#664). `dealDamageDividedAsChosen`
+//     / `distributeCountersAsChosen` + the `divideAsChosen` target requirement
+//     implement player-chosen ≥1-each division (CR 601.2d / 120.4), plus the
+//     pay-X-life additional cost (Fire Covenant) and cast-time graveyard-derived
+//     X (Spoils of War).
 //   • Next-upkeep delayed cantrip — Flare, Panic ("draw a card at the beginning
 //     of the next turn's upkeep"): ACTIVE (#660 — the `next-upkeep` timing
 //     shipped).
@@ -6437,15 +6443,7 @@ export const melting: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const meteorShower: CardDefinition = {
-//     id: "50b4851e-677b-468e-9baa-e47a3b4b8339",
-//     name: "Meteor Shower",
-//     rarity: "common",
-//     oracleText: "Meteor Shower deals X plus 1 damage divided as you choose among any number of targets.",
-//     manaCost: { X: "XX", R: 1 },
-//     types: ["Sorcery"],
-// };
+// Meteor Shower is implemented below (divide-as-you-choose cluster, #664).
 // Mountain Goat — 1/1 with mountainwalk (CR 702.13 landwalk; unblockable while
 // the defender controls a Mountain).
 export const mountainGoat: CardDefinition = {
@@ -8807,10 +8805,11 @@ export const maddeningWind: CardDefinition = {
 // Aesthir).
 //
 // DEFERRED (remain commented stubs, owned by a later capability cluster):
-//   • Divided-as-you-choose damage — Fiery Justice, Fire Covenant (only the
-//     even-split `dealDividedDamage` exists; the player-chosen division
-//     primitive is unbuilt). Fire Covenant ALSO needs a pay-X-life additional
-//     cost.
+//   • Divided-as-you-choose damage / counters — Fire Covenant, Fiery Justice,
+//     Meteor Shower, Spoils of War: SHIPPED (#664). Player-chosen ≥1-each
+//     division (`dealDamageDividedAsChosen` / `distributeCountersAsChosen` +
+//     the `divideAsChosen` target requirement), pay-X-life additional cost, and
+//     cast-time graveyard-derived X all ship.
 //   • Pay-life additional cost — Fumarole ("pay 3 life" as an additional cast
 //     cost; `additionalCosts` only models sacrifice/exile today).
 //   • Colour-creature attack tax — Flooded Woodlands / Reclamation ("X creatures
@@ -9100,24 +9099,112 @@ export const essenceVortex: CardDefinition = {
         ctx.destroy(target, { cantBeRegenerated: true });
     },
 };
-// TODO(#628): implement.
-// export const fieryJustice: CardDefinition = {
-//     id: "8965ce61-0522-4f77-a82d-89441d1ba867",
-//     name: "Fiery Justice",
-//     rarity: "rare",
-//     oracleText: "Fiery Justice deals 5 damage divided as you choose among any number of targets. Target opponent gains 5 life.",
-//     manaCost: { W: 1, R: 1, G: 1 },
-//     types: ["Sorcery"],
-// };
-// TODO(#628): implement.
-// export const fireCovenant: CardDefinition = {
-//     id: "6a0139c2-ad86-4c71-ab6d-4840c37d5d20",
-//     name: "Fire Covenant",
-//     rarity: "uncommon",
-//     oracleText: "As an additional cost to cast this spell, pay X life.\nFire Covenant deals X damage divided as you choose among any number of target creatures.",
-//     manaCost: { X: 1, B: 1, R: 1 },
-//     types: ["Instant"],
-// };
+// Fiery Justice — {R}{G}{W} Sorcery. "Fiery Justice deals 5 damage divided as
+// you choose among any number of targets. Target opponent gains 5 life."
+// (CR 601.2d / 120.4 divide as you choose.) The "5 damage divided" group is the
+// card's `targetRequirement` (any target, divide total 5). The "target opponent
+// gains 5 life" is a SECOND target group the single-`targetRequirement` engine
+// can't model independently; in a 2-player game "an opponent" is unambiguous
+// (the one opponent), so the lifegain auto-resolves to that opponent at
+// resolution — a zero-branch choice (Arena-UX auto-resolve).
+export const fieryJustice: CardDefinition = {
+    id: "8965ce61-0522-4f77-a82d-89441d1ba867",
+    name: "Fiery Justice",
+    rarity: "rare",
+    oracleText:
+        "Fiery Justice deals 5 damage divided as you choose among any number of targets. Target opponent gains 5 life.",
+    manaCost: { R: 1, G: 1, W: 1 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: "any",
+        count: { min: 1 },
+        divideAsChosen: { total: 5 },
+    },
+    resolve: (ctx: SpellContext) => {
+        ctx.dealDamageDividedAsChosen(ctx.targets, 5);
+        const opponentId = ctx.allPlayerIds.find((p) => p !== ctx.controller);
+        if (opponentId) ctx.gainLife(opponentId, 5);
+    },
+};
+
+// Meteor Shower — {X}{X}{R} Sorcery. "Meteor Shower deals X plus 1 damage
+// divided as you choose among any number of targets." (CR 107.3 doubled-X cost
+// via `xFactor: 2`; CR 601.2d / 120.4 divide as you choose.) The total is X+1
+// (`divideAsChosen: { total: "X+1" }`); `getX()` returns the announced X.
+export const meteorShower: CardDefinition = {
+    id: "50b4851e-677b-468e-9baa-e47a3b4b8339",
+    name: "Meteor Shower",
+    rarity: "common",
+    oracleText:
+        "Meteor Shower deals X plus 1 damage divided as you choose among any number of targets.",
+    manaCost: { X: "X", xFactor: 2, R: 1 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: "any",
+        count: { min: 1 },
+        divideAsChosen: { total: "X+1" },
+    },
+    resolve: (ctx: SpellContext) => {
+        ctx.dealDamageDividedAsChosen(ctx.targets, ctx.getX() + 1);
+    },
+};
+
+// Spoils of War — {X}{B} Sorcery. "X is the number of artifact and/or creature
+// cards in an opponent's graveyard as you cast this spell. Distribute X +1/+1
+// counters among any number of target creatures." (CR 107.3 / 608.2g cast-time
+// derived X; CR 601.2d / 120.4 divide as you choose.) The engine computes X
+// from the opponent's graveyard at announcement (`xFromOpponentGraveyard`) — it
+// is NOT chosen or paid — and snapshots it so `getX()` returns it at resolve.
+// The {X} in the mana cost is the same derived value (it folds into generic at
+// cast). Counters are distributed ≥1-each among the chosen creatures.
+export const spoilsOfWar: CardDefinition = {
+    id: "b38af8bd-d927-46d0-a1b1-fb437ea9ea66",
+    name: "Spoils of War",
+    rarity: "rare",
+    oracleText:
+        "X is the number of artifact and/or creature cards in an opponent's graveyard as you cast this spell.\nDistribute X +1/+1 counters among any number of target creatures.",
+    manaCost: { X: "X", B: 1 },
+    types: ["Sorcery"],
+    additionalCosts: {
+        xFromOpponentGraveyard: { cardTypes: ["Artifact", "Creature"] },
+    },
+    targetRequirement: {
+        type: "Creature",
+        count: { min: 1 },
+        divideAsChosen: { total: "X" },
+    },
+    resolve: (ctx: SpellContext) => {
+        ctx.distributeCountersAsChosen(ctx.targets, ctx.getX(), "+1/+1");
+    },
+};
+// Fire Covenant — {1}{B}{R} Instant. "As an additional cost to cast this spell,
+// pay X life. Fire Covenant deals X damage divided as you choose among any
+// number of target creatures." (CR 601.2b pay-X-life additional cost; CR 601.2d
+// / 120.4 divide as you choose.) The {X} here is NOT in the mana cost — it is
+// the life the caster chooses to pay, which becomes the damage total. The
+// engine validates affordability (CR 118.4), pays the life as the spell hits
+// the stack, snapshots X so `getX()` returns it, and drives the per-target
+// split via `divideAsChosen: { total: "X" }`.
+export const fireCovenant: CardDefinition = {
+    id: "6a0139c2-ad86-4c71-ab6d-4840c37d5d20",
+    name: "Fire Covenant",
+    rarity: "uncommon",
+    oracleText:
+        "As an additional cost to cast this spell, pay X life.\nFire Covenant deals X damage divided as you choose among any number of target creatures.",
+    // {1}{B}{R}: the {1} generic is the numeric `X: 1` (NOT the variable "X" —
+    // Fire Covenant's X lives in the pay-X-life additional cost, not the mana).
+    manaCost: { X: 1, B: 1, R: 1 },
+    types: ["Instant"],
+    additionalCosts: { payXLife: true },
+    targetRequirement: {
+        type: "Creature",
+        count: { min: 1 },
+        divideAsChosen: { total: "X" },
+    },
+    resolve: (ctx: SpellContext) => {
+        ctx.dealDamageDividedAsChosen(ctx.targets, ctx.getX());
+    },
+};
 // DEFERRED (#659): the attack restriction is a PER-ATTACKER COST ("can't attack
 // unless their controller sacrifices a land ... for each green creature they
 // control that's attacking"), not a binary prohibition. The shipped attack-
