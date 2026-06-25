@@ -95,7 +95,12 @@ export type PermanentScope =
     | "opponents"
     | "any"
     | "another-yours"
-    | "any-other";
+    | "any-other"
+    // CR 303.4b — Aura trigger keyed on the ENCHANTED permanent (the Aura's
+    // host). Matches when the affected permanent is `self.attachedTo`
+    // (Seizures — "whenever enchanted creature becomes tapped"). On an Aura not
+    // attached to anything it matches nothing.
+    | "host";
 
 /** Identifying fields lifted from an event payload — instance id of the
  *  affected permanent and its controller at event time (CR 603.10 last
@@ -132,6 +137,12 @@ export function matchesPermanentScope(
             );
         case "any-other":
             return event.instanceId !== self.id;
+        case "host":
+            // CR 303.4b — the affected permanent IS the Aura's host.
+            return (
+                self.attachedTo !== undefined &&
+                event.instanceId === self.attachedTo
+            );
     }
 }
 

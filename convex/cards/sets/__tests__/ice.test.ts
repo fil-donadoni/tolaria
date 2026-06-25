@@ -345,6 +345,10 @@ import {
     nakedSingularity,
     // Necropotence (#667)
     necropotence,
+    oathOfLimDul,
+    seizures,
+    freyalisesWinds,
+    ghostlyFlame,
 } from "../ice";
 import { plains, island, swamp, mountain, forest } from "../lea";
 import { applyLandManaReplacement } from "../../../gre/constants";
@@ -371,7 +375,12 @@ import {
     payManaCostForSpell,
     restrictedUnitAllowsSpell,
     discardCardsAtRandom,
+    loseLifeEmitting,
+    tapPermanent,
+    emitPermanentTapped,
+    dealDamageFromPermanentToPlayer,
 } from "../../../gre/state";
+import { describeDamageSource } from "../../../gre/replacements";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import {
     countSnowLands,
@@ -12337,5 +12346,429 @@ describe("Necropotence (CR 504/614 skip-draw + CR 701.8 discard→exile)", () =>
         expect(p2Exiled).toBeDefined();
         expect(p2Exiled!.card.id).toBe(FACE_DOWN_CARD_ID);
         expect(p2Exiled!.card.id).not.toBe(balduvianBears.id);
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// One-off trigger / replacement event seams (#668)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Drives a suspended may-pay choice to its accept/decline answer. */
+function answerMayPayHead(state: GameState, accept: boolean): void {
+    const head = state.pendingChoices![0];
+    applyMayPaySubmit(state, { playerId: head.playerId, accept });
+}
+
+/** Collects triggers off the current pendingEvents and returns the first whose
+ *  triggeredAbilityId matches; pushes it on the stack so the caller can resolve. */
+function collectAndStack(
+    state: GameState,
+    triggeredAbilityId: string
+): StackItem | undefined {
+    const events = state.pendingEvents ?? [];
+    state.pendingEvents = undefined;
+    const trig = collectTriggers(state, events).find(
+        (t) => t.triggeredAbilityId === triggeredAbilityId
+    );
+    if (trig) state.stack.push(trig);
+    return trig;
+}
+
+describe("LIFE_LOST seam + Oath of Lim-Dûl (CR 119.3 / 603)", () => {
+    it("is a {3}{B} Enchantment with a LIFE_LOST trigger and a {B}{B} draw (modern oracle)", () => {
+        expect(oathOfLimDul.manaCost).toEqual({ X: 3, B: 1 });
+        expect(oathOfLimDul.types).toEqual(["Enchantment"]);
+        expect(oathOfLimDul.rarity).toBe("rare");
+        expect(oathOfLimDul.oracleText).toBe(
+            "Whenever you lose life, for each 1 life you lost, sacrifice a permanent other than this enchantment unless you discard a card. (Damage dealt to you causes you to lose life.)\n{B}{B}: Draw a card."
+        );
+        expect(oathOfLimDul.triggeredAbilities?.[0].event).toBe("LIFE_LOST");
+        expect(oathOfLimDul.activatedAbilities?.[0].cost).toEqual({
+            mana: { B: 2 },
+        });
+    });
+
+    it("registers by id and name", () => {
+        expect(getCardById(oathOfLimDul.id)).toBe(oathOfLimDul);
+        expect(getCardByName("Oath of Lim-Dûl")).toBe(oathOfLimDul);
+    });
+
+    // --- The seam: LIFE_LOST emitted on every life-loss path ----------------
+    it("emits LIFE_LOST from the loseLife primitive (CR 119.3)", () => {
+        const state = makeState({
+            players: [makePlayer("p1", { life: 20 }), makePlayer("p2")],
+        });
+        loseLifeEmitting(state, "p1", 3);
+        expect(state.players[0].life).toBe(17);
+        const ev = (state.pendingEvents ?? []).find(
+            (e) => e.type === "LIFE_LOST"
+        );
+        expect(ev).toMatchObject({
+            type: "LIFE_LOST",
+            playerId: "p1",
+            amount: 3,
+            fromDamage: false,
+        });
+    });
+
+    it("emits LIFE_LOST (fromDamage) when damage hits a player (CR 119.3)", () => {
+        const source = makeInstance(moorFiend.id, {
+            id: "src",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [source] }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        dealDamageFromPermanentToPlayer(state, source, "p1", "p2", 4);
+        expect(state.players[1].life).toBe(16);
+        const ev = (state.pendingEvents ?? []).find(
+            (e) => e.type === "LIFE_LOST"
+        );
+        expect(ev).toMatchObject({
+            type: "LIFE_LOST",
+            playerId: "p2",
+            amount: 4,
+            fromDamage: true,
+        });
+    });
+
+    it("does NOT emit LIFE_LOST for a zero-amount loss", () => {
+        const state = makeState({
+            players: [makePlayer("p1", { life: 20 }), makePlayer("p2")],
+        });
+        loseLifeEmitting(state, "p1", 0);
+        expect(state.players[0].life).toBe(20);
+        expect(
+            (state.pendingEvents ?? []).some((e) => e.type === "LIFE_LOST")
+        ).toBe(false);
+    });
+
+    // --- Oath fires off a life loss ----------------------------------------
+    it("fires from the controller's life loss and sacrifices one permanent per point", () => {
+        const oath = makeInstance(oathOfLimDul.id, {
+            id: "oath",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const v1 = vanilla("v1", 1, 1, { controllerId: "p1", ownerId: "p1" });
+        const v2 = vanilla("v2", 1, 1, { controllerId: "p1", ownerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    life: 20,
+                    battlefield: [oath, v1, v2],
+                    hand: [], // no cards → no discard opt-out is offered
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // Lose 2 life → the trigger fires once carrying amount: 2.
+        loseLifeEmitting(state, "p1", 2);
+        const trig = collectAndStack(state, "oath-of-lim-dul-life-loss");
+        expect(trig).toBeDefined();
+        // With an empty hand the punisher has no discard branch — it loops
+        // twice, sacrificing a permanent (auto-resolved, single candidate each
+        // time once Oath is excluded) per point.
+        resolveTopOfStack(state);
+        // No more pending choices (each sacrifice auto-resolved to its sole
+        // candidate after Oath is excluded — but the engine raises a pick; if a
+        // choice is pending, resolve it to its candidate).
+        while (state.pendingChoices && state.pendingChoices.length > 0) {
+            const head = state.pendingChoices[0];
+            applyPendingChoiceSubmit(state, {
+                playerId: head.playerId,
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: [head.candidateIds?.[0] ?? "v1"],
+            });
+        }
+        // Both v1 and v2 are gone; Oath itself survives (excluded).
+        const bf = state.players[0].battlefield.map((c) => c.id);
+        expect(bf).toContain("oath");
+        expect(bf).not.toContain("v1");
+        expect(bf).not.toContain("v2");
+    });
+
+    it("does NOT fire from an opponent's life loss (scope: your)", () => {
+        const oath = makeInstance(oathOfLimDul.id, {
+            id: "oath",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [oath] }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        loseLifeEmitting(state, "p2", 2);
+        const events = state.pendingEvents ?? [];
+        const trig = collectTriggers(state, events).find(
+            (t) => t.triggeredAbilityId === "oath-of-lim-dul-life-loss"
+        );
+        expect(trig).toBeUndefined();
+    });
+});
+
+describe("Seizures (host-scoped becomes-tapped, CR 303.4b / 701.20a)", () => {
+    it("is a {1}{B} Aura enchanting a creature with a host-tapped trigger", () => {
+        expect(seizures.manaCost).toEqual({ X: 1, B: 1 });
+        expect(seizures.types).toEqual(["Enchantment"]);
+        expect(seizures.subtypes).toEqual(["Aura"]);
+        expect(seizures.targetRequirement).toMatchObject({ type: "Creature" });
+        const trig = seizures.triggeredAbilities?.[0];
+        expect(trig?.event).toBe("PERMANENT_TAPPED");
+    });
+
+    it("registers by id and name", () => {
+        expect(getCardById(seizures.id)).toBe(seizures);
+        expect(getCardByName("Seizures")).toBe(seizures);
+    });
+
+    function setup() {
+        // Host (the enchanted creature) is controlled by p2; the Aura by p1.
+        // A registered card id keeps the mana-payment battlefield scan happy.
+        const host = makeInstance(balduvianBears.id, {
+            id: "host",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const aura = makeInstance(seizures.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [aura] }),
+                makePlayer("p2", { life: 20, battlefield: [host] }),
+            ],
+        });
+        return { state };
+    }
+
+    it("fires when the ENCHANTED creature becomes tapped, dealing 3 unless paid", () => {
+        const { state } = setup();
+        const host = state.players[1].battlefield.find((c) => c.id === "host")!;
+        tapPermanent(state, host);
+        emitPermanentTapped(state, host, false);
+        const trig = collectAndStack(state, "seizures-tapped");
+        expect(trig).toBeDefined();
+        resolveTopOfStack(state); // suspends at the host controller's may-pay
+        answerMayPayHead(state, false); // decline → take 3
+        expect(state.players[1].life).toBe(17);
+    });
+
+    it("paying {3} avoids the damage", () => {
+        const { state } = setup();
+        state.players[1].manaPool = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 3 };
+        const host = state.players[1].battlefield.find((c) => c.id === "host")!;
+        tapPermanent(state, host);
+        emitPermanentTapped(state, host, false);
+        const trig = collectAndStack(state, "seizures-tapped");
+        expect(trig).toBeDefined();
+        resolveTopOfStack(state);
+        answerMayPayHead(state, true); // pay {3}
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("does NOT fire when a DIFFERENT permanent becomes tapped (host scope)", () => {
+        const { state } = setup();
+        const other = vanilla("other", 1, 1, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        state.players[1].battlefield.push(other);
+        tapPermanent(state, other);
+        emitPermanentTapped(state, other, false);
+        const events = state.pendingEvents ?? [];
+        const trig = collectTriggers(state, events).find(
+            (t) => t.triggeredAbilityId === "seizures-tapped"
+        );
+        expect(trig).toBeUndefined();
+    });
+});
+
+describe("Freyalise's Winds (counter-keyed untap replacement, CR 614.6)", () => {
+    it("is a {2}{G}{G} Enchantment with a tap → wind-counter trigger", () => {
+        expect(freyalisesWinds.manaCost).toEqual({ X: 2, G: 2 });
+        expect(freyalisesWinds.types).toEqual(["Enchantment"]);
+        const trig = freyalisesWinds.triggeredAbilities?.[0];
+        expect(trig?.event).toBe("PERMANENT_TAPPED");
+    });
+
+    it("registers by id and name", () => {
+        expect(getCardById(freyalisesWinds.id)).toBe(freyalisesWinds);
+        expect(getCardByName("Freyalise's Winds")).toBe(freyalisesWinds);
+    });
+
+    it("puts a wind counter on any permanent that becomes tapped (CR 122.1)", () => {
+        const winds = makeInstance(freyalisesWinds.id, {
+            id: "winds",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = vanilla("land", 0, 0, {
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Land"] as CardType[],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [winds, land] }),
+                makePlayer("p2"),
+            ],
+        });
+        tapPermanent(state, land);
+        emitPermanentTapped(state, land, false);
+        const trig = collectAndStack(state, "freyalises-winds-tapped");
+        expect(trig).toBeDefined();
+        resolveTopOfStack(state);
+        const tapped = state.players[0].battlefield.find(
+            (c) => c.id === "land"
+        )!;
+        expect(tapped.counters?.["wind"]).toBe(1);
+    });
+
+    it("a wind-countered permanent stays tapped and loses its wind counters at untap", () => {
+        const winds = makeInstance(freyalisesWinds.id, {
+            id: "winds",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = vanilla("land", 0, 0, {
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Land"] as CardType[],
+            isTapped: true,
+            counters: { wind: 1 },
+        });
+        const state = makeState({
+            turn: 2,
+            phase: "UNTAP",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [winds, land] }),
+                makePlayer("p2"),
+            ],
+        });
+        untapStep(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "land"
+        )!;
+        // CR 614.6 — did NOT untap, and shed its wind counter.
+        expect(after.isTapped).toBe(true);
+        expect(after.counters?.["wind"] ?? 0).toBe(0);
+    });
+
+    it("untaps normally when Freyalise's Winds is NOT in play (replacement gone)", () => {
+        const land = vanilla("land", 0, 0, {
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Land"] as CardType[],
+            isTapped: true,
+            counters: { wind: 1 },
+        });
+        const state = makeState({
+            turn: 2,
+            phase: "UNTAP",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [land] }),
+                makePlayer("p2"),
+            ],
+        });
+        untapStep(state);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "land"
+        )!;
+        // No Winds → the wind counter is inert; the land untaps as normal.
+        expect(after.isTapped).toBe(false);
+    });
+});
+
+describe("Ghostly Flame (damage-source colour override, CR 119.4 / 614)", () => {
+    it("is a {B}{R} Enchantment (pure data — engine seam)", () => {
+        expect(ghostlyFlame.manaCost).toEqual({ B: 1, R: 1 });
+        expect(ghostlyFlame.types).toEqual(["Enchantment"]);
+        expect(ghostlyFlame.oracleText).toBe(
+            "Black and/or red permanents and spells are colorless sources of damage."
+        );
+        expect(ghostlyFlame.triggeredAbilities).toBeUndefined();
+    });
+
+    it("registers by id and name", () => {
+        expect(getCardById(ghostlyFlame.id)).toBe(ghostlyFlame);
+        expect(getCardByName("Ghostly Flame")).toBe(ghostlyFlame);
+    });
+
+    it("a black source is coloured B without Ghostly Flame, colourless with it", () => {
+        const blackSrc = makeInstance(moorFiend.id, {
+            id: "blk",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Without Ghostly Flame: the source is black.
+        const noFlame = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [blackSrc] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(describeDamageSource(noFlame, "blk").colors).toEqual(["B"]);
+
+        // With Ghostly Flame in play: the same source is colourless for damage.
+        const flame = makeInstance(ghostlyFlame.id, {
+            id: "flame",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const withFlame = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(moorFiend.id, {
+                            id: "blk",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        flame,
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(describeDamageSource(withFlame, "blk").colors).toEqual([]);
+    });
+
+    it("leaves a non-black/red source unaffected", () => {
+        // forest is a colourless land (no mana cost) — already colourless;
+        // assert Ghostly Flame doesn't invent colours or break it.
+        const greenCreature = makeInstance(balduvianBears.id, {
+            id: "grn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const flame = makeInstance(ghostlyFlame.id, {
+            id: "flame",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [greenCreature, flame] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Balduvian Bears is {1}{G} → green. Not black/red, so unchanged.
+        expect(describeDamageSource(state, "grn").colors).toEqual(["G"]);
     });
 });

@@ -3328,7 +3328,8 @@ export type GameEventType =
     | "BLOCKERS_CONFIRMED"
     | "ATTACKER_UNBLOCKED"
     | "CARD_DRAWN"
-    | "CARD_DISCARDED";
+    | "CARD_DISCARDED"
+    | "LIFE_LOST";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -3658,6 +3659,30 @@ export interface CardDiscardedEvent {
     cardId?: string;
 }
 
+/** Emitted whenever a player loses life (CR 119.3 — a player's life total
+ *  decreasing, whether from a "lose life" effect, a paid life cost, or damage
+ *  dealt to that player). One event per life-loss, emitted AFTER the life total
+ *  has actually dropped (and after any CR 614 lifeloss replacement such as
+ *  Lich), carrying the ACTUAL amount lost (post-replacement, post-prevention).
+ *  Used by "whenever you lose life" triggers (Oath of Lim-Dûl — "for each 1
+ *  life you lost, ..."). Every life-loss path — the `loseLife` primitive, paid
+ *  life costs (CR 118.4), and all damage-to-player sinks (CR 119.3 — combat,
+ *  noncombat, reflected) — flows through the single `loseLifeEmitting` choke
+ *  point (or, for damage, calls `emitLifeLost` after the prevention/replacement
+ *  chain) so the event fires off EVERY path. NOT emitted for a zero-amount loss
+ *  (fully prevented / replaced away to 0). */
+export interface LifeLostEvent {
+    type: "LIFE_LOST";
+    /** Player whose life total decreased. */
+    playerId: string;
+    /** Amount of life actually lost (>= 1, post-replacement, post-prevention). */
+    amount: number;
+    /** Whether the loss came from damage (CR 119.3). Lets "whenever you lose
+     *  life" triggers that care about the source distinguish damage from a
+     *  direct life payment; Oath of Lim-Dûl treats both identically. */
+    fromDamage: boolean;
+}
+
 export type GameEvent =
     | DamageDealtEvent
     | PhaseBeginEvent
@@ -3674,7 +3699,8 @@ export type GameEvent =
     | BlockersConfirmedEvent
     | AttackerUnblockedEvent
     | CardDrawnEvent
-    | CardDiscardedEvent;
+    | CardDiscardedEvent
+    | LifeLostEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can

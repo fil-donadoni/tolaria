@@ -114,6 +114,24 @@ function anyCombatantHasFirstOrDoubleStrike(state: GameState): boolean {
 /** Phases where no player receives priority (automatic). */
 const AUTO_PHASES = new Set<Phase>(["UNTAP", "CLEANUP"]);
 
+/** CardDefinition id of Freyalise's Winds (ICE). Its untap replacement keyed on
+ *  the `wind` counter (CR 614.6) is active only while the enchantment is on the
+ *  battlefield, so the untap-step branch gates on its presence. */
+const FREYALISES_WINDS_ID = "b11cd2e0-9419-4267-807e-5b73915c748a";
+
+/** True if any player controls Freyalise's Winds (CR 614 — the wind-counter
+ *  untap replacement exists only while the enchantment does). */
+function hasFreyalisesWindsInPlay(state: GameState): boolean {
+    for (const player of state.players) {
+        for (const card of player.battlefield) {
+            if ((card.card as { id?: string }).id === FREYALISES_WINDS_ID) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 /** Returns the next phase after the given one, or null if end of turn (CLEANUP). */
 function nextPhase(current: Phase): Phase | null {
     const idx = PHASE_ORDER.indexOf(current);
@@ -349,6 +367,29 @@ export function untapStep(state: GameState): void {
                 ) &&
                 (card.counters?.["depletion"] ?? 0) > 0
             ) {
+                card.manaCommitted = undefined;
+                card.isSummoningSick = undefined;
+                card.chosenMana = undefined;
+                continue;
+            }
+            // Freyalise's Winds (ICE, CR 614.6 untap replacement keyed on a
+            // counter): "If a permanent with a wind counter on it would untap
+            // during its controller's untap step, remove all wind counters from
+            // it instead." A self-clearing counter-keyed untap replacement — the
+            // permanent stays tapped and sheds its wind counters, so it untaps
+            // normally the FOLLOWING untap step (unless re-countered by tapping
+            // again). Gated on Freyalise's Winds being in play: the replacement
+            // exists only while that enchantment does (CR 614 — a replacement
+            // effect with no source does nothing), so if no Winds is present the
+            // wind counters are inert and the permanent untaps. Per-turn
+            // commitment cleanup still runs (mirrors the depletion branch).
+            if (
+                (card.counters?.["wind"] ?? 0) > 0 &&
+                hasFreyalisesWindsInPlay(state)
+            ) {
+                const next = { ...card.counters };
+                delete next["wind"];
+                card.counters = Object.keys(next).length > 0 ? next : undefined;
                 card.manaCommitted = undefined;
                 card.isSummoningSick = undefined;
                 card.chosenMana = undefined;
@@ -917,6 +958,16 @@ export function applyAllCombatDamage(
             );
             if (reduced <= 0) return;
             getPlayer(state, finalTarget.id).life -= reduced;
+            // CR 119.3 — combat damage to a player causes life loss. Pushed
+            // onto the same `events` batch that feeds `collectTriggers` below
+            // so "whenever you lose life" triggers (Oath of Lim-Dûl) fire from
+            // combat damage too.
+            events.push({
+                type: "LIFE_LOST",
+                playerId: finalTarget.id,
+                amount: reduced,
+                fromDamage: true,
+            });
             bumpDamageDealtToPlayer(state, finalTarget.id, reduced);
             // CR 120.3 — flag the source if it hit an opponent (Whirling
             // Dervish's end-step growth condition).

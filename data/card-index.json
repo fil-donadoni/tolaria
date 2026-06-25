@@ -2154,6 +2154,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Freyalise's Winds",
+        "scryfallId": "b11cd2e0-9419-4267-807e-5b73915c748a",
+        "oracleId": "ffeb792a-6df0-46c1-badc-4deb857f7d48",
+        "firstSet": "ice"
+    },
+    {
         "name": "Frost Giant",
         "scryfallId": "6955d54f-7b37-4e43-8183-51677fb1ee11",
         "oracleId": "56ed6af3-8f85-4907-9364-eca71f21bb11",
@@ -2266,6 +2272,12 @@
         "scryfallId": "db591b28-37e5-4e7c-ae4d-d761262b12d0",
         "oracleId": "09de1136-8a8f-4539-92a2-611dcdd0790b",
         "firstSet": "drk"
+    },
+    {
+        "name": "Ghostly Flame",
+        "scryfallId": "6314344b-6493-4142-9c76-da9b90b8d3e1",
+        "oracleId": "6a461ca3-7923-4df4-9f15-4072545da117",
+        "firstSet": "ice"
     },
     {
         "name": "Ghosts of the Damned",
@@ -4242,6 +4254,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Oath of Lim-Dûl",
+        "scryfallId": "f16df768-06de-43a0-b548-44fb0887490b",
+        "oracleId": "64e163c2-2378-4e4c-aefe-5e0d2fd19988",
+        "firstSet": "ice"
+    },
+    {
         "name": "Obelisk of Undoing",
         "scryfallId": "1ba61ccd-4429-4f7c-b9f3-30867878d88e",
         "oracleId": "299ea6dd-79eb-4c25-a05d-ff6fcad663cf",
@@ -5152,6 +5170,12 @@
         "scryfallId": "e5a814f1-7f8d-4c2c-b706-ee0ed5892f7b",
         "oracleId": "853b02e1-fc0a-413b-8381-88596624440f",
         "firstSet": "leg"
+    },
+    {
+        "name": "Seizures",
+        "scryfallId": "da369c86-7e17-43d8-b626-b6842e3d2d50",
+        "oracleId": "550921f5-ec65-460d-9ada-f2c5a4c4b2c4",
+        "firstSet": "ice"
     },
     {
         "name": "Sengir Vampire",

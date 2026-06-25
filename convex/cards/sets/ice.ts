@@ -43,6 +43,7 @@ import { untapRestriction } from "../abilities/static/untapRestriction";
 import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
 import { diedTrigger } from "../abilities/triggers/diedTrigger";
 import { discardTrigger } from "../abilities/triggers/discardTrigger";
+import { lifeLostTrigger } from "../abilities/triggers/lifeLostTrigger";
 import { tappedTrigger } from "../abilities/triggers/tappedTrigger";
 
 // Color-word options for Balduvian Shaman's text change (CR 612 — the five
@@ -5016,15 +5017,102 @@ export const norritt: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const oathOfLimDL: CardDefinition = {
-//     id: "f16df768-06de-43a0-b548-44fb0887490b",
-//     name: "Oath of Lim-Dûl",
-//     rarity: "rare",
-//     oracleText: "Whenever you lose life, for each 1 life you lost, sacrifice a permanent other than this enchantment unless you discard a card. (Damage dealt to you causes you to lose life.)\n{B}{B}: Draw a card.",
-//     manaCost: { X: 3, B: 1 },
-//     types: ["Enchantment"],
-// };
+// Oath of Lim-Dûl (#668) — the demonstration card for the LIFE_LOST seam.
+//   "Whenever you lose life, for each 1 life you lost, sacrifice a permanent
+//    other than this enchantment unless you discard a card. {B}{B}: Draw a
+//    card."
+// 1. CR 119.3 / 603 — the triggered ability listens to LIFE_LOST (the new seam
+//    emitted on every life-loss path: the `loseLife` primitive, paid life costs,
+//    and all damage-to-player sinks). The event carries the amount actually
+//    lost, so the resolve loops `amount` times (CR 603 — "for each 1 life you
+//    lost"). Each iteration is a punisher choice (CR 117.3a): the default is to
+//    sacrifice a permanent other than Oath itself; the player may instead
+//    discard a card. Per-iteration `choiceId`s (`oath-...-${i}`) keep the
+//    suspend/resume of `requestMayPay` / `requestChoice` stable across replays —
+//    on resume the answered iterations fast-forward to the next open point.
+// 2. CR 605 — the {B}{B} draw activated ability is plain.
+const OATH_OF_LIM_DUL_ID = "f16df768-06de-43a0-b548-44fb0887490b";
+export const oathOfLimDul: CardDefinition = {
+    id: OATH_OF_LIM_DUL_ID,
+    name: "Oath of Lim-Dûl",
+    rarity: "rare",
+    oracleText:
+        "Whenever you lose life, for each 1 life you lost, sacrifice a permanent other than this enchantment unless you discard a card. (Damage dealt to you causes you to lose life.)\n{B}{B}: Draw a card.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        lifeLostTrigger({
+            id: "oath-of-lim-dul-life-loss",
+            oracleText:
+                "Whenever you lose life, for each 1 life you lost, sacrifice a permanent other than this enchantment unless you discard a card.",
+            scope: "your",
+            resolve: (ctx, _event, losingPlayerId, amount) => {
+                // CR 603 — repeat the punisher resolution once per point of
+                // life lost. The loop is replay-stable: each iteration's
+                // choices key under unique `choiceId`s, so a suspended
+                // (undefined) request that re-enters the body fast-forwards
+                // through already-answered points.
+                for (let i = 0; i < amount; i++) {
+                    const handIds = ctx.getHandIds(losingPlayerId);
+                    // CR 117.3a — the player may discard a card INSTEAD of
+                    // sacrificing. Only offer the opt-out when a card exists.
+                    if (handIds.length > 0) {
+                        const discardInstead = ctx.requestMayPay({
+                            playerId: losingPlayerId,
+                            choiceId: `oath-discard-may-${i}`,
+                            prompt: "Discard a card instead of sacrificing a permanent to Oath of Lim-Dûl?",
+                        });
+                        if (discardInstead === undefined) return; // suspended
+                        if (discardInstead) {
+                            const picked = ctx.requestChoice({
+                                playerId: losingPlayerId,
+                                choiceId: `oath-discard-${i}`,
+                                kind: "choose-hand-card",
+                                zone: "hand",
+                                count: 1,
+                                prompt: "Discard a card.",
+                            });
+                            if (picked === undefined) return; // suspended
+                            if (picked.length > 0) {
+                                ctx.discardCard(losingPlayerId, picked[0]);
+                            }
+                            continue;
+                        }
+                    }
+                    // Default: sacrifice a permanent other than Oath itself
+                    // (CR 701.16). If the only permanent is Oath (or none),
+                    // there is nothing to sacrifice — the clause does nothing.
+                    const sacCandidates = ctx
+                        .getBattlefieldIds(losingPlayerId)
+                        .filter((id) => id !== ctx.sourceInstanceId);
+                    if (sacCandidates.length === 0) continue;
+                    const chosen = ctx.requestChoice({
+                        playerId: losingPlayerId,
+                        choiceId: `oath-sacrifice-${i}`,
+                        kind: "choose-permanents",
+                        zone: "battlefield",
+                        count: 1,
+                        candidateIds: sacCandidates,
+                        prompt: "Sacrifice a permanent other than Oath of Lim-Dûl.",
+                    });
+                    if (chosen === undefined) return; // suspended
+                    if (chosen.length > 0) ctx.sacrifice(chosen[0]);
+                }
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "oath-of-lim-dul-draw",
+            oracleText: "{B}{B}: Draw a card.",
+            cost: { mana: { B: 2 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.drawCards(ctx.controller, 1);
+            },
+        },
+    ],
+};
 // Pestilence Rats — "Pestilence Rats's power is equal to the number of other
 // Rats on the battlefield." (CR 604.3 characteristic-defining ability; */3 with
 // the */ power supplied by a `pt-cda` that counts other Rats across both
@@ -5067,16 +5155,50 @@ export const pestilenceRats: CardDefinition = {
 //     manaCost: { B: 3 },
 //     types: ["Sorcery"],
 // };
-// TODO(#628): implement.
-// export const seizures: CardDefinition = {
-//     id: "da369c86-7e17-43d8-b626-b6842e3d2d50",
-//     name: "Seizures",
-//     rarity: "common",
-//     oracleText: "Enchant creature\nWhenever enchanted creature becomes tapped, this Aura deals 3 damage to that creature's controller unless that player pays {3}.",
-//     manaCost: { X: 1, B: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Seizures (#668) — Aura demonstrating the host-scoped "becomes tapped"
+// trigger seam.
+//   "Enchant creature. Whenever enchanted creature becomes tapped, this Aura
+//    deals 3 damage to that creature's controller unless that player pays {3}."
+// CR 303.4 — an Aura with `targetRequirement: { type: "Creature" }`. CR 701.20a
+// / 603 — the trigger listens to PERMANENT_TAPPED with `scope: "host"` (the new
+// PermanentScope variant matching the Aura's `attachedTo` host), so it fires
+// only when the ENCHANTED creature becomes tapped. CR 117.3a — the host's
+// controller may pay {3} to avoid the 3 damage (CR 120.1).
+export const seizures: CardDefinition = {
+    id: "da369c86-7e17-43d8-b626-b6842e3d2d50",
+    name: "Seizures",
+    rarity: "common",
+    oracleText:
+        "Enchant creature\nWhenever enchanted creature becomes tapped, this Aura deals 3 damage to that creature's controller unless that player pays {3}.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "seizures-tapped",
+            oracleText:
+                "Whenever enchanted creature becomes tapped, this Aura deals 3 damage to that creature's controller unless that player pays {3}.",
+            // CR 303.4b — keyed on the enchanted creature (the Aura's host).
+            scope: "host",
+            resolve: (ctx, _event, tapped) => {
+                // CR 117.3a — the controller of the enchanted creature may pay
+                // {3} to avoid the damage.
+                const controller = tapped.controllerId;
+                const accept = ctx.requestMayPay({
+                    playerId: controller,
+                    choiceId: controller,
+                    cost: { X: 3 },
+                    prompt: "Pay {3} or take 3 damage from Seizures?",
+                });
+                if (accept === undefined) return; // suspended
+                if (!accept) {
+                    ctx.dealDamage({ type: "player", id: controller }, 3);
+                }
+            },
+        }),
+    ],
+};
 // Songs of the Damned — "Add {B} for each creature card in your graveyard."
 // (CR 605/606 mana spell; counts Creature cards in the caster's graveyard at
 // resolution and adds that many {B}.)
@@ -7715,15 +7837,43 @@ export const freyalisesCharm: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const freyalisesWinds: CardDefinition = {
-//     id: "b11cd2e0-9419-4267-807e-5b73915c748a",
-//     name: "Freyalise's Winds",
-//     rarity: "rare",
-//     oracleText: "Whenever a permanent becomes tapped, put a wind counter on it.\nIf a permanent with a wind counter on it would untap during its controller's untap step, remove all wind counters from it instead.",
-//     manaCost: { X: 2, G: 2 },
-//     types: ["Enchantment"],
-// };
+// Freyalise's Winds (#668) — demonstrates the counter-keyed untap replacement
+// seam.
+//   "Whenever a permanent becomes tapped, put a wind counter on it.
+//    If a permanent with a wind counter on it would untap during its
+//    controller's untap step, remove all wind counters from it instead."
+// 1. CR 701.20a / 603 — the tap half is a `tappedTrigger` with `scope: "any"`
+//    (any permanent, any controller) that adds a `wind` counter (CR 122.1) to
+//    the tapped permanent.
+// 2. CR 614.6 — the untap half is the engine seam in `untapStep`
+//    (`convex/gre/phases.ts`): a permanent with a `wind` counter doesn't untap
+//    during its controller's untap step; instead all its wind counters are
+//    removed (gated on Freyalise's Winds being in play). The card carries no
+//    code for this half — the engine consults the counter directly.
+export const freyalisesWinds: CardDefinition = {
+    id: "b11cd2e0-9419-4267-807e-5b73915c748a",
+    name: "Freyalise's Winds",
+    rarity: "rare",
+    oracleText:
+        "Whenever a permanent becomes tapped, put a wind counter on it.\nIf a permanent with a wind counter on it would untap during its controller's untap step, remove all wind counters from it instead.",
+    manaCost: { X: 2, G: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        tappedTrigger({
+            id: "freyalises-winds-tapped",
+            oracleText:
+                "Whenever a permanent becomes tapped, put a wind counter on it.",
+            // CR 701.20a — any permanent becoming tapped, regardless of
+            // controller (including a tap for mana — no `forMana` gate).
+            scope: "any",
+            resolve: (ctx, _event, tapped) => {
+                // CR 122.1 — add a wind counter to the tapped permanent. The
+                // untap-step seam later keys off this counter.
+                ctx.addCounter({ type: "permanent", id: tapped.id }, "wind", 1);
+            },
+        }),
+    ],
+};
 // ─────────────────────────────────────────────────────────────────────────────
 // Green free tranche (#634)
 //
@@ -9404,15 +9554,22 @@ export const fireCovenant: CardDefinition = {
 //     manaCost: { X: 3, B: 1, R: 1 },
 //     types: ["Sorcery"],
 // };
-// TODO(#628): implement.
-// export const ghostlyFlame: CardDefinition = {
-//     id: "6314344b-6493-4142-9c76-da9b90b8d3e1",
-//     name: "Ghostly Flame",
-//     rarity: "rare",
-//     oracleText: "Black and/or red permanents and spells are colorless sources of damage.",
-//     manaCost: { B: 1, R: 1 },
-//     types: ["Enchantment"],
-// };
+// Ghostly Flame (#668) — demonstrates the damage-source colour-override seam.
+//   "Black and/or red permanents and spells are colorless sources of damage."
+// CR 119.4 / 614 — while this enchantment is on the battlefield, any black
+// and/or red source becomes a colourless source of damage. Pure-data card: the
+// override lives in the engine seam `describeDamageSource`
+// (`convex/gre/replacements.ts`), the single point every damage site reads
+// source colours from, gated on Ghostly Flame being in play. No per-card code.
+export const ghostlyFlame: CardDefinition = {
+    id: "6314344b-6493-4142-9c76-da9b90b8d3e1",
+    name: "Ghostly Flame",
+    rarity: "rare",
+    oracleText:
+        "Black and/or red permanents and spells are colorless sources of damage.",
+    manaCost: { B: 1, R: 1 },
+    types: ["Enchantment"],
+};
 // Giant Trap Door Spider — {1}{R}{G} 2/3. "{1}{R}{G}, {T}: Exile this creature
 // and target creature without flying that's attacking you." (CR 605 activated
 // ability; CR 118.5 / 406 exile. "Without flying" filters legal targets via
