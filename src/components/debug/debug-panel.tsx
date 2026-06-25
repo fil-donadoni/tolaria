@@ -414,6 +414,200 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 6,
     },
     {
+        // ICE Blue buildable-now completion (#654, PRD #628). Exercises the two
+        // Blue cards completed from shipped primitives:
+        //   - Krovikan Sorcerer ({T}, discard a nonblack card: draw 1 / {T},
+        //     discard a black card: draw 2 then discard 1). The hand seeds a
+        //     black card (Dark Ritual) and a nonblack card (Giant Growth) so
+        //     both colour-filtered branches are exercisable.
+        //   - Shyft (at your upkeep, may become a colour of your choice — an
+        //     indefinite layer-5 colour override). Pass to your next upkeep to
+        //     hit the trigger, accept, and pick a colour.
+        label: "ICE: Blue completion — Krovikan Sorcerer loots / Shyft colour override (#654)",
+        cards: [
+            {
+                name: "Krovikan Sorcerer",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Shyft",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Dark Ritual",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Giant Growth",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Brainstorm",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 5,
+    },
+    {
+        // ICE Black buildable-now completion (#655, PRD #628). Exercises the
+        // Black cards completed from shipped primitives only. The Auras (Mind
+        // Whip, Soul Kiss, Dance of the Dead) start in HAND so they attach to a
+        // target when cast — a battlefield-seeded Aura would be unattached.
+        //   - Lim-Dûl's Hex (your upkeep: each player pays {B} or {3} or takes
+        //     1). Pass to your next upkeep to fire it.
+        //   - Mind Whip from hand → enchant the opponent's Grizzly Bears
+        //     (their upkeep: pay {3} or 2 damage + tap).
+        //   - Soul Kiss from hand → enchant your Hill Giant; {B}, Pay 1 life for
+        //     +2/+2, hard-capped at three activations per turn.
+        //   - Minion of Leshrac (upkeep sac-a-creature-or-5-damage-and-tap;
+        //     {T}: destroy a creature/land) and Infernal Denizen ({T}: steal a
+        //     creature for as long as it stays out).
+        //   - Norritt ({T}: untap a blue creature / force a creature to attack).
+        //   - Dance of the Dead from hand reanimates the creature card seeded in
+        //     the opponent's graveyard.
+        //   - Leshrac's Sigil punishes the opponent casting a green spell.
+        label: "ICE: Black completion — Lim-Dûl's Hex / Mind Whip / Soul Kiss / reanimate / steal (#655)",
+        cards: [
+            {
+                name: "Lim-Dûl's Hex",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Minion of Leshrac",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Infernal Denizen",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Norritt",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Leshrac's Sigil",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Hill Giant",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Soul Kiss",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Mind Whip",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Dance of the Dead",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "graveyard" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+    },
+    {
+        // ICE Red completion (#656, PRD #628). Exercises the buildable-now Red
+        // ICE cards activated from stale stubs:
+        //   - Márton Stromgald (pump other attackers by the attacker count) and
+        //     two Aurochs (pump per other attacking Aurochs) — attack to fire
+        //     the per-attacker buffs.
+        //   - Goblin Mutant (trample; can't attack vs an untapped power-3+
+        //     defender; can't block power 3+) and Chaos Lord (7/7 first strike;
+        //     even-permanent-count upkeep control-give).
+        //   - Mudslide (non-flying untap-lock + pay-{2}-to-untap) and Dwarven
+        //     Armory ({2}, sac a land: +2/+2 counter, upkeep-only) enchantments.
+        //   - Balduvian Hydra (enters with X +1/+0; remove-counter prevent;
+        //     upkeep grow) on the battlefield.
+        //   - Battle Frenzy (team pump) and Game of Chaos (coin-flip life swing)
+        //     in hand. rngSeed 1 pins the first Game of Chaos flip to a WIN.
+        label: "ICE: Red completion — Márton / Aurochs / Chaos Lord / Mudslide / Game of Chaos (#656)",
+        cards: [
+            {
+                name: "Márton Stromgald",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Aurochs",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+            {
+                name: "Goblin Mutant",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Chaos Lord",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Hydra",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                counters: { "+1/+0": 3 },
+            },
+            {
+                name: "Mudslide",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Dwarven Armory",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Battle Frenzy",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Game of Chaos",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+        rngSeed: 1,
+    },
+    {
         // ICE Black free tranche (#632, PRD #628). Exercises the Black ICE
         // staples end to end:
         //   - Abyssal Specter (flying; deals damage to a player → that player

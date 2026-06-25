@@ -66,6 +66,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Aggression",
+        "scryfallId": "f3f26060-0c24-496c-b8e2-4dac7ea6166b",
+        "oracleId": "b6c38a2b-2fe8-4080-80ce-cfa12aaf57f0",
+        "firstSet": "ice"
+    },
+    {
         "name": "Air Elemental",
         "scryfallId": "69c3b2a3-0daa-4d42-832d-fcdfda6555ea",
         "oracleId": "7744bae4-a8b7-44a5-9b4c-0048ad4cc448",
@@ -336,6 +342,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Aurochs",
+        "scryfallId": "7e973a84-7f7d-4524-9f2f-ec9a014d52ee",
+        "oracleId": "3961ef7c-4eb4-482e-9cda-d49d6a29c5a9",
+        "firstSet": "ice"
+    },
+    {
         "name": "Azure Drake",
         "scryfallId": "fb5f13a2-0896-4230-8957-6ad1cb2b895b",
         "oracleId": "15cc068c-f424-433e-b165-8457c62a4b35",
@@ -375,6 +387,12 @@
         "name": "Balduvian Bears",
         "scryfallId": "ef5297cb-e763-4871-9cd3-0e2dbcc52095",
         "oracleId": "32c10a3e-85b0-49af-9b23-81d0b7e407df",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Balduvian Hydra",
+        "scryfallId": "c3a3b37f-daa6-4502-bb12-c72afe3df035",
+        "oracleId": "29a12f75-d66d-457f-85c4-6b9450adc0d8",
         "firstSet": "ice"
     },
     {
@@ -442,6 +460,12 @@
         "scryfallId": "f7a69e35-d209-41c0-aa3c-c78414617075",
         "oracleId": "e7b91fba-8d96-4040-95e8-f0023b65c497",
         "firstSet": "atq"
+    },
+    {
+        "name": "Battle Frenzy",
+        "scryfallId": "a85ae675-56ca-4a00-83d2-ee035f33d6d1",
+        "oracleId": "0fca46ec-ec1a-4e6c-bb0e-cdb834b38c92",
+        "firstSet": "ice"
     },
     {
         "name": "Bayou",
@@ -616,6 +640,12 @@
         "scryfallId": "63a31de0-d764-4ff6-a85f-027e1e58d86c",
         "oracleId": "8664a004-d786-4357-8856-2f8f5a9ae24d",
         "firstSet": "drk"
+    },
+    {
+        "name": "Bone Shaman",
+        "scryfallId": "0a5e3d54-4dc4-482b-8ecc-bb819ba03d2c",
+        "oracleId": "690ba846-964e-44ba-8637-9a1ce62f5931",
+        "firstSet": "ice"
     },
     {
         "name": "Book of Rass",
@@ -802,6 +832,12 @@
         "scryfallId": "c1862c47-71cc-45a3-8805-a5ddc62e55ea",
         "oracleId": "d1b815d1-2848-40d4-a555-66822d1becbc",
         "firstSet": "lea"
+    },
+    {
+        "name": "Chaos Lord",
+        "scryfallId": "ee245922-b380-4b2e-a43f-ab1ba8078943",
+        "oracleId": "16d0aea2-4ca4-4a9d-8674-2863e085f514",
+        "firstSet": "ice"
     },
     {
         "name": "Chaoslace",
@@ -1134,6 +1170,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Dance of the Dead",
+        "scryfallId": "e7c53ba4-9956-4cd6-85ca-2d6b61a5127c",
+        "oracleId": "15d5b198-edbe-40f3-87e2-d72f7f0c58ab",
+        "firstSet": "ice"
+    },
+    {
         "name": "Dancing Scimitar",
         "scryfallId": "1eb2e494-1414-4d1f-91d2-7cb20acdb128",
         "oracleId": "82b13601-d460-45c5-94a1-07e146d463a9",
@@ -1420,6 +1462,12 @@
         "scryfallId": "1d50bf06-97ab-4874-a484-9289f41dc98e",
         "oracleId": "5bbd27b1-0afd-4d98-a73c-c348c8f08625",
         "firstSet": "fem"
+    },
+    {
+        "name": "Dwarven Armory",
+        "scryfallId": "7d14a430-6e08-40cf-970a-cae84bba6ef7",
+        "oracleId": "aba53a54-8666-430d-899e-45ad9f783a4a",
+        "firstSet": "ice"
     },
     {
         "name": "Dwarven Catapult",
@@ -1872,6 +1920,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Flow of Maggots",
+        "scryfallId": "6880a4d3-5cbc-4a01-9190-3565617efcc9",
+        "oracleId": "2d6a387f-7ad4-419e-951a-9dcd4c9ac823",
+        "firstSet": "ice"
+    },
+    {
         "name": "Flying Carpet",
         "scryfallId": "4b71ff49-ee0a-4065-9131-380468d62a30",
         "oracleId": "453524fb-2ffa-421f-883c-b77ae2850c52",
@@ -2032,6 +2086,12 @@
         "scryfallId": "0e1ae3d6-6d96-4db6-bbc4-cee91bae6cf7",
         "oracleId": "ddd053ea-5b91-4def-a003-2e297a170d99",
         "firstSet": "drk"
+    },
+    {
+        "name": "Game of Chaos",
+        "scryfallId": "08265332-2c0e-4c42-8c51-83ac20462eed",
+        "oracleId": "b6756608-a618-4e26-a090-ea8fc992def1",
+        "firstSet": "ice"
     },
     {
         "name": "Gate to Phyrexia",
@@ -2202,10 +2262,22 @@
         "firstSet": "fem"
     },
     {
+        "name": "Goblin Mutant",
+        "scryfallId": "6db54f95-6652-45a3-b960-c2fc118beca1",
+        "oracleId": "540e1371-baa9-412f-a17a-22ea833ea3e8",
+        "firstSet": "ice"
+    },
+    {
         "name": "Goblin Rock Sled",
         "scryfallId": "91e0b59d-8f9b-4a76-9845-bcb0dc32523d",
         "oracleId": "ada3247e-ec5e-499d-bc15-1d9dd80a59ae",
         "firstSet": "drk"
+    },
+    {
+        "name": "Goblin Sappers",
+        "scryfallId": "de839540-a7b9-4f91-91df-3fd4f5c0bc4e",
+        "oracleId": "9e095761-cdae-4ab2-b2d3-099b0b39600a",
+        "firstSet": "ice"
     },
     {
         "name": "Goblin Shrine",
@@ -2326,6 +2398,12 @@
         "scryfallId": "1f6118b2-fe01-425a-a2ed-6d7c42286c8e",
         "oracleId": "727ab7f2-741e-4442-b5cb-e3032549fa87",
         "firstSet": "lea"
+    },
+    {
+        "name": "Grizzled Wolverine",
+        "scryfallId": "95bb17b9-55c4-4cc1-83f6-75490b9a97d0",
+        "oracleId": "da4ed552-a85a-47e1-ab67-5c93a9a20048",
+        "firstSet": "ice"
     },
     {
         "name": "Grizzly Bears",
@@ -2754,6 +2832,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Infernal Denizen",
+        "scryfallId": "b63ac9a6-aaa5-4659-97d1-c5f6b0d5ccfe",
+        "oracleId": "2f33aced-c737-4b3c-ba25-aff7b340c2d7",
+        "firstSet": "ice"
+    },
+    {
         "name": "Inferno",
         "scryfallId": "a6b61512-5b24-424c-966f-36b595781e14",
         "oracleId": "69e2df4e-c7f3-4c3a-be5b-1c4afb29cead",
@@ -3126,6 +3210,18 @@
         "firstSet": "lea"
     },
     {
+        "name": "Krovikan Elementalist",
+        "scryfallId": "bbedca18-a074-4441-b0a9-7b14fdb07412",
+        "oracleId": "43e6fc44-8b23-4bff-91da-936019efe84b",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Krovikan Sorcerer",
+        "scryfallId": "9c5fc053-7b0b-4e76-bf87-ccdb1e8752ed",
+        "oracleId": "00e6808c-1f9e-4b6a-807c-83f433b81a41",
+        "firstSet": "ice"
+    },
+    {
         "name": "Krovikan Vampire",
         "scryfallId": "717c5dda-8e38-4c76-b241-685198402284",
         "oracleId": "8fa93c01-f9ea-4d48-a040-418d1ca6be19",
@@ -3165,6 +3261,12 @@
         "name": "Leshrac's Rite",
         "scryfallId": "4e0a6b4e-95b4-40f6-bb19-568dbd908a2b",
         "oracleId": "ced4538a-4919-4ef8-8bf2-2de9e0388587",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Leshrac's Sigil",
+        "scryfallId": "ad5ba7ee-d6df-4b62-a8a1-c81e6fca392a",
+        "oracleId": "98388eba-31ab-4302-be9e-ea67ea2b8c1a",
         "firstSet": "ice"
     },
     {
@@ -3226,6 +3328,18 @@
         "scryfallId": "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
         "oracleId": "4457ed35-7c10-48c8-9776-456485fdf070",
         "firstSet": "lea"
+    },
+    {
+        "name": "Lim-Dûl's Cohort",
+        "scryfallId": "3d0006f6-2f96-453d-9145-eaefa588efbc",
+        "oracleId": "1e3b97d2-8fda-4510-9697-f36ca9ca2ab0",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Lim-Dûl's Hex",
+        "scryfallId": "af976f42-3d56-4e32-8294-970a276a4bf3",
+        "oracleId": "7f9116e1-9aab-470b-90eb-f51a3fbb3c0e",
+        "firstSet": "ice"
     },
     {
         "name": "Living Armor",
@@ -3396,6 +3510,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Márton Stromgald",
+        "scryfallId": "7880e815-53e7-43e0-befd-e368f00a75d8",
+        "oracleId": "8364cf93-c323-46f4-854f-ae872e484438",
+        "firstSet": "ice"
+    },
+    {
         "name": "Martyr's Cry",
         "scryfallId": "e2c9f463-d1cc-4f11-aad2-d4a4520aa978",
         "oracleId": "b636f17d-b54a-4a72-9a5e-ce13e7b4f00a",
@@ -3504,10 +3624,22 @@
         "firstSet": "ice"
     },
     {
+        "name": "Mind Whip",
+        "scryfallId": "3f3ff5fb-4126-4a18-b540-2beaae382e59",
+        "oracleId": "e26f7a58-18ae-432b-bc3f-c410512eb6bf",
+        "firstSet": "ice"
+    },
+    {
         "name": "Mindstab Thrull",
         "scryfallId": "499a791f-ac4f-4a96-b59b-37043686a79a",
         "oracleId": "43abe1f3-7b92-411a-bf93-e158f949685c",
         "firstSet": "fem"
+    },
+    {
+        "name": "Minion of Leshrac",
+        "scryfallId": "61278908-a1b4-4b4c-84f5-498ca41fc6b6",
+        "oracleId": "8af3b981-6eda-46b0-a7b8-226bc719d137",
+        "firstSet": "ice"
     },
     {
         "name": "Minion of Tevesh Szat",
@@ -3648,6 +3780,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Mudslide",
+        "scryfallId": "65acce56-8674-471e-9d5e-91b7e3f672c1",
+        "oracleId": "ac1d7dfe-1454-46a9-acf6-66ae86b6a6c5",
+        "firstSet": "ice"
+    },
+    {
         "name": "Murk Dwellers",
         "scryfallId": "a213450f-02f4-4c08-8da8-891ebfa8e237",
         "oracleId": "00358a89-2058-448b-a2fd-389f639ba2da",
@@ -3738,6 +3876,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Norritt",
+        "scryfallId": "35abefe6-c39b-4fe5-b2e3-d213f0c4f447",
+        "oracleId": "4318c704-888f-4d85-b5f7-6d9abb14e60c",
+        "firstSet": "ice"
+    },
+    {
         "name": "Northern Paladin",
         "scryfallId": "6303233b-35eb-49ca-b844-ba6b9fe1cbd2",
         "oracleId": "f5975294-508a-453e-893a-2fbea2487d17",
@@ -3826,6 +3970,12 @@
         "scryfallId": "cd3890d1-563d-4519-ab8c-913031d71918",
         "oracleId": "0d058991-3751-4afe-80c9-79f0c6e10282",
         "firstSet": "fem"
+    },
+    {
+        "name": "Orcish Squatters",
+        "scryfallId": "f3ee7bd5-612b-4916-a914-1294805b8f64",
+        "oracleId": "ce936736-915f-44bb-a709-b3bdcf90a3be",
+        "firstSet": "ice"
     },
     {
         "name": "Orcish Veteran",
@@ -4692,6 +4842,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Shyft",
+        "scryfallId": "99a60c33-b641-42c4-870d-95d07bc975dc",
+        "oracleId": "40c3007a-be6c-4400-9139-12b9ca098ac4",
+        "firstSet": "ice"
+    },
+    {
         "name": "Sibilant Spirit",
         "scryfallId": "47364ad2-5ce9-4b19-a9d2-f6a33188b882",
         "oracleId": "9798d307-a44a-4f44-94c7-03e499b94962",
@@ -4846,6 +5002,12 @@
         "scryfallId": "9f73597d-f453-4d37-b2ef-c54ef683a884",
         "oracleId": "366ea3b4-5e7e-4693-9f4b-1e549972609e",
         "firstSet": "fem"
+    },
+    {
+        "name": "Soul Kiss",
+        "scryfallId": "42fbf6a5-86fe-41a3-891e-f72f11ad0aee",
+        "oracleId": "8ea941aa-ee0c-4830-912a-0c672546aa0c",
+        "firstSet": "ice"
     },
     {
         "name": "Soul Net",
@@ -5392,6 +5554,12 @@
         "scryfallId": "5fd99522-4a91-4ccd-91bf-5f32a6ac3510",
         "oracleId": "633b8f22-0384-4f60-ba78-b52c2d82dfde",
         "firstSet": "leg"
+    },
+    {
+        "name": "Total War",
+        "scryfallId": "6107388b-ec1e-401e-a407-a821c908ed8d",
+        "oracleId": "8266dd1c-e262-4467-a893-6b3b5eedb427",
+        "firstSet": "ice"
     },
     {
         "name": "Touch of Darkness",
@@ -6106,6 +6274,12 @@
         "scryfallId": "3d4255a0-d445-4c00-b936-bbf07851e1c8",
         "oracleId": "5446c92f-ff22-4e9b-a2f6-e64c8560c1e0",
         "firstSet": "lea"
+    },
+    {
+        "name": "Zuran Enchanter",
+        "scryfallId": "721edcef-f40a-4d43-9d80-26161dc425cb",
+        "oracleId": "ee0f883f-d7c9-4acf-a78f-f733b6f268d3",
+        "firstSet": "ice"
     },
     {
         "name": "Zuran Orb",
