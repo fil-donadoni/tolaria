@@ -4,6 +4,8 @@ import {
     computeAutoPassBlocked,
     computeSoloViewerId,
     computePriorityState,
+    isSelectingBlockers,
+    isWaitingOnOpponent,
     type HasPriorityCtx,
     type AutoPassBlockedCtx,
     type SoloViewerCtx,
@@ -437,5 +439,54 @@ describe("computePriorityState", () => {
                 })
             )
         ).toBe("opponent");
+    });
+});
+
+describe("Melee — attacker declares blocks (#669, CR 509.1)", () => {
+    const blockersOpen: Combat = {
+        attackerIds: ["atk"],
+        confirmed: true,
+        blockerAssignments: {},
+        blockersConfirmed: false,
+    };
+
+    it("normal combat: the DEFENDING (non-active) player selects blockers", () => {
+        // p1 is active (attacker); p2 defends → p2 selects blockers.
+        const defender = makePriorityCtx({
+            playerId: "p2",
+            activePlayerId: "p1",
+            phase: "DECLARE_BLOCKERS",
+            combat: blockersOpen,
+        });
+        const attacker = makePriorityCtx({
+            playerId: "p1",
+            activePlayerId: "p1",
+            phase: "DECLARE_BLOCKERS",
+            combat: blockersOpen,
+        });
+        expect(isSelectingBlockers(defender)).toBe(true);
+        expect(isSelectingBlockers(attacker)).toBe(false);
+        expect(isWaitingOnOpponent(attacker)).toBe(true);
+    });
+
+    it("under meleeCombat: the ATTACKING (active) player selects blockers", () => {
+        const attacker = makePriorityCtx({
+            playerId: "p1",
+            activePlayerId: "p1",
+            phase: "DECLARE_BLOCKERS",
+            combat: blockersOpen,
+            meleeCombat: true,
+        });
+        const defender = makePriorityCtx({
+            playerId: "p2",
+            activePlayerId: "p1",
+            phase: "DECLARE_BLOCKERS",
+            combat: blockersOpen,
+            meleeCombat: true,
+        });
+        // Seat flips: the attacker now declares; the defender waits.
+        expect(isSelectingBlockers(attacker)).toBe(true);
+        expect(isSelectingBlockers(defender)).toBe(false);
+        expect(isWaitingOnOpponent(defender)).toBe(true);
     });
 });

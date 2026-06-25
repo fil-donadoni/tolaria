@@ -750,6 +750,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Brand of Ill Omen",
+        "scryfallId": "ceeb7bbc-2d41-4709-95be-1ceb952ed1fb",
+        "oracleId": "947bd180-ee95-4db4-b5d9-432428018eb8",
+        "firstSet": "ice"
+    },
+    {
         "name": "Brass Man",
         "scryfallId": "1a364362-e42b-415c-9d95-b6ec7139f5e7",
         "oracleId": "64f56228-7874-4465-ba58-1049083ea02f",
@@ -3852,6 +3858,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Melee",
+        "scryfallId": "b13a064d-bff4-4a48-a158-1b61951b0ac3",
+        "oracleId": "93fc1ff8-6ef0-42a2-b090-ba95b6f3c98e",
+        "firstSet": "ice"
+    },
+    {
         "name": "Melting",
         "scryfallId": "8d90065e-2c7e-44e5-9f59-015d468214bf",
         "oracleId": "599247f2-7f88-40ab-be08-e284e5f231d9",
@@ -5602,6 +5614,12 @@
         "scryfallId": "83316930-d6ad-46ce-9b40-48eea856d95b",
         "oracleId": "cd8ae9f2-edac-473a-8846-c08219e617c3",
         "firstSet": "lea"
+    },
+    {
+        "name": "Stench of Evil",
+        "scryfallId": "4c7065a2-f819-4cbe-b453-a55e904f0461",
+        "oracleId": "14062abe-14df-4dbe-ad7b-530e5f6c4988",
+        "firstSet": "ice"
     },
     {
         "name": "Stone Calendar",

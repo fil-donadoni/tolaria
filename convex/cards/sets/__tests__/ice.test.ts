@@ -227,6 +227,10 @@ import {
     // Blue buildable-now completion (#654)
     krovikanSorcerer,
     shyft,
+    // Combat / casting-restriction primitives (#669)
+    melee,
+    brandOfIllOmen,
+    stenchOfEvil,
     // Black buildable-now completion (#655)
     limDLsCohort,
     limDLsHex,
@@ -403,8 +407,10 @@ import {
     applyMayPaySubmit,
     applyRandomRevealAck,
 } from "../../../gre/pendingChoiceSubmit";
-import { getLegalTargets } from "../../../gre/rules";
+import { getLegalTargets, getLegalActions } from "../../../gre/rules";
 import { validateBlockerEligibility } from "../../../gre/combat";
+import { applyMeleeUnblockedRider } from "../../../gre/banding";
+import { castProhibitionReason } from "../../castRestrictions";
 import {
     tapSourceIntoPayment,
     finalizeTargetSelection,
@@ -12770,5 +12776,302 @@ describe("Ghostly Flame (damage-source colour override, CR 119.4 / 614)", () => 
         });
         // Balduvian Bears is {1}{G} → green. Not black/red, so unchanged.
         expect(describeDamageSource(state, "grn").colors).toEqual(["G"]);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Combat / casting-restriction primitives (#669)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Melee (attacker chooses blocks + untap-unblocked rider, CR 509.1)", () => {
+    it("has the correct cost, type and cast window", () => {
+        expect(melee.manaCost).toEqual({ X: 4, R: 1 });
+        expect(melee.types).toEqual(["Instant"]);
+        expect(melee.castPhaseRestriction).toEqual(["DECLARE_ATTACKERS"]);
+        expect(melee.castTurnRestriction).toBe("self");
+    });
+
+    it("sets meleeCombat when it resolves during the attacker's combat", () => {
+        const attacker = vanilla("atk", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            phase: "DECLARE_ATTACKERS",
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        pushSpell(state, melee.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.meleeCombat).toBe(true);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("untaps and removes from combat every attacker left unblocked", () => {
+        // Two attackers: 'blocked' becomes blocked, 'free' stays unblocked.
+        const blocked = vanilla("blocked", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+            isTapped: true,
+        });
+        const free = vanilla("free", 3, 3, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+            isTapped: true,
+        });
+        const blocker = vanilla("blk", 1, 1, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [blocked, free] }),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+            activePlayerId: "p1",
+            phase: "DECLARE_BLOCKERS",
+            meleeCombat: true,
+            combat: {
+                attackerIds: ["blocked", "free"],
+                confirmed: true,
+                blockerAssignments: { blk: ["blocked"] },
+                blockersConfirmed: true,
+            },
+        });
+        recordBlockedAttackers(state);
+        applyMeleeUnblockedRider(state);
+        // 'free' was unblocked → untapped + removed from combat.
+        const liveFree = state.players[0].battlefield.find(
+            (c) => c.id === "free"
+        )!;
+        expect(liveFree.isTapped).toBe(false);
+        expect(liveFree.isAttacking).toBeFalsy();
+        expect(state.combat!.attackerIds).not.toContain("free");
+        // 'blocked' stayed: still attacking, still tapped, still in combat.
+        const liveBlocked = state.players[0].battlefield.find(
+            (c) => c.id === "blocked"
+        )!;
+        expect(liveBlocked.isAttacking).toBe(true);
+        expect(state.combat!.attackerIds).toContain("blocked");
+    });
+
+    it("is a no-op for a normal (non-Melee) combat", () => {
+        const free = vanilla("free", 3, 3, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [free] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["free"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+            },
+        });
+        recordBlockedAttackers(state);
+        applyMeleeUnblockedRider(state);
+        const live = state.players[0].battlefield.find((c) => c.id === "free")!;
+        // No Melee → unblocked attacker stays tapped and in combat.
+        expect(live.isTapped).toBe(true);
+        expect(state.combat!.attackerIds).toContain("free");
+    });
+});
+
+describe("Brand of Ill Omen (enchanted creature's controller can't cast creature spells, CR 601.3a)", () => {
+    function setup() {
+        // p2 controls the host creature; Brand (p1-owned) enchants it.
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const brand = makeInstance(brandOfIllOmen.id, {
+            id: "brand",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        // A creature spell and a noncreature spell in p2's hand.
+        const creatureSpell = makeInstance(balduvianBears.id, {
+            id: "bears",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const noncreatureSpell = makeInstance(brainstorm.id, {
+            id: "bs",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [brand] }),
+                makePlayer("p2", {
+                    battlefield: [host],
+                    hand: [creatureSpell, noncreatureSpell],
+                    manaPool: { W: 5, U: 5, B: 5, R: 5, G: 5, C: 5 },
+                }),
+            ],
+            activePlayerId: "p2",
+            priorityPlayerId: "p2",
+            phase: "PRECOMBAT_MAIN",
+        });
+        return { state, creatureSpell, noncreatureSpell };
+    }
+
+    it("snapshot: carries a cast-restriction static effect + cumulative upkeep", () => {
+        expect(brandOfIllOmen.subtypes).toContain("Aura");
+        expect(
+            brandOfIllOmen.staticEffects?.some(
+                (e) => e.kind === "cast-restriction"
+            )
+        ).toBe(true);
+        expect(
+            brandOfIllOmen.triggeredAbilities?.some((t) =>
+                t.id.includes("cumulative-upkeep")
+            )
+        ).toBe(true);
+    });
+
+    it("the enchanted creature's controller cannot cast a creature spell", () => {
+        const { state, creatureSpell } = setup();
+        const actions = getLegalActions(state, state.players[1], creatureSpell);
+        expect(actions).not.toContain("cast");
+    });
+
+    it("the restriction survives the wire projection", () => {
+        const { state, creatureSpell } = setup();
+        // The cast gate reads `castProhibitionReason`, which scans the
+        // battlefield for the Aura's `cast-restriction` static. Re-run it on the
+        // projected state: the Aura's `attachedTo` and the host's controllerId
+        // must survive projection or the client would wrongly enable the cast.
+        expect(castProhibitionReason("p2", creatureSpell, state)).toBeDefined();
+        const projected = projectPublicState(state, 1, "p2");
+        expect(
+            castProhibitionReason("p2", creatureSpell as never, projected)
+        ).toBeDefined();
+    });
+
+    it("the same player can still cast noncreature spells", () => {
+        const { state, noncreatureSpell } = setup();
+        const actions = getLegalActions(
+            state,
+            state.players[1],
+            noncreatureSpell
+        );
+        expect(actions).toContain("cast");
+    });
+
+    it("does not restrict the OTHER player (who doesn't control the host)", () => {
+        const { state } = setup();
+        // p1 controls Brand but not the host → unaffected. Give p1 a creature
+        // spell in hand with priority.
+        const p1Bears = makeInstance(balduvianBears.id, {
+            id: "p1-bears",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        state.players[0].hand = [p1Bears];
+        state.players[0].manaPool = { W: 5, U: 5, B: 5, R: 5, G: 5, C: 5 };
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        const actions = getLegalActions(state, state.players[0], p1Bears);
+        expect(actions).toContain("cast");
+    });
+});
+
+describe("Stench of Evil (destroy all Plains + pay-{2}-or-1 rider, CR 701.7 / 118)", () => {
+    function answerMayPay(state: GameState, accept: boolean): void {
+        const head = state.pendingChoices![0];
+        applyMayPaySubmit(state, { playerId: head.playerId, accept });
+    }
+    function setup() {
+        const p1Plains = makeInstance(plains.id, {
+            id: "p1-plains",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p2Plains = makeInstance(plains.id, {
+            id: "p2-plains",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const survivor = makeInstance(island.id, {
+            id: "p2-island",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [p1Plains], life: 20 }),
+                makePlayer("p2", {
+                    battlefield: [p2Plains, survivor],
+                    life: 20,
+                }),
+            ],
+            activePlayerId: "p1",
+        });
+        return state;
+    }
+
+    it("destroys every Plains and leaves non-Plains lands alone", () => {
+        const state = setup();
+        pushSpell(state, stenchOfEvil.id, "p1");
+        resolveTopOfStack(state); // step 0 destroys, suspends at first may-pay
+        // Both Plains gone; the Island survives.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "p1-plains")
+        ).toBeUndefined();
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "p2-plains")
+        ).toBeUndefined();
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "p2-island")
+        ).toBeDefined();
+    });
+
+    it("paying {2} skips the damage; declining takes 1 per destroyed Plains", () => {
+        const state = setup();
+        // p1 can afford the {2}; p2 has no mana and will decline.
+        state.players[0].manaPool = { C: 2 } as never;
+        pushSpell(state, stenchOfEvil.id, "p1");
+        resolveTopOfStack(state); // suspends at the first may-pay
+        // Two destroyed Plains → two may-pay prompts (one per controller).
+        answerMayPay(state, true); // p1 pays {2} → no damage
+        answerMayPay(state, false); // p2 declines → takes 1
+        expect(state.players[0].life).toBe(20); // p1 paid
+        expect(state.players[1].life).toBe(19); // p2 took 1
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("declining both bills each land's controller 1 damage", () => {
+        const state = setup();
+        pushSpell(state, stenchOfEvil.id, "p1");
+        resolveTopOfStack(state);
+        answerMayPay(state, false); // p1 declines → 1
+        answerMayPay(state, false); // p2 declines → 1
+        expect(state.players[0].life).toBe(19);
+        expect(state.players[1].life).toBe(19);
     });
 });

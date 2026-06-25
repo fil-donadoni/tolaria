@@ -631,6 +631,9 @@ function compactStackItem(item: StackItem): CompactCard {
         base.resolutionStep = item.resolutionStep;
     }
     if (item.collectedChoices) base.collectedChoices = item.collectedChoices;
+    if (item.massRiderTargets?.length) {
+        base.massRiderTargets = item.massRiderTargets;
+    }
     if (item.isCopy) base.isCopy = item.isCopy;
     if (item.exileOnResolve) base.exileOnResolve = item.exileOnResolve;
     // Acting Player (ADR 0037): persist the controlled-cast override so a
@@ -690,6 +693,9 @@ function expandStackItem(compact: CompactCard): StackItem {
             string[]
         >;
     }
+    if (compact.massRiderTargets) {
+        item.massRiderTargets = compact.massRiderTargets as string[];
+    }
     if (compact.isCopy) item.isCopy = compact.isCopy as boolean;
     if (compact.exileOnResolve) {
         item.exileOnResolve = compact.exileOnResolve as boolean;
@@ -735,6 +741,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "damageRedirections",
     "combatBlockRestrictions",
     "camouflageCombat",
+    "meleeCombat",
     "playerPreferences",
     "landPlayLocked",
     "preventAllCombatDamageThisTurn",

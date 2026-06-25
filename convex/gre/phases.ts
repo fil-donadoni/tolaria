@@ -2197,6 +2197,8 @@ function endCombatStep(state: GameState): void {
     state.combatBlockRestrictions = undefined;
     // Camouflage's combat-scoped flag lifts with the rest of combat (ADR 0012).
     state.camouflageCombat = undefined;
+    // Melee's attacker-chooses-blocks flag is likewise combat-scoped (#669).
+    state.meleeCombat = undefined;
     // CR 511.3 — "until end of combat" effects end as the step ends.
     tickAllDurations(state);
 }

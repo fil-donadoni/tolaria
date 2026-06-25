@@ -82,6 +82,72 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ICE combat / casting-restriction primitives (#669, PRD #628).
+        // Exercises all three one-off seams in a single board:
+        //   - Stench of Evil ({2}{B} sorcery): "Destroy all Plains. For each
+        //     land destroyed this way, deal 1 to that land's controller unless
+        //     they pay {2}." Cast it: both Plains die, then each controller is
+        //     offered the pay-{2}-or-take-1 may-pay (CR 701.7 / 118).
+        //   - Brand of Ill Omen (Aura) enchants the OPPONENT's creature →
+        //     "Enchanted creature's controller can't cast creature spells."
+        //     The opponent's hand creatures gray out (CR 601.3a).
+        //   - Melee ({4}{R} instant) sits in hand: attack, then during your
+        //     declare-attackers step cast it to choose the opponent's blocks
+        //     yourself; unblocked attackers untap + leave combat (CR 509.1).
+        // A Plains on each side feeds Stench; a couple of creatures feed Melee /
+        // Brand. Turn 2 so lands are untapped; life 20.
+        label: "ICE: Combat & casting restrictions — Melee / Brand of Ill Omen / Stench of Evil (#669)",
+        cards: [
+            {
+                name: "Stench of Evil",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Melee",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Brand of Ill Omen",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            // A Plains on each battlefield for Stench to destroy.
+            {
+                name: "Plains",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Plains",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+            // Attacker for Melee + a target creature the opponent can cast
+            // creatures into / be enchanted by Brand.
+            {
+                name: "Balduvian Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+            // A creature spell in the opponent's hand to watch Brand gray out.
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+        turn: 2,
+    },
+    {
         // ICE noted-mana battery (#666, PRD #628). Exercises the noted-mana
         // primitive (CR 106.10) and Ice Cauldron's cast-from-exile (CR 601.3e):
         //   - Jeweled Amulet ({1},{T}): note the colour spent, then {T} +

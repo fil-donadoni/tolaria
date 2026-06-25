@@ -26,6 +26,10 @@ type GameContext = {
     autoPassPlayers?: string[];
     queuedEndTurn?: string[];
     combat?: Combat;
+    /** Melee (#669) — the attacking (active) player declares blocks this
+     *  combat. Flows from the projected GameState so block-declaration UI flips
+     *  to the right seat. */
+    meleeCombat?: boolean;
     gameOver?: GameOver;
     allPlayers: Player[];
     showAllCards: boolean;
