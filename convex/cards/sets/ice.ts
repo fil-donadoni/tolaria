@@ -37,6 +37,7 @@ import { leftTrigger } from "../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../abilities/triggers/spellCastTrigger";
 import { stateTrigger } from "../abilities/triggers/stateTrigger";
+import { untapTrigger } from "../abilities/triggers/untapTrigger";
 import { untapRestriction } from "../abilities/static/untapRestriction";
 import { damageDealtTrigger } from "../abilities/triggers/damageDealtTrigger";
 import { diedTrigger } from "../abilities/triggers/diedTrigger";
@@ -8073,7 +8074,14 @@ export const centaurArcher: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
+// DEFERRED (#659): needs a CONTINUOUS all-damage-prevention shield keyed to a
+// STORED colour choice that protects an Aura's HOST — the same capability that
+// keeps Prismatic Ward deferred (#653). The shipped `combat-damage-prevention`
+// static is self-only and combat-only; Chromatic Armor prevents ALL damage from
+// sources of the chosen colour. Choose-colour-on-ETB is expressible via
+// `modes`/`getChosenModeId`, but the `{X}: re-choose colour` clause also needs a
+// way to MUTATE the stored colour post-ETB (no such primitive). Flagged for the
+// colour-prevention capability cluster alongside Prismatic Ward.
 // export const chromaticArmor: CardDefinition = {
 //     id: "2657e85b-8f77-41fa-9df2-233443efef43",
 //     name: "Chromatic Armor",
@@ -8129,15 +8137,61 @@ export const diabolicVision: CardDefinition = {
         ctx.reorderLibraryTop(ctx.controller, ordered);
     },
 };
-// TODO(#628): implement.
-// export const earthlink: CardDefinition = {
-//     id: "a83cb1c4-7c5b-4a5e-b15e-138d644f5cdb",
-//     name: "Earthlink",
-//     rarity: "rare",
-//     oracleText: "At the beginning of your upkeep, sacrifice this enchantment unless you pay {2}.\nWhenever a creature dies, that creature's controller sacrifices a land of their choice.",
-//     manaCost: { X: 3, B: 1, R: 1, G: 1 },
-//     types: ["Enchantment"],
-// };
+// Earthlink — upkeep "pay {2} or sacrifice" (CR 603.6a phase trigger +
+// CR 117.3a may-pay with a hard sacrifice on decline, via the local
+// `makeUpkeepPayOrElse`) plus a death trigger: "Whenever a creature dies, that
+// creature's controller sacrifices a land of their choice" (CR 603.2 death
+// trigger over `scope: "any"`; the dying creature's controller is read from the
+// `diedTrigger` last-known-information payload, CR 603.10, and chooses which
+// Land to sacrifice via a `sacrifice-permanents` choice, CR 701.16). Modern
+// Scryfall oracle text (ADR 0004): the upkeep clause is a flat "pay {2}", NOT
+// cumulative upkeep.
+const EARTHLINK_ID = "a83cb1c4-7c5b-4a5e-b15e-138d644f5cdb";
+export const earthlink: CardDefinition = {
+    id: EARTHLINK_ID,
+    name: "Earthlink",
+    rarity: "rare",
+    oracleText:
+        "At the beginning of your upkeep, sacrifice this enchantment unless you pay {2}.\nWhenever a creature dies, that creature's controller sacrifices a land of their choice.",
+    manaCost: { X: 3, B: 1, R: 1, G: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        makeUpkeepPayOrElse({
+            id: "earthlink-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, sacrifice this enchantment unless you pay {2}.",
+            cost: { X: 2 },
+            prompt: "Pay {2} to keep Earthlink?",
+            onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+        }),
+        diedTrigger({
+            id: "earthlink-dies-sac-land",
+            oracleText:
+                "Whenever a creature dies, that creature's controller sacrifices a land of their choice.",
+            scope: "any",
+            resolve: (ctx, _event, deadCreature) => {
+                const controller = deadCreature.controllerId;
+                // CR 701.16 — only ask when the controller actually has a Land
+                // to sacrifice (a no-Land board makes the sacrifice a no-op).
+                const lands = ctx.getBattlefieldIds(controller, {
+                    types: "Land",
+                });
+                if (lands.length === 0) return;
+                const picked = ctx.requestChoice({
+                    playerId: controller,
+                    choiceId: `earthlink-${ctx.sourceInstanceId}-${deadCreature.id}`,
+                    kind: "sacrifice-permanents",
+                    zone: "battlefield",
+                    filter: { types: "Land" },
+                    count: 1,
+                    prompt: "Earthlink: sacrifice a land of your choice.",
+                });
+                if (picked === undefined) return; // suspended for the choice
+                for (const id of picked) ctx.sacrifice(id);
+            },
+        }),
+    ],
+};
 // Elemental Augury — "{3}: Look at the top three cards of target player's
 // library, then put them back in any order." (CR 401 library peek/reorder.)
 // The activated ability targets a player; on resolution the controller looks at
@@ -8236,7 +8290,17 @@ export const essenceVortex: CardDefinition = {
 //     manaCost: { X: 1, B: 1, R: 1 },
 //     types: ["Instant"],
 // };
-// TODO(#628): implement.
+// DEFERRED (#659): the attack restriction is a PER-ATTACKER COST ("can't attack
+// unless their controller sacrifices a land ... for each green creature they
+// control that's attacking"), not a binary prohibition. The shipped attack-
+// restriction static (`global-attack-restriction`, CR 509.1) is forbid/allow
+// only — `validateAttackerEligibility` returns eligible/ineligible with no path
+// to charge a scaling sacrifice cost as attackers are declared. Modelling
+// "can't attack unless pay <cost> per matching attacker" needs a declare-
+// attackers cost-payment mechanism (a new combat primitive crossing the declare-
+// attackers validator + UI), out of scope for the gold/misc completion slice.
+// Twin: Reclamation (same mechanic, black creatures). Flagged for a combat-cost
+// capability cluster.
 // export const floodedWoodlands: CardDefinition = {
 //     id: "de89e9e1-485b-42e5-9728-5d6f948999e1",
 //     name: "Flooded Woodlands",
@@ -8245,7 +8309,16 @@ export const essenceVortex: CardDefinition = {
 //     manaCost: { X: 2, U: 1, B: 1 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
+// DEFERRED (#659): "Destroy target creature AND target land" needs TWO distinct
+// typed targets on one spell (CR 601.2c). The engine models only a SINGLE
+// `targetRequirement` per spell — there is no multi-distinct-requirement
+// targeting (a `["Creature","Land"]` type list picks ONE object of EITHER type,
+// not one of each). That is a targeting-pipeline addition crossing
+// GRE → game.ts selectTarget → frontend, out of scope for the gold/misc
+// completion slice. (The "pay 3 life" additional cast cost is separately
+// unbuilt — `additionalCosts` models only sacrifice/exile — but the dual-target
+// requirement is the gating capability.) Flagged for a dedicated targeting
+// cluster.
 // export const fumarole: CardDefinition = {
 //     id: "efa53e9a-0d7c-4d17-b2be-56930edfa2c2",
 //     name: "Fumarole",
@@ -8332,62 +8405,284 @@ export const glaciers: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
-// export const hymnOfRebirth: CardDefinition = {
-//     id: "61d0f2f2-f6e2-4b8a-8418-10b17c5e0ea9",
-//     name: "Hymn of Rebirth",
-//     rarity: "uncommon",
-//     oracleText: "Put target creature card from a graveyard onto the battlefield under your control.",
-//     manaCost: { X: 3, W: 1, G: 1 },
-//     types: ["Sorcery"],
-// };
-// TODO(#628): implement.
-// export const kjeldoranFrostbeast: CardDefinition = {
-//     id: "2fccb1d0-b324-4780-bb9e-4533240da06d",
-//     name: "Kjeldoran Frostbeast",
-//     rarity: "uncommon",
-//     oracleText: "At end of combat, destroy all creatures blocking or blocked by this creature.",
-//     manaCost: { X: 3, W: 1, G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Elemental", "Beast"],
-//     power: 2,
-//     toughness: 4,
-// };
-// TODO(#628): implement.
-// export const meriekeRiBerit: CardDefinition = {
-//     id: "3bf47c0a-5c17-47d0-b663-becff62fbdf8",
-//     name: "Merieke Ri Berit",
-//     rarity: "rare",
-//     oracleText: "Merieke Ri Berit doesn't untap during your untap step.\n{T}: Gain control of target creature for as long as you control Merieke Ri Berit. When Merieke Ri Berit leaves the battlefield or becomes untapped, destroy that creature. It can't be regenerated.",
-//     manaCost: { W: 1, U: 1, B: 1 },
-//     types: ["Creature"],
-//     supertypes: ["Legendary"],
-//     subtypes: ["Human"],
-//     power: 1,
-//     toughness: 1,
-// };
-// TODO(#628): implement.
-// export const monsoon: CardDefinition = {
-//     id: "254fcc50-79a5-40cd-b028-e78dde3f8480",
-//     name: "Monsoon",
-//     rarity: "rare",
-//     oracleText: "At the beginning of each player's end step, tap all untapped Islands that player controls and this enchantment deals X damage to the player, where X is the number of Islands tapped this way.",
-//     manaCost: { X: 2, R: 1, G: 1 },
-//     types: ["Enchantment"],
-// };
-// TODO(#628): implement.
-// export const mountainTitan: CardDefinition = {
-//     id: "bcc1d589-02a2-4896-a283-9d0385534667",
-//     name: "Mountain Titan",
-//     rarity: "rare",
-//     oracleText: "{1}{R}{R}: Until end of turn, whenever you cast a black spell, put a +1/+1 counter on this creature.",
-//     manaCost: { X: 2, B: 1, R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Giant"],
-//     power: 2,
-//     toughness: 2,
-// };
-// TODO(#628): implement.
+// Hymn of Rebirth — "Put target creature card from a graveyard onto the
+// battlefield under your control." (CR 601.2c graveyard target in ANY graveyard;
+// CR 400.7 / 800.4a zone change where the OWNER stays the graveyard's owner but
+// the CONTROLLER becomes the caster.) Unlike Resurrection (which returns under
+// the owner's control), this reanimates cross-graveyard under YOUR control, so
+// the resolve passes the caster as the explicit `controllerId` override on
+// `returnToBattlefield`. The target carries `t.playerId` — the graveyard's
+// owner — used to locate the card; the 4th arg redirects control to the caster.
+export const hymnOfRebirth: CardDefinition = {
+    id: "61d0f2f2-f6e2-4b8a-8418-10b17c5e0ea9",
+    name: "Hymn of Rebirth",
+    rarity: "uncommon",
+    oracleText:
+        "Put target creature card from a graveyard onto the battlefield under your control.",
+    manaCost: { X: 3, W: 1, G: 1 },
+    types: ["Sorcery"],
+    targetRequirement: {
+        type: "Creature",
+        count: 1,
+        zone: "graveyard",
+        controller: "any",
+    },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (!t || t.type !== "graveyard-card" || !t.playerId) return;
+        // CR 800.4a — owner stays `t.playerId`; controller becomes the caster.
+        ctx.returnToBattlefield(t.playerId, t.id, "graveyard", ctx.controller);
+    },
+};
+// Kjeldoran Frostbeast — "At end of combat, destroy all creatures blocking or
+// blocked by this creature." (CR 511.3 END_OF_COMBAT phase trigger, scope
+// "each"; CR 701.7 destroy.) The block graph is still live at the END_OF_COMBAT
+// step (combat is torn down on step exit), so the resolve reads
+// `getBlockersByAttacker()` and walks BOTH directions relative to Frostbeast:
+//   • if Frostbeast attacked → the creatures BLOCKING it (its entry's blockers),
+//   • if Frostbeast blocked → the attackers it is BLOCKING (entries that list
+//     Frostbeast among their blockers).
+// Every such partner is destroyed (CR 510.1c damage has already been dealt by
+// this step, so survivors of combat are still destroyed by the trigger).
+const KJELDORAN_FROSTBEAST_ID = "2fccb1d0-b324-4780-bb9e-4533240da06d";
+export const kjeldoranFrostbeast: CardDefinition = {
+    id: KJELDORAN_FROSTBEAST_ID,
+    name: "Kjeldoran Frostbeast",
+    rarity: "uncommon",
+    oracleText:
+        "At end of combat, destroy all creatures blocking or blocked by this creature.",
+    manaCost: { X: 3, W: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Elemental", "Beast"],
+    power: 2,
+    toughness: 4,
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "kjeldoran-frostbeast-end-of-combat",
+            oracleText:
+                "At end of combat, destroy all creatures blocking or blocked by this creature.",
+            phase: "END_OF_COMBAT",
+            scope: "each",
+            resolve: (ctx) => {
+                const selfId = ctx.sourceInstanceId;
+                const blockersByAttacker = ctx.getBlockersByAttacker();
+                const partners = new Set<string>();
+                for (const [attackerId, blockerIds] of Object.entries(
+                    blockersByAttacker
+                )) {
+                    if (attackerId === selfId) {
+                        // Frostbeast attacked → creatures blocking it.
+                        for (const id of blockerIds) partners.add(id);
+                    } else if (blockerIds.includes(selfId)) {
+                        // Frostbeast blocked → the attacker it blocked.
+                        partners.add(attackerId);
+                    }
+                }
+                for (const id of partners) {
+                    ctx.destroy({ type: "permanent", id });
+                }
+            },
+        }),
+    ],
+};
+// Merieke Ri Berit — "doesn't untap during your untap step" (the
+// `does-not-untap` self-keyword, read by the untap step, CR 502.1) + "{T}: Gain
+// control of target creature for as long as you control Merieke Ri Berit"
+// (CR 613.1b layer-2 control change with the `controller-controls-source`
+// condition — the Preacher/Aladdin precedent, auto-reverted by the conditional-
+// control SBA when Merieke leaves or changes controller) + "When Merieke Ri
+// Berit leaves the battlefield or becomes untapped, destroy that creature. It
+// can't be regenerated." (CR 603.10 / 701.20b dual leave-or-untap delayed
+// destroy — the Tawnos's Coffin trigger pair.)
+//
+// Tracking the stolen creature for the destroy clause: on activation Merieke
+// stamps a per-source marker counter (`merieke:<sourceInstanceId>`) on the
+// stolen creature (idiomatic custom counter, cf. "wind"/"hunger"/"mire"). The
+// leave/untap triggers scan the battlefield for that marker, destroy each
+// marked creature (no regen, CR 701.15a), and clear the marker — no closure or
+// new control primitive needed. Because Merieke "doesn't untap", it normally
+// stays tapped (so the untap clause fires only if something force-untaps it).
+const MERIEKE_RI_BERIT_ID = "3bf47c0a-5c17-47d0-b663-becff62fbdf8";
+function meriekeMarker(sourceInstanceId: string): string {
+    return `merieke:${sourceInstanceId}`;
+}
+// Destroy every creature Merieke had gained control of (marked on steal),
+// clearing the marker. Shared by the leave and untap triggers (CR 603.10).
+function meriekeDestroyControlled(ctx: SpellContext): void {
+    const marker = meriekeMarker(ctx.sourceInstanceId);
+    for (const pid of ctx.allPlayerIds) {
+        for (const id of ctx.getBattlefieldIds(pid)) {
+            const sel: TargetSelection = { type: "permanent", id };
+            if (ctx.getCounterCount(sel, marker) > 0) {
+                ctx.removeCounter(
+                    sel,
+                    marker,
+                    ctx.getCounterCount(sel, marker)
+                );
+                ctx.destroy(sel, { cantBeRegenerated: true });
+            }
+        }
+    }
+}
+export const meriekeRiBerit: CardDefinition = {
+    id: MERIEKE_RI_BERIT_ID,
+    name: "Merieke Ri Berit",
+    rarity: "rare",
+    oracleText:
+        "Merieke Ri Berit doesn't untap during your untap step.\n{T}: Gain control of target creature for as long as you control Merieke Ri Berit. When Merieke Ri Berit leaves the battlefield or becomes untapped, destroy that creature. It can't be regenerated.",
+    manaCost: { W: 1, U: 1, B: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["does-not-untap"],
+    activatedAbilities: [
+        {
+            id: "merieke-ri-berit-steal",
+            oracleText:
+                "{T}: Gain control of target creature for as long as you control Merieke Ri Berit. When Merieke Ri Berit leaves the battlefield or becomes untapped, destroy that creature. It can't be regenerated.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (target?.type !== "permanent") return;
+                // Layer-2 control change, reverted by the SBA the instant
+                // Merieke stops being controlled (leaves / changes controller).
+                ctx.gainControl(target, ctx.controller, {
+                    kind: "controller-controls-source",
+                    controllerId: ctx.controller,
+                });
+                // Mark the stolen creature so the leave/untap destroy clause
+                // can find it (CR 603.10 — the "that creature" reference).
+                ctx.addCounter(target, meriekeMarker(ctx.sourceInstanceId), 1);
+            },
+        },
+    ],
+    triggeredAbilities: [
+        leftTrigger({
+            id: "merieke-ri-berit-on-leave",
+            oracleText:
+                "When Merieke Ri Berit leaves the battlefield, destroy that creature. It can't be regenerated.",
+            scope: "self",
+            resolve: (ctx) => meriekeDestroyControlled(ctx),
+        }),
+        untapTrigger({
+            id: "merieke-ri-berit-on-untap",
+            oracleText:
+                "When Merieke Ri Berit becomes untapped, destroy that creature. It can't be regenerated.",
+            scope: "self",
+            resolve: (ctx) => meriekeDestroyControlled(ctx),
+        }),
+    ],
+};
+// Monsoon — "At the beginning of each player's end step, tap all untapped
+// Islands that player controls and this enchantment deals X damage to the
+// player, where X is the number of Islands tapped this way." (CR 603.6a phase
+// trigger, scope "each" with the step's player delivered as `scopedPlayerId`;
+// CR 701.20a tap; CR 120.1 damage.) Tap only the UNTAPPED Islands (already-
+// tapped ones don't count), then deal damage equal to the number tapped this
+// way (Power Surge's "untapped lands" read, but Monsoon also TAPS them).
+const MONSOON_ID = "254fcc50-79a5-40cd-b028-e78dde3f8480";
+export const monsoon: CardDefinition = {
+    id: MONSOON_ID,
+    name: "Monsoon",
+    rarity: "rare",
+    oracleText:
+        "At the beginning of each player's end step, tap all untapped Islands that player controls and this enchantment deals X damage to the player, where X is the number of Islands tapped this way.",
+    manaCost: { X: 2, R: 1, G: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "monsoon-end-step",
+            oracleText:
+                "At the beginning of each player's end step, tap all untapped Islands that player controls and this enchantment deals X damage to the player, where X is the number of Islands tapped this way.",
+            phase: "END_STEP",
+            scope: "each",
+            resolve: (ctx, _event, scopedPlayerId) => {
+                const islandIds = ctx.getBattlefieldIds(scopedPlayerId, {
+                    subtypes: "Island",
+                });
+                let tapped = 0;
+                for (const id of islandIds) {
+                    const sel: TargetSelection = { type: "permanent", id };
+                    if (!ctx.getIsTapped(sel)) {
+                        ctx.tap(sel);
+                        tapped++;
+                    }
+                }
+                if (tapped > 0) {
+                    ctx.dealDamage(
+                        { type: "player", id: scopedPlayerId },
+                        tapped
+                    );
+                }
+            },
+        }),
+    ],
+};
+// Mountain Titan — "{1}{R}{R}: Until end of turn, whenever you cast a black
+// spell, put a +1/+1 counter on this creature." (CR 605 activated ability that
+// arms an until-end-of-turn cast-watch trigger via `grantTriggeredAbility` with
+// `{ phase: "end-of-turn" }`, CR 611.1b; the granted rider — a
+// `spellCastTrigger(scope:"you", filter:{colors:"B"})` on
+// `triggeredGrantTemplates[]` — fires on each black spell you cast and adds a
+// +1/+1 counter, CR 122.1.) The Bone Shaman pattern: the rider is grant-only
+// (off `triggeredAbilities`) so it functions only while armed. Each activation
+// stacks another copy until end of turn, matching the printed wording.
+const MOUNTAIN_TITAN_ID = "bcc1d589-02a2-4896-a283-9d0385534667";
+export const mountainTitan: CardDefinition = {
+    id: MOUNTAIN_TITAN_ID,
+    name: "Mountain Titan",
+    rarity: "rare",
+    oracleText:
+        "{1}{R}{R}: Until end of turn, whenever you cast a black spell, put a +1/+1 counter on this creature.",
+    manaCost: { X: 2, B: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Giant"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "mountain-titan-arm-cast-watch",
+            oracleText:
+                "{1}{R}{R}: Until end of turn, whenever you cast a black spell, put a +1/+1 counter on this creature.",
+            cost: { mana: { X: 1, R: 2 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                ctx.grantTriggeredAbility(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    MOUNTAIN_TITAN_ID,
+                    "mountain-titan-black-cast-rider",
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+    ],
+    // Granted-only rider (CR 113.1): off `triggeredAbilities` so it functions
+    // only while armed by the activated ability.
+    triggeredGrantTemplates: [
+        spellCastTrigger({
+            id: "mountain-titan-black-cast-rider",
+            oracleText:
+                "Whenever you cast a black spell, put a +1/+1 counter on this creature.",
+            scope: "you",
+            filter: { colors: "B" },
+            resolve: (ctx) => {
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "+1/+1",
+                    1
+                );
+            },
+        }),
+    ],
+};
+// DEFERRED (#659): twin of Flooded Woodlands (black creatures). Same gating
+// capability — a per-attacker "can't attack unless sacrifice a land" cost that
+// the binary `global-attack-restriction` static cannot express. See the
+// Flooded Woodlands note above; flagged for the same combat-cost cluster.
 // export const reclamation: CardDefinition = {
 //     id: "ca335f4f-d345-4eb9-9bc6-74595c501078",
 //     name: "Reclamation",

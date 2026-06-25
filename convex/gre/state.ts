@@ -4996,7 +4996,8 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         returnToBattlefield(
             playerId: string,
             cardInstanceId: string,
-            fromZone: "graveyard" | "exile"
+            fromZone: "graveyard" | "exile",
+            controllerId?: string
         ): boolean {
             const player = getPlayer(state, playerId);
             const pile =
@@ -5004,7 +5005,10 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const idx = pile.findIndex((c) => c.id === cardInstanceId);
             if (idx === -1) return false;
             const [card] = pile.splice(idx, 1);
-            putReanimatedOnBattlefield(state, card, playerId);
+            // CR 400.7 / 800.4a — owner stays the source pile's owner; the new
+            // controller defaults to that owner (Resurrection) but may differ
+            // (Hymn of Rebirth: "from a graveyard ... under your control").
+            putReanimatedOnBattlefield(state, card, controllerId ?? playerId);
             return true;
         },
         // CR 400.7 / ADR 0027 — library tutor → battlefield. Locate
