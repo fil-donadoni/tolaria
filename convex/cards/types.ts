@@ -236,6 +236,18 @@ export interface TargetRequirement {
      *  single target if that target is you", CR 114.1 / 115.10). Ignored for
      *  non-spell target types. */
     spellSingleTargetingController?: boolean;
+    /** Divide-as-you-choose marker (CR 601.2d / 120.4). When set, this spell
+     *  divides a fixed total of damage / counters among the chosen targets,
+     *  each target getting at least 1. `total` resolves the budget:
+     *    - a number — fixed total (Fiery Justice = 5);
+     *    - `"X"` — the chosen / derived X (Fire Covenant, Spoils of War);
+     *    - `"X+1"` — X plus one (Meteor Shower — "X plus 1 damage").
+     *  The engine caps the selectable target count at the total (you can't pick
+     *  more targets than there are points to assign, since each needs ≥ 1) and
+     *  drives the per-target amount UI. The resolved total flows to
+     *  `PendingTarget.divideTotal` and the assigned split to the stack item's
+     *  `targetAmounts`. `count` should be `{ min: 1 }` (open-ended). */
+    divideAsChosen?: { total: number | "X" | "X+1" };
     /** Restricts legal SPELL targets (`type: "spell"`) to spells that WOULD
      *  destroy a land the activating player controls (CR 114.1 + 701.7). A
      *  spell qualifies when either:
@@ -1188,6 +1200,29 @@ export interface SpellContext {
     dealDividedDamage: (
         targets: TargetSelection[],
         totalAmount: number
+    ) => void;
+    /** Deals `totalAmount` damage DIVIDED AS YOU CHOOSE among the given
+     *  targets — each target getting at least 1 (CR 601.2d / 120.4). The
+     *  per-target split is read from the amounts the caster assigned at
+     *  announcement (stored on the stack item as `targetAmounts`); when no
+     *  explicit split was recorded the engine falls back to a deterministic
+     *  "≥1 each, remainder front-loaded" division so the call is always safe.
+     *  Used by Fire Covenant / Fiery Justice / Meteor Shower. No-op if
+     *  `targets` is empty or `totalAmount <= 0`. */
+    dealDamageDividedAsChosen: (
+        targets: TargetSelection[],
+        totalAmount: number
+    ) => void;
+    /** Distributes `totalAmount` counters of `type` AS YOU CHOOSE among the
+     *  given targets — each target getting at least 1 (CR 601.2d / 120.4).
+     *  Same announcement-time split / fallback rules as
+     *  `dealDamageDividedAsChosen`. Used by Spoils of War ("Distribute X +1/+1
+     *  counters among any number of target creatures"). No-op for non-permanent
+     *  targets, empty `targets`, or `totalAmount <= 0`. */
+    distributeCountersAsChosen: (
+        targets: TargetSelection[],
+        totalAmount: number,
+        type: string
     ) => void;
     /** Deals `amount` damage to every permanent / player matching the filter
      *  (CR 120.3). Creatures matching the filter are resolved at call time —
@@ -4108,6 +4143,26 @@ export interface CardDefinition {
     additionalCosts?: {
         sacrificeFilter?: PermanentFilter;
         exileFilter?: PermanentFilter;
+        /** CR 601.2b / 118.4 — "As an additional cost to cast this spell, pay X
+         *  life." The caster chooses X at announcement (independent of the mana
+         *  cost — the card has no {X} pip); the engine pays X life at cast
+         *  commit and snapshots X onto the stack item so `getX()` returns it at
+         *  resolve. The cast is illegal if the player's life is below the chosen
+         *  X (CR 118.4 — you can't pay more life than you have). When set, the
+         *  spell's `targetRequirement.count` may be `"X"` to take up to X
+         *  targets, and the divided total equals the chosen X. Used by Fire
+         *  Covenant. */
+        payXLife?: boolean;
+        /** CR 107.3 / 608.2g — "X is the number of <cards> in an opponent's
+         *  graveyard as you cast this spell." X is COMPUTED by the engine at
+         *  announcement from the named card types in the chosen opponent's
+         *  graveyard (not chosen by the caster, not paid). The computed value is
+         *  snapshotted onto the stack item as `chosenX` so `getX()` returns it at
+         *  resolve and the value can't change after the spell is cast. Used by
+         *  Spoils of War (`cardTypes: ["Artifact", "Creature"]`). For a 2-player
+         *  game "an opponent" is unambiguous; the single opponent's graveyard is
+         *  counted. */
+        xFromOpponentGraveyard?: { cardTypes: CardType[] };
     };
     /** Adds this many generic mana to the total cost for each target beyond
      *  the first (CR 601.2f). Used by Fireball ("costs {1} more to cast for

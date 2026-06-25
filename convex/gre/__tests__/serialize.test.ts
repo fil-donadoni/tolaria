@@ -165,6 +165,31 @@ describe("game_state serialize round-trip", () => {
         expect(top.targets).toEqual([{ type: "player", id: "p2" }]);
     });
 
+    it("preserves a stack item's divide-as-you-choose split (targetAmounts, #664)", () => {
+        // CR 601.2d / 120.4 — a suspended divide spell must reload its
+        // per-target split after a DB round-trip (Fire Covenant / Spoils of War).
+        const state = freshState();
+        const spell = state.players[0].hand[0];
+        state.stack = [
+            {
+                ...spell,
+                zone: "stack",
+                castById: "p1",
+                chosenX: 5,
+                targets: [
+                    { type: "permanent", id: "a" },
+                    { type: "permanent", id: "b" },
+                ],
+                targetAmounts: { "permanent:a": 4, "permanent:b": 1 },
+            },
+        ];
+        const top = expandState(compactState(state)).stack[0];
+        expect(top.targetAmounts).toEqual({
+            "permanent:a": 4,
+            "permanent:b": 1,
+        });
+    });
+
     it("preserves a stack item's actingPlayerId (controlled cast, ADR 0037)", () => {
         const state = freshState();
         const spell = state.players[0].hand[0];

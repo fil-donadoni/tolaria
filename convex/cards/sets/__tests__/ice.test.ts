@@ -13,6 +13,10 @@
 import { describe, it, expect } from "vitest";
 import {
     balduvianBears,
+    fireCovenant,
+    fieryJustice,
+    meteorShower,
+    spoilsOfWar,
     armorOfFaith,
     blinkingSpirit,
     cooperation,
@@ -375,7 +379,7 @@ import {
 } from "../../../gre/pendingChoiceSubmit";
 import { getLegalTargets } from "../../../gre/rules";
 import { validateBlockerEligibility } from "../../../gre/combat";
-import { tapSourceIntoPayment } from "../../../game";
+import { tapSourceIntoPayment, finalizeTargetSelection } from "../../../game";
 import {
     makeInstance,
     makePlayer,
@@ -10985,5 +10989,342 @@ describe("ICE depletion-dual cycle (#663, CR 605.1a / 502.1 / 603.6a)", () => {
         )!;
         expect(slim.isTapped).toBe(true);
         expect(slim.counters?.["depletion"]).toBe(1);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Divide-as-you-choose cluster (#664) — CR 601.2d / 120.4. Player-chosen
+// division of a fixed total among ≥1-each chosen targets, for damage AND
+// counters, plus the pay-X-life additional cost (Fire Covenant) and cast-time
+// graveyard-derived X (Spoils of War).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Makes a defending creature of the given toughness on p2's battlefield. */
+function makeTargetCreature(id: string, toughness = 5): CardInstanceState {
+    return makeInstance(balduvianBears.id, {
+        id,
+        controllerId: "p2",
+        ownerId: "p2",
+        power: 2,
+        toughness,
+    });
+}
+
+describe("Fire Covenant ({1}{B}{R} — pay X life, X damage divided as you choose among target creatures, CR 601.2b / 601.2d / 120.4)", () => {
+    function setup(targetIds: string[]): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: targetIds.map((id) => makeTargetCreature(id)),
+                }),
+            ],
+        });
+    }
+
+    it("has no variable X in its mana cost ({1}{B}{R}); the {1} is numeric generic", () => {
+        // The variable X (the life) lives in additionalCosts.payXLife, NOT the
+        // mana cost. The {1} is numeric generic (X: 1), not the string "X".
+        expect(fireCovenant.manaCost).toEqual({ X: 1, B: 1, R: 1 });
+        expect(typeof (fireCovenant.manaCost as { X?: unknown }).X).toBe(
+            "number"
+        );
+        expect(fireCovenant.additionalCosts?.payXLife).toBe(true);
+        expect(fireCovenant.targetRequirement?.divideAsChosen).toEqual({
+            total: "X",
+        });
+    });
+
+    it("divides an UNEVEN chosen split summing to X across the targets", () => {
+        // X = 5 split 4/1 across two targets (an uneven, legal split). The
+        // amounts are snapshotted on the stack item as the engine would after
+        // selectTarget.
+        const state = setup(["a", "b"]);
+        const item = pushSpell(state, fireCovenant.id, "p1", [
+            { type: "permanent", id: "a" },
+            { type: "permanent", id: "b" },
+        ]);
+        item.chosenX = 5;
+        item.targetAmounts = { "permanent:a": 4, "permanent:b": 1 };
+        resolveTopOfStack(state);
+        const a = state.players[1].battlefield.find((c) => c.id === "a")!;
+        const b = state.players[1].battlefield.find((c) => c.id === "b")!;
+        // 4 + 1 = 5 marked total; toughness 5 so both survive (verifies the
+        // exact split, not just lethality).
+        expect(a.damageMarked).toBe(4);
+        expect(b.damageMarked).toBe(1);
+    });
+
+    it("respects the ≥1-each rule and sums to the total when amounts are absent (auto-divide fallback)", () => {
+        // No explicit split → deterministic ≥1-each division of 5 across 2
+        // targets: 3 / 2 (remainder front-loaded). Sums to 5; each ≥ 1.
+        const state = setup(["a", "b"]);
+        const item = pushSpell(state, fireCovenant.id, "p1", [
+            { type: "permanent", id: "a" },
+            { type: "permanent", id: "b" },
+        ]);
+        item.chosenX = 5;
+        resolveTopOfStack(state);
+        const a = state.players[1].battlefield.find((c) => c.id === "a")!;
+        const b = state.players[1].battlefield.find((c) => c.id === "b")!;
+        expect(a.damageMarked).toBe(3);
+        expect(b.damageMarked).toBe(2);
+        expect((a.damageMarked ?? 0) + (b.damageMarked ?? 0)).toBe(5);
+    });
+
+    it("deals the whole total to a single target", () => {
+        const state = setup(["a"]);
+        state.players[1].battlefield[0].toughness = 3;
+        const item = pushSpell(state, fireCovenant.id, "p1", [
+            { type: "permanent", id: "a" },
+        ]);
+        item.chosenX = 4;
+        resolveTopOfStack(state);
+        // 4 damage ≥ toughness 3 → dies.
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard).toHaveLength(1);
+    });
+
+    it("pays X life and writes targetAmounts through the real cast commit (finalizeTargetSelection)", () => {
+        // Integration: drive the actual cost/commit path. The caster has the
+        // mana in pool; finalizeTargetSelection pays the life and pushes the
+        // spell with the split.
+        const state = setup(["a", "b"]);
+        const p1 = state.players[0];
+        p1.life = 20;
+        p1.manaPool = { W: 0, U: 0, B: 1, R: 1, G: 0, C: 1 };
+        state.pendingTarget = {
+            playerId: "p1",
+            cardInstanceId: "fc-1",
+            targetType: "Creature",
+            count: { min: 1, max: 3 },
+            selected: [
+                { type: "permanent", id: "a" },
+                { type: "permanent", id: "b" },
+            ],
+            chosenX: 3,
+            divideTotal: 3,
+            divideAmounts: { "permanent:a": 2, "permanent:b": 1 },
+        };
+        // Put the card in hand so removeFromZone finds it.
+        p1.hand.push(
+            makeInstance(fireCovenant.id, {
+                id: "fc-1",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            })
+        );
+        finalizeTargetSelection(state, state.pendingTarget!, "p1");
+        // 3 life paid.
+        expect(state.players[0].life).toBe(17);
+        const item = state.stack[state.stack.length - 1];
+        expect(item.targetAmounts).toEqual({
+            "permanent:a": 2,
+            "permanent:b": 1,
+        });
+        expect(item.chosenX).toBe(3);
+    });
+
+    it("wire format: the divided damage survives projectPublicState", () => {
+        const state = setup(["a", "b"]);
+        const item = pushSpell(state, fireCovenant.id, "p1", [
+            { type: "permanent", id: "a" },
+            { type: "permanent", id: "b" },
+        ]);
+        item.chosenX = 5;
+        item.targetAmounts = { "permanent:a": 4, "permanent:b": 1 };
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const a = projected.players[1].battlefield.find((c) => c.id === "a")!;
+        const b = projected.players[1].battlefield.find((c) => c.id === "b")!;
+        expect(a.damageMarked).toBe(4);
+        expect(b.damageMarked).toBe(1);
+    });
+});
+
+describe("Fiery Justice ({R}{G}{W} — 5 damage divided as you choose; target opponent gains 5 life, CR 601.2d / 120.4)", () => {
+    function setup(targetIds: string[]): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: targetIds.map((id) => makeTargetCreature(id)),
+                }),
+            ],
+        });
+    }
+
+    it("declares a fixed total of 5 and {R}{G}{W}", () => {
+        expect(fieryJustice.manaCost).toEqual({ R: 1, G: 1, W: 1 });
+        expect(fieryJustice.targetRequirement?.divideAsChosen).toEqual({
+            total: 5,
+        });
+    });
+
+    it("divides 5 unevenly across targets and the opponent gains 5 life", () => {
+        const state = setup(["a", "b"]);
+        const item = pushSpell(state, fieryJustice.id, "p1", [
+            { type: "permanent", id: "a" },
+            { type: "permanent", id: "b" },
+        ]);
+        item.targetAmounts = { "permanent:a": 1, "permanent:b": 4 };
+        resolveTopOfStack(state);
+        const a = state.players[1].battlefield.find((c) => c.id === "a")!;
+        const b = state.players[1].battlefield.find((c) => c.id === "b")!;
+        expect(a.damageMarked).toBe(1);
+        expect(b.damageMarked).toBe(4);
+        // p2 is the opponent → gains 5 life.
+        expect(state.players[1].life).toBe(25);
+    });
+
+    it("can put all 5 on a single target (sums to total)", () => {
+        const state = setup(["a"]);
+        state.players[1].battlefield[0].toughness = 6; // survives 5 damage
+        pushSpell(state, fieryJustice.id, "p1", [
+            { type: "permanent", id: "a" },
+        ]);
+        resolveTopOfStack(state);
+        const a = state.players[1].battlefield.find((c) => c.id === "a")!;
+        expect(a.damageMarked).toBe(5);
+        expect(state.players[1].life).toBe(25);
+    });
+
+    it("wire format: damage + opponent lifegain survive projection", () => {
+        const state = setup(["a", "b"]);
+        const item = pushSpell(state, fieryJustice.id, "p1", [
+            { type: "permanent", id: "a" },
+            { type: "permanent", id: "b" },
+        ]);
+        item.targetAmounts = { "permanent:a": 2, "permanent:b": 3 };
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const a = projected.players[1].battlefield.find((c) => c.id === "a")!;
+        const b = projected.players[1].battlefield.find((c) => c.id === "b")!;
+        expect(a.damageMarked).toBe(2);
+        expect(b.damageMarked).toBe(3);
+        expect(projected.players[1].life).toBe(25);
+    });
+});
+
+describe("Meteor Shower ({X}{X}{R} — X+1 damage divided as you choose, CR 107.3 / 601.2d / 120.4)", () => {
+    function setup(targetIds: string[]): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: targetIds.map((id) => makeTargetCreature(id)),
+                }),
+            ],
+        });
+    }
+
+    it("uses a doubled-X cost (xFactor 2) and a total of X+1", () => {
+        expect(meteorShower.manaCost).toEqual({ X: "X", xFactor: 2, R: 1 });
+        expect(meteorShower.targetRequirement?.divideAsChosen).toEqual({
+            total: "X+1",
+        });
+    });
+
+    it("divides X+1 (= 4 when X=3) unevenly across targets", () => {
+        const state = setup(["a", "b"]);
+        const item = pushSpell(state, meteorShower.id, "p1", [
+            { type: "permanent", id: "a" },
+            { type: "permanent", id: "b" },
+        ]);
+        item.chosenX = 3; // total = 4
+        item.targetAmounts = { "permanent:a": 3, "permanent:b": 1 };
+        resolveTopOfStack(state);
+        const a = state.players[1].battlefield.find((c) => c.id === "a")!;
+        const b = state.players[1].battlefield.find((c) => c.id === "b")!;
+        expect(a.damageMarked).toBe(3);
+        expect(b.damageMarked).toBe(1);
+        expect((a.damageMarked ?? 0) + (b.damageMarked ?? 0)).toBe(4);
+    });
+
+    it("deals 1 damage with X=0 (X+1 = 1) to a single target", () => {
+        const state = setup(["a"]);
+        const item = pushSpell(state, meteorShower.id, "p1", [
+            { type: "permanent", id: "a" },
+        ]);
+        item.chosenX = 0; // total = 1
+        resolveTopOfStack(state);
+        const a = state.players[1].battlefield.find((c) => c.id === "a")!;
+        expect(a.damageMarked).toBe(1);
+    });
+});
+
+describe("Spoils of War ({X}{B} — distribute X +1/+1 counters as you choose; X from opponent graveyard, CR 107.3 / 601.2d)", () => {
+    function setup(
+        targetIds: string[],
+        opponentGraveyardTypes: CardType[][] = []
+    ): GameState {
+        const p2Graveyard = opponentGraveyardTypes.map((types, i) =>
+            makeInstance(balduvianBears.id, {
+                id: `gy-${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "graveyard",
+                types,
+            })
+        );
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: targetIds.map((id) =>
+                        makeInstance(balduvianBears.id, {
+                            id,
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            power: 2,
+                            toughness: 2,
+                        })
+                    ),
+                }),
+                makePlayer("p2", { graveyard: p2Graveyard }),
+            ],
+        });
+    }
+
+    it("declares cast-time graveyard-derived X (artifact and/or creature) and counter distribution", () => {
+        expect(spoilsOfWar.manaCost).toEqual({ X: "X", B: 1 });
+        expect(spoilsOfWar.additionalCosts?.xFromOpponentGraveyard).toEqual({
+            cardTypes: ["Artifact", "Creature"],
+        });
+        expect(spoilsOfWar.targetRequirement?.divideAsChosen).toEqual({
+            total: "X",
+        });
+    });
+
+    it("distributes X +1/+1 counters unevenly across target creatures", () => {
+        const state = setup(["a", "b"]);
+        const item = pushSpell(state, spoilsOfWar.id, "p1", [
+            { type: "permanent", id: "a" },
+            { type: "permanent", id: "b" },
+        ]);
+        item.chosenX = 4;
+        item.targetAmounts = { "permanent:a": 3, "permanent:b": 1 };
+        resolveTopOfStack(state);
+        const a = state.players[0].battlefield.find((c) => c.id === "a")!;
+        const b = state.players[0].battlefield.find((c) => c.id === "b")!;
+        expect(a.counters?.["+1/+1"]).toBe(3);
+        expect(b.counters?.["+1/+1"]).toBe(1);
+        // 2/2 base + counters → effective P/T grows (layer 7d).
+        expect(getEffectivePower(state, a)).toBe(5);
+        expect(getEffectiveToughness(state, b)).toBe(3);
+    });
+
+    it("wire format: +1/+1 counter buff survives projectPublicState", () => {
+        const state = setup(["a", "b"]);
+        const item = pushSpell(state, spoilsOfWar.id, "p1", [
+            { type: "permanent", id: "a" },
+            { type: "permanent", id: "b" },
+        ]);
+        item.chosenX = 3;
+        item.targetAmounts = { "permanent:a": 2, "permanent:b": 1 };
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const a = projected.players[0].battlefield.find((c) => c.id === "a")!;
+        expect(getEffectivePower(projected, a)).toBe(4);
     });
 });

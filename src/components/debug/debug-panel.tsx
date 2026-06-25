@@ -82,6 +82,70 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ICE divide-as-you-choose cluster (#664, PRD #628). Exercises the
+        // player-chosen division of a fixed total among ≥1-each targets for
+        // damage AND counters (CR 601.2d / 120.4):
+        //   - Fire Covenant ({1}{B}{R} instant): pay X life, deal X damage
+        //     divided among target creatures. Two opponent creatures are on the
+        //     board to receive the split.
+        //   - Fiery Justice ({R}{G}{W}): 5 damage divided among any targets +
+        //     the opponent gains 5 life.
+        //   - Meteor Shower ({X}{X}{R}): X+1 damage divided (doubled-X cost).
+        //   - Spoils of War ({X}{B}): X = the artifact/creature cards in the
+        //     opponent's graveyard (two are pre-seeded → X = 2); distribute X
+        //     +1/+1 counters among your creatures. Two of your creatures are on
+        //     the board to receive the counters.
+        // Default UI splits the total ≥1-each evenly when no per-target amount
+        // is assigned. Turn 2, plenty of lands, life 20 so the pay-life is safe.
+        label: "ICE: Divide as you choose — Fire Covenant / Fiery Justice / Meteor Shower / Spoils of War (#664)",
+        cards: [
+            {
+                name: "Fire Covenant",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Fiery Justice",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Meteor Shower",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Spoils of War",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            // My creatures — targets for Spoils of War's +1/+1 counters.
+            {
+                name: "Balduvian Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+            // Opponent creatures — targets for the damage spells.
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+            // Opponent graveyard: two creature cards → Spoils of War's X = 2.
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "graveyard" as const,
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+        turn: 2,
+    },
+    {
         // ICE painland cycle (#662, PRD #628). Exercises the coloured-tap
         // self-damage rider on all five painlands end to end:
         //   - Each painland has TWO mana options when tapped: {C} (painless) and
