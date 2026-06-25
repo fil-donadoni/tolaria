@@ -82,6 +82,22 @@ describe("game_state serialize round-trip", () => {
         expect(got.worldSeq).toBe(3);
     });
 
+    it("preserves a depletion counter on a tapped land (ICE depletion duals, CR 122.1)", () => {
+        // The depletion-dual untap-lock (#663) stores its state entirely in the
+        // existing per-instance `counters` map — no new GameState field. A
+        // tapped land carrying one `depletion` counter must survive the DB
+        // round-trip so a save/load reloads mid-depletion-cycle correctly (the
+        // untap step reads the counter to decide whether the land untaps).
+        const state = freshState();
+        const land = state.players[1].battlefield[0];
+        land.isTapped = true;
+        land.counters = { depletion: 1 };
+        const expanded = expandState(compactState(state));
+        const got = expanded.players[1].battlefield[0];
+        expect(got.isTapped).toBe(true);
+        expect(got.counters).toEqual({ depletion: 1 });
+    });
+
     it("preserves the per-turn draw tally (Sylvan Library, CR 121.1)", () => {
         const state = freshState();
         state.players[0].drawnThisTurn = ["card-a", "card-b", "card-c"];

@@ -124,6 +124,49 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         turn: 2,
     },
     {
+        // ICE depletion-dual cycle (#663, PRD #628). Exercises the depletion-
+        // counter untap-lock on all five depletion duals end to end:
+        //   - Each taps for one of two colours and puts a depletion counter on
+        //     itself ("{T}: Add <c1> or <c2>. Put a depletion counter on this
+        //     land."). Tap one for mana, then pass to the next turn — it stays
+        //     tapped through your untap step (it has a depletion counter), and
+        //     your upkeep removes the counter, so it untaps the turn AFTER.
+        //   - Repeat across Land Cap (WU), Lava Tubes (BR), River Delta (UB),
+        //     Timberline Ridge (RG), Veldt (GW): tap → skip one untap → untap.
+        // Turn 2 so all the lands start untapped and free of summoning concerns.
+        label: "ICE: Depletion duals — tap for mana, skip one untap, untap next turn (#663)",
+        cards: [
+            {
+                name: "Land Cap",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Lava Tubes",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "River Delta",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Timberline Ridge",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Veldt",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+        turn: 2,
+    },
+    {
         // ICE snow supertype + snow-matters cluster (#661, PRD #628). Exercises
         // the Snow supertype on the five snow-covered basics and the
         // snow-matters reads end to end:

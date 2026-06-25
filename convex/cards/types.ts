@@ -451,6 +451,21 @@ export interface ActivatedAbility {
      *  — CR 614 replacement → CR 615 prevention), not the stack: a mana ability
      *  never uses the stack (CR 605.3a). No-op on untap and on the {C} choice. */
     dealsDamageToControllerOnColoredTap?: number;
+    /** Rider on a TAP mana ability (CR 605.1a, CR 122.1, `useStack: false`):
+     *  when the source is tapped for mana, the engine also puts one depletion
+     *  counter on the source as part of the same mana ability resolving — the
+     *  Ice Age depletion-dual cycle (Land Cap, Lava Tubes, River Delta,
+     *  Timberline Ridge, Veldt — "{T}: Add {W} or {U}. Put a depletion counter
+     *  on this land."). Fires on EVERY tap-for-mana (both options are coloured;
+     *  there is no painless choice), distinguishing it from the painland
+     *  `dealsDamageToControllerOnColoredTap` rider. Paired with the
+     *  `does-not-untap-with-depletion-counter` static ability (the land skips
+     *  its untap step while a depletion counter remains, CR 502.1) and a
+     *  "remove a depletion counter at your upkeep" trigger (CR 603.6a), so the
+     *  land untaps every other turn. The counter add is reversed if the source
+     *  is untapped to refund unspent mana in the same priority window (CR
+     *  106.4). No-op on untap. */
+    putDepletionCounterOnTap?: boolean;
     /** Mana abilities don't use the stack — they resolve immediately (CR 605.3a). */
     useStack: boolean;
     /** Effect for stack abilities (useStack: true) — called with full SpellContext on resolution. */

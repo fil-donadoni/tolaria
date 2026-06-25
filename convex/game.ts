@@ -489,6 +489,47 @@ export function applyColoredTapSelfDamage(
     );
 }
 
+/** CR 605.1a / 122.1 — depletion-dual tap-for-mana rider. When a tap mana
+ *  ability declares `putDepletionCounterOnTap`, the source puts one depletion
+ *  counter on itself as part of resolving the mana ability (Land Cap, Lava
+ *  Tubes, River Delta, Timberline Ridge, Veldt). Unlike the painland coloured-
+ *  tap rider, this fires on EVERY tap-for-mana (both options are coloured;
+ *  there is no painless {C}). No-op when the ability lacks the rider or the
+ *  source was sacrificed paying the cost. Shared by both tap-for-mana paths
+ *  (`tapUntap` priority tap + `tapSourceIntoPayment` payment tap) so the
+ *  counter is added however the land is tapped for mana. The land's untap step
+ *  is skipped while the counter remains (the `does-not-untap-with-depletion-
+ *  counter` static ability), and its upkeep trigger removes one — so it untaps
+ *  every other turn. */
+export function applyDepletionCounterOnTap(
+    ability: ActivatedAbility | undefined | null,
+    card: CardInstanceState
+): void {
+    if (!ability?.putDepletionCounterOnTap) return;
+    if (ability.cost.sacrifice === true) return;
+    const next = { ...(card.counters ?? {}) };
+    next["depletion"] = (next["depletion"] ?? 0) + 1;
+    card.counters = next;
+}
+
+/** Reverses one depletion counter added by `applyDepletionCounterOnTap` when a
+ *  depletion-dual is untapped to refund unspent mana in the same priority
+ *  window (CR 106.4) — the whole mana-ability activation, including its
+ *  counter-add rider, is undone. No-op when the ability lacks the rider or the
+ *  source carries no depletion counter. */
+export function reverseDepletionCounterOnUntap(
+    ability: ActivatedAbility | undefined | null,
+    card: CardInstanceState
+): void {
+    if (!ability?.putDepletionCounterOnTap) return;
+    const have = card.counters?.["depletion"] ?? 0;
+    if (have <= 0) return;
+    const next = { ...(card.counters ?? {}) };
+    if (have - 1 <= 0) delete next["depletion"];
+    else next["depletion"] = have - 1;
+    card.counters = Object.keys(next).length > 0 ? next : undefined;
+}
+
 export function tapSourceIntoPayment(
     state: GameState,
     player: PlayerState,
@@ -577,6 +618,11 @@ export function tapSourceIntoPayment(
         // so the ping applies whether the land is tapped for mana via priority
         // (`tapUntap`) or while paying a spell/ability cost (here).
         applyColoredTapSelfDamage(state, ability, card, player.id, chosen);
+        // CR 605.1a / 122.1 — depletion-dual tap-for-mana rider (Land Cap et
+        // al.): every tap for mana puts one depletion counter on the source.
+        // Fires in the payment-tap path too, so the land depletes whether
+        // tapped via priority or while paying a spell/ability cost.
+        applyDepletionCounterOnTap(ability, card);
         tappedLandIds.push(card.id);
         return;
     }
@@ -5898,6 +5944,11 @@ export const tapUntap = mutation({
                     player.id,
                     chosen
                 );
+                // CR 605.1a / 122.1 — depletion-dual tap-for-mana rider (Land
+                // Cap et al.): every tap for mana puts one depletion counter on
+                // the source. Shared with the payment-tap path so the land
+                // depletes however it was tapped for mana.
+                applyDepletionCounterOnTap(ability, card);
             } else {
                 // Untap: refund exactly the mana that was chosen on tap.
                 // Falls back to manaProduced for legacy instances (pre-chosenMana).
@@ -5951,6 +6002,10 @@ export const tapUntap = mutation({
                     card.counters = next;
                     card.manaCounterRemoval = undefined;
                 }
+                // CR 106.4 / 122.1 — untapping a depletion-dual to refund
+                // unspent mana reverses the whole activation, including the
+                // depletion counter it put on itself when tapped for mana.
+                reverseDepletionCounterOnUntap(ability, card);
                 card.chosenMana = undefined;
                 card.isTapped = false;
             }

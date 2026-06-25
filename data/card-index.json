@@ -3468,6 +3468,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Land Cap",
+        "scryfallId": "c4806c02-7a4d-42e3-affd-0338084bd3ab",
+        "oracleId": "bfec4d0a-3792-4bc3-bae1-e639da5bb9a6",
+        "firstSet": "ice"
+    },
+    {
         "name": "Land Leeches",
         "scryfallId": "ff99543d-86a1-44f8-88ec-aaec071d6c05",
         "oracleId": "228f0afa-146b-4564-a380-71595cdf1ef4",
@@ -3483,6 +3489,12 @@
         "name": "Lava Burst",
         "scryfallId": "79dc0e20-5790-4927-8432-cf0e9b7381d4",
         "oracleId": "f7be3da5-55b2-46f2-a5aa-277dee242b94",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Lava Tubes",
+        "scryfallId": "5e7c2cf6-f36f-451b-bba5-19a82c659c4c",
+        "oracleId": "2ffb2647-60bb-4916-b919-cbcf18e5e424",
         "firstSet": "ice"
     },
     {
@@ -4854,6 +4866,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "River Delta",
+        "scryfallId": "ea335fc0-0591-4acd-9ae8-7858222770da",
+        "oracleId": "4c6c064c-da61-4c7a-9607-8fb4490ff9a6",
+        "firstSet": "ice"
+    },
+    {
         "name": "River Merfolk",
         "scryfallId": "27d7fa54-4b89-4a9a-b088-4b89c525c1ea",
         "oracleId": "2f503ee5-9180-438e-8af5-2af7f8f08a3a",
@@ -5874,6 +5892,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Timberline Ridge",
+        "scryfallId": "87cc2fc9-0a24-4ac1-afcc-9317b90c7178",
+        "oracleId": "a597d2b7-484b-4cfd-89a6-d166cb1a3420",
+        "firstSet": "ice"
+    },
+    {
         "name": "Time Bomb",
         "scryfallId": "092ec691-4729-46d3-a4e2-0cfc5df42a31",
         "oracleId": "29062094-594d-4557-9496-11a15d7e3bb0",
@@ -6166,6 +6190,12 @@
         "scryfallId": "22ea73ec-1325-4437-a23f-dcda1767c713",
         "oracleId": "4d2cc2a8-e08a-420a-8922-c63e39129e23",
         "firstSet": "leg"
+    },
+    {
+        "name": "Veldt",
+        "scryfallId": "987534fb-74a9-46a3-805f-fe2fe2df4a90",
+        "oracleId": "10b9bfb3-c478-45c6-b227-9c66b63bc79b",
+        "firstSet": "ice"
     },
     {
         "name": "Venarian Gold",
