@@ -436,6 +436,21 @@ export interface ActivatedAbility {
             | "next-main-phase"
             | "next-upkeep";
     };
+    /** Rider on a CHOICE tap mana ability (CR 605.1a, `useStack: false`): when
+     *  the source is tapped for mana and the chosen option produces a COLOURED
+     *  mana (any colour other than {C}), the source deals N damage to its
+     *  controller as part of the same mana ability resolving — the painland
+     *  cycle (Adarkar Wastes, Brushland, Karplusan Forest, Sulfurous Springs,
+     *  Underground River — "{T}: Add {C}.  {T}: Add {W} or {U}. This land deals
+     *  1 damage to you."). Modelled as one `manaChoices` ability whose first
+     *  option is the painless {C} and whose coloured options carry the rider, so
+     *  the colourless tap stays free while only the coloured tap pings the
+     *  controller (this is why City of Brass's blanket PERMANENT_TAPPED trigger
+     *  can't express it — that fires on EVERY tap). The damage rides the
+     *  permanent-source player-damage pipeline (`dealDamageFromPermanentToPlayer`
+     *  — CR 614 replacement → CR 615 prevention), not the stack: a mana ability
+     *  never uses the stack (CR 605.3a). No-op on untap and on the {C} choice. */
+    dealsDamageToControllerOnColoredTap?: number;
     /** Mana abilities don't use the stack — they resolve immediately (CR 605.3a). */
     useStack: boolean;
     /** Effect for stack abilities (useStack: true) — called with full SpellContext on resolution. */

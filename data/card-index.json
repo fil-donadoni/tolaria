@@ -36,6 +36,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Adarkar Wastes",
+        "scryfallId": "09dd9023-f7ee-4e99-8821-7059deb83730",
+        "oracleId": "d5ad26cc-2bdb-46b7-b8bf-dd099d5fa09b",
+        "firstSet": "ice"
+    },
+    {
         "name": "Adun Oakenshield",
         "scryfallId": "60252226-a102-4d88-9b80-42d021b5184d",
         "oracleId": "aefd49a4-ecec-42cb-b882-e5db7f81eff8",
@@ -778,6 +784,12 @@
         "scryfallId": "ba2cc4a6-fdcc-4082-801a-d2c50e560e8d",
         "oracleId": "ee9208e7-2075-45b9-9ed7-b18e1a280d79",
         "firstSet": "drk"
+    },
+    {
+        "name": "Brushland",
+        "scryfallId": "170e5ccd-54bf-4c6d-86b4-0359ca8f36e8",
+        "oracleId": "5eb8b497-ec9a-4a89-ad29-1ec3ca82da7c",
+        "firstSet": "ice"
     },
     {
         "name": "Burrowing",
@@ -3252,6 +3264,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Karplusan Forest",
+        "scryfallId": "ba6f1263-d598-49fb-b5f8-09f11822ebd0",
+        "oracleId": "bd912666-f37f-4767-af6f-9e6d0fcccacf",
+        "firstSet": "ice"
+    },
+    {
         "name": "Karplusan Giant",
         "scryfallId": "c524ac2a-294c-4b19-b00b-999e370a3b95",
         "oracleId": "f0fac3bc-a566-448e-a9a2-10927a49f182",
@@ -5568,6 +5586,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Sulfurous Springs",
+        "scryfallId": "2fdeab50-b45f-412b-85a3-c6cf009ce567",
+        "oracleId": "f5c38c01-4a40-469f-91a0-7479daf4e8e7",
+        "firstSet": "ice"
+    },
+    {
         "name": "Sunastian Falconer",
         "scryfallId": "587075f3-a568-4089-83ca-fe1e473c025d",
         "oracleId": "3d6314b5-3ace-4793-9549-7b17db2a735d",
@@ -6046,6 +6070,12 @@
         "scryfallId": "848ad6d5-3a7e-4d6b-9929-36465796871f",
         "oracleId": "44e855a4-95f9-4515-a868-a8ad7a2db751",
         "firstSet": "drk"
+    },
+    {
+        "name": "Underground River",
+        "scryfallId": "92369d7e-5e5a-46f9-bb31-c57d62410283",
+        "oracleId": "857febd9-cdd7-4f8e-a852-d88084b0cfbc",
+        "firstSet": "ice"
     },
     {
         "name": "Underground Sea",

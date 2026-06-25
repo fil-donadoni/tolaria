@@ -11154,32 +11154,54 @@ export const zuranOrb: CardDefinition = {
         },
     ],
 };
-// DEFERRED (painland cycle — capability cluster). "{T}: Add {C}." is free, but
-// "{T}: Add {W} or {U}. This land deals 1 damage to you." needs a self-damage
-// rider on the COLORED mana ability only (not on every tap, so City of Brass's
-// PERMANENT_TAPPED trigger can't model it). The mana-ability `effect` ctx
-// (`ActivatedAbilityContext`) exposes only `addMana` — dealing damage from it
-// needs the same declarative tap-side-effect seam as ADR 0040
-// (`armsDelayedTriggerOnTap`). A `dealsDamageToControllerOnTap` rider on
-// `ActivatedAbility`, fired in both tap paths (tapUntap + tapSourceIntoPayment)
-// when that ability produced mana, is the clean fix — owned by the painland
-// capability cluster, not this free tranche.
-// export const adarkarWastes: CardDefinition = {
-//     id: "09dd9023-f7ee-4e99-8821-7059deb83730",
-//     name: "Adarkar Wastes",
-//     rarity: "rare",
-//     oracleText: "{T}: Add {C}.\n{T}: Add {W} or {U}. This land deals 1 damage to you.",
-//     types: ["Land"],
-// };
-// DEFERRED (painland cycle — see Adarkar Wastes note; needs the
-// `dealsDamageToControllerOnTap` rider, painland capability cluster).
-// export const brushland: CardDefinition = {
-//     id: "170e5ccd-54bf-4c6d-86b4-0359ca8f36e8",
-//     name: "Brushland",
-//     rarity: "rare",
-//     oracleText: "{T}: Add {C}.\n{T}: Add {G} or {W}. This land deals 1 damage to you.",
-//     types: ["Land"],
-// };
+// Painland cycle (Adarkar Wastes, Brushland, Karplusan Forest, Sulfurous
+// Springs, Underground River) — "{T}: Add {C}.  {T}: Add <c1> or <c2>. This
+// land deals 1 damage to you." (CR 605.1a — both are mana abilities,
+// `useStack: false`). Modelled as ONE choice mana ability whose first option is
+// the painless {C} and whose two coloured options carry the
+// `dealsDamageToControllerOnColoredTap: 1` rider, so the colourless tap stays
+// free while only a coloured tap pings the controller. City of Brass's blanket
+// "whenever this becomes tapped" trigger can't express this (it fires on every
+// tap, including the painless {C}); the rider fires only on a coloured choice.
+export const adarkarWastes: CardDefinition = {
+    id: "09dd9023-f7ee-4e99-8821-7059deb83730",
+    name: "Adarkar Wastes",
+    rarity: "rare",
+    oracleText:
+        "{T}: Add {C}.\n{T}: Add {W} or {U}. This land deals 1 damage to you.",
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "adarkar-wastes-mana",
+            oracleText:
+                "{T}: Add {C}.\n{T}: Add {W} or {U}. This land deals 1 damage to you.",
+            cost: { tap: true },
+            useStack: false,
+            manaChoices: [{ C: 1 }, { W: 1 }, { U: 1 }],
+            dealsDamageToControllerOnColoredTap: 1,
+        },
+    ],
+};
+// Painland — see Adarkar Wastes note ({C} painless + coloured-tap self-damage).
+export const brushland: CardDefinition = {
+    id: "170e5ccd-54bf-4c6d-86b4-0359ca8f36e8",
+    name: "Brushland",
+    rarity: "rare",
+    oracleText:
+        "{T}: Add {C}.\n{T}: Add {G} or {W}. This land deals 1 damage to you.",
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "brushland-mana",
+            oracleText:
+                "{T}: Add {C}.\n{T}: Add {G} or {W}. This land deals 1 damage to you.",
+            cost: { tap: true },
+            useStack: false,
+            manaChoices: [{ C: 1 }, { G: 1 }, { W: 1 }],
+            dealsDamageToControllerOnColoredTap: 1,
+        },
+    ],
+};
 // DEFERRED (cumulative upkeep — ADR 0042 capability cluster).
 // export const glacialChasm: CardDefinition = {
 //     id: "3d23f800-7a6f-40e3-b242-9f5955e47a75",
@@ -11233,15 +11255,26 @@ export const iceFloe: CardDefinition = {
         },
     ],
 };
-// DEFERRED (painland cycle — see Adarkar Wastes note; needs the
-// `dealsDamageToControllerOnTap` rider, painland capability cluster).
-// export const karplusanForest: CardDefinition = {
-//     id: "ba6f1263-d598-49fb-b5f8-09f11822ebd0",
-//     name: "Karplusan Forest",
-//     rarity: "rare",
-//     oracleText: "{T}: Add {C}.\n{T}: Add {R} or {G}. This land deals 1 damage to you.",
-//     types: ["Land"],
-// };
+// Painland — see Adarkar Wastes note ({C} painless + coloured-tap self-damage).
+export const karplusanForest: CardDefinition = {
+    id: "ba6f1263-d598-49fb-b5f8-09f11822ebd0",
+    name: "Karplusan Forest",
+    rarity: "rare",
+    oracleText:
+        "{T}: Add {C}.\n{T}: Add {R} or {G}. This land deals 1 damage to you.",
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "karplusan-forest-mana",
+            oracleText:
+                "{T}: Add {C}.\n{T}: Add {R} or {G}. This land deals 1 damage to you.",
+            cost: { tap: true },
+            useStack: false,
+            manaChoices: [{ C: 1 }, { R: 1 }, { G: 1 }],
+            dealsDamageToControllerOnColoredTap: 1,
+        },
+    ],
+};
 // DEFERRED (depletion-dual cycle — capability cluster). Needs a
 // per-permanent depletion-counter mechanic: tapping for mana adds a counter,
 // the upkeep removes one, and the land skips its untap step while any counter
@@ -11281,15 +11314,26 @@ export const iceFloe: CardDefinition = {
 //     oracleText: "This land doesn't untap during your untap step if it has a depletion counter on it.\nAt the beginning of your upkeep, remove a depletion counter from this land.\n{T}: Add {U} or {B}. Put a depletion counter on this land.",
 //     types: ["Land"],
 // };
-// DEFERRED (painland cycle — see Adarkar Wastes note; needs the
-// `dealsDamageToControllerOnTap` rider, painland capability cluster).
-// export const sulfurousSprings: CardDefinition = {
-//     id: "2fdeab50-b45f-412b-85a3-c6cf009ce567",
-//     name: "Sulfurous Springs",
-//     rarity: "rare",
-//     oracleText: "{T}: Add {C}.\n{T}: Add {B} or {R}. This land deals 1 damage to you.",
-//     types: ["Land"],
-// };
+// Painland — see Adarkar Wastes note ({C} painless + coloured-tap self-damage).
+export const sulfurousSprings: CardDefinition = {
+    id: "2fdeab50-b45f-412b-85a3-c6cf009ce567",
+    name: "Sulfurous Springs",
+    rarity: "rare",
+    oracleText:
+        "{T}: Add {C}.\n{T}: Add {B} or {R}. This land deals 1 damage to you.",
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "sulfurous-springs-mana",
+            oracleText:
+                "{T}: Add {C}.\n{T}: Add {B} or {R}. This land deals 1 damage to you.",
+            cost: { tap: true },
+            useStack: false,
+            manaChoices: [{ C: 1 }, { B: 1 }, { R: 1 }],
+            dealsDamageToControllerOnColoredTap: 1,
+        },
+    ],
+};
 // DEFERRED (depletion-dual cycle — capability cluster). Needs a
 // per-permanent depletion-counter mechanic: tapping for mana adds a counter,
 // the upkeep removes one, and the land skips its untap step while any counter
@@ -11303,15 +11347,26 @@ export const iceFloe: CardDefinition = {
 //     oracleText: "This land doesn't untap during your untap step if it has a depletion counter on it.\nAt the beginning of your upkeep, remove a depletion counter from this land.\n{T}: Add {R} or {G}. Put a depletion counter on this land.",
 //     types: ["Land"],
 // };
-// DEFERRED (painland cycle — see Adarkar Wastes note; needs the
-// `dealsDamageToControllerOnTap` rider, painland capability cluster).
-// export const undergroundRiver: CardDefinition = {
-//     id: "92369d7e-5e5a-46f9-bb31-c57d62410283",
-//     name: "Underground River",
-//     rarity: "rare",
-//     oracleText: "{T}: Add {C}.\n{T}: Add {U} or {B}. This land deals 1 damage to you.",
-//     types: ["Land"],
-// };
+// Painland — see Adarkar Wastes note ({C} painless + coloured-tap self-damage).
+export const undergroundRiver: CardDefinition = {
+    id: "92369d7e-5e5a-46f9-bb31-c57d62410283",
+    name: "Underground River",
+    rarity: "rare",
+    oracleText:
+        "{T}: Add {C}.\n{T}: Add {U} or {B}. This land deals 1 damage to you.",
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "underground-river-mana",
+            oracleText:
+                "{T}: Add {C}.\n{T}: Add {U} or {B}. This land deals 1 damage to you.",
+            cost: { tap: true },
+            useStack: false,
+            manaChoices: [{ C: 1 }, { U: 1 }, { B: 1 }],
+            dealsDamageToControllerOnColoredTap: 1,
+        },
+    ],
+};
 // DEFERRED (depletion-dual cycle — capability cluster). Needs a
 // per-permanent depletion-counter mechanic: tapping for mana adds a counter,
 // the upkeep removes one, and the land skips its untap step while any counter

@@ -49,6 +49,7 @@ import {
     allocInstanceId,
     tapPermanent,
     exileFaceDownCard,
+    dealDamageFromPermanentToPlayer,
 } from "./gre/state";
 import {
     buildAutoTapSources,
@@ -451,6 +452,43 @@ export function armDelayedTriggerOnTap(
     ];
 }
 
+/** CR 605.1a / 120 — painland coloured-tap self-damage rider. When a choice tap
+ *  mana ability declares `dealsDamageToControllerOnColoredTap` and the chosen
+ *  option produced a COLOURED mana (any colour other than {C}), the source deals
+ *  N damage to its controller as part of resolving (Adarkar Wastes et al.). The
+ *  painless {C} choice carries no damage. Routed through the permanent-source
+ *  player-damage pipeline (`dealDamageFromPermanentToPlayer` — CR 614
+ *  replacement → CR 615 prevention), never the stack (mana abilities don't use
+ *  it, CR 605.3a). No-op when the ability lacks the rider, the source was
+ *  sacrificed, or the chosen mana is colourless. Shared by both tap-for-mana
+ *  paths (`tapUntap` priority tap + `tapSourceIntoPayment` payment tap). */
+export function applyColoredTapSelfDamage(
+    state: GameState,
+    ability: ActivatedAbility | undefined | null,
+    card: CardInstanceState,
+    activatorId: string,
+    chosen: ManaCost
+): void {
+    const painPerTap = ability?.dealsDamageToControllerOnColoredTap;
+    if (!painPerTap || painPerTap <= 0) return;
+    if (ability?.cost.sacrifice === true) return;
+    const chosenIsColored = Object.entries(chosen).some(
+        ([color, amount]) =>
+            color !== "X" &&
+            color !== "C" &&
+            typeof amount === "number" &&
+            amount > 0
+    );
+    if (!chosenIsColored) return;
+    dealDamageFromPermanentToPlayer(
+        state,
+        card,
+        activatorId,
+        activatorId,
+        painPerTap
+    );
+}
+
 export function tapSourceIntoPayment(
     state: GameState,
     player: PlayerState,
@@ -533,6 +571,12 @@ export function tapSourceIntoPayment(
         // Vale) when this source is tapped for mana during a payment.
         if (!isSacrifice)
             armDelayedTriggerOnTap(state, ability, card, player.id);
+        // CR 605.1a / 120 — painland coloured-tap self-damage rider (Adarkar
+        // Wastes et al.): when a coloured option is chosen (not {C}), the source
+        // deals N damage to its controller. Fires in the payment-tap path too,
+        // so the ping applies whether the land is tapped for mana via priority
+        // (`tapUntap`) or while paying a spell/ability cost (here).
+        applyColoredTapSelfDamage(state, ability, card, player.id, chosen);
         tappedLandIds.push(card.id);
         return;
     }
@@ -5842,6 +5886,18 @@ export const tapUntap = mutation({
                         }
                     }
                 }
+                // CR 605.1a / 120 — painland coloured-tap self-damage rider
+                // (Adarkar Wastes et al.): a coloured choice (not {C}) pings the
+                // controller for 1; the painless {C} choice does not. Shared with
+                // the payment-tap path so the ping fires regardless of how the
+                // land was tapped for mana.
+                applyColoredTapSelfDamage(
+                    state,
+                    ability,
+                    card,
+                    player.id,
+                    chosen
+                );
             } else {
                 // Untap: refund exactly the mana that was chosen on tap.
                 // Falls back to manaProduced for legacy instances (pre-chosenMana).
