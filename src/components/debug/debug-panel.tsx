@@ -129,6 +129,70 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 5,
     },
     {
+        // ICE Artifacts free tranche (#636, PRD #628). Exercises the colourless
+        // artifact staples end to end:
+        //   - Icy Manipulator ({1},{T}: tap an artifact/creature/land) taps the
+        //     opponent's board.
+        //   - Jester's Cap ({2},{T},Sac: exile 3 from a library) strips the
+        //     opponent's library.
+        //   - Whalebone Glider / War Chariot grant flying / trample.
+        //   - Zuran Orb (Sac a land: gain 2 life) and Skull Catapult
+        //     (Sac a creature: 2 damage) sacrifice for value.
+        //   - Vibrating Sphere's turn-conditional anthem swings the board's P/T.
+        label: "ICE: Artifacts free tranche — Icy Manipulator / Jester's Cap / Zuran Orb / Vibrating Sphere (#636)",
+        cards: [
+            {
+                name: "Icy Manipulator",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Jester's Cap",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Whalebone Glider",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "War Chariot",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Skull Catapult",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Zuran Orb",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Vibrating Sphere",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 5,
+    },
+    {
         // ICE Blue free tranche (#631, PRD #628). Exercises the Blue ICE
         // staples end to end:
         //   - Zuran Spellcaster ({T}: 1 damage any target) and Storm Spirit

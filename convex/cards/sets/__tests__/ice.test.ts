@@ -151,6 +151,23 @@ import {
     wildGrowthIce,
     woollySpider,
     yavimayaGnats,
+    adarkarSentinel,
+    aegisOfTheMeek,
+    celestialSword,
+    despoticScepter,
+    fyndhornBow,
+    icyManipulator,
+    jestersCap,
+    pitTrap,
+    shieldOfTheAges,
+    skullCatapult,
+    snowFortress,
+    staffOfTheAges,
+    vibratingSphere,
+    wallOfShields,
+    warChariot,
+    whaleboneGlider,
+    zuranOrb,
 } from "../ice";
 import {
     getCardById,
@@ -3513,6 +3530,556 @@ describe("Woolly Spider (CR 509.1h block-a-flier pump)", () => {
             (c) => c.id === "spider"
         )!;
         expect(getEffectiveToughness(state, spider)).toBe(3);
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ICE Artifacts free tranche (#636)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("Adarkar Sentinel ({1}: +0/+1 self-pump, CR 605 / 613)", () => {
+    function setup() {
+        const sentinel = makeInstance(adarkarSentinel.id, {
+            id: "sentinel",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sentinel] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, sentinel };
+    }
+    it("is a 3/3 artifact creature", () => {
+        expect(adarkarSentinel.types).toEqual(["Artifact", "Creature"]);
+        expect(adarkarSentinel.power).toBe(3);
+        expect(adarkarSentinel.toughness).toBe(3);
+    });
+    it("pumps +0/+1 until end of turn", () => {
+        const { state, sentinel } = setup();
+        resolveActivated(state, sentinel, "adarkar-sentinel-pump");
+        const s = state.players[0].battlefield.find(
+            (c) => c.id === "sentinel"
+        )!;
+        expect(getEffectivePower(state, s)).toBe(3);
+        expect(getEffectiveToughness(state, s)).toBe(4);
+    });
+    it("wire format: the +0/+1 survives projectPublicState", () => {
+        const { state, sentinel } = setup();
+        resolveActivated(state, sentinel, "adarkar-sentinel-pump");
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "sentinel"
+        )!;
+        expect(getEffectiveToughness(projected, slim)).toBe(4);
+    });
+});
+
+describe("Aegis of the Meek ({1},{T}: 1/1 gets +1/+2, CR 605 / 613)", () => {
+    it("only 1/1 creatures are legal targets", () => {
+        const ability = aegisOfTheMeek.activatedAbilities!.find(
+            (a) => a.id === "aegis-of-the-meek-pump"
+        )!;
+        expect(ability.targetRequirement).toMatchObject({
+            powerFilter: { min: 1, max: 1 },
+            toughnessFilter: { min: 1, max: 1 },
+        });
+        expect(ability.cost).toMatchObject({ tap: true });
+    });
+    it("grants +1/+2 to the targeted 1/1 until end of turn", () => {
+        const aegis = makeInstance(aegisOfTheMeek.id, {
+            id: "aegis",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oneOne = vanilla("oo", 1, 1, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [aegis, oneOne] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, aegis, "aegis-of-the-meek-pump", [
+            { type: "permanent", id: "oo" },
+        ]);
+        const t = state.players[0].battlefield.find((c) => c.id === "oo")!;
+        expect(getEffectivePower(state, t)).toBe(2);
+        expect(getEffectiveToughness(state, t)).toBe(3);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "oo"
+        )!;
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+});
+
+describe("Celestial Sword ({3},{T}: +3/+3 then sac, CR 605 / 603.7b)", () => {
+    it("pumps +3/+3 and arms a delayed sacrifice", () => {
+        const sword = makeInstance(celestialSword.id, {
+            id: "sword",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const dude = vanilla("dude", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [sword, dude] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, sword, "celestial-sword-pump", [
+            { type: "permanent", id: "dude" },
+        ]);
+        const t = state.players[0].battlefield.find((c) => c.id === "dude")!;
+        expect(getEffectivePower(state, t)).toBe(5);
+        expect(getEffectiveToughness(state, t)).toBe(5);
+        // The "sacrifice at next end step" is a delayed triggered ability.
+        expect(
+            celestialSword.delayedTriggers?.some(
+                (d) => d.id === "celestial-sword-sacrifice"
+            )
+        ).toBe(true);
+    });
+    it("targets only creatures you control", () => {
+        const ability = celestialSword.activatedAbilities!.find(
+            (a) => a.id === "celestial-sword-pump"
+        )!;
+        expect(ability.targetRequirement).toMatchObject({
+            type: "Creature",
+            controller: "you",
+        });
+    });
+});
+
+describe("Despotic Scepter ({T}: destroy a permanent you own, CR 605 / 701.7)", () => {
+    it("destroys the targeted permanent (can't be regenerated)", () => {
+        const scepter = makeInstance(despoticScepter.id, {
+            id: "scepter",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const dude = vanilla("victim", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [scepter, dude] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, scepter, "despotic-scepter-destroy", [
+            { type: "permanent", id: "victim" },
+        ]);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "victim")
+        ).toBe(false);
+        expect(state.players[0].graveyard.some((c) => c.id === "victim")).toBe(
+            true
+        );
+    });
+});
+
+describe("Fyndhorn Bow ({3},{T}: grant first strike, CR 605 / 702.7)", () => {
+    it("grants first strike to the target until end of turn", () => {
+        const bow = makeInstance(fyndhornBow.id, {
+            id: "bow",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const dude = vanilla("dude", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bow, dude] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, bow, "fyndhorn-bow-first-strike", [
+            { type: "permanent", id: "dude" },
+        ]);
+        const t = state.players[0].battlefield.find((c) => c.id === "dude")!;
+        expect(getEffectivePower(state, t)).toBe(2);
+    });
+});
+
+describe("Icy Manipulator ({1},{T}: tap any of three types, CR 605 / 701.20a)", () => {
+    it("taps the targeted permanent", () => {
+        const icy = makeInstance(icyManipulator.id, {
+            id: "icy",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const dude = vanilla("dude", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [icy] }),
+                makePlayer("p2", { battlefield: [dude] }),
+            ],
+        });
+        resolveActivated(state, icy, "icy-manipulator-tap", [
+            { type: "permanent", id: "dude" },
+        ]);
+        const t = state.players[1].battlefield.find((c) => c.id === "dude")!;
+        expect(t.isTapped).toBe(true);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "dude"
+        )!;
+        expect(slim.isTapped).toBe(true);
+    });
+    it("targets artifact, creature, or land", () => {
+        const ability = icyManipulator.activatedAbilities![0];
+        expect(ability.targetRequirement!.type).toEqual([
+            "Artifact",
+            "Creature",
+            "Land",
+        ]);
+    });
+});
+
+describe("Jester's Cap ({2},{T},Sac: strip 3 from a library, CR 701.19)", () => {
+    it("exiles the picked cards from the target player's library and shuffles", () => {
+        const cap = makeInstance(jestersCap.id, {
+            id: "cap",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const c1 = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "lib1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const c2 = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "lib2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cap] }),
+                makePlayer("p2", { library: [c1, c2] }),
+            ],
+        });
+        resolveActivated(state, cap, "jesters-cap-strip", [
+            { type: "player", id: "p2" },
+        ]);
+        // The search suspends on a pending choice over p2's library.
+        submitChoice(state, ["lib1", "lib2"]);
+        expect(state.players[1].library.length).toBe(0);
+        expect(state.players[1].exile.map((c) => c.id).sort()).toEqual([
+            "lib1",
+            "lib2",
+        ]);
+    });
+});
+
+describe("Pit Trap ({2},{T},Sac: destroy an attacker, CR 605 / 508.1)", () => {
+    it("only non-flying attacking creatures are legal targets", () => {
+        const ability = pitTrap.activatedAbilities![0];
+        expect(ability.targetRequirement).toMatchObject({
+            combatRoleFilter: "attacking",
+            excludeAbility: "flying",
+        });
+        expect(ability.cost).toMatchObject({ sacrifice: true, tap: true });
+    });
+    it("destroys the targeted attacker", () => {
+        const trap = makeInstance(pitTrap.id, {
+            id: "trap",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const attacker = vanilla("atk", 3, 3, {
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [trap] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+        });
+        resolveActivated(state, trap, "pit-trap-destroy", [
+            { type: "permanent", id: "atk" },
+        ]);
+        expect(state.players[1].battlefield.some((c) => c.id === "atk")).toBe(
+            false
+        );
+    });
+});
+
+describe("Shield of the Ages ({2}: prevent 1 to you, CR 605 / 615.1)", () => {
+    it("resolves a self prevention shield without error", () => {
+        const shield = makeInstance(shieldOfTheAges.id, {
+            id: "shield",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shield] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, shield, "shield-of-the-ages-prevent");
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
+describe("Skull Catapult ({1},{T},Sac a creature: 2 dmg, CR 605 / 120.1)", () => {
+    it("declares a sacrifice-a-creature cost and deals 2 to any target", () => {
+        const ability = skullCatapult.activatedAbilities![0];
+        expect(ability.cost.sacrificeFilter).toMatchObject({
+            types: "Creature",
+            controllerRelation: "you",
+        });
+        expect(ability.targetRequirement).toMatchObject({ type: "any" });
+    });
+    it("deals 2 damage to a targeted player", () => {
+        const cat = makeInstance(skullCatapult.id, {
+            id: "cat",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const fodder = vanilla("fodder", 1, 1, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cat, fodder] }),
+                makePlayer("p2"),
+            ],
+        });
+        const before = state.players[1].life;
+        resolveActivated(state, cat, "skull-catapult-fling", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].life).toBe(before - 2);
+    });
+});
+
+describe("Snow Fortress (Defender Wall, pumps + ping, CR 702.3 / 605)", () => {
+    it("is a 0/4 Defender artifact Wall", () => {
+        expect(snowFortress.types).toEqual(["Artifact", "Creature"]);
+        expect(snowFortress.subtypes).toContain("Wall");
+        expect(snowFortress.staticAbilities).toContain("defender");
+        expect(snowFortress.toughness).toBe(4);
+    });
+    it("pumps power and toughness via its two abilities", () => {
+        const fort = makeInstance(snowFortress.id, {
+            id: "fort",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [fort] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, fort, "snow-fortress-pump-power");
+        resolveActivated(state, fort, "snow-fortress-pump-toughness");
+        const f = state.players[0].battlefield.find((c) => c.id === "fort")!;
+        expect(getEffectivePower(state, f)).toBe(1);
+        expect(getEffectiveToughness(state, f)).toBe(5);
+    });
+});
+
+describe("Staff of the Ages (landwalk negation, CR 509.1b / 702.13)", () => {
+    it("negates every basic landwalk via a landwalk-negation static", () => {
+        const eff = staffOfTheAges.staticEffects!.find(
+            (e) => e.kind === "landwalk-negation"
+        )!;
+        expect(eff).toMatchObject({
+            kind: "landwalk-negation",
+            subtypes: ["Plains", "Island", "Swamp", "Mountain", "Forest"],
+        });
+    });
+});
+
+describe("Vibrating Sphere (turn-conditional anthem, CR 611.2c / 613)", () => {
+    function setup() {
+        const sphere = makeInstance(vibratingSphere.id, {
+            id: "sphere",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const dude = vanilla("dude", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [sphere, dude] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, dude };
+    }
+    it("gives +2/+0 during the controller's turn", () => {
+        const { state } = setup();
+        const d = state.players[0].battlefield.find((c) => c.id === "dude")!;
+        expect(getEffectivePower(state, d)).toBe(4);
+        expect(getEffectiveToughness(state, d)).toBe(2);
+    });
+    it("gives -0/-2 during other turns", () => {
+        const { state } = setup();
+        state.activePlayerId = "p2";
+        const d = state.players[0].battlefield.find((c) => c.id === "dude")!;
+        expect(getEffectivePower(state, d)).toBe(2);
+        expect(getEffectiveToughness(state, d)).toBe(0);
+    });
+    it("wire format: the turn-conditional anthem survives projection", () => {
+        const { state } = setup();
+        const projected = projectPublicState(state, 1, "p1");
+        const d = projected.players[0].battlefield.find(
+            (c) => c.id === "dude"
+        )!;
+        expect(getEffectivePower(projected, d)).toBe(4);
+    });
+});
+
+describe("Wall of Shields (Defender + Banding, CR 702.3 / 702.22)", () => {
+    it("is a 0/4 Defender Banding artifact Wall", () => {
+        expect(wallOfShields.staticAbilities).toContain("defender");
+        expect(wallOfShields.staticAbilities).toContain("banding");
+        expect(wallOfShields.subtypes).toContain("Wall");
+        expect(wallOfShields.toughness).toBe(4);
+    });
+});
+
+describe("War Chariot ({3},{T}: grant trample, CR 605 / 702.19)", () => {
+    it("grants trample to the target until end of turn", () => {
+        const chariot = makeInstance(warChariot.id, {
+            id: "chariot",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const dude = vanilla("dude", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [chariot, dude] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, chariot, "war-chariot-trample", [
+            { type: "permanent", id: "dude" },
+        ]);
+        const t = state.players[0].battlefield.find((c) => c.id === "dude")!;
+        expect(getEffectivePower(state, t)).toBe(2);
+    });
+});
+
+describe("Whalebone Glider ({2},{T}: grant flying to power<=3, CR 605 / 702.9)", () => {
+    it("only creatures with power 3 or less are legal targets", () => {
+        const ability = whaleboneGlider.activatedAbilities![0];
+        expect(ability.targetRequirement).toMatchObject({
+            powerFilter: { max: 3 },
+        });
+    });
+    it("grants flying to the target until end of turn", () => {
+        const glider = makeInstance(whaleboneGlider.id, {
+            id: "glider",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const dude = vanilla("dude", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [glider, dude] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, glider, "whalebone-glider-flying", [
+            { type: "permanent", id: "dude" },
+        ]);
+        const t = state.players[0].battlefield.find((c) => c.id === "dude")!;
+        expect(getEffectivePower(state, t)).toBe(2);
+    });
+});
+
+describe("Zuran Orb (Sac a land: gain 2 life, CR 605 / 119.3)", () => {
+    it("declares a {0} cost and a sacrifice-a-land ability", () => {
+        expect(zuranOrb.manaCost).toEqual({});
+        const ability = zuranOrb.activatedAbilities![0];
+        expect(ability.cost.sacrificeFilter).toMatchObject({
+            types: "Land",
+            controllerRelation: "you",
+        });
+    });
+    it("gains the controller 2 life", () => {
+        const orb = makeInstance(zuranOrb.id, {
+            id: "orb",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [orb] }),
+                makePlayer("p2"),
+            ],
+        });
+        const before = state.players[0].life;
+        resolveActivated(state, orb, "zuran-orb-gain-life");
+        expect(state.players[0].life).toBe(before + 2);
+    });
+});
+
+describe("ICE Artifacts tranche registry parity (#636)", () => {
+    const expected = [
+        "Adarkar Sentinel",
+        "Aegis of the Meek",
+        "Celestial Sword",
+        "Despotic Scepter",
+        "Fyndhorn Bow",
+        "Icy Manipulator",
+        "Jester's Cap",
+        "Pit Trap",
+        "Shield of the Ages",
+        "Skull Catapult",
+        "Snow Fortress",
+        "Staff of the Ages",
+        "Vibrating Sphere",
+        "Wall of Shields",
+        "War Chariot",
+        "Whalebone Glider",
+        "Zuran Orb",
+    ];
+    it("registers every activated Artifact card by name", () => {
+        for (const name of expected) {
+            expect(getCardByName(name).name).toBe(name);
+        }
+    });
+    it("includes each in getAllCards (deck-builder index)", () => {
+        const all = getAllCards();
+        for (const name of expected) {
+            expect(all.some((c) => c.name === name)).toBe(true);
+        }
     });
 });
 
