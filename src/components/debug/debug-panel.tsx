@@ -7383,6 +7383,71 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // ICE White buildable-now completion (#653, PRD #628). Exercises the
+        // White cards finished from already-shipped primitives:
+        //   - Black Scarab enchants your Balduvian Bears: while the opponent
+        //     controls a black permanent (Knight of Stromgald) it is 4/4 AND
+        //     can't be blocked by black creatures.
+        //   - Call to Arms (cast it, choose black + the opponent): your white
+        //     creatures get +1/+1 while black is the opponent's strict plurality.
+        //   - Caribou Range on a Plains: "{W}{W},{T}: make a 0/1 Caribou", then
+        //     "Sacrifice a Caribou: gain 1 life".
+        //   - Fylgja on a creature: spend healing counters to prevent damage.
+        //   - Seraph (4/4 flyer) reanimates creatures it kills at the end step.
+        //   - Justice: upkeep pay-{W}{W}-or-sac, reflects red damage back.
+        label: "ICE: White buildable-now — Scarab / Call to Arms / Caribou Range / Fylgja / Seraph / Justice (#653)",
+        cards: [
+            {
+                name: "Balduvian Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Black Scarab",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Kjeldoran Warrior",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Call to Arms",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Caribou Range",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Fylgja",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Seraph",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Justice",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Knight of Stromgald",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 7,
+    },
 ];
 
 type DebugPanelProps = {

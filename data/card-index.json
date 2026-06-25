@@ -5968,5 +5968,65 @@
         "scryfallId": "152a72b1-a7b7-4e5c-8558-fab97465f549",
         "oracleId": "bc7b90b1-3517-4e5d-9bd8-68b4d8a259fd",
         "firstSet": "ice"
+    },
+    {
+        "name": "Black Scarab",
+        "scryfallId": "5bfd4ee1-05f9-45ae-a31d-1225b271dbe6",
+        "oracleId": "2774d8b3-dc5f-4281-b4c5-cb003fef0ab2",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Blue Scarab",
+        "scryfallId": "b423bb5a-eaac-4c1d-981a-1c635001fc5a",
+        "oracleId": "47c12d2f-b458-4848-9a01-0fc37ef3d942",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Call to Arms",
+        "scryfallId": "a92f0d4a-23d8-47d4-b910-d142e0eefd3d",
+        "oracleId": "72eaaa73-3263-46e9-aa86-5862d3aed20a",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Caribou Range",
+        "scryfallId": "1e5f8041-67fc-4e00-b119-d216e5cc5a3a",
+        "oracleId": "39229fbc-1296-4ac7-9f79-65c6f0d09991",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Fylgja",
+        "scryfallId": "3c6358a1-37f0-4b40-93d4-4f1652c38404",
+        "oracleId": "df0e5dd8-65e0-474c-ac32-6e0f6f16b8e6",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Green Scarab",
+        "scryfallId": "0fbf9266-c97e-4666-b0fa-1802a69a62cc",
+        "oracleId": "c5ca2df3-6fd9-478d-9bc6-48695a4600fb",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Justice",
+        "scryfallId": "9a6e0c8d-0fc1-4f52-8357-e550b0ac579a",
+        "oracleId": "0586fdc7-3025-4040-8eaf-f8a57a21aff0",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Red Scarab",
+        "scryfallId": "9a734154-5944-42f4-a02e-c426a45847f3",
+        "oracleId": "380b6a48-c364-4939-be0b-df542c63a5ff",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Seraph",
+        "scryfallId": "ab675291-3189-43f3-b11b-0724eca8b941",
+        "oracleId": "a1c50bd1-120d-44ac-af20-13a90fc991e6",
+        "firstSet": "ice"
+    },
+    {
+        "name": "White Scarab",
+        "scryfallId": "c57726b5-dfdd-4e47-bc52-ebf6eedbf3bd",
+        "oracleId": "ec9c3906-8628-48c6-96a7-8c6748cba816",
+        "firstSet": "ice"
     }
 ]
