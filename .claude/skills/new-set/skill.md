@@ -89,15 +89,15 @@ https://mtgjson.com/api/v5/<CODE_UPPER>.json`.
     - **done** — already implemented: an active def in `convex/cards/sets/<code>.ts`
       OR present in `data/card-index.json` (lockfile). Excluded from all slices.
     - **staged** — a commented-out stub already in `<code>.ts` from a prior
-      run: its cluster PR only needs to *uncomment* it, not re-create it.
+      run: its cluster PR only needs to _uncomment_ it, not re-create it.
     - **free** — expressible with already-shipped primitives/keywords. "Free"
       means no NEW engine capability, **not zero code** (many free cards still
       need a small bespoke `resolve()`).
     - **capability** — needs a genuinely new engine mechanic. Group these into
       clusters, one mechanic per cluster.
     - **out-of-scope** — unmodelled layout / ante / subgame.
-   Report the counts (e.g. "187 cards: 40 done, 12 staged, 110 free, 20
-   capability across 4 clusters, 5 out-of-scope") so the scope is auditable.
+      Report the counts (e.g. "187 cards: 40 done, 12 staged, 110 free, 20
+      capability across 4 clusters, 5 out-of-scope") so the scope is auditable.
 5. **Cross-check** each capability candidate against the engine — many
    mechanics already shipped (layers, replacements, complex triggers, APNAP).
    Flag a real gap explicitly; never assume "deferred". (`project_lost_cards_audit`)

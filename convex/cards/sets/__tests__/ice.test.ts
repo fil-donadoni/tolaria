@@ -250,6 +250,23 @@ import {
     mudslide,
     orcishSquatters,
     totalWar,
+    // Artifact buildable-now completion (#658)
+    hematiteTalisman,
+    lapisLazuliTalisman,
+    malachiteTalisman,
+    nacreTalisman,
+    onyxTalisman,
+    batonOfMorale,
+    crownOfTheAges,
+    goblinLyre,
+    infiniteHourglass,
+    jestersMask,
+    pentagramOfTheAges,
+    runedArch,
+    soldeviGolem,
+    timeBomb,
+    vexingArcanix,
+    walkingWall,
 } from "../ice";
 import {
     getCardById,
@@ -8085,5 +8102,643 @@ describe("Total War — attack-trigger mass destroy of stay-back creatures (CR 5
         expect(bf).toContain("tap"); // tapped → safe
         expect(bf).toContain("fresh"); // summoning-sick → safe
         expect(bf).toContain("wall"); // Wall → safe
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Artifact buildable-now completion (#658) — Talisman cycle, Crown of the Ages,
+// Pentagram of the Ages, Time Bomb, Infinite Hourglass, Vexing Arcanix, Walking
+// Wall, Runed Arch, Goblin Lyre, Jester's Mask, Soldevi Golem, Baton of Morale.
+// Existing primitives only; CR-referenced per card.
+// ---------------------------------------------------------------------------
+
+describe("Talisman cycle (SPELL_CAST may-pay untap, CR 603.2 / 615 / 701.20b)", () => {
+    const cycle = [
+        { card: hematiteTalisman, color: "R" as const, word: "red" },
+        { card: lapisLazuliTalisman, color: "U" as const, word: "blue" },
+        { card: malachiteTalisman, color: "G" as const, word: "green" },
+        { card: nacreTalisman, color: "W" as const, word: "white" },
+        { card: onyxTalisman, color: "B" as const, word: "black" },
+    ];
+
+    it("each Talisman is a {2} Artifact with a SPELL_CAST trigger filtered to its colour", () => {
+        for (const { card, color, word } of cycle) {
+            expect(card.types).toEqual(["Artifact"]);
+            expect(card.manaCost).toEqual({ X: 2 });
+            const trig = card.triggeredAbilities![0];
+            expect(trig.event).toBe("SPELL_CAST");
+            expect(card.oracleText).toContain(`casts a ${word} spell`);
+            // The colour filter is internal to spellCastTrigger; assert the
+            // matched colour fires the trigger and an off-colour does not.
+            const self = makeInstance(card.id, {
+                id: "tal",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const onColor = trig.matches(
+                {
+                    type: "SPELL_CAST",
+                    casterId: "p2",
+                    spellInstanceId: "s",
+                    spellCardId: "x",
+                    spellTypes: ["Instant"],
+                    spellSubtypes: [],
+                    spellColors: [color],
+                } as StackItem["triggerEvent"] & { type: "SPELL_CAST" },
+                self,
+                makeState()
+            );
+            expect(onColor).toBe(true);
+        }
+    });
+
+    it("paying {3} untaps the chosen permanent; declining untaps nothing", () => {
+        const tal = makeInstance(hematiteTalisman.id, {
+            id: "tal",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const tappedPerm = makeInstance(balduvianBears.id, {
+            id: "tappedc",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tal, tappedPerm] }),
+                makePlayer("p2"),
+            ],
+        });
+        // A red spell was cast by p2; fire the trigger.
+        resolveTrigger(state, tal, "hematite-talisman-untap", {
+            type: "SPELL_CAST",
+            casterId: "p2",
+        } as StackItem["triggerEvent"]);
+        // Suspends on the may-pay; fund and accept.
+        state.players[0].manaPool = { C: 3 };
+        applyMayPaySubmit(state, {
+            playerId: state.pendingChoices![0].playerId,
+            accept: true,
+        });
+        // Now suspended on the choose-permanents target pick.
+        expect(state.pendingChoices![0].kind).toBe("choose-permanents");
+        applyPendingChoiceSubmit(state, {
+            playerId: state.pendingChoices![0].playerId,
+            stackItemId: state.pendingChoices![0].stackItemId,
+            step: state.pendingChoices![0].step,
+            choiceId: state.pendingChoices![0].choiceId,
+            cardInstanceIds: ["tappedc"],
+        });
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "tappedc"
+        )!;
+        expect(after.isTapped).toBe(false);
+    });
+
+    it("declining the may-pay leaves the permanent tapped", () => {
+        const tal = makeInstance(onyxTalisman.id, {
+            id: "tal",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const tappedPerm = makeInstance(balduvianBears.id, {
+            id: "tappedc",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tal, tappedPerm] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, tal, "onyx-talisman-untap", {
+            type: "SPELL_CAST",
+            casterId: "p2",
+        } as StackItem["triggerEvent"]);
+        applyMayPaySubmit(state, {
+            playerId: state.pendingChoices![0].playerId,
+            accept: false,
+        });
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "tappedc"
+        )!;
+        expect(after.isTapped).toBe(true);
+    });
+});
+
+describe("Baton of Morale ({2}: grant banding, CR 702.22 / 611 layer 6)", () => {
+    it("grants banding until end of turn (wire format survives projection)", () => {
+        const baton = makeInstance(batonOfMorale.id, {
+            id: "baton",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const target = vanilla("tgt", 2, 2, {
+            id: "tgt",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [baton, target] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, baton, "baton-of-morale-banding", [
+            { type: "permanent", id: "tgt" },
+        ]);
+        const t = state.players[0].battlefield.find((c) => c.id === "tgt")!;
+        expect(t.staticAbilities).toContain("banding");
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "tgt"
+        )!;
+        expect(slim.staticAbilities).toContain("banding");
+    });
+});
+
+describe("Crown of the Ages ({4},{T}: move an Aura, CR 303.4 / 701.3d)", () => {
+    it("reattaches the targeted Aura to a different chosen creature", () => {
+        const crown = makeInstance(crownOfTheAges.id, {
+            id: "crown",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oldHost = vanilla("oldhost", 2, 2, {
+            id: "oldhost",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const newHost = vanilla("newhost", 3, 3, {
+            id: "newhost",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Use a real ICE Aura (Armor of Faith) attached to oldHost.
+        const aura = makeInstance(armorOfFaith.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "oldhost",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [crown, oldHost, newHost, aura],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, crown, "crown-of-the-ages-move-aura", [
+            { type: "permanent", id: "aura" },
+        ]);
+        // Suspended on the new-host pick — oldHost is excluded.
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-permanents");
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["newhost"],
+        });
+        const movedAura = state.players[0].battlefield.find(
+            (c) => c.id === "aura"
+        )!;
+        expect(movedAura.attachedTo).toBe("newhost");
+        // The +1/+1 now buffs the new host (3/3 → 4/4).
+        const nh = state.players[0].battlefield.find(
+            (c) => c.id === "newhost"
+        )!;
+        expect(getEffectivePower(state, nh)).toBe(4);
+    });
+});
+
+describe("Goblin Lyre (sac + coin flip damage, CR 705 / 120.1)", () => {
+    function setup(seed: number) {
+        const lyre = makeInstance(goblinLyre.id, {
+            id: "lyre",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const myCreatures = [0, 1, 2].map((i) =>
+            vanilla(`mine${i}`, 1, 1, {
+                id: `mine${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        const oppCreatures = [0, 1].map((i) =>
+            vanilla(`opp${i}`, 1, 1, {
+                id: `opp${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        const state = makeState({
+            rngSeed: seed,
+            players: [
+                makePlayer("p1", {
+                    life: 20,
+                    battlefield: [lyre, ...myCreatures],
+                }),
+                makePlayer("p2", { life: 20, battlefield: oppCreatures }),
+            ],
+        });
+        return { state, lyre };
+    }
+    function ack(state: GameState) {
+        const head = state.pendingChoices![0];
+        applyRandomRevealAck(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            choiceId: head.choiceId,
+        });
+    }
+
+    it("win: deals damage to the opponent equal to creatures you control (3)", () => {
+        const { state, lyre } = setup(1); // WIN seed
+        resolveActivated(state, lyre, "goblin-lyre-flip", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.pendingChoices![0].kind).toBe("random-reveal");
+        ack(state);
+        expect(state.players[1].life).toBe(17); // 20 - 3
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("lose: deals damage to you equal to creatures the opponent controls (2)", () => {
+        const { state, lyre } = setup(7); // LOSE seed
+        resolveActivated(state, lyre, "goblin-lyre-flip", [
+            { type: "player", id: "p2" },
+        ]);
+        ack(state);
+        expect(state.players[0].life).toBe(18); // 20 - 2
+        expect(state.players[1].life).toBe(20);
+    });
+});
+
+describe("Infinite Hourglass (time counters + scaled anthem, CR 122 / 613)", () => {
+    it("the anthem adds +1/+0 to all creatures per time counter (wire format)", () => {
+        const hourglass = makeInstance(infiniteHourglass.id, {
+            id: "hg",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { time: 2 },
+        });
+        const myCreature = vanilla("mine", 2, 2, {
+            id: "mine",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppCreature = vanilla("opp", 1, 1, {
+            id: "opp",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hourglass, myCreature] }),
+                makePlayer("p2", { battlefield: [oppCreature] }),
+            ],
+        });
+        // +2/+0 to ALL creatures (both controllers).
+        expect(getEffectivePower(state, myCreature)).toBe(4);
+        expect(getEffectivePower(state, oppCreature)).toBe(3);
+        expect(getEffectiveToughness(state, myCreature)).toBe(2);
+        // Wire format: the anthem survives projection.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimMine = projected.players[0].battlefield.find(
+            (c) => c.id === "mine"
+        )!;
+        expect(getEffectivePower(projected, slimMine)).toBe(4);
+    });
+
+    it("the upkeep trigger adds a time counter; the {3} ability removes one", () => {
+        const hourglass = makeInstance(infiniteHourglass.id, {
+            id: "hg",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { time: 1 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hourglass] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+        });
+        resolveTrigger(state, hourglass, "infinite-hourglass-accrue", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+        } as StackItem["triggerEvent"]);
+        let hg = state.players[0].battlefield.find((c) => c.id === "hg")!;
+        expect(hg.counters?.time).toBe(2);
+        resolveActivated(state, hg, "infinite-hourglass-remove");
+        hg = state.players[0].battlefield.find((c) => c.id === "hg")!;
+        expect(hg.counters?.time).toBe(1);
+    });
+
+    it("the {3} removal is restricted to upkeep and activatable by any player", () => {
+        const ability = infiniteHourglass.activatedAbilities![0];
+        expect(ability.activatableByAnyPlayer).toBe(true);
+        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
+    });
+});
+
+describe("Time Bomb (time counters + scaled board wipe, CR 122 / 119)", () => {
+    it("detonating deals damage equal to time counters to each creature and player", () => {
+        const bomb = makeInstance(timeBomb.id, {
+            id: "bomb",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { time: 2 },
+        });
+        const myCreature = vanilla("mine", 1, 1, {
+            id: "mine",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppCreature = vanilla("opp", 3, 3, {
+            id: "opp",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [bomb, myCreature] }),
+                makePlayer("p2", { life: 20, battlefield: [oppCreature] }),
+            ],
+        });
+        // The sacrifice is a cost: remove the bomb from the battlefield and
+        // carry the counters on the resolving stack item (CR 608.2g LKI).
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => c.id !== "bomb"
+        );
+        state.stack.push({
+            ...bomb,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "time-bomb-detonate",
+            counters: { time: 2 },
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(18);
+        expect(state.players[1].life).toBe(18);
+        // The 1/1 took 2 damage → dies (SBA); the 3/3 survives with 2 marked.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "mine")
+        ).toBeUndefined();
+        const opp = state.players[1].battlefield.find((c) => c.id === "opp");
+        expect(opp).toBeDefined();
+    });
+});
+
+describe("Vexing Arcanix ({3},{T}: name + reveal, CR 202.3 / 120.1)", () => {
+    function setup(topCardId: string) {
+        const arcanix = makeInstance(vexingArcanix.id, {
+            id: "arcanix",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const top = makeInstance(topCardId, {
+            id: "top",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [arcanix] }),
+                makePlayer("p2", { life: 20, library: [top] }),
+            ],
+        });
+        return { state, arcanix };
+    }
+    function resolveWithName(
+        state: GameState,
+        arcanix: CardInstanceState,
+        name: string
+    ) {
+        state.stack.push({
+            ...arcanix,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "vexing-arcanix-guess",
+            targets: [{ type: "player", id: "p2" }],
+        });
+        resolveTopOfStack(state); // suspends on the name choice
+        const item = state.stack.find(
+            (s) => s.abilityId === "vexing-arcanix-guess"
+        )!;
+        item.collectedChoices = {
+            ...(item.collectedChoices ?? {}),
+            [`${state.pendingChoices![0].step}:vexing-arcanix-name`]: [name],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+    }
+
+    it("hit: the revealed card goes to the player's hand, no damage", () => {
+        const { state, arcanix } = setup(balduvianBears.id);
+        resolveWithName(state, arcanix, "Balduvian Bears");
+        expect(state.players[1].hand.map((c) => c.id)).toContain("top");
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("miss: the card goes to graveyard and the player takes 2 damage", () => {
+        const { state, arcanix } = setup(balduvianBears.id);
+        resolveWithName(state, arcanix, "Moor Fiend");
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("top");
+        expect(state.players[1].life).toBe(18);
+    });
+});
+
+describe("Walking Wall (Defender + mobilize, CR 702.3 / 508 / 613)", () => {
+    it("the {3} ability pumps +3/-1 and lets it attack despite defender", () => {
+        const wall = makeInstance(walkingWall.id, {
+            id: "wall",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wall] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(walkingWall.staticAbilities).toContain("defender");
+        expect(walkingWall.activatedAbilities![0].oncePerTurn).toBe(true);
+        resolveActivated(state, wall, "walking-wall-mobilize");
+        const w = state.players[0].battlefield.find((c) => c.id === "wall")!;
+        expect(getEffectivePower(state, w)).toBe(3); // 0 + 3
+        expect(getEffectiveToughness(state, w)).toBe(5); // 6 - 1
+        // It is now allowed to attack despite defender this turn.
+        expect(w.canAttackDespiteDefenderThisTurn).toBe(true);
+    });
+});
+
+describe("Runed Arch ({X},{T},Sac: X unblockable, CR 107.3 / 509.1b)", () => {
+    it("enters tapped and marks X power<=2 creatures unblockable this turn", () => {
+        expect(runedArch.entersTapped).toBe(true);
+        const arch = makeInstance(runedArch.id, {
+            id: "arch",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const small = vanilla("small", 2, 2, {
+            id: "small",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [arch, small] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, arch, "runed-arch-unblockable", [
+            { type: "permanent", id: "small" },
+        ]);
+        const s = state.players[0].battlefield.find((c) => c.id === "small")!;
+        expect(s.cantBeBlockedThisTurn).toBe(true);
+    });
+});
+
+describe("Soldevi Golem (does-not-untap + upkeep untap, CR 702 / 701.20b)", () => {
+    it("optionally untaps a tapped opponent creature and itself", () => {
+        expect(soldeviGolem.staticAbilities).toContain("does-not-untap");
+        const golem = makeInstance(soldeviGolem.id, {
+            id: "golem",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const oppCreature = vanilla("oppc", 2, 2, {
+            id: "oppc",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [golem] }),
+                makePlayer("p2", { battlefield: [oppCreature] }),
+            ],
+            activePlayerId: "p1",
+        });
+        resolveTrigger(state, golem, "soldevi-golem-upkeep", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+        } as StackItem["triggerEvent"]);
+        // Suspends on the may-pay; accept.
+        applyMayPaySubmit(state, {
+            playerId: state.pendingChoices![0].playerId,
+            accept: true,
+        });
+        // Then the target pick.
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-permanents");
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["oppc"],
+        });
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "oppc")!.isTapped
+        ).toBe(false);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "golem")!.isTapped
+        ).toBe(false);
+    });
+});
+
+describe("Pentagram of the Ages ({4},{T}: prevent next damage, CR 615)", () => {
+    it("prevents the next damage from the chosen source to the controller", () => {
+        const pentagram = makeInstance(pentagramOfTheAges.id, {
+            id: "pent",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppSource = vanilla("burner", 3, 3, {
+            id: "burner",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [pentagram] }),
+                makePlayer("p2", { battlefield: [oppSource] }),
+            ],
+        });
+        resolveActivated(state, pentagram, "pentagram-of-the-ages-prevent");
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("pick-source");
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["burner"],
+        });
+        // A prevention shield now exists for the controller.
+        expect(state.players[0].life).toBe(20);
+    });
+});
+
+describe("Jester's Mask ({1},{T},Sac: hand shuffle, CR 701.19 / 701.20)", () => {
+    it("enters tapped and shuffles the opponent's hand back via library search", () => {
+        expect(jestersMask.entersTapped).toBe(true);
+        const mask = makeInstance(jestersMask.id, {
+            id: "mask",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const handCards = [0, 1].map((i) =>
+            makeInstance(balduvianBears.id, {
+                id: `h${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            })
+        );
+        const libCards = [0, 1, 2].map((i) =>
+            makeInstance(balduvianBears.id, {
+                id: `l${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mask] }),
+                makePlayer("p2", { hand: handCards, library: libCards }),
+            ],
+        });
+        resolveActivated(state, mask, "jesters-mask-rearrange", [
+            { type: "player", id: "p2" },
+        ]);
+        // Hand was emptied onto the library, then a search is requested.
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("search-library");
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["l0", "l1"],
+        });
+        // Two cards drawn back into hand; library reshuffled (5 total minus 2).
+        expect(state.players[1].hand).toHaveLength(2);
+        expect(state.players[1].library).toHaveLength(3);
     });
 });

@@ -27,6 +27,7 @@ import type {
     TargetSelection,
     TriggeredAbility,
 } from "../types";
+import type { Phase } from "../../gre/types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../types";
 import { manaCostForCardId } from "../manaCostLookup";
 import { makeTapForMana } from "../abilities";
@@ -8634,7 +8635,13 @@ export const aegisOfTheMeek: CardDefinition = {
 //     manaCost: { X: 2 },
 //     types: ["Artifact"],
 // };
-// TODO(#628): implement.
+// DEFERRED (#658) — Arcum's Whistle needs an "attacks this turn if able"
+// requirement plus a delayed end-step "destroy it if it didn't attack"
+// conditional, both keyed on whether the chosen creature actually attacked.
+// The engine has no attack-requirement primitive (`mustAttackThisTurn`) nor a
+// per-creature "did it attack this turn?" flag readable by a delayed trigger,
+// and the "before attackers are declared" activation window isn't expressible
+// via `canActivate`. Build the attack-requirement seam first.
 // export const arcumsWhistle: CardDefinition = {
 //     id: "73c07c87-0e44-4a5a-92b7-728350cd02de",
 //     name: "Arcum's Whistle",
@@ -8652,15 +8659,34 @@ export const aegisOfTheMeek: CardDefinition = {
 //     manaCost: { X: 1 },
 //     types: ["Artifact"],
 // };
-// TODO(#628): implement.
-// export const batonOfMorale: CardDefinition = {
-//     id: "8bc29872-b1a2-4851-9eca-f3e67ae6e14c",
-//     name: "Baton of Morale",
-//     rarity: "uncommon",
-//     oracleText: "{2}: Target creature gains banding until end of turn. (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding a player controls are blocking or being blocked by a creature, that player divides that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
+// Baton of Morale — {2}: Target creature gains banding until end of turn
+// (CR 605 activated ability; CR 702.22 banding granted via the layer system,
+// CR 613 layer 6).
+export const batonOfMorale: CardDefinition = {
+    id: "8bc29872-b1a2-4851-9eca-f3e67ae6e14c",
+    name: "Baton of Morale",
+    rarity: "uncommon",
+    oracleText: "{2}: Target creature gains banding until end of turn.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "baton-of-morale-banding",
+            oracleText: "{2}: Target creature gains banding until end of turn.",
+            cost: { mana: { X: 2 } },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent") {
+                    ctx.grantStaticAbility(t, "banding", {
+                        phase: "end-of-turn",
+                    });
+                }
+            },
+        },
+    ],
+};
 // Celestial Sword — {3}, {T}: Target creature you control gets +3/+3 until end
 // of turn, then is sacrificed at the next end step (CR 605 activated ability;
 // CR 613 layer 7c buff; CR 603.7b delayed triggered ability for the sacrifice).
@@ -8743,16 +8769,68 @@ export const despoticScepter: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const crownOfTheAges: CardDefinition = {
-//     id: "fce2991f-48e1-4cfe-af0a-18b6d9400493",
-//     name: "Crown of the Ages",
-//     rarity: "rare",
-//     oracleText: "{4}, {T}: Attach target Aura attached to a creature to another creature.",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
-// TODO(#628): implement.
+// Crown of the Ages — {4}, {T}: Attach target Aura attached to a creature to
+// another creature (CR 605 activated ability; CR 303.4 / 701.3d move-an-aura via
+// `reattachAura`). The targeted Aura is chosen via `subtypeFilter: "Aura"`; the
+// new creature host is picked mid-resolution from all battlefields. We re-read
+// the aura's current host (`getAttachedTo`) and exclude it so the reattach moves
+// the aura to a DIFFERENT creature ("another creature").
+export const crownOfTheAges: CardDefinition = {
+    id: "fce2991f-48e1-4cfe-af0a-18b6d9400493",
+    name: "Crown of the Ages",
+    rarity: "rare",
+    oracleText:
+        "{4}, {T}: Attach target Aura attached to a creature to another creature.",
+    manaCost: { X: 2 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "crown-of-the-ages-move-aura",
+            oracleText:
+                "{4}, {T}: Attach target Aura attached to a creature to another creature.",
+            cost: { mana: { X: 4 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Enchantment",
+                subtypeFilter: "Aura",
+                count: 1,
+            },
+            resolve: (ctx: SpellContext) => {
+                const aura = ctx.targets[0];
+                if (aura?.type !== "permanent") return;
+                const oldHost = ctx.getAttachedTo(aura.id);
+                const creatures = ctx
+                    .apNapOrder()
+                    .flatMap((pid) =>
+                        ctx.getBattlefieldIds(pid, { types: "Creature" })
+                    )
+                    .filter((id) => id !== oldHost);
+                if (creatures.length === 0) return; // no other creature host
+                const picked = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: "crown-of-the-ages-host",
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    allControllers: true,
+                    candidateIds: creatures,
+                    count: 1,
+                    prompt: "Attach the Aura to another creature.",
+                });
+                if (picked === undefined) return; // suspended
+                const newHost = picked[0];
+                if (newHost) ctx.reattachAura(aura.id, newHost);
+            },
+        },
+    ],
+};
+// DEFERRED (#658) — Elkin Bottle needs the impulse-PLAY seam, which is NOT
+// shipped. ADR 0026's impulse-draw (`exileFaceDown`) only grants the controller
+// permission to LOOK at the exiled card (CR 406.3), not to PLAY/cast it from
+// exile within a time window. Granting "until your next upkeep, you may play
+// that card" requires a play-permission registry (which exiled cards a player
+// may cast, and from which zone), a casting-validator hook that consults it, and
+// a delayed end-of-window cleanup — none expressible from shipped primitives.
+// Build the impulse-play seam first.
 // export const elkinBottle: CardDefinition = {
 //     id: "49301c19-55a0-4146-9474-0b86cd320e31",
 //     name: "Elkin Bottle",
@@ -8791,24 +8869,125 @@ export const fyndhornBow: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const goblinLyre: CardDefinition = {
-//     id: "951114fb-5ae5-4eb0-8e03-6e39b0b634b5",
-//     name: "Goblin Lyre",
-//     rarity: "rare",
-//     oracleText: "Sacrifice this artifact: Flip a coin. If you win the flip, this artifact deals damage to target opponent or planeswalker equal to the number of creatures you control. If you lose the flip, this artifact deals damage to you equal to the number of creatures that opponent or that planeswalker's controller controls.",
-//     manaCost: { X: 3 },
-//     types: ["Artifact"],
-// };
-// TODO(#628): implement.
-// export const hematiteTalisman: CardDefinition = {
-//     id: "83585337-56a9-44d2-9ed1-8a959bcfb010",
-//     name: "Hematite Talisman",
-//     rarity: "uncommon",
-//     oracleText: "Whenever a player casts a red spell, you may pay {3}. If you do, untap target permanent.",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
+// Goblin Lyre — Sacrifice this artifact: Flip a coin. Win → deal damage to
+// target opponent equal to creatures you control; lose → deal damage to you
+// equal to creatures that opponent controls (CR 605 activated ability with
+// sacrifice cost; CR 705.2 coin flip via the suspending `requestCoinFlip`;
+// CR 120.1 damage; `getCreatureCount`). Planeswalkers are out of scope, so the
+// "or planeswalker" clause collapses to "target opponent".
+export const goblinLyre: CardDefinition = {
+    id: "951114fb-5ae5-4eb0-8e03-6e39b0b634b5",
+    name: "Goblin Lyre",
+    rarity: "rare",
+    oracleText:
+        "Sacrifice this artifact: Flip a coin. If you win the flip, this artifact deals damage to target opponent equal to the number of creatures you control. If you lose the flip, this artifact deals damage to you equal to the number of creatures that opponent controls.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "goblin-lyre-flip",
+            oracleText:
+                "Sacrifice this artifact: Flip a coin. If you win the flip, this artifact deals damage to target opponent equal to the number of creatures you control. If you lose the flip, this artifact deals damage to you equal to the number of creatures that opponent controls.",
+            cost: { sacrifice: true },
+            useStack: true,
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "player") return;
+                const opponent = t.id;
+                const me = ctx.controller;
+                const won = ctx.requestCoinFlip({
+                    playerId: me,
+                    choiceId: "goblin-lyre-coin",
+                    heads: {
+                        consequence:
+                            "Deal damage to the opponent equal to creatures you control.",
+                    },
+                    tails: {
+                        consequence:
+                            "Take damage equal to creatures the opponent controls.",
+                    },
+                });
+                if (won === undefined) return; // suspended for the reveal
+                if (won) {
+                    const n = ctx.getCreatureCount(me);
+                    if (n > 0)
+                        ctx.dealDamage({ type: "player", id: opponent }, n);
+                } else {
+                    const n = ctx.getCreatureCount(opponent);
+                    if (n > 0) ctx.dealDamage({ type: "player", id: me }, n);
+                }
+            },
+        },
+    ],
+};
+// Talisman cycle (Hematite/Lapis Lazuli/Malachite/Nacre/Onyx) — "Whenever a
+// player casts a [color] spell, you may pay {3}. If you do, untap target
+// permanent." (CR 603.2 cast trigger via `spellCastTrigger` + SpellFilter color
+// gate; CR 117.3a optional `requestMayPay`; CR 701.20b untap.) The untap target
+// is chosen mid-resolution from EVERY battlefield via `requestChoice` (a TANTO
+// trigger that doesn't pre-target — the modern oracle lets it untap any
+// permanent). All five share `makeTalisman`; only the matched color and ids
+// differ.
+function makeTalisman(args: {
+    id: string;
+    name: string;
+    color: Color;
+    colorWord: string;
+}): CardDefinition {
+    const slug = args.name.toLowerCase().replace(/[^a-z]+/g, "-");
+    return {
+        id: args.id,
+        name: args.name,
+        rarity: "uncommon",
+        oracleText: `Whenever a player casts a ${args.colorWord} spell, you may pay {3}. If you do, untap target permanent.`,
+        manaCost: { X: 2 },
+        types: ["Artifact"],
+        triggeredAbilities: [
+            spellCastTrigger({
+                id: `${slug}-untap`,
+                oracleText: `Whenever a player casts a ${args.colorWord} spell, you may pay {3}. If you do, untap target permanent.`,
+                scope: "any",
+                filter: { colors: args.color },
+                resolve: (ctx) => {
+                    const me = ctx.controller;
+                    const accept = ctx.requestMayPay({
+                        playerId: me,
+                        choiceId: `${slug}-pay`,
+                        cost: { X: 3 },
+                        prompt: `Pay {3} to untap target permanent with ${args.name}?`,
+                    });
+                    if (accept === undefined) return; // suspended
+                    if (!accept) return;
+                    const picked = ctx.requestChoice({
+                        playerId: me,
+                        choiceId: `${slug}-target`,
+                        kind: "choose-permanents",
+                        zone: "battlefield",
+                        allControllers: true,
+                        count: 1,
+                        prompt: "Untap target permanent.",
+                    });
+                    if (picked === undefined) return; // suspended
+                    const targetId = picked[0];
+                    if (targetId) {
+                        ctx.untap({ type: "permanent", id: targetId });
+                    }
+                },
+            }),
+        ],
+    };
+}
+export const hematiteTalisman: CardDefinition = makeTalisman({
+    id: "83585337-56a9-44d2-9ed1-8a959bcfb010",
+    name: "Hematite Talisman",
+    color: "R",
+    colorWord: "red",
+});
 // TODO(#628): implement.
 // export const iceCauldron: CardDefinition = {
 //     id: "1a3e095a-7056-4df3-bf7d-9c217d591446",
@@ -8845,15 +9024,67 @@ export const icyManipulator: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const infiniteHourglass: CardDefinition = {
-//     id: "f9a42152-32c0-47ff-aaac-8deaf01873ca",
-//     name: "Infinite Hourglass",
-//     rarity: "rare",
-//     oracleText: "At the beginning of your upkeep, put a time counter on this artifact.\nAll creatures get +1/+0 for each time counter on this artifact.\n{3}: Remove a time counter from this artifact. Any player may activate this ability but only during any upkeep step.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+// Infinite Hourglass — upkeep time-counter accrual + a counter-scaled anthem +
+// an any-player {3} counter-removal restricted to upkeep steps (CR 603.6a phase
+// trigger via `phaseTrigger`; CR 122 counters via `addCounter`/`removeCounter`;
+// CR 613 layer 7c anthem via a `pt-cda` that reads `source.counters.time`;
+// CR 602.1 `activatableByAnyPlayer` + CR 602.5 `activationPhaseRestriction:
+// ["UPKEEP"]`). The anthem is `pt-cda` (not `pt-buff`) because its magnitude is
+// game-state-dependent (the live time-counter count), recomputed every stat read.
+export const infiniteHourglass: CardDefinition = {
+    id: "f9a42152-32c0-47ff-aaac-8deaf01873ca",
+    name: "Infinite Hourglass",
+    rarity: "rare",
+    oracleText:
+        "At the beginning of your upkeep, put a time counter on this artifact.\nAll creatures get +1/+0 for each time counter on this artifact.\n{3}: Remove a time counter from this artifact. Any player may activate this ability but only during any upkeep step.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: (target, _source, ctx) => ctx.isCreature(target),
+            compute: (source) => ({
+                power: source.counters?.time ?? 0,
+                toughness: 0,
+            }),
+        },
+    ],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "infinite-hourglass-accrue",
+            oracleText:
+                "At the beginning of your upkeep, put a time counter on this artifact.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "time",
+                    1
+                );
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "infinite-hourglass-remove",
+            oracleText:
+                "{3}: Remove a time counter from this artifact. Any player may activate this ability but only during any upkeep step.",
+            cost: { mana: { X: 3 } },
+            useStack: true,
+            activatableByAnyPlayer: true,
+            activationPhaseRestriction: ["UPKEEP"] as Phase[],
+            canActivate: (source) => (source.counters?.time ?? 0) > 0,
+            resolve: (ctx: SpellContext) => {
+                ctx.removeCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "time",
+                    1
+                );
+            },
+        },
+    ],
+};
 // Jester's Cap — {2}, {T}, Sacrifice this artifact: Search target player's
 // library for three cards and exile them. Then that player shuffles (CR 605
 // activated ability with sacrifice cost; CR 701.19 library search of another
@@ -8897,15 +9128,79 @@ export const jestersCap: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const jestersMask: CardDefinition = {
-//     id: "daa1ba0c-cb89-4bb2-8a35-6a4a4eecccf7",
-//     name: "Jester's Mask",
-//     rarity: "rare",
-//     oracleText: "This artifact enters tapped.\n{1}, {T}, Sacrifice this artifact: Target opponent puts the cards from their hand on top of their library. Search that player's library for that many cards. That player puts those cards into their hand, then shuffles.",
-//     manaCost: { X: 5 },
-//     types: ["Artifact"],
-// };
+// Jester's Mask — enters tapped; {1},{T},Sac: a target opponent puts their hand
+// on top of their library; you search that player's library for that many cards;
+// those go to their hand; then they shuffle (CR 110.5b enters tapped; CR 605
+// activated ability with mana+tap+sacrifice cost; CR 400.7 zone changes;
+// CR 701.19 library search of another player's zone via `requestChoice` with
+// `zoneOwnerId`; CR 701.20 shuffle). Composition of shipped primitives: capture
+// the hand size, move the whole hand to library (`moveZone`), search for that
+// many cards into hand, shuffle. The "on top of library" detail is washed out by
+// the mandatory final shuffle, so the library-position primitive isn't needed.
+export const jestersMask: CardDefinition = {
+    id: "daa1ba0c-cb89-4bb2-8a35-6a4a4eecccf7",
+    name: "Jester's Mask",
+    rarity: "rare",
+    oracleText:
+        "This artifact enters tapped.\n{1}, {T}, Sacrifice this artifact: Target opponent puts the cards from their hand on top of their library. Search that player's library for that many cards. That player puts those cards into their hand, then shuffles.",
+    manaCost: { X: 5 },
+    types: ["Artifact"],
+    entersTapped: true,
+    activatedAbilities: [
+        {
+            id: "jesters-mask-rearrange",
+            oracleText:
+                "{1}, {T}, Sacrifice this artifact: Target opponent puts the cards from their hand on top of their library. Search that player's library for that many cards. That player puts those cards into their hand, then shuffles.",
+            cost: { mana: { X: 1 }, tap: true, sacrifice: true },
+            useStack: true,
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "player") return;
+                const player = t.id;
+                // CR 608.2 stepped resolution: the `moveZone` below is
+                // destructive and NOT idempotent, so it must run exactly once.
+                // On resume after the search suspension the resolve re-runs from
+                // the top — `noteChoice`/`recallChoice` carry the original hand
+                // size forward and gate the one-time hand→library move.
+                const noted = ctx.recallChoice("jesters-mask-hand-count");
+                const firstPass = noted === undefined;
+                const handCount = firstPass
+                    ? ctx.getHandSize(player)
+                    : Number(noted[0]);
+                if (firstPass) {
+                    // CR 400.7 — the opponent's whole hand goes onto their library.
+                    ctx.noteChoice("jesters-mask-hand-count", [
+                        String(handCount),
+                    ]);
+                    ctx.moveZone(player, "hand", "library");
+                }
+                if (handCount > 0) {
+                    // CR 701.19 — the activating player searches that player's
+                    // library for `handCount` cards to put into their hand.
+                    const picked = ctx.requestChoice({
+                        playerId: ctx.controller,
+                        choiceId: "jesters-mask-search",
+                        kind: "search-library",
+                        zone: "library",
+                        zoneOwnerId: player,
+                        count: { min: 0, max: handCount },
+                        prompt: `Search the target player's library for up to ${handCount} cards to put into their hand.`,
+                    });
+                    if (picked === undefined) return; // suspended for the search
+                    for (const id of picked) {
+                        ctx.moveCardById(player, id, "library", "hand");
+                    }
+                }
+                ctx.shuffleLibrary(player);
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const jeweledAmulet: CardDefinition = {
 //     id: "34f7bad2-d28f-42d2-9246-fe3545ef49a7",
@@ -8914,33 +9209,24 @@ export const jestersCap: CardDefinition = {
 //     oracleText: "{1}, {T}: Put a charge counter on this artifact. Note the type of mana spent to pay this activation cost. Activate only if there are no charge counters on this artifact.\n{T}, Remove a charge counter from this artifact: Add one mana of this artifact's last noted type.",
 //     types: ["Artifact"],
 // };
-// TODO(#628): implement.
-// export const lapisLazuliTalisman: CardDefinition = {
-//     id: "ce00bb19-983e-427d-be54-ae6daf0ccdde",
-//     name: "Lapis Lazuli Talisman",
-//     rarity: "uncommon",
-//     oracleText: "Whenever a player casts a blue spell, you may pay {3}. If you do, untap target permanent.",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
-// TODO(#628): implement.
-// export const malachiteTalisman: CardDefinition = {
-//     id: "63fb8a24-ce53-4a69-be2a-55c6dbba5ee7",
-//     name: "Malachite Talisman",
-//     rarity: "uncommon",
-//     oracleText: "Whenever a player casts a green spell, you may pay {3}. If you do, untap target permanent.",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
-// TODO(#628): implement.
-// export const nacreTalisman: CardDefinition = {
-//     id: "06912236-8225-4eb0-8086-c6a163c69892",
-//     name: "Nacre Talisman",
-//     rarity: "uncommon",
-//     oracleText: "Whenever a player casts a white spell, you may pay {3}. If you do, untap target permanent.",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
+export const lapisLazuliTalisman: CardDefinition = makeTalisman({
+    id: "ce00bb19-983e-427d-be54-ae6daf0ccdde",
+    name: "Lapis Lazuli Talisman",
+    color: "U",
+    colorWord: "blue",
+});
+export const malachiteTalisman: CardDefinition = makeTalisman({
+    id: "63fb8a24-ce53-4a69-be2a-55c6dbba5ee7",
+    name: "Malachite Talisman",
+    color: "G",
+    colorWord: "green",
+});
+export const nacreTalisman: CardDefinition = makeTalisman({
+    id: "06912236-8225-4eb0-8086-c6a163c69892",
+    name: "Nacre Talisman",
+    color: "W",
+    colorWord: "white",
+});
 // DEFERRED (cumulative upkeep, ADR 0042) — owned by the cumulative-upkeep
 // capability cluster. The mana-substitution body ("Plains produce {R}, ...")
 // also needs a land-mana-replacement primitive not yet built.
@@ -8952,24 +9238,52 @@ export const jestersCap: CardDefinition = {
 //     manaCost: { X: 5 },
 //     types: ["Artifact"],
 // };
-// TODO(#628): implement.
-// export const onyxTalisman: CardDefinition = {
-//     id: "a89b2368-1180-4821-bcb8-8161c18e5538",
-//     name: "Onyx Talisman",
-//     rarity: "uncommon",
-//     oracleText: "Whenever a player casts a black spell, you may pay {3}. If you do, untap target permanent.",
-//     manaCost: { X: 2 },
-//     types: ["Artifact"],
-// };
-// TODO(#628): implement.
-// export const pentagramOfTheAges: CardDefinition = {
-//     id: "b8d889a5-f6c7-410d-97f9-acf08b9091c8",
-//     name: "Pentagram of the Ages",
-//     rarity: "rare",
-//     oracleText: "{4}, {T}: The next time a source of your choice would deal damage to you this turn, prevent that damage.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+export const onyxTalisman: CardDefinition = makeTalisman({
+    id: "a89b2368-1180-4821-bcb8-8161c18e5538",
+    name: "Onyx Talisman",
+    color: "B",
+    colorWord: "black",
+});
+// Pentagram of the Ages — {4}, {T}: The next time a source of your choice would
+// deal damage to you this turn, prevent that damage (CR 605 activated ability;
+// CR 609.7 "source of your choice" via `requestChoice({ kind: "pick-source" })`;
+// CR 615.1/615.6 one-shot source-scoped prevention shield via
+// `preventNextDamageFromSource`, the Circle of Protection mechanism).
+export const pentagramOfTheAges: CardDefinition = {
+    id: "b8d889a5-f6c7-410d-97f9-acf08b9091c8",
+    name: "Pentagram of the Ages",
+    rarity: "rare",
+    oracleText:
+        "{4}, {T}: The next time a source of your choice would deal damage to you this turn, prevent that damage.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "pentagram-of-the-ages-prevent",
+            oracleText:
+                "{4}, {T}: The next time a source of your choice would deal damage to you this turn, prevent that damage.",
+            cost: { mana: { X: 4 }, tap: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                const picks = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: `pentagram-source-${ctx.sourceInstanceId}`,
+                    kind: "pick-source",
+                    zone: "battlefield",
+                    allControllers: true,
+                    count: 1,
+                    prompt: "Pentagram of the Ages: pick the source whose next damage to you this turn is prevented.",
+                });
+                if (picks === undefined) return; // suspended for the choice
+                const sourceId = picks[0];
+                if (!sourceId) return;
+                ctx.preventNextDamageFromSource(sourceId, ctx.controller, {
+                    phase: "end-of-turn",
+                });
+            },
+        },
+    ],
+};
 // Pit Trap — {2}, {T}, Sacrifice this artifact: Destroy target attacking
 // creature without flying. It can't be regenerated (CR 605 activated ability
 // with sacrifice cost; CR 508.1 attacking filter; CR 702.9 "without flying"
@@ -9004,15 +9318,43 @@ export const pitTrap: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const runedArch: CardDefinition = {
-//     id: "ca02861b-9639-480d-8e54-e024f0c70158",
-//     name: "Runed Arch",
-//     rarity: "rare",
-//     oracleText: "This artifact enters tapped.\n{X}, {T}, Sacrifice this artifact: X target creatures with power 2 or less can't be blocked this turn.",
-//     manaCost: { X: 3 },
-//     types: ["Artifact"],
-// };
+// Runed Arch — enters tapped; {X},{T},Sac: X target creatures with power 2 or
+// less can't be blocked this turn (CR 110.5b enters tapped; CR 605 activated
+// ability with X-bound target count; CR 107.3 X chosen at activation;
+// CR 613 layer 7c power filter; CR 509.1b can't-be-blocked via
+// `setCantBeBlockedThisTurn`). `count: "X"` resolves the target count against the
+// chosen X; a 0-X activation skips target selection.
+export const runedArch: CardDefinition = {
+    id: "ca02861b-9639-480d-8e54-e024f0c70158",
+    name: "Runed Arch",
+    rarity: "rare",
+    oracleText:
+        "This artifact enters tapped.\n{X}, {T}, Sacrifice this artifact: X target creatures with power 2 or less can't be blocked this turn.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    entersTapped: true,
+    activatedAbilities: [
+        {
+            id: "runed-arch-unblockable",
+            oracleText:
+                "{X}, {T}, Sacrifice this artifact: X target creatures with power 2 or less can't be blocked this turn.",
+            cost: { mana: { X: "X" }, tap: true, sacrifice: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: "X",
+                powerFilter: { max: 2 },
+            },
+            resolve: (ctx: SpellContext) => {
+                for (const target of ctx.targets) {
+                    if (target.type === "permanent") {
+                        ctx.setCantBeBlockedThisTurn(target);
+                    }
+                }
+            },
+        },
+    ],
+};
 // Shield of the Ages — {2}: Prevent the next 1 damage that would be dealt to
 // you this turn (CR 605 activated ability; CR 615.1 prevention shield on the
 // controller).
@@ -9143,18 +9485,68 @@ export const snowFortress: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const soldeviGolem: CardDefinition = {
-//     id: "64d35e88-81d3-4a54-aa79-190615abc616",
-//     name: "Soldevi Golem",
-//     rarity: "rare",
-//     oracleText: "This creature doesn't untap during your untap step.\nAt the beginning of your upkeep, you may untap target tapped creature an opponent controls. If you do, untap this creature.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact", "Creature"],
-//     subtypes: ["Golem"],
-//     power: 5,
-//     toughness: 3,
-// };
+// Soldevi Golem — a 5/3 Golem that doesn't untap normally; instead, at your
+// upkeep you may untap a tapped opponent creature to untap it too (CR 702 —
+// "doesn't untap" via the `does-not-untap` keyword; CR 603.6a phase trigger;
+// CR 117.3a optional `requestMayPay`; CR 701.20b untap). The mid-resolution
+// target is a tapped creature an opponent controls, picked via `requestChoice`
+// (candidateIds = opponents' tapped creatures); untapping it also untaps Golem.
+export const soldeviGolem: CardDefinition = {
+    id: "64d35e88-81d3-4a54-aa79-190615abc616",
+    name: "Soldevi Golem",
+    rarity: "rare",
+    oracleText:
+        "This creature doesn't untap during your untap step.\nAt the beginning of your upkeep, you may untap target tapped creature an opponent controls. If you do, untap this creature.",
+    manaCost: { X: 4 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Golem"],
+    power: 5,
+    toughness: 3,
+    staticAbilities: ["does-not-untap"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "soldevi-golem-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, you may untap target tapped creature an opponent controls. If you do, untap this creature.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx, _event, scopedPlayerId) => {
+                const opponents = ctx.allPlayerIds.filter(
+                    (pid) => pid !== scopedPlayerId
+                );
+                const candidates = opponents.flatMap((pid) =>
+                    ctx.getBattlefieldIds(pid, {
+                        types: "Creature",
+                        tapped: true,
+                    })
+                );
+                if (candidates.length === 0) return; // nothing to untap
+                const accept = ctx.requestMayPay({
+                    playerId: scopedPlayerId,
+                    choiceId: "soldevi-golem-may",
+                    prompt: "Untap a tapped creature an opponent controls (and untap Soldevi Golem)?",
+                });
+                if (accept === undefined) return; // suspended
+                if (!accept) return;
+                const picked = ctx.requestChoice({
+                    playerId: scopedPlayerId,
+                    choiceId: "soldevi-golem-target",
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    allControllers: true,
+                    candidateIds: candidates,
+                    count: 1,
+                    prompt: "Untap target tapped creature an opponent controls.",
+                });
+                if (picked === undefined) return; // suspended
+                const targetId = picked[0];
+                if (!targetId) return;
+                ctx.untap({ type: "permanent", id: targetId });
+                ctx.untap({ type: "permanent", id: ctx.sourceInstanceId });
+            },
+        }),
+    ],
+};
 // Soldevi Simulacrum — {4} Artifact Creature 2/4 with cumulative upkeep {1}
 // (CR 702.24, ADR 0042) and firebreathing "{1}: This creature gets +1/+0 until
 // end of turn." (CR 611.1 temporary P/T mod, Dragon Engine pattern).
@@ -9225,15 +9617,58 @@ export const staffOfTheAges: CardDefinition = {
 //     manaCost: { X: 3 },
 //     types: ["Artifact"],
 // };
-// TODO(#628): implement.
-// export const timeBomb: CardDefinition = {
-//     id: "092ec691-4729-46d3-a4e2-0cfc5df42a31",
-//     name: "Time Bomb",
-//     rarity: "rare",
-//     oracleText: "At the beginning of your upkeep, put a time counter on this artifact.\n{1}, {T}, Sacrifice this artifact: This artifact deals damage equal to the number of time counters on it to each creature and each player.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+// Time Bomb — upkeep time-counter accrual + a {1},{T},Sac board-wipe scaled by
+// the time-counter count (CR 603.6a phase trigger; CR 122 counters; CR 605
+// activated ability with mana+tap+sacrifice cost; CR 119/120.1 damage via
+// `dealDamageToEach`). The sacrifice is a COST (paid at activation), so by
+// resolution the source is off the battlefield — `getCounterCount` reads the
+// pre-sacrifice last-known count off the resolving stack item (CR 608.2g).
+export const timeBomb: CardDefinition = {
+    id: "092ec691-4729-46d3-a4e2-0cfc5df42a31",
+    name: "Time Bomb",
+    rarity: "rare",
+    oracleText:
+        "At the beginning of your upkeep, put a time counter on this artifact.\n{1}, {T}, Sacrifice this artifact: This artifact deals damage equal to the number of time counters on it to each creature and each player.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "time-bomb-accrue",
+            oracleText:
+                "At the beginning of your upkeep, put a time counter on this artifact.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx) => {
+                ctx.addCounter(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "time",
+                    1
+                );
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "time-bomb-detonate",
+            oracleText:
+                "{1}, {T}, Sacrifice this artifact: This artifact deals damage equal to the number of time counters on it to each creature and each player.",
+            cost: { mana: { X: 1 }, tap: true, sacrifice: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                const count = ctx.getCounterCount(
+                    { type: "permanent", id: ctx.sourceInstanceId },
+                    "time"
+                );
+                if (count > 0) {
+                    ctx.dealDamageToEach(count, {
+                        creatures: true,
+                        players: true,
+                    });
+                }
+            },
+        },
+    ],
+};
 // TODO(#628): implement.
 // export const urzasBauble: CardDefinition = {
 //     id: "58c9e9a7-e170-4361-b7d5-22fc0771c489",
@@ -9242,15 +9677,51 @@ export const staffOfTheAges: CardDefinition = {
 //     oracleText: "{T}, Sacrifice this artifact: Look at a card at random in target player's hand. You draw a card at the beginning of the next turn's upkeep.",
 //     types: ["Artifact"],
 // };
-// TODO(#628): implement.
-// export const vexingArcanix: CardDefinition = {
-//     id: "0c9ea118-6a19-4e1b-aa5a-9b2729efc096",
-//     name: "Vexing Arcanix",
-//     rarity: "rare",
-//     oracleText: "{3}, {T}: Target player chooses a card name, then reveals the top card of their library. If that card has the chosen name, that player puts it into their hand. Otherwise, they put it into their graveyard and this artifact deals 2 damage to them.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact"],
-// };
+// Vexing Arcanix — {3}, {T}: Target player names a card, reveals their top card;
+// hit → hand, miss → graveyard + 2 damage to them (CR 605 activated ability;
+// CR 202.3 name-a-card via `requestNameCard` made by the TARGET player; CR 701.13
+// reveal via `markKnownToAll`; CR 120.1 damage). The named-card choice and the
+// reveal are both the target's, so the prompt's `playerId` is the target, not the
+// controller.
+export const vexingArcanix: CardDefinition = {
+    id: "0c9ea118-6a19-4e1b-aa5a-9b2729efc096",
+    name: "Vexing Arcanix",
+    rarity: "rare",
+    oracleText:
+        "{3}, {T}: Target player chooses a card name, then reveals the top card of their library. If that card has the chosen name, that player puts it into their hand. Otherwise, they put it into their graveyard and this artifact deals 2 damage to them.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "vexing-arcanix-guess",
+            oracleText:
+                "{3}, {T}: Target player chooses a card name, then reveals the top card of their library. If that card has the chosen name, that player puts it into their hand. Otherwise, they put it into their graveyard and this artifact deals 2 damage to them.",
+            cost: { mana: { X: 3 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "player", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "player") return;
+                const player = t.id;
+                const named = ctx.requestNameCard({
+                    playerId: player,
+                    choiceId: "vexing-arcanix-name",
+                    prompt: "Name a card, then reveal the top card of your library.",
+                });
+                if (named === undefined) return; // suspended on the name choice
+                const top = ctx.peekLibraryTop(player, 1)[0];
+                if (top === undefined) return; // empty library — nothing to reveal
+                ctx.markKnownToAll(player, [top]);
+                if (ctx.getCardName(top) === named) {
+                    ctx.moveCardById(player, top, "library", "hand");
+                } else {
+                    ctx.moveCardById(player, top, "library", "graveyard");
+                    ctx.dealDamage({ type: "player", id: player }, 2);
+                }
+            },
+        },
+    ],
+};
 // Vibrating Sphere — During your turn, creatures you control get +2/+0; during
 // turns other than yours, creatures you control get -0/-2 (CR 611.2c
 // turn-conditional anthem via two `pt-buff` static effects gated by
@@ -9287,18 +9758,42 @@ export const vibratingSphere: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const walkingWall: CardDefinition = {
-//     id: "cba1238c-1969-452d-8112-124cbbd49417",
-//     name: "Walking Wall",
-//     rarity: "uncommon",
-//     oracleText: "Defender\n{3}: This creature gets +3/-1 until end of turn and can attack this turn as though it didn't have defender. Activate only once each turn.",
-//     manaCost: { X: 4 },
-//     types: ["Artifact", "Creature"],
-//     subtypes: ["Wall"],
-//     power: 0,
-//     toughness: 6,
-// };
+// Walking Wall — Defender Wall with a once-per-turn {3} self-pump that also lets
+// it attack despite defender (CR 702.3 defender; CR 605 activated ability;
+// CR 613 layer 7c temporary +3/-1 via `addTemporaryPTBuff`; CR 508
+// attack-despite-defender via `allowAttackDespiteDefender`; CR 602.5 once-per-turn
+// via `oncePerTurn`).
+export const walkingWall: CardDefinition = {
+    id: "cba1238c-1969-452d-8112-124cbbd49417",
+    name: "Walking Wall",
+    rarity: "uncommon",
+    oracleText:
+        "Defender\n{3}: This creature gets +3/-1 until end of turn and can attack this turn as though it didn't have defender. Activate only once each turn.",
+    manaCost: { X: 4 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Wall"],
+    power: 0,
+    toughness: 6,
+    staticAbilities: ["defender"],
+    activatedAbilities: [
+        {
+            id: "walking-wall-mobilize",
+            oracleText:
+                "{3}: This creature gets +3/-1 until end of turn and can attack this turn as though it didn't have defender. Activate only once each turn.",
+            cost: { mana: { X: 3 } },
+            useStack: true,
+            oncePerTurn: true,
+            resolve: (ctx: SpellContext) => {
+                const self = {
+                    type: "permanent" as const,
+                    id: ctx.sourceInstanceId,
+                };
+                ctx.addTemporaryPTBuff(self, 3, -1, { phase: "end-of-turn" });
+                ctx.allowAttackDespiteDefender(self);
+            },
+        },
+    ],
+};
 // Wall of Shields — Defender + Banding artifact Wall (CR 702.3 defender,
 // CR 702.22 banding). Pure keyword data.
 export const wallOfShields: CardDefinition = {
