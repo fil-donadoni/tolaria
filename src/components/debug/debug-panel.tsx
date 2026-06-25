@@ -414,6 +414,47 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 6,
     },
     {
+        // ICE Blue buildable-now completion (#654, PRD #628). Exercises the two
+        // Blue cards completed from shipped primitives:
+        //   - Krovikan Sorcerer ({T}, discard a nonblack card: draw 1 / {T},
+        //     discard a black card: draw 2 then discard 1). The hand seeds a
+        //     black card (Dark Ritual) and a nonblack card (Giant Growth) so
+        //     both colour-filtered branches are exercisable.
+        //   - Shyft (at your upkeep, may become a colour of your choice — an
+        //     indefinite layer-5 colour override). Pass to your next upkeep to
+        //     hit the trigger, accept, and pick a colour.
+        label: "ICE: Blue completion — Krovikan Sorcerer loots / Shyft colour override (#654)",
+        cards: [
+            {
+                name: "Krovikan Sorcerer",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Shyft",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Dark Ritual",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Giant Growth",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Brainstorm",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 5,
+    },
+    {
         // ICE Black free tranche (#632, PRD #628). Exercises the Black ICE
         // staples end to end:
         //   - Abyssal Specter (flying; deals damage to a player → that player

@@ -202,6 +202,9 @@ import {
     fylgja,
     justice,
     seraph,
+    // Blue buildable-now completion (#654)
+    krovikanSorcerer,
+    shyft,
 } from "../ice";
 import {
     getCardById,
@@ -5697,5 +5700,185 @@ describe("Seraph (#653) — reanimate creatures it killed at the next end step",
         );
         expect(reanimated).toBeDefined();
         expect(reanimated?.controllerId).toBe("p1");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Blue buildable-now completion (#654)
+// ---------------------------------------------------------------------------
+
+describe("Krovikan Sorcerer (colour-filtered looters, CR 601.2h / 121.1)", () => {
+    const GREEN_CARD = getCardByName("Grizzly Bears").id; // nonblack
+    const BLACK_CARD = getCardByName("Dark Ritual").id; // black
+
+    function setup() {
+        const sorc = makeInstance(krovikanSorcerer.id, {
+            id: "sorc",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Hand: one nonblack (green) card, one black card, plus library cards
+        // to draw.
+        const greenInHand = makeInstance(GREEN_CARD, {
+            id: "green-hand",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const blackInHand = makeInstance(BLACK_CARD, {
+            id: "black-hand",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const lib = [
+            makeInstance(GREEN_CARD, {
+                id: "lib0",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+            makeInstance(GREEN_CARD, {
+                id: "lib1",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [sorc],
+                    hand: [greenInHand, blackInHand],
+                    library: lib,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, sorc };
+    }
+
+    it("declares the two colour-filtered loot abilities (CR 113.3c)", () => {
+        const ids = krovikanSorcerer.activatedAbilities!.map((a) => a.id);
+        expect(ids).toEqual([
+            "krovikan-sorcerer-nonblack",
+            "krovikan-sorcerer-black",
+        ]);
+    });
+
+    it("nonblack branch: only nonblack cards are offered as the discard (CR 601.2h)", () => {
+        const { state, sorc } = setup();
+        resolveActivated(state, sorc, "krovikan-sorcerer-nonblack");
+        // Suspends at the discard pick — only the green card is a candidate.
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toEqual(["green-hand"]);
+    });
+
+    it("nonblack branch: discard nonblack → draw one (CR 121.1)", () => {
+        const { state, sorc } = setup();
+        resolveActivated(state, sorc, "krovikan-sorcerer-nonblack");
+        submitChoice(state, ["green-hand"]);
+        const p1 = state.players[0];
+        // Green discarded, two library cards drawn? No — only one drawn.
+        expect(p1.graveyard.map((c) => c.id)).toContain("green-hand");
+        // Started with [green, black] in hand, discarded green, drew one →
+        // hand is [black, lib0].
+        const handIds = p1.hand.map((c) => c.id);
+        expect(handIds).toContain("black-hand");
+        expect(handIds).toContain("lib0");
+        expect(handIds).not.toContain("green-hand");
+        expect(p1.library.map((c) => c.id)).toEqual(["lib1"]);
+    });
+
+    it("black branch: only black cards are offered as the discard (CR 601.2h)", () => {
+        const { state, sorc } = setup();
+        resolveActivated(state, sorc, "krovikan-sorcerer-black");
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toEqual(["black-hand"]);
+    });
+
+    it("black branch: discard black → draw two then discard one (CR 121.1 / 701.8)", () => {
+        const { state, sorc } = setup();
+        resolveActivated(state, sorc, "krovikan-sorcerer-black");
+        submitChoice(state, ["black-hand"]); // pay the black discard cost
+        // Drew two (lib0, lib1); now suspends at the "discard one of them" pick.
+        const head = state.pendingChoices![0];
+        expect(head.choiceId).toBe("krovikan-sorcerer-black-then-discard");
+        submitChoice(state, ["lib0"]); // discard one drawn card
+        const p1 = state.players[0];
+        // black-hand (cost) + lib0 (then-discard) are in the graveyard.
+        const gy = p1.graveyard.map((c) => c.id);
+        expect(gy).toContain("black-hand");
+        expect(gy).toContain("lib0");
+        // Net hand: green (untouched) + lib1 (kept).
+        const handIds = p1.hand.map((c) => c.id);
+        expect(handIds).toContain("green-hand");
+        expect(handIds).toContain("lib1");
+        expect(p1.library).toHaveLength(0);
+    });
+});
+
+describe("Shyft (upkeep colour override, CR 305.7 layer 5 / 603.6a)", () => {
+    function setup() {
+        const shyftInst = makeInstance(shyft.id, {
+            id: "shyft",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shyftInst] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, shyftInst };
+    }
+
+    it("blue Shapeshifter with the printed body (CR 302)", () => {
+        expect(shyft.types).toContain("Creature");
+        expect(shyft.subtypes).toContain("Shapeshifter");
+        expect(shyft.power).toBe(4);
+        expect(shyft.toughness).toBe(2);
+    });
+
+    it("declining the upkeep may leaves the colour unchanged (CR 117.3a)", () => {
+        const { state, shyftInst } = setup();
+        resolveTrigger(state, shyftInst, "shyft-upkeep-color", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+        } as StackItem["triggerEvent"]);
+        // Suspends at the may-pay; decline.
+        expect(state.pendingChoices![0].kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "shyft"
+        )!;
+        expect(live.colorOverride).toBeUndefined();
+    });
+
+    it("accepting → choosing red makes Shyft red indefinitely (GRE + wire, CR 305.7)", () => {
+        const { state, shyftInst } = setup();
+        resolveTrigger(state, shyftInst, "shyft-upkeep-color", {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+        } as StackItem["triggerEvent"]);
+        // Accept the may-pay, then pick Red from the option list.
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.pendingChoices![0].kind).toBe("option-pick");
+        submitChoice(state, ["R"]);
+        // GRE: the layer-5 override rides the instance (no duration → indefinite).
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "shyft"
+        )!;
+        expect(live.colorOverride).toEqual(["R"]);
+        // Wire: the override survives projectPublicState (mandatory for visible
+        // colour effects).
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "shyft"
+        )!;
+        expect(slim.colorOverride).toEqual(["R"]);
     });
 });
