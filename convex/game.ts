@@ -27,6 +27,7 @@ import {
     applySourceStaticEffects,
     getBasicLandMana,
     payManaCost,
+    manaSpentDelta,
     payManaCostForSpell,
     spendablePoolForSpell,
     addRestrictedManaToPool,
@@ -793,6 +794,19 @@ function sacrificedManaValue(perm: CardInstanceState): number {
         : 0;
 }
 
+/** Cast-from-exile lookup (CR 601.3e — Ice Cauldron: "You may cast that card
+ *  for as long as it remains exiled"). Returns the card in `player`'s exile that
+ *  carries `castableFromExileBy === player.id` and matches `instanceId`, or
+ *  undefined. The cast pipeline checks the hand first, then this. */
+function findCastableExileCard(
+    player: PlayerState,
+    instanceId: string
+): CardInstanceState | undefined {
+    return player.exile.find(
+        (c) => c.id === instanceId && c.castableFromExileBy === player.id
+    );
+}
+
 /** Resolves an activated ability's mana cost, folding in the FEM Merseine
  *  "pay enchanted creature's mana cost" dynamic cost (CR 601.2f / 202.3). When
  *  `manaEqualToEnchantedCreatureCost` is set, the source's `attachedTo`
@@ -904,11 +918,19 @@ export function tryAutoCommitPendingActivation(
         return null;
     }
 
+    // CR 106.10 — noted-mana battery (Jeweled Amulet / Ice Cauldron). Snapshot
+    // the pool before payment so the per-colour delta becomes the noted mana.
+    const poolBeforePayment = pa.noteManaSpent
+        ? { ...player.manaPool }
+        : undefined;
     payManaCost(
         player.manaPool,
         pa.manaCost,
         getManaSubstitutions(state, player.id)
     );
+    const notedManaSpent = poolBeforePayment
+        ? manaSpentDelta(poolBeforePayment, player.manaPool)
+        : undefined;
     commitLandsForCost(player, pa.manaCost);
 
     // Deferred non-mana costs (CR 602.1) — applied now so cancellation leaves
@@ -1025,6 +1047,7 @@ export function tryAutoCommitPendingActivation(
         ...(activationSacrificeSnapshot
             ? { additionalSacrificeSnapshot: activationSacrificeSnapshot }
             : {}),
+        ...(notedManaSpent ? { notedManaSpent } : {}),
     };
     state.stack.push(stackItem);
     recordActivation(state, card, pa.abilityId, !!pa.tapSource);
@@ -1144,16 +1167,19 @@ export function tryAutoCommitPendingCast(
     // CR 106.6: a creature spell may also be paid with restricted mana whose
     // restriction permits it (Metamorphosis). Fold it into the affordability
     // check and drain it first at payment.
-    const castCard = player.hand.find(
-        (c) => c.id === state.pendingCast!.cardInstanceId
-    );
+    const castInstanceId = state.pendingCast!.cardInstanceId;
+    // CR 601.3e — the card may be cast from the hand OR from exile (Ice
+    // Cauldron's "you may cast that card for as long as it remains exiled").
+    const castCard =
+        player.hand.find((c) => c.id === castInstanceId) ??
+        findCastableExileCard(player, castInstanceId);
     const castDef = castCard
         ? tryGetCardById((castCard.card as { id: string }).id)
         : undefined;
     const castTypes = castDef?.types ?? [];
     if (
         !isManaCostCovered(
-            spendablePoolForSpell(player, castTypes),
+            spendablePoolForSpell(player, castTypes, castInstanceId),
             state.pendingCast.manaCost,
             getManaSubstitutions(state, player.id)
         )
@@ -1171,7 +1197,8 @@ export function tryAutoCommitPendingCast(
         player,
         state.pendingCast.manaCost,
         castTypes,
-        getManaSubstitutions(state, player.id)
+        getManaSubstitutions(state, player.id),
+        castInstanceId
     );
     commitLandsForCost(player, state.pendingCast.manaCost);
 
@@ -1215,10 +1242,17 @@ export function tryAutoCommitPendingCast(
         }
     }
 
+    // CR 601.3e — remove from the zone the card was actually cast from (hand,
+    // or exile for Ice Cauldron's noted card).
+    const castFromZone: "hand" | "exile" = player.hand.some(
+        (c) => c.id === state.pendingCast!.cardInstanceId
+    )
+        ? "hand"
+        : "exile";
     const spellCard = removeFromZone(
         player,
         state.pendingCast.cardInstanceId,
-        "hand"
+        castFromZone
     );
     const pendingTargets = (state.pendingCast as Record<string, unknown>)
         .targets as StackItem["targets"] | undefined;
@@ -2391,6 +2425,7 @@ export function finalizeTargetSelection(
                 ...(abilityChosenX !== undefined
                     ? { chosenX: abilityChosenX }
                     : {}),
+                ...(ability.noteManaSpent ? { noteManaSpent: true } : {}),
                 keepPriority,
                 targets,
                 ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
@@ -2403,6 +2438,12 @@ export function finalizeTargetSelection(
 
         // Commit immediately.
         if (ability.cost.tap) card.isTapped = true;
+        // CR 106.10 — noted-mana battery: snapshot the pool before payment so
+        // the per-colour delta becomes the mana noted on the source.
+        const poolBeforePayment =
+            ability.noteManaSpent && manaCost
+                ? { ...player.manaPool }
+                : undefined;
         if (manaCost) {
             payManaCost(
                 player.manaPool,
@@ -2411,6 +2452,9 @@ export function finalizeTargetSelection(
             );
             commitLandsForCost(player, manaCost);
         }
+        const notedManaSpent = poolBeforePayment
+            ? manaSpentDelta(poolBeforePayment, player.manaPool)
+            : undefined;
         if (ability.cost.removeCounter) {
             payRemoveCounterCost(card, ability.cost.removeCounter);
         }
@@ -2435,6 +2479,7 @@ export function finalizeTargetSelection(
                 ? { chosenX: abilityChosenX }
                 : {}),
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
+            ...(notedManaSpent ? { notedManaSpent } : {}),
         };
         state.stack.push(stackItem);
         recordActivation(state, card, abilityId, !!ability.cost.tap);
@@ -2449,8 +2494,14 @@ export function finalizeTargetSelection(
         return;
     }
 
-    // Spell cast branch (CR 601.2c).
-    const cardInHand = player.hand.find((c) => c.id === cardInstanceId);
+    // Spell cast branch (CR 601.2c). CR 601.3e — normally the hand, but Ice
+    // Cauldron's noted card is cast from exile.
+    const exileCastCard = player.hand.some((c) => c.id === cardInstanceId)
+        ? undefined
+        : findCastableExileCard(player, cardInstanceId);
+    const castZone: "hand" | "exile" = exileCastCard ? "exile" : "hand";
+    const cardInHand =
+        player.hand.find((c) => c.id === cardInstanceId) ?? exileCastCard;
     if (!cardInHand) throw new Error("Card not in hand");
     const cardDef = getCardById((cardInHand.card as { id: string }).id);
 
@@ -2502,7 +2553,7 @@ export function finalizeTargetSelection(
     if (
         Object.keys(manaCost).length === 0 ||
         isManaCostCovered(
-            spendablePoolForSpell(player, cardDef.types),
+            spendablePoolForSpell(player, cardDef.types, cardInstanceId),
             manaCost,
             getManaSubstitutions(state, player.id)
         )
@@ -2512,7 +2563,8 @@ export function finalizeTargetSelection(
                 player,
                 manaCost,
                 cardDef.types,
-                getManaSubstitutions(state, player.id)
+                getManaSubstitutions(state, player.id),
+                cardInstanceId
             );
             commitLandsForCost(player, manaCost);
         }
@@ -2520,7 +2572,7 @@ export function finalizeTargetSelection(
         // moves hand → stack (Fire Covenant). Affordability validated at
         // announcement; SBA handles a fatal payment.
         if (payLife > 0) player.life -= payLife;
-        const card = removeFromZone(player, cardInstanceId, "hand");
+        const card = removeFromZone(player, cardInstanceId, castZone);
         const stackItem: StackItem = {
             ...card,
             castById: playerId,
@@ -2651,11 +2703,21 @@ export const announceCast = mutation({
             throw new Error("Target selection is in progress");
         }
 
-        const cardInHand = player.hand.find(
-            (c) => c.id === args.cardInstanceId
-        );
+        // CR 601.3e — a spell is normally cast from the hand, but Ice Cauldron
+        // lets the noted card be cast from exile ("You may cast that card for as
+        // long as it remains exiled"). Check the hand first, then castable exile.
+        const cardInHand =
+            player.hand.find((c) => c.id === args.cardInstanceId) ??
+            findCastableExileCard(player, args.cardInstanceId);
         if (!cardInHand) throw new Error("Card not in hand");
         assertLegalAction(state, player, cardInHand, "cast");
+        // CR 601.3e — the zone this cast originates from (hand, or exile for Ice
+        // Cauldron's noted card). Used at commit for `removeFromZone`.
+        const castFromZone: "hand" | "exile" = player.hand.some(
+            (c) => c.id === args.cardInstanceId
+        )
+            ? "hand"
+            : "exile";
 
         const cardDef = getCardById((cardInHand.card as { id: string }).id);
 
@@ -2905,7 +2967,11 @@ export const announceCast = mutation({
         if (
             Object.keys(manaCost).length === 0 ||
             isManaCostCovered(
-                spendablePoolForSpell(player, cardDef.types),
+                spendablePoolForSpell(
+                    player,
+                    cardDef.types,
+                    args.cardInstanceId
+                ),
                 manaCost,
                 getManaSubstitutions(state, player.id)
             )
@@ -2915,11 +2981,16 @@ export const announceCast = mutation({
                     player,
                     manaCost,
                     cardDef.types,
-                    getManaSubstitutions(state, player.id)
+                    getManaSubstitutions(state, player.id),
+                    args.cardInstanceId
                 );
                 commitLandsForCost(player, manaCost);
             }
-            const card = removeFromZone(player, args.cardInstanceId, "hand");
+            const card = removeFromZone(
+                player,
+                args.cardInstanceId,
+                castFromZone
+            );
             const stackItem: StackItem = {
                 ...card,
                 castById: args.playerId,

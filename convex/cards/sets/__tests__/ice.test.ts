@@ -56,6 +56,8 @@ import {
     glaciers,
     hydroblast,
     iceberg,
+    iceCauldron,
+    jeweledAmulet,
     icyPrison,
     powerSinkIce,
     seaSpirit,
@@ -361,6 +363,10 @@ import {
     applyExistingGrantsTo,
     addRestrictedManaToPool,
     removePermanentTo,
+    manaSpentDelta,
+    spendablePoolForSpell,
+    payManaCostForSpell,
+    restrictedUnitAllowsSpell,
 } from "../../../gre/state";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import {
@@ -371,7 +377,7 @@ import {
 } from "../../snowReads";
 import { effectiveTriggeredAbilities } from "../../../gre/copy";
 import { collectTriggers } from "../../../gre/triggers";
-import { projectPublicState } from "../../../gameProjections";
+import { projectPublicState, projectFullState } from "../../../gameProjections";
 import {
     emitBlockersConfirmedEvents,
     emitAttackersDeclaredEvents,
@@ -385,14 +391,23 @@ import {
 } from "../../../gre/pendingChoiceSubmit";
 import { getLegalTargets } from "../../../gre/rules";
 import { validateBlockerEligibility } from "../../../gre/combat";
-import { tapSourceIntoPayment, finalizeTargetSelection } from "../../../game";
+import {
+    tapSourceIntoPayment,
+    finalizeTargetSelection,
+    tryAutoCommitPendingActivation,
+    tryAutoCommitPendingCast,
+} from "../../../game";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
 } from "../../__tests__/setup";
-import type { CardInstanceState, GameState } from "../../../gre/state";
+import type {
+    CardInstanceState,
+    GameState,
+    PendingActivation,
+} from "../../../gre/state";
 import type { StackItem } from "../../../gre/state";
 import type { CardType, ManaCost } from "../../types";
 
@@ -11617,5 +11632,434 @@ describe("Land-mana substitution — wire-format survival (#665)", () => {
                 { G: 1 }
             )
         ).toEqual({ B: 1 });
+    });
+});
+
+// --- Noted-mana battery (#666): Jeweled Amulet / Ice Cauldron --------------
+//
+// CR 106.10 — "note the type [and amount] of mana spent". The engine captures
+// the pool delta at activation commit and writes it onto the resulting stack
+// item as `notedManaSpent`; the resolve step reads it via `getNotedManaSpent()`
+// and stores it on the artifact with `noteMana`. Ability 2 replays it with
+// `addNotedMana`. These helpers mirror the game.ts commit: push the ability with
+// a `notedManaSpent` snapshot already attached, then resolve.
+
+/** Resolve an activated ability whose commit captured `notedManaSpent`
+ *  (mirrors game.ts: the manaPool delta snapshotted onto the stack item). */
+function resolveActivatedNoting(
+    state: GameState,
+    source: CardInstanceState,
+    abilityId: string,
+    notedManaSpent: Record<string, number>
+): void {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        abilityId,
+        notedManaSpent,
+    });
+    resolveTopOfStack(state);
+}
+
+describe("manaSpentDelta (CR 106.10)", () => {
+    it("returns only the colours that decreased, with the amounts spent", () => {
+        expect(
+            manaSpentDelta(
+                { W: 0, U: 2, B: 0, R: 3, G: 0, C: 0 },
+                { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 }
+            )
+        ).toEqual({ U: 2, R: 2 });
+    });
+    it("is empty when nothing was spent", () => {
+        expect(
+            manaSpentDelta(
+                { W: 1, U: 1, B: 1, R: 1, G: 1, C: 1 },
+                { W: 1, U: 1, B: 1, R: 1, G: 1, C: 1 }
+            )
+        ).toEqual({});
+    });
+});
+
+describe("Jeweled Amulet (noted-mana battery, CR 106.10)", () => {
+    it("declares the charge ({1},{T}) and add ({T}, remove counter) abilities", () => {
+        const charge = jeweledAmulet.activatedAbilities!.find(
+            (a) => a.id === "jeweled-amulet-charge"
+        )!;
+        expect(charge.cost).toMatchObject({ mana: { X: 1 }, tap: true });
+        expect(charge.noteManaSpent).toBe(true);
+        expect(charge.canActivate).toBeTypeOf("function");
+        const add = jeweledAmulet.activatedAbilities!.find(
+            (a) => a.id === "jeweled-amulet-add"
+        )!;
+        expect(add.cost).toMatchObject({
+            tap: true,
+            removeCounter: { type: "charge", count: 1 },
+        });
+    });
+
+    it("gates the charge ability on having no charge counters (CR 122)", () => {
+        const charge = jeweledAmulet.activatedAbilities!.find(
+            (a) => a.id === "jeweled-amulet-charge"
+        )!;
+        const noCounter = makeInstance(jeweledAmulet.id, {
+            counters: { charge: 0 },
+        });
+        const oneCounter = makeInstance(jeweledAmulet.id, {
+            counters: { charge: 1 },
+        });
+        const ctx = { phase: "PRECOMBAT_MAIN" } as never;
+        expect(charge.canActivate!(noCounter, ctx)).toBe(true);
+        expect(charge.canActivate!(oneCounter, ctx)).toBe(false);
+    });
+
+    it("notes the COLOUR spent on the charge and returns it on the add ability", () => {
+        const amulet = makeInstance(jeweledAmulet.id, {
+            id: "amulet",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { charge: 0 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [amulet] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Charge ability: the {1} was paid with red mana → note {R:1}.
+        resolveActivatedNoting(state, amulet, "jeweled-amulet-charge", {
+            R: 1,
+        });
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "amulet"
+        )!;
+        expect(live.counters?.charge).toBe(1);
+        expect(live.notedMana).toEqual({ mana: { R: 1 } });
+
+        // Add ability: replay the noted red mana into the pool (unrestricted).
+        live.counters = { charge: 1 };
+        resolveActivated(state, live, "jeweled-amulet-add");
+        expect(state.players[0].manaPool.R).toBe(1);
+        expect(state.players[0].restrictedMana ?? []).toHaveLength(0);
+    });
+
+    it("overwrites the previous note ('last noted type')", () => {
+        const amulet = makeInstance(jeweledAmulet.id, {
+            id: "amulet",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [amulet] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivatedNoting(state, amulet, "jeweled-amulet-charge", {
+            U: 1,
+        });
+        resolveActivatedNoting(state, amulet, "jeweled-amulet-charge", {
+            G: 1,
+        });
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "amulet"
+        )!;
+        expect(live.notedMana).toEqual({ mana: { G: 1 } });
+    });
+
+    it("integration: game.ts captures the spent colour at commit, GRE notes it (CR 106.10)", () => {
+        // Full path: tryAutoCommitPendingActivation (game.ts) snapshots the
+        // pool delta into `notedManaSpent`, then resolveTopOfStack runs the
+        // card's resolve which stores it on the artifact via noteMana.
+        const amulet = makeInstance(jeweledAmulet.id, {
+            id: "amulet",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { charge: 0 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [amulet],
+                    // Pool holds the {1} the charge ability will spend — green.
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 1, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+            priorityPlayerId: "p1",
+        });
+        const pa: PendingActivation = {
+            playerId: "p1",
+            cardInstanceId: "amulet",
+            abilityId: "jeweled-amulet-charge",
+            manaCost: { X: 1 },
+            tappedLandIds: [],
+            tapSource: true,
+            sacrificeSource: false,
+            noteManaSpent: true,
+        };
+        state.pendingActivation = pa;
+        const committed = tryAutoCommitPendingActivation(state, "p1");
+        expect(committed).not.toBeNull();
+        // The pending ability is on the stack carrying the captured colour.
+        const onStack = state.stack[state.stack.length - 1];
+        expect(onStack.notedManaSpent).toEqual({ G: 1 });
+        // Resolve it: the artifact now stores the noted green mana.
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "amulet"
+        )!;
+        expect(live.notedMana).toEqual({ mana: { G: 1 } });
+        expect(live.counters?.charge).toBe(1);
+        expect(live.isTapped).toBe(true);
+    });
+
+    it("survives the wire projection — noted mana on the artifact", () => {
+        const amulet = makeInstance(jeweledAmulet.id, {
+            id: "amulet",
+            controllerId: "p1",
+            ownerId: "p1",
+            notedMana: { mana: { R: 1 } },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [amulet] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectFullState(state, 1);
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "amulet"
+        )!;
+        expect((slim as CardInstanceState).notedMana).toEqual({
+            mana: { R: 1 },
+        });
+    });
+});
+
+describe("Ice Cauldron (noted-mana battery + cast-from-exile, CR 106.10/601.3e)", () => {
+    it("declares the {X},{T} charge ability and the {T}+remove-counter add ability", () => {
+        const charge = iceCauldron.activatedAbilities!.find(
+            (a) => a.id === "ice-cauldron-charge"
+        )!;
+        expect(charge.cost).toMatchObject({ mana: { X: "X" }, tap: true });
+        expect(charge.noteManaSpent).toBe(true);
+        const add = iceCauldron.activatedAbilities!.find(
+            (a) => a.id === "ice-cauldron-add"
+        )!;
+        expect(add.cost).toMatchObject({
+            tap: true,
+            removeCounter: { type: "charge", count: 1 },
+        });
+    });
+
+    it("exiles the chosen card face down, grants cast-from-exile, and notes the mana keyed to it", () => {
+        const cauldron = makeInstance(iceCauldron.id, {
+            id: "cauldron",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { charge: 0 },
+        });
+        const exiledCard = makeInstance(brainstorm.id, {
+            id: "noted-spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [cauldron],
+                    hand: [exiledCard],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // Charge ability paid {X}=2 with {U}{U} → notes {U:2}, exiles the card.
+        resolveActivatedNoting(state, cauldron, "ice-cauldron-charge", {
+            U: 2,
+        });
+        // The choose-hand-card choice is now pending; pick the spell.
+        submitChoice(state, ["noted-spell"]);
+
+        const p1 = state.players[0];
+        // The card left the hand for face-down exile, castable by its controller.
+        expect(p1.hand.find((c) => c.id === "noted-spell")).toBeUndefined();
+        const exiled = p1.exile.find((c) => c.id === "noted-spell")!;
+        expect(exiled.castableFromExileBy).toBe("p1");
+        expect(exiled.knownTo).toEqual(["p1"]); // face down: hidden to opponent
+        // The artifact carries a charge counter and the noted mana keyed to the
+        // exiled card.
+        const live = p1.battlefield.find((c) => c.id === "cauldron")!;
+        expect(live.counters?.charge).toBe(1);
+        expect(live.notedMana).toEqual({
+            mana: { U: 2 },
+            castableCardId: "noted-spell",
+        });
+    });
+
+    it("the add ability floats restricted mana spendable ONLY on the noted card (CR 106.6)", () => {
+        const cauldron = makeInstance(iceCauldron.id, {
+            id: "cauldron",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { charge: 1 },
+            notedMana: { mana: { U: 2 }, castableCardId: "noted-spell" },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cauldron] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, cauldron, "ice-cauldron-add");
+        const restricted = state.players[0].restrictedMana!;
+        expect(restricted).toEqual([
+            { color: "U", amount: 2, castableCardId: "noted-spell" },
+        ]);
+        // No fungible mana was added.
+        expect(state.players[0].manaPool.U).toBe(0);
+
+        const unit = restricted[0];
+        // Eligible only for the noted card instance, not any other spell.
+        expect(
+            restrictedUnitAllowsSpell(unit, ["Instant"], "noted-spell")
+        ).toBe(true);
+        expect(
+            restrictedUnitAllowsSpell(unit, ["Instant"], "other-spell")
+        ).toBe(false);
+        expect(restrictedUnitAllowsSpell(unit, ["Instant"], undefined)).toBe(
+            false
+        );
+    });
+
+    it("spendablePoolForSpell exposes the restricted mana only for the noted card", () => {
+        const player = makePlayer("p1");
+        addRestrictedManaToPool(player, "U", 2, undefined, "noted-spell");
+        // For the noted card, the {U}{U} is spendable.
+        expect(
+            spendablePoolForSpell(player, ["Instant"], "noted-spell").U
+        ).toBe(2);
+        // For a different card, it is NOT available.
+        expect(
+            spendablePoolForSpell(player, ["Instant"], "other-spell").U ?? 0
+        ).toBe(0);
+    });
+
+    it("pays the noted card's cost restricted-first, leaving the fungible pool intact", () => {
+        const player = makePlayer("p1");
+        player.manaPool.U = 1;
+        addRestrictedManaToPool(player, "U", 2, undefined, "noted-spell");
+        // Cast the noted card costing {U}{U}: drains the restricted mana first.
+        payManaCostForSpell(player, { U: 2 }, ["Instant"], [], "noted-spell");
+        expect(player.manaPool.U).toBe(1); // fungible untouched
+        expect(player.restrictedMana ?? []).toHaveLength(0); // restricted drained
+    });
+
+    it("integration: the noted card is cast FROM EXILE paying the restricted mana (CR 601.3e)", () => {
+        // The exiled, cast-from-exile-flagged Brainstorm; pool holds ONLY the
+        // {U}{U} instance-restricted noted mana. tryAutoCommitPendingCast must
+        // move it exile → stack, draining the restricted mana.
+        const exiled = makeInstance(brainstorm.id, {
+            id: "noted-spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+            castableFromExileBy: "p1",
+            knownTo: ["p1"],
+        });
+        const p1 = makePlayer("p1", { exile: [exiled] });
+        addRestrictedManaToPool(p1, "U", 2, undefined, "noted-spell");
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            pendingCast: {
+                playerId: "p1",
+                cardInstanceId: "noted-spell",
+                manaCost: { U: 1 },
+                tappedLandIds: [],
+            },
+        });
+        const result = tryAutoCommitPendingCast(state, "p1");
+        expect(result).not.toBeNull();
+        // Brainstorm left exile for the stack.
+        expect(state.players[0].exile).toHaveLength(0);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].id).toBe("noted-spell");
+        // The cast-from-exile flag was consumed.
+        expect(state.stack[0].castableFromExileBy).toBeUndefined();
+        // One {U} of restricted mana was drained; the other {U} remains.
+        const remaining = state.players[0].restrictedMana ?? [];
+        expect(remaining).toEqual([
+            { color: "U", amount: 1, castableCardId: "noted-spell" },
+        ]);
+    });
+
+    it("integration: restricted mana cannot pay for a DIFFERENT spell (CR 106.6)", () => {
+        // The same restricted {U}{U}, but the pending cast is a different card —
+        // affordability must fail (no fungible mana), so nothing commits.
+        const otherSpell = makeInstance(brainstorm.id, {
+            id: "other-spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1", { hand: [otherSpell] });
+        addRestrictedManaToPool(p1, "U", 2, undefined, "noted-spell");
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            pendingCast: {
+                playerId: "p1",
+                cardInstanceId: "other-spell",
+                manaCost: { U: 1 },
+                tappedLandIds: [],
+            },
+        });
+        const result = tryAutoCommitPendingCast(state, "p1");
+        // Not payable: the restricted mana is keyed to a different card.
+        expect(result).toBeNull();
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].hand).toHaveLength(1);
+    });
+
+    it("survives the wire projection — exiled card flag + noted mana", () => {
+        const cauldron = makeInstance(iceCauldron.id, {
+            id: "cauldron",
+            controllerId: "p1",
+            ownerId: "p1",
+            notedMana: { mana: { U: 2 }, castableCardId: "noted-spell" },
+        });
+        const exiled = makeInstance(brainstorm.id, {
+            id: "noted-spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+            castableFromExileBy: "p1",
+            knownTo: ["p1"],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [cauldron],
+                    exile: [exiled],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectFullState(state, 1);
+        const slimCauldron = projected.players[0].battlefield.find(
+            (c) => c.id === "cauldron"
+        )! as CardInstanceState;
+        expect(slimCauldron.notedMana).toEqual({
+            mana: { U: 2 },
+            castableCardId: "noted-spell",
+        });
+        const slimExiled = projected.players[0].exile.find(
+            (c) => c.id === "noted-spell"
+        )! as CardInstanceState;
+        expect(slimExiled.castableFromExileBy).toBe("p1");
     });
 });

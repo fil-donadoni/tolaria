@@ -504,6 +504,14 @@ export interface ActivatedAbility {
     putDepletionCounterOnTap?: boolean;
     /** Mana abilities don't use the stack — they resolve immediately (CR 605.3a). */
     useStack: boolean;
+    /** Noted-mana battery (CR 106.10). When true, the engine captures the TYPE
+     *  and amount of mana spent to pay THIS activation's cost (the manaPool
+     *  delta around payment) and writes it onto the resulting stack item as
+     *  `notedManaSpent`, so the resolve step can read it via
+     *  `SpellContext.getNotedManaSpent()`. Used by Jeweled Amulet / Ice Cauldron
+     *  ("note the type [and amount] of mana spent to pay this activation cost").
+     *  Only meaningful for `useStack: true` abilities with a mana cost. */
+    noteManaSpent?: boolean;
     /** Effect for stack abilities (useStack: true) — called with full SpellContext on resolution. */
     resolve?: (ctx: SpellContext) => void;
     /** Multi-step resolve for stack abilities that gather player choices
@@ -1194,6 +1202,33 @@ export interface SpellContext {
         cost: ManaCost,
         restriction: ManaRestriction
     ) => void;
+    /** Type and amount of mana spent to pay THIS activation's cost (CR 106.10).
+     *  Per-colour counts, captured at activation commit. Only populated when the
+     *  ability declares `noteManaSpent: true`; empty otherwise. Read by the
+     *  noted-mana batteries (Jeweled Amulet, Ice Cauldron) on resolution to
+     *  decide which colour to note. */
+    getNotedManaSpent: () => Record<string, number>;
+    /** Noted-mana battery write (CR 106.10 — Jeweled Amulet, Ice Cauldron).
+     *  Stores the noted colour + amount on the source permanent `cardInstanceId`
+     *  so the later "add the noted mana" ability can replay it. Overwrites the
+     *  previous note. `castableCardId` (Ice Cauldron) restricts the replayed
+     *  mana to casting that one exiled card; omit for unrestricted notes
+     *  (Jeweled Amulet). No-op if the source isn't on the battlefield. */
+    noteMana: (
+        cardInstanceId: string,
+        note: { mana: Record<string, number>; castableCardId?: string }
+    ) => void;
+    /** Noted-mana battery replay (CR 106.10). Reads the note stored on
+     *  `cardInstanceId` and adds that mana to `playerId`'s pool — unrestricted
+     *  (Jeweled Amulet) or instance-restricted to the noted card (Ice Cauldron).
+     *  No-op if the source isn't on the battlefield or has no noted mana. */
+    addNotedMana: (cardInstanceId: string, playerId: string) => void;
+    /** Cast-from-exile grant (CR 601.3e — Ice Cauldron: "You may cast that card
+     *  for as long as it remains exiled"). Flags the card `cardInstanceId` in
+     *  `playerId`'s exile as castable from exile by that player; the cast
+     *  pipeline then accepts it as a cast source. No-op if the id isn't in their
+     *  exile. */
+    grantCastFromExile: (cardInstanceId: string, playerId: string) => void;
     /** Value chosen for X at cast-time (CR 107.3, 601.2b). 0 if the spell
      *  has no X in its cost. Read by spells like Fireball on resolution. */
     getX: () => number;

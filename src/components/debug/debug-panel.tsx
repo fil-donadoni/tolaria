@@ -82,6 +82,42 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ICE noted-mana battery (#666, PRD #628). Exercises the noted-mana
+        // primitive (CR 106.10) and Ice Cauldron's cast-from-exile (CR 601.3e):
+        //   - Jeweled Amulet ({1},{T}): note the colour spent, then {T} +
+        //     remove counter to add one mana of the noted type.
+        //   - Ice Cauldron ({X},{T}): exile a nonland card from hand, note the
+        //     {X} mana keyed to it, then {T} + remove counter to add that mana
+        //     (spendable only to cast the exiled card).
+        //   - Brainstorm ({U} instant) sits in hand as the card to exile under
+        //     Ice Cauldron and later cast from exile with the noted mana.
+        // Five lands of each colour so {X} can be paid in any colour to test the
+        // captured type. Turn 2, main phase.
+        label: "ICE: Noted-mana battery — Jeweled Amulet / Ice Cauldron (#666)",
+        cards: [
+            {
+                name: "Jeweled Amulet",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Ice Cauldron",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            // The nonland card to exile under Ice Cauldron and later cast from
+            // exile paying the instance-restricted noted mana.
+            {
+                name: "Brainstorm",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 5,
+        turn: 2,
+    },
+    {
         // ICE divide-as-you-choose cluster (#664, PRD #628). Exercises the
         // player-chosen division of a fixed total among ≥1-each targets for
         // damage AND counters (CR 601.2d / 120.4):
