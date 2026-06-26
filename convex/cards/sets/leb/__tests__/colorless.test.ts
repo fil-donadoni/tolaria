@@ -1,4 +1,5 @@
-// Per-card behavior tests for cards in `convex/cards/sets/leb.ts`.
+// Per-card behavior tests for colorless cards in
+// `convex/cards/sets/leb/colorless.ts` (artifacts + lands).
 //
 // LEB is mostly reprints (CardPrint → shared LEA CardDefinition) plus two
 // Beta-original cards that have their own CardDefinition (Volcanic Island,
@@ -6,9 +7,9 @@
 //   1. Registry parity — every LEB print resolves to a real definition, and
 //      the two Beta-original defs are registered (the module-load guard in
 //      index.ts already throws on a dangling printId; these assertions make
-//      the contract explicit and name-check a few representative prints).
-//   2. Volcanic Island — dual-land mana ability, GRE + wire format.
-//   3. Circle of Protection: Black — color filter + one-shot prevention.
+//      the contract explicit and name-check a few representative prints). This
+//      set-wide invariant lives with the colorless (catch-all) module.
+//   2. Volcanic Island — a Beta-original dual land, hence colorless.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -19,18 +20,16 @@ import {
     manaShortLeb,
     timeVaultLeb,
     taigaLeb,
-} from "../leb";
-import { lightningBolt, terror, ancestralRecall, taiga } from "../lea";
-import { getCardById, getAllCards } from "../../index";
-import { getLegalTargets } from "../../../gre/rules";
+} from "..";
+import { ancestralRecall, taiga } from "../../lea";
+import { getCardById, getAllCards } from "../../../index";
 import {
-    resolveTopOfStack,
     commitLandsForCost,
     type CardInstanceState,
-} from "../../../gre/state";
-import { hasManaAbility } from "../../../gre/constants";
-import { projectPublicState } from "../../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../__tests__/setup";
+} from "../../../../gre/state";
+import { hasManaAbility } from "../../../../gre/constants";
+import { projectPublicState } from "../../../../gameProjections";
+import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 
 // ---------------------------------------------------------------------------
 // Registry parity (ADR 0014)
@@ -107,75 +106,5 @@ describe("Volcanic Island (dual land: {T}: Add {U} or {R})", () => {
         )!;
         expect(hasManaAbility(slim as CardInstanceState)).toBe(true);
         expect(slim.subtypes).toEqual(["Island", "Mountain"]);
-    });
-});
-
-// ---------------------------------------------------------------------------
-// Circle of Protection: Black — Beta-original (CR 615.1, 615.6)
-// ---------------------------------------------------------------------------
-
-describe("Circle of Protection: Black", () => {
-    it("is a {1}{W} enchantment with a black color filter on its ability", () => {
-        expect(circleOfProtectionBlack.types).toEqual(["Enchantment"]);
-        expect(circleOfProtectionBlack.manaCost).toEqual({ X: 1, W: 1 });
-        const ability = circleOfProtectionBlack.activatedAbilities?.[0];
-        expect(ability?.targetRequirement?.colorFilter).toBe("B");
-    });
-
-    it("only offers black spells/permanents as legal targets", () => {
-        const blackSpell = makeInstance(terror.id, {
-            id: "terror",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "stack",
-        });
-        const redSpell = makeInstance(lightningBolt.id, {
-            id: "bolt",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "stack",
-        });
-        const state = makeState();
-        state.stack.push({ ...blackSpell, castById: "p2" });
-        state.stack.push({ ...redSpell, castById: "p2" });
-        const ability = circleOfProtectionBlack.activatedAbilities![0];
-        const legal = getLegalTargets(state, ability.targetRequirement!);
-        expect(legal.map((t) => t.id)).toEqual(["terror"]);
-    });
-
-    it("registers a one-shot end-of-turn prevention when it resolves", () => {
-        const cop = makeInstance(circleOfProtectionBlack.id, { id: "cop" });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [cop] }),
-                makePlayer("p2"),
-            ],
-        });
-        const blackSpell = makeInstance(terror.id, {
-            id: "terror-stack",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "stack",
-        });
-        state.stack.push({
-            ...blackSpell,
-            castById: "p2",
-            targets: [{ type: "player", id: "p1" }],
-        });
-        state.stack.push({
-            ...cop,
-            zone: "stack",
-            castById: "p1",
-            abilityId: "cop-prevent",
-            targets: [{ type: "spell", id: "terror-stack" }],
-        });
-        resolveTopOfStack(state);
-        expect(state.preventionEffects).toEqual([
-            {
-                sourceInstanceId: "terror-stack",
-                playerId: "p1",
-                duration: { phase: "end-of-turn" },
-            },
-        ]);
     });
 });
