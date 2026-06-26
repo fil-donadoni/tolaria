@@ -1,11 +1,12 @@
-// Per-card tests for `convex/cards/sets/2ed.ts`.
+// Set-wide / registry-parity tests for `convex/cards/sets/2ed/`.
 //
 // 2ED (Unlimited Edition) reprints the full Beta card list and introduces no
-// new cards, so the module is entirely CardPrint entries that resolve
+// new cards, so the modules are entirely CardPrint entries that resolve
 // printId -> definitionId -> a shared LEA/LEB CardDefinition (ADR 0014). The
 // module-load guard in index.ts already throws on a dangling printId; these
 // assertions make the reprint contract explicit and verify that Unlimited
-// shows up as an extra printing alongside LEA/LEB.
+// shows up as an extra printing alongside LEA/LEB. This set-wide invariant
+// lives with the colorless (catch-all) module per ADR 0043.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -14,13 +15,17 @@ import {
     lightningBolt2ed,
     volcanicIsland2ed,
     circleOfProtectionBlack2ed,
-} from "../2ed";
-import { airElemental, ancestralRecall, lightningBolt } from "../lea";
-import { volcanicIsland, circleOfProtectionBlack } from "../leb";
-import { getCardById, getPrintingsForCard, getAllSetCodes } from "../../index";
-import { setName } from "../../setMeta";
-import { FORMAT_RULES, validateDeck } from "../../../formats";
-import type { ValidatableDeck } from "../../../formats";
+} from "..";
+import { airElemental, ancestralRecall, lightningBolt } from "../../lea";
+import { volcanicIsland, circleOfProtectionBlack } from "../../leb";
+import {
+    getCardById,
+    getPrintingsForCard,
+    getAllSetCodes,
+} from "../../../index";
+import { setName } from "../../../setMeta";
+import { FORMAT_RULES, validateDeck } from "../../../../formats";
+import type { ValidatableDeck } from "../../../../formats";
 
 describe("2ED registry parity (ADR 0014)", () => {
     it("resolves reprint prints to their shared LEA definition", () => {
