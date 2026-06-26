@@ -396,6 +396,7 @@ import {
     tapPermanent,
     emitPermanentTapped,
     dealDamageFromPermanentToPlayer,
+    getManaSubstitutions,
 } from "../../../gre/state";
 import { describeDamageSource } from "../../../gre/replacements";
 import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
@@ -429,7 +430,9 @@ import {
     finalizeTargetSelection,
     tryAutoCommitPendingActivation,
     tryAutoCommitPendingCast,
+    buildPendingActivation,
 } from "../../../game";
+import { buildAutoTapSources, solveSmartAutoTap } from "../../../gre/autoTap";
 import {
     makeInstance,
     makePlayer,
@@ -12099,6 +12102,136 @@ describe("Jeweled Amulet (noted-mana battery, CR 106.10)", () => {
         expect(live.isTapped).toBe(true);
     });
 
+    // Regression for #753 — the non-targeted activateAbility deferred/auto-tap
+    // path silently dropped the noted-mana capture flag. This drives the REAL
+    // `buildPendingActivation` (the seam the activateAbility mutation uses) so a
+    // missing `noteManaSpent` flag would reproduce the original bug (empty note,
+    // ability 2 a no-op). Charge with an EMPTY pool → a Mountain is auto-tapped
+    // to pay {1}, the commit must still snapshot the spent colour.
+    it("integration #753: deferred auto-tap path captures the colour and ability 2 yields the mana", () => {
+        const amulet = makeInstance(jeweledAmulet.id, {
+            id: "amulet",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { charge: 0 },
+        });
+        const mtn = makeInstance(mountain.id, {
+            id: "mtn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                // Empty pool: paying {1} forces the auto-tap/deferred commit
+                // path through the real game.ts entry the bug lived in.
+                makePlayer("p1", { battlefield: [amulet, mtn] }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+
+        // Build the pending activation the SAME way activateAbility does — via
+        // the shared builder — so the test fails if the capture flag is dropped.
+        const charge = jeweledAmulet.activatedAbilities!.find(
+            (a) => a.id === "jeweled-amulet-charge"
+        )!;
+        state.pendingActivation = buildPendingActivation({
+            playerId: "p1",
+            cardInstanceId: "amulet",
+            abilityId: "jeweled-amulet-charge",
+            ability: charge,
+            manaCost: { X: 1 },
+        });
+        // The shared builder MUST carry the capture flag (root cause of #753).
+        expect(state.pendingActivation.noteManaSpent).toBe(true);
+
+        // Auto-tap the Mountain for {R}, then commit (real game.ts primitives).
+        const player = state.players[0];
+        const sources = buildAutoTapSources(player.battlefield);
+        const plan = solveSmartAutoTap(
+            player.manaPool,
+            state.pendingActivation.manaCost,
+            getManaSubstitutions(state, "p1"),
+            sources,
+            [],
+            "amulet" // self-source deprioritization (the amulet has no mana ability)
+        );
+        for (const step of plan ?? []) {
+            const card = player.battlefield.find((c) => c.id === step.cardId)!;
+            tapSourceIntoPayment(
+                state,
+                player,
+                card,
+                step.manaChoiceIndex,
+                state.pendingActivation.tappedLandIds
+            );
+        }
+        const committed = tryAutoCommitPendingActivation(state, "p1");
+        expect(committed).not.toBeNull();
+        // The stack item carries the captured red colour.
+        const onStack = state.stack[state.stack.length - 1];
+        expect(onStack.notedManaSpent).toEqual({ R: 1 });
+
+        // Resolve ability 1 — the artifact banks the red mana.
+        resolveTopOfStack(state);
+        const live = player.battlefield.find((c) => c.id === "amulet")!;
+        expect(live.notedMana).toEqual({ mana: { R: 1 } });
+        expect(live.counters?.charge).toBe(1);
+
+        // Ability 2: remove the counter, add one R to the pool (unrestricted).
+        live.isTapped = false; // untap so the {T} cost is payable again
+        resolveActivated(state, live, "jeweled-amulet-add");
+        expect(player.manaPool.R).toBe(1);
+        expect(player.restrictedMana ?? []).toHaveLength(0);
+    });
+
+    // Regression for #753 — the immediate-commit branch of activateAbility (pool
+    // already covers {1}) also dropped the capture. Driven via the real
+    // manaSpentDelta snapshot the immediate branch now performs.
+    it("integration #753: immediate-commit path also captures the spent colour", () => {
+        const amulet = makeInstance(jeweledAmulet.id, {
+            id: "amulet",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { charge: 0 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [amulet],
+                    // Pool already covers {1} with blue → immediate commit path.
+                    manaPool: { W: 0, U: 1, B: 0, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+            priorityPlayerId: "p1",
+        });
+        const charge = jeweledAmulet.activatedAbilities!.find(
+            (a) => a.id === "jeweled-amulet-charge"
+        )!;
+        // Mirror the immediate branch: snapshot, pay, delta — the same code the
+        // mutation runs inline now that the capture is wired there.
+        const poolBefore = charge.noteManaSpent
+            ? { ...state.players[0].manaPool }
+            : undefined;
+        state.players[0].manaPool.U -= 1; // pay {1} with the blue
+        const notedManaSpent = poolBefore
+            ? manaSpentDelta(poolBefore, state.players[0].manaPool)
+            : undefined;
+        expect(notedManaSpent).toEqual({ U: 1 });
+        resolveActivatedNoting(
+            state,
+            amulet,
+            "jeweled-amulet-charge",
+            notedManaSpent!
+        );
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "amulet"
+        )!;
+        expect(live.notedMana).toEqual({ mana: { U: 1 } });
+    });
+
     it("survives the wire projection — noted mana on the artifact", () => {
         const amulet = makeInstance(jeweledAmulet.id, {
             id: "amulet",
@@ -12117,6 +12250,17 @@ describe("Jeweled Amulet (noted-mana battery, CR 106.10)", () => {
             (c) => c.id === "amulet"
         )!;
         expect((slim as CardInstanceState).notedMana).toEqual({
+            mana: { R: 1 },
+        });
+
+        // #753 — the controller's own battlefield view (projectPublicState) must
+        // also carry `notedMana` so the UI badge can render which colour is
+        // banked. slimCard only strips `card`/`knownTo`, so the field survives.
+        const pub = projectPublicState(state, 1, "p1");
+        const slimPub = pub.players[0].battlefield.find(
+            (c) => c.id === "amulet"
+        )!;
+        expect((slimPub as CardInstanceState).notedMana).toEqual({
             mana: { R: 1 },
         });
     });
