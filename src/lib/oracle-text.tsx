@@ -8,10 +8,26 @@ function tokenToFileName(token: string): string {
     return token.toUpperCase().replace(/\//g, "_");
 }
 
+/** Pushes a raw text slice into `parts`, converting any `\n` into a `<br/>`
+ *  so multi-line oracle text (e.g. dual-mode mana abilities) keeps its line
+ *  breaks instead of collapsing under the default `white-space: normal`. */
+function pushTextWithBreaks(
+    parts: ReactNode[],
+    text: string,
+    keyPrefix: string
+): void {
+    const lines = text.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+        if (i > 0) parts.push(<br key={`${keyPrefix}-br-${i}`} />);
+        if (lines[i]) parts.push(lines[i]);
+    }
+}
+
 /** Formats an MTG oracle text by replacing `{X}` tokens (mana, tap, etc.)
  *  with inline `<img>` elements pointing to /img/symbols/<token>.svg.
  *  Images render inline in the text flow with vertical-align middle so
- *  they sit centered on the text line and wrap naturally with the words. */
+ *  they sit centered on the text line and wrap naturally with the words.
+ *  Embedded `\n` newlines become `<br/>` so multi-clause text stays multi-line. */
 export function formatOracleText(text: string): ReactNode[] {
     if (!text) return [];
     const parts: ReactNode[] = [];
@@ -21,7 +37,11 @@ export function formatOracleText(text: string): ReactNode[] {
     SYMBOL_REGEX.lastIndex = 0;
     while ((match = SYMBOL_REGEX.exec(text)) !== null) {
         if (match.index > lastIndex) {
-            parts.push(text.slice(lastIndex, match.index));
+            pushTextWithBreaks(
+                parts,
+                text.slice(lastIndex, match.index),
+                `txt-${key}`
+            );
         }
         const token = match[1];
         parts.push(
@@ -35,7 +55,7 @@ export function formatOracleText(text: string): ReactNode[] {
         lastIndex = match.index + match[0].length;
     }
     if (lastIndex < text.length) {
-        parts.push(text.slice(lastIndex));
+        pushTextWithBreaks(parts, text.slice(lastIndex), `txt-end`);
     }
     return parts;
 }

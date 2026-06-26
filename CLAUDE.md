@@ -212,6 +212,8 @@ The full gate is **mandatory before a task is marked done / before merge** — n
     1. `bun run check:all` — format + lint + type-check (zero errors)
     2. `bun run test` — full vitest suite (zero failures)
 
+**Zero-red is absolute (green-main invariant).** `main` is always green — zero failing tests, no exceptions. "Not my test" / "this failure is unrelated to my change" is **not** an exemption: a red suite blocks the merge regardless of who caused it. If the baseline is red before you start, fix the reds first (or stop and surface them) — never branch off red, never merge on top of red, never silence a test to go green. The full gate is the only done/not-done signal; a red baseline poisons it for every subsequent change.
+
 Browser visual verification is NOT a default gate. Run it only when the user explicitly asks for a Chrome check.
 
 ## Rules Implementation Process
@@ -254,3 +256,9 @@ Five canonical roles, default names (`needs-triage`, `needs-info`, `ready-for-ag
 ### Domain docs
 
 Single-context repo: `CONTEXT.md` (when created) + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+ADRs are **not** auto-loaded into context. `docs/adr/README.md` is the queryable
+index — read it first to discover which records exist, then open only the
+relevant ones. **Every new ADR MUST add its row to `docs/adr/README.md`** (number
+= filename number, one-line decision, link) in the same change that creates the
+ADR. An ADR without an index row is incomplete.
