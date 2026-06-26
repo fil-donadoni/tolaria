@@ -110,11 +110,13 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 // as CardPrints onto their existing definitions (ADR 0014); every other
 // new-to-ICE Blue card is a full CardDefinition.
 //
+// CUMULATIVE UPKEEP (ADR 0042) — the Blue CU enchantments are now ACTIVE:
+//   Arnjlot's Ascent, Breath of Dreams, the four Illusionary creatures,
+//   Illusionary Terrain, Illusions of Grandeur, Mesmeric Trance, Polar Kraken,
+//   Snowfall, plus the "CU matters" enchantments Musician, Mystic Might, Mystic
+//   Remora and Reality Twist (#726).
+//
 // DEFERRED (remain commented stubs, owned by a later cluster):
-//   • Cumulative upkeep — Arnjlot's Ascent, Breath of Dreams, the four
-//     Illusionary creatures, Illusionary Terrain, Illusions of Grandeur,
-//     Mesmeric Trance, Musician, Mystic Might, Mystic Remora, Polar Kraken,
-//     Reality Twist, Snowfall (ADR 0042 cumulative-upkeep cluster).
 //   • Zur's Weirding cluster — Zur's Weirding itself and Dreams of the Dead
 //     (grants cumulative upkeep on reanimation).
 //   • "Draw a card at the beginning of the next turn's upkeep" delayed cantrips
@@ -1125,37 +1127,181 @@ export const mesmericTrance: CardDefinition = {
 //     power: 1,
 //     toughness: 2,
 // };
-// TODO(#628): implement.
-// export const musician: CardDefinition = {
-//     id: "9f8d2247-a10e-413a-b497-2add3918f991",
-//     name: "Musician",
-//     rarity: "rare",
-//     oracleText: "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\n{T}: Put a music counter on target creature. If it doesn't have \"At the beginning of your upkeep, destroy this creature unless you pay {1} for each music counter on it,\" it gains that ability.",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Wizard"],
-//     power: 1,
-//     toughness: 3,
-// };
-// TODO(#628): implement.
-// export const mysticMight: CardDefinition = {
-//     id: "e35d7f08-0687-41bd-8c53-31a49adabb11",
-//     name: "Mystic Might",
-//     rarity: "rare",
-//     oracleText: "Enchant land you control\nCumulative upkeep {1}{U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nEnchanted land has \"{T}: Target creature gets +2/+2 until end of turn.\"",
-//     manaCost: { U: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
-// TODO(#628): implement.
-// export const mysticRemora: CardDefinition = {
-//     id: "58e93dff-b774-4765-b7bd-d3957e42ff4a",
-//     name: "Mystic Remora",
-//     rarity: "common",
-//     oracleText: "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nWhenever an opponent casts a noncreature spell, you may draw a card unless that player pays {4}.",
-//     manaCost: { U: 1 },
-//     types: ["Enchantment"],
-// };
+// Musician — {2}{U} 1/3 with cumulative upkeep {1} (CR 702.24, ADR 0042) and an
+// activated ability that loads a target creature with a "music" counter and, if
+// it lacks the music-upkeep ability, GRANTS it: "At the beginning of your
+// upkeep, destroy this creature unless you pay {1} for each music counter on
+// it." (CR 122 counters, CR 113.1 / 611.2c indefinite triggered-ability grant
+// via `grantTriggeredAbilityPermanent`, CR 701.7 destroy.) The granted ability
+// lives on `triggeredGrantTemplates[]` (Balduvian Shaman shape) so Musician
+// never carries it natively; it is unioned onto the target by
+// `effectiveTriggeredAbilities` and reads the host's live `music` counter count
+// to scale the upkeep tax. The grant is idempotent by (sourceCardId, abilityId),
+// so a second music counter (from this or another Musician) only raises the cost
+// rather than stacking a duplicate ability — matching the "if it doesn't have it"
+// clause for free.
+const MUSICIAN_ID = "9f8d2247-a10e-413a-b497-2add3918f991";
+export const musician: CardDefinition = {
+    id: MUSICIAN_ID,
+    name: "Musician",
+    rarity: "rare",
+    oracleText:
+        'Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\n{T}: Put a music counter on target creature. If it doesn\'t have "At the beginning of your upkeep, destroy this creature unless you pay {1} for each music counter on it," it gains that ability.',
+    manaCost: { X: 2, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 1,
+    toughness: 3,
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "musician-cumulative-upkeep",
+            cost: { X: 1 },
+            costLabel: "{1}",
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "musician-music-counter",
+            oracleText:
+                '{T}: Put a music counter on target creature. If it doesn\'t have "At the beginning of your upkeep, destroy this creature unless you pay {1} for each music counter on it," it gains that ability.',
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (!t || t.type !== "permanent") return;
+                // CR 122 — add a music counter to the target creature.
+                ctx.addCounter(t, "music", 1);
+                // CR 113.1 / 611.2c — grant the music-upkeep ability if absent.
+                // Idempotent on (sourceCardId, abilityId): re-granting is a no-op,
+                // so the "if it doesn't have it" clause is satisfied structurally.
+                ctx.grantTriggeredAbilityPermanent(
+                    t,
+                    MUSICIAN_ID,
+                    "musician-music-upkeep"
+                );
+            },
+        },
+    ],
+    // Granted-only rider (CR 113.1): kept off `triggeredAbilities` so Musician
+    // doesn't carry it natively — it functions only on creatures it has granted.
+    triggeredGrantTemplates: [
+        phaseTrigger({
+            id: "musician-music-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, destroy this creature unless you pay {1} for each music counter on it.",
+            phase: "UPKEEP",
+            scope: "your",
+            resolve: (ctx: SpellContext) => {
+                const self = {
+                    type: "permanent" as const,
+                    id: ctx.sourceInstanceId,
+                };
+                // CR 122 — pay {1} once per music counter on the host creature.
+                const music = ctx.getCounterCount(self, "music");
+                if (music <= 0) return;
+                const accept = ctx.requestMayPay({
+                    playerId: ctx.controller,
+                    choiceId: `musician-music-upkeep-${ctx.sourceInstanceId}`,
+                    cost: { X: music },
+                    prompt: `Pay {${music}} (one per music counter) to keep this creature?`,
+                });
+                if (accept === undefined) return; // suspended for the choice
+                // CR 701.7 — declined or unable to pay: destroy the creature.
+                if (!accept) ctx.destroy(self);
+            },
+        }),
+    ],
+};
+// Mystic Might — {U} Aura "Enchant land you control" with cumulative upkeep
+// {1}{U} (CR 702.24, ADR 0042) granting the enchanted land "{T}: Target creature
+// gets +2/+2 until end of turn." (CR 611 activated-grant — the Earthlore shape:
+// the granted ability lives on `grantTemplates[]` and an `activated-grant`
+// static pushes it onto the host land. The cost is the LAND's own tap
+// (`cost.tap`), so the land must be untapped to activate — a tapped permanent
+// can't pay a tap cost (CR 602.2 / 118.12).)
+export const mysticMight: CardDefinition = {
+    id: "e35d7f08-0687-41bd-8c53-31a49adabb11",
+    name: "Mystic Might",
+    rarity: "rare",
+    oracleText:
+        'Enchant land you control\nCumulative upkeep {1}{U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nEnchanted land has "{T}: Target creature gets +2/+2 until end of turn."',
+    manaCost: { U: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Land", count: 1, controller: "you" },
+    staticEffects: [
+        {
+            kind: "activated-grant",
+            applies: AURA_AFFECTS_HOST,
+            abilityId: "mystic-might-pump",
+        },
+    ],
+    grantTemplates: [
+        {
+            id: "mystic-might-pump",
+            oracleText: "{T}: Target creature gets +2/+2 until end of turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type === "permanent")
+                    ctx.addTemporaryPTBuff(t, 2, 2, { phase: "end-of-turn" });
+            },
+        },
+    ],
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "mystic-might-cumulative-upkeep",
+            cost: { X: 1, U: 1 },
+            costLabel: "{1}{U}",
+        }),
+    ],
+};
+// Mystic Remora — {U} Enchantment with cumulative upkeep {1} (CR 702.24, ADR
+// 0042) plus a "draw tax" cast trigger: "Whenever an opponent casts a noncreature
+// spell, you may draw a card unless that player pays {4}." (CR 603.2 spell-cast
+// trigger scoped to opponents + noncreature filter; CR 117.3a may-pay.) The
+// inverse of Freyalise's Charm — here the CASTER (the opponent) may pay {4} to
+// stop the controller's draw, so the may-pay's payer is `spell.casterId`, not the
+// source's controller. Declining or being unable to pay lets the controller draw.
+export const mysticRemora: CardDefinition = {
+    id: "58e93dff-b774-4765-b7bd-d3957e42ff4a",
+    name: "Mystic Remora",
+    rarity: "common",
+    oracleText:
+        "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nWhenever an opponent casts a noncreature spell, you may draw a card unless that player pays {4}.",
+    manaCost: { U: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "mystic-remora-cumulative-upkeep",
+            cost: { X: 1 },
+            costLabel: "{1}",
+        }),
+        spellCastTrigger({
+            id: "mystic-remora-draw-tax",
+            oracleText:
+                "Whenever an opponent casts a noncreature spell, you may draw a card unless that player pays {4}.",
+            scope: "opponents",
+            filter: { excludeTypes: "Creature" },
+            resolve: (ctx: SpellContext, _event, spell) => {
+                // CR 117.3a — the casting opponent may pay {4} to prevent the
+                // draw. The payer is the caster, not the source's controller.
+                const paid = ctx.requestMayPay({
+                    playerId: spell.casterId,
+                    choiceId: `mystic-remora-pay-${ctx.sourceInstanceId}`,
+                    cost: { X: 4 },
+                    prompt: "Pay {4} or your opponent draws a card (Mystic Remora)?",
+                });
+                if (paid === undefined) return; // suspended for the choice
+                // Unpaid: the source's controller draws a card (CR 121.1).
+                if (!paid) ctx.drawCards(ctx.controller, 1);
+            },
+        }),
+    ],
+};
 // TODO(#628): implement.
 // export const phantasmalMount: CardDefinition = {
 //     id: "75afdbe6-a3f9-49cf-b4ef-f370e518e960",
@@ -1289,15 +1435,38 @@ export const rayOfErasure: CardDefinition = {
     },
     delayedTriggers: [nextUpkeepDrawTrigger()],
 };
-// TODO(#628): implement.
-// export const realityTwist: CardDefinition = {
-//     id: "1b7e955c-3de2-430c-93b9-0b39ccea5420",
-//     name: "Reality Twist",
-//     rarity: "rare",
-//     oracleText: "Cumulative upkeep {1}{U}{U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nIf tapped for mana, Plains produce {R}, Swamps produce {G}, Mountains produce {W}, and Forests produce {B} instead of any other type.",
-//     manaCost: { U: 3 },
-//     types: ["Enchantment"],
-// };
+// Reality Twist — {U}{U}{U} Enchantment with cumulative upkeep {1}{U}{U}
+// (CR 702.24, ADR 0042) plus a continuous per-basic-subtype land-mana
+// permutation (CR 614): "If tapped for mana, Plains produce {R}, Swamps produce
+// {G}, Mountains produce {W}, and Forests produce {B} instead of any other
+// type." Modelled as a `byBasicSubtype` `landManaSubstitution` (the Naked
+// Singularity shape), read live from the battlefield by the
+// `applyLandManaReplacement` mana funnel. Islands are absent from the map, so an
+// Island is unaffected (matching the oracle text, which omits Islands).
+export const realityTwist: CardDefinition = {
+    id: "1b7e955c-3de2-430c-93b9-0b39ccea5420",
+    name: "Reality Twist",
+    rarity: "rare",
+    oracleText:
+        "Cumulative upkeep {1}{U}{U} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nIf tapped for mana, Plains produce {R}, Swamps produce {G}, Mountains produce {W}, and Forests produce {B} instead of any other type.",
+    manaCost: { U: 3 },
+    types: ["Enchantment"],
+    landManaSubstitution: {
+        byBasicSubtype: {
+            Plains: "R",
+            Swamp: "G",
+            Mountain: "W",
+            Forest: "B",
+        },
+    },
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "reality-twist-cumulative-upkeep",
+            cost: { X: 1, U: 2 },
+            costLabel: "{1}{U}{U}",
+        }),
+    ],
+};
 // Sea Spirit — {U}: firebreathing self-pump (CR 611.1b temporary +1/+0).
 export const seaSpirit: CardDefinition = {
     id: "f2d93d05-98bc-4504-9045-dedb925895ae",

@@ -740,9 +740,10 @@ export const freyalisesWinds: CardDefinition = {
 // destroy), Wiitigo (counter-as-flag tracking) and Dire Wolves (banding grant)
 // were STALE — every primitive ships today.
 //
-// DEFERRED (remain commented stubs, owned by a later cluster):
-//   • Cumulative upkeep — Fyndhorn Pollen, Maddening Wind, Ritual of Subdual
-//     (ADR 0042 cluster — note Pollen/Wind are already active in the CU section).
+// CUMULATIVE UPKEEP (ADR 0042) — Fyndhorn Pollen, Maddening Wind and Ritual of
+//   Subdual are all ACTIVE in the CU section below (#726). Ritual of Subdual
+//   ({4}{G}{G}) is mono-green by colour identity and homes here despite its
+//   triage stub originally sitting in multicolor.ts.
 //   • Next-upkeep delayed cantrip — Pyknite: ACTIVE (#660). Touch of Vitae
 //     remains deferred: its cantrip + haste legs are buildable but the granted
 //     "{0}: Untap this creature. Activate only once." activated ability needs a
@@ -1883,6 +1884,32 @@ export const maddeningWind: CardDefinition = {
             resolve: (ctx, _event, hostController) => {
                 ctx.dealDamage({ type: "player", id: hostController }, 2);
             },
+        }),
+    ],
+};
+// Ritual of Subdual — {4}{G}{G} Enchantment with cumulative upkeep {2}
+// (CR 702.24, ADR 0042) plus a continuous single-colour land-mana substitution
+// to COLORLESS (CR 614): "If a land is tapped for mana, it produces colorless
+// mana instead of any other type." Modelled as a `{ color: "C" }`
+// `landManaSubstitution` (the Infernal Darkness shape but colourless), read live
+// from the battlefield by the `applyLandManaReplacement` mana funnel — the
+// land's whole output is rewritten to the same TOTAL quantity of {C}. Mono-green
+// by colour identity (CR 202.2), so it lives here despite the triage stub
+// originally sitting in multicolor.ts.
+export const ritualOfSubdual: CardDefinition = {
+    id: "5c5c01e7-8116-45fc-afc3-d52a31a635cb",
+    name: "Ritual of Subdual",
+    rarity: "rare",
+    oracleText:
+        "Cumulative upkeep {2} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nIf a land is tapped for mana, it produces colorless mana instead of any other type.",
+    manaCost: { X: 4, G: 2 },
+    types: ["Enchantment"],
+    landManaSubstitution: { color: "C" },
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "ritual-of-subdual-cumulative-upkeep",
+            cost: { X: 2 },
+            costLabel: "{2}",
         }),
     ],
 };

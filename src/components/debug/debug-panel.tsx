@@ -82,6 +82,62 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ICE cumulative-upkeep "matters" enchantments (#726, ADR 0042).
+        // Exercises the CU-keyword cards built on the shipped CU template plus a
+        // second mechanism each:
+        //   - Mystic Remora (battlefield): cumulative upkeep {1} + "whenever an
+        //     opponent casts a noncreature spell, you may draw unless they pay
+        //     {4}". Cast the opponent's Brainstorm to trigger the draw tax.
+        //   - Reality Twist (battlefield): cumulative upkeep {1}{U}{U} + the
+        //     per-basic land-mana permutation (Mountains → {W}, etc.).
+        //   - Musician (battlefield): cumulative upkeep {1} + "{T}: put a music
+        //     counter on target creature; it gains a destroy-unless-pay upkeep
+        //     ability". Tap it onto the Balduvian Bears to load a music counter.
+        //   - Mystic Might (hand): cast it onto a land you control to grant that
+        //     land "{T}: target creature gets +2/+2" (Auras can't be pre-attached
+        //     by the scenario schema, so it starts in hand).
+        // Advance to your next upkeep to watch each permanent accrue an age
+        // counter and demand its scaled cost. Turn 2, lands untapped.
+        label: "ICE: Cumulative-upkeep matters — Mystic Remora / Reality Twist / Musician / Mystic Might (#726)",
+        cards: [
+            {
+                name: "Mystic Remora",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Reality Twist",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Musician",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Mystic Might",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            // Target for Musician's music counter and Mystic Might's pump.
+            {
+                name: "Balduvian Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            // An opponent noncreature spell to trigger Mystic Remora's draw tax.
+            {
+                name: "Brainstorm",
+                owner: "opp" as const,
+                zone: "hand" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 6,
+        turn: 2,
+    },
+    {
         // JOU Banishing Light (#754 follow-up) — O-Ring-style exile-until-leaves
         // (CR 603.6a/603.7a). Cast Banishing Light ({2}{W}) and exile the
         // opponent's Balduvian Bears: the exiled card renders PINNED to Banishing
