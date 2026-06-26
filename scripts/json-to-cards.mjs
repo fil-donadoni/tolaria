@@ -1,15 +1,25 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
- * Converts an MTGJSON set file into a TypeScript card definitions file.
+ * Converts an MTGJSON set file into a colour-split set DIRECTORY (ADR 0043).
  *
  * Usage:
- *   node scripts/json-to-cards.mjs data/LEA.json
+ *   bun scripts/json-to-cards.mjs data/LEA.json
  *
- * Output: convex/cards/sets/<setCode>.ts
+ * Output: convex/cards/sets/<setCode>/ — one file per colour module
+ *         (white|blue|black|red|green|multicolor|colorless) + an index.ts
+ *         barrel. Each card is routed to its module by the colour identity of
+ *         its mana cost (CR 202.2; lands / colourless artifacts → colorless.ts).
+ *         Runs under `bun` (not `node`) because it reuses the TypeScript colour
+ *         helper `getColorsFromCost`.
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import {
+    COLOUR_MODULES,
+    moduleForCost,
+    writeSetDirectory,
+} from "./lib/set-modules.mjs";
 
 const jsonPath = process.argv[2];
 if (!jsonPath) {
@@ -100,9 +110,10 @@ function formatArray(arr) {
 
 // ── main ─────────────────────────────────────────────────────────────────────
 
-const lines = [];
-lines.push(`import type { Card } from "../types";`);
-lines.push("");
+// One bucket of card-definition source strings per colour module (ADR 0043).
+// `writeSetDirectory` emits an empty module (header + `export {}`) for any
+// bucket that stays empty, so every set has the same sparse seven-module shape.
+const sources = Object.fromEntries(COLOUR_MODULES.map((m) => [m, []]));
 
 const seenIds = new Set();
 
@@ -151,16 +162,22 @@ for (const card of cards) {
     if (!isNaN(power)) fields.push(`    power: ${power}`);
     if (!isNaN(toughness)) fields.push(`    toughness: ${toughness}`);
 
-    lines.push(`export const ${varName}: Card = {`);
-    lines.push(fields.join(",\n") + ",");
-    lines.push(`};`);
-    lines.push("");
+    const source = [
+        `export const ${varName}: CardDefinition = {`,
+        fields.join(",\n") + ",",
+        `};`,
+    ].join("\n");
+
+    // Route each card to its colour module by the colour identity of its mana
+    // cost (CR 202.2): lands / colourless artifacts (no coloured cost) →
+    // colorless; one colour → that module; two or more → multicolor.
+    sources[moduleForCost(manaCost)].push(source);
 }
 
 // ── write ────────────────────────────────────────────────────────────────────
 
-const outDir = resolve("convex/cards/sets");
-mkdirSync(outDir, { recursive: true });
-const outPath = resolve(outDir, `${setCode}.ts`);
-writeFileSync(outPath, lines.join("\n"), "utf-8");
-console.log(`Written ${seenIds.size} cards → ${outPath}`);
+const setsDir = resolve("convex/cards/sets");
+// Colour modules live at `sets/<code>/<colour>.ts`, two levels above `cards/`.
+const importLine = `import type { CardDefinition } from "../../types";`;
+const setDir = writeSetDirectory(setsDir, setCode, sources, importLine);
+console.log(`Written ${seenIds.size} cards → ${setDir}/ (colour-split, ADR 0043)`);

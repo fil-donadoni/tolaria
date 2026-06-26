@@ -4,7 +4,7 @@
  *
  * The lockfile is the committed index of every IMPLEMENTED card, and the only
  * thing `list-to-cards.mjs` dedups a worklist against. It must stay in sync
- * with the registry (`convex/cards/sets/*.ts` via `getAllCards()`):
+ * with the registry (`convex/cards/sets/<code>/*.ts` via `getAllCards()`):
  *
  *   - a card in the registry but MISSING from the lockfile  → the importer
  *     would re-stage an already-implemented card (stale lockfile).

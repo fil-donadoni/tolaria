@@ -1,6 +1,8 @@
 #!/usr/bin/env bun
 /**
- * Stub-hygiene guard for the set files `convex/cards/sets/*.ts`.
+ * Stub-hygiene guard for the colour-split set modules
+ * `convex/cards/sets/<code>/<colour>.ts` (ADR 0043; legacy flat
+ * `sets/<code>.ts` still honoured).
  *
  * A "stub" is a commented-out card definition staged for a later cluster:
  *
@@ -39,7 +41,7 @@
  *
  * Run: bun scripts/check-stub-coverage.ts
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { getAllCards } from "../convex/cards/index";
 
@@ -60,8 +62,25 @@ const orphans: Hit[] = [];
 const deadDupes: Hit[] = [];
 let stubCount = 0;
 
+// Every set is a colour-split DIRECTORY `sets/<code>/` (ADR 0043), so collect
+// each set's colour modules (`<colour>.ts`, barrel `index.ts` and `*.test.ts`
+// excluded). A legacy flat `sets/<code>.ts` file is still honoured for safety.
+// Returned paths are relative to SETS_DIR (e.g. `ice/black.ts`) so the orphan
+// report points at the exact module.
+const isSource = (f: string) =>
+    f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "index.ts";
+
 const files = readdirSync(SETS_DIR)
-    .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
+    .flatMap((entry) => {
+        const full = join(SETS_DIR, entry);
+        if (statSync(full).isDirectory()) {
+            if (entry === "__tests__") return [];
+            return readdirSync(full)
+                .filter(isSource)
+                .map((f) => join(entry, f));
+        }
+        return isSource(entry) ? [entry] : [];
+    })
     .sort();
 
 for (const file of files) {

@@ -44,7 +44,7 @@ exceptions. They drive every recommendation you make during the grill.
    heavily errata'd. Always work from the live Scryfall `oracleText`; if the
    impl diverges from it, that's a bug in the impl. (`feedback_modern_oracle_text`)
 5. **Fix the bug class, not the single card.** If a bug surfaces via one card,
-   grep all `convex/cards/sets/*.ts` + the shared consumer for the same
+   grep all `convex/cards/sets/**/*.ts` + the shared consumer for the same
    code-path shape, enumerate every affected card, and make the fix general —
    no per-card special-casing. (`feedback_fix_bug_class_not_single_card`)
 6. **One question per turn while grilling.** Pose exactly one decision, state
@@ -65,33 +65,36 @@ Explore, don't ask, for anything the data or codebase can answer.
    download it: `curl -s -A "Mozilla/5.0" -o data/json/<CODE_UPPER>.json
 https://mtgjson.com/api/v5/<CODE_UPPER>.json`.
 2. **Check for prior work — this set may be partially done.** A set can carry
-   a pre-existing `convex/cards/sets/<code>.ts` from an earlier rollout. You
-   MUST treat it as the source of truth for what's already implemented and
-   **never lose it**:
-    - **`json-to-cards.mjs` OVERWRITES the whole `<code>.ts`.** Do NOT run it
-      against an existing, non-empty set file — it would clobber hand-written
-      implementations. If the file exists, import into a scratch path instead
-      (e.g. `node scripts/json-to-cards.mjs data/json/<CODE_UPPER>.json` then
-      redirect / diff), and **only graft in the cards that are missing**.
-    - Parse the existing file: **active** `export const … : CardDefinition`
-      (and `CardPrint`) are implemented; **commented-out** stub blocks are
-      capability cards staged earlier — uncomment them when their cluster
-      ships, do not re-stub or duplicate them.
-    - The set file and the lockfile can disagree if the lockfile is stale —
-      reconcile by running `bun run check:index` (and backfilling if it fails)
-      so "done" reflects reality before you scope.
+   a pre-existing `convex/cards/sets/<code>/` directory (colour-split per
+   ADR 0043: `white|blue|black|red|green|multicolor|colorless.ts` + an
+   `index.ts` barrel) from an earlier rollout. You MUST treat it as the source
+   of truth for what's already implemented and **never lose it**:
+    - **`json-to-cards.mjs` OVERWRITES the whole `<code>/` directory** (every
+      colour module + the barrel). Do NOT run it against an existing, non-empty
+      set directory — it would clobber hand-written implementations. If the
+      directory exists, import into a scratch path instead (e.g. import to a
+      temp set code, then diff per colour module), and **only graft in the
+      cards that are missing**.
+    - Parse the existing colour modules: **active** `export const … :
+CardDefinition` (and `CardPrint`) are implemented; **commented-out** stub
+      blocks are capability cards staged earlier — uncomment them when their
+      cluster ships, do not re-stub or duplicate them.
+    - The set directory and the lockfile can disagree if the lockfile is stale
+      — reconcile by running `bun run check:index` (and backfilling if it
+      fails) so "done" reflects reality before you scope.
 3. **Profile the set from the blob** (use `jq`): total unique cards, breakdown
    by colour, by rarity, and — critically — by **card layout** (`normal` vs
    `transform`/`modal_dfc`/`split`/`adventure`/`flip`/`meld`/`saga`/`leveler`/
    `class`). Unmodelled layouts are out-of-scope (ADR 0010 / ADR 0041).
 4. **Triage every card into five buckets** — this IS the scope, and it must
-   **skip everything already implemented** (resume-aware): - **done** — already implemented: an active def in `convex/cards/sets/<code>.ts`
-   OR present in `data/card-index.json` (lockfile). Excluded from all slices.
-   (A partial `<code>.ts` with e.g. 3 cube cards and zero stubs is fine: those
-   3 are `done` and excluded; everything else triages fresh. Run
+   **skip everything already implemented** (resume-aware): - **done** — already implemented: an active def in one of the
+   `convex/cards/sets/<code>/` colour modules OR present in
+   `data/card-index.json` (lockfile). Excluded from all slices. (A partial
+   `<code>/` directory with e.g. 3 cube cards and zero stubs is fine: those 3
+   are `done` and excluded; everything else triages fresh. Run
    `bun run check:index` first so the lockfile already lists those 3 — that's
-   what makes them count as `done`.) - **staged** — a commented-out stub already in `<code>.ts` from a prior
-   run: its cluster PR only needs to _uncomment_ it, not re-create it. - **free** — expressible with already-shipped primitives/keywords. "Free"
+   what makes them count as `done`.) - **staged** — a commented-out stub already in a `<code>/` colour module from
+   a prior run: its cluster PR only needs to _uncomment_ it, not re-create it. - **free** — expressible with already-shipped primitives/keywords. "Free"
    means no NEW engine capability, **not zero code** (many free cards still
    need a small bespoke `resolve()`). - **capability** — needs a genuinely new engine mechanic. Group these into
    clusters, one mechanic per cluster. - **out-of-scope** — unmodelled layout / ante / subgame. - **Closure invariant (compute it, don't just eyeball the report).** Emit a
@@ -143,12 +146,16 @@ Invoke **`to-prd`**. It synthesizes the grill context (does NOT re-interview)
 into one **umbrella GitHub issue** labeled `prd` + `ready-for-agent`. Ensure the
 PRD's **Implementation Decisions** name:
 
-- The **import mode**: **set mode** (`scripts/json-to-cards.mjs
-data/json/<CODE_UPPER>.json` → `convex/cards/sets/<code>.ts`) is the default
-  for a single set. (List mode — `scripts/list-to-cards.mjs` — is for cross-set
-  worklists, not a single set.) If `<code>.ts` already exists (partial prior
-  rollout), do NOT overwrite it — import to scratch and graft only the missing
-  cards (see Phase 0, step 2).
+- The **import mode**: **set mode** (`bun scripts/json-to-cards.mjs
+data/json/<CODE_UPPER>.json` → the colour-split `convex/cards/sets/<code>/`
+  directory: 7 colour modules + `index.ts` barrel, ADR 0043) is the default for
+  a single set. It runs under `bun` (it reuses the TypeScript colour helper
+  `getColorsFromCost`), classifies each card by the colour identity of its mana
+  cost (CR 202.2; lands / colourless artifacts → `colorless.ts`), and never
+  emits a single monolithic file. (List mode — `scripts/list-to-cards.mjs` — is
+  for cross-set worklists, not a single set.) If `<code>/` already exists
+  (partial prior rollout), do NOT overwrite it — import to scratch and graft
+  only the missing cards (see Phase 0, step 2).
 - The emit contract: free cards → active `CardDefinition`s; capability cards →
   **commented-out stubs** (uncommented by their cluster PR so the build stays
   green); unmodelled layouts → out-of-scope, no stub.
@@ -173,8 +180,10 @@ tagged HITL/AFK (prefer AFK), published in dependency order (blockers first).
 
 Conventions to hold it to:
 
-- **Walking skeleton first** (set file stub + registry wiring + import), then
-  free-tranche slices, then capability-cluster slices.
+- **Walking skeleton first** (scaffold the `sets/<code>/` directory — 7 colour
+  modules + `index.ts` barrel, per-colour `__tests__/` — plus registry wiring
+  via `import * as <code> from "./sets/<code>"` + import), then free-tranche
+  slices, then capability-cluster slices.
 - Issue title conventions: free tranche → `[<CODE>] Free tranche — <Colour>`;
   cluster → `[<CODE>] C<n> — <capability> (CR <ref>)`
   (e.g. `[DRK] C1 — Poison counters + loss SBA (CR 122 / 704.5c)`).
@@ -202,7 +211,8 @@ The scope manifest from Phase 0 is a contract; this phase makes violating it a
 
 1. **`scripts/check-stub-coverage.ts`, in `check:all` (`bun run check:stubs`) —
    already built, serves every set.** Static, offline (no `gh` call). Parses
-   every commented-out stub in `convex/cards/sets/*.ts` and fails if a stub's
+   every commented-out stub in `convex/cards/sets/**/*.ts` (every colour module
+   of every set directory) and fails if a stub's
    comment block carries no traceable disposition. Accepted, in order of
    preference: `// tracked-by: #NNN` (the convention for a work issue), a bare
    `#NNN` issue ref (legacy — a PRD/parent ref passes offline; the online check
@@ -232,9 +242,11 @@ issue), or explicitly out-of-scope.
 
 Per `.claude/rules/gre-development.md`:
 
-- Per-card GRE tests in `convex/cards/sets/__tests__/<code>.test.ts`, one
-  `describe` per non-trivial card, each citing its CR section. Fixtures from
-  `convex/cards/__tests__/setup.ts` — never duplicated.
+- Per-card GRE tests in the parallel per-colour test file
+  `convex/cards/sets/<code>/__tests__/<colour>.test.ts` (matching the colour
+  module the card lives in), one `describe` per non-trivial card, each citing
+  its CR section. Fixtures from `convex/cards/__tests__/setup.ts` — never
+  duplicated.
 - **Wire-format test mandatory** for every client-visible effect (re-run the
   assertion after `projectPublicState`).
 - **≥1 full-path integration test** for any feature crossing GRE → game.ts → UI

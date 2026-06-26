@@ -149,11 +149,12 @@ command above; never hand-edit the lockfile.
 - [ ] TargetRequirement set for targeted spells
 - [ ] resolve() uses only existing SpellContext methods
 - [ ] `id` == the card's `identifiers.scryfallId` from `data/json/<SET>.json` (NOT a generated UUID)
-- [ ] All matching `CardPrint` stubs in `convex/cards/sets/*.ts` uncommented (Step 5b)
+- [ ] All matching `CardPrint` stubs in `convex/cards/sets/<code>/<colour>.ts` uncommented (Step 5b)
 - [ ] `data/card-index.json` regenerated via `backfill-card-index.ts` (Step 7) — `bun run check:index` passes
 
-The deck builder's card list is computed in-memory from
-`convex/cards/sets/*.ts` on every query call (see `convex/cardIndex.ts`),
+The deck builder's card list is computed in-memory from the colour-split set
+modules `convex/cards/sets/<code>/<colour>.ts` on every query call (see
+`convex/cardIndex.ts`),
 so a new card appears in the builder as soon as the Convex deploy picks up
 the new module — no sync step required. The **lockfile** is the one artifact
 that needs the explicit refresh in Step 7.
