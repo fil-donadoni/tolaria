@@ -6,8 +6,23 @@
  *
  * Usage: node scripts/check-scryfall-ids.mjs
  */
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { resolve, join } from "node:path";
+
+/** Reads a set's TypeScript source. A set is either a single `sets/<code>.ts`
+ *  file or, post-ADR-0043 colour split, a `sets/<code>/` directory whose colour
+ *  modules are concatenated (index.ts barrel skipped — it only re-exports). */
+function readSetSource(code) {
+    const filePath = resolve(`convex/cards/sets/${code}.ts`);
+    if (existsSync(filePath) && statSync(filePath).isFile()) {
+        return readFileSync(filePath, "utf-8");
+    }
+    const dirPath = resolve(`convex/cards/sets/${code}`);
+    return readdirSync(dirPath)
+        .filter((f) => f.endsWith(".ts") && f !== "index.ts")
+        .map((f) => readFileSync(join(dirPath, f), "utf-8"))
+        .join("\n");
+}
 
 const SETS = [
     ["arn", "data/json/ARN.json"],
@@ -34,8 +49,7 @@ for (const [code, jsonPath] of SETS) {
         }
     }
 
-    const tsPath = resolve(`convex/cards/sets/${code}.ts`);
-    const src = readFileSync(tsPath, "utf-8");
+    const src = readSetSource(code);
 
     // Match blocks: id: "..."  ... name: "..."  (name follows id by project convention)
     const re = /id:\s*"([0-9a-f-]{36})"\s*,\s*\n\s*name:\s*"((?:[^"\\]|\\.)*)"/g;
