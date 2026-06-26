@@ -116,6 +116,11 @@ export interface PermanentFilter {
  *  static abilities to gate on. Used by `spellCastTrigger.filter`. */
 export interface SpellFilter {
     types?: CardType | CardType[];
+    /** Exclude spells whose `types` include any of these (CR 205). The
+     *  negative of `types`; used for "noncreature spell" (Mystic Remora),
+     *  "noncreature, nonartifact spell", etc. Single value is shorthand for
+     *  one type. Mirrors `PermanentFilter.excludeTypes`. */
+    excludeTypes?: CardType | CardType[];
     subtypes?: string | string[];
     colors?: Color | Color[];
 }
@@ -350,6 +355,10 @@ export function matchesSpellFilter(
     if (filter.types !== undefined) {
         const types = asArray(filter.types);
         if (!types.some((t) => spell.types.includes(t))) return false;
+    }
+    if (filter.excludeTypes !== undefined) {
+        const excluded = asArray(filter.excludeTypes);
+        if (excluded.some((t) => spell.types.includes(t))) return false;
     }
     if (filter.subtypes !== undefined) {
         const subtypes = asArray(filter.subtypes);

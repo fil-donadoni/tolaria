@@ -48,15 +48,8 @@ function makeUpkeepPayOrElse(args: {
 }
 // Pyknite — activated above (Green tranche; duplicate stub removed, #660).
 // Rime Dryad — activated above (Green snow cluster); duplicate stub removed.
-// TODO(#628): implement.
-// export const ritualOfSubdual: CardDefinition = {
-//     id: "5c5c01e7-8116-45fc-afc3-d52a31a635cb",
-//     name: "Ritual of Subdual",
-//     rarity: "rare",
-//     oracleText: "Cumulative upkeep {2} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nIf a land is tapped for mana, it produces colorless mana instead of any other type.",
-//     manaCost: { X: 4, G: 2 },
-//     types: ["Enchantment"],
-// };
+// Ritual of Subdual — {4}{G}{G}, mono-green by colour identity (CR 202.2);
+// implemented in green.ts (the triage stub originally landed here). See #726.
 // Snowblind — activated above (Green snow cluster); duplicate stub removed.
 // Thermokarst — activated above (Green free tranche).
 // Thoughtleech — activated above (Green free tranche).

@@ -51,7 +51,12 @@ import {
     rayOfErasure,
     updraft,
     illusionaryPresence,
+    musician,
+    mysticMight,
+    mysticRemora,
+    realityTwist,
 } from "../../ice";
+import { matchesSpellFilter } from "../../../filters";
 import { getCardById, getCardByName } from "../../../index";
 import {
     resolveTopOfStack,
@@ -81,8 +86,8 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import type { CardInstanceState } from "../../../../gre/state";
-import type { StackItem } from "../../../../gre/state";
-import type { ManaCost } from "../../../types";
+import type { GameState, StackItem } from "../../../../gre/state";
+import type { CardType, ManaCost } from "../../../types";
 import {
     resolveActivated,
     submitChoice,
@@ -95,7 +100,10 @@ import {
     library,
     castCantrip,
     enterUpkeepAndFire,
+    makeLand,
 } from "./helpers";
+import { applyLandManaReplacement } from "../../../../gre/constants";
+import { mountain, island } from "../../lea";
 
 // ===========================================================================
 // Blue free tranche (#631)
@@ -1613,5 +1621,420 @@ describe("Illusionary Presence (CR 603.6a upkeep + 702.13 chosen-type landwalk)"
             (c) => c.id === "ip"
         )!;
         expect(slim.staticAbilities).toContain("islandwalk");
+    });
+});
+
+// ===========================================================================
+// Cumulative-upkeep "matters" enchantments (#726, ADR 0042)
+// ===========================================================================
+
+// --- Mystic Remora — noncreature draw-tax (CR 603.2 / 117.3a) --------------
+
+describe("Mystic Remora (opponent noncreature-cast draw tax, CR 603.2)", () => {
+    it("carries cumulative upkeep {1} and a noncreature draw-tax trigger", () => {
+        expect(
+            mysticRemora.triggeredAbilities?.some(
+                (t) => t.id === "mystic-remora-cumulative-upkeep"
+            )
+        ).toBe(true);
+        const tax = mysticRemora.triggeredAbilities?.find(
+            (t) => t.id === "mystic-remora-draw-tax"
+        );
+        expect(tax).toBeDefined();
+        expect(tax?.event).toBe("SPELL_CAST");
+    });
+
+    it("draws a card when the casting opponent declines to pay {4}", () => {
+        const remora = makeInstance(mysticRemora.id, {
+            id: "remora",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [remora],
+                    library: [
+                        vanilla("draw1", 1, 1, {
+                            id: "draw1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // p2 cast a noncreature spell; the trigger suspends on p2's may-pay.
+        resolveTrigger(state, remora, "mystic-remora-draw-tax", {
+            type: "SPELL_CAST",
+            casterId: "p2",
+        } as StackItem["triggerEvent"]);
+        // The pay choice belongs to the OPPONENT (the caster), not the source.
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p2");
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.players[0].hand.map((c) => c.id)).toContain("draw1");
+    });
+
+    it("paying {4} stops the draw", () => {
+        const remora = makeInstance(mysticRemora.id, {
+            id: "remora",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [remora],
+                    library: [
+                        vanilla("draw1", 1, 1, {
+                            id: "draw1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, remora, "mystic-remora-draw-tax", {
+            type: "SPELL_CAST",
+            casterId: "p2",
+        } as StackItem["triggerEvent"]);
+        state.players[1].manaPool = { C: 4 };
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
+    it("the noncreature filter (SpellFilter.excludeTypes) excludes creature spells", () => {
+        // CR 205 — excludeTypes is the negative of types. A creature spell is
+        // filtered out; an instant passes.
+        expect(
+            matchesSpellFilter(
+                { types: ["Creature"], subtypes: [], colors: [] },
+                { excludeTypes: "Creature" }
+            )
+        ).toBe(false);
+        expect(
+            matchesSpellFilter(
+                { types: ["Instant"], subtypes: [], colors: [] },
+                { excludeTypes: "Creature" }
+            )
+        ).toBe(true);
+        // An artifact creature (multi-type) is still a creature → excluded.
+        expect(
+            matchesSpellFilter(
+                { types: ["Artifact", "Creature"], subtypes: [], colors: [] },
+                { excludeTypes: "Creature" }
+            )
+        ).toBe(false);
+    });
+});
+
+// --- Reality Twist — per-basic land-mana permutation (CR 614) ---------------
+
+describe("Reality Twist (per-basic land-mana permutation, CR 614)", () => {
+    it("carries cumulative upkeep {1}{U}{U} and the byBasicSubtype substitution", () => {
+        expect(
+            realityTwist.triggeredAbilities?.some(
+                (t) => t.id === "reality-twist-cumulative-upkeep"
+            )
+        ).toBe(true);
+        expect(realityTwist.landManaSubstitution).toEqual({
+            byBasicSubtype: {
+                Plains: "R",
+                Swamp: "G",
+                Mountain: "W",
+                Forest: "B",
+            },
+        });
+    });
+
+    it("rewrites a Mountain's tapped mana to {W} while in play, surviving the wire (CR 614)", () => {
+        const twist = makeInstance(realityTwist.id, {
+            id: "twist",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const mtn = makeLand(mountain.id, "p1");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [twist, mtn] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Fat state: Mountain → {W}.
+        expect(applyLandManaReplacement(state, "p1", mtn, { R: 1 })).toEqual({
+            W: 1,
+        });
+        // Wire format (#665, mandatory): the substitution is read off the def by
+        // id, so it survives projectPublicState unchanged.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimMtn = projected.players[0].battlefield.find(
+            (c) => c.id === mtn.id
+        )!;
+        expect(
+            applyLandManaReplacement(
+                projected as unknown as GameState,
+                "p1",
+                slimMtn,
+                { R: 1 }
+            )
+        ).toEqual({ W: 1 });
+    });
+
+    it("leaves an Island unchanged (not in the permutation map)", () => {
+        const twist = makeInstance(realityTwist.id, {
+            id: "twist",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const isl = makeLand(island.id, "p1");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [twist, isl] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(applyLandManaReplacement(state, "p1", isl, { U: 1 })).toEqual({
+            U: 1,
+        });
+    });
+});
+
+// --- Mystic Might — Aura granting a pump ability to a land (CR 611) ---------
+
+describe("Mystic Might (activated-grant on enchanted land, CR 611/702.24)", () => {
+    it("enchants a land you control and grants a tap +2/+2 pump", () => {
+        expect(mysticMight.targetRequirement).toMatchObject({
+            type: "Land",
+            controller: "you",
+        });
+        expect(mysticMight.staticEffects).toEqual([
+            {
+                kind: "activated-grant",
+                applies: expect.any(Function),
+                abilityId: "mystic-might-pump",
+            },
+        ]);
+        const tmpl = mysticMight.grantTemplates!.find(
+            (g) => g.id === "mystic-might-pump"
+        )!;
+        expect(tmpl.cost).toMatchObject({ tap: true });
+        expect(tmpl.targetRequirement).toMatchObject({ type: "Creature" });
+        expect(
+            mysticMight.triggeredAbilities?.some(
+                (t) => t.id === "mystic-might-cumulative-upkeep"
+            )
+        ).toBe(true);
+    });
+
+    it("the granted ability pumps a creature +2/+2 (driven via the host land), surviving the wire", () => {
+        const land = vanilla("land", 0, 0, {
+            id: "land",
+            controllerId: "p1",
+            ownerId: "p1",
+            types: ["Land"] as CardType[],
+            isSummoningSick: false,
+        });
+        const creature = vanilla("crt", 1, 1, {
+            id: "crt",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [land, creature] }),
+                makePlayer("p2"),
+            ],
+        });
+        // The engine resolves a granted ability with the HOST as source (CR 113.1),
+        // keyed to the land via grantedSourceCardId/abilityId (as activateAbility does).
+        state.stack.push({
+            ...land,
+            zone: "stack",
+            castById: "p1",
+            grantedSourceCardId: mysticMight.id,
+            abilityId: "mystic-might-pump",
+            targets: [{ type: "permanent", id: "crt" }],
+        } as StackItem);
+        resolveTopOfStack(state);
+        const after = state.players[0].battlefield.find((c) => c.id === "crt")!;
+        expect(getEffectivePower(state, after)).toBe(3);
+        expect(getEffectiveToughness(state, after)).toBe(3);
+        // Wire format (CR 611, mandatory): the buff survives the projection.
+        const projected = projectPublicState(state, 2, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "crt"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+});
+
+// --- Musician — music counters + granted destroy-unless-pay (CR 122/701.7) --
+
+describe("Musician (music counters + granted upkeep tax, CR 122/701.7)", () => {
+    it("carries cumulative upkeep {1} and the music-upkeep grant template", () => {
+        expect(
+            musician.triggeredAbilities?.some(
+                (t) => t.id === "musician-cumulative-upkeep"
+            )
+        ).toBe(true);
+        expect(
+            musician.triggeredGrantTemplates?.some(
+                (t) => t.id === "musician-music-upkeep"
+            )
+        ).toBe(true);
+        expect(musician.power).toBe(1);
+        expect(musician.toughness).toBe(3);
+    });
+
+    it("the activated ability adds a music counter and grants the upkeep ability", () => {
+        const musie = makeInstance(musician.id, {
+            id: "musie",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isSummoningSick: false,
+        });
+        const bear = makeInstance(balduvianBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [musie, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, musie, "musician-music-counter", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const target = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(target.counters?.music).toBe(1);
+        expect(
+            target.grantedTriggeredAbilities?.some(
+                (g) => g.abilityId === "musician-music-upkeep"
+            )
+        ).toBe(true);
+        // The grant is idempotent — a second music counter only raises the cost.
+        resolveActivated(state, musie, "musician-music-counter", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(after.counters?.music).toBe(2);
+        expect(
+            after.grantedTriggeredAbilities?.filter(
+                (g) => g.abilityId === "musician-music-upkeep"
+            ).length
+        ).toBe(1);
+    });
+
+    it("the granted upkeep ability destroys the creature when the {1}-per-counter cost is declined", () => {
+        const bear = makeInstance(balduvianBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            counters: { music: 2 },
+            grantedTriggeredAbilities: [
+                {
+                    sourceCardId: musician.id,
+                    abilityId: "musician-music-upkeep",
+                },
+            ],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        fireCU(state, bear, "musician-music-upkeep");
+        // The pay choice belongs to the host's controller; cost scales {1}×2.
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p1");
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.players[0].battlefield.some((c) => c.id === "bear")).toBe(
+            false
+        );
+    });
+
+    it("paying {2} (one per music counter) keeps the creature", () => {
+        const bear = makeInstance(balduvianBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            counters: { music: 2 },
+            grantedTriggeredAbilities: [
+                {
+                    sourceCardId: musician.id,
+                    abilityId: "musician-music-upkeep",
+                },
+            ],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.players[0].manaPool = { C: 2 };
+        fireCU(state, bear, "musician-music-upkeep");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.players[0].battlefield.some((c) => c.id === "bear")).toBe(
+            true
+        );
+        expect(state.players[0].manaPool.C ?? 0).toBe(0);
+    });
+
+    it("wire format: the granted music-upkeep ability survives projectPublicState", () => {
+        const bear = makeInstance(balduvianBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            counters: { music: 1 },
+            grantedTriggeredAbilities: [
+                {
+                    sourceCardId: musician.id,
+                    abilityId: "musician-music-upkeep",
+                },
+            ],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(
+            effectiveTriggeredAbilities(bear).some(
+                (a) => a.id === "musician-music-upkeep"
+            )
+        ).toBe(true);
+        const projected = projectPublicState(state, 2, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(slim.counters?.music).toBe(1);
+        expect(
+            effectiveTriggeredAbilities(slim).some(
+                (a) => a.id === "musician-music-upkeep"
+            )
+        ).toBe(true);
     });
 });

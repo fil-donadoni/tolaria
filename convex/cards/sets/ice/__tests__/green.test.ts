@@ -55,7 +55,10 @@ import {
     freyalisesWinds,
     forgottenLore,
     freyaliseSupplicant,
+    ritualOfSubdual,
 } from "../../ice";
+import { applyLandManaReplacement } from "../../../../gre/constants";
+import { mountain } from "../../lea";
 import { untapStep } from "../../../../gre/phases";
 import { getCardById, getCardByName } from "../../../index";
 import {
@@ -100,6 +103,8 @@ import {
     collectAndStack,
     submitPick,
     answerHeadMayPay,
+    fireCU,
+    makeLand,
 } from "./helpers";
 
 // ---------------------------------------------------------------------------
@@ -2039,5 +2044,79 @@ describe("Freyalise Supplicant ({T}, Sac R/W creature: damage = floor(power/2), 
             types: "Creature",
             colors: ["R", "W"],
         });
+    });
+});
+
+// --- Ritual of Subdual — colourless land-mana lock (CR 614 / 702.24, #726) --
+
+describe("Ritual of Subdual (lands → colourless, CR 614/702.24)", () => {
+    it("shape: cumulative upkeep {2} + single-colour {C} substitution", () => {
+        expect(ritualOfSubdual.manaCost).toEqual({ X: 4, G: 2 });
+        expect(ritualOfSubdual.types).toEqual(["Enchantment"]);
+        expect(ritualOfSubdual.landManaSubstitution).toEqual({ color: "C" });
+        expect(
+            ritualOfSubdual.triggeredAbilities?.some(
+                (t) => t.id === "ritual-of-subdual-cumulative-upkeep"
+            )
+        ).toBe(true);
+    });
+
+    it("rewrites a Mountain's tapped mana to {C}, surviving the wire (CR 614)", () => {
+        const ritual = makeInstance(ritualOfSubdual.id, {
+            id: "ritual",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const mtn = makeLand(mountain.id, "p1");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ritual, mtn] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Fat state: the Mountain's {R} becomes {C} (same total quantity).
+        expect(applyLandManaReplacement(state, "p1", mtn, { R: 1 })).toEqual({
+            C: 1,
+        });
+        // Wire format (#665, mandatory): the substitution is read off the def by
+        // id, so it survives projectPublicState unchanged.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimMtn = projected.players[0].battlefield.find(
+            (c) => c.id === mtn.id
+        )!;
+        expect(
+            applyLandManaReplacement(
+                projected as unknown as GameState,
+                "p1",
+                slimMtn,
+                { R: 1 }
+            )
+        ).toEqual({ C: 1 });
+    });
+
+    it("cumulative upkeep accrues an age counter and sacrifices on decline (CR 702.24)", () => {
+        const ritual = makeInstance(ritualOfSubdual.id, {
+            id: "ritual",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ritual] }),
+                makePlayer("p2"),
+            ],
+        });
+        fireCU(state, ritual, "ritual-of-subdual-cumulative-upkeep");
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "ritual"
+        );
+        expect(live?.counters?.age).toBe(1);
+        // No mana in pool → decline the {2} → the enchantment is sacrificed.
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "ritual")
+        ).toBe(false);
     });
 });

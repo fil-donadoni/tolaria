@@ -4176,6 +4176,24 @@
         "firstSet": "drk"
     },
     {
+        "name": "Musician",
+        "scryfallId": "9f8d2247-a10e-413a-b497-2add3918f991",
+        "oracleId": "0d6e9468-adb2-4feb-87cf-9113db8717b1",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Mystic Might",
+        "scryfallId": "e35d7f08-0687-41bd-8c53-31a49adabb11",
+        "oracleId": "967eca77-d273-4fc6-97d1-df7d8cc6ff59",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Mystic Remora",
+        "scryfallId": "58e93dff-b774-4765-b7bd-d3957e42ff4a",
+        "oracleId": "8a52f3c0-2552-4425-b2e3-5496eb2232a7",
+        "firstSet": "ice"
+    },
+    {
         "name": "Nacre Talisman",
         "scryfallId": "06912236-8225-4eb0-8086-c6a163c69892",
         "oracleId": "f87aaed9-7f78-4f8b-8af5-44d4be1d6f30",
@@ -4854,6 +4872,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Reality Twist",
+        "scryfallId": "1b7e955c-3de2-430c-93b9-0b39ccea5420",
+        "oracleId": "2c6f9fdb-ee27-4cd8-9d4d-1ea8b2830f73",
+        "firstSet": "ice"
+    },
+    {
         "name": "Recall",
         "scryfallId": "33296718-0625-4422-a65c-b21cf99c52ec",
         "oracleId": "4158f397-4ee4-4f53-90f2-3b64bfe4f9b8",
@@ -4984,6 +5008,12 @@
         "scryfallId": "b0f11ae4-e30e-441d-bb64-439930d9997c",
         "oracleId": "b4541f38-23c1-4f51-a35b-0b222cdaed2c",
         "firstSet": "drk"
+    },
+    {
+        "name": "Ritual of Subdual",
+        "scryfallId": "5c5c01e7-8116-45fc-afc3-d52a31a635cb",
+        "oracleId": "e0587218-206e-41ed-af3c-f06b7a668e90",
+        "firstSet": "ice"
     },
     {
         "name": "Riven Turnbull",
