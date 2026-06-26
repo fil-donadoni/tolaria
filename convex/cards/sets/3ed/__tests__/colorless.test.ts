@@ -1,13 +1,16 @@
-// Per-card tests for `convex/cards/sets/3ed.ts`.
+// Set-wide / registry-parity tests for `convex/cards/sets/3ed/` (ADR 0043).
 //
 // 3ED (Revised Edition) is a 100% reprint set — it introduces no new cards, so
-// the module is entirely CardPrint entries that resolve
+// the modules are entirely CardPrint entries that resolve
 // printId -> definitionId -> a shared CardDefinition already implemented in
 // lea/leb/arn/atq/leg/drk (ADR 0014). The module-load guard in index.ts already
 // throws on a dangling printId; these assertions make the reprint contract
 // explicit and verify that Revised shows up as an extra printing alongside the
 // originals. The 3 ante cards (Contract from Below, Darkpact, Demonic Attorney)
 // are permanently out of scope (ADR 0010) and carry no print row.
+//
+// Per ADR 0043 the set-wide invariants live with the colorless (catch-all)
+// module; the set has no per-card behavioural tests (every card is a reprint).
 
 import { describe, it, expect } from "vitest";
 import {
@@ -16,20 +19,20 @@ import {
     volcanicIsland3ed,
     circleOfProtectionBlack3ed,
     mountain3ed,
-} from "../3ed";
-import { airElemental, lightningBolt, mountain } from "../lea";
-import { volcanicIsland, circleOfProtectionBlack } from "../leb";
+} from "..";
+import { airElemental, lightningBolt, mountain } from "../../lea";
+import { volcanicIsland, circleOfProtectionBlack } from "../../leb";
 import {
     getCardById,
     getPrintingsForCard,
     getAllSetCodes,
     tryGetCardByName,
-} from "../../index";
-import { setName } from "../../setMeta";
-import { FORMAT_RULES, validateDeck } from "../../../formats";
-import type { ValidatableDeck } from "../../../formats";
-import * as revised from "../3ed";
-import type { CardPrint } from "../../types";
+} from "../../../index";
+import { setName } from "../../../setMeta";
+import { FORMAT_RULES, validateDeck } from "../../../../formats";
+import type { ValidatableDeck } from "../../../../formats";
+import * as revised from "..";
+import type { CardPrint } from "../../../types";
 
 const ALL_3ED = Object.values(revised).filter(
     (v): v is CardPrint => typeof v === "object" && v !== null && "printId" in v
