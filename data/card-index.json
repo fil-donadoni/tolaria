@@ -930,6 +930,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Chromatic Star",
+        "scryfallId": "1d7a1357-debd-49b0-9fd5-560d5b3f589e",
+        "oracleId": "fedbd40b-e3a5-449c-a8a3-b42e9da191a9",
+        "firstSet": "tsp"
+    },
+    {
         "name": "Chromium",
         "scryfallId": "8cd7d7e1-f928-4429-9a59-ba0590a78e98",
         "oracleId": "7c91ae5d-0320-46a7-98d2-df0918202478",
@@ -2172,6 +2178,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Frantic Search",
+        "scryfallId": "1904db14-6df7-424f-afa5-e3dfab31300a",
+        "oracleId": "16e015b2-f8a3-4b1a-80be-58a8f5fb5e8c",
+        "firstSet": "ulg"
+    },
+    {
         "name": "Freyalise Supplicant",
         "scryfallId": "5b1e718a-882a-4bdc-9d62-4dda88da0ba0",
         "oracleId": "c28a7641-49e3-43b1-a366-8d6e9c8dab9c",
@@ -2824,6 +2836,12 @@
         "scryfallId": "627ca588-917f-4768-a69d-3d93c1210390",
         "oracleId": "6facb0f6-fa49-4ce6-9f95-15bb3ce4bcf2",
         "firstSet": "fem"
+    },
+    {
+        "name": "Horizon Canopy",
+        "scryfallId": "d5dfc25d-a17b-4ead-9484-e8a18b8fa176",
+        "oracleId": "262a5d83-506c-4781-9bc9-1a2b5d83955c",
+        "firstSet": "fut"
     },
     {
         "name": "Hornet Cobra",
@@ -3726,6 +3744,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Loran of the Third Path",
+        "scryfallId": "59faa45d-868b-4bc7-934c-0e077642e129",
+        "oracleId": "b3d81980-76f2-44e2-b1c9-01e30c726312",
+        "firstSet": "bro"
+    },
+    {
         "name": "Lord of Atlantis",
         "scryfallId": "210c4a90-fc7a-4c76-aeaa-20a005e45386",
         "oracleId": "cc7f290f-ca00-4285-9bdb-4b4402444f30",
@@ -3996,6 +4020,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Mind Stone",
+        "scryfallId": "162e81d3-6cd4-4cb8-8ed8-cfbd8d34ca71",
+        "oracleId": "c97361b5-af16-4a7b-af85-a429dbaf4ad2",
+        "firstSet": "wth"
+    },
+    {
         "name": "Mind Twist",
         "scryfallId": "eee9e106-a248-49d2-b8c8-6bbcd56ce739",
         "oracleId": "78f9c223-9982-4282-a496-a6f892f0a5bf",
@@ -4042,6 +4072,12 @@
         "scryfallId": "a8f05d5e-bb7d-4554-b880-f0c6b4688357",
         "oracleId": "8d231d2f-5274-4b55-8262-9eb95654d183",
         "firstSet": "leg"
+    },
+    {
+        "name": "Mishra's Bauble",
+        "scryfallId": "8a720448-017f-4f4a-9501-678245eaed17",
+        "oracleId": "63afc3d1-7653-476e-838f-fc18d4a62a21",
+        "firstSet": "csp"
     },
     {
         "name": "Mishra's Factory",
@@ -4302,6 +4338,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Night's Whisper",
+        "scryfallId": "61f0c6f6-b90d-4eb1-a5db-86e0a3997501",
+        "oracleId": "7ffae8f8-3006-4969-a339-6d30678f87ea",
+        "firstSet": "5dn"
+    },
+    {
         "name": "Nightmare",
         "scryfallId": "b8cdd6a7-f772-4ccb-914f-63f52ed54d6b",
         "oracleId": "375932e6-1b3e-48dc-8154-9b664c3add34",
@@ -4342,6 +4384,12 @@
         "scryfallId": "4c8e9f5c-deba-4443-bf9d-fb2be75c5418",
         "oracleId": "ac41171e-c454-49e9-9004-c082ae099630",
         "firstSet": "lea"
+    },
+    {
+        "name": "Occult Epiphany",
+        "scryfallId": "6920c895-bc98-4871-a53f-219fa27a74e5",
+        "oracleId": "6df1c314-b97b-4bbc-8b7e-a07785347a49",
+        "firstSet": "voc"
     },
     {
         "name": "Old Man of the Sea",
@@ -4656,6 +4704,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Ponder",
+        "scryfallId": "ba6b6fc5-5077-4812-b8e9-906783dbaf67",
+        "oracleId": "02090581-61aa-4348-ad57-451be8ee91c2",
+        "firstSet": "lrw"
+    },
+    {
         "name": "Portent",
         "scryfallId": "e040be83-3fb5-4da5-ba7a-4923b8854b74",
         "oracleId": "e744dbb6-2d56-462a-8d49-d79c73944048",
@@ -4708,6 +4762,12 @@
         "scryfallId": "1e03d335-d259-4ab4-814f-9333cfd3afc9",
         "oracleId": "d5ea9176-30c1-4152-9086-322f39245f46",
         "firstSet": "drk"
+    },
+    {
+        "name": "Preordain",
+        "scryfallId": "e3868c3d-4fcd-444b-866f-0f8e50ce7b67",
+        "oracleId": "ac641490-ca14-48d7-8cc4-b69ce984befa",
+        "firstSet": "m11"
     },
     {
         "name": "Presence of the Master",
@@ -4954,6 +5014,12 @@
         "scryfallId": "c062cbae-ce5e-43be-9932-c81a0a3622e8",
         "oracleId": "90cd8274-3f21-4b78-8910-dcaa5f8fe25d",
         "firstSet": "leg"
+    },
+    {
+        "name": "Relic of Sauron",
+        "scryfallId": "175b3d28-5c74-4972-9b5c-5e39762c78f4",
+        "oracleId": "b3a81bb1-cbd5-41a0-8dd4-faea06593f84",
+        "firstSet": "ltc"
     },
     {
         "name": "Remove Enchantments",
@@ -5592,6 +5658,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Soul-Guide Lantern",
+        "scryfallId": "7c850b94-75c9-4457-8b5e-1193352d6fcb",
+        "oracleId": "1b5e6560-ff2e-4475-96cb-63f64c8a86db",
+        "firstSet": "thb"
+    },
+    {
         "name": "Spectral Cloak",
         "scryfallId": "7524fd0d-a675-41d6-bc99-bd3ba336893b",
         "oracleId": "fadfa9f9-d096-4083-8630-1c18928133ff",
@@ -5718,6 +5790,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Stock Up",
+        "scryfallId": "0a786855-6eb4-42c0-a528-4842db46809d",
+        "oracleId": "2251e34e-4ce8-4452-9dc6-d8cce8583996",
+        "firstSet": "dft"
+    },
+    {
         "name": "Stone Calendar",
         "scryfallId": "a49ba1a5-33b1-40f2-9780-26139ed829d7",
         "oracleId": "301a59c1-e372-4c31-a2a8-88c5ba7d822a",
@@ -5812,6 +5890,12 @@
         "scryfallId": "587075f3-a568-4089-83ca-fe1e473c025d",
         "oracleId": "3d6314b5-3ace-4793-9549-7b17db2a735d",
         "firstSet": "leg"
+    },
+    {
+        "name": "Sunbaked Canyon",
+        "scryfallId": "c36820fa-ee86-4206-9a0d-737a67cf5208",
+        "oracleId": "f97fd068-b83a-4621-bf8c-cc96e880ce90",
+        "firstSet": "mh1"
     },
     {
         "name": "Sunglasses of Urza",
@@ -6024,6 +6108,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Thought Scour",
+        "scryfallId": "88bf1ebb-9d85-4b9b-a614-c7f965c0893d",
+        "oracleId": "83101ba8-a569-4827-8c53-9ca0dfcd59a7",
+        "firstSet": "dka"
+    },
+    {
         "name": "Thoughtlace",
         "scryfallId": "23749375-1416-47a4-9251-52f41fe2fae9",
         "oracleId": "6452b6a6-6235-46a3-a712-a26592450438",
@@ -6228,6 +6318,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Traumatic Critique",
+        "scryfallId": "2a812fa7-4599-4e25-97db-20ffc6bc0b26",
+        "oracleId": "06c1f8a4-4948-435b-ae98-b1276b57e958",
+        "firstSet": "sos"
+    },
+    {
         "name": "Triskelion",
         "scryfallId": "a79c99e1-722a-44b6-8fa3-2be3f0c193d8",
         "oracleId": "74f67dcf-5afb-45aa-8d4b-3cdb23f6f2a1",
@@ -6346,6 +6442,12 @@
         "scryfallId": "448e1811-fb16-4390-ac22-b7066a4a019c",
         "oracleId": "1cfeb5c4-a2d0-4872-a907-a6d484be85a5",
         "firstSet": "atq"
+    },
+    {
+        "name": "Urza's Bauble",
+        "scryfallId": "58c9e9a7-e170-4361-b7d5-22fc0771c489",
+        "oracleId": "17dbbca3-ac1c-4d4e-9618-3e66ac3ccd24",
+        "firstSet": "ice"
     },
     {
         "name": "Urza's Chalice",
@@ -6676,6 +6778,12 @@
         "scryfallId": "e3da4a88-5225-467f-9240-f30bc1eee520",
         "oracleId": "cfa373c4-6e42-4cf3-94a4-841f2824603e",
         "firstSet": "drk"
+    },
+    {
+        "name": "Waterlogged Grove",
+        "scryfallId": "0ab6bfbd-d2e1-4c4c-9f91-6f69c5b8e3bb",
+        "oracleId": "70fa2eba-565e-4fed-adc9-7f5d9fcbf1fa",
+        "firstSet": "mh1"
     },
     {
         "name": "Weakness",

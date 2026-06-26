@@ -138,6 +138,49 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         turn: 2,
     },
     {
+        // Vintage Cube card-draw / card-advantage tranche (issue #674). A
+        // single board to exercise the family's golden path end-to-end:
+        //   - Ponder / Preordain ({U}): library smoothing (look-at-top +
+        //     reorder, scry-2-then-draw). A 12-card library makes the looks
+        //     meaningful.
+        //   - Stock Up ({2}{U}): look at five, keep two, bottom the rest.
+        //   - Night's Whisper ({1}{B}): straight draw-two, lose-2-life.
+        //   - Frantic Search ({2}{U}): draw two, discard two, untap three lands
+        //     (the lands on board untap to "refund" the cast).
+        //   - Mind Stone (battlefield): {T} for {C}, or {1},{T},Sac to cantrip.
+        //   - Loran (battlefield): {T} so you AND the opponent each draw.
+        // Four lands + Mind Stone cover the coloured costs.
+        label: "Cube: Card draw / advantage — Ponder / Preordain / Stock Up / Night's Whisper / Frantic Search (#674)",
+        cards: [
+            { name: "Ponder", owner: "me" as const, zone: "hand" as const },
+            { name: "Preordain", owner: "me" as const, zone: "hand" as const },
+            { name: "Stock Up", owner: "me" as const, zone: "hand" as const },
+            {
+                name: "Night's Whisper",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Frantic Search",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Mind Stone",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Loran of the Third Path",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+        libraryCount: 12,
+    },
+    {
         // JOU Banishing Light (#754 follow-up) — O-Ring-style exile-until-leaves
         // (CR 603.6a/603.7a). Cast Banishing Light ({2}{W}) and exile the
         // opponent's Balduvian Bears: the exiled card renders PINNED to Banishing
