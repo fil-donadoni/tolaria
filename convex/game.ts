@@ -848,6 +848,80 @@ export function resolveAbilityManaCost(
     return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
+/** Builds the `pendingActivation` payment descriptor for a non-targeted
+ *  activated ability whose costs are deferred (mana not yet covered, or a
+ *  choice cost still pending). Single source of truth for the `activateAbility`
+ *  mutation so every deferred cost — crucially the CR 106.10 noted-mana capture
+ *  flag (Jeweled Amulet / Ice Cauldron) — is carried onto the payment and
+ *  honoured at `tryAutoCommitPendingActivation`. Pure: returns the descriptor,
+ *  mutates nothing. */
+export function buildPendingActivation(opts: {
+    playerId: string;
+    cardInstanceId: string;
+    abilityId: string;
+    ability: ActivatedAbility;
+    manaCost: Record<string, number> | undefined;
+    chosenX?: number;
+    keepPriority?: boolean;
+    grantedSourceCardId?: string;
+}): PendingActivation {
+    const { ability } = opts;
+    return {
+        playerId: opts.playerId,
+        cardInstanceId: opts.cardInstanceId,
+        abilityId: opts.abilityId,
+        manaCost: opts.manaCost ?? {},
+        tappedLandIds: [],
+        tapSource: !!ability.cost.tap,
+        sacrificeSource: !!ability.cost.sacrifice,
+        ...(ability.cost.removeCounter
+            ? { removeCounterCost: { ...ability.cost.removeCounter } }
+            : {}),
+        ...(ability.cost.discardLastDrawn
+            ? { discardLastDrawnSource: true }
+            : {}),
+        ...(ability.cost.discardAtRandom
+            ? { discardAtRandomCount: ability.cost.discardAtRandom }
+            : {}),
+        ...(ability.cost.sacrificeFilter
+            ? { sacrificeChoice: { filter: ability.cost.sacrificeFilter } }
+            : {}),
+        ...(ability.cost.exileFromGraveyard
+            ? {
+                  exileFromGraveyardChoice: {
+                      count: ability.cost.exileFromGraveyard.count,
+                      ...(ability.cost.exileFromGraveyard.cardType !== undefined
+                          ? {
+                                cardType:
+                                    ability.cost.exileFromGraveyard.cardType,
+                            }
+                          : {}),
+                  },
+              }
+            : {}),
+        ...(ability.cost.tapOtherFilter
+            ? {
+                  tapOtherChoice: {
+                      filter: ability.cost.tapOtherFilter.filter,
+                      count: ability.cost.tapOtherFilter.count,
+                      pickedIds: [],
+                  },
+              }
+            : {}),
+        ...(opts.chosenX !== undefined ? { chosenX: opts.chosenX } : {}),
+        // CR 106.10 — noted-mana battery (Jeweled Amulet / Ice Cauldron). Carry
+        // the capture flag onto the deferred payment so the per-colour
+        // mana-spent delta is snapshotted at commit (auto-tap / manual-tap
+        // path). Without this the noted mana is silently lost when the pool
+        // doesn't already cover the cost.
+        ...(ability.noteManaSpent ? { noteManaSpent: true } : {}),
+        keepPriority: opts.keepPriority,
+        ...(opts.grantedSourceCardId
+            ? { grantedSourceCardId: opts.grantedSourceCardId }
+            : {}),
+    };
+}
+
 /** If the activator's pool now covers pendingActivation, pay mana, apply the
  *  deferred tap/sacrifice costs on the source, push the ability on the stack,
  *  and swap priority. Mirrors tryAutoCommitPendingCast for abilities. Returns
@@ -5935,58 +6009,16 @@ export const activateAbility = mutation({
             needsExileChoice ||
             needsTapOtherChoice
         ) {
-            const pending: PendingActivation = {
+            const pending = buildPendingActivation({
                 playerId: args.playerId,
                 cardInstanceId: card.id,
                 abilityId: args.abilityId,
-                manaCost: manaCost ?? {},
-                tappedLandIds: [],
-                tapSource: !!ability.cost.tap,
-                sacrificeSource: !!ability.cost.sacrifice,
-                ...(ability.cost.removeCounter
-                    ? { removeCounterCost: { ...ability.cost.removeCounter } }
-                    : {}),
-                ...(ability.cost.discardLastDrawn
-                    ? { discardLastDrawnSource: true }
-                    : {}),
-                ...(ability.cost.discardAtRandom
-                    ? { discardAtRandomCount: ability.cost.discardAtRandom }
-                    : {}),
-                ...(ability.cost.sacrificeFilter
-                    ? {
-                          sacrificeChoice: {
-                              filter: ability.cost.sacrificeFilter,
-                          },
-                      }
-                    : {}),
-                ...(ability.cost.exileFromGraveyard
-                    ? {
-                          exileFromGraveyardChoice: {
-                              count: ability.cost.exileFromGraveyard.count,
-                              ...(ability.cost.exileFromGraveyard.cardType !==
-                              undefined
-                                  ? {
-                                        cardType:
-                                            ability.cost.exileFromGraveyard
-                                                .cardType,
-                                    }
-                                  : {}),
-                          },
-                      }
-                    : {}),
-                ...(ability.cost.tapOtherFilter
-                    ? {
-                          tapOtherChoice: {
-                              filter: ability.cost.tapOtherFilter.filter,
-                              count: ability.cost.tapOtherFilter.count,
-                              pickedIds: [],
-                          },
-                      }
-                    : {}),
-                ...(chosenX !== undefined ? { chosenX } : {}),
+                ability,
+                manaCost,
+                chosenX,
                 keepPriority: args.keepPriority,
-                ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
-            };
+                grantedSourceCardId,
+            });
             state.pendingActivation = pending;
             // CR 302.1 — a {T}-cost ability still needs the source untapped at
             // commit; deferral keeps it untapped now, so re-check at commit.
@@ -6005,6 +6037,14 @@ export const activateAbility = mutation({
         if (ability.cost.tap) {
             card.isTapped = true;
         }
+        // CR 106.10 — noted-mana battery (Jeweled Amulet / Ice Cauldron):
+        // snapshot the pool before payment so the per-colour delta becomes the
+        // mana noted on the source at resolve (mirrors the deferred-commit and
+        // targeted-ability paths).
+        const poolBeforePayment =
+            ability.noteManaSpent && manaCost
+                ? { ...player.manaPool }
+                : undefined;
         if (manaCost) {
             payManaCost(
                 player.manaPool,
@@ -6013,6 +6053,9 @@ export const activateAbility = mutation({
             );
             commitLandsForCost(player, manaCost);
         }
+        const notedManaSpent = poolBeforePayment
+            ? manaSpentDelta(poolBeforePayment, player.manaPool)
+            : undefined;
         if (ability.cost.removeCounter) {
             payRemoveCounterCost(card, ability.cost.removeCounter);
         }
@@ -6038,6 +6081,7 @@ export const activateAbility = mutation({
             abilityId: args.abilityId,
             ...(chosenX !== undefined ? { chosenX } : {}),
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
+            ...(notedManaSpent ? { notedManaSpent } : {}),
         };
         state.stack.push(stackItem);
         recordActivation(state, card, args.abilityId, !!ability.cost.tap);

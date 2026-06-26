@@ -170,6 +170,13 @@ export interface CardInstance {
      *  `card.id` carries the copied object's def id; `copiedFrom` holds the
      *  printed identity restored when the copy leaves the battlefield. */
     copiedFrom?: string;
+    /** Noted mana banked on a mana-battery permanent (CR 106.10 — Jeweled
+     *  Amulet, Ice Cauldron). Per-colour amounts the artifact will add when its
+     *  "remove a charge counter" ability resolves. Forwarded by `slimCard` (the
+     *  projection only strips `card`/`knownTo`), so the client can surface which
+     *  color is banked. `castableCardId` is set for Ice Cauldron's
+     *  instance-restricted note. */
+    notedMana?: { mana: Record<string, number>; castableCardId?: string };
 }
 
 export interface Combat {

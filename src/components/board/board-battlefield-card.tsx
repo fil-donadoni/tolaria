@@ -8,6 +8,7 @@ import { getColorOverrideDisplay } from "~/lib/color-override";
 import CardImage from "../cards/card-image";
 import CardTilt3D from "./card-tilt-3d";
 import CounterBadges from "./counter-badges";
+import NotedManaBadge from "./noted-mana-badge";
 import ActivatableAbilityMenu from "./activatable-ability-menu";
 import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
 
@@ -181,6 +182,7 @@ export default function BoardBattlefieldCard({
                 {darkenOverlay}
                 {highlightRing}
                 <CounterBadges card={card} />
+                <NotedManaBadge card={card} />
                 {ptDamageStack}
             </div>
         </CardTilt3D>
