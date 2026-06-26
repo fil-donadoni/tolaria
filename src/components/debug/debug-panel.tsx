@@ -164,6 +164,57 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 3,
     },
     {
+        // ICE static conditional combat restrictions (#729, PRD #628).
+        // Exercises all three new combat-restriction seams on one board:
+        //   - Hipparion (1/3, {1}{W}): "can't block creatures with power 3 or
+        //     greater unless you pay {1}" — a pay-to-bypass block restriction
+        //     (CR 509.1b). Block the opponent's Balduvian Barbarians (3/1): the
+        //     engine auto-pays {1} from your lands as you confirm the block.
+        //   - Orcish Conscripts (2/2, {R}): "can't attack/block unless at least
+        //     two other creatures attack/block" — count-aware restrictions read
+        //     over the complete declared set (CR 508.1c / 509.1b). With two
+        //     Balduvian Bears present you can declare all three as attackers.
+        //   - Errantry (Aura, {1}{R}): "+3/+0 and can only attack alone." Enchant
+        //     a Bear, then try to attack with anything else — illegal.
+        // Lands on both sides; turn 2 so everything is untapped; life 20.
+        label: "ICE: Static combat restrictions — Hipparion / Orcish Conscripts / Errantry (#729)",
+        cards: [
+            {
+                name: "Hipparion",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Orcish Conscripts",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Errantry",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
+            // A power-3 attacker for the opponent to test Hipparion's bypass.
+            {
+                name: "Balduvian Barbarians",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
+    {
         // ICE combat / casting-restriction primitives (#669, PRD #628).
         // Exercises all three one-off seams in a single board:
         //   - Stench of Evil ({2}{B} sorcery): "Destroy all Plains. For each

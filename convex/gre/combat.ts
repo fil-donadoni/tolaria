@@ -1,8 +1,11 @@
 import type { CardInstanceState, GameState } from "./state";
 import type {
+    ManaCost,
     PermanentView,
     StaticAttackRestriction,
     StaticBlockRestriction,
+    StaticDeclaredAttackRestriction,
+    StaticDeclaredBlockRestriction,
     StaticBlockRequirement,
 } from "../cards/types";
 import { isProtectedFromSource } from "./protection";
@@ -233,6 +236,74 @@ export function validateAttackerEligibility(
     return { eligible: true };
 }
 
+/** Collects `declared-attack-restriction` static effects from a card's own
+ *  definition and from auras attached to it (CR 303.4 — aura effects apply to
+ *  their host). Mirrors `collectBlockRestrictions`: requires `state` to discover
+ *  attached auras (Errantry's "can only attack alone"). */
+function collectDeclaredAttackRestrictions(
+    card: CardInstanceState,
+    state: GameState
+): StaticDeclaredAttackRestriction[] {
+    const restrictions: StaticDeclaredAttackRestriction[] = [];
+    const collect = (cardId: string | undefined) => {
+        if (!cardId) return;
+        const def = tryGetCardById(cardId);
+        if (!def?.staticEffects) return;
+        for (const effect of def.staticEffects) {
+            if (effect.kind === "declared-attack-restriction") {
+                restrictions.push(effect);
+            }
+        }
+    };
+    collect((card.card as { id?: string }).id);
+    for (const player of state.players) {
+        for (const perm of player.battlefield) {
+            if (perm.attachedTo !== card.id) continue;
+            collect((perm.card as { id?: string }).id);
+        }
+    }
+    return restrictions;
+}
+
+/** Validates the COMPLETE set of declared attackers against every attacker's
+ *  count-aware attack restrictions (CR 508.1c). The attack-side twin of
+ *  `validateMinimumBlockers`: a restriction such as "can only attack alone"
+ *  (Errantry) or "can't attack unless at least two other creatures attack"
+ *  (Orcish Conscripts) can only be judged once the whole declared-attacker set
+ *  is known, so it runs at confirm time rather than per-attacker at selection.
+ *
+ *  Returns `{ ok: true }` when the declaration is legal, otherwise the oracle
+ *  text of the first violated restriction. */
+export function validateDeclaredAttackers(
+    state: GameState
+): { ok: true } | { ok: false; reason: string } {
+    const combat = state.combat;
+    if (!combat) return { ok: true };
+    const activePlayer = state.players.find(
+        (p) => p.id === state.activePlayerId
+    );
+    if (!activePlayer) return { ok: true };
+
+    const declared = combat.attackerIds
+        .map((id) => activePlayer.battlefield.find((c) => c.id === id))
+        .filter((c): c is CardInstanceState => c !== undefined);
+    const declaredViews = declared as unknown as PermanentView[];
+
+    for (const attacker of declared) {
+        for (const r of collectDeclaredAttackRestrictions(attacker, state)) {
+            if (
+                !r.predicate(
+                    attacker as unknown as PermanentView,
+                    declaredViews
+                )
+            ) {
+                return { ok: false, reason: r.oracleText };
+            }
+        }
+    }
+    return { ok: true };
+}
+
 export type BlockerValidation =
     | { eligible: true }
     | { eligible: false; reason: string };
@@ -351,11 +422,17 @@ export function validateBlockerEligibility(
             : blocker;
         for (const r of attackerRestrictions) {
             if (!r.predicate(effAttacker, effBlocker, state)) {
+                // CR 509.1b — a restriction with a `bypassCost` (Hipparion) does
+                // not forbid the block outright; the controller may pay to
+                // declare it. Allow the assignment here and charge the cost at
+                // block confirmation (`collectBlockBypassCharges`).
+                if (r.bypassCost) continue;
                 return { eligible: false, reason: r.oracleText };
             }
         }
         for (const r of blockerRestrictions) {
             if (!r.predicate(effBlocker, effAttacker, state)) {
+                if (r.bypassCost) continue;
                 return { eligible: false, reason: r.oracleText };
             }
         }
@@ -389,6 +466,141 @@ export function validateBlockerEligibility(
     }
 
     return { eligible: true };
+}
+
+/** Collects `declared-block-restriction` static effects from a card's own
+ *  definition and from auras attached to it (CR 303.4). Block-side twin of
+ *  `collectDeclaredAttackRestrictions`. */
+function collectDeclaredBlockRestrictions(
+    card: CardInstanceState,
+    state: GameState
+): StaticDeclaredBlockRestriction[] {
+    const restrictions: StaticDeclaredBlockRestriction[] = [];
+    const collect = (cardId: string | undefined) => {
+        if (!cardId) return;
+        const def = tryGetCardById(cardId);
+        if (!def?.staticEffects) return;
+        for (const effect of def.staticEffects) {
+            if (effect.kind === "declared-block-restriction") {
+                restrictions.push(effect);
+            }
+        }
+    };
+    collect((card.card as { id?: string }).id);
+    for (const player of state.players) {
+        for (const perm of player.battlefield) {
+            if (perm.attachedTo !== card.id) continue;
+            collect((perm.card as { id?: string }).id);
+        }
+    }
+    return restrictions;
+}
+
+/** The distinct creatures declared as blockers this combat (each blocking at
+ *  least one attacker), as instances on the defending player's battlefield. */
+function declaredBlockerInstances(state: GameState): CardInstanceState[] {
+    const combat = state.combat;
+    if (!combat) return [];
+    const defender = state.players.find((p) => p.id !== state.activePlayerId);
+    if (!defender) return [];
+    const out: CardInstanceState[] = [];
+    for (const [blockerId, attackerIds] of Object.entries(
+        combat.blockerAssignments
+    )) {
+        if (!attackerIds || attackerIds.length === 0) continue;
+        const inst = defender.battlefield.find((c) => c.id === blockerId);
+        if (inst) out.push(inst);
+    }
+    return out;
+}
+
+/** Validates the COMPLETE set of declared blockers against every blocker's
+ *  count-aware block restrictions (CR 509.1b). Block-side twin of
+ *  `validateDeclaredAttackers`: "can't block unless at least two other
+ *  creatures block" (Orcish Conscripts) is judged once the whole declared set
+ *  is known, so it runs at block confirmation. */
+export function validateDeclaredBlockers(
+    state: GameState
+): { ok: true } | { ok: false; reason: string } {
+    const declared = declaredBlockerInstances(state);
+    if (declared.length === 0) return { ok: true };
+    const declaredViews = declared as unknown as PermanentView[];
+
+    for (const blocker of declared) {
+        for (const r of collectDeclaredBlockRestrictions(blocker, state)) {
+            if (
+                !r.predicate(blocker as unknown as PermanentView, declaredViews)
+            ) {
+                return { ok: false, reason: r.oracleText };
+            }
+        }
+    }
+    return { ok: true };
+}
+
+/** A mana cost the defending player must pay to legalize a declared block
+ *  (CR 509.1b — Hipparion). One entry per qualifying block. */
+export interface BlockBypassCharge {
+    controllerId: string;
+    cost: ManaCost;
+    reason: string;
+}
+
+/** Scans the confirmed block assignments for blocks that are only legal because
+ *  a `bypassCost`-carrying restriction is being paid (Hipparion). Returns one
+ *  charge per qualifying (blocker → attacker) block; the caller pays each at
+ *  block confirmation. Read-only — payment happens in `confirmBlockers`. */
+export function collectBlockBypassCharges(
+    state: GameState
+): BlockBypassCharge[] {
+    const combat = state.combat;
+    if (!combat) return [];
+    const activePlayer = state.players.find(
+        (p) => p.id === state.activePlayerId
+    );
+    const defender = state.players.find((p) => p.id !== state.activePlayerId);
+    if (!activePlayer || !defender) return [];
+
+    const charges: BlockBypassCharge[] = [];
+    for (const [blockerId, attackerIds] of Object.entries(
+        combat.blockerAssignments
+    )) {
+        if (!attackerIds || attackerIds.length === 0) continue;
+        const blocker = defender.battlefield.find((c) => c.id === blockerId);
+        if (!blocker) continue;
+        const restrictions = collectBlockRestrictions(
+            blocker,
+            "blocker",
+            state
+        ).filter((r) => r.bypassCost);
+        if (restrictions.length === 0) continue;
+        const effBlocker = {
+            ...blocker,
+            power: getEffectivePower(state, blocker),
+        };
+        for (const attackerId of attackerIds) {
+            const attacker = activePlayer.battlefield.find(
+                (c) => c.id === attackerId
+            );
+            if (!attacker) continue;
+            const effAttacker = {
+                ...attacker,
+                power: getEffectivePower(state, attacker),
+            };
+            for (const r of restrictions) {
+                // The cost applies only when the restriction is actually
+                // triggered (e.g. the blocked attacker has power 3+). A block
+                // the predicate already permits costs nothing.
+                if (r.predicate(effBlocker, effAttacker, state)) continue;
+                charges.push({
+                    controllerId: blocker.controllerId,
+                    cost: r.bypassCost!,
+                    reason: r.oracleText,
+                });
+            }
+        }
+    }
+    return charges;
 }
 
 /** True if `card` carries an `attack-requirement` static effect
