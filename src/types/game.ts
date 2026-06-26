@@ -177,6 +177,15 @@ export interface CardInstance {
      *  color is banked. `castableCardId` is set for Ice Cauldron's
      *  instance-restricted note. */
     notedMana?: { mana: Record<string, number>; castableCardId?: string };
+    /** Cast-from-exile permission (CR 601.3e — Ice Cauldron: "You may cast that
+     *  card for as long as it remains exiled"). Set on a card in the exile zone
+     *  to the id of the player who may cast it from exile as if it were in hand.
+     *  Crosses the wire for the owning viewer (`slimCard` only strips
+     *  `card`/`knownTo`), so the client can offer a cast affordance from Exile.
+     *  The exiled card may be face-down to the opponent (impulse-style), but the
+     *  controller — who is in `knownTo` — sees the real identity and this flag,
+     *  and may cast it. */
+    castableFromExileBy?: string;
 }
 
 export interface Combat {

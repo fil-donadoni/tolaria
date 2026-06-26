@@ -4,6 +4,7 @@ import CardImageLoader from "./card-image-loader";
 import TokenPlaceholder from "./token-placeholder";
 import CardPreviewAbilities from "./card-preview-abilities";
 import CardPreviewCounters from "./card-preview-counters";
+import CardPreviewNotedMana from "./card-preview-noted-mana";
 import type { DisplayAbilities } from "~/lib/card-utils";
 import type { CounterDisplay } from "~/lib/counters";
 
@@ -31,6 +32,7 @@ export type CardPreviewBodyProps = {
     baseToughness?: number;
     ptModified: boolean;
     counterDisplays: CounterDisplay[];
+    notedMana?: { mana: Record<string, number>; castableCardId?: string };
     colorName: string | null;
     ownerName: string | null;
     size: "sm" | "md";
@@ -57,6 +59,7 @@ export default function CardPreviewBody({
     baseToughness,
     ptModified,
     counterDisplays,
+    notedMana,
     colorName,
     ownerName,
     size,
@@ -147,6 +150,7 @@ export default function CardPreviewBody({
                     </div>
                 )}
                 <CardPreviewCounters counters={counterDisplays} />
+                <CardPreviewNotedMana noted={notedMana} />
                 {colorName && (
                     <div
                         className={`border-t border-border-subtle pt-2 ${sectionSize} font-semibold text-accent-strong`}
