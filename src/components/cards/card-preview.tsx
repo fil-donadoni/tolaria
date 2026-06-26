@@ -274,6 +274,7 @@ export default function CardPreview({
         baseToughness,
         ptModified,
         counterDisplays,
+        notedMana: cardInstance?.notedMana,
         colorName: colorDisplay?.name ?? null,
         ownerName,
     };

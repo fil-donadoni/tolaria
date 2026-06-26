@@ -1,7 +1,19 @@
 import type { Color } from "~/types/cards";
 import { colors } from "~/types/cards";
-import type { Player } from "~/types/game";
+import type { Player, RestrictedMana } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
+import { cardDefName, restrictedManaLabel } from "~/lib/restricted-mana";
+
+/** Resolves the printed name of the card a `castableCardId` (instance id) refers
+ *  to by locating that instance in the player's exile and mapping it to its def
+ *  id. Returns undefined when the instance can't be found (e.g. already cast). */
+function resolveExiledCardName(
+    player: Player,
+    instanceId: string
+): string | undefined {
+    const inst = player.exile.find((c) => c.id === instanceId);
+    return inst ? cardDefName(inst.card.id) : undefined;
+}
 
 export default function PlayerManaPool({ player }: { player: Player }) {
     const { playerId } = useGameContext();
@@ -10,7 +22,13 @@ export default function PlayerManaPool({ player }: { player: Player }) {
         (color) => (player.manaPool[color] ?? 0) > 0
     );
 
-    if (!colorsWithMana.length) {
+    // Restricted mana (CR 106.6, ADR 0022 / 0042) floats in a parallel pool and
+    // is invisible in the ordinary `manaPool`. Surface it here so the player can
+    // see that activating e.g. Ice Cauldron's second ability produced mana — and
+    // why that mana is set apart (its spend restriction).
+    const restricted: RestrictedMana[] = player.restrictedMana ?? [];
+
+    if (!colorsWithMana.length && restricted.length === 0) {
         return null;
     }
 
@@ -24,17 +42,47 @@ export default function PlayerManaPool({ player }: { player: Player }) {
 
     return (
         <div
-            className={`absolute ${positionClass} z-20 inline-flex w-max gap-2 bg-black/60 px-2 py-1 rounded-md whitespace-nowrap`}
+            className={`absolute ${positionClass} z-20 inline-flex w-max flex-col gap-1 bg-black/60 px-2 py-1 rounded-md whitespace-nowrap`}
         >
-            {colorsWithMana.map((color: Color, key) => (
-                <div className="flex items-center gap-1 shrink-0" key={key}>
+            {colorsWithMana.length > 0 && (
+                <div className="inline-flex gap-2">
+                    {colorsWithMana.map((color: Color, key) => (
+                        <div
+                            className="flex items-center gap-1 shrink-0"
+                            key={key}
+                        >
+                            <img
+                                src={`/img/symbols/${color}.svg`}
+                                className="size-5 shrink-0"
+                            />
+                            <p className="font-bold text-sm text-white">
+                                {player.manaPool[color] ?? 0}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+            )}
+            {restricted.map((unit, key) => (
+                <div
+                    key={`restricted-${key}`}
+                    className="flex items-center gap-1 shrink-0 rounded border border-amber-400/70 bg-amber-400/10 px-1"
+                    data-restricted-mana
+                    title={restrictedManaLabel(unit, (id) =>
+                        resolveExiledCardName(player, id)
+                    )}
+                >
                     <img
-                        src={`/img/symbols/${color}.svg`}
-                        className="size-5 shrink-0"
+                        src={`/img/symbols/${unit.color}.svg`}
+                        className="size-4 shrink-0"
                     />
-                    <p className="font-bold text-sm text-white">
-                        {player.manaPool[color] ?? 0}
+                    <p className="font-bold text-xs text-amber-200">
+                        {unit.amount}
                     </p>
+                    <span className="text-[10px] text-amber-200/90">
+                        {restrictedManaLabel(unit, (id) =>
+                            resolveExiledCardName(player, id)
+                        )}
+                    </span>
                 </div>
             ))}
         </div>

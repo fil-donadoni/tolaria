@@ -28,6 +28,15 @@ type CardsPileProps = {
     title?: string;
     layout?: "fan" | "grid";
     onCardClick?: (card: CardInstance) => void;
+    /** Per-card action overlay rendered on top of each revealed card in the
+     *  expanded dialog (fan/grid). `onClose` collapses the dialog so the host's
+     *  action (e.g. cast-from-exile) can dismiss the reveal after dispatch.
+     *  Returns null for cards with no action. Used by the Exile zone to surface
+     *  a Cast button on cast-from-exile cards (CR 601.3e). */
+    renderCardAction?: (
+        card: CardInstance,
+        onClose: () => void
+    ) => React.ReactNode;
     forceOpen?: boolean;
     /** Instance ids currently selected by the chooser. Selected cards get a
      *  distinct ring so multi-pick selections (e.g. a `search-library`
@@ -76,6 +85,7 @@ function FanLayout({
     isFaceDown,
     faceUpIds,
     onCardClick,
+    renderCardAction,
     onClose,
     selectedIds,
 }: {
@@ -83,6 +93,10 @@ function FanLayout({
     isFaceDown: boolean;
     faceUpIds?: ReadonlySet<string>;
     onCardClick?: (card: CardInstance) => void;
+    renderCardAction?: (
+        card: CardInstance,
+        onClose: () => void
+    ) => React.ReactNode;
     onClose: () => void;
     selectedIds?: string[];
 }) {
@@ -123,10 +137,11 @@ function FanLayout({
                     const clickable = !faceDown && !!onCardClick;
                     const isSelected =
                         selectedIds?.includes(cardInstance.id) ?? false;
+                    const action = renderCardAction?.(cardInstance, onClose);
                     return (
                         <div
                             key={cardInstance.id}
-                            className="w-(--pile-card-w) aspect-5/7 shrink-0"
+                            className="relative w-(--pile-card-w) aspect-5/7 shrink-0"
                             style={{
                                 marginLeft:
                                     cardIndex === 0
@@ -148,6 +163,7 @@ function FanLayout({
                             ) : (
                                 inner
                             )}
+                            {action}
                         </div>
                     );
                 })}
@@ -161,6 +177,7 @@ function GridLayout({
     isFaceDown,
     faceUpIds,
     onCardClick,
+    renderCardAction,
     onClose,
     selectedIds,
 }: {
@@ -168,6 +185,10 @@ function GridLayout({
     isFaceDown: boolean;
     faceUpIds?: ReadonlySet<string>;
     onCardClick?: (card: CardInstance) => void;
+    renderCardAction?: (
+        card: CardInstance,
+        onClose: () => void
+    ) => React.ReactNode;
     onClose: () => void;
     selectedIds?: string[];
 }) {
@@ -187,10 +208,11 @@ function GridLayout({
                 const clickable = !faceDown && !!onCardClick;
                 const isSelected =
                     selectedIds?.includes(cardInstance.id) ?? false;
+                const action = renderCardAction?.(cardInstance, onClose);
                 return (
                     <div
                         key={cardInstance.id}
-                        className="w-24 sm:w-28 aspect-5/7 shrink-0"
+                        className="relative w-24 sm:w-28 aspect-5/7 shrink-0"
                     >
                         {clickable ? (
                             <button
@@ -206,6 +228,7 @@ function GridLayout({
                         ) : (
                             inner
                         )}
+                        {action}
                     </div>
                 );
             })}
@@ -222,6 +245,7 @@ export default function CardsPile({
     title,
     layout = "fan",
     onCardClick,
+    renderCardAction,
     forceOpen = false,
     selectedIds,
     footer,
@@ -322,6 +346,7 @@ export default function CardsPile({
                         isFaceDown={isFaceDown}
                         faceUpIds={faceUpIds}
                         onCardClick={onCardClick}
+                        renderCardAction={renderCardAction}
                         onClose={() => setIsOpen(false)}
                         selectedIds={selectedIds}
                     />
@@ -331,6 +356,7 @@ export default function CardsPile({
                         isFaceDown={isFaceDown}
                         faceUpIds={faceUpIds}
                         onCardClick={onCardClick}
+                        renderCardAction={renderCardAction}
                         onClose={() => setIsOpen(false)}
                         selectedIds={selectedIds}
                     />
