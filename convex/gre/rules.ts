@@ -28,7 +28,11 @@ import { hasSupertypeLive } from "./snow";
 import { isGuardedAgainst } from "./permanentGuard";
 import { castProhibitionReason } from "../cards/castRestrictions";
 import { getInstanceManaCost, tryGetCardById } from "../cards";
-import { landPlayLockActive, normalizeManaCost } from "./state";
+import {
+    landPlayLockActive,
+    normalizeManaCost,
+    restrictedUnitAllowsSpell,
+} from "./state";
 
 export {
     getProtectedColors,
@@ -331,6 +335,21 @@ function canPotentiallyPayCost(
     for (const c of MANA_COLORS) {
         const n = player.manaPool[c] ?? 0;
         for (let i = 0; i < n; i++) sources.push(new Set<Color>([c]));
+    }
+    // CR 106.6 — restricted mana whose restriction permits THIS spell (Ice
+    // Cauldron's instance-keyed noted mana, Metamorphosis' creature-only mana)
+    // is spendable on the cast and must count toward affordability. Without it
+    // a card castable only from its banked mana — e.g. Ice Cauldron's exiled
+    // card paid by the noted mana — is judged unpayable here, so "cast" is
+    // dropped from getLegalActions and `assertLegalAction` rejects the cast
+    // before payment. Mirrors `spendablePoolForSpell` at the payment site;
+    // `card.id` is the instance id that instance-keyed mana is gated on.
+    for (const r of player.restrictedMana ?? []) {
+        if (restrictedUnitAllowsSpell(r, card.types, card.id)) {
+            for (let i = 0; i < r.amount; i++) {
+                sources.push(new Set<Color>([r.color as Color]));
+            }
+        }
     }
     for (const perm of player.battlefield) {
         if (perm.isTapped) continue;

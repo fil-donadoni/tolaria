@@ -24,6 +24,16 @@ export type SlimHandCard = SlimCardInstance & {
     seenByOpponent?: boolean;
 };
 
+/** Exile card in projected state: slim, plus `legalActions` when the viewer may
+ *  cast it from exile (CR 601.3e — Ice Cauldron's noted card). The field is
+ *  present only on the viewer's own `castableFromExileBy` cards and drives the
+ *  Cast affordance's enabled state, exactly as `SlimHandCard.legalActions` gates
+ *  a hand card — so an unaffordable exile cast (e.g. noted mana of the wrong
+ *  colour) disables the button instead of throwing at the cast mutation. */
+export type SlimExileCard = SlimCardInstance & {
+    legalActions?: CardAction[];
+};
+
 /** ADR 0026 / PRD #338 — one viewer-known library card, projected sparsely.
  *  `index` is the position from the top of the library (0 = top). */
 export type KnownLibraryCard = { index: number; card: SlimCardInstance };
@@ -71,7 +81,7 @@ export type PublicPlayer = Omit<
     libraryPeek?: SlimCardInstance[];
     revealedHand?: SlimCardInstance[];
     graveyard: SlimCardInstance[];
-    exile: SlimCardInstance[];
+    exile: SlimExileCard[];
     battlefield: SlimCardInstance[];
     grantedAbilities?: PublicGrantedAbility[];
 };
@@ -102,7 +112,7 @@ export type FullPlayer = Omit<
      *  active `reveal-hand` choice (CR 401.4), for the full debug view (#262). */
     revealedHand?: SlimCardInstance[];
     graveyard: SlimCardInstance[];
-    exile: SlimCardInstance[];
+    exile: SlimExileCard[];
     battlefield: SlimCardInstance[];
     grantedAbilities?: PublicGrantedAbility[];
 };
@@ -189,12 +199,22 @@ function projectBattlefieldCard(
  *  stripped, so it never crosses the wire. */
 function projectExileCard(
     card: CardInstanceState,
-    viewerId: string
-): SlimCardInstance {
+    viewerId: string,
+    legalActionsFor?: () => CardAction[]
+): SlimExileCard {
+    // CR 601.3e — the viewer's own card it may cast from exile carries
+    // `legalActions` so the Cast affordance gates on real legality (timing,
+    // affordability incl. noted/restricted mana), exactly like a hand card. The
+    // flag rides the controller's view only; opponents never get it.
+    const withLegal = (slim: SlimExileCard): SlimExileCard =>
+        legalActionsFor && card.castableFromExileBy === viewerId
+            ? { ...slim, legalActions: legalActionsFor() }
+            : slim;
     // No knowledge stamped → ordinary face-up exile, public to all.
-    if (!card.knownTo || card.knownTo.length === 0) return slimCard(card);
+    if (!card.knownTo || card.knownTo.length === 0)
+        return withLegal(slimCard(card));
     // Face-down exile: a viewer who is allowed to look sees the real card.
-    if (card.knownTo.includes(viewerId)) return slimCard(card);
+    if (card.knownTo.includes(viewerId)) return withLegal(slimCard(card));
     // Everyone else sees a face-down card with the identity hidden.
     const slimmed = slimCard({ ...card, card: { id: FACE_DOWN_CARD_ID } });
     delete (slimmed as { faceDownOf?: string }).faceDownOf;
@@ -329,7 +349,11 @@ export function projectPublicState(
             graveyard: player.graveyard.map(slimCard),
             // ADR 0026 — face-down exile (impulse-draw) is gated per-viewer by
             // `knownTo`; ordinary face-up exile is public to all.
-            exile: player.exile.map((c) => projectExileCard(c, viewerId)),
+            exile: player.exile.map((c) =>
+                projectExileCard(c, viewerId, () =>
+                    getLegalActions(state, player, c, allActions)
+                )
+            ),
             battlefield: player.battlefield.map((c) =>
                 projectBattlefieldCard(c, viewerId)
             ),
@@ -428,7 +452,22 @@ export function projectFullState(
                     ? player.hand.map(slimCard)
                     : undefined,
             graveyard: player.graveyard.map(slimCard),
-            exile: player.exile.map(slimCard),
+            // Full debug view has no single viewer — attach exile legalActions
+            // for the card's own controller so the Cast affordance gates the
+            // same way it does in the public projection (CR 601.3e).
+            exile: player.exile.map((c) =>
+                c.castableFromExileBy
+                    ? {
+                          ...slimCard(c),
+                          legalActions: getLegalActions(
+                              state,
+                              player,
+                              c,
+                              allActions
+                          ),
+                      }
+                    : slimCard(c)
+            ),
             battlefield: player.battlefield.map(slimCard),
             grantedAbilities: hydrateGrantedAbilities(player.grantedAbilities),
         })

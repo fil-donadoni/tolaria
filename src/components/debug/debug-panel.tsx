@@ -178,6 +178,11 @@ const PRESET_SCENARIOS: PresetScenario[] = [
                 owner: "me" as const,
                 zone: "hand" as const,
             },
+            {
+                name: "Island",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+            },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 5,

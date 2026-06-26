@@ -45,7 +45,9 @@ vi.mock("../../cards/selectable-card", () => ({
 
 import PlayerExile from "../player-exile";
 
-function makeExiledCard(): CardInstance {
+function makeExiledCard(
+    legalActions: CardInstance["legalActions"] = ["cast"]
+): CardInstance {
     return {
         id: "noted-spell",
         card: { id: "brainstorm-def" },
@@ -55,6 +57,9 @@ function makeExiledCard(): CardInstance {
         isTapped: false,
         // CR 601.3e — the controller may cast this from exile.
         castableFromExileBy: "me",
+        // The projection attaches legalActions to the viewer's own castable
+        // exile card; "cast" present iff the cast is legal+affordable right now.
+        legalActions,
     };
 }
 
@@ -122,6 +127,20 @@ describe("PlayerExile cast-from-exile (#754, CR 601.3e)", () => {
         // (the controller's id), which must NOT match the opponent's viewer id.
         renderExile(makePlayer(makeExiledCard()), "opp");
         expect(screen.queryByRole("button", { name: "Cast" })).toBeNull();
+    });
+
+    it("disables the Cast button and dispatches nothing when 'cast' is not legal (unaffordable noted mana)", () => {
+        // Regression for the cast-from-exile "Illegal action" bug: when the
+        // noted mana can't pay the spell, the projection omits "cast" from
+        // legalActions. The button must be disabled and clicking it must NOT
+        // fire announceCast (which the server would reject with assertLegalAction).
+        renderExile(makePlayer(makeExiledCard([])), "me");
+        const castBtn = screen.getByRole("button", {
+            name: "Cast",
+        }) as HTMLButtonElement;
+        expect(castBtn.disabled).toBe(true);
+        fireEvent.click(castBtn);
+        expect(announceCast).not.toHaveBeenCalled();
     });
 
     it("keeps a face-down (opponent-hidden) card castable by its controller", () => {

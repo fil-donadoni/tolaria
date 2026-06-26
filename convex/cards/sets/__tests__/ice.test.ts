@@ -12491,6 +12491,68 @@ describe("Ice Cauldron (noted-mana battery + cast-from-exile, CR 106.10/601.3e)"
         )! as CardInstanceState;
         expect(slimExiled.castableFromExileBy).toBe("p1");
     });
+
+    // --- Affordability gate (regression for the cast-from-exile "Illegal
+    // action" bug). The payment path already drained restricted mana, but
+    // getLegalActions' affordability pre-check (canPotentiallyPayCost) ignored
+    // restrictedMana, so "cast" was dropped and assertLegalAction threw
+    // `Illegal action "cast" on "Brainstorm". Legal actions: none` BEFORE
+    // payment could ever run — making the exiled card permanently uncastable.
+    // ----------------------------------------------------------------------
+    const exiledBrainstormState = (notedColor: "U" | "W") => {
+        const exiled = makeInstance(brainstorm.id, {
+            id: "noted-spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "exile",
+            castableFromExileBy: "p1",
+            knownTo: ["p1"],
+        });
+        // The ONLY mana available is the instance-keyed noted mana — no lands,
+        // empty fungible pool — so affordability hinges entirely on counting it.
+        const p1 = makePlayer("p1", { exile: [exiled] });
+        addRestrictedManaToPool(p1, notedColor, 1, undefined, "noted-spell");
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        return { state, exiled: state.players[0].exile[0] };
+    };
+
+    it("getLegalActions returns 'cast' for the exiled card payable ONLY by its noted mana (CR 106.6)", () => {
+        const { state, exiled } = exiledBrainstormState("U");
+        // Brainstorm costs {U}; the noted {U} is its only payment source.
+        expect(getLegalActions(state, state.players[0], exiled)).toContain(
+            "cast"
+        );
+    });
+
+    it("getLegalActions omits 'cast' when the noted mana is the WRONG colour for the spell", () => {
+        const { state, exiled } = exiledBrainstormState("W");
+        // Noted {W} cannot pay Brainstorm's {U}: not affordable, no "cast".
+        expect(getLegalActions(state, state.players[0], exiled)).not.toContain(
+            "cast"
+        );
+    });
+
+    it("wire: the viewer's castable exile card carries legalActions incl 'cast'; the opponent's view does not", () => {
+        const { state } = exiledBrainstormState("U");
+        // Controller's view: the exiled card is castable, so the projection
+        // attaches legalActions — this is what gates the Cast button client-side.
+        const own = projectPublicState(state, 1, "p1");
+        const ownExiled = own.players[0].exile.find(
+            (c) => c.id === "noted-spell"
+        )!;
+        expect(ownExiled.legalActions).toContain("cast");
+        // Opponent's view: a face-down exile with no cast affordance leaked.
+        const opp = projectPublicState(state, 1, "p2");
+        const oppExiled = opp.players[0].exile.find(
+            (c) => c.id === "noted-spell"
+        );
+        expect(oppExiled?.legalActions).toBeUndefined();
+    });
 });
 
 // ---------------------------------------------------------------------------
