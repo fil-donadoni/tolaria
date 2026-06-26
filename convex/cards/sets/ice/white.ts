@@ -215,7 +215,9 @@ function makeScarab(args: {
 //     "defending player controls a snow land"), Kjeldoran Guard (snow-land
 //     activation gate) — owned by the Snow cluster.
 //   • Power-conditional block restriction with a per-block cost — Hipparion
-//     ("can't block power 3+ unless you pay {1}" — no pay-as-block primitive).
+//     ("can't block power 3+ unless you pay {1}"): ACTIVE (#729). The
+//     `block-restriction.bypassCost` field carries the {1}; the engine auto-pays
+//     it at block confirmation (`collectBlockBypassCharges`).
 //   • "Draw a card at the beginning of the next turn's upkeep" delayed cantrips —
 //     Blessed Wine, Heal, Lightning Blow, Formation: ACTIVE (#660 — the
 //     `next-upkeep` delayed-trigger timing shipped; see `nextUpkeepDrawTrigger`).
@@ -909,18 +911,39 @@ export const heal: CardDefinition = {
     },
     delayedTriggers: [nextUpkeepDrawTrigger()],
 };
-// TODO(#628): implement.
-// export const hipparion: CardDefinition = {
-//     id: "5969875a-f647-4daf-b76c-d1514d45c312",
-//     name: "Hipparion",
-//     rarity: "uncommon",
-//     oracleText: "This creature can't block creatures with power 3 or greater unless you pay {1}.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Horse"],
-//     power: 1,
-//     toughness: 3,
-// };
+// Hipparion — "This creature can't block creatures with power 3 or greater
+// unless you pay {1}." (CR 509.1b — a pay-to-bypass block restriction.) Modelled
+// as a blocker-side `block-restriction` whose predicate forbids blocking an
+// attacker with effective power 3+ (CR 613 layer 7c — the combat validator
+// enriches `power` to its effective value), with a `bypassCost` of {1}. The
+// engine permits the block at assignment and auto-pays the {1} from the
+// blocker's controller at block confirmation (`collectBlockBypassCharges`).
+export const hipparion: CardDefinition = {
+    id: "5969875a-f647-4daf-b76c-d1514d45c312",
+    name: "Hipparion",
+    rarity: "uncommon",
+    oracleText:
+        "This creature can't block creatures with power 3 or greater unless you pay {1}.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Horse"],
+    power: 1,
+    toughness: 3,
+    staticEffects: [
+        {
+            kind: "block-restriction",
+            id: "hipparion-cant-block-power-3",
+            side: "blocker",
+            // `self` = Hipparion (the blocker), `opponent` = the attacker.
+            // Legal (true) only when the attacker's effective power is < 3.
+            predicate: (_self: PermanentView, opponent: PermanentView) =>
+                (opponent.power ?? 0) < 3,
+            bypassCost: { X: 1 },
+            oracleText:
+                "This creature can't block creatures with power 3 or greater unless you pay {1}.",
+        },
+    ],
+};
 // Justice — {2}{W}{W} Enchantment. Upkeep pay-{W}{W}-or-sacrifice (CR 603.6a +
 // 117.3a, the `makeUpkeepPayOrElse` template) + a damage-watch trigger
 // (CR 603.4): whenever a red creature or spell deals damage, Justice deals that

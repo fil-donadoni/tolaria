@@ -1824,6 +1824,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Errantry",
+        "scryfallId": "8346e741-61f8-4283-be51-f5f80e9595a5",
+        "oracleId": "fee455f2-fcc4-47b1-a533-92fa1ae8ae63",
+        "firstSet": "ice"
+    },
+    {
         "name": "Essence Filter",
         "scryfallId": "9b610103-dafd-4248-9d79-ce57f84b9e03",
         "oracleId": "b9f63388-d1ac-4895-84c5-e5b1db187463",
@@ -2752,6 +2758,12 @@
         "scryfallId": "0ddb98e8-13fe-4786-83f7-b72c56db135a",
         "oracleId": "342199e0-15b6-4824-83da-25caef2592b3",
         "firstSet": "lea"
+    },
+    {
+        "name": "Hipparion",
+        "scryfallId": "5969875a-f647-4daf-b76c-d1514d45c312",
+        "oracleId": "306fd9d2-5ded-4857-90f4-e62d73c6aed2",
+        "firstSet": "ice"
     },
     {
         "name": "Hoar Shade",
@@ -4372,6 +4384,12 @@
         "scryfallId": "e43cf61d-b4d6-4461-a228-47fd8b026d33",
         "oracleId": "76c06de7-39ff-4b80-8e54-20910372cffd",
         "firstSet": "fem"
+    },
+    {
+        "name": "Orcish Conscripts",
+        "scryfallId": "e71394f8-3038-4cad-adea-a704f004777f",
+        "oracleId": "d99e1d08-32ca-49c5-97cc-e064d661202f",
+        "firstSet": "ice"
     },
     {
         "name": "Orcish Farmer",

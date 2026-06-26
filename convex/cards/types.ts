@@ -2904,6 +2904,15 @@ export interface StaticBlockRestriction {
         opponent: PermanentView,
         state?: StaticEffectStateView
     ) => boolean;
+    /** Optional mana cost that lets the controller BYPASS this restriction
+     *  (CR 509.1b — a cost to declare the block). When present, a block that
+     *  the `predicate` rejects is still legal provided the blocker's controller
+     *  pays this cost as the block is declared. The engine charges it once per
+     *  qualifying block at block confirmation (auto-tapping the controller's
+     *  mana sources, generic-only — colored bypass costs are not modelled).
+     *  Hipparion ("can't block creatures with power 3 or greater unless you
+     *  pay {1}") uses this. */
+    bypassCost?: ManaCost;
     /** Oracle text displayed as the rejection reason. */
     oracleText: string;
 }
@@ -2925,6 +2934,54 @@ export interface StaticAttackRestriction {
     predicate: (
         self: PermanentView,
         defenderBattlefield: readonly PermanentView[]
+    ) => boolean;
+    /** Oracle text displayed as the rejection reason. */
+    oracleText: string;
+}
+
+/** Card-level attack restriction whose legality depends on the COMPLETE set of
+ *  creatures declared as attackers this combat (CR 508.1c, 508.1d). Unlike
+ *  `StaticAttackRestriction` — whose predicate sees only the attacking creature
+ *  and the defender's battlefield, and is evaluated one creature at a time as
+ *  each attacker is selected — this kind can only be judged once every attacker
+ *  is known, so the engine evaluates it at attacker CONFIRMATION over the whole
+ *  declared set. The mirror of `validateMinimumBlockers` for the attack side.
+ *
+ *  Collected from the creature's own definition AND from auras attached to it
+ *  (CR 303.4), so "enchanted creature can only attack alone" (Errantry) lives on
+ *  the Aura and is applied to its host. Orcish Conscripts ("can't attack unless
+ *  at least two other creatures attack") carries it on its own definition. */
+export interface StaticDeclaredAttackRestriction {
+    kind: "declared-attack-restriction";
+    id: string;
+    /** Returns `true` when the attack is LEGAL, `false` to reject.
+     *  `self` = the creature whose attack is being validated.
+     *  `declaredAttackers` = every creature declared as an attacker this
+     *  combat, INCLUDING `self`. */
+    predicate: (
+        self: PermanentView,
+        declaredAttackers: readonly PermanentView[]
+    ) => boolean;
+    /** Oracle text displayed as the rejection reason. */
+    oracleText: string;
+}
+
+/** Card-level block restriction whose legality depends on the COMPLETE set of
+ *  creatures declared as blockers this combat (CR 509.1b). The block-side twin
+ *  of `StaticDeclaredAttackRestriction`: evaluated at block CONFIRMATION over
+ *  the whole declared-blocker set rather than pairwise per assignment. Orcish
+ *  Conscripts ("can't block unless at least two other creatures block") uses
+ *  it. Collected from the creature's own definition and from attached auras. */
+export interface StaticDeclaredBlockRestriction {
+    kind: "declared-block-restriction";
+    id: string;
+    /** Returns `true` when the block is LEGAL, `false` to reject.
+     *  `self` = the creature whose block is being validated.
+     *  `declaredBlockers` = every creature declared as a blocker this combat
+     *  (each blocking at least one attacker), INCLUDING `self`. */
+    predicate: (
+        self: PermanentView,
+        declaredBlockers: readonly PermanentView[]
     ) => boolean;
     /** Oracle text displayed as the rejection reason. */
     oracleText: string;
@@ -3349,6 +3406,8 @@ export type StaticEffect =
     | StaticUntapRestriction
     | StaticBlockRestriction
     | StaticAttackRestriction
+    | StaticDeclaredAttackRestriction
+    | StaticDeclaredBlockRestriction
     | StaticGlobalAttackRestriction
     | StaticLandwalkNegation
     | StaticEntersTappedRestriction

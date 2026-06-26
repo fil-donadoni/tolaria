@@ -50,15 +50,32 @@ import {
     formation,
     snowCoveredForest,
     arcticFoxes,
+    hipparion,
 } from "../../ice";
+import { plains } from "../../lea";
 import { getCardById } from "../../../index";
-import { resolveTopOfStack } from "../../../../gre/state";
+import {
+    resolveTopOfStack,
+    getManaSubstitutions,
+    payManaCost,
+    commitLandsForCost,
+    normalizeManaCost,
+} from "../../../../gre/state";
+import {
+    buildAutoTapSources,
+    solveSmartAutoTap,
+    manaFromPlan,
+} from "../../../../gre/autoTap";
 import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { validateBlockerEligibility } from "../../../../gre/combat";
+import {
+    validateBlockerEligibility,
+    collectBlockBypassCharges,
+} from "../../../../gre/combat";
+import type { GameState } from "../../../../gre/state";
 import {
     makeInstance,
     makePlayer,
@@ -1292,5 +1309,132 @@ describe("Arctic Foxes (CR 509.1b snow-gated block restriction)", () => {
             state
         );
         expect(res.eligible).toBe(true);
+    });
+});
+
+// ===========================================================================
+// Hipparion (#729) — pay-to-bypass conditional block restriction (CR 509.1b)
+// ===========================================================================
+
+describe("Hipparion (can't block power 3+ unless you pay {1}, CR 509.1b)", () => {
+    /** Mirrors the bypass-payment loop in game.ts `confirmBlockers`: for each
+     *  charge, auto-tap the blocker controller's mana and pay it. Returns the
+     *  rejection reason when a charge is unpayable, else null. */
+    function payBypassSeam(state: GameState): string | null {
+        for (const charge of collectBlockBypassCharges(state)) {
+            const payer = state.players.find(
+                (p) => p.id === charge.controllerId
+            )!;
+            const subs = getManaSubstitutions(state, charge.controllerId);
+            const sources = buildAutoTapSources(payer.battlefield);
+            const cost = normalizeManaCost(charge.cost);
+            const plan = solveSmartAutoTap(payer.manaPool, cost, subs, sources);
+            if (plan === null) return charge.reason;
+            const tappedIds = new Set(plan.map((s) => s.cardId));
+            for (const src of payer.battlefield) {
+                if (tappedIds.has(src.id)) src.isTapped = true;
+            }
+            const produced = manaFromPlan(sources, plan);
+            for (const [c, amt] of Object.entries(produced)) {
+                if (amt) {
+                    payer.manaPool[c] = (payer.manaPool[c] ?? 0) + amt;
+                }
+            }
+            payManaCost(payer.manaPool, cost, subs);
+            commitLandsForCost(payer, cost);
+        }
+        return null;
+    }
+
+    /** p1 attacks with one creature of `attackerPower`; p2's Hipparion blocks
+     *  it. p2 has `lands` untapped Plains available to pay the bypass. */
+    function setup(attackerPower: number, lands: number) {
+        const attacker = vanilla("atk", attackerPower, attackerPower, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const hipp = makeInstance(hipparion.id, {
+            id: "hipp",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const p2Lands = Array.from({ length: lands }, (_, i) =>
+            makeInstance(plains.id, {
+                id: `plains-${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        const state = makeState({
+            activePlayerId: "p1",
+            phase: "DECLARE_BLOCKERS",
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: [hipp, ...p2Lands] }),
+            ],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: { hipp: ["atk"] },
+                blockersConfirmed: false,
+            },
+        });
+        return { state };
+    }
+
+    it("declares a blocker-side block-restriction carrying a bypass cost", () => {
+        const r = (hipparion.staticEffects ?? [])[0];
+        expect(r?.kind).toBe("block-restriction");
+        if (r?.kind === "block-restriction") {
+            expect(r.side).toBe("blocker");
+            expect(r.bypassCost).toEqual({ X: 1 });
+        }
+    });
+
+    it("blocks a power-2 creature for free (no bypass charge)", () => {
+        const { state } = setup(2, 0);
+        const atk = state.players[0].battlefield[0];
+        const hipp = state.players[1].battlefield[0];
+        expect(
+            validateBlockerEligibility(
+                atk,
+                hipp,
+                state.players[1].battlefield,
+                state
+            ).eligible
+        ).toBe(true);
+        expect(collectBlockBypassCharges(state)).toHaveLength(0);
+        expect(payBypassSeam(state)).toBeNull();
+    });
+
+    it("permits blocking a power-4 creature and auto-pays {1} from a Plains", () => {
+        const { state } = setup(4, 1);
+        const atk = state.players[0].battlefield[0];
+        const hipp = state.players[1].battlefield.find((c) => c.id === "hipp")!;
+        // Block is allowed at assignment because a bypass cost exists.
+        expect(
+            validateBlockerEligibility(
+                atk,
+                hipp,
+                state.players[1].battlefield,
+                state
+            ).eligible
+        ).toBe(true);
+        // The charge is collected and paid by tapping the Plains.
+        const charges = collectBlockBypassCharges(state);
+        expect(charges).toHaveLength(1);
+        expect(payBypassSeam(state)).toBeNull();
+        const land = state.players[1].battlefield.find(
+            (c) => c.id === "plains-0"
+        )!;
+        expect(land.isTapped).toBe(true);
+    });
+
+    it("rejects the block when the {1} can't be paid (no mana)", () => {
+        const { state } = setup(4, 0);
+        const reason = payBypassSeam(state);
+        expect(reason).not.toBeNull();
+        expect(reason).toMatch(/pay \{1\}/i);
     });
 });

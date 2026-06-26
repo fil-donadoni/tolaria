@@ -7,6 +7,7 @@ import type {
     CardDefinition,
     CardPrint,
     DelayedTriggerDef,
+    PermanentView,
     SpellContext,
     TargetSelection,
 } from "../../types";
@@ -95,13 +96,11 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 //     shipped).
 //   • Count-of-declared-attackers attack restrictions — Errantry ("can only
 //     attack alone"), Orcish Conscripts ("can't attack/block unless two other
-//     creatures attack/block"). `StaticAttackRestriction.predicate` only sees
-//     (self, defenderBattlefield) and the engine validates attackers one at a
-//     time (selectAttacker), so neither the candidate's nor the other declared
-//     attackers' `isAttacking` flags are set at validation time — a count of the
-//     full declared-attacker set is not observable today. Needs an attack
-//     restriction that reads the live declared-attacker set (a small engine
-//     extension), flagged for the combat-restriction cluster.
+//     creatures attack/block"): ACTIVE (#729). The `declared-attack-restriction`
+//     / `declared-block-restriction` static-effect kinds read the COMPLETE
+//     declared set and are evaluated at attacker/blocker confirmation
+//     (`validateDeclaredAttackers` / `validateDeclaredBlockers`), the mirror of
+//     the menace `validateMinimumBlockers` check.
 //   • Library random-exile + reorder — Orcish Librarian ("look at top eight,
 //     exile four at RANDOM, reorder the rest"). `peekLibraryTop` /
 //     `reorderLibraryTop` ship, but no SpellContext primitive selects/exiles N
@@ -689,22 +688,42 @@ export const dwarvenArmory: CardDefinition = {
         },
     ],
 };
-// Errantry — DEFERRED (#656). The +3/+0 keyword-grant ships, but "can only
-// attack alone" needs an attack restriction that reads the FULL declared-attacker
-// set: `StaticAttackRestriction.predicate` sees only (self, defenderBattlefield),
-// and attacker eligibility is validated one creature at a time (selectAttacker),
-// so the count of other declared attackers isn't observable at validation time.
-// Needs a count-of-attackers attack restriction (combat-restriction cluster).
-// TODO(#628): implement.
-// export const errantry: CardDefinition = {
-//     id: "8346e741-61f8-4283-be51-f5f80e9595a5",
-//     name: "Errantry",
-//     rarity: "common",
-//     oracleText: "Enchant creature\nEnchanted creature gets +3/+0 and can only attack alone.",
-//     manaCost: { X: 1, R: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Errantry — Aura. "Enchant creature\nEnchanted creature gets +3/+0 and can
+// only attack alone." (CR 303.4 Aura on a creature; CR 613 layer 7c +3/+0
+// `pt-buff` applied to the host; CR 508.1c "can only attack alone" as a
+// `declared-attack-restriction` — collected from the Aura and applied to its
+// host, legal only when no OTHER creature is also declared as an attacker. The
+// engine evaluates it over the complete declared-attacker set at confirm.)
+export const errantry: CardDefinition = {
+    id: "8346e741-61f8-4283-be51-f5f80e9595a5",
+    name: "Errantry",
+    rarity: "common",
+    oracleText:
+        "Enchant creature\nEnchanted creature gets +3/+0 and can only attack alone.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: AURA_AFFECTS_HOST,
+            power: 3,
+            toughness: 0,
+        },
+        {
+            kind: "declared-attack-restriction",
+            id: "errantry-attack-alone",
+            // `self` = the enchanted creature; legal only when it is the sole
+            // declared attacker (no other creature attacks this combat).
+            predicate: (
+                self: PermanentView,
+                declaredAttackers: readonly PermanentView[]
+            ) => declaredAttackers.filter((a) => a.id !== self.id).length === 0,
+            oracleText: "Enchanted creature can only attack alone.",
+        },
+    ],
+};
 // Flame Spirit — 2/3 with firebreathing "{R}: +1/+0 until end of turn" (CR 605
 // activated ability, CR 611.1 temporary pump).
 export const flameSpirit: CardDefinition = {
@@ -1537,23 +1556,49 @@ export const orcishCannoneers: CardDefinition = {
         },
     ],
 };
-// Orcish Conscripts — DEFERRED (#656). "Can't attack/block unless at least two
-// OTHER creatures attack/block" needs the same count-of-declared-attackers (and
-// count-of-declared-blockers) restriction Errantry needs — not observable with
-// today's per-creature `StaticAttackRestriction` / `block-restriction` predicates.
-// Flagged for the combat-restriction cluster.
-// TODO(#628): implement.
-// export const orcishConscripts: CardDefinition = {
-//     id: "e71394f8-3038-4cad-adea-a704f004777f",
-//     name: "Orcish Conscripts",
-//     rarity: "common",
-//     oracleText: "This creature can't attack unless at least two other creatures attack.\nThis creature can't block unless at least two other creatures block.",
-//     manaCost: { R: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Orc"],
-//     power: 2,
-//     toughness: 2,
-// };
+// Orcish Conscripts — "This creature can't attack unless at least two other
+// creatures attack.\nThis creature can't block unless at least two other
+// creatures block." (CR 508.1c / 509.1b — count-aware combat restrictions read
+// over the COMPLETE declared-attacker / declared-blocker set, evaluated at
+// confirm via `declared-attack-restriction` / `declared-block-restriction`.)
+export const orcishConscripts: CardDefinition = {
+    id: "e71394f8-3038-4cad-adea-a704f004777f",
+    name: "Orcish Conscripts",
+    rarity: "common",
+    oracleText:
+        "This creature can't attack unless at least two other creatures attack.\nThis creature can't block unless at least two other creatures block.",
+    manaCost: { R: 1 },
+    types: ["Creature"],
+    subtypes: ["Orc"],
+    power: 2,
+    toughness: 2,
+    staticEffects: [
+        {
+            kind: "declared-attack-restriction",
+            id: "orcish-conscripts-attack-gate",
+            // Legal only when at least two OTHER creatures are also declared as
+            // attackers this combat.
+            predicate: (
+                self: PermanentView,
+                declaredAttackers: readonly PermanentView[]
+            ) => declaredAttackers.filter((a) => a.id !== self.id).length >= 2,
+            oracleText:
+                "This creature can't attack unless at least two other creatures attack.",
+        },
+        {
+            kind: "declared-block-restriction",
+            id: "orcish-conscripts-block-gate",
+            // Legal only when at least two OTHER creatures are also declared as
+            // blockers this combat.
+            predicate: (
+                self: PermanentView,
+                declaredBlockers: readonly PermanentView[]
+            ) => declaredBlockers.filter((b) => b.id !== self.id).length >= 2,
+            oracleText:
+                "This creature can't block unless at least two other creatures block.",
+        },
+    ],
+};
 // Orcish Farmer — "{T}: Target land becomes a Swamp until its controller's next
 // untap step." (CR 305.7 land-type change, CR 502.1 / 611.2 timed duration.)
 // Making the land a Swamp overwrites its subtypes, so it sheds its old basic

@@ -59,7 +59,14 @@ import {
     goblinSkiPatrol,
     chaosMoon,
     orcishFarmer,
+    errantry,
+    orcishConscripts,
 } from "../../ice";
+import {
+    validateDeclaredAttackers,
+    validateDeclaredBlockers,
+    collectBlockBypassCharges,
+} from "../../../../gre/combat";
 import { plains, mountain, forest } from "../../lea";
 import {
     applyLandManaReplacement,
@@ -2096,5 +2103,223 @@ describe("Brand of Ill Omen (enchanted creature's controller can't cast creature
         state.priorityPlayerId = "p1";
         const actions = getLegalActions(state, state.players[0], p1Bears);
         expect(actions).toContain("cast");
+    });
+});
+
+// ===========================================================================
+// Static conditional combat restrictions (#729) — Errantry, Orcish Conscripts
+// ===========================================================================
+
+// --- Errantry (CR 303.4 Aura, CR 613 layer 7c, CR 508.1c) ------------------
+
+describe("Errantry (+3/+0 aura, 'can only attack alone', CR 508.1c)", () => {
+    // Host creature controlled by the active player (p1), enchanted by Errantry.
+    function setup(extraAttackerIds: string[] = []) {
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(errantry.id, {
+            id: "errantry",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const other = vanilla("other", 1, 1, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [host, aura, other] }),
+                makePlayer("p2"),
+            ],
+            combat: {
+                attackerIds: ["host", ...extraAttackerIds],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        return { state, host };
+    }
+
+    it("grants the enchanted creature +3/+0 (GRE + wire format)", () => {
+        const { state } = setup();
+        const live = state.players[0].battlefield.find((c) => c.id === "host")!;
+        expect(getEffectivePower(state, live)).toBe(5);
+        expect(getEffectiveToughness(state, live)).toBe(2);
+
+        // CR projection — the buff must survive serialization to the client.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(5);
+        expect(getEffectiveToughness(projected, slim)).toBe(2);
+    });
+
+    it("declares a pt-buff and a declared-attack-restriction", () => {
+        const kinds = (errantry.staticEffects ?? []).map((e) => e.kind);
+        expect(kinds).toContain("pt-buff");
+        expect(kinds).toContain("declared-attack-restriction");
+    });
+
+    it("permits the attack when the enchanted creature attacks alone", () => {
+        const { state } = setup();
+        expect(validateDeclaredAttackers(state).ok).toBe(true);
+    });
+
+    it("rejects the attack when another creature also attacks", () => {
+        const { state } = setup(["other"]);
+        const result = validateDeclaredAttackers(state);
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+            expect(result.reason).toMatch(/attack alone/i);
+        }
+    });
+});
+
+// --- Orcish Conscripts (CR 508.1c / 509.1b) --------------------------------
+
+describe("Orcish Conscripts ('unless two others attack/block', CR 508.1c)", () => {
+    function buddies(n: number, prefix: string) {
+        return Array.from({ length: n }, (_, i) =>
+            vanilla(`${prefix}${i}`, 1, 1, {
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+    }
+
+    it("declares a declared-attack and a declared-block restriction", () => {
+        const kinds = (orcishConscripts.staticEffects ?? []).map((e) => e.kind);
+        expect(kinds).toContain("declared-attack-restriction");
+        expect(kinds).toContain("declared-block-restriction");
+    });
+
+    it("can't attack alone or with only one other attacker", () => {
+        const conscripts = makeInstance(orcishConscripts.id, {
+            id: "oc",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const friends = buddies(2, "f");
+        const make = (attackerIds: string[]) =>
+            makeState({
+                activePlayerId: "p1",
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [conscripts, ...friends],
+                    }),
+                    makePlayer("p2"),
+                ],
+                combat: {
+                    attackerIds,
+                    confirmed: false,
+                    blockerAssignments: {},
+                    blockersConfirmed: false,
+                },
+            });
+        // Alone — illegal.
+        expect(validateDeclaredAttackers(make(["oc"])).ok).toBe(false);
+        // One other — still illegal (needs two others).
+        expect(validateDeclaredAttackers(make(["oc", "f0"])).ok).toBe(false);
+    });
+
+    it("can attack once two other creatures attack", () => {
+        const conscripts = makeInstance(orcishConscripts.id, {
+            id: "oc",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const friends = buddies(2, "f");
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [conscripts, ...friends] }),
+                makePlayer("p2"),
+            ],
+            combat: {
+                attackerIds: ["oc", "f0", "f1"],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        expect(validateDeclaredAttackers(state).ok).toBe(true);
+    });
+
+    it("can't block unless two other creatures block", () => {
+        // p1 attacks with three creatures; p2's Orcish Conscripts blocks.
+        const conscripts = makeInstance(orcishConscripts.id, {
+            id: "oc",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const otherBlockers = [
+            vanilla("b0", 1, 1, { controllerId: "p2", ownerId: "p2" }),
+            vanilla("b1", 1, 1, { controllerId: "p2", ownerId: "p2" }),
+        ];
+        const attackers = [
+            vanilla("a0", 1, 1, { controllerId: "p1", ownerId: "p1" }),
+            vanilla("a1", 1, 1, { controllerId: "p1", ownerId: "p1" }),
+            vanilla("a2", 1, 1, { controllerId: "p1", ownerId: "p1" }),
+        ];
+        const make = (assignments: Record<string, string[]>) =>
+            makeState({
+                activePlayerId: "p1",
+                players: [
+                    makePlayer("p1", { battlefield: attackers }),
+                    makePlayer("p2", {
+                        battlefield: [conscripts, ...otherBlockers],
+                    }),
+                ],
+                combat: {
+                    attackerIds: ["a0", "a1", "a2"],
+                    confirmed: true,
+                    blockerAssignments: assignments,
+                    blockersConfirmed: false,
+                },
+            });
+        // Conscripts blocks alone — illegal.
+        expect(validateDeclaredBlockers(make({ oc: ["a0"] })).ok).toBe(false);
+        // Two other creatures also block — legal.
+        const ok = validateDeclaredBlockers(
+            make({ oc: ["a0"], b0: ["a1"], b1: ["a2"] })
+        );
+        expect(ok.ok).toBe(true);
+    });
+});
+
+// --- Hipparion bypass-charge collection (CR 509.1b) ------------------------
+// (Full pay-to-block path is exercised in white.test.ts; this asserts the
+// red-side helper picks up the charge only when the blocked attacker is big.)
+
+describe("collectBlockBypassCharges helper (CR 509.1b)", () => {
+    it("returns no charge when no bypass restriction is involved", () => {
+        const attacker = vanilla("a", 4, 4, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blocker = vanilla("b", 2, 2, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+            combat: {
+                attackerIds: ["a"],
+                confirmed: true,
+                blockerAssignments: { b: ["a"] },
+                blockersConfirmed: false,
+            },
+        });
+        expect(collectBlockBypassCharges(state)).toHaveLength(0);
     });
 });

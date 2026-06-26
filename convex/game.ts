@@ -56,6 +56,7 @@ import {
     buildAutoTapSources,
     solveSmartAutoTap,
     solveAutoTapPartial,
+    manaFromPlan,
     type Demand,
 } from "./gre/autoTap";
 import {
@@ -134,6 +135,9 @@ import {
     getAttackerCap,
     getBlockerCap,
     validateMinimumBlockers,
+    validateDeclaredAttackers,
+    validateDeclaredBlockers,
+    collectBlockBypassCharges,
 } from "./gre/combat";
 import {
     getEffectiveBlockGraph,
@@ -4647,6 +4651,16 @@ export const confirmAttackers = mutation({
             }
         }
 
+        // CR 508.1c-d — count-aware attack restrictions (Errantry "can only
+        // attack alone", Orcish Conscripts "can't attack unless at least two
+        // other creatures attack"). These read the COMPLETE declared-attacker
+        // set, so they are enforced here at confirm rather than per-attacker at
+        // selection (the mirror of validateMinimumBlockers).
+        const declaredAttackCheck = validateDeclaredAttackers(state);
+        if (!declaredAttackCheck.ok) {
+            throw new Error(declaredAttackCheck.reason);
+        }
+
         // Tap and mark each attacker (vigilance creatures don't tap)
         for (const attackerId of state.combat.attackerIds) {
             const card = player.battlefield.find((c) => c.id === attackerId);
@@ -4909,6 +4923,45 @@ export const confirmBlockers = mutation({
         const minBlockerCheck = validateMinimumBlockers(state);
         if (!minBlockerCheck.ok) {
             throw new Error(minBlockerCheck.reason);
+        }
+
+        // CR 509.1b — count-aware block restrictions (Orcish Conscripts "can't
+        // block unless at least two other creatures block"). Judged over the
+        // COMPLETE declared-blocker set, so enforced here at confirm.
+        const declaredBlockCheck = validateDeclaredBlockers(state);
+        if (!declaredBlockCheck.ok) {
+            throw new Error(declaredBlockCheck.reason);
+        }
+
+        // CR 509.1b — pay-to-block bypass costs (Hipparion "can't block
+        // creatures with power 3 or greater unless you pay {1}"). The cost is
+        // charged once per qualifying block; the engine auto-taps the blocking
+        // player's mana sources (generic-only). If a charge can't be paid, the
+        // block declaration is rejected and the player must reassign.
+        for (const charge of collectBlockBypassCharges(state)) {
+            const payer = getPlayer(state, charge.controllerId);
+            const subs = getManaSubstitutions(state, charge.controllerId);
+            const sources = buildAutoTapSources(payer.battlefield);
+            const cost = normalizeManaCost(charge.cost);
+            const plan = solveSmartAutoTap(payer.manaPool, cost, subs, sources);
+            if (plan === null) {
+                throw new Error(charge.reason);
+            }
+            // Execute the plan: tap the chosen sources and add their mana to the
+            // pool (CR 605.1a), then pay the cost from the pool (CR 601.2g).
+            const tappedIds = new Set(plan.map((step) => step.cardId));
+            for (const src of payer.battlefield) {
+                if (tappedIds.has(src.id)) src.isTapped = true;
+            }
+            const produced = manaFromPlan(sources, plan);
+            for (const color of Object.keys(produced)) {
+                const v = produced[color as keyof typeof produced];
+                if (v) {
+                    payer.manaPool[color] = (payer.manaPool[color] ?? 0) + v;
+                }
+            }
+            payManaCost(payer.manaPool, cost, subs);
+            commitLandsForCost(payer, cost);
         }
 
         // Mark each assigned blocker
