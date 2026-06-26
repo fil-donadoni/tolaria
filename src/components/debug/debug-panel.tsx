@@ -82,6 +82,32 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // JOU Banishing Light (#754 follow-up) — O-Ring-style exile-until-leaves
+        // (CR 603.6a/603.7a). Cast Banishing Light ({2}{W}) and exile the
+        // opponent's Balduvian Bears: the exiled card renders PINNED to Banishing
+        // Light on the board (the mechanism-agnostic `exiledByPermanentId` link,
+        // the same affordance Ice Cauldron's noted card uses — a second-mechanism
+        // check of the generic exile-pin). Destroy Banishing Light to watch the
+        // creature return. (Host-only exile: any Aura on the host dies and
+        // Equipment detaches — exercised by the GRE/wire tests; the scenario
+        // schema can't pre-attach an Aura.) Three Plains to pay {2}{W}.
+        label: "JOU: Banishing Light — exile-until-leaves + generic exile-pin (#754)",
+        cards: [
+            {
+                name: "Banishing Light",
+                owner: "me" as const,
+                zone: "hand" as const,
+            },
+            {
+                name: "Balduvian Bears",
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+    },
+    {
         // ICE combat / casting-restriction primitives (#669, PRD #628).
         // Exercises all three one-off seams in a single board:
         //   - Stench of Evil ({2}{B} sorcery): "Destroy all Plains. For each

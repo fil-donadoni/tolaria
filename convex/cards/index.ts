@@ -20,6 +20,7 @@ import * as leg from "./sets/leg";
 import * as drk from "./sets/drk";
 import * as fem from "./sets/fem";
 import * as ice from "./sets/ice";
+import * as jou from "./sets/jou";
 import * as unlimited from "./sets/2ed";
 import * as revised from "./sets/3ed";
 
@@ -56,6 +57,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "drk", exports: drk },
     { code: "fem", exports: fem },
     { code: "ice", exports: ice },
+    { code: "jou", exports: jou },
     { code: "2ed", exports: unlimited },
     { code: "3ed", exports: revised },
 ];

@@ -4133,7 +4133,17 @@ function phaseInBundlesForSource(state: GameState, sourceId: string): void {
 export function exileWithAttachments(
     state: GameState,
     targetId: string,
-    opts: { sourceId: string; returnTapped: boolean }
+    opts: {
+        sourceId: string;
+        returnTapped: boolean;
+        /** CR 701.18 — whether the host's attachments travel into exile WITH it
+         *  and return re-attached (default `true`, Tawnos's Coffin / Icy Prison
+         *  / Safe Haven). When `false` (Banishing Light, O-Ring style) ONLY the
+         *  host is exiled: its Auras are left behind to be swept to the
+         *  graveyard by the orphan-aura SBA (CR 704.5n) and its Equipment
+         *  detaches and stays on the battlefield — neither is held or returned. */
+        includeAttachments?: boolean;
+    }
 ): string | null {
     const found = findOnBattlefield(state, targetId);
     if (!found) return null;
@@ -4141,12 +4151,17 @@ export function exileWithAttachments(
     const hostOwnerId = host.ownerId;
     // CR 122 — note the counters that were on the creature.
     const counters: Record<string, number> = { ...(host.counters ?? {}) };
+    const includeAttachments = opts.includeAttachments ?? true;
     // Collect attachments (Auras) across all battlefields, in a stable order.
+    // Host-only exile (Banishing Light) skips this: nothing is bundled, so the
+    // orphaned Auras fall to the graveyard via the SBA and Equipment detaches.
     const attached: { id: string; ownerId: string }[] = [];
-    for (const player of state.players) {
-        for (const card of player.battlefield) {
-            if (card.id !== targetId && card.attachedTo === targetId) {
-                attached.push({ id: card.id, ownerId: card.ownerId });
+    if (includeAttachments) {
+        for (const player of state.players) {
+            for (const card of player.battlefield) {
+                if (card.id !== targetId && card.attachedTo === targetId) {
+                    attached.push({ id: card.id, ownerId: card.ownerId });
+                }
             }
         }
     }

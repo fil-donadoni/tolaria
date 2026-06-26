@@ -450,6 +450,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Banishing Light",
+        "scryfallId": "fbaa4800-30cc-4a80-a6cc-9a24ada9eb40",
+        "oracleId": "f28b21a6-f7ce-437a-8c5b-0423cb55cefb",
+        "firstSet": "jou"
+    },
+    {
         "name": "Banshee",
         "scryfallId": "66eaa7d6-48b2-4b35-a834-790edd679e0e",
         "oracleId": "438546b8-0b67-4bec-a43b-f2fc7449c90e",

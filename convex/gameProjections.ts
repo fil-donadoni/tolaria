@@ -32,6 +32,14 @@ export type SlimHandCard = SlimCardInstance & {
  *  colour) disables the button instead of throwing at the cast mutation. */
 export type SlimExileCard = SlimCardInstance & {
     legalActions?: CardAction[];
+    /** Instance id of the battlefield permanent this exiled card is associated
+     *  with — the permanent that exiled / holds it. Unifies every exile-linkage
+     *  mechanism (Banishing Light / Tawnos's Coffin exile-and-return bundles,
+     *  Ice Cauldron's noted card, future Dauthi-Voidwalker-style exilers) so the
+     *  client can pin the exiled card to that permanent (Arena treatment). Set
+     *  for all viewers; present only when the host permanent is on a
+     *  battlefield. See {@link buildExileAssociation}. */
+    exiledByPermanentId?: string;
 };
 
 /** ADR 0026 / PRD #338 — one viewer-known library card, projected sparsely.
@@ -197,28 +205,72 @@ function projectBattlefieldCard(
  *  like a hidden zone — a viewer in `knownTo` sees the real id; everyone else
  *  sees the face-down sentinel with the true id (and `faceDownOf`, defensively)
  *  stripped, so it never crosses the wire. */
+/** Maps each exiled card instance id → the battlefield permanent it is visually
+ *  associated with (the permanent that exiled / holds it). Unifies every
+ *  exile-linkage mechanism so the UI can pin the exiled card to that permanent
+ *  (Arena / Banishing Light treatment), independent of WHY it is linked:
+ *   - exile-and-return bundles (ADR 0028 — Tawnos's Coffin, Banishing Light
+ *     style), keyed by the holding permanent's `sourceId`;
+ *   - noted-mana batteries (Ice Cauldron), via `notedMana.castableCardId`.
+ *  Only associations whose host permanent is currently on a battlefield are
+ *  emitted (otherwise there is nothing to pin to). New exilers reuse this by
+ *  contributing their own linkage here — the projected field and the client
+ *  rendering stay mechanism-agnostic. */
+function buildExileAssociation(state: GameState): Map<string, string> {
+    const onBattlefield = new Set<string>();
+    for (const p of state.players)
+        for (const c of p.battlefield) onBattlefield.add(c.id);
+    const map = new Map<string, string>();
+    for (const bundle of state.exileHeld ?? []) {
+        if (!onBattlefield.has(bundle.sourceId)) continue;
+        map.set(bundle.hostId, bundle.sourceId);
+        for (const a of bundle.attached) map.set(a.id, bundle.sourceId);
+    }
+    for (const p of state.players) {
+        for (const c of p.battlefield) {
+            const linked = c.notedMana?.castableCardId;
+            if (linked) map.set(linked, c.id);
+        }
+    }
+    return map;
+}
+
 function projectExileCard(
     card: CardInstanceState,
     viewerId: string,
-    legalActionsFor?: () => CardAction[]
+    opts?: {
+        legalActionsFor?: () => CardAction[];
+        exiledByPermanentId?: string;
+    }
 ): SlimExileCard {
     // CR 601.3e — the viewer's own card it may cast from exile carries
     // `legalActions` so the Cast affordance gates on real legality (timing,
     // affordability incl. noted/restricted mana), exactly like a hand card. The
-    // flag rides the controller's view only; opponents never get it.
-    const withLegal = (slim: SlimExileCard): SlimExileCard =>
-        legalActionsFor && card.castableFromExileBy === viewerId
-            ? { ...slim, legalActions: legalActionsFor() }
-            : slim;
+    // flag rides the controller's view only; opponents never get it. The
+    // `exiledByPermanentId` link is visible to ALL viewers (both sides see the
+    // exiled card pinned to its permanent — face-down for the opponent).
+    const decorate = (slim: SlimExileCard): SlimExileCard => {
+        let out = slim;
+        if (opts?.exiledByPermanentId !== undefined) {
+            out = { ...out, exiledByPermanentId: opts.exiledByPermanentId };
+        }
+        if (opts?.legalActionsFor && card.castableFromExileBy === viewerId) {
+            out = { ...out, legalActions: opts.legalActionsFor() };
+        }
+        return out;
+    };
     // No knowledge stamped → ordinary face-up exile, public to all.
     if (!card.knownTo || card.knownTo.length === 0)
-        return withLegal(slimCard(card));
+        return decorate(slimCard(card));
     // Face-down exile: a viewer who is allowed to look sees the real card.
-    if (card.knownTo.includes(viewerId)) return withLegal(slimCard(card));
-    // Everyone else sees a face-down card with the identity hidden.
+    if (card.knownTo.includes(viewerId)) return decorate(slimCard(card));
+    // Everyone else sees a face-down card with the identity hidden — but still
+    // pinned to its permanent (the association is public; the identity is not).
     const slimmed = slimCard({ ...card, card: { id: FACE_DOWN_CARD_ID } });
     delete (slimmed as { faceDownOf?: string }).faceDownOf;
-    return slimmed;
+    return opts?.exiledByPermanentId !== undefined
+        ? { ...slimmed, exiledByPermanentId: opts.exiledByPermanentId }
+        : slimmed;
 }
 
 /** Hydrate a granted ability instance with its template data for the wire. */
@@ -330,6 +382,9 @@ export function projectPublicState(
     // expose the looked-at zone face-up so the UI can render its picker pile.
     const { searchZoneOwner, peekZoneOwner, peekCount, revealZoneOwner } =
         computeChoiceExposure(state, viewerId);
+    // Exiled-card → holding-permanent links (mechanism-agnostic), so the client
+    // pins each exiled card to its permanent (Arena treatment).
+    const exileAssoc = buildExileAssociation(state);
 
     const players = state.players.map((player): PublicPlayer => {
         const librarySearch =
@@ -350,9 +405,11 @@ export function projectPublicState(
             // ADR 0026 — face-down exile (impulse-draw) is gated per-viewer by
             // `knownTo`; ordinary face-up exile is public to all.
             exile: player.exile.map((c) =>
-                projectExileCard(c, viewerId, () =>
-                    getLegalActions(state, player, c, allActions)
-                )
+                projectExileCard(c, viewerId, {
+                    legalActionsFor: () =>
+                        getLegalActions(state, player, c, allActions),
+                    exiledByPermanentId: exileAssoc.get(c.id),
+                })
             ),
             battlefield: player.battlefield.map((c) =>
                 projectBattlefieldCard(c, viewerId)
@@ -423,6 +480,7 @@ export function projectFullState(
     const head = state.pendingChoices?.[0];
     const { searchZoneOwner, peekZoneOwner, peekCount, revealZoneOwner } =
         computeChoiceExposure(state, head?.playerId);
+    const exileAssoc = buildExileAssociation(state);
 
     const players = state.players.map(
         (player): FullPlayer => ({
@@ -454,9 +512,10 @@ export function projectFullState(
             graveyard: player.graveyard.map(slimCard),
             // Full debug view has no single viewer — attach exile legalActions
             // for the card's own controller so the Cast affordance gates the
-            // same way it does in the public projection (CR 601.3e).
-            exile: player.exile.map((c) =>
-                c.castableFromExileBy
+            // same way it does in the public projection (CR 601.3e), and stamp
+            // the mechanism-agnostic permanent association for pinning.
+            exile: player.exile.map((c) => {
+                const out: SlimExileCard = c.castableFromExileBy
                     ? {
                           ...slimCard(c),
                           legalActions: getLegalActions(
@@ -466,8 +525,12 @@ export function projectFullState(
                               allActions
                           ),
                       }
-                    : slimCard(c)
-            ),
+                    : slimCard(c);
+                const host = exileAssoc.get(c.id);
+                return host !== undefined
+                    ? { ...out, exiledByPermanentId: host }
+                    : out;
+            }),
             battlefield: player.battlefield.map(slimCard),
             grantedAbilities: hydrateGrantedAbilities(player.grantedAbilities),
         })

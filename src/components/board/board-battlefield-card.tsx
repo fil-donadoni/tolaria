@@ -9,6 +9,7 @@ import CardImage from "../cards/card-image";
 import CardTilt3D from "./card-tilt-3d";
 import CounterBadges from "./counter-badges";
 import NotedManaBadge from "./noted-mana-badge";
+import ExiledAssociatedCard from "./exiled-associated-card";
 import ActivatableAbilityMenu from "./activatable-ability-menu";
 import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
 
@@ -74,6 +75,14 @@ export default function BoardBattlefieldCard({
 }: BoardBattlefieldCardProps) {
     const { allPlayers } = useGameContext();
     const creature = isCreature(card);
+
+    // Cards exiled-and-associated with THIS permanent (mechanism-agnostic via the
+    // projected `exiledByPermanentId`): Banishing Light's held permanent, Ice
+    // Cauldron's noted card, etc. Pin each to this host (Arena treatment); they
+    // are de-duplicated from the Exile pile in `player-exile.tsx`.
+    const associatedExiled = allPlayers
+        .flatMap((p) => p.exile)
+        .filter((c) => c.exiledByPermanentId === card.id);
 
     // Arrow hover-highlight (combat-read): when an arrow relationship is hovered
     // this card lights if it is a node of that relationship, dims if a highlight
@@ -211,6 +220,9 @@ export default function BoardBattlefieldCard({
             {...clickHandlers}
         >
             {inner}
+            {associatedExiled.map((exiled) => (
+                <ExiledAssociatedCard key={exiled.id} exiledCard={exiled} />
+            ))}
         </div>
     );
 

@@ -1188,7 +1188,18 @@ export interface SpellContext {
      *  (Tawnos's Coffin). */
     exileWithAttachments: (
         targetId: string,
-        opts: { sourceId: string; returnTapped: boolean }
+        opts: {
+            sourceId: string;
+            returnTapped: boolean;
+            /** CR 701.18 — whether the host's attachments travel into exile WITH
+             *  it and return re-attached. Default `true` (Tawnos's Coffin:
+             *  Auras/Equipment are exiled and come back attached). Set `false`
+             *  for host-only exile (Banishing Light / O-Ring): only the host is
+             *  exiled and returned — its Auras die to the orphan-aura SBA
+             *  (CR 704.5n) and its Equipment detaches and stays on the
+             *  battlefield. */
+            includeAttachments?: boolean;
+        }
     ) => string | null;
     /** CR 603.7a / ADR 0028 — return every exile-and-return bundle held by
      *  `sourceId`: the host re-enters under its owner's control (tapped, with

@@ -186,6 +186,13 @@ export interface CardInstance {
      *  controller — who is in `knownTo` — sees the real identity and this flag,
      *  and may cast it. */
     castableFromExileBy?: string;
+    /** Instance id of the battlefield permanent this exiled card is associated
+     *  with (the permanent that exiled / holds it). Mechanism-agnostic — set by
+     *  the projection for exile-and-return bundles (Banishing Light / Tawnos's
+     *  Coffin), noted-mana batteries (Ice Cauldron), and any future exiler — so
+     *  the board can pin the exiled card to that permanent (Arena treatment).
+     *  Present for all viewers when the host permanent is on a battlefield. */
+    exiledByPermanentId?: string;
 }
 
 export interface Combat {

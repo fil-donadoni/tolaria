@@ -143,6 +143,16 @@ describe("PlayerExile cast-from-exile (#754, CR 601.3e)", () => {
         expect(announceCast).not.toHaveBeenCalled();
     });
 
+    it("de-duplicates a card pinned to its exiler from the Exile pile (rendered attached on the board instead)", () => {
+        // A card with exiledByPermanentId is shown attached to its permanent
+        // (board-battlefield-card → ExiledAssociatedCard), so it must NOT also
+        // appear in the loose Exile pile — no Cast affordance here either.
+        const card = makeExiledCard(["cast"]);
+        card.exiledByPermanentId = "cauldron";
+        renderExile(makePlayer(card), "me");
+        expect(screen.queryByRole("button", { name: "Cast" })).toBeNull();
+    });
+
     it("keeps a face-down (opponent-hidden) card castable by its controller", () => {
         // The exiled card is face-down to the opponent but the controller (in
         // knownTo) sees the real card and the cast flag — it must stay castable.
