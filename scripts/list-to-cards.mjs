@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * List-mode card importer (ADR 0041).
  *
@@ -15,14 +15,20 @@
  * bottom — the pure transforms (exported below) are unit-tested over fixtures
  * and never hit the network.
  *
- * Usage:
- *   node scripts/list-to-cards.mjs vintage-cube
- *   node scripts/list-to-cards.mjs data/worklists/vintage-cube.txt
+ * Runs under `bun` (not `node`): it reuses the TypeScript colour helper
+ * `getColorsFromCost` (via `./lib/set-modules.mjs`) to colour-split its output.
  *
- * Output: a staging directory `data/worklists/<slug>.out/` with one `.ts` per
- * home set plus `report.md`, and an updated `data/card-index.json`. Wiring the
- * staged sources into `convex/cards/sets/*.ts` + the registry is a deliberate
- * follow-up step (it is where bugs hide; the tool stages, a human/agent wires).
+ * Usage:
+ *   bun scripts/list-to-cards.mjs vintage-cube
+ *   bun scripts/list-to-cards.mjs data/worklists/vintage-cube.txt
+ *
+ * Output: a staging directory `data/worklists/<slug>.out/` with one colour-split
+ * set DIRECTORY per home set (`<set>/<colour>.ts` + an `index.ts` barrel, the
+ * same ADR 0043 layout as `convex/cards/sets/<code>/`) plus `report.md`, and an
+ * updated `data/card-index.json`. Staging already in final shape means wiring is
+ * a directory move; wiring the staged sources into `convex/cards/sets/<code>/` +
+ * the registry is a deliberate follow-up step (it is where bugs hide; the tool
+ * stages, a human/agent wires).
  */
 
 import {
@@ -34,6 +40,11 @@ import {
     rmSync,
 } from "node:fs";
 import { resolve, basename } from "node:path";
+import {
+    COLOUR_MODULES,
+    moduleForCost,
+    writeSetDirectory,
+} from "./lib/set-modules.mjs";
 
 // ── pure transforms (unit-tested) ────────────────────────────────────────────
 
@@ -330,7 +341,7 @@ async function main() {
     const argRaw = process.argv[2];
     if (!argRaw) {
         console.error(
-            "Usage: node scripts/list-to-cards.mjs <worklist-slug|path>"
+            "Usage: bun scripts/list-to-cards.mjs <worklist-slug|path>"
         );
         process.exit(1);
     }
@@ -429,18 +440,24 @@ async function main() {
         bySet.get(card.firstSet).push(card);
     }
 
-    // stage output
+    // stage output — one colour-split set DIRECTORY per home set (ADR 0043),
+    // matching the `convex/cards/sets/<code>/` layout so wiring is a move.
     const outDir = resolve("data/worklists", `${slug}.out`);
     if (existsSync(outDir)) rmSync(outDir, { recursive: true, force: true });
     mkdirSync(outDir, { recursive: true });
+    // Colour modules sit at `<slug>.out/<set>/<colour>.ts`, four levels deep, so
+    // the type import reaches the repo's convex/ via four `..` segments.
+    const importLine = `import type { CardDefinition } from "../../../../convex/cards/types";`;
     for (const [set, cards] of [...bySet].sort()) {
-        const src = [
-            `import type { CardDefinition } from "../../../convex/cards/types";`,
-            "",
-            ...cards.map(emitCardSource),
-            "",
-        ].join("\n\n");
-        writeFileSync(resolve(outDir, `${set}.ts`), src, "utf-8");
+        const sources = Object.fromEntries(COLOUR_MODULES.map((m) => [m, []]));
+        for (const card of cards) {
+            const src = emitCardSource(card);
+            if (!src) continue; // out-of-scope cards emit ""
+            // Route by the colour identity of the card's mana cost (CR 202.2);
+            // lands / colourless artifacts (no coloured cost) → colorless.ts.
+            sources[moduleForCost(parseManaCost(card.mana_cost))].push(src);
+        }
+        writeSetDirectory(outDir, set, sources, importLine);
     }
 
     // report

@@ -24,11 +24,13 @@ When modifying files in `convex/gre/` or `convex/cards/`:
 
 ## Card testing convention (mandatory)
 
-Every card with non-trivial behavior gets a dedicated `describe` block in the **parallel test file** of its set:
+Every set is a colour-split DIRECTORY (`sets/<code>/<colour>.ts`, ADR 0043), and
+every card with non-trivial behavior gets a dedicated `describe` block in the
+**parallel per-colour test file** matching the colour module the card lives in:
 
 ```
-convex/cards/sets/lea.ts          →  convex/cards/sets/__tests__/lea.test.ts
-convex/cards/sets/alpha.ts        →  convex/cards/sets/__tests__/alpha.test.ts
+convex/cards/sets/lea/red.ts      →  convex/cards/sets/lea/__tests__/red.test.ts
+convex/cards/sets/lea/blue.ts     →  convex/cards/sets/lea/__tests__/blue.test.ts
 ```
 
 Shared fixtures live in `convex/cards/__tests__/setup.ts` (`makeInstance`, `makePlayer`, `makeState`, `pushSpell`). Import from there — do NOT duplicate fixture helpers in set tests.
