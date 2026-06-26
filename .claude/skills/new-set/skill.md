@@ -85,19 +85,25 @@ https://mtgjson.com/api/v5/<CODE_UPPER>.json`.
    `transform`/`modal_dfc`/`split`/`adventure`/`flip`/`meld`/`saga`/`leveler`/
    `class`). Unmodelled layouts are out-of-scope (ADR 0010 / ADR 0041).
 4. **Triage every card into five buckets** — this IS the scope, and it must
-   **skip everything already implemented** (resume-aware):
-    - **done** — already implemented: an active def in `convex/cards/sets/<code>.ts`
-      OR present in `data/card-index.json` (lockfile). Excluded from all slices.
-    - **staged** — a commented-out stub already in `<code>.ts` from a prior
-      run: its cluster PR only needs to _uncomment_ it, not re-create it.
-    - **free** — expressible with already-shipped primitives/keywords. "Free"
-      means no NEW engine capability, **not zero code** (many free cards still
-      need a small bespoke `resolve()`).
-    - **capability** — needs a genuinely new engine mechanic. Group these into
-      clusters, one mechanic per cluster.
-    - **out-of-scope** — unmodelled layout / ante / subgame.
-      Report the counts (e.g. "187 cards: 40 done, 12 staged, 110 free, 20
-      capability across 4 clusters, 5 out-of-scope") so the scope is auditable.
+   **skip everything already implemented** (resume-aware): - **done** — already implemented: an active def in `convex/cards/sets/<code>.ts`
+   OR present in `data/card-index.json` (lockfile). Excluded from all slices.
+   (A partial `<code>.ts` with e.g. 3 cube cards and zero stubs is fine: those
+   3 are `done` and excluded; everything else triages fresh. Run
+   `bun run check:index` first so the lockfile already lists those 3 — that's
+   what makes them count as `done`.) - **staged** — a commented-out stub already in `<code>.ts` from a prior
+   run: its cluster PR only needs to _uncomment_ it, not re-create it. - **free** — expressible with already-shipped primitives/keywords. "Free"
+   means no NEW engine capability, **not zero code** (many free cards still
+   need a small bespoke `resolve()`). - **capability** — needs a genuinely new engine mechanic. Group these into
+   clusters, one mechanic per cluster. - **out-of-scope** — unmodelled layout / ante / subgame. - **Closure invariant (compute it, don't just eyeball the report).** Emit a
+   per-card **scope manifest** (every card name → its bucket) and assert
+   `done + staged + free + capability + out-of-scope == total unique cards in
+the blob`, with the buckets **disjoint**. If the sum is short, a card is
+   unaccounted — find it before grilling. Report the counts (e.g. "187 cards:
+   40 done, 12 staged, 110 free, 20 capability across 4 clusters, 5
+   out-of-scope = 187 ✓"). This manifest is the **contract the whole rollout
+   must satisfy at the end** (Phase 4) — persist it (PRD body / scratch file),
+   it is not a throwaway tally. The ICE rollout skipped this and silently lost
+   ~26 cards to bare `TODO` stubs with no tracking issue.
 5. **Cross-check** each capability candidate against the engine — many
    mechanics already shipped (layers, replacements, complex triggers, APNAP).
    Flag a real gap explicitly; never assume "deferred". (`project_lost_cards_audit`)
@@ -154,6 +160,10 @@ data/json/<CODE_UPPER>.json` → `convex/cards/sets/<code>.ts`) is the default
   `project_card_index_lockfile`)
 - Multi-art note (ADR 0014): one `CardDefinition` per card + one `CardPrint`
   per artwork.
+- **The Phase 0 scope manifest** (per-card bucket partition + the
+  `done+staged+free+capability+OOS == total` tally) goes in the PRD body as the
+  tracked rollout contract — `to-issues` reconciles against it, Phase 4 closes
+  against it.
 
 ## Phase 3 — Cut the issues (`to-issues`)
 
@@ -175,6 +185,48 @@ Conventions to hold it to:
   `## Related`.
 - A card may ship (as a body/stub) before its cluster's mechanic and be
   corrected by the cluster PR — keep the build green throughout.
+- **Every staged/capability card is named in exactly one cut issue.** Reconcile
+  the published issues against the Phase 0 scope manifest: the cards listed
+  across all issues must equal `staged ∪ free ∪ capability` exactly — no card in
+  the manifest is missing from the issues, none appears twice. A card that's in
+  no issue is the ICE failure mode; catch it here, not six months later.
+- **Every commented stub carries a tracking tag.** When the walking-skeleton
+  slice (or any cluster) emits a commented-out stub, the stub block MUST include
+  an `// tracked-by: #NNN` line naming its cluster issue. A stub with no
+  tracking tag is an orphan with no path to ever shipping — see Phase 4.
+
+## Phase 4 — Coverage closure (the loud gate)
+
+The scope manifest from Phase 0 is a contract; this phase makes violating it a
+**build failure** instead of a silent hole. Two enforcement layers — wire both:
+
+1. **`scripts/check-stub-coverage.ts`, in `check:all` (`bun run check:stubs`) —
+   already built, serves every set.** Static, offline (no `gh` call). Parses
+   every commented-out stub in `convex/cards/sets/*.ts` and fails if a stub's
+   comment block carries no traceable disposition. Accepted, in order of
+   preference: `// tracked-by: #NNN` (the convention for a work issue), a bare
+   `#NNN` issue ref (legacy — a PRD/parent ref passes offline; the online check
+   below is what proves it's an open WORK issue), or an `out of scope` / `ADR
+NNNN` marker (permanent OOS). A stub with NONE of these is the exact orphan
+   that lost ~26 ICE cards — now a red gate the moment it lands, same
+   intended-failure-mode as the lockfile drift guard. It ALSO fails on a
+   **dead-duplicate** stub — a commented block whose `name:` matches an active
+   def (reprints are active `CardPrint`s, never commented stubs; a leftover
+   commented copy is garbage — delete it). **When you emit a new stub, tag it
+   `// tracked-by: #NNN` with its cluster issue.**
+2. **Coverage reconciliation at rollout close.** Produce a final manifest:
+   every card in the set blob → its disposition (`active def` / `lockfile` /
+   `issue #N` / `out-of-scope`). Assert the partition is **total and disjoint** —
+   `active + lockfile + tracked-by-open-issue + OOS == total`. Any card that is
+   neither implemented, nor in the lockfile, nor named by an open issue, nor
+   OOS is unaccounted: the rollout is NOT done until that set is empty. This is
+   the `gh`-querying check (open-issue membership) that the offline gate can't do;
+   run it when closing the umbrella PRD.
+
+Without these two, the skill's 5-bucket triage is only as good as the human/agent
+doing it once — and a single mis-bucketed or skipped card vanishes with no gate
+to catch it. With them, every card is provably either shipped, in-flight (an open
+issue), or explicitly out-of-scope.
 
 ## Testing requirements (every slice)
 
@@ -192,7 +244,9 @@ Per `.claude/rules/gre-development.md`:
 - A **preset scenario** per cluster in `PRESET_SCENARIOS`
   (`src/components/debug/debug-panel.tsx`).
 - Cadence: targeted tests while iterating; full gate once before done/merge —
-  `bun run check:all` + full `bun run test`, zero errors/failures.
+  `bun run check:all` + full `bun run test`, zero errors/failures. `check:all`
+  now also runs `check:stub-coverage` (Phase 4) — every commented stub must
+  carry its `// tracked-by: #NNN` tag or the gate fails.
 
 ## Reference
 

@@ -3171,6 +3171,7 @@ export const windSpirit: CardDefinition = {
 //       {1}) — `requestMayPay` offers a single cost, not a {1}-or-{2} fork with
 //       distinct delayed effects per branch.
 // Both are general primitives unrelated to Snow; flagged for a follow-up.
+// tracked-by: #738
 // export const wintersChill: CardDefinition = {
 //     id: "a779aca7-ff2c-48d8-9484-6ad04b2c6bcb",
 //     name: "Winter's Chill",
@@ -9545,35 +9546,7 @@ export const fyndhornPollen: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const giantGrowth: CardDefinition = {
-//     id: "431c9749-fd7b-4960-a910-8d41d3704e6c",
-//     name: "Giant Growth",
-//     rarity: "common",
-//     oracleText: "Target creature gets +3/+3 until end of turn.",
-//     manaCost: { G: 1 },
-//     types: ["Instant"],
-// };
 // Gorilla Pack — activated above (Green free tranche).
-// TODO(#628): implement.
-// export const hurricane: CardDefinition = {
-//     id: "a8cc6db7-1f40-40e3-a7ea-92f1d05e2e3d",
-//     name: "Hurricane",
-//     rarity: "uncommon",
-//     oracleText: "Hurricane deals X damage to each creature with flying and each player.",
-//     manaCost: { X: "X", G: 1 },
-//     types: ["Sorcery"],
-// };
-// TODO(#628): implement.
-// export const lure: CardDefinition = {
-//     id: "87af69ee-c2bb-46ea-8d36-d484d04a3c8a",
-//     name: "Lure",
-//     rarity: "uncommon",
-//     oracleText: "Enchant creature\nAll creatures able to block enchanted creature do so.",
-//     manaCost: { X: 1, G: 2 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
 // Maddening Wind — {2}{G} Aura "Enchant creature" with cumulative upkeep {G}
 // (CR 702.24, paid by the Aura's controller — scope "your") and a host-
 // controller upkeep trigger dealing 2 damage to the enchanted creature's
@@ -9607,16 +9580,6 @@ export const maddeningWind: CardDefinition = {
     ],
 };
 // Pyknite — activated above (Green tranche; duplicate stub removed, #660).
-// TODO(#628): implement.
-// export const regeneration: CardDefinition = {
-//     id: "1dacfaec-6b61-450d-a134-2087c38a298a",
-//     name: "Regeneration",
-//     rarity: "common",
-//     oracleText: "Enchant creature (Target a creature as you cast this. This card enters attached to that creature.)\n{G}: Regenerate enchanted creature. (The next time that creature would be destroyed this turn, instead tap it, remove it from combat, and heal all damage on it.)",
-//     manaCost: { X: 1, G: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
 // Rime Dryad — activated above (Green snow cluster); duplicate stub removed.
 // TODO(#628): implement.
 // export const ritualOfSubdual: CardDefinition = {
@@ -9634,16 +9597,6 @@ export const maddeningWind: CardDefinition = {
 // Venomous Breath — activated above (Green free tranche).
 // Whiteout — activated above (Green snow cluster); duplicate stub removed.
 // Wiitigo — activated above (Green free tranche).
-// TODO(#628): implement.
-// export const wildGrowth: CardDefinition = {
-//     id: "f8047ab9-a0fc-4933-bcbc-e761aa0f622b",
-//     name: "Wild Growth",
-//     rarity: "common",
-//     oracleText: "Enchant land\nWhenever enchanted land is tapped for mana, its controller adds an additional {G}.",
-//     manaCost: { G: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
 // Woolly Mammoths — activated above (Green snow cluster); duplicate stub removed.
 // ─────────────────────────────────────────────────────────────────────────────
 // MULTICOLOUR free tranche (#635) — the gold ICE cards expressible with

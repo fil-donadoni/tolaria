@@ -24,7 +24,7 @@ goes:
   cluster is the agent reasoning and writing code; <15 % is workflow.**
 - **The cost therefore parallelizes** — independent clusters could run
   concurrently and collapse the day.
-- **But conflicts block naive parallelism.** Every cluster edits the *same*
+- **But conflicts block naive parallelism.** Every cluster edits the _same_
   `ice.ts`, so two subagents on two clusters produce merge conflicts on that
   file. (This is the recurring conflict pain when a second agent or a manual
   edit touches the set concurrently.)
@@ -32,14 +32,14 @@ goes:
 **Scope correction — file layout is not the parallelism unlock.** Profiling the
 actual conflict surface showed that issue clusters split **by mechanic**, not by
 colour: only the "free tranche" (vanilla/keyword cards) divides cleanly by
-colour. The slow *mechanic* clusters — the 85–95 % — converge on shared
+colour. The slow _mechanic_ clusters — the 85–95 % — converge on shared
 **append-registries** regardless of colour: `cards/types.ts` (new primitive),
 `gre/state.ts` (new field), `gre/serialize.ts` (`PERSISTED_OPTIONAL_KEYS`),
 `game.ts`, and `debug-panel.tsx` (`PRESET_SCENARIOS`, mandated per feature).
 Colour file-split does **nothing** for those. So this ADR's decomposition is the
 right move for the **free-tranche conflict surface plus the file-size costs
 below** — not the mechanism that parallelizes mechanic work. Safe parallel
-*implement* + serial *integrate* of mechanic clusters is a separate concern (a
+_implement_ + serial _integrate_ of mechanic clusters is a separate concern (a
 merge-train: lock + rebase + re-gate), and decentralizing the worst shared
 registries (notably `PRESET_SCENARIOS`) is its own decision — see the
 debug-scenario ADR.
@@ -77,25 +77,25 @@ as a directory from the start (the `/new-set` and import pipeline emit into
 `sets/<code>/<colour>.ts`, never a single file).
 
 **Decomposition removes one conflict class — the free-tranche one.** With
-*free-tranche* clusters landing in disjoint colour files, those (and only those)
-can fan out conflict-free. The general parallel loop for *mechanic* clusters is
+_free-tranche_ clusters landing in disjoint colour files, those (and only those)
+can fan out conflict-free. The general parallel loop for _mechanic_ clusters is
 not delivered here: it needs a merge-train (serial integrate with rebase +
 re-gate) plus decentralizing the shared append-registries those clusters
-converge on. Decomposition is a *contributing* enabler (it removes the per-card
+converge on. Decomposition is a _contributing_ enabler (it removes the per-card
 file conflict and shrinks the gate), not the whole mechanism.
 
 **The colour axis is chosen over the mechanic-cluster axis** as the file
 boundary because colour is stable and total (every card has exactly one colour
 home, decided at import time before any mechanic is known), whereas mechanic
 clusters are discovered late, overlap, and shift. A card never needs to move
-files because its mechanic was reclassified. Mechanic clusters remain the *issue*
-unit; colour remains the *file* unit — the two axes are deliberately decoupled.
+files because its mechanic was reclassified. Mechanic clusters remain the _issue_
+unit; colour remains the _file_ unit — the two axes are deliberately decoupled.
 
 ## Consequences
 
 - **Conflict-free parallelism for free-tranche card work only.** Two
   free-tranche clusters touching different colours never conflict. This does
-  *not* extend to mechanic clusters, which also edit shared engine registries
+  _not_ extend to mechanic clusters, which also edit shared engine registries
   (`types.ts`, `state.ts`, `serialize.ts`, `debug-panel.tsx`) and conflict there
   regardless of colour — those need the merge-train, not the file split. A
   cluster spanning multiple colours (a gold cycle) still touches multiple files

@@ -5852,14 +5852,6 @@ export const elvishArchers: CardDefinition = {
     staticAbilities: ["first strike"],
 };
 
-// export const fastbond: CardDefinition = {
-//     id: "a575a9af-e1de-4a1d-91d8-440585377e4f",
-//     name: "Fastbond",
-//     oracleText: "You may play any number of lands on each of your turns.\nWhenever you play a land, if it wasn't the first land you played this turn, this enchantment deals 1 damage to you.",
-//     manaCost: { G: 1 },
-//     types: ["Enchantment"],
-// };
-
 // Force of Nature — "Trample. At the beginning of your upkeep, this
 // creature deals 8 damage to you unless you pay {G}{G}{G}{G}." (CR 702.19
 // trample, CR 603.6a phase trigger, CR 117.3a may-pay; on decline the
@@ -7194,14 +7186,6 @@ export const dingusEgg: CardDefinition = {
         }),
     ],
 };
-
-// export const disruptingScepter: CardDefinition = {
-//     id: "ca571ee8-07a2-43b8-9acf-89cbfd3cf7c9",
-//     name: "Disrupting Scepter",
-//     oracleText: "{3}, {T}: Target player discards a card. Activate only during your turn.",
-//     manaCost: { X: 3 },
-//     types: ["Artifact"],
-// };
 
 // Forcefield — "{1}: The next time an unblocked creature of your choice would
 // deal combat damage to you this turn, prevent all but 1 of that damage."

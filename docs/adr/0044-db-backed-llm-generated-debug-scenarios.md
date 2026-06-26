@@ -11,14 +11,14 @@ exercise a card or interaction — live as a single `PRESET_SCENARIOS: PresetSce
 literal in `src/components/debug/debug-panel.tsx`. That array has grown to ~8,300
 lines (the file is 8,500), making it the **second-largest monolith after a set
 file** and the **highest-frequency merge-conflict point** in the repo: CLAUDE.md
-§ Development cycle step 7 mandates a new scenario per feature, so *every*
+§ Development cycle step 7 mandates a new scenario per feature, so _every_
 mechanic cluster appends to the same array at the same region. In the move toward
 a parallel agentic loop (ADR 0043 + merge-train), this single shared array is the
 one file touched by 100 % of feature work — the worst serializer after the engine
 registries.
 
 Most scenarios are **single-use**: created to eyeball one card during
-development, never reloaded. They are pure *data* — an array of card placements
+development, never reloaded. They are pure _data_ — an array of card placements
 (`{ name, owner, zone, tapped, counters, damageMarked, faceDown, … }`) plus
 global setup (phase, active player, life, mana). The code that turns that spec
 into a `GameState`, `debugSetupScenario` in `convex/game.ts`, is the load-bearing
@@ -30,18 +30,18 @@ part; the literal is just its argument.
 out of `debug-panel.tsx` into a `debugScenarios` table; the panel lists scenarios
 from a query and passes the selected spec to the **existing, unchanged**
 `debugSetupScenario` builder. `debug-panel.tsx` drops from ~8,500 to ~200 lines.
-The builder stays in code — only its *argument* relocates to the DB.
+The builder stays in code — only its _argument_ relocates to the DB.
 
 **The Debug panel gains an LLM generator.** A textarea takes a natural-language
-board description — e.g. *"Mishra's Factory with the lands needed to animate it;
-opponent holds Shatter and has 2 Mountains in play"* — and an LLM produces a
+board description — e.g. _"Mishra's Factory with the lands needed to animate it;
+opponent holds Shatter and has 2 Mountains in play"_ — and an LLM produces a
 scenario spec, which is stored and immediately available as a preset. Generation
 runs in a **Convex `action`** (or a client-side fetch), **never inside a
 mutation**: a mutation is deterministic and cannot make the external API call.
 The pipeline is three stages: `action` generates via **structured output** →
 resolve/validate → `mutation` writes the row.
 
-**Validation is loadability, not legality.** These are *debug* states —
+**Validation is loadability, not legality.** These are _debug_ states —
 intentionally illegal positions (8-card hands, summoning-sick attackers) are the
 whole point, so the engine's SBA/legality is **not** run on generated specs. The
 only guard is that the spec **loads without corrupting state**: every referenced
@@ -51,7 +51,7 @@ card is rejected before write, with the error surfaced for edit — not silently
 inserted. The LLM is given the catalogue lookup so it only picks implemented
 cards.
 
-**Store the resolved spec, plus the prompt as metadata.** The preset *is* the
+**Store the resolved spec, plus the prompt as metadata.** The preset _is_ the
 frozen, resolved spec (reproducible, deterministic on load). The originating
 prompt is kept alongside it for "regenerate / vary" and to document intent — but
 the prompt is never what gets loaded.
@@ -80,7 +80,7 @@ bug, not introduced here.)
   unknown fields, default missing ones); only the few "golden" rows warrant a
   version tag.
 - **LLM nondeterminism is bounded** by storing the resolved spec, not by
-  re-running the prompt. Re-running the prompt yields a *new* scenario; the saved
+  re-running the prompt. Re-running the prompt yields a _new_ scenario; the saved
   one never drifts.
 - **A new external dependency and key** (the LLM API) enters the dev tooling,
   with cost/latency — acceptable for a dev-only feature, kept off the player path
