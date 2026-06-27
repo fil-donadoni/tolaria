@@ -51,6 +51,7 @@ import * as mh2 from "./sets/mh2";
 import * as blc from "./sets/blc";
 import * as tdm from "./sets/tdm";
 import * as stx from "./sets/stx";
+import * as mh3 from "./sets/mh3";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -115,6 +116,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "blc", exports: blc },
     { code: "tdm", exports: tdm },
     { code: "stx", exports: stx },
+    { code: "mh3", exports: mh3 },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>
