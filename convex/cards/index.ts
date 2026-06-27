@@ -41,6 +41,15 @@ import * as fut from "./sets/fut";
 import * as mh1 from "./sets/mh1";
 import * as bro from "./sets/bro";
 import * as sos from "./sets/sos";
+// Issue #674 remaining tranche — additional cross-set home sets.
+import * as avr from "./sets/avr";
+import * as pc2 from "./sets/pc2";
+import * as dmu from "./sets/dmu";
+import * as mkm from "./sets/mkm";
+import * as ltr from "./sets/ltr";
+import * as mh2 from "./sets/mh2";
+import * as blc from "./sets/blc";
+import * as tdm from "./sets/tdm";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -95,6 +104,15 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "mh1", exports: mh1 },
     { code: "bro", exports: bro },
     { code: "sos", exports: sos },
+    // Issue #674 remaining tranche.
+    { code: "avr", exports: avr },
+    { code: "pc2", exports: pc2 },
+    { code: "dmu", exports: dmu },
+    { code: "mkm", exports: mkm },
+    { code: "ltr", exports: ltr },
+    { code: "mh2", exports: mh2 },
+    { code: "blc", exports: blc },
+    { code: "tdm", exports: tdm },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>
