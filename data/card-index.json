@@ -1878,6 +1878,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Expressive Iteration",
+        "scryfallId": "31b770cc-09e7-4c0b-b2a4-462ab4f7200d",
+        "oracleId": "c7aecca5-2f67-4245-ab2d-e723d8b23a67",
+        "firstSet": "stx"
+    },
+    {
         "name": "Eye for an Eye",
         "scryfallId": "2933ca2a-097b-44f4-ae56-ad524d26fd06",
         "oracleId": "22647b1a-5a7c-41b5-b820-b2e9f49c7aad",
@@ -4822,6 +4828,12 @@
         "scryfallId": "fec3275e-4491-43a8-9f23-d7b48177c103",
         "oracleId": "58e0cc31-7f7c-4cea-9453-d377a039da36",
         "firstSet": "drk"
+    },
+    {
+        "name": "Psychic Frog",
+        "scryfallId": "68924203-c3d9-41ce-8ca8-c6dd491eb3ca",
+        "oracleId": "e157ad1e-be35-47f3-92db-01799f8fb6a5",
+        "firstSet": "mh3"
     },
     {
         "name": "Psychic Venom",

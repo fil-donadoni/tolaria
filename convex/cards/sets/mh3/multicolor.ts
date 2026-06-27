@@ -49,8 +49,7 @@ export const psychicFrog: CardDefinition = {
     activatedAbilities: [
         {
             id: "psychic-frog-discard-pump",
-            oracleText:
-                "Discard a card: Put a +1/+1 counter on this creature.",
+            oracleText: "Discard a card: Put a +1/+1 counter on this creature.",
             cost: {},
             useStack: true,
             resolve: (ctx: SpellContext) => {
