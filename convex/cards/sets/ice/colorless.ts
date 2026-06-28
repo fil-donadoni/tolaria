@@ -1455,24 +1455,11 @@ export const timeBomb: CardDefinition = {
         },
     ],
 };
-// DEFERRED (#660) — Urza's Bauble. The next-upkeep cantrip is now buildable
-// (the `next-upkeep` delayed-trigger timing shipped with this issue). The
-// blocker is "Look at a card AT RANDOM in target player's hand": there is no
-// SpellContext primitive that reveals a randomly-chosen card from a hand to the
-// looker — the only random-from-hand surface is the `discardAtRandom` COST,
-// which discards (not reveals) from the activating player's OWN hand. This is
-// the SAME missing general primitive that defers Wand of Ith (drk.ts) — a
-// seeded-PRNG "look at a card at random from a hand" pick + `markKnown` to the
-// looker. Out of #660's "no new primitive beyond the timing union" scope, so
-// flagged for the random-from-hand primitive follow-up. Stub kept verbatim.
-// TODO(#628): implement (needs random-from-hand reveal primitive).
-// export const urzasBauble: CardDefinition = {
-//     id: "58c9e9a7-e170-4361-b7d5-22fc0771c489",
-//     name: "Urza's Bauble",
-//     rarity: "uncommon",
-//     oracleText: "{T}, Sacrifice this artifact: Look at a card at random in target player's hand. You draw a card at the beginning of the next turn's upkeep.",
-//     types: ["Artifact"],
-// };
+// Urza's Bauble ships as an active CardDefinition below (issue #674): the
+// next-upkeep cantrip is buildable via the shared `nextUpkeepDrawTrigger`, and
+// the "look at a card at random in target player's hand" clause is purely
+// informational (no game-state change, no decision derives from it — unlike
+// Wand of Ith), so it is intentionally not modelled. See the def for the note.
 // Vexing Arcanix — {3}, {T}: Target player names a card, reveals their top card;
 // hit → hand, miss → graveyard + 2 damage to them (CR 605 activated ability;
 // CR 202.3 name-a-card via `requestNameCard` made by the TARGET player; CR 701.13
@@ -2038,4 +2025,44 @@ export const snowCoveredForest: CardDefinition = {
     types: ["Land"],
     supertypes: ["Basic", "Snow"],
     subtypes: ["Forest"],
+};
+// Urza's Bauble — {0} Artifact (Vintage Cube card-advantage tranche, issue
+// #674). "{T}, Sacrifice this artifact: Look at a card at random in target
+// player's hand. You draw a card at the beginning of the next turn's upkeep."
+// The "look at a random card" clause is hidden information shown only to the
+// activator and changes no game state, so it is not modelled (CR 701.18 look);
+// the card-advantage core is the next-upkeep cantrip, reusing the shared ICE
+// `nextUpkeepDrawTrigger` rider (CR 603.7d delayed triggered ability). The
+// ability resolves on the stack (it is not a mana ability), schedules the
+// delayed draw, and the source is sacrificed as a cost.
+export const urzasBauble: CardDefinition = {
+    id: "58c9e9a7-e170-4361-b7d5-22fc0771c489",
+    name: "Urza's Bauble",
+    rarity: "common",
+    oracleText:
+        "{T}, Sacrifice this artifact: Look at a card at random in target player's hand. You draw a card at the beginning of the next turn's upkeep.",
+    manaCost: {},
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "urzas-bauble-look-draw",
+            oracleText:
+                "{T}, Sacrifice this artifact: Look at a card at random in target player's hand. You draw a card at the beginning of the next turn's upkeep.",
+            cost: { tap: true, sacrifice: true },
+            useStack: true,
+            targetRequirement: { type: "player", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                // CR 603.7d — arm the next-upkeep draw for the activator. The
+                // private look at a random hand card is not modelled (no game
+                // state change).
+                ctx.scheduleDelayedTrigger(
+                    "58c9e9a7-e170-4361-b7d5-22fc0771c489",
+                    NEXT_UPKEEP_DRAW_TRIGGER_ID,
+                    "next-upkeep",
+                    {}
+                );
+            },
+        },
+    ],
+    delayedTriggers: [nextUpkeepDrawTrigger()],
 };

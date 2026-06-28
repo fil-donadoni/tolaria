@@ -51,6 +51,7 @@ import {
     blessedWine,
     forceVoid,
     barbedSextant,
+    urzasBauble,
     snowCoveredPlains,
     snowCoveredIsland,
     snowCoveredSwamp,
@@ -3333,5 +3334,49 @@ describe("Pox (proportional mass loss/sacrifice/discard, CR 107.2 round-up)", ()
         expect(state.pendingChoices ?? []).toEqual([]);
         expect(state.players[0].life).toBe(2); // ceil(3/3)=1
         expect(state.players[0].battlefield).toHaveLength(0);
+    });
+});
+
+// Urza's Bauble — {T}, Sacrifice: look (informational) + next-upkeep cantrip
+// (issue #674, CR 603.7d delayed triggered ability).
+describe("Urza's Bauble (next-upkeep cantrip, CR 603.7d)", () => {
+    it("is a {0} artifact with a tap+sacrifice ability targeting a player", () => {
+        expect(urzasBauble.manaCost).toEqual({});
+        expect(urzasBauble.types).toEqual(["Artifact"]);
+        const ability = urzasBauble.activatedAbilities![0];
+        expect(ability.cost).toMatchObject({ tap: true, sacrifice: true });
+        expect(ability.targetRequirement).toEqual({
+            type: "player",
+            count: 1,
+        });
+        expect(urzasBauble.delayedTriggers?.[0]?.timing).toBe("next-upkeep");
+    });
+
+    it("schedules a draw that fires at the next upkeep", () => {
+        const bauble = makeInstance(urzasBauble.id, {
+            id: "bauble",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [bauble],
+                    library: library("p1", ["a"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // Resolve the ability targeting p2 — it arms the next-upkeep draw.
+        resolveActivated(state, bauble, "urzas-bauble-look-draw", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.delayedTriggers?.[0]?.timing).toBe("next-upkeep");
+        // No card drawn yet (the cantrip is deferred to the next upkeep).
+        expect(state.players[0].hand).toHaveLength(0);
+        // Advance to the next upkeep and resolve the cantrip.
+        enterUpkeepAndFire(state, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
     });
 });

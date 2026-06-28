@@ -23,6 +23,35 @@ import * as ice from "./sets/ice";
 import * as jou from "./sets/jou";
 import * as unlimited from "./sets/2ed";
 import * as revised from "./sets/3ed";
+// Vintage Cube card-draw / card-advantage tranche (issue #674) — cross-set
+// home sets routed to earliest paper printing (ADR 0041).
+import * as lrw from "./sets/lrw";
+import * as m11 from "./sets/m11";
+import * as dft from "./sets/dft";
+import * as dka from "./sets/dka";
+import * as ulg from "./sets/ulg";
+import * as voc from "./sets/voc";
+import * as fifthDawn from "./sets/5dn";
+import * as wth from "./sets/wth";
+import * as tsp from "./sets/tsp";
+import * as csp from "./sets/csp";
+import * as ltc from "./sets/ltc";
+import * as thb from "./sets/thb";
+import * as fut from "./sets/fut";
+import * as mh1 from "./sets/mh1";
+import * as bro from "./sets/bro";
+import * as sos from "./sets/sos";
+// Issue #674 remaining tranche — additional cross-set home sets.
+import * as avr from "./sets/avr";
+import * as pc2 from "./sets/pc2";
+import * as dmu from "./sets/dmu";
+import * as mkm from "./sets/mkm";
+import * as ltr from "./sets/ltr";
+import * as mh2 from "./sets/mh2";
+import * as blc from "./sets/blc";
+import * as tdm from "./sets/tdm";
+import * as stx from "./sets/stx";
+import * as mh3 from "./sets/mh3";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -60,6 +89,34 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "jou", exports: jou },
     { code: "2ed", exports: unlimited },
     { code: "3ed", exports: revised },
+    // Vintage Cube card-draw tranche (issue #674).
+    { code: "lrw", exports: lrw },
+    { code: "m11", exports: m11 },
+    { code: "dft", exports: dft },
+    { code: "dka", exports: dka },
+    { code: "ulg", exports: ulg },
+    { code: "voc", exports: voc },
+    { code: "5dn", exports: fifthDawn },
+    { code: "wth", exports: wth },
+    { code: "tsp", exports: tsp },
+    { code: "csp", exports: csp },
+    { code: "ltc", exports: ltc },
+    { code: "thb", exports: thb },
+    { code: "fut", exports: fut },
+    { code: "mh1", exports: mh1 },
+    { code: "bro", exports: bro },
+    { code: "sos", exports: sos },
+    // Issue #674 remaining tranche.
+    { code: "avr", exports: avr },
+    { code: "pc2", exports: pc2 },
+    { code: "dmu", exports: dmu },
+    { code: "mkm", exports: mkm },
+    { code: "ltr", exports: ltr },
+    { code: "mh2", exports: mh2 },
+    { code: "blc", exports: blc },
+    { code: "tdm", exports: tdm },
+    { code: "stx", exports: stx },
+    { code: "mh3", exports: mh3 },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>
