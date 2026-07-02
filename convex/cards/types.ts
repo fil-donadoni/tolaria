@@ -4237,6 +4237,61 @@ export interface PumpCombatEffect {
  *  across two cards (rule of two extraction). */
 export type EffectShorthand = "destroy-target" | PumpCombatEffect;
 
+// --- Effect Script (ADR 0045 / ADR 0046) ---
+//
+// A declarative, JSON-pure card effect: an ordered, flat list of Ops executed
+// top to bottom by the interpreter (`convex/gre/effects/interpreter.ts`),
+// each Op calling an existing SpellContext primitive — one execution path, no
+// parallel engine. This slice (issue #800) is the FLAT-SEQUENCE CORE: the
+// four frozen structural constructs (bind/ref/if/forEach, ADR 0045) land in
+// follow-up slices and are intentionally absent here.
+//
+// Every shape below MUST stay pure JSON (no functions, no RegExp, no
+// undefined-carrying holes) — a DSL-only card is a DB row waiting to happen
+// (ADR 0046). The catalogue-wide purity guard test enforces this.
+
+/** Player selector for player-scoped Ops, resolved by the interpreter at
+ *  execution time:
+ *  - `"controller"` — the resolving spell/ability's controller (CR 109.5).
+ *  - `"opponent"` — the controller's opponent (two-player games, CR 102.2).
+ *  - `{ target: n }` — the spell's n-th announced target (CR 601.2c order),
+ *    which must have been chosen as a player target; if the announced target
+ *    is missing or is not a player, the Op is skipped (CR 608.2b — the spell
+ *    does as much as it can). */
+export type EffectPlayerRef = "controller" | "opponent" | { target: number };
+
+/** Object selector for object-scoped Ops: the spell's n-th announced target
+ *  (CR 601.2c order). If the announced target no longer exists at resolution,
+ *  the Op is skipped (CR 608.2b). */
+export type EffectTargetRef = { target: number };
+
+/** One step of an Effect Script. Ops are small, orthogonal and composable
+ *  (target scale ~80k cards) — each maps 1:1 onto a SpellContext primitive.
+ *  The Op vocabulary grows freely; the grammar never does (ADR 0045). Op
+ *  names are governed by `EFFECT_OP_REGISTRY` in
+ *  `convex/cards/mechanicsRegistry.ts` — a script using an unregistered Op
+ *  name fails the catalogue-wide validation sweep. */
+export type EffectOp =
+    /** CR 120 — deal `amount` damage to an announced target (player,
+     *  creature, planeswalker or battle — whatever the target requirement
+     *  legalised) or to a player picked relative to the controller. */
+    | {
+          op: "dealDamage";
+          amount: number;
+          to: EffectTargetRef | { player: EffectPlayerRef };
+      }
+    /** CR 121.1 — `player` draws `count` cards. */
+    | { op: "draw"; player: EffectPlayerRef; count: number }
+    /** CR 119.3a — `player` gains `amount` life. */
+    | { op: "gainLife"; player: EffectPlayerRef; amount: number }
+    /** CR 119.3b — `player` loses `amount` life (not damage — no
+     *  damage-replacement interaction). */
+    | { op: "loseLife"; player: EffectPlayerRef; amount: number }
+    /** CR 701.8 — destroy the announced target permanent. Routes through
+     *  `SpellContext.destroy`, so regeneration / indestructible / destroy
+     *  replacements (ADR 0020) apply exactly as for imperative cards. */
+    | { op: "destroy"; target: EffectTargetRef };
+
 /** Opt-in structured AI combat hints (ADR 0021, issue #229). Declares the
  *  combat-relevant SHAPE of a card whose effect lives in an opaque imperative
  *  `resolve()` body, so the interaction-aware combat predictor can model the
@@ -4329,6 +4384,18 @@ export interface CardDefinition {
      *  card definition stays pure data. Mutually exclusive with `resolve` and
      *  `resolveSteps` — combining them throws at lookup. */
     effect?: EffectShorthand;
+    /** Effect Script (ADR 0045): the spell's resolution as declarative,
+     *  JSON-pure data — an ordered flat list of Ops executed top to bottom
+     *  by the interpreter (`convex/gre/effects/interpreter.ts`), each Op
+     *  calling an existing SpellContext primitive. DSL-first is mandatory
+     *  for new cards whose effect the Op vocabulary can express; `resolve()`
+     *  remains the escape hatch for protocol-like cards and needs an explicit
+     *  justification (ADR 0045). Mutually exclusive with `resolve`,
+     *  `resolveSteps` and `effect` for this effect site — combining them
+     *  throws at lookup and fails the catalogue validation sweep. Ability
+     *  sites (activated/triggered/modes) adopt Effect Scripts in follow-up
+     *  slices. */
+    effects?: EffectOp[];
     /** Declarative marker: this spell's resolution destroys every land in play
      *  (CR 701.7, e.g. Armageddon's `ctx.destroyAll("Land")`). Purely a
      *  classification hint for effects that need to reason about a spell's

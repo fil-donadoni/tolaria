@@ -52,6 +52,9 @@ import * as blc from "./sets/blc";
 import * as tdm from "./sets/tdm";
 import * as stx from "./sets/stx";
 import * as mh3 from "./sets/mh3";
+// Effect Script tracer bullet (ADR 0045, issue #800) — first DSL-only card
+// (Lava Spike), home set routed to earliest paper printing (ADR 0041).
+import * as chk from "./sets/chk";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -117,6 +120,8 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "tdm", exports: tdm },
     { code: "stx", exports: stx },
     { code: "mh3", exports: mh3 },
+    // Effect Script tracer bullet (ADR 0045, issue #800).
+    { code: "chk", exports: chk },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>
