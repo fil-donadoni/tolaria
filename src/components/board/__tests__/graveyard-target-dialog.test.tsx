@@ -29,8 +29,8 @@ vi.mock("@convex/_generated/api", () => {
 });
 
 vi.mock("@convex/cards", () => ({
-    getCardById: (id: string) => ({ id, name: `Card ${id}` }),
-    tryGetCardById: (id: string) => ({ id, name: `Card ${id}` }),
+    getDefinition: (id: string) => ({ id, name: `Card ${id}` }),
+    tryGetDefinition: (id: string) => ({ id, name: `Card ${id}` }),
 }));
 
 // Inert card image so the picker renders a clickable node without art loading.

@@ -35,7 +35,7 @@ import { pushSpell } from "../../cards/__tests__/setup";
 // Builds a CardInstanceState with the SLIM `card: { id }` shape that
 // production writes to Convex. Synthetic test creatures don't sit in the
 // registry — we mint a unique id so `card.card.id` is always a string, but
-// `tryGetCardById` will return null. Combat predicates read runtime fields
+// `tryGetDefinition` will return null. Combat predicates read runtime fields
 // (`types`, `subtypes`, `staticAbilities`, `isTapped`, ...), so the absent
 // registry definition doesn't affect them.
 //

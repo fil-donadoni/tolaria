@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
-import { getCardById } from "@convex/cards";
+import { getDefinition } from "@convex/cards";
 import { globalAttackProhibitionReason } from "@convex/cards/attackRestrictions";
 import {
     isCreature,
@@ -220,7 +220,7 @@ export function useBattlefieldVisualState(player: Player) {
             if (selectedAttackerIds.includes(card.id)) return true;
             if (card.staticAbilities?.includes("defender")) return false;
             if (card.isTapped || card.isSummoningSick) return false;
-            const attackDef = getCardById(card.card.id);
+            const attackDef = getDefinition(card.card.id);
             if (attackDef.staticEffects) {
                 const defender = allPlayers.find((p) => p.id !== player.id);
                 for (const eff of attackDef.staticEffects) {

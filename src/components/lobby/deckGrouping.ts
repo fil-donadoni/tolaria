@@ -1,4 +1,4 @@
-import { getCardById } from "@convex/cards";
+import { getDefinition } from "@convex/cards";
 import { manaValue } from "@convex/gre/constants";
 import type { DeckCard } from "~/types/game";
 
@@ -18,7 +18,7 @@ export function groupDeckIntoPiles(cards: DeckCard[]): DeckPileGroup[] {
     const byMv = new Map<number, DeckCard[]>();
 
     for (const card of cards) {
-        const def = getCardById(card.cardId);
+        const def = getDefinition(card.cardId);
         if (def.types.includes("Land")) {
             lands.push(card);
             continue;

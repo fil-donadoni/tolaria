@@ -66,7 +66,7 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { getCardById } from "../../../index";
+import { getDefinition } from "../../../index";
 import { forest, grizzlyBears, island } from "../../lea";
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -75,7 +75,7 @@ import { forest, grizzlyBears, island } from "../../lea";
 
 describe("LEG green — vanilla / keyword definitions (CR 110.1 / 702)", () => {
     it("registers the green vanilla creatures with correct P/T", () => {
-        expect(getCardById(barbaryApes.id)).toBe(barbaryApes);
+        expect(getDefinition(barbaryApes.id)).toBe(barbaryApes);
         expect(barbaryApes.power).toBe(2);
         expect(barbaryApes.toughness).toBe(2);
         expect(durkwoodBoars.power).toBe(4);
@@ -609,7 +609,7 @@ describe("Master of the Hunt (Wolves-of-the-Hunt token band, CR 702.22j)", () =>
 
         const wolves = state.players[0].battlefield.filter(
             (c) =>
-                getCardById(c.card.id as string).name === "Wolves of the Hunt"
+                getDefinition(c.card.id as string).name === "Wolves of the Hunt"
         );
         expect(wolves).toHaveLength(2);
         for (const w of wolves) {

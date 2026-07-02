@@ -23,7 +23,7 @@ import {
 import { airElemental, lightningBolt, mountain } from "../../lea";
 import { volcanicIsland, circleOfProtectionBlack } from "../../leb";
 import {
-    getCardById,
+    getDefinition,
     getPrintingsForCard,
     getAllSetCodes,
     tryGetCardByName,
@@ -40,22 +40,22 @@ const ALL_3ED = Object.values(revised).filter(
 
 describe("3ED registry parity (ADR 0014)", () => {
     it("resolves reprint prints to their shared LEA definition", () => {
-        expect(getCardById(airElemental3ed.printId)).toBe(airElemental);
-        expect(getCardById(lightningBolt3ed.printId)).toBe(lightningBolt);
+        expect(getDefinition(airElemental3ed.printId)).toBe(airElemental);
+        expect(getDefinition(lightningBolt3ed.printId)).toBe(lightningBolt);
     });
 
     it("resolves Beta-original reprints to their LEB definition", () => {
         // Volcanic Island and Circle of Protection: Black never existed in
         // Alpha — their CardDefinition lives in leb, and Revised reprints it.
-        expect(getCardById(volcanicIsland3ed.printId)).toBe(volcanicIsland);
-        expect(getCardById(circleOfProtectionBlack3ed.printId)).toBe(
+        expect(getDefinition(volcanicIsland3ed.printId)).toBe(volcanicIsland);
+        expect(getDefinition(circleOfProtectionBlack3ed.printId)).toBe(
             circleOfProtectionBlack
         );
     });
 
     it("resolves every 3ed print to its shared definition", () => {
         for (const print of ALL_3ED) {
-            expect(() => getCardById(print.printId)).not.toThrow();
+            expect(() => getDefinition(print.printId)).not.toThrow();
         }
     });
 
@@ -145,6 +145,6 @@ describe("3ED Old School legality (#561)", () => {
 // fails loudly if the Mountain reprint ever points at the wrong definition.
 describe("3ED basic-land reprints", () => {
     it("resolves Mountain art variants to the shared Mountain definition", () => {
-        expect(getCardById(mountain3ed.printId)).toBe(mountain);
+        expect(getDefinition(mountain3ed.printId)).toBe(mountain);
     });
 });

@@ -1,4 +1,4 @@
-import { getCardById } from "@convex/cards";
+import { getDefinition } from "@convex/cards";
 import type { CardInstance } from "~/types/game";
 import CardImage from "~/components/cards/card-image";
 
@@ -23,7 +23,7 @@ export default function GraveyardCardPicker({
                     type="button"
                     disabled={isPending}
                     onClick={() => onPick(card.id)}
-                    title={getCardById(card.card.id).name}
+                    title={getDefinition(card.card.id).name}
                     className="relative rounded-sm overflow-hidden ring-1 ring-transparent hover:ring-2 hover:ring-accent disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
                 >
                     <CardImage card={card} />

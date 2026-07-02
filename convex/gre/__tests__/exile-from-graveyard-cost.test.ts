@@ -25,7 +25,7 @@ import {
     type PendingActivation,
     type StackItem,
 } from "../state";
-import { getCardById } from "../../cards";
+import { getDefinition } from "../../cards";
 import type { CardType } from "../../cards/types";
 import { nightSoil } from "../../cards/sets/fem";
 import { grizzlyBears } from "../../cards/sets/lea";
@@ -60,7 +60,7 @@ function activateWithExileCost(
     const player = getPlayer(state, playerId);
     const card = player.battlefield.find((c) => c.id === cardInstanceId);
     if (!card) throw new Error("Card not on battlefield");
-    const def = getCardById((card.card as { id: string }).id);
+    const def = getDefinition((card.card as { id: string }).id);
     const ability = def.activatedAbilities?.find((a) => a.id === abilityId);
     if (!ability) throw new Error("Ability not found");
 

@@ -14,7 +14,7 @@ import {
     getEffectiveManaChoices,
 } from "@convex/gre/constants";
 import type { CardInstanceState } from "@convex/gre/state";
-import { getCardById, tryGetCardById } from "@convex/cards";
+import { getDefinition, tryGetDefinition } from "@convex/cards";
 import { getColorsFromCost } from "@convex/cards/colors";
 import {
     controlsLandWithSupertype,
@@ -85,7 +85,7 @@ export function getLandManaColor(card: CardInstance): Color | null {
 /** Returns true if a card has a tap mana ability (basic land subtype or activated). */
 export function hasManaAbility(card: CardInstance): boolean {
     if (getLandManaColor(card) !== null) return true;
-    const cardDef = getCardById(card.card.id);
+    const cardDef = getDefinition(card.card.id);
     return !!cardDef.activatedAbilities?.some(
         (a) =>
             !a.useStack && (a.manaProduced || a.manaChoices || a.getManaChoices)
@@ -100,7 +100,7 @@ export function hasManaAbility(card: CardInstance): boolean {
 export function getActivatedManaMenuEntry(
     card: CardInstance
 ): { id: string; oracleText: string } | null {
-    const cardDef = getCardById(card.card.id);
+    const cardDef = getDefinition(card.card.id);
     const ability = cardDef.activatedAbilities?.find(
         (a) =>
             !a.useStack && (a.manaProduced || a.manaChoices || a.getManaChoices)
@@ -122,7 +122,7 @@ export function canRefundManaTap(
     manaPool: ManaPool
 ): boolean {
     if (!card.isTapped || card.manaCommitted) return false;
-    const cardDef = getCardById(card.card.id);
+    const cardDef = getDefinition(card.card.id);
     const ability = cardDef.activatedAbilities?.find(
         (a) => !a.useStack && a.manaProduced
     );
@@ -146,7 +146,7 @@ export function getManaChoices(
     card: CardInstance,
     players?: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
 ): ManaCost[] | null {
-    const cardDef = getCardById(card.card.id);
+    const cardDef = getDefinition(card.card.id);
     const ability = cardDef.activatedAbilities?.find(
         (a) => !a.useStack && (a.manaChoices || a.getManaChoices)
     );
@@ -169,7 +169,7 @@ export function getManaChoices(
 
 /** Returns the mana color produced by an activated tap ability, or null. */
 export function getActivatedManaColor(card: CardInstance): Color | null {
-    const cardDef = getCardById(card.card.id);
+    const cardDef = getDefinition(card.card.id);
     const ability = cardDef.activatedAbilities?.find(
         (a) => a.cost.tap && !a.useStack && a.manaProduced
     );
@@ -246,7 +246,7 @@ export function matchesPermanentFilter(
         // own printed/overridden colors suffice for the shipped color filters.
         const cardColors =
             card.colorOverride ??
-            getColorsFromCost(tryGetCardById(card.card.id)?.manaCost);
+            getColorsFromCost(tryGetDefinition(card.card.id)?.manaCost);
         const wanted = Array.isArray(filter.colors)
             ? filter.colors
             : [filter.colors];
@@ -342,7 +342,7 @@ export function matchesSpellWouldDestroyLand(
 ): boolean {
     if (!spellWouldDestroyLandYouControl) return true;
     if (item.abilityId || item.triggeredAbilityId) return false;
-    const def = tryGetCardById(item.card.id);
+    const def = tryGetDefinition(item.card.id);
     if (!def) return false;
     const controlsALand = players
         .find((p) => p.id === playerId)
@@ -399,7 +399,7 @@ export function buildTriggerStateView(
                 // the printed cost's colours.
                 colors:
                     (c.colorOverride as Color[] | undefined) ??
-                    getColorsFromCost(tryGetCardById(c.card.id)?.manaCost),
+                    getColorsFromCost(tryGetDefinition(c.card.id)?.manaCost),
             })),
         })),
         activePlayerId,
@@ -430,7 +430,7 @@ export function getStackAbilities(
      *  of Alexandria, Pestilence, Nettling Imp — are surfaced correctly (#436). */
     stateView?: TriggerStateView
 ): { id: string; oracleText: string }[] {
-    const cardDef = getCardById(card.card.id);
+    const cardDef = getDefinition(card.card.id);
     const tapLocked = isTapLockedBySummoningSickness(card);
     const filterAbility = (a: {
         useStack: boolean;
@@ -510,7 +510,7 @@ export function getStackAbilities(
     // granting card's def.
     const granted: { id: string; oracleText: string }[] = [];
     for (const grant of card.grantedActivatedAbilities ?? []) {
-        const sourceDef = getCardById(grant.sourceCardId);
+        const sourceDef = getDefinition(grant.sourceCardId);
         const tmpl = sourceDef.grantTemplates?.find(
             (a) => a.id === grant.abilityId
         );
@@ -535,7 +535,7 @@ export function getAnyPlayerStackAbilities(
      *  state is judged against real data. */
     stateView?: TriggerStateView
 ): { id: string; oracleText: string }[] {
-    const cardDef = getCardById(card.card.id);
+    const cardDef = getDefinition(card.card.id);
     const nonControllerIds = new Set(
         (cardDef.activatedAbilities ?? [])
             .filter(
@@ -569,12 +569,12 @@ export function getAbilityOracleText(
         abilityId: string;
     }>
 ): string | null {
-    const cardDef = getCardById(cardId);
+    const cardDef = getDefinition(cardId);
     const ability = cardDef.activatedAbilities?.find((a) => a.id === abilityId);
     if (ability?.oracleText) return ability.oracleText;
     for (const grant of grantedActivatedAbilities ?? []) {
         if (grant.abilityId !== abilityId) continue;
-        const tmpl = getCardById(grant.sourceCardId).grantTemplates?.find(
+        const tmpl = getDefinition(grant.sourceCardId).grantTemplates?.find(
             (a) => a.id === abilityId
         );
         if (tmpl?.oracleText) return tmpl.oracleText;
@@ -594,14 +594,14 @@ export function getTriggeredAbilityOracleText(
         abilityId: string;
     }>
 ): string | null {
-    const cardDef = getCardById(cardId);
+    const cardDef = getDefinition(cardId);
     const ability = cardDef.triggeredAbilities?.find(
         (a) => a.id === triggeredAbilityId
     );
     if (ability?.oracleText) return ability.oracleText;
     for (const grant of grantedTriggeredAbilities ?? []) {
         if (grant.abilityId !== triggeredAbilityId) continue;
-        const tmpl = getCardById(
+        const tmpl = getDefinition(
             grant.sourceCardId
         ).triggeredGrantTemplates?.find((a) => a.id === triggeredAbilityId);
         if (tmpl?.oracleText) return tmpl.oracleText;
@@ -650,7 +650,7 @@ export function getDisplayAbilities(
     cardId: string,
     instance?: CardInstance
 ): DisplayAbilities {
-    const def = tryGetCardById(cardId);
+    const def = tryGetDefinition(cardId);
     if (!def) return { keywords: [], activated: [], triggered: [] };
     const nativeKw = def.staticAbilities ?? [];
     const effectiveKw = instance?.staticAbilities ?? nativeKw;
@@ -676,7 +676,7 @@ export function getDisplayAbilities(
             state: "native" as const,
         }));
     for (const grant of instance?.grantedActivatedAbilities ?? []) {
-        const sourceDef = tryGetCardById(grant.sourceCardId);
+        const sourceDef = tryGetDefinition(grant.sourceCardId);
         const tmpl = sourceDef?.grantTemplates?.find(
             (a) => a.id === grant.abilityId
         );
@@ -698,7 +698,7 @@ export function getDisplayAbilities(
     // CR 113.1 — anthem-granted triggers (Energy Flux) live on the granting
     // card's `triggeredGrantTemplates`, not on this card's def.
     for (const grant of instance?.grantedTriggeredAbilities ?? []) {
-        const sourceDef = tryGetCardById(grant.sourceCardId);
+        const sourceDef = tryGetDefinition(grant.sourceCardId);
         const tmpl = sourceDef?.triggeredGrantTemplates?.find(
             (a) => a.id === grant.abilityId
         );
@@ -917,7 +917,7 @@ export function mayPayCostLabel(cost?: MayPayCost): string {
 export function groupByName(cards: CardInstance[]): CardInstance[][] {
     const groups: Map<string, CardInstance[]> = new Map();
     for (const card of cards) {
-        const name = getCardById(card.card.id).name;
+        const name = getDefinition(card.card.id).name;
         const group = groups.get(name);
         if (group) {
             group.push(card);

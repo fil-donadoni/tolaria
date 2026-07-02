@@ -30,7 +30,7 @@ import {
     vodalianWarMachine,
 } from "..";
 import {
-    getCardById,
+    getDefinition,
     getCardByName,
     getPrintingsForCard,
 } from "../../../index";
@@ -106,7 +106,7 @@ describe("Vodalian Soldiers (vanilla creature, CR 302)", () => {
             (c) => c.id === item.id
         );
         expect(slim).toBeDefined();
-        const def = getCardById((slim!.card as { id: string }).id);
+        const def = getDefinition((slim!.card as { id: string }).id);
         expect(def.name).toBe("Vodalian Soldiers");
         expect(def.subtypes).toEqual(["Merfolk", "Soldier"]);
         expect(def.power).toBe(1);
@@ -123,7 +123,7 @@ describe("Vodalian Soldiers (vanilla creature, CR 302)", () => {
 describe("Vodalian Soldiers multi-art prints (ADR 0014)", () => {
     it("resolves every alternate artwork to the shared definition", () => {
         for (const print of ALL_FEM_PRINTS) {
-            expect(getCardById(print.printId)).toBe(vodalianSoldiers);
+            expect(getDefinition(print.printId)).toBe(vodalianSoldiers);
             expect(print.definitionId).toBe(vodalianSoldiers.id);
         }
     });
@@ -288,7 +288,7 @@ describe("Homarid — tide counter P/T cycle (CR 611.2c, 603.6a, 603.8)", () => 
 
     it("resolves all four artworks to the shared definition (ADR 0014)", () => {
         for (const print of [homaridFemB, homaridFemC, homaridFemD]) {
-            expect(getCardById(print.printId)).toBe(homarid);
+            expect(getDefinition(print.printId)).toBe(homarid);
             expect(print.setCode).toBe("fem");
         }
     });
@@ -748,7 +748,7 @@ describe("Merseine — net counters + dynamic cost K (CR 122, 502.1, 601.2f, 202
         // Grizzly Bears costs {1}{G} → mana value 2. The Merseine ability's
         // cost is `manaEqualToEnchantedCreatureCost` — the engine reads the
         // host's printed cost. Verify the host's cost is what the engine folds.
-        const bears = getCardById(grizzlyBears.id);
+        const bears = getDefinition(grizzlyBears.id);
         const cost = bears.manaCost ?? {};
         const total = Object.values(cost).reduce<number>(
             (acc, v) => acc + (typeof v === "number" ? v : 0),
@@ -764,7 +764,7 @@ describe("Merseine — net counters + dynamic cost K (CR 122, 502.1, 601.2f, 202
     });
 
     it("resolves all four artworks to the shared definition (ADR 0014)", () => {
-        expect(getCardById(merseineFemB.printId)).toBe(merseine);
+        expect(getDefinition(merseineFemB.printId)).toBe(merseine);
     });
 });
 

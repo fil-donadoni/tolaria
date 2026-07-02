@@ -10,7 +10,7 @@ import {
 import { getLegalTargets, getPendingTargetSourceSubtypes } from "../rules";
 import { isGuardedAgainst } from "../permanentGuard";
 import type { CardType, TargetRequirement } from "../../cards/types";
-import { getCardById, tryGetCardById } from "../../cards";
+import { getDefinition, tryGetDefinition } from "../../cards";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -37,7 +37,7 @@ function makeCard(
           }
         | undefined;
     const id = cardRef?.id ?? `synth-${crypto.randomUUID()}`;
-    const def = tryGetCardById(id);
+    const def = tryGetDefinition(id);
     const cardField: { id: string; manaCost?: unknown } = { id };
     if (cardRef?.manaCost !== undefined) {
         cardField.manaCost = cardRef.manaCost;
@@ -310,7 +310,7 @@ describe("getLegalTargets", () => {
 
 describe("mass destruction", () => {
     it("destroyAll('Creature') destroys all creatures on both sides", () => {
-        const wrathDef = getCardById("a2788d69-6a3a-42f0-8736-cc6b57755ecd"); // Wrath of God
+        const wrathDef = getDefinition("a2788d69-6a3a-42f0-8736-cc6b57755ecd"); // Wrath of God
         const bear1 = makeCard({ id: "b1", card: CREATURE });
         const bear2 = makeCard({
             id: "b2",
@@ -348,7 +348,7 @@ describe("mass destruction", () => {
     });
 
     it("destroyAll('Land') destroys all lands (Armageddon)", () => {
-        const armaDef = getCardById("5b6ddce7-b9c5-431d-a0b0-46d4aa93cbcb"); // Armageddon
+        const armaDef = getDefinition("5b6ddce7-b9c5-431d-a0b0-46d4aa93cbcb"); // Armageddon
         const land1 = makeCard({
             id: "l1",
             card: LAND,
@@ -390,7 +390,7 @@ describe("mass destruction", () => {
     });
 
     it("destroyAll(['Artifact','Creature','Enchantment']) (Nevinyrral's Disk)", () => {
-        const diskDef = getCardById("12926dc8-8e6f-4a47-a12b-4d674189615a");
+        const diskDef = getDefinition("12926dc8-8e6f-4a47-a12b-4d674189615a");
         const ability = diskDef.activatedAbilities![0];
 
         const disk = makeCard({
@@ -451,7 +451,9 @@ describe("mass destruction", () => {
     });
 
     it("destroyAll({ subtypes: 'Island' }) destroys only Islands (Tsunami)", () => {
-        const tsunamiDef = getCardById("9ed67d61-cf47-446b-b454-eb404a8686b7");
+        const tsunamiDef = getDefinition(
+            "9ed67d61-cf47-446b-b454-eb404a8686b7"
+        );
 
         const island = makeCard({
             id: "island",
@@ -491,7 +493,7 @@ describe("mass destruction", () => {
     });
 
     it("destroyAll({ subtypes: 'Plains' }) destroys only Plains (Flashfires)", () => {
-        const flashDef = getCardById("ee8a05a4-0ce3-4abe-bb60-08af53cf08e5");
+        const flashDef = getDefinition("ee8a05a4-0ce3-4abe-bb60-08af53cf08e5");
 
         const plains1 = makeCard({
             id: "p1-plains",
@@ -546,7 +548,7 @@ describe("mass destruction", () => {
     });
 
     it("destroyAll('Enchantment') destroys all enchantments (Tranquility)", () => {
-        const tranqDef = getCardById("774cc5a6-3a69-4812-add4-eb5eb6389238");
+        const tranqDef = getDefinition("774cc5a6-3a69-4812-add4-eb5eb6389238");
 
         const aura1 = makeCard({ id: "e1", card: ENCHANTMENT });
         const aura2 = makeCard({
@@ -588,7 +590,7 @@ describe("mass destruction", () => {
 
 describe("entersTapped", () => {
     it("Nevinyrral's Disk enters the battlefield tapped", () => {
-        const diskDef = getCardById("12926dc8-8e6f-4a47-a12b-4d674189615a");
+        const diskDef = getDefinition("12926dc8-8e6f-4a47-a12b-4d674189615a");
 
         const stackItem: StackItem = {
             ...makeCard({
@@ -612,7 +614,7 @@ describe("entersTapped", () => {
     });
 
     it("normal artifact enters untapped", () => {
-        const moxDef = getCardById("b0e1427c-05cd-465b-be59-97ed6e39f7ba"); // Mox Emerald
+        const moxDef = getDefinition("b0e1427c-05cd-465b-be59-97ed6e39f7ba"); // Mox Emerald
 
         const stackItem: StackItem = {
             ...makeCard({
@@ -642,7 +644,7 @@ describe("entersTapped", () => {
 
 describe("activated ability stack resolution", () => {
     it("ability resolves without moving source to graveyard", () => {
-        const diskDef = getCardById("12926dc8-8e6f-4a47-a12b-4d674189615a");
+        const diskDef = getDefinition("12926dc8-8e6f-4a47-a12b-4d674189615a");
         const ability = diskDef.activatedAbilities![0];
 
         // Disk on battlefield (tapped from paying cost)
@@ -684,7 +686,7 @@ describe("activated ability stack resolution", () => {
     });
 
     it("sorcery resolves to graveyard (not ability behavior)", () => {
-        const wrathDef = getCardById("a2788d69-6a3a-42f0-8736-cc6b57755ecd");
+        const wrathDef = getDefinition("a2788d69-6a3a-42f0-8736-cc6b57755ecd");
 
         const stackItem: StackItem = {
             ...makeCard({

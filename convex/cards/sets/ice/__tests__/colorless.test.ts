@@ -87,7 +87,7 @@ import { plains, island, swamp, mountain, forest } from "../../lea";
 import { applyLandManaReplacement } from "../../../../gre/constants";
 import { untapStep } from "../../../../gre/phases";
 import {
-    getCardById,
+    getDefinition,
     getCardByName,
     getAllCards,
     getAllSetCodes,
@@ -173,7 +173,7 @@ import {
 
 describe("ICE registry parity", () => {
     it("registers Balduvian Bears by id", () => {
-        expect(getCardById(balduvianBears.id)).toBe(balduvianBears);
+        expect(getDefinition(balduvianBears.id)).toBe(balduvianBears);
     });
 
     it("registers it by name (debug-panel / pool lookup path)", () => {
@@ -890,11 +890,11 @@ describe("Ice Floe ({T}: tap-lock a non-flying attacker, CR 611.2 / 508.1)", () 
 
 describe("ICE basic-land reprints (CardPrint wiring, ADR 0014 / CR 305.6)", () => {
     it("registers each basic by its ICE print id onto the LEA definition", () => {
-        expect(getCardById(plainsIce.printId).name).toBe("Plains");
-        expect(getCardById(islandIce.printId).name).toBe("Island");
-        expect(getCardById(swampIce.printId).name).toBe("Swamp");
-        expect(getCardById(mountainIce.printId).name).toBe("Mountain");
-        expect(getCardById(forestIce.printId).name).toBe("Forest");
+        expect(getDefinition(plainsIce.printId).name).toBe("Plains");
+        expect(getDefinition(islandIce.printId).name).toBe("Island");
+        expect(getDefinition(swampIce.printId).name).toBe("Swamp");
+        expect(getDefinition(mountainIce.printId).name).toBe("Mountain");
+        expect(getDefinition(forestIce.printId).name).toBe("Forest");
     });
     it("each print declares setCode ice and points at the LEA basic", () => {
         for (const print of [
@@ -905,7 +905,7 @@ describe("ICE basic-land reprints (CardPrint wiring, ADR 0014 / CR 305.6)", () =
             forestIce,
         ]) {
             expect(print.setCode).toBe("ice");
-            const def = getCardById(print.definitionId);
+            const def = getDefinition(print.definitionId);
             expect(def.supertypes).toContain("Basic");
             expect(def.types).toEqual(["Land"]);
         }
@@ -1606,7 +1606,7 @@ describe("Snow-Covered basics (CR 205.4a Snow supertype)", () => {
 
     for (const { def, sub } of basics) {
         it(`${def.name} is a registered Basic Snow Land with the ${sub} subtype`, () => {
-            expect(getCardById(def.id)).toBe(def);
+            expect(getDefinition(def.id)).toBe(def);
             expect(getCardByName(def.name)).toBe(def);
             expect(getAllCards()).toContain(def);
             expect(def.types).toEqual(["Land"]);

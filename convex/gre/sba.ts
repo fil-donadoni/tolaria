@@ -14,7 +14,7 @@ import {
 import { isProtectedFromSource } from "./protection";
 import { applyLoseGameReplacements } from "./replacements";
 import { applyStateTriggers } from "./triggers";
-import { tryGetCardById } from "../cards";
+import { tryGetDefinition } from "../cards";
 
 /** A player found to meet a loss condition during a single game-over sweep. */
 type LossEntry = { playerId: string; reason: "life" | "decked" | "poison" };
@@ -161,7 +161,7 @@ function hostMatchesAuraRestriction(
     host: CardInstanceState
 ): boolean {
     const cardId = (aura.card as { id?: string }).id;
-    const def = cardId ? tryGetCardById(cardId) : null;
+    const def = cardId ? tryGetDefinition(cardId) : null;
     const req = def?.targetRequirement;
     if (!req) return false;
     const types = Array.isArray(req.type) ? req.type : [req.type];
@@ -187,7 +187,7 @@ function isAuraBlockedByProtection(
     host: CardInstanceState
 ): boolean {
     const cardId = (aura.card as { id?: string }).id;
-    const def = cardId ? tryGetCardById(cardId) : null;
+    const def = cardId ? tryGetDefinition(cardId) : null;
     if (def?.exemptFromProtectionDetach) return false;
     return isProtectedFromSource(host, aura);
 }
@@ -391,7 +391,7 @@ export function checkSourceTappedEffects(state: GameState): void {
  *  or unregistered (tokens with synthesized defs are still registered). */
 function permanentDefinition(card: CardInstanceState) {
     const cardId = (card.card as { id?: string }).id;
-    return cardId ? tryGetCardById(cardId) : null;
+    return cardId ? tryGetDefinition(cardId) : null;
 }
 
 /** CR 205.4a — true when the permanent currently has the Legendary supertype.

@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { getImageUrl, resolveCardImageId } from "~/lib/images";
-import { tryGetCardById } from "@convex/cards";
+import { tryGetDefinition } from "@convex/cards";
 import type { CardInstance } from "~/types/game";
 import {
     cardImageSignature,
@@ -44,7 +44,7 @@ function getDefId(card: CardInstance | { id: string }): string {
 function CardImageImpl({ card, lazy = false }: CardImageProps) {
     const cardInstance = isCardInstance(card) ? card : undefined;
     const defId = getDefId(card);
-    const def = tryGetCardById(defId);
+    const def = tryGetDefinition(defId);
     const name = def?.name ?? defId;
     // Tokens (CR 111, 707.1) prefer a printed token's Scryfall id for art
     // when the card defines one (e.g. The Hive → 10E Wasp print). Tokens

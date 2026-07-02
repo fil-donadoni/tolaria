@@ -35,14 +35,14 @@ import {
 } from "../../cards/sets/lea";
 import { matchesPermanentFilter } from "../state";
 import { projectPublicState } from "../../gameProjections";
-import { tryGetCardById } from "../../cards";
+import { tryGetDefinition } from "../../cards";
 import type { CardType } from "../../cards/types";
 
 function makeInstance(
     cardId: string,
     overrides: Partial<CardInstanceState> = {}
 ): CardInstanceState {
-    const def = tryGetCardById(cardId);
+    const def = tryGetDefinition(cardId);
     return {
         id: overrides.id ?? `inst-${Math.random().toString(36).slice(2, 8)}`,
         card: { id: cardId },

@@ -1,4 +1,4 @@
-import { getCardById } from "@convex/cards";
+import { getDefinition } from "@convex/cards";
 import type { CardInstance } from "~/types/game";
 
 /**
@@ -52,7 +52,7 @@ export function hasBandingLike(c: CardInstance): boolean {
 }
 
 function matchesBandQuality(c: CardInstance, quality: BandQuality): boolean {
-    const def = getCardById(c.card.id);
+    const def = getDefinition(c.card.id);
     if (quality.kind === "legendary") {
         return def.supertypes?.includes("Legendary") ?? false;
     }

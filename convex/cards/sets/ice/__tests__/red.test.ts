@@ -72,7 +72,7 @@ import {
     applyLandManaReplacement,
     getBasicLandMana,
 } from "../../../../gre/constants";
-import { getCardById, getCardByName } from "../../../index";
+import { getDefinition, getCardByName } from "../../../index";
 import {
     resolveTopOfStack,
     applyExistingGrantsTo,
@@ -127,14 +127,14 @@ import {
 
 describe("ICE Red reprints (CardPrint wiring, ADR 0014)", () => {
     it("Shatter print resolves to the LEA definition", () => {
-        expect(getCardById(shatterIce.printId).name).toBe("Shatter");
+        expect(getDefinition(shatterIce.printId).name).toBe("Shatter");
         expect(shatterIce.definitionId).toBe(
             "50dc7fc1-cb6a-4c68-b993-1a25cf16226e"
         );
         expect(shatterIce.setCode).toBe("ice");
     });
     it("Stone Rain print resolves to the LEA definition", () => {
-        expect(getCardById(stoneRainIce.printId).name).toBe("Stone Rain");
+        expect(getDefinition(stoneRainIce.printId).name).toBe("Stone Rain");
         expect(stoneRainIce.definitionId).toBe(
             "57ff74cb-a2ed-4123-ac42-f72f9820049e"
         );
@@ -755,8 +755,8 @@ describe("ICE Red tranche registry parity", () => {
         }
     });
     it("registers the two Red reprints by print id", () => {
-        expect(getCardById(shatterIce.printId).name).toBe("Shatter");
-        expect(getCardById(stoneRainIce.printId).name).toBe("Stone Rain");
+        expect(getDefinition(shatterIce.printId).name).toBe("Shatter");
+        expect(getDefinition(stoneRainIce.printId).name).toBe("Stone Rain");
     });
 });
 

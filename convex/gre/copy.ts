@@ -4,14 +4,14 @@
 // attached auras/equipment, control changes, or other continuous effects
 // (CR 707.2). Tolaria models this by overwriting the copy instance's
 // `card.id` with the copied object's definition id, so that every
-// characteristic reader in the engine (ability scans via `getCardById`,
+// characteristic reader in the engine (ability scans via `getDefinition`,
 // colors via mana cost, P/T base, types) observes the copied object for free.
 // The instance's directly-read fields (`types`, `subtypes`, `power`,
 // `toughness`, `staticAbilities`) are overwritten to match. The original
 // printed definition id is preserved in `copiedFrom` so the copy can be
 // reverted when it leaves the battlefield.
 
-import { getCardById, tryGetCardById } from "../cards";
+import { getDefinition, tryGetDefinition } from "../cards";
 import type { CopyEffectOptions, TriggeredAbility } from "../cards/types";
 import type { CardInstanceState } from "./state";
 
@@ -39,7 +39,7 @@ export function applyCopy(
 ): void {
     const copyColor = opts.copyColor ?? true;
     const sourceDefId = presentedDefId(source);
-    const def = getCardById(sourceDefId);
+    const def = getDefinition(sourceDefId);
 
     // Preserve the recipient's original printed id the first time it becomes
     // a copy; keep it stable across subsequent re-copies (Vesuvan).
@@ -67,7 +67,7 @@ export function applyCopy(
 export function revertCopy(card: CardInstanceState): void {
     if (!card.copiedFrom) return;
     const printedId = card.copiedFrom;
-    const def = tryGetCardById(printedId);
+    const def = tryGetDefinition(printedId);
     card.card = { ...(card.card as object), id: printedId };
     if (def) {
         card.types = [...def.types];
@@ -93,11 +93,11 @@ export function effectiveTriggeredAbilities(
     if (card.abilitiesSuppressedBy && card.abilitiesSuppressedBy.length > 0) {
         return [];
     }
-    const presented = tryGetCardById(presentedDefId(card));
+    const presented = tryGetDefinition(presentedDefId(card));
     const base = presented?.triggeredAbilities ?? [];
     const granted = grantedTriggeredAbilities(card);
     if (!card.copiedFrom) return [...base, ...granted];
-    const printed = tryGetCardById(card.copiedFrom);
+    const printed = tryGetDefinition(card.copiedFrom);
     const retained =
         printed?.triggeredAbilities?.filter((a) => a.retainedThroughCopy) ?? [];
     return [...base, ...retained, ...granted];
@@ -116,7 +116,7 @@ function grantedTriggeredAbilities(
     if (!grants || grants.length === 0) return [];
     const out: TriggeredAbility[] = [];
     for (const grant of grants) {
-        const grantingDef = tryGetCardById(grant.sourceCardId);
+        const grantingDef = tryGetDefinition(grant.sourceCardId);
         const template = grantingDef?.triggeredGrantTemplates?.find(
             (a) => a.id === grant.abilityId
         );

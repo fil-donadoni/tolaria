@@ -82,7 +82,7 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { getAllCards, getCardById, getCardByName } from "../../../index";
+import { getAllCards, getDefinition, getCardByName } from "../../../index";
 import { forest, grizzlyBears, island, mountain, swamp } from "../../lea";
 
 // ---------------------------------------------------------------------------
@@ -91,8 +91,8 @@ import { forest, grizzlyBears, island, mountain, swamp } from "../../lea";
 
 describe("LEG registry parity", () => {
     it("registers the skeleton legendary creatures by id", () => {
-        expect(getCardById(jasmineBoreal.id)).toBe(jasmineBoreal);
-        expect(getCardById(ladyOrca.id)).toBe(ladyOrca);
+        expect(getDefinition(jasmineBoreal.id)).toBe(jasmineBoreal);
+        expect(getDefinition(ladyOrca.id)).toBe(ladyOrca);
     });
 
     it("registers them by name (debug-panel / pool lookup path)", () => {
@@ -160,7 +160,7 @@ describe("Lady Orca (vanilla legendary creature, CR 205.4a)", () => {
             (c) => c.id === item.id
         );
         expect(slim).toBeDefined();
-        const def = getCardById((slim!.card as { id: string }).id);
+        const def = getDefinition((slim!.card as { id: string }).id);
         expect(def.supertypes).toContain("Legendary");
     });
 });

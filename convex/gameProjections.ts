@@ -9,7 +9,7 @@ import { getPendingChoiceMax } from "./gre/state";
 import type { CardAction } from "./gre/types";
 import type { ActivatedAbility, ManaCost } from "./cards/types";
 import { getLegalActions } from "./gre/rules";
-import { FACE_DOWN_CARD_ID, tryGetCardById } from "./cards";
+import { FACE_DOWN_CARD_ID, tryGetDefinition } from "./cards";
 
 /** CardInstanceState with the static card def stripped to { id } only. */
 export type SlimCardInstance = Omit<CardInstanceState, "card"> & {
@@ -277,7 +277,7 @@ function projectExileCard(
 function hydrateGrantedAbility(
     instance: GrantedAbilityInstance
 ): PublicGrantedAbility {
-    const cardDef = tryGetCardById(instance.sourceCardId);
+    const cardDef = tryGetDefinition(instance.sourceCardId);
     const ability = cardDef?.activatedAbilities?.find(
         (a) => a.id === instance.abilityId
     );

@@ -14,7 +14,7 @@
 // the source; in practice the defending player, whose battlefield the landwalk
 // evasion rule already scans, so scanning that same battlefield is enough.
 
-import { tryGetCardById } from ".";
+import { tryGetDefinition } from ".";
 
 /** Minimal permanent shape the scan needs. Both `CardInstanceState` (server)
  *  and the client's `CardInstance` satisfy this structurally. */
@@ -37,7 +37,7 @@ export function negatedLandwalkSubtypes(
     for (const perm of battlefield) {
         const cardId = perm.card?.id;
         if (!cardId) continue;
-        const def = tryGetCardById(cardId);
+        const def = tryGetDefinition(cardId);
         if (!def?.staticEffects) continue;
         for (const effect of def.staticEffects) {
             if (effect.kind !== "landwalk-negation") continue;
@@ -72,7 +72,7 @@ export function controlsLandWithSupertype(
         if (!perm.types?.includes("Land")) return false;
         const cardId = perm.card?.id;
         if (!cardId) return false;
-        const def = tryGetCardById(cardId);
+        const def = tryGetDefinition(cardId);
         return def?.supertypes?.includes(supertype as never) ?? false;
     });
 }

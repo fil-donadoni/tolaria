@@ -1,4 +1,4 @@
-import { tryGetCardById } from "@convex/cards";
+import { tryGetDefinition } from "@convex/cards";
 import type { RestrictedMana } from "~/types/game";
 
 /** Human-readable spend restriction for a unit of restricted mana
@@ -37,5 +37,5 @@ export function restrictedManaLabel(
  *  caller must map instance → def id (via the board) before using this; kept
  *  here only as the def-name lookup primitive. */
 export function cardDefName(defId: string): string | undefined {
-    return tryGetCardById(defId)?.name;
+    return tryGetDefinition(defId)?.name;
 }

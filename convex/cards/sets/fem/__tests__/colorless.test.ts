@@ -30,7 +30,7 @@ import {
     zelyonSword,
 } from "..";
 import {
-    getCardById,
+    getDefinition,
     getCardByName,
     getAllCards,
     getAllSetCodes,
@@ -56,7 +56,7 @@ import { resolveTrigger, UPKEEP, resolveActivated } from "./helpers";
 
 describe("FEM registry parity", () => {
     it("registers Vodalian Soldiers by id", () => {
-        expect(getCardById(vodalianSoldiers.id)).toBe(vodalianSoldiers);
+        expect(getDefinition(vodalianSoldiers.id)).toBe(vodalianSoldiers);
     });
 
     it("registers it by name (debug-panel / pool lookup path)", () => {

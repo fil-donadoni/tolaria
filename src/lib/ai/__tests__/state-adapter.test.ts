@@ -3,7 +3,7 @@
 // hidden library contents are dropped, everything else is preserved.
 import { describe, expect, it } from "vitest";
 import type { PublicGameState } from "@convex/gameProjections";
-import { tryGetCardById } from "@convex/cards";
+import { tryGetDefinition } from "@convex/cards";
 import { enumerateMoves, PLACEHOLDER_CARD_ID } from "@convex/gre";
 import { projectedToGameState } from "../state-adapter";
 
@@ -83,7 +83,7 @@ describe("projectedToGameState (issue #110)", () => {
                     (c.card as { id: string }).id === PLACEHOLDER_CARD_ID
                 ).toBe(true);
                 expect(
-                    tryGetCardById((c.card as { id: string }).id)
+                    tryGetDefinition((c.card as { id: string }).id)
                 ).toBeNull();
             }
         }

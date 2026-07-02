@@ -6,7 +6,7 @@
 // Each card declares its own eligibility rule — engine has no enum of
 // scopes/filters to maintain.
 
-import { tryGetCardById } from "../cards";
+import { tryGetDefinition } from "../cards";
 import { getColorsFromCost } from "../cards/colors";
 import { hasSupertypeLive } from "./snow";
 import type {
@@ -31,7 +31,7 @@ export type LayerStateView = StaticEffectStateView;
 function getStaticEffects(card: PermanentView): StaticEffect[] {
     const cardId = (card.card as { id?: string }).id;
     if (!cardId) return [];
-    const def = tryGetCardById(cardId);
+    const def = tryGetDefinition(cardId);
     if (!def) return [];
     const cardEffects = def.staticEffects ?? [];
     // CR 700.2c — a modal permanent also contributes its chosen mode's static
@@ -55,7 +55,8 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
         const embedded = (card.card as { manaCost?: ManaCost }).manaCost;
         const cardId = (card.card as { id?: string }).id;
         const cost =
-            embedded ?? (cardId ? tryGetCardById(cardId)?.manaCost : undefined);
+            embedded ??
+            (cardId ? tryGetDefinition(cardId)?.manaCost : undefined);
         const base = getColorsFromCost(cost);
         const granted = (card as { grantedColors?: { color: string }[] })
             .grantedColors;
@@ -81,7 +82,7 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
         // CR 205.2 — printed type line from the card definition; ignores the
         // live `types` array (which type-add / animate effects mutate).
         const cardId = (card.card as { id?: string }).id;
-        const def = cardId ? tryGetCardById(cardId) : undefined;
+        const def = cardId ? tryGetDefinition(cardId) : undefined;
         return (def?.types ?? []) as CardType[];
     },
     getName(card: PermanentView): string {
@@ -91,7 +92,7 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
         const embedded = (card.card as { name?: string }).name;
         if (embedded) return embedded;
         const cardId = (card.card as { id?: string }).id;
-        const def = cardId ? tryGetCardById(cardId) : undefined;
+        const def = cardId ? tryGetDefinition(cardId) : undefined;
         return def?.name ?? "";
     },
     getManaValue(card: PermanentView): number {
@@ -101,7 +102,8 @@ export const STATIC_EFFECT_CTX: StaticEffectContext = {
         const embedded = (card.card as { manaCost?: ManaCost }).manaCost;
         const cardId = (card.card as { id?: string }).id;
         const cost =
-            embedded ?? (cardId ? tryGetCardById(cardId)?.manaCost : undefined);
+            embedded ??
+            (cardId ? tryGetDefinition(cardId)?.manaCost : undefined);
         if (!cost) return 0;
         let total = 0;
         for (const [k, v] of Object.entries(cost)) {

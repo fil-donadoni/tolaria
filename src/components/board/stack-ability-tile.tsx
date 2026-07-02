@@ -1,4 +1,4 @@
-import { tryGetCardById } from "@convex/cards";
+import { tryGetDefinition } from "@convex/cards";
 import {
     ART_CROP_RATIO,
     getArtCropImageUrl,
@@ -18,7 +18,7 @@ export default function StackAbilityTile({
     abilityText,
     kind,
 }: StackAbilityTileProps) {
-    const def = tryGetCardById(cardId);
+    const def = tryGetDefinition(cardId);
     const name = def?.name ?? cardId;
     const imageId = resolveCardImageId(cardId);
     const imageSrc = imageId ? getArtCropImageUrl(imageId) : null;

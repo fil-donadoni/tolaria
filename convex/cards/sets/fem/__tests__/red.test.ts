@@ -39,7 +39,7 @@ import {
     orgg,
     raidingParty,
 } from "..";
-import { getCardById, getCardByName, getAllCards } from "../../../index";
+import { getDefinition, getCardByName, getAllCards } from "../../../index";
 import {
     resolveTopOfStack,
     applySourceStaticEffects,
@@ -88,7 +88,7 @@ describe("FEM red registry parity + multi-art prints (ADR 0014)", () => {
 
     it("registers all 16 red cards by id and name", () => {
         for (const def of RED_DEFS) {
-            expect(getCardById(def.id)).toBe(def);
+            expect(getDefinition(def.id)).toBe(def);
             expect(getCardByName(def.name)).toBe(def);
             expect(getAllCards()).toContain(def);
         }
@@ -115,7 +115,7 @@ describe("FEM red registry parity + multi-art prints (ADR 0014)", () => {
             [dwarvenSoldierFemC, dwarvenSoldier],
         ];
         for (const [print, def] of printPairs) {
-            expect(getCardById(print.printId)).toBe(def);
+            expect(getDefinition(print.printId)).toBe(def);
         }
     });
 });

@@ -29,7 +29,7 @@ import {
     mountainTitan,
     ghostlyFlame,
 } from "../../ice";
-import { getCardById, getCardByName } from "../../../index";
+import { getDefinition, getCardByName } from "../../../index";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { describeDamageSource } from "../../../../gre/replacements";
 import {
@@ -1094,7 +1094,7 @@ describe("Ghostly Flame (damage-source colour override, CR 119.4 / 614)", () => 
     });
 
     it("registers by id and name", () => {
-        expect(getCardById(ghostlyFlame.id)).toBe(ghostlyFlame);
+        expect(getDefinition(ghostlyFlame.id)).toBe(ghostlyFlame);
         expect(getCardByName("Ghostly Flame")).toBe(ghostlyFlame);
     });
 

@@ -26,7 +26,7 @@
 import type { CardInstanceState } from "./state";
 import type { StaticPermanentGuard } from "../cards/types";
 import { STATIC_EFFECT_CTX } from "./layers";
-import { tryGetCardById } from "../cards";
+import { tryGetDefinition } from "../cards";
 
 /** A minimal read-only battlefield view — every game-state shape the engine
  *  passes here (fat `GameState`, projected public state) satisfies it. */
@@ -92,7 +92,7 @@ export function isGuardedAgainst(
     for (const player of state.players) {
         for (const source of player.battlefield) {
             const cardId = (source.card as { id?: string }).id;
-            const def = cardId ? tryGetCardById(cardId) : null;
+            const def = cardId ? tryGetDefinition(cardId) : null;
             const effects = def?.staticEffects;
             if (!effects) continue;
             for (const effect of effects) {

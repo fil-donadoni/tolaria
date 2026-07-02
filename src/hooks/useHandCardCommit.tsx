@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { getCardById } from "@convex/cards";
+import { getDefinition } from "@convex/cards";
 import { useGameContext } from "~/hooks/useGameContext";
 import type { CardInstance } from "~/types/game";
 import ModePicker from "~/components/cards/mode-picker";
@@ -64,7 +64,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         // CR 107.3 / 601.2b: if the spell has X in its mana cost, the caster
         // chooses X before announcement. Stay tiny: a native prompt is enough
         // for the study-engine MVP.
-        const def = getCardById(cardInstance.card.id);
+        const def = getDefinition(cardInstance.card.id);
         const hasX = typeof def.manaCost?.X === "string";
         let chosenX: number | undefined;
         if (hasX) {
@@ -95,7 +95,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         });
     };
 
-    const def = getCardById(cardInstance.card.id);
+    const def = getDefinition(cardInstance.card.id);
     const modePickerOverlay =
         modePickerState && def.modes ? (
             <ModePicker

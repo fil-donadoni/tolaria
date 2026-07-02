@@ -10,7 +10,7 @@ import type {
 } from "../cards/types";
 import { isProtectedFromSource } from "./protection";
 import { getEffectivePower } from "./layers";
-import { tryGetCardById } from "../cards";
+import { tryGetDefinition } from "../cards";
 import { globalAttackProhibitionReason } from "../cards/attackRestrictions";
 import {
     evaluateBlockerKeywords,
@@ -111,7 +111,7 @@ export function validateMinimumBlockers(
         if (!attacker) continue;
         const min = getMinimumBlockers(attacker);
         if (blockedBy < min) {
-            const cardName = tryGetCardById(
+            const cardName = tryGetDefinition(
                 (attacker.card as { id?: string }).id ?? ""
             )?.name;
             const label = cardName ?? "This creature";
@@ -149,7 +149,7 @@ function collectAttackRestrictions(
 ): StaticAttackRestriction[] {
     const cardId = (card.card as { id?: string }).id;
     if (!cardId) return [];
-    const def = tryGetCardById(cardId);
+    const def = tryGetDefinition(cardId);
     if (!def?.staticEffects) return [];
     return def.staticEffects.filter(
         (e): e is StaticAttackRestriction => e.kind === "attack-restriction"
@@ -247,7 +247,7 @@ function collectDeclaredAttackRestrictions(
     const restrictions: StaticDeclaredAttackRestriction[] = [];
     const collect = (cardId: string | undefined) => {
         if (!cardId) return;
-        const def = tryGetCardById(cardId);
+        const def = tryGetDefinition(cardId);
         if (!def?.staticEffects) return;
         for (const effect of def.staticEffects) {
             if (effect.kind === "declared-attack-restriction") {
@@ -320,7 +320,7 @@ function collectBlockRestrictions(
     const restrictions: StaticBlockRestriction[] = [];
     const collect = (cardId: string | undefined) => {
         if (!cardId) return;
-        const def = tryGetCardById(cardId);
+        const def = tryGetDefinition(cardId);
         if (!def?.staticEffects) return;
         for (const effect of def.staticEffects) {
             if (effect.kind === "block-restriction" && effect.side === side) {
@@ -478,7 +478,7 @@ function collectDeclaredBlockRestrictions(
     const restrictions: StaticDeclaredBlockRestriction[] = [];
     const collect = (cardId: string | undefined) => {
         if (!cardId) return;
-        const def = tryGetCardById(cardId);
+        const def = tryGetDefinition(cardId);
         if (!def?.staticEffects) return;
         for (const effect of def.staticEffects) {
             if (effect.kind === "declared-block-restriction") {
@@ -619,7 +619,7 @@ function hasAttackRequirement(
         return true;
     const cardId = (card.card as { id?: string }).id;
     if (!cardId) return false;
-    const def = tryGetCardById(cardId);
+    const def = tryGetDefinition(cardId);
     if (!def?.staticEffects) return false;
     return def.staticEffects.some((e) => e.kind === "attack-requirement");
 }
@@ -691,7 +691,7 @@ function collectBlockRequirements(
     const requirements: StaticBlockRequirement[] = [];
     const collect = (cardId: string | undefined) => {
         if (!cardId) return;
-        const def = tryGetCardById(cardId);
+        const def = tryGetDefinition(cardId);
         if (!def?.staticEffects) return;
         for (const effect of def.staticEffects) {
             if (effect.kind === "block-requirement") {
@@ -716,7 +716,7 @@ function collectBlockRequirements(
  *  (temporary, e.g. Blaze of Glory), taking the max of both. */
 export function getMaxBlockTargets(card: CardInstanceState): number {
     const defVal =
-        tryGetCardById((card.card as { id?: string })?.id ?? "")
+        tryGetDefinition((card.card as { id?: string })?.id ?? "")
             ?.canBlockAdditional ?? 0;
     const instanceVal = card.canBlockAdditional ?? 0;
     return 1 + Math.max(defVal, instanceVal);

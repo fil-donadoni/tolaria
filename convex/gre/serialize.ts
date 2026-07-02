@@ -14,7 +14,7 @@
 //    `toughness`, `controllerId === ownerId` all coalesce against the static
 //    card definition or owner id, restored at expand time.
 
-import { tryGetCardById } from "../cards";
+import { tryGetDefinition } from "../cards";
 import type {
     CardInstanceState,
     GameState,
@@ -52,7 +52,7 @@ function compactCard(
     opts: { ownerId: string }
 ): CompactCard {
     const cardId = (card.card as { id?: string }).id ?? "";
-    const def = tryGetCardById(cardId);
+    const def = tryGetDefinition(cardId);
     const out: CompactCard = { id: card.id, card: { id: cardId } };
 
     if (card.ownerId !== opts.ownerId) out.ownerId = card.ownerId;
@@ -210,7 +210,7 @@ function expandCard(
     opts: { ownerId: string; zone: Zone }
 ): CardInstanceState {
     const cardRef = compact.card as { id: string };
-    const def = tryGetCardById(cardRef.id);
+    const def = tryGetDefinition(cardRef.id);
     const ownerId = (compact.ownerId as string | undefined) ?? opts.ownerId;
     const controllerId =
         (compact.controllerId as string | undefined) ?? ownerId;
@@ -437,7 +437,7 @@ function expandLibrary(
         const [id, cardId, knownTo] = entry as
             | readonly [string, string]
             | readonly [string, string, string[]];
-        const def = tryGetCardById(cardId);
+        const def = tryGetDefinition(cardId);
         const card: CardInstanceState = {
             id,
             card: { id: cardId },

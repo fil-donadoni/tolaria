@@ -54,7 +54,7 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
-import { getAllCards, getCardById, getCardByName } from "../../../index";
+import { getAllCards, getDefinition, getCardByName } from "../../../index";
 import { lightningBolt } from "../../lea";
 
 describe("Gaea's Touch (CR 400.7 — put a basic Forest from hand; CR 605 sacrifice for {G}{G})", () => {
@@ -1168,7 +1168,7 @@ describe("Marsh Viper ({3}{G} Snake 1/2 — poison on damage to a player, CR 120
     });
 
     it("registry parity: reachable by id and by name (debug-panel / pool path)", () => {
-        expect(getCardById(marshViper.id)).toBe(marshViper);
+        expect(getDefinition(marshViper.id)).toBe(marshViper);
         expect(getCardByName("Marsh Viper")).toBe(marshViper);
         expect(getAllCards()).toContain(marshViper);
     });

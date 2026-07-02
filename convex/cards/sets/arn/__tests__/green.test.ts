@@ -21,7 +21,7 @@ import {
     wyluliWolf,
 } from "..";
 import { forest, grizzlyBears } from "../../lea";
-import { getInstanceManaCost, tryGetCardById } from "../../../";
+import { getInstanceManaCost, tryGetDefinition } from "../../../";
 import {
     makeInstance,
     makePlayer,
@@ -552,7 +552,7 @@ describe("Metamorphosis (CR 106.6 restricted mana / 117.9 additional cost)", () 
                 makeInstance(grizzlyBears.id, { zone: "hand" })
             )!
         ); // Grizzly Bears {1}{G} -> { X: 1, G: 1 }
-        const creatureTypes = tryGetCardById(grizzlyBears.id)!.types;
+        const creatureTypes = tryGetDefinition(grizzlyBears.id)!.types;
 
         const caster = makePlayer("p1", {
             restrictedMana: [

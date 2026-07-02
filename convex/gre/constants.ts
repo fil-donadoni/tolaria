@@ -5,7 +5,7 @@ import type {
     PermanentView,
 } from "../cards/types";
 import type { ManaRestriction } from "./types";
-import { getCardById } from "../cards";
+import { getDefinition } from "../cards";
 import type { CardInstanceState, GameState } from "./state";
 import { applySubstitution } from "./textChanges";
 
@@ -181,7 +181,7 @@ export function abilitiesSuppressed(card: CardInstanceState): boolean {
 /** Returns the mana color produced by a tap mana ability (e.g. Mox), or null. */
 export function getActivatedManaColor(card: CardInstanceState): Color | null {
     if (abilitiesSuppressed(card)) return null;
-    const cardDef = getCardById(card.card.id as string);
+    const cardDef = getDefinition(card.card.id as string);
     const ability = cardDef.activatedAbilities?.find(
         (a) => a.cost.tap && !a.useStack && a.manaProduced
     );
@@ -197,7 +197,7 @@ export function getActivatedManaProduced(
     card: CardInstanceState
 ): ManaCost | null {
     if (abilitiesSuppressed(card)) return null;
-    const cardDef = getCardById(card.card.id as string);
+    const cardDef = getDefinition(card.card.id as string);
     const ability = cardDef.activatedAbilities?.find(
         (a) => a.cost.tap && !a.useStack && a.manaProduced
     );
@@ -235,7 +235,7 @@ export function getDynamicManaProduced(
     controllerBattlefield: readonly CardInstanceState[]
 ): ManaCost | null {
     if (abilitiesSuppressed(card)) return null;
-    const cardDef = getCardById(card.card.id as string);
+    const cardDef = getDefinition(card.card.id as string);
     const ability = cardDef.activatedAbilities?.find(
         (a) => a.cost.tap && !a.useStack && a.manaAmount
     );
@@ -261,7 +261,7 @@ export function getProducibleColors(card: CardInstanceState): Set<Color> {
     // CR 305.6 — intrinsic basic-land subtype abilities (text-change aware).
     const intrinsic = getBasicLandMana(card);
     if (intrinsic && intrinsic !== "C") colors.add(intrinsic);
-    const cardDef = getCardById(card.card.id as string);
+    const cardDef = getDefinition(card.card.id as string);
     for (const ability of cardDef.activatedAbilities ?? []) {
         if (ability.useStack) continue;
         if (ability.manaProduced) {
@@ -298,7 +298,7 @@ export function getDynamicManaChoices(
     }>
 ): ManaCost[] | null {
     if (abilitiesSuppressed(card)) return null;
-    const cardDef = getCardById(card.card.id as string);
+    const cardDef = getDefinition(card.card.id as string);
     const ability = cardDef.activatedAbilities?.find(
         (a) => !a.useStack && a.getManaChoices
     );
@@ -361,7 +361,7 @@ function getContinuousLandManaOverride(
     if (!isLand(card)) return null;
     for (const player of state.players) {
         for (const source of player.battlefield) {
-            const def = getCardById(source.card.id as string);
+            const def = getDefinition(source.card.id as string);
             const sub = def.landManaSubstitution;
             if (!sub) continue;
             if ("color" in sub) return sub.color;
@@ -455,7 +455,7 @@ export function getActivatedManaRestriction(
     card: CardInstanceState
 ): ManaRestriction | null {
     if (abilitiesSuppressed(card)) return null;
-    const cardDef = getCardById(card.card.id as string);
+    const cardDef = getDefinition(card.card.id as string);
     const ability = cardDef.activatedAbilities?.find(
         (a) => a.cost.tap && !a.useStack && a.manaProduced
     );
@@ -465,7 +465,7 @@ export function getActivatedManaRestriction(
 /** Returns the activated mana ability definition for a card, or null. */
 export function getActivatedManaAbility(card: CardInstanceState) {
     if (abilitiesSuppressed(card)) return null;
-    const cardDef = getCardById(card.card.id as string);
+    const cardDef = getDefinition(card.card.id as string);
     return (
         cardDef.activatedAbilities?.find(
             (a) => !a.useStack && (a.manaProduced || a.manaChoices)

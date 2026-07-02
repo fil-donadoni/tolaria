@@ -22,7 +22,7 @@ import {
     taigaLeb,
 } from "..";
 import { ancestralRecall, taiga } from "../../lea";
-import { getCardById, getAllCards } from "../../../index";
+import { getDefinition, getAllCards } from "../../../index";
 import {
     commitLandsForCost,
     type CardInstanceState,
@@ -38,21 +38,21 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 describe("LEB registry parity", () => {
     it("resolves reprint prints to their shared LEA definition", () => {
         // A CardPrint must resolve to the same CardDefinition as the Alpha card.
-        expect(getCardById(ancestralRecallLeb.printId)).toBe(ancestralRecall);
-        expect(getCardById(taigaLeb.printId)).toBe(taiga);
+        expect(getDefinition(ancestralRecallLeb.printId)).toBe(ancestralRecall);
+        expect(getDefinition(taigaLeb.printId)).toBe(taiga);
     });
 
     it("resolves the three repointed prints (stale definitionIds fixed)", () => {
         // drainPower/manaShort/timeVault LEB stubs originally carried garbage
         // definitionIds; they were repointed at the live LEA defs on uncomment.
-        expect(getCardById(drainPowerLeb.printId).name).toBe("Drain Power");
-        expect(getCardById(manaShortLeb.printId).name).toBe("Mana Short");
-        expect(getCardById(timeVaultLeb.printId).name).toBe("Time Vault");
+        expect(getDefinition(drainPowerLeb.printId).name).toBe("Drain Power");
+        expect(getDefinition(manaShortLeb.printId).name).toBe("Mana Short");
+        expect(getDefinition(timeVaultLeb.printId).name).toBe("Time Vault");
     });
 
     it("registers the two Beta-original definitions", () => {
-        expect(getCardById(volcanicIsland.id)).toBe(volcanicIsland);
-        expect(getCardById(circleOfProtectionBlack.id)).toBe(
+        expect(getDefinition(volcanicIsland.id)).toBe(volcanicIsland);
+        expect(getDefinition(circleOfProtectionBlack.id)).toBe(
             circleOfProtectionBlack
         );
         const all = getAllCards();

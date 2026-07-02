@@ -71,8 +71,8 @@ vi.mock("@convex/_generated/api", () => {
 // targeting / choice routes straight to the selection branch.
 const CREATURE_DEF = { id: "creature-def", name: "Grizzly Bears" };
 vi.mock("@convex/cards", () => ({
-    getCardById: () => CREATURE_DEF,
-    tryGetCardById: () => CREATURE_DEF,
+    getDefinition: () => CREATURE_DEF,
+    tryGetDefinition: () => CREATURE_DEF,
 }));
 
 // Inert visuals so the test sees only the gesture + dispatch.

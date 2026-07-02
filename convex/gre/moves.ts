@@ -37,7 +37,7 @@ import {
     getBlockerCap,
     getMinimumBlockers,
 } from "./combat";
-import { getInstanceManaCost, tryGetCardById } from "../cards";
+import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { matchesPermanentFilter } from "../cards/filters";
 import { liveSupertypesOf } from "./snow";
 import { substituteColorFilter } from "./textChanges";
@@ -382,7 +382,7 @@ function enumerateCastMoves(
     card: CardInstanceState
 ): Move[] {
     const cardId = (card.card as { id?: string }).id;
-    const def = cardId ? tryGetCardById(cardId) : undefined;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
     const rawCost = getInstanceManaCost(card) ?? {};
 
     // Modal spells (CR 700.2): one variant per mode, each with its own targets.
@@ -445,7 +445,7 @@ function enumerateAbilityMoves(
     opts?: { anyPlayerOnly?: boolean }
 ): Move[] {
     const cardId = (perm.card as { id?: string }).id;
-    const def = cardId ? tryGetCardById(cardId) : undefined;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
     if (!def?.activatedAbilities) return [];
     // CR 613.1f — a permanent that has lost all abilities (Titania's Song)
     // exposes none of its native activated abilities to the bot enumerator.
@@ -571,7 +571,7 @@ function enumerateAbilityMoves(
             if (!host) continue;
             const hostCardId = (host.card as { id?: string }).id;
             const hostCost = (
-                hostCardId ? tryGetCardById(hostCardId) : undefined
+                hostCardId ? tryGetDefinition(hostCardId) : undefined
             )?.manaCost;
             const hostNorm = hostCost ? normalizeManaCost(hostCost) : {};
             for (const [sym, amt] of Object.entries(hostNorm)) {

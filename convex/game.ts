@@ -5,10 +5,10 @@ import { auth, getCurrentUser } from "./auth";
 import { mutation, query } from "./_generated/server";
 import {
     getAllCardNames,
-    getCardById,
+    getDefinition,
     getCardByName,
     getInstanceManaCost,
-    tryGetCardById,
+    tryGetDefinition,
 } from "./cards";
 import {
     type CardInstanceState,
@@ -198,7 +198,7 @@ function buildPlayerState(
     counter: { nextInstanceId?: number }
 ): PlayerState {
     const instances = player.deck.cards.map((deckCard) => {
-        const def = getCardById(deckCard.cardId);
+        const def = getDefinition(deckCard.cardId);
         return {
             id: allocInstanceId(counter),
             card: { id: def.id },
@@ -796,7 +796,7 @@ function tapOtherCandidates(
  *  permanent's printed cost. X in a printed cost counts as 0. */
 function sacrificedManaValue(perm: CardInstanceState): number {
     const cardId = (perm.card as { id?: string }).id;
-    const def = cardId ? tryGetCardById(cardId) : undefined;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
     return def?.manaCost
         ? Object.entries(def.manaCost).reduce<number>(
               (acc, [, v]) => acc + (typeof v === "number" ? v : 0),
@@ -846,7 +846,7 @@ export function resolveAbilityManaCost(
         throw new Error("Enchanted creature is no longer on the battlefield");
     }
     const hostCardId = (host.card as { id?: string }).id;
-    const hostCost = (hostCardId ? tryGetCardById(hostCardId) : undefined)
+    const hostCost = (hostCardId ? tryGetDefinition(hostCardId) : undefined)
         ?.manaCost;
     // Merge the host's printed cost (normalized so X folds to 0, CR 202.3b)
     // onto the base.
@@ -1266,7 +1266,7 @@ export function tryAutoCommitPendingCast(
         player.hand.find((c) => c.id === castInstanceId) ??
         findCastableExileCard(player, castInstanceId);
     const castDef = castCard
-        ? tryGetCardById((castCard.card as { id: string }).id)
+        ? tryGetDefinition((castCard.card as { id: string }).id)
         : undefined;
     const castTypes = castDef?.types ?? [];
     if (
@@ -1320,7 +1320,7 @@ export function tryAutoCommitPendingCast(
             return null;
         }
         const sacCardId = (sacrificed.card as { id?: string }).id;
-        const sacDef = sacCardId ? tryGetCardById(sacCardId) : undefined;
+        const sacDef = sacCardId ? tryGetDefinition(sacCardId) : undefined;
         const mv = sacDef?.manaCost
             ? Object.entries(sacDef.manaCost).reduce<number>(
                   (acc, [, v]) => acc + (typeof v === "number" ? v : 0),
@@ -2137,7 +2137,7 @@ function resolveActivatedAbility(
     abilityId: string
 ): {
     ability: NonNullable<
-        ReturnType<typeof getCardById>["activatedAbilities"]
+        ReturnType<typeof getDefinition>["activatedAbilities"]
     >[number];
     grantedSourceCardId?: string;
 } | null {
@@ -2148,7 +2148,7 @@ function resolveActivatedAbility(
     // and are unaffected.
     const suppressed = (card.abilitiesSuppressedBy?.length ?? 0) > 0;
     if (cardId && !suppressed) {
-        const native = getCardById(cardId).activatedAbilities?.find(
+        const native = getDefinition(cardId).activatedAbilities?.find(
             (a) => a.id === abilityId
         );
         if (native) return { ability: native };
@@ -2157,7 +2157,7 @@ function resolveActivatedAbility(
         (g) => g.abilityId === abilityId
     );
     if (grant) {
-        const tmpl = getCardById(grant.sourceCardId).grantTemplates?.find(
+        const tmpl = getDefinition(grant.sourceCardId).grantTemplates?.find(
             (a) => a.id === abilityId
         );
         if (tmpl) {
@@ -2438,7 +2438,7 @@ export function finalizeTargetSelection(
             }
             const spellCardId = (spell.card as { id?: string }).id;
             const spellDef = spellCardId
-                ? tryGetCardById(spellCardId)
+                ? tryGetDefinition(spellCardId)
                 : undefined;
             const spellMv =
                 manaValue(spellDef?.manaCost) + (spell.chosenX ?? 0);
@@ -2606,7 +2606,7 @@ export function finalizeTargetSelection(
     const cardInHand =
         player.hand.find((c) => c.id === cardInstanceId) ?? exileCastCard;
     if (!cardInHand) throw new Error("Card not in hand");
-    const cardDef = getCardById((cardInHand.card as { id: string }).id);
+    const cardDef = getDefinition((cardInHand.card as { id: string }).id);
 
     const rawCost = getInstanceManaCost(cardInHand);
     const extraPer = cardDef.additionalGenericPerExtraTarget ?? 0;
@@ -2833,7 +2833,7 @@ export const announceCast = mutation({
             ? "hand"
             : "exile";
 
-        const cardDef = getCardById((cardInHand.card as { id: string }).id);
+        const cardDef = getDefinition((cardInHand.card as { id: string }).id);
 
         // Validate X is provided iff the cost contains a string X (CR 107.3).
         const hasX =
@@ -4096,7 +4096,7 @@ export const selectTarget = mutation({
             // upstream in resolveMvFilter).
             if (pt.mvFilter) {
                 const cardId = (matchedCard.card as { id?: string }).id;
-                const def = cardId ? tryGetCardById(cardId) : undefined;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
                 const mv =
                     def && def.manaCost
                         ? Object.entries(def.manaCost).reduce<number>(
@@ -4224,7 +4224,7 @@ export const selectTarget = mutation({
             }
             if (pt.mvFilter) {
                 const cardId = (spell.card as { id?: string }).id;
-                const def = cardId ? tryGetCardById(cardId) : undefined;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
                 const baseMv =
                     def && def.manaCost
                         ? Object.entries(def.manaCost).reduce<number>(
@@ -4438,7 +4438,7 @@ export const toggleAttacker = mutation({
             // CR 508.1d: can't deselect a creature required to attack
             if (mustAttack(card, defenderBattlefield)) {
                 throw new Error(
-                    `${getCardById(card.card.id as string).name} must attack this combat if able`
+                    `${getDefinition(card.card.id as string).name} must attack this combat if able`
                 );
             }
             state.combat.attackerIds.splice(idx, 1);
@@ -6752,7 +6752,7 @@ export const activatePlayerAbility = mutation({
         );
         if (!instance) throw new Error("Granted ability not found");
 
-        const sourceCard = getCardById(instance.sourceCardId);
+        const sourceCard = getDefinition(instance.sourceCardId);
         const ability = sourceCard.activatedAbilities?.find(
             (a) => a.id === instance.abilityId
         );
@@ -7291,7 +7291,7 @@ export const debugSetupScenario = mutation({
             for (const source of player.battlefield) {
                 if (source.chosenPlayerId !== undefined) continue;
                 const cardId = (source.card as { id?: string }).id;
-                const def = cardId ? tryGetCardById(cardId) : undefined;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
                 const choosesOpponent = def?.triggeredAbilities?.some((t) =>
                     t.id.endsWith("-choose-opponent")
                 );

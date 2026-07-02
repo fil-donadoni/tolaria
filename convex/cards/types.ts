@@ -1617,7 +1617,7 @@ export interface SpellContext {
     animateAsCreature: (target: TargetSelection, spec: AnimateSpec) => void;
     /** Queues a delayed triggered ability that fires at a later phase
      *  (CR 603.7a). The template is looked up at fire time via
-     *  `getCardById(sourceCardId).delayedTriggers[triggerId]`. `payload` holds
+     *  `getDefinition(sourceCardId).delayedTriggers[triggerId]`. `payload` holds
      *  serializable state (instance / player ids) read by the resolver —
      *  closures are not permitted so replays reproduce correctly. Used by
      *  Berserk's "at the beginning of the next end step, destroy ~".
@@ -4539,7 +4539,7 @@ export interface CardDefinition {
  *
  *  Resolution: the card registry maps both `CardDefinition.id` and every
  *  `CardPrint.printId` to the same underlying `CardDefinition`, so a
- *  `getCardById(printId)` lookup transparently returns the original
+ *  `getDefinition(printId)` lookup transparently returns the original
  *  mechanics regardless of which printing the deck/instance references.
  *  The instance retains the print's id (`card.id === printId`) so the image
  *  layer renders the chosen edition's art. */

@@ -33,7 +33,7 @@ import type {
     ReplacementStateView,
     TapReplacementEvent,
 } from "../cards/types";
-import { tryGetCardById } from "../cards";
+import { tryGetDefinition } from "../cards";
 import { getColorsFromCost } from "../cards/colors";
 import { turnFaceUp } from "./faceDown";
 import type { CardInstanceState, DamageRedirection, GameState } from "./state";
@@ -62,7 +62,7 @@ function collectReplacements(
         for (const card of player.battlefield) {
             const cardId = (card.card as { id?: string }).id;
             if (!cardId) continue;
-            const def = tryGetCardById(cardId);
+            const def = tryGetDefinition(cardId);
             const effects = def?.replacementEffects ?? [];
             for (const r of effects) {
                 if (r.eventKind === kind) out.push({ source: card, effect: r });
@@ -542,7 +542,7 @@ export function describeDamageSource(
         for (const card of player.battlefield) {
             if (card.id !== sourceInstanceId) continue;
             const cardId = (card.card as { id?: string }).id;
-            const def = cardId ? tryGetCardById(cardId) : null;
+            const def = cardId ? tryGetDefinition(cardId) : null;
             const rawColors = def?.manaCost
                 ? getColorsFromCost(def.manaCost)
                 : [];
@@ -557,7 +557,7 @@ export function describeDamageSource(
     const stackItem = state.stack.find((s) => s.id === sourceInstanceId);
     if (stackItem) {
         const cardId = (stackItem.card as { id?: string }).id;
-        const def = cardId ? tryGetCardById(cardId) : null;
+        const def = cardId ? tryGetDefinition(cardId) : null;
         const rawColors = def?.manaCost ? getColorsFromCost(def.manaCost) : [];
         return {
             colors: applyGhostlyFlameColorOverride(state, rawColors),

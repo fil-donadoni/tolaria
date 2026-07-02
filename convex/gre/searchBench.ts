@@ -11,7 +11,7 @@
 // not move quality. Both a `cloneGameState` and a `structuredClone` variant are
 // provided so the benchmark quantifies the structural-sharing speedup.
 
-import { tryGetCardById } from "../cards";
+import { tryGetDefinition } from "../cards";
 import { cloneGameState } from "./clone";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 
@@ -23,7 +23,7 @@ function instance(
     zone: CardInstanceState["zone"],
     controllerId: string
 ): CardInstanceState {
-    const def = tryGetCardById(cardId);
+    const def = tryGetDefinition(cardId);
     return {
         id,
         card: { id: cardId },

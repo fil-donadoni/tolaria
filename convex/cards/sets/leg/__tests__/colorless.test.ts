@@ -72,7 +72,7 @@ import {
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getCardById } from "../../../index";
+import { getDefinition } from "../../../index";
 import { castle, crusade, grizzlyBears, lightningBolt } from "../../lea";
 
 describe("Sylvan Library (draw step: single 0–N topdeck pick, CR 118.4/119.4)", () => {
@@ -363,7 +363,7 @@ describe("Mana Matrix (instant/enchantment spells you cast cost {2} less, CR 601
         spellCardId: string,
         controllerId: string
     ): Record<string, number> {
-        const def = getCardById(spellCardId);
+        const def = getDefinition(spellCardId);
         const spellView = makeInstance(spellCardId, {
             controllerId,
             zone: "stack",
@@ -440,7 +440,7 @@ describe("Planar Gate (creature spells you cast cost {2} less, CR 601.2f)", () =
         spellCardId: string,
         controllerId: string
     ): Record<string, number> {
-        const def = getCardById(spellCardId);
+        const def = getDefinition(spellCardId);
         const spellView = makeInstance(spellCardId, {
             controllerId,
             zone: "stack",

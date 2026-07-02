@@ -14,7 +14,7 @@ import {
     type StackItem,
 } from "../state";
 import type { CardType } from "../../cards/types";
-import { getInstanceManaCost, tryGetCardById } from "../../cards";
+import { getInstanceManaCost, tryGetDefinition } from "../../cards";
 import {
     armageddon,
     mountain,
@@ -45,7 +45,7 @@ function makeCard(
         | { id?: string; manaCost?: unknown }
         | undefined;
     const id = cardRef?.id ?? `synth-${crypto.randomUUID()}`;
-    const def = tryGetCardById(id);
+    const def = tryGetDefinition(id);
     const cardField: { id: string; manaCost?: unknown } = { id };
     if (cardRef?.manaCost !== undefined) {
         cardField.manaCost = cardRef.manaCost;

@@ -22,7 +22,7 @@ import {
     energyFlux,
 } from "..";
 import { grizzlyBears, solRing } from "../../lea";
-import { getCardById } from "../../..";
+import { getDefinition } from "../../..";
 import {
     makeInstance,
     makePlayer,
@@ -367,7 +367,7 @@ describe("Power Artifact (enchanted artifact's abilities cost {2} less, min 1 ma
         host: CardInstanceState,
         abilityId: string
     ): Record<string, number> {
-        const def = getCardById((host.card as { id: string }).id);
+        const def = getDefinition((host.card as { id: string }).id);
         const ability = def.activatedAbilities!.find(
             (a) => a.id === abilityId
         )!;

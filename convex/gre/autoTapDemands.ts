@@ -1,4 +1,4 @@
-import { getInstanceManaCost, tryGetCardById } from "../cards";
+import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import type { Demand } from "./autoTap";
 import { abilitiesSuppressed, hasInstantSpeed } from "./constants";
 import type { Phase } from "./types";
@@ -148,7 +148,7 @@ export function buildBoardAbilityDemands(
         // its printed activated abilities.
         if (abilitiesSuppressed(perm)) continue;
         const cardId = (perm.card as { id?: string }).id;
-        const def = cardId ? tryGetCardById(cardId) : undefined;
+        const def = cardId ? tryGetDefinition(cardId) : undefined;
         if (!def?.activatedAbilities) continue;
         for (const ability of def.activatedAbilities) {
             // Mana abilities (CR 605.1a) PRODUCE mana — they're sources, not

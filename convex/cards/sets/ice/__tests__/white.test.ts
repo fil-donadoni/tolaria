@@ -53,7 +53,7 @@ import {
     hipparion,
 } from "../../ice";
 import { plains } from "../../lea";
-import { getCardById } from "../../../index";
+import { getDefinition } from "../../../index";
 import {
     resolveTopOfStack,
     getManaSubstitutions,
@@ -103,34 +103,34 @@ import {
 
 describe("ICE White reprints (CardPrint wiring, ADR 0014)", () => {
     it("Death Ward print resolves to the LEA definition", () => {
-        expect(getCardById(deathWardIce.printId).name).toBe("Death Ward");
+        expect(getDefinition(deathWardIce.printId).name).toBe("Death Ward");
         expect(deathWardIce.definitionId).toBe(
             "fa5466cc-aa57-4a7f-8b21-d92b2fe02e13"
         );
         expect(deathWardIce.setCode).toBe("ice");
     });
     it("Disenchant print resolves to the LEA definition", () => {
-        expect(getCardById(disenchantIce.printId).name).toBe("Disenchant");
+        expect(getDefinition(disenchantIce.printId).name).toBe("Disenchant");
     });
     it("Swords to Plowshares print resolves to the LEA definition", () => {
-        expect(getCardById(swordsToPlowsharesIce.printId).name).toBe(
+        expect(getDefinition(swordsToPlowsharesIce.printId).name).toBe(
             "Swords to Plowshares"
         );
     });
     it("Circle of Protection cycle prints resolve to their definitions", () => {
-        expect(getCardById(circleOfProtectionBlackIce.printId).name).toBe(
+        expect(getDefinition(circleOfProtectionBlackIce.printId).name).toBe(
             "Circle of Protection: Black"
         );
-        expect(getCardById(circleOfProtectionBlueIce.printId).name).toBe(
+        expect(getDefinition(circleOfProtectionBlueIce.printId).name).toBe(
             "Circle of Protection: Blue"
         );
-        expect(getCardById(circleOfProtectionGreenIce.printId).name).toBe(
+        expect(getDefinition(circleOfProtectionGreenIce.printId).name).toBe(
             "Circle of Protection: Green"
         );
-        expect(getCardById(circleOfProtectionRedIce.printId).name).toBe(
+        expect(getDefinition(circleOfProtectionRedIce.printId).name).toBe(
             "Circle of Protection: Red"
         );
-        expect(getCardById(circleOfProtectionWhiteIce.printId).name).toBe(
+        expect(getDefinition(circleOfProtectionWhiteIce.printId).name).toBe(
             "Circle of Protection: White"
         );
     });
@@ -711,7 +711,7 @@ describe("Scarab cycle (#653) — colour block-restriction + conditional +2/+2",
             redScarab,
             whiteScarab,
         ]) {
-            expect(getCardById(s.id)).toBe(s);
+            expect(getDefinition(s.id)).toBe(s);
         }
     });
 

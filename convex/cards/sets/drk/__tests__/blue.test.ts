@@ -56,7 +56,7 @@ import {
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
-import { getCardById, getCardByName } from "../../../index";
+import { getDefinition, getCardByName } from "../../../index";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // BLUE free tranche (#412)
@@ -830,7 +830,7 @@ describe("Dance of Many — definition (modern Scryfall oracle, ADR 0004)", () =
     });
 
     it("is registered by id and name", () => {
-        expect(getCardById(danceOfMany.id)).toBe(danceOfMany);
+        expect(getDefinition(danceOfMany.id)).toBe(danceOfMany);
         expect(getCardByName("Dance of Many")).toBe(danceOfMany);
     });
 });

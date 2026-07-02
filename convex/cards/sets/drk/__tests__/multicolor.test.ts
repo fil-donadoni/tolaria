@@ -15,7 +15,7 @@ import {
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import { resolveTopOfStack } from "../../../../gre/state";
-import { getCardById } from "../../../index";
+import { getDefinition } from "../../../index";
 
 describe("Scarwood Goblins (vanilla creature, CR 302)", () => {
     it("carries the canonical stats from DRK.json", () => {
@@ -40,7 +40,7 @@ describe("Scarwood Goblins (vanilla creature, CR 302)", () => {
             (c) => c.id === item.id
         );
         expect(slim).toBeDefined();
-        const def = getCardById((slim!.card as { id: string }).id);
+        const def = getDefinition((slim!.card as { id: string }).id);
         expect(def.name).toBe("Scarwood Goblins");
         expect(def.subtypes).toEqual(["Goblin"]);
     });

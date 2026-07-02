@@ -62,7 +62,7 @@ vi.mock("../board-card", () => ({
         <div data-testid="bn-card" data-card-id={card ? card.id : "back"} />
     ),
 }));
-// The battlefield wrapper runs `useBattlefieldVisualState` (calls getCardById on
+// The battlefield wrapper runs `useBattlefieldVisualState` (calls getDefinition on
 // real card defs). This placement test uses synthetic defs, so stub the wrapper
 // to render the SAME shared SpatialZone with inert nodes — slot placement is
 // still asserted; the visual-state computation + anchors are exercised

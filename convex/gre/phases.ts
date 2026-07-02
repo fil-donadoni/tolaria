@@ -37,7 +37,7 @@ import {
     untapPermanent,
     tickDuration,
 } from "./state";
-import { tryGetCardById } from "../cards";
+import { tryGetDefinition } from "../cards";
 import { seededShuffle } from "./rng";
 import { describeDamageSource } from "./replacements";
 import {
@@ -161,7 +161,7 @@ export function collectUntapRestrictions(state: GameState): {
     for (const card of order) {
         const cardId = (card.card as { id?: string }).id;
         if (!cardId) continue;
-        const def = tryGetCardById(cardId);
+        const def = tryGetDefinition(cardId);
         const effects = def?.staticEffects ?? [];
         for (const effect of effects) {
             if (effect.kind === "untap-restriction") {
@@ -663,7 +663,7 @@ function hasDrawSkipReplacement(state: GameState, playerId: string): boolean {
     for (const card of player.battlefield) {
         const cardId = (card.card as { id?: string }).id;
         if (!cardId) continue;
-        const def = tryGetCardById(cardId);
+        const def = tryGetDefinition(cardId);
         if (def?.drawStepReplacement) return true;
     }
     return false;
@@ -1572,7 +1572,7 @@ export function effectiveMaxHandSize(
     for (const card of player.battlefield) {
         const cardId = (card.card as { id?: string }).id;
         if (!cardId) continue;
-        const def = tryGetCardById(cardId);
+        const def = tryGetDefinition(cardId);
         for (const effect of def?.staticEffects ?? []) {
             if (effect.kind !== "hand-size-override") continue;
             // `chosen-player` overrides are read from every battlefield below;
@@ -1592,7 +1592,7 @@ export function effectiveMaxHandSize(
                 if (card.chosenPlayerId !== player.id) continue;
                 const cardId = (card.card as { id?: string }).id;
                 if (!cardId) continue;
-                const def = tryGetCardById(cardId);
+                const def = tryGetDefinition(cardId);
                 for (const effect of def?.staticEffects ?? []) {
                     if (effect.kind !== "hand-size-override") continue;
                     if (effect.appliesTo !== "chosen-player") continue;

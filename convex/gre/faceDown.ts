@@ -11,7 +11,7 @@
  * turn-up (#124) and for the controller's own projected view.
  */
 
-import { FACE_DOWN_CARD_ID, tryGetCardById } from "../cards";
+import { FACE_DOWN_CARD_ID, tryGetDefinition } from "../cards";
 import type { CardInstanceState } from "./state";
 
 /** Turns a permanent face down in place (CR 708.2). No-op if already face
@@ -36,7 +36,7 @@ export function turnFaceDown(card: CardInstanceState): void {
  *  from the registry. */
 export function turnFaceUp(card: CardInstanceState): void {
     if (!card.faceDown || !card.faceDownOf) return;
-    const def = tryGetCardById(card.faceDownOf);
+    const def = tryGetDefinition(card.faceDownOf);
     if (!def) return;
     card.card = { id: def.id };
     card.types = def.types;

@@ -6,7 +6,7 @@ import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useBattlefieldVisualState } from "~/hooks/useBattlefieldVisualState";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { getCardById } from "@convex/cards";
+import { getDefinition } from "@convex/cards";
 import {
     isCreature,
     getManaChoices,
@@ -299,7 +299,7 @@ export function useBattlefieldInteraction(player: Player) {
             // Pre-check client-side for instant feedback (the server also
             // rejects this via toggleAttacker).
             const alreadySelected = selectedAttackerIds.includes(card.id);
-            const reqDef = getCardById(card.card.id);
+            const reqDef = getDefinition(card.card.id);
             const hasAttackReq = !!reqDef.staticEffects?.some(
                 (e) => e.kind === "attack-requirement"
             );
@@ -309,7 +309,7 @@ export function useBattlefieldInteraction(player: Player) {
                 !card.isTapped &&
                 !card.isSummoningSick;
             if (mustAttackClient) {
-                const name = getCardById(card.card.id).name;
+                const name = getDefinition(card.card.id).name;
                 const msg = `${name} must attack this combat if able`;
                 setValidationError({ title: msg, detail: msg });
                 return;
@@ -494,7 +494,7 @@ export function useBattlefieldInteraction(player: Player) {
         // can't activate it, so surface it as an explicit menu entry routed to
         // `activateManaAbility`. Independent of `stack`/`getActivatedManaMenuEntry`
         // (which only handle tap mana abilities). Repeatable, so always offered.
-        const nonTapMana = getCardById(card.card.id).activatedAbilities?.find(
+        const nonTapMana = getDefinition(card.card.id).activatedAbilities?.find(
             (a) => !a.useStack && !a.cost.tap && !!a.cost.mana && a.oracleText
         );
         const nonTapManaEntry: ActivatableAbility[] = nonTapMana
@@ -524,7 +524,7 @@ export function useBattlefieldInteraction(player: Player) {
     ) {
         const card = player.battlefield.find((c) => c.id === cardInstanceId);
         if (!card) return;
-        const def = getCardById(card.card.id);
+        const def = getDefinition(card.card.id);
         const ability = def.activatedAbilities?.find((a) => a.id === abilityId);
         // Mana ability selected from the menu (useStack:false) — route through
         // the mana-ability flow (`tapUntap`, or the mana picker for sources

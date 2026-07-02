@@ -60,7 +60,7 @@ import {
 import { applyLandManaReplacement } from "../../../../gre/constants";
 import { mountain } from "../../lea";
 import { untapStep } from "../../../../gre/phases";
-import { getCardById, getCardByName } from "../../../index";
+import { getDefinition, getCardByName } from "../../../index";
 import {
     resolveTopOfStack,
     tapPermanent,
@@ -151,7 +151,7 @@ describe("Balduvian Bears (vanilla creature, CR 302)", () => {
             (c) => c.id === item.id
         );
         expect(slim).toBeDefined();
-        const def = getCardById((slim!.card as { id: string }).id);
+        const def = getDefinition((slim!.card as { id: string }).id);
         expect(def.name).toBe("Balduvian Bears");
         expect(def.subtypes).toEqual(["Bear"]);
         expect(def.power).toBe(2);
@@ -1492,11 +1492,13 @@ describe("ICE Green tranche registry parity", () => {
         }
     });
     it("registers the five Green reprints by print id", () => {
-        expect(getCardById(giantGrowthIce.printId).name).toBe("Giant Growth");
-        expect(getCardById(hurricaneIce.printId).name).toBe("Hurricane");
-        expect(getCardById(lureIce.printId).name).toBe("Lure");
-        expect(getCardById(regenerationIce.printId).name).toBe("Regeneration");
-        expect(getCardById(wildGrowthIce.printId).name).toBe("Wild Growth");
+        expect(getDefinition(giantGrowthIce.printId).name).toBe("Giant Growth");
+        expect(getDefinition(hurricaneIce.printId).name).toBe("Hurricane");
+        expect(getDefinition(lureIce.printId).name).toBe("Lure");
+        expect(getDefinition(regenerationIce.printId).name).toBe(
+            "Regeneration"
+        );
+        expect(getDefinition(wildGrowthIce.printId).name).toBe("Wild Growth");
     });
 });
 
@@ -1764,7 +1766,7 @@ describe("Freyalise's Winds (counter-keyed untap replacement, CR 614.6)", () => 
     });
 
     it("registers by id and name", () => {
-        expect(getCardById(freyalisesWinds.id)).toBe(freyalisesWinds);
+        expect(getDefinition(freyalisesWinds.id)).toBe(freyalisesWinds);
         expect(getCardByName("Freyalise's Winds")).toBe(freyalisesWinds);
     });
 

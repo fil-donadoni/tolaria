@@ -33,7 +33,7 @@ import { isCreature, isLand, hasManaAbility, manaValue } from "./constants";
 import {
     getInstanceManaCost,
     getInstanceAiValue,
-    tryGetCardById,
+    tryGetDefinition,
 } from "../cards";
 import { dangerClock, predictCombatOutcome } from "./dangerClock";
 import { castableHeldInteraction } from "./heldInteraction";
@@ -225,7 +225,7 @@ export function cardValue(state: GameState, card: CardInstanceState): number {
  *  `latentValue` core the Hand term uses. Returns 0 for an unknown id (a token
  *  or a card the client registry lacks — it simply ranks lowest). */
 export function cardValueById(cardId: string): number {
-    const def = tryGetCardById(cardId);
+    const def = tryGetDefinition(cardId);
     if (!def) return 0;
     return latentValue({
         isCreature: def.types.includes("Creature"),

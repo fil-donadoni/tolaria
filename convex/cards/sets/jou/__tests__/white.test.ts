@@ -10,7 +10,7 @@ import { describe, it, expect } from "vitest";
 import { banishingLight } from "..";
 import { grizzlyBears, flight } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { getCardById, getCardByName } from "../../..";
+import { getDefinition, getCardByName } from "../../..";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     removePermanentTo,
@@ -74,7 +74,7 @@ describe("Banishing Light (JOU — exile-until-leaves, CR 603.6a/603.7a)", () =>
     });
 
     it("registers by id and name", () => {
-        expect(getCardById(banishingLight.id)).toBe(banishingLight);
+        expect(getDefinition(banishingLight.id)).toBe(banishingLight);
         expect(getCardByName("Banishing Light")).toBe(banishingLight);
     });
 

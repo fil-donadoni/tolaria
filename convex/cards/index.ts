@@ -156,7 +156,27 @@ for (const print of allPrints) {
     registry.set(print.printId, def);
 }
 
-export const getCardById = (cardId: string): CardDefinition => {
+// ADR 0046 — Single registry seam. `getDefinition`/`tryGetDefinition` are the
+// ONLY definition-resolution path for the engine, game mutations, projections,
+// and the frontend (via `src/lib/card-utils.ts`'s public boundary). No
+// consumer imports `convex/cards/sets/*` directly — enforced by the
+// `no-restricted-imports` rule in `eslint.config.js` (CI-checked via
+// `bun run lint`). Today this wraps the in-code `registry` Map below, built
+// once from the statically-imported set modules; later it can become a
+// cache + DB read (ADR 0046) without any consumer noticing, because the
+// return type never changes shape.
+//
+// Hydration-at-entry: the `registry` Map is populated once, synchronously, at
+// module evaluation time — i.e. once per cold Convex isolate, before any
+// mutation runs. Every mutation entry point therefore sees an already-hydrated,
+// in-memory map and reads it synchronously. This is why the GRE never goes
+// async because of the registry: `getDefinition`/`tryGetDefinition` return a
+// `CardDefinition` directly, never a `Promise`, and every one of their ~300
+// call sites across `convex/gre/**` relies on that synchronous contract. If a
+// future DB-backed registry needs an async fetch, it must still resolve into
+// this same in-memory map BEFORE the GRE runs (at the mutation entry point,
+// per ADR 0046) — the seam's signature must stay synchronous.
+export const getDefinition = (cardId: string): CardDefinition => {
     const card = registry.get(cardId) ?? maybeSynthesizeToken(cardId);
     if (!card) {
         throw new Error(`Card not found: ${cardId}`);
@@ -166,16 +186,16 @@ export const getCardById = (cardId: string): CardDefinition => {
 
 /** Non-throwing variant. Returns null when the id isn't in the registry — used
  *  by subsystems that operate best-effort (layer system, test fixtures). */
-export const tryGetCardById = (cardId: string): CardDefinition | null =>
+export const tryGetDefinition = (cardId: string): CardDefinition | null =>
     registry.get(cardId) ?? maybeSynthesizeToken(cardId) ?? null;
 
 // Break the set-module ↔ registry import cycle: inject a manaCost lookup into
 // the (cycle-free) colors module so set runtime code can derive an opponent
 // permanent's colours from its slim `{ id }` reference (Jihad — CR 202.2).
-setCardManaCostLookup((cardId) => tryGetCardById(cardId)?.manaCost);
+setCardManaCostLookup((cardId) => tryGetDefinition(cardId)?.manaCost);
 // CR 205.4a — inject the printed-supertype lookup so snow-matters predicates
 // resolve live snow status off a slim `{ id }` reference (cycle-free).
-setCardSupertypeLookup((cardId) => tryGetCardById(cardId)?.supertypes);
+setCardSupertypeLookup((cardId) => tryGetDefinition(cardId)?.supertypes);
 
 /** Registers a synthetic `CardDefinition` for a token (CR 111, 707.1).
  *  Tokens have no Scryfall print — their definition is derived from the
@@ -369,7 +389,7 @@ export function getInstanceManaCost(instance: {
     const embedded = (instance.card as { manaCost?: ManaCost }).manaCost;
     if (embedded) return embedded;
     const id = (instance.card as { id?: string }).id;
-    return id ? (tryGetCardById(id)?.manaCost ?? undefined) : undefined;
+    return id ? (tryGetDefinition(id)?.manaCost ?? undefined) : undefined;
 }
 
 /** Reads the AI valuation override off a `CardInstanceState`-shaped object
@@ -383,7 +403,7 @@ export function getInstanceAiValue(instance: {
     const embedded = (instance.card as { aiValue?: number }).aiValue;
     if (embedded !== undefined) return embedded;
     const id = (instance.card as { id?: string }).id;
-    return id ? (tryGetCardById(id)?.aiValue ?? undefined) : undefined;
+    return id ? (tryGetDefinition(id)?.aiValue ?? undefined) : undefined;
 }
 
 /** Reads the AI combat hint off a `CardInstanceState`-shaped object (ADR 0021,
@@ -398,7 +418,7 @@ export function getInstanceAiCombatHint(instance: {
         .aiCombatHint;
     if (embedded !== undefined) return embedded;
     const id = (instance.card as { id?: string }).id;
-    return id ? (tryGetCardById(id)?.aiCombatHint ?? undefined) : undefined;
+    return id ? (tryGetDefinition(id)?.aiCombatHint ?? undefined) : undefined;
 }
 
 /** All registered `CardDefinition`s in load order. Reprints are not included
@@ -446,7 +466,7 @@ export const getPrintsForCard = (definitionId: string): string[] =>
  *  definition id or a reprint print id (resolved to its definition first).
  *  Unknown ids return false. */
 export const isPrintedInSet = (cardId: string, setCode: string): boolean => {
-    const def = tryGetCardById(cardId);
+    const def = tryGetDefinition(cardId);
     if (!def) return false;
     return definitionSetCode.get(def.id) === setCode;
 };
@@ -486,7 +506,7 @@ export interface DeckCardMeta {
 }
 
 export const resolveDeckCardMeta = (cardId: string): DeckCardMeta | null => {
-    const def = tryGetCardById(cardId);
+    const def = tryGetDefinition(cardId);
     if (!def) return null;
     const isBasic = def.supertypes?.includes("Basic") ?? false;
     // A reprint id pins to its own printing; otherwise it is the original
