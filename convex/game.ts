@@ -95,6 +95,7 @@ import { projectFullState, projectPublicState } from "./gameProjections";
 import { hasSupertypeLive, liveSupertypesOf } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
 import { compactState, expandState } from "./gre/serialize";
+import { refreshExpectedInput } from "./gre/expectedInput";
 import { turnFaceDown } from "./gre/faceDown";
 import { substituteColorFilter } from "./gre/textChanges";
 import {
@@ -339,6 +340,11 @@ async function saveGameState(
     state: GameState | Record<string, unknown>,
     existing: Doc<"game_states"> | null
 ) {
+    // ADR 0047 — maintain the authoritative Expected Input at the persistence
+    // seam. Every stable point flows through `saveGameState`, so recomputing
+    // here keeps the persisted + projected field coherent with the settled
+    // pending* / priority fields without touching every engine call site.
+    refreshExpectedInput(state as GameState);
     const stored = compactState(state as GameState);
     // const _blobSize = JSON.stringify(stored).length;
     // console.log(

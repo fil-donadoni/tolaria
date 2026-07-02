@@ -954,6 +954,20 @@ describe("optional field round-trip smoke tests", () => {
         );
     });
 
+    it("expectedInput (ADR 0047 — authoritative Expected Input)", () => {
+        const state = freshState();
+        // A non-default variant so the round-trip proves the whole shape
+        // survives the DB, not just the `priority` default makeState sets.
+        state.expectedInput = {
+            kind: "choice",
+            playerId: "p2",
+            stackItemId: "s1",
+            choiceId: "p2",
+            choiceKind: "may-pay",
+        };
+        expect(roundTrip(state).expectedInput).toEqual(state.expectedInput);
+    });
+
     it("pendingActivation", () => {
         const state = freshState();
         state.pendingActivation = {
