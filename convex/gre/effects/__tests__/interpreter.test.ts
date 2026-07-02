@@ -674,3 +674,160 @@ describe("Effect Script flat sequencing (CR 608.2c)", () => {
         expect(projected.players[0].life).toBe(18);
     });
 });
+
+// --- Ability sites (ADR 0045, issue #803) -----------------------------------
+// The interpreter resolves triggered- and activated-ability scripts through
+// the SAME `runEffectScript` path as spells, with the ability's controller and
+// source permanent bound from the resolution context. These push real ability
+// stack items (abilityId / triggeredAbilityId) and resolve them.
+
+describe("Effect Script at ability sites (issue #803)", () => {
+    // A 3/3 whose ACTIVATED ability's effect is a script: deal damage equal to
+    // its own power via the implicit `$source` binding (CR 608.2h) — proving
+    // the source permanent's characteristics reach the interpreter.
+    const PINGER_ID = "test-ability-pinger";
+    registerTokenDefinition({
+        id: PINGER_ID,
+        name: PINGER_ID,
+        rarity: "common",
+        manaCost: { R: 1 },
+        types: ["Creature"],
+        subtypes: ["Wizard"],
+        power: 3,
+        toughness: 3,
+        activatedAbilities: [
+            {
+                id: "pinger-zap",
+                oracleText:
+                    "{T}: deals damage equal to its power to any target",
+                cost: { tap: true },
+                useStack: true,
+                targetRequirement: { type: "any", count: 1 },
+                effects: [
+                    {
+                        op: "dealDamage",
+                        amount: { ref: "$source.power" },
+                        to: { target: 0 },
+                    },
+                ],
+            },
+        ],
+    });
+
+    // A creature whose TRIGGERED ability's effect is a script: controller gains
+    // 2 life. Proves the trigger's controller binds correctly on the shared
+    // path (the firing event is not threaded into a script).
+    const SHRINE_ID = "test-ability-lifeshrine";
+    registerTokenDefinition({
+        id: SHRINE_ID,
+        name: SHRINE_ID,
+        rarity: "common",
+        manaCost: { W: 1 },
+        types: ["Creature"],
+        subtypes: ["Spirit"],
+        power: 1,
+        toughness: 1,
+        triggeredAbilities: [
+            {
+                id: "lifeshrine-upkeep",
+                oracleText: "gain 2 life",
+                event: "PHASE_BEGIN",
+                matches: () => true,
+                effects: [{ op: "gainLife", player: "controller", amount: 2 }],
+            },
+        ],
+    });
+
+    it("activated-ability script binds $source and deals its power to a player (wire format)", () => {
+        const pinger = makeInstance(PINGER_ID, {
+            id: "pinger1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [pinger] }),
+                makePlayer("p2"),
+            ],
+        });
+        const src = state.players[0].battlefield[0];
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "pinger-zap",
+            targets: [{ type: "player", id: "p2" }],
+        });
+        resolveTopOfStack(state);
+        // 3 damage == source power, not a literal.
+        expect(state.players[1].life).toBe(17);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].life).toBe(17);
+    });
+
+    it("activated-ability $source ref reads the LIVE (buffed) power", () => {
+        const pinger = makeInstance(PINGER_ID, {
+            id: "pinger2",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+            // +2/+2 until end of turn — the ref must read 5, not the printed 3.
+            temporaryPTMods: [
+                {
+                    power: 2,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" as const },
+                },
+            ],
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [pinger] }),
+                makePlayer("p2"),
+            ],
+        });
+        const src = state.players[0].battlefield[0];
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "pinger-zap",
+            targets: [{ type: "player", id: "p2" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(15);
+    });
+
+    it("triggered-ability script resolves through the shared path with controller bound", () => {
+        const shrine = makeInstance(SHRINE_ID, {
+            id: "shrine1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [shrine] }),
+            ],
+        });
+        const src = state.players[1].battlefield[0];
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: "p2",
+            triggeredAbilityId: "lifeshrine-upkeep",
+            triggerEvent: {
+                type: "PHASE_BEGIN",
+                phase: "UPKEEP",
+                activePlayerId: "p2",
+            },
+            triggerSourceId: "shrine1",
+        });
+        resolveTopOfStack(state);
+        // The controller (p2), not the active-player-agnostic default, gains.
+        expect(state.players[1].life).toBe(22);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[1].life).toBe(22);
+    });
+});

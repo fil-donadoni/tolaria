@@ -21,6 +21,7 @@
 
 import type { Phase } from "../../../gre/types";
 import type {
+    EffectOp,
     GameEvent,
     PermanentView,
     PhaseBeginEvent,
@@ -90,6 +91,16 @@ export interface PhaseTriggerArgs {
      *  event off `ctx` is not needed — steps that ignore the event take only the
      *  two args. Use `resolve` XOR `resolveSteps`. */
     resolveSteps?: ((ctx: SpellContext, scopedPlayerId: string) => void)[];
+    /** Effect Script (ADR 0045, issue #803) — the trigger's effect as
+     *  declarative, JSON-pure data instead of an imperative `resolve`. The
+     *  interpreter runs it through the shared spell/ability code path, with the
+     *  trigger's controller and source permanent bound (`$source`,
+     *  `ctx.controller`). Because a script reads `ctx.controller` rather than
+     *  the factory's `scopedPlayerId`, use `effects` only with `scope: "your"`
+     *  (where the scoped player IS the controller); `each` / `opponents`
+     *  triggers, whose scoped player differs from the controller, must stay
+     *  imperative. Mutually exclusive with `resolve` / `resolveSteps`. */
+    effects?: EffectOp[];
 }
 
 export function phaseTrigger(args: PhaseTriggerArgs): TriggeredAbility {
@@ -123,34 +134,37 @@ export function phaseTrigger(args: PhaseTriggerArgs): TriggeredAbility {
                   return args.interveningIf!(event, self, state);
               }
             : undefined,
-        // CR 608.2 — when the card supplies `resolveSteps`, wrap each step with
-        // scope resolution and let the engine checkpoint between steps so a
-        // suspension never re-runs a completed step. Otherwise use the single
-        // `resolve` body.
-        ...(args.resolveSteps
-            ? {
-                  resolveSteps: args.resolveSteps.map((step) => (ctx) => {
-                      // The PhaseBeginEvent isn't re-threaded into steps (the
-                      // engine drives `resolveSteps` with only `ctx`); the scope
-                      // is re-derived from the live context exactly as the single
-                      // `resolve` path does.
-                      const scoped = resolveScopeFromCtx(args.scope, ctx);
-                      if (scoped === null) return;
-                      step(ctx, scoped);
-                  }),
-              }
-            : {
-                  resolve: (ctx: SpellContext, event: GameEvent) => {
-                      if (event.type !== "PHASE_BEGIN") return;
-                      const scoped = resolveScopeAtResolve(
-                          args.scope,
-                          event,
-                          ctx
-                      );
-                      if (scoped === null) return;
-                      args.resolve?.(ctx, event, scoped);
-                  },
-              }),
+        // ADR 0045 (issue #803) — a declarative Effect Script bypasses the
+        // scope-wrapped `resolve`/`resolveSteps` entirely: it rides straight to
+        // the interpreter, which binds the controller and `$source` from the
+        // resolution context (valid for `scope: "your"`, where controller ==
+        // scoped player). Mutually exclusive with the imperative forms.
+        ...(args.effects
+            ? { effects: args.effects }
+            : args.resolveSteps
+              ? {
+                    resolveSteps: args.resolveSteps.map((step) => (ctx) => {
+                        // The PhaseBeginEvent isn't re-threaded into steps (the
+                        // engine drives `resolveSteps` with only `ctx`); the scope
+                        // is re-derived from the live context exactly as the single
+                        // `resolve` path does.
+                        const scoped = resolveScopeFromCtx(args.scope, ctx);
+                        if (scoped === null) return;
+                        step(ctx, scoped);
+                    }),
+                }
+              : {
+                    resolve: (ctx: SpellContext, event: GameEvent) => {
+                        if (event.type !== "PHASE_BEGIN") return;
+                        const scoped = resolveScopeAtResolve(
+                            args.scope,
+                            event,
+                            ctx
+                        );
+                        if (scoped === null) return;
+                        args.resolve?.(ctx, event, scoped);
+                    },
+                }),
     };
 }
 

@@ -224,14 +224,37 @@ export const OP_EXECUTORS: {
     },
 };
 
+/** The implicit binding name every ability-site script gets for free: a
+ *  snapshot of the source permanent (ADR 0045, issue #803). Lets an ability
+ *  Op read "its power / its toughness / its controller" — e.g. "deals damage
+ *  equal to its power" — as `{ ref: "$source.power" }` without an explicit
+ *  `bind`. The static validator pre-declares it for ability sites. */
+export const SOURCE_BINDING = "$source";
+
 /** Executes a flat Op sequence in order (CR 608.2c). Ops whose selector or
  *  ref cannot be satisfied are skipped individually — the rest of the script
- *  still runs (CR 608.2b, "the spell does as much as it can"). */
+ *  still runs (CR 608.2b, "the spell does as much as it can").
+ *
+ *  Same code path for spell and ability sites (ADR 0045 "one execution path").
+ *  The only site-dependent seam is the implicit `$source` binding: when the
+ *  resolving item's source is a permanent on the battlefield — always true for
+ *  activated and triggered abilities (`ctx.sourceInstanceId` is the source
+ *  permanent, CR 602.2 / 603.10), never for a spell (its source is the stack
+ *  item itself) — its characteristics are snapshotted BEFORE any Op runs so a
+ *  `{ ref: "$source.power" }` reads last-known information (CR 608.2h). A spell
+ *  simply has no `$source`, and `getOwnerId` returning undefined skips the bind
+ *  with no behaviour change. */
 export function runEffectScript(
     ctx: SpellContext,
     effects: readonly EffectOp[]
 ): void {
     const env: Env = { bindings: new Map() };
+    if (ctx.getOwnerId(ctx.sourceInstanceId) !== undefined) {
+        bindSnapshot(ctx, env, SOURCE_BINDING, {
+            type: "permanent",
+            id: ctx.sourceInstanceId,
+        });
+    }
     for (const op of effects) {
         (OP_EXECUTORS[op.op] as (c: SpellContext, o: EffectOp, e: Env) => void)(
             ctx,

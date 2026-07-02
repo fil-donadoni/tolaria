@@ -35,7 +35,7 @@ import {
 import { applyPlayLand } from "./playLand";
 import { getExtraLandDrops, getLegalTargets } from "./rules";
 import { entersTappedByReplacement } from "../cards/entersTapped";
-import { getResolveFn } from "../cards/effectRegistry";
+import { getAbilityEffectFn, getResolveFn } from "../cards/effectRegistry";
 import { matchesPermanentFilter } from "../cards/filters";
 import type { Phase, Zone, PhaseReturnCondition } from "./types";
 import {
@@ -2434,10 +2434,21 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     }
                 }
                 delete top.resolutionStep;
-            } else if (ability.resolve) {
-                const ctx = buildSpellContext(state, top);
-                ability.resolve(ctx, top.triggerEvent);
-                if ((state.pendingChoices?.length ?? 0) > 0) return null;
+            } else {
+                // ADR 0045 (issue #803) — an Effect Script resolves through the
+                // SAME interpreter seam as a spell-site script; otherwise fall
+                // back to the imperative `resolve`. `getAbilityEffectFn` throws
+                // if both are declared (mutual exclusivity).
+                const scriptFn = getAbilityEffectFn(ability);
+                if (scriptFn) {
+                    const ctx = buildSpellContext(state, top);
+                    scriptFn(ctx);
+                    if ((state.pendingChoices?.length ?? 0) > 0) return null;
+                } else if (ability.resolve) {
+                    const ctx = buildSpellContext(state, top);
+                    ability.resolve(ctx, top.triggerEvent);
+                    if ((state.pendingChoices?.length ?? 0) > 0) return null;
+                }
             }
         }
         delete top.collectedChoices;
@@ -2476,10 +2487,19 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 }
             }
             delete top.resolutionStep;
-        } else if (ability?.resolve) {
-            const ctx = buildSpellContext(state, top);
-            ability.resolve(ctx);
-            if ((state.pendingChoices?.length ?? 0) > 0) return null;
+        } else if (ability) {
+            // ADR 0045 (issue #803) — Effect Script through the shared
+            // interpreter seam, else the imperative `resolve`.
+            const scriptFn = getAbilityEffectFn(ability);
+            if (scriptFn) {
+                const ctx = buildSpellContext(state, top);
+                scriptFn(ctx);
+                if ((state.pendingChoices?.length ?? 0) > 0) return null;
+            } else if (ability.resolve) {
+                const ctx = buildSpellContext(state, top);
+                ability.resolve(ctx);
+                if ((state.pendingChoices?.length ?? 0) > 0) return null;
+            }
         }
         delete top.collectedChoices;
         state.stack.pop();

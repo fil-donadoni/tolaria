@@ -2844,6 +2844,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Honden of Seeing Winds",
+        "scryfallId": "ad732186-eeb9-4edb-a17a-51f8bac71802",
+        "oracleId": "45beca46-480c-4771-ba46-78b6ac7d5c2c",
+        "firstSet": "chk"
+    },
+    {
         "name": "Horizon Canopy",
         "scryfallId": "d5dfc25d-a17b-4ead-9484-e8a18b8fa176",
         "oracleId": "262a5d83-506c-4781-9bc9-1a2b5d83955c",
@@ -4810,6 +4816,12 @@
         "scryfallId": "a1dcf48c-2700-4024-807e-9244e4c649ac",
         "oracleId": "dd1d21f5-f5cd-43e4-8155-3cca85da80a9",
         "firstSet": "leg"
+    },
+    {
+        "name": "Prodigal Pyromancer",
+        "scryfallId": "081dba98-2092-4225-8e9e-214fb9263b1c",
+        "oracleId": "29b3cb3e-aeb1-43eb-8095-9f7881aa34bd",
+        "firstSet": "m11"
     },
     {
         "name": "Prodigal Sorcerer",

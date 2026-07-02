@@ -7,15 +7,47 @@
 
 import { describe, it, expect } from "vitest";
 import { getAllCards } from "..";
-import { validateEffectScript } from "../../gre/effects/validate";
-import { getResolveFn } from "../effectRegistry";
+import {
+    validateAbilityEffectScript,
+    validateEffectScript,
+} from "../../gre/effects/validate";
+import { getAbilityEffectFn, getResolveFn } from "../effectRegistry";
+import type { CardDefinition } from "../types";
+
+/** Every ability site (activated + triggered) on a card that can carry an
+ *  Effect Script, tagged with the owning card's label (ADR 0045, issue #803).
+ *  Modes carry their own per-mode resolution site; those are spell-site scripts
+ *  validated by `validateEffectScript`, so they are not re-walked here. */
+function abilitySites(
+    card: CardDefinition
+): { ability: { id: string; effects?: unknown }; label: string }[] {
+    const label = `${card.name} (${card.id})`;
+    return [
+        ...(card.activatedAbilities ?? []),
+        ...(card.grantTemplates ?? []),
+        ...(card.triggeredAbilities ?? []),
+        ...(card.triggeredGrantTemplates ?? []),
+    ].map((ability) => ({ ability, label }));
+}
 
 describe("Effect Script catalogue sweep (ADR 0045)", () => {
     const cards = getAllCards();
     const dslCards = cards.filter((c) => c.effects !== undefined);
+    const abilityDslSites = cards
+        .flatMap(abilitySites)
+        .filter((s) => s.ability.effects !== undefined);
 
     it("every CardDefinition passes validateEffectScript (schema + vocabulary + exclusivity)", () => {
         const errors = cards.flatMap((card) => validateEffectScript(card));
+        expect(errors).toEqual([]);
+    });
+
+    it("every ability-site Effect Script passes validation (schema + vocabulary + exclusivity + $source)", () => {
+        const errors = cards.flatMap((card) =>
+            abilitySites(card).flatMap((s) =>
+                validateAbilityEffectScript(s.ability, s.label)
+            )
+        );
         expect(errors).toEqual([]);
     });
 
@@ -25,6 +57,12 @@ describe("Effect Script catalogue sweep (ADR 0045)", () => {
                 JSON.parse(JSON.stringify(card.effects)),
                 `${card.name} (${card.id})`
             ).toEqual(card.effects);
+        }
+        for (const { ability, label } of abilityDslSites) {
+            expect(
+                JSON.parse(JSON.stringify(ability.effects)),
+                `${label} ability "${ability.id}"`
+            ).toEqual(ability.effects);
         }
     });
 
@@ -36,8 +74,26 @@ describe("Effect Script catalogue sweep (ADR 0045)", () => {
         }
     });
 
-    it("the sweep is not vacuous — at least one DSL-only card is in the catalogue", () => {
+    it("every ability-site Effect Script compiles through the shared getAbilityEffectFn seam", () => {
+        for (const { ability, label } of abilityDslSites) {
+            expect(
+                typeof getAbilityEffectFn(
+                    ability as Parameters<typeof getAbilityEffectFn>[0]
+                ),
+                `${label} ability "${ability.id}"`
+            ).toBe("function");
+        }
+    });
+
+    it("the sweep is not vacuous — at least one DSL-only card at each site is in the catalogue", () => {
         expect(dslCards.length).toBeGreaterThanOrEqual(1);
         expect(dslCards.map((c) => c.name)).toContain("Lava Spike");
+        // Ability sites (issue #803): a triggered and an activated DSL card.
+        expect(abilityDslSites.length).toBeGreaterThanOrEqual(2);
+        const owners = cards
+            .filter((c) => abilitySites(c).some((s) => s.ability.effects))
+            .map((c) => c.name);
+        expect(owners).toContain("Honden of Seeing Winds");
+        expect(owners).toContain("Prodigal Pyromancer");
     });
 });
