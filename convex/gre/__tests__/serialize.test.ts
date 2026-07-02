@@ -722,6 +722,37 @@ describe("game_state serialize round-trip", () => {
         expect(top.massRiderTargets).toEqual(["p1", "p2", "p2"]);
     });
 
+    it("preserves a suspended Effect Script's checkpoint + picks binding (#805, CR 608.3)", () => {
+        // An Effect Script suspended at a `choice` Op must reload BOTH its
+        // Op-index checkpoint (`resolutionStep`) and every persisted binding
+        // (`collectedChoices` — the picks entry keyed `${step}:${bind}`, plus
+        // any snapshot binding taken before the choice) after a DB round-trip,
+        // so the resumed resolution restarts at the same Op with the same
+        // bindings and never re-runs earlier (irreversible) Ops.
+        const state = freshState();
+        const spell = state.players[0].hand[0];
+        state.stack = [
+            {
+                ...spell,
+                zone: "stack",
+                castById: "p1",
+                resolutionStep: 1,
+                collectedChoices: {
+                    // Snapshot binding [power, toughness, controller].
+                    "0:$gone": ["4", "4", "p2"],
+                    // Picks binding — the chooser's submitted instance ids.
+                    "1:$discards": ["h1", "h3"],
+                },
+            },
+        ];
+        const top = expandState(compactState(state)).stack[0];
+        expect(top.resolutionStep).toBe(1);
+        expect(top.collectedChoices).toEqual({
+            "0:$gone": ["4", "4", "p2"],
+            "1:$discards": ["h1", "h3"],
+        });
+    });
+
     it("compact form is materially smaller than raw JSON", () => {
         const state = freshState();
         const rawSize = JSON.stringify(state).length;

@@ -216,6 +216,29 @@ describe("unsatisfiable-requirement reporting (issue #804)", () => {
         if (plan.kind !== "skip") return;
         expect(plan.reason).toMatch(/both|mix/i);
     });
+
+    it("skips a script with a `choice` Op — a canned scenario cannot submit picks (issue #805)", () => {
+        // A `choice` Op suspends resolution for a live player decision; a
+        // canned scenario has no way to answer, so the plan is an explicit
+        // skip with a reason (never a silent pass or a crash). Execution
+        // coverage for choice cards comes from their own suspension/resume
+        // tests.
+        const plan = planSmokeTest([
+            {
+                op: "choice",
+                kind: "discard-hand",
+                player: { target: 0 },
+                zone: "hand",
+                count: 2,
+                prompt: "discard two cards",
+                bind: "$picked",
+            },
+            { op: "discard", player: { target: 0 }, cards: { ref: "$picked" } },
+        ] as EffectOp[]);
+        expect(plan.kind).toBe("skip");
+        if (plan.kind !== "skip") return;
+        expect(plan.reason).toMatch(/choice|player input/i);
+    });
 });
 
 describe("Op vocabulary coverage guard (issue #804)", () => {

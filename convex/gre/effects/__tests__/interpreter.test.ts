@@ -17,6 +17,9 @@ import {
     pushSpell,
 } from "../../../cards/__tests__/setup";
 import { resolveTopOfStack } from "../../state";
+import { applyPendingChoiceSubmit } from "../../pendingChoiceSubmit";
+import { compactState, expandState } from "../../serialize";
+import { refreshExpectedInput } from "../../expectedInput";
 import { projectPublicState } from "../../../gameProjections";
 
 /** Registers a synthetic DSL-only sorcery under a stable test id. Uses the
@@ -829,5 +832,430 @@ describe("Effect Script at ability sites (issue #803)", () => {
         expect(state.players[1].life).toBe(22);
         const projected = projectPublicState(state, 1, "p2");
         expect(projected.players[1].life).toBe(22);
+    });
+});
+
+// --- choice Op: suspension / resume (CR 608.2 / 101.4, issue #805) ----------
+// The interpreter suspends the script when a `choice` Op enqueues a Pending
+// Choice and resumes AT that Op when the picks are submitted through the same
+// primitive the generic `submitResolutionChoice` mutation drives
+// (`applyPendingChoiceSubmit`). Bindings and the Op-index checkpoint live in
+// the stack item's persisted fields, so they survive a DB round-trip.
+
+describe("Effect Script Op: choice (CR 608.2 / 101.4, issue #805)", () => {
+    const handOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "hand",
+            })
+        );
+
+    it("suspends with a discard-hand PendingChoice and resumes into the consuming discard Op", () => {
+        const id = registerScript(
+            "test-op-choice-discard",
+            [
+                {
+                    op: "choice",
+                    kind: "discard-hand",
+                    player: { target: 0 },
+                    zone: "hand",
+                    count: 2,
+                    prompt: "Discard two cards.",
+                    bind: "$picked",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$picked" },
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf("p2", ["h1", "h2", "h3"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("discard-hand");
+        expect(head.playerId).toBe("p2");
+        expect(head.zone).toBe("hand");
+        expect(head.count).toBe(2);
+        expect(head.prompt).toBe("Discard two cards.");
+        // CR 608.3 — the spell stays on the stack while suspended.
+        expect(state.stack).toHaveLength(1);
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["h1", "h3"],
+        });
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["h2"]);
+        expect(state.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "h1",
+            "h3",
+        ]);
+        // Resolution completed: stack empty, choice queue drained, sorcery in
+        // its owner's graveyard (CR 608.2k).
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(id);
+    });
+
+    it("clamps the pick count to the available candidates (CR 608.2b / 701.9b)", () => {
+        const id = registerScript(
+            "test-op-choice-clamp",
+            [
+                {
+                    op: "choice",
+                    kind: "discard-hand",
+                    player: { target: 0 },
+                    zone: "hand",
+                    count: 2,
+                    prompt: "Discard two cards.",
+                    bind: "$picked",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$picked" },
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf("p2", ["only"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.count).toBe(1); // clamped: only one card in hand
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["only"],
+        });
+        expect(state.players[1].hand).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["only"]);
+    });
+
+    it("skips the choice AND the consuming Op when there are no candidates (CR 608.2b)", () => {
+        const id = registerScript(
+            "test-op-choice-empty",
+            [
+                {
+                    op: "choice",
+                    kind: "discard-hand",
+                    player: { target: 0 },
+                    zone: "hand",
+                    count: 2,
+                    prompt: "Discard two cards.",
+                    bind: "$picked",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$picked" },
+                },
+                { op: "gainLife", player: "controller", amount: 1 },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState(); // p2's hand is empty
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        const resolved = resolveTopOfStack(state);
+        expect(resolved).not.toBeNull(); // never suspended
+        expect(state.pendingChoices).toBeUndefined();
+        // The rest of the script still ran (CR 608.2b).
+        expect(state.players[0].life).toBe(21);
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(id);
+    });
+
+    it("Ops before the choice never re-run on resume (CR 608.3 checkpoint)", () => {
+        const id = registerScript("test-op-choice-checkpoint", [
+            { op: "dealDamage", amount: 3, to: { player: "opponent" } },
+            {
+                op: "choice",
+                kind: "discard-hand",
+                player: "opponent",
+                zone: "hand",
+                count: 1,
+                prompt: "Discard a card.",
+                bind: "$picked",
+            },
+            {
+                op: "discard",
+                player: "opponent",
+                cards: { ref: "$picked" },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf("p2", ["hx"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17); // damage applied once
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["hx"],
+        });
+        // Still exactly 3 damage — the dealDamage Op did NOT replay.
+        expect(state.players[1].life).toBe(17);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["hx"]);
+    });
+
+    it("a snapshot binding taken BEFORE the choice survives the suspension (bind across suspended resolution, CR 608.2h)", () => {
+        const id = registerScript(
+            "test-op-choice-snapshot",
+            [
+                { op: "exile", target: { target: 0 }, bind: "$gone" },
+                {
+                    op: "choice",
+                    kind: "discard-hand",
+                    player: "controller",
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Discard a card.",
+                    bind: "$picked",
+                },
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$picked" },
+                },
+                // Reads the snapshot AFTER the suspension: the exiled bear's
+                // controller (p2) gains its power (2). The exile Op ran before
+                // the suspension and never re-runs, so the values can only
+                // come from the persisted binding (CR 608.2h LKI).
+                {
+                    op: "gainLife",
+                    player: { ref: "$gone.controller" },
+                    amount: { ref: "$gone.power" },
+                },
+            ],
+            { targetRequirement: { type: "Creature", count: 1 } }
+        );
+        const bear = makeInstance(BEAR_ID, { controllerId: "p2", id: "bearS" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: handOf("p1", ["c1"]) }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearS" }]);
+        resolveTopOfStack(state);
+        // Suspended AFTER the exile: the bear is already gone.
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].exile.map((c) => c.id)).toEqual(["bearS"]);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["c1"],
+        });
+        // $gone.power (2) gained by $gone.controller (p2) — read from the
+        // persisted snapshot after the wait.
+        expect(state.players[1].life).toBe(22);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("c1");
+    });
+
+    it("bindings and the checkpoint survive a DB round-trip while suspended (compactState/expandState)", () => {
+        const id = registerScript(
+            "test-op-choice-roundtrip",
+            [
+                { op: "exile", target: { target: 0 }, bind: "$gone" },
+                {
+                    op: "choice",
+                    kind: "discard-hand",
+                    player: "controller",
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Discard a card.",
+                    bind: "$picked",
+                },
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$picked" },
+                },
+                {
+                    op: "gainLife",
+                    player: { ref: "$gone.controller" },
+                    amount: { ref: "$gone.power" },
+                },
+            ],
+            { targetRequirement: { type: "Creature", count: 1 } }
+        );
+        const bear = makeInstance(BEAR_ID, { controllerId: "p2", id: "bearR" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: handOf("p1", ["c1"]) }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearR" }]);
+        resolveTopOfStack(state);
+
+        // Save / load across the wait — the exact seam a real game crosses
+        // between the suspension and the player's submit.
+        const revived = expandState(
+            JSON.parse(JSON.stringify(compactState(state)))
+        );
+        const head = revived.pendingChoices![0];
+        applyPendingChoiceSubmit(revived, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["c1"],
+        });
+        expect(revived.players[1].life).toBe(22); // snapshot survived the trip
+        const p1 = revived.players[0];
+        expect(p1.graveyard.map((c) => c.id)).toContain("c1"); // picks did too
+        expect(revived.stack).toHaveLength(0);
+    });
+
+    it("wire format: the suspended choice and the Expected Input cross the projection", () => {
+        const id = registerScript(
+            "test-op-choice-wire",
+            [
+                {
+                    op: "choice",
+                    kind: "discard-hand",
+                    player: { target: 0 },
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Discard a card.",
+                    bind: "$picked",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$picked" },
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf("p2", ["hw"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        // ADR 0047 — the engine refreshes the Expected Input at the stable
+        // point before persisting; mirror that seam here.
+        refreshExpectedInput(state);
+        const projected = projectPublicState(state, 1, "p2");
+        const head = projected.pendingChoices![0];
+        expect(head.kind).toBe("discard-hand");
+        expect(head.playerId).toBe("p2");
+        expect(head.prompt).toBe("Discard a card.");
+        expect(head.count).toBe(1);
+        // The Expected Input reflects the scripted choice exactly as it does
+        // for resolve()-based choices (issue #805 acceptance criterion).
+        expect(projected.expectedInput).toEqual({
+            kind: "choice",
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            choiceId: "$picked",
+            choiceKind: "discard-hand",
+        });
+    });
+
+    it("choice at an ACTIVATED-ability site suspends and resumes through the shared path", () => {
+        const LOOTER_ID = "test-ability-discarder";
+        registerTokenDefinition({
+            id: LOOTER_ID,
+            name: LOOTER_ID,
+            rarity: "common",
+            manaCost: { U: 1 },
+            types: ["Creature"],
+            subtypes: ["Wizard"],
+            power: 1,
+            toughness: 1,
+            activatedAbilities: [
+                {
+                    id: "discarder-loot",
+                    oracleText: "{T}: Discard a card.",
+                    cost: { tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "discard-hand",
+                            player: "controller",
+                            zone: "hand",
+                            count: 1,
+                            prompt: "Discard a card.",
+                            bind: "$picked",
+                        },
+                        {
+                            op: "discard",
+                            player: "controller",
+                            cards: { ref: "$picked" },
+                        },
+                    ],
+                },
+            ],
+        });
+        const looter = makeInstance(LOOTER_ID, {
+            id: "looter1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [looter],
+                    hand: handOf("p1", ["ha", "hb"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const src = state.players[0].battlefield[0];
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "discarder-loot",
+        });
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("discard-hand");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["hb"],
+        });
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["ha"]);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["hb"]);
+        expect(state.stack).toHaveLength(0); // ability resolved and popped
     });
 });

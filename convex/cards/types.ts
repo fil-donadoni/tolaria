@@ -2073,6 +2073,27 @@ export interface SpellContext {
      *  completion). */
     noteChoice: (choiceId: string, values: string[]) => void;
 
+    // --- Effect Script interpreter plumbing (ADR 0045, issue #805) ---
+    // NOT for card authors: these three manipulate the stack item's
+    // `resolutionStep` — the SAME resume checkpoint `resolveSteps` use — so
+    // the Effect Script interpreter can suspend at a `choice` Op and resume
+    // at that exact Op index (earlier Ops never re-run, CR 608.3). Imperative
+    // cards must never call them: the engine owns the checkpoint for
+    // `resolveSteps`, and a `resolve()` body has no Op indexes.
+
+    /** The interpreter's resume checkpoint: the Op index execution restarts
+     *  from, or undefined on a fresh (non-resumed) resolution. Reads
+     *  `StackItem.resolutionStep`. */
+    getScriptCheckpoint: () => number | undefined;
+    /** Checkpoints the CURRENT Op index before executing it, so a suspension
+     *  inside the Op resumes at the same index and `requestChoice` /
+     *  `noteChoice` key their `collectedChoices` entries under it. */
+    setScriptCheckpoint: (opIndex: number) => void;
+    /** Clears the checkpoint when the script has run to completion, so the
+     *  card instance carries no stale `resolutionStep` into its next zone
+     *  (a recast would otherwise skip the target-legality gate, CR 608.2b). */
+    clearScriptCheckpoint: () => void;
+
     /** Flips a coin and PAUSES resolution to reveal the outcome before the
      *  consequence is applied (CR 705.2, ADR 0023). Unlike `flipCoin` (which
      *  draws a bit synchronously and returns immediately), this enqueues a
@@ -4345,6 +4366,23 @@ export interface EffectCardFilter {
  *  (the frozen-grammar defence, ADR 0045). */
 export type EffectValue = number | EffectRef | EffectCount;
 
+/** The Pending Choice kinds a `choice` Op may request (issue #805). A strict
+ *  subset of the existing `ZonePickKind` taxonomy — the Op maps 1:1 onto
+ *  `SpellContext.requestChoice`, reusing the whole Pending Choice pipeline
+ *  (enqueue → generic prompt UI → `submitResolutionChoice` → resume): no new
+ *  choice infrastructure, no new UI (ADR 0045 "choice suspension"). Only the
+ *  MID-RESOLUTION card-semantic kinds are scriptable; the phase-/SBA-level
+ *  kinds (`untap-pick`, `mulligan-bottom`, `legend-keep`, `draw-look-keep`,
+ *  cleanup `discard-hand`) are raised by the engine, never by a card script.
+ *  Grows freely — one union member + the validator allow-list per kind. */
+export type EffectChoiceKind =
+    | "choose-permanents"
+    | "sacrifice-permanents"
+    | "discard-hand"
+    | "search-library"
+    | "choose-hand-card"
+    | "choose-graveyard-card";
+
 /** One step of an Effect Script. Ops are small, orthogonal and composable
  *  (target scale ~80k cards) — each maps 1:1 onto a SpellContext primitive.
  *  The Op vocabulary grows freely; the grammar never does (ADR 0045). Op
@@ -4378,7 +4416,50 @@ export type EffectOp =
      *  zone (CR 406). `bind` snapshots the permanent's power/toughness/
      *  controller BEFORE it leaves the battlefield, so a later `ref` reads
      *  its last-known values (Swords to Plowshares, CR 608.2h). */
-    | { op: "exile"; target: EffectTargetRef; bind?: string };
+    | { op: "exile"; target: EffectTargetRef; bind?: string }
+    /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
+     *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a
+     *  Pending Choice of the given `kind` and SUSPENDS the script (the stack
+     *  item stays on the stack, `resolutionStep` checkpoints the Op index);
+     *  when the chooser submits through the generic `submitResolutionChoice`
+     *  mutation the script resumes AT THIS OP, which now reads the picks back
+     *  and records them under `bind` for later Ops (a picks binding, read
+     *  with a bare `{ ref: "$name" }`). `count` is clamped to the candidates
+     *  actually available (CR 608.2b — do as much as possible); when zero
+     *  candidates exist the choice is skipped entirely and the binding stays
+     *  uncaptured, so consuming Ops skip too. `filter` is only meaningful for
+     *  `zone: "battlefield"` (the submit validator and the UI apply it
+     *  there); the validator rejects it elsewhere. */
+    | {
+          op: "choice";
+          kind: EffectChoiceKind;
+          /** The chooser — also the owner of the zone picked from. */
+          player: EffectPlayerRef;
+          zone: "battlefield" | "hand" | "library" | "graveyard";
+          filter?: EffectCardFilter;
+          /** Literal pick count (clamped to availability, CR 608.2b). */
+          count: number;
+          prompt: string;
+          /** REQUIRED — the picks binding name (`"$picked"`). A choice whose
+           *  picks nothing consumes is meaningless, so the grammar demands a
+           *  binding. */
+          bind: string;
+      }
+    /** CR 701.9 — `player` discards the cards a `choice` Op picked. `cards`
+     *  is a bare picks ref (`{ ref: "$picked" }`); each picked card still in
+     *  the player's hand is discarded through `SpellContext.discardCard`
+     *  (Library of Leng replacement + CARD_DISCARDED triggers apply exactly
+     *  as for imperative cards). Skipped when the binding was never captured
+     *  (the choice found no candidates — CR 608.2b). */
+    | { op: "discard"; player: EffectPlayerRef; cards: EffectRef };
+
+// `EffectChoiceKind` must stay a subset of the engine's `ZonePickKind` — the
+// choice Op rides the existing Pending Choice pipeline verbatim (issue #805).
+// A compile error here means a scriptable kind was invented rather than
+// reused.
+const _effectChoiceKindConforms: (k: EffectChoiceKind) => ZonePickKind = (k) =>
+    k;
+void _effectChoiceKindConforms;
 
 /** Opt-in structured AI combat hints (ADR 0021, issue #229). Declares the
  *  combat-relevant SHAPE of a card whose effect lives in an opaque imperative

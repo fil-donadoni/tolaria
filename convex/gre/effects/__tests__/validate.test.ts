@@ -353,3 +353,181 @@ describe("Op coverage guard — registry ↔ interpreter ↔ validator (1:1)", (
         }
     });
 });
+
+// --- choice / discard Ops (issue #805) ---------------------------------------
+
+describe("validateEffectScript — choice Op (CR 608.2 / 101.4, issue #805)", () => {
+    const choiceOp: EffectOp = {
+        op: "choice",
+        kind: "discard-hand",
+        player: { target: 0 },
+        zone: "hand",
+        count: 2,
+        prompt: "Discard two cards.",
+        bind: "$picked",
+    };
+    const discardOp: EffectOp = {
+        op: "discard",
+        player: { target: 0 },
+        cards: { ref: "$picked" },
+    };
+
+    it("accepts a well-formed choice → discard script (Mind Rot shape)", () => {
+        expect(
+            validateEffectScript(host({ effects: [choiceOp, discardOp] }))
+        ).toEqual([]);
+    });
+
+    it("rejects a choice kind outside the scriptable allow-list", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [{ ...choiceOp, kind: "untap-pick" } as never],
+            })
+        );
+        expect(errors.some((e) => /field "kind"/.test(e))).toBe(true);
+    });
+
+    it("rejects a choice without a bind (a choice whose picks nothing consumes is meaningless)", () => {
+        const noBind = { ...(choiceOp as never as Record<string, unknown>) };
+        delete noBind.bind;
+        const errors = validateEffectScript(
+            host({ effects: [noBind] as never })
+        );
+        expect(errors.some((e) => /missing field "bind"/.test(e))).toBe(true);
+    });
+
+    it("rejects a filter on a non-battlefield zone (the submit validator only applies filters to battlefield picks)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    { ...choiceOp, filter: { type: "Creature" } } as never,
+                ],
+            })
+        );
+        expect(
+            errors.some((e) => /only valid with zone "battlefield"/.test(e))
+        ).toBe(true);
+        // ... and accepts it on the battlefield.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            ...choiceOp,
+                            kind: "sacrifice-permanents",
+                            zone: "battlefield",
+                            filter: { type: "Creature" },
+                        } as never,
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects duplicate binding names (the persisted binding store is keyed by name)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    { op: "destroy", target: { target: 0 }, bind: "$x" },
+                    { ...choiceOp, bind: "$x" } as never,
+                ],
+            })
+        );
+        expect(
+            errors.some((e) => /re-declares an existing binding/.test(e))
+        ).toBe(true);
+    });
+
+    it("rejects a picks ref carrying a property path", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    choiceOp,
+                    {
+                        op: "discard",
+                        player: { target: 0 },
+                        cards: { ref: "$picked.power" },
+                    } as never,
+                ],
+            })
+        );
+        expect(errors.some((e) => /field "cards"/.test(e))).toBe(true);
+    });
+
+    it("rejects a picks ref naming an undefined or later binding", () => {
+        const errors = validateEffectScript(
+            host({ effects: [discardOp, choiceOp] })
+        );
+        expect(
+            errors.some((e) =>
+                /references undefined binding "\$picked"/.test(e)
+            )
+        ).toBe(true);
+    });
+
+    it("rejects a picks position reading a SNAPSHOT binding (family mismatch)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    { op: "exile", target: { target: 0 }, bind: "$gone" },
+                    {
+                        op: "discard",
+                        player: "controller",
+                        cards: { ref: "$gone" },
+                    },
+                ],
+            })
+        );
+        expect(
+            errors.some((e) =>
+                /names a snapshot binding in a picks position/.test(e)
+            )
+        ).toBe(true);
+    });
+
+    it("rejects a numeric/player position reading a PICKS binding (family mismatch)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    choiceOp,
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: { ref: "$picked.power" },
+                    },
+                ],
+            })
+        );
+        expect(
+            errors.some((e) =>
+                /names a picks binding in a number position/.test(e)
+            )
+        ).toBe(true);
+    });
+
+    it("still accepts snapshot refs across a choice (bind across suspended resolution)", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        { op: "exile", target: { target: 0 }, bind: "$gone" },
+                        {
+                            ...choiceOp,
+                            player: "controller",
+                        } as never,
+                        {
+                            op: "discard",
+                            player: "controller",
+                            cards: { ref: "$picked" },
+                        },
+                        {
+                            op: "gainLife",
+                            player: { ref: "$gone.controller" },
+                            amount: { ref: "$gone.power" },
+                        },
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+});

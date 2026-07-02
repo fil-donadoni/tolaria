@@ -258,6 +258,20 @@ function analyseOp(op: EffectOp, req: Requirements): void {
         case "exile":
             recordSlot(req, op.target.target, "permanent");
             return;
+        case "choice":
+            // A `choice` Op suspends resolution for a live player decision
+            // (issue #805) — a canned scenario cannot submit picks, so the
+            // script is reported as an explicit skip and execution coverage
+            // comes from the card's own tests (per the DSL testing regime,
+            // choice-carrying cards keep full per-card coverage).
+            req.skip ??= `Op "choice" suspends for player input — covered by the card's own suspension/resume tests`;
+            return;
+        case "discard":
+            // `discard` consumes a `choice` Op's picks binding; without the
+            // choice's submitted picks the outcome is undefined in a canned
+            // scenario — same skip rationale as `choice`.
+            req.skip ??= `Op "discard" consumes a choice binding — covered by the card's own suspension/resume tests`;
+            return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.
@@ -516,6 +530,19 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 };
             },
         };
+    },
+    // `choice` (issue #805) — never reached: `analyseOp` skips every script
+    // containing a choice Op (a canned scenario cannot submit a live player
+    // pick). The entry exists so the registry ⇄ assertor coverage guard stays
+    // 1:1; execution coverage for choice-carrying cards is their own
+    // suspension/resume tests.
+    choice() {
+        return null;
+    },
+    // `discard` (issue #805) — never reached, same rationale as `choice`
+    // (its `cards` picks binding depends on a live player pick).
+    discard() {
+        return null;
     },
     // Zone change: exile moves the target to its owner's exile zone (CR 701.13).
     exile(rawOp, scenario) {
