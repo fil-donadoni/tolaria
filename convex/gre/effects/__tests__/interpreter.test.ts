@@ -1538,4 +1538,155 @@ describe("Effect Script construct: if (ADR 0045, CR 608.2c, issue #806)", () => 
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["k1", "k2"]);
         expect(state.stack).toHaveLength(0);
     });
+
+    it("a side-effecting Op BEFORE a suspending Op inside a branch fires EXACTLY ONCE across suspend→resume (CR 608.3, issue #806 double-execution regression)", () => {
+        // The regression: the branch is [loseLife 5, choice, discard]. The
+        // suspending `choice` sits AFTER a side-effecting `loseLife`. Before the
+        // per-Op checkpoint fix, resume replayed the WHOLE `if` — `loseLife`
+        // fired a SECOND time (dropping p2 to 10 instead of 15). The pre-order
+        // checkpoint must skip the already-completed `loseLife` on resume.
+        const handOf = (ids: string[]) =>
+            ids.map((cid) =>
+                makeInstance(BEAR_ID, {
+                    id: cid,
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    zone: "hand",
+                })
+            );
+        const id = registerScript("test-if-branch-preop-once", [
+            {
+                op: "mayPay",
+                player: "opponent",
+                cost: { X: 1 },
+                prompt: "Pay {1}?",
+                bind: "$paid",
+            },
+            {
+                op: "if",
+                predicate: { not: { binding: "$paid" } },
+                then: [
+                    // Side-effecting Op BEFORE the suspending choice.
+                    { op: "loseLife", player: "opponent", amount: 5 },
+                    {
+                        op: "choice",
+                        kind: "discard-hand",
+                        player: "opponent",
+                        zone: "hand",
+                        count: 1,
+                        prompt: "Discard a card.",
+                        bind: "$picked",
+                    },
+                    {
+                        op: "discard",
+                        player: "opponent",
+                        cards: { ref: "$picked" },
+                    },
+                ],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf(["e1", "e2"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        // First suspension: the may-pay. loseLife has NOT run yet.
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].kind).toBe("may-pay");
+        expect(state.players[1].life).toBe(20);
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        // Declined → branch runs: loseLife fires ONCE (20 → 15), then the
+        // discard choice suspends.
+        expect(state.players[1].life).toBe(15);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("discard-hand");
+        expect(state.stack).toHaveLength(1); // still resolving
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["e1"],
+        });
+        // The fix: loseLife did NOT replay on resume — p2 is still at 15, not
+        // 10. The choice's picked card was discarded and resolution completed.
+        expect(state.players[1].life).toBe(15);
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["e2"]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["e1"]);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("the pre-op-once checkpoint survives a DB round-trip (compact/expand) mid-suspension", () => {
+        // Same [loseLife, choice, discard] branch, but the state is serialized
+        // and rehydrated WHILE suspended on the discard choice — proving the
+        // pre-order checkpoint (resolutionStep) persists and still skips the
+        // completed loseLife after a real DB write.
+        const handOf = (ids: string[]) =>
+            ids.map((cid) =>
+                makeInstance(BEAR_ID, {
+                    id: cid,
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    zone: "hand",
+                })
+            );
+        const id = registerScript("test-if-branch-preop-roundtrip", [
+            {
+                op: "mayPay",
+                player: "opponent",
+                cost: { X: 1 },
+                prompt: "Pay {1}?",
+                bind: "$paid",
+            },
+            {
+                op: "if",
+                predicate: { not: { binding: "$paid" } },
+                then: [
+                    { op: "loseLife", player: "opponent", amount: 5 },
+                    {
+                        op: "choice",
+                        kind: "discard-hand",
+                        player: "opponent",
+                        zone: "hand",
+                        count: 1,
+                        prompt: "Discard a card.",
+                        bind: "$picked",
+                    },
+                    {
+                        op: "discard",
+                        player: "opponent",
+                        cards: { ref: "$picked" },
+                    },
+                ],
+            },
+        ]);
+        let state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf(["r1", "r2"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.players[1].life).toBe(15); // loseLife fired once
+        // DB round-trip while suspended on the discard choice.
+        state = expandState(compactState(state));
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("discard-hand");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["r1"],
+        });
+        // Still 15 — the checkpoint carried across the round-trip, loseLife
+        // did not replay.
+        expect(state.players[1].life).toBe(15);
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["r2"]);
+        expect(state.stack).toHaveLength(0);
+    });
 });

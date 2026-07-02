@@ -43,12 +43,21 @@
 // The value grammar is exactly literal | ref | count (ADR 0045 frozen
 // grammar). The `if` structural construct (issue #806) is a registered Op
 // (`{ op: "if", predicate, then, else? }`) whose executor runs the matching
-// branch through `runOpList`; a suspending Op inside a branch propagates
-// "suspend" up so the whole `if` re-runs on resume (the branch replays, the
-// suspending Op reading its stored answer back). `forEach` lands in a later
-// slice. The Op vocabulary is governed by `EFFECT_OP_REGISTRY` in
-// `convex/cards/mechanicsRegistry.ts`; the interpreter-coverage guard test
-// keeps `OP_EXECUTORS` and that census in exact 1:1 correspondence.
+// branch through `runOpList`. Because a branch may itself contain a
+// suspending Op AFTER a side-effecting one, the checkpoint is a PRE-ORDER
+// LINEAR POSITION over the whole nested Op tree (a shared cursor threaded
+// through `runOpList`), NOT the top-level index: the position of the Op that
+// suspended is stored, and on resume the tree is re-walked with every Op whose
+// position is BEFORE the checkpoint skipped (its side effect already ran, CR
+// 608.3), so only the suspending Op — and the Ops after it — execute. An `if`
+// on the skip side still re-evaluates its predicate (a stored, deterministic
+// binding) and descends the same branch, keeping positions aligned; a
+// completed Op nested inside that branch is skipped by the same position rule.
+// `forEach` lands in a later slice but reuses the same cursor, so its per-Op
+// checkpoint composes for free. The Op vocabulary is governed by
+// `EFFECT_OP_REGISTRY` in `convex/cards/mechanicsRegistry.ts`; the
+// interpreter-coverage guard test keeps `OP_EXECUTORS` and that census in exact
+// 1:1 correspondence.
 
 import type {
     EffectCardFilter,
@@ -71,6 +80,16 @@ type OpOf<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
  *  Pending Choice and the script must stop HERE — the engine leaves the item
  *  on the stack and the checkpointed Op re-runs on resume. */
 type OpOutcome = void | "suspend";
+
+/** The resume cursor threaded through `runOpList` (issue #806). `pos` is a
+ *  monotonic pre-order counter assigned to every Op in the whole nested tree;
+ *  `resume` is the checkpointed position of the Op that suspended (or -1 on a
+ *  fresh run). An Op whose position is `< resume` already completed on an
+ *  earlier run and is SKIPPED (CR 608.3 — its side effect never replays);
+ *  structural Ops (`if`) still descend so positions stay aligned across the
+ *  re-walk. The suspending Op sits at exactly `resume`, so it re-runs and reads
+ *  its stored answer back. */
+type Cursor = { pos: number; readonly resume: number };
 
 /** Snapshot-triple layout inside `collectedChoices` (see module doc):
  *  [0] power, [1] toughness, [2] controller — all strings (the store is the
@@ -325,7 +344,11 @@ function choiceCandidates(
  *  no game logic lives here (ADR 0045 "one execution path"). Kept in exact
  *  1:1 correspondence with `EFFECT_OP_REGISTRY` by a guard test. */
 export const OP_EXECUTORS: {
-    [K in EffectOp["op"]]: (ctx: SpellContext, op: OpOf<K>) => OpOutcome;
+    [K in EffectOp["op"]]: (
+        ctx: SpellContext,
+        op: OpOf<K>,
+        cursor: Cursor
+    ) => OpOutcome;
 } = {
     // CR 120 — damage to an announced target or to a relative player.
     dealDamage(ctx, op) {
@@ -447,30 +470,61 @@ export const OP_EXECUTORS: {
         if (target && target.type === "spell") ctx.counter(target);
     },
     // if — the `if` structural construct (ADR 0045, issue #806). Evaluates a
-    // predefined predicate and runs the matching branch. The branch is itself
-    // an Op list run through `runOpList`, so a suspending Op (choice / mayPay)
-    // inside it propagates "suspend" up: the engine leaves the item on the
-    // stack, the `if` Op stays checkpointed, and on resume the whole `if`
-    // re-runs — the predicate re-evaluates identically (its binding is a stored
-    // answer) and the branch replays, the suspending Op reading its stored
-    // answer back (CR 608.3 — completed choices never re-prompt).
-    if(ctx, op) {
+    // predefined predicate and runs the matching branch through `runOpList`,
+    // passing the SHARED cursor so each branch Op gets its own pre-order
+    // position and per-Op checkpoint. A suspending Op inside the branch
+    // propagates "suspend" up; on resume the whole tree is re-walked, the
+    // predicate re-evaluates identically (its binding is a stored answer), the
+    // same branch is descended, and every Op BEFORE the suspending one is
+    // skipped by its position — so a side-effecting Op that precedes the
+    // suspending Op fires EXACTLY ONCE (CR 608.3 — completed steps never
+    // replay). The `if` Op itself holds no position: it is a pure structural
+    // dispatch, so it always re-evaluates on a re-walk.
+    if(ctx, op, cursor) {
         const branch = evalPredicate(ctx, op.predicate) ? op.then : op.else;
         if (!branch) return; // predicate false, no else — nothing to do
-        return runOpList(ctx, branch);
+        return runOpList(ctx, branch, cursor);
     },
 };
 
-/** Runs an Op list top to bottom (CR 608.2c), stopping at the first Op that
- *  suspends (propagating "suspend" so the caller — a branch's `if`, or the
- *  top-level `runEffectScript` — halts too). Used for BOTH the top-level
- *  sequence and each `if` branch, so nesting is uniform. Ops whose selector /
- *  ref cannot be satisfied are skipped individually (CR 608.2b). */
-function runOpList(ctx: SpellContext, ops: readonly EffectOp[]): OpOutcome {
+/** Runs an Op list top to bottom (CR 608.2c) against a shared pre-order
+ *  `cursor`, stopping at the first Op that suspends (propagating "suspend" so
+ *  the caller — a branch's `if`, or the top-level `runEffectScript` — halts
+ *  too). Used for BOTH the top-level sequence and each `if` branch, so nesting
+ *  is uniform and the checkpoint composes across it (issue #806).
+ *
+ *  Each Op is assigned its own pre-order position `myPos` (`cursor.pos++`).
+ *  When `myPos < cursor.resume` the Op already completed on an earlier run and
+ *  is SKIPPED (CR 608.3 — its possibly-irreversible side effect never replays);
+ *  the ONE exception is a structural `if`, which must still run so its
+ *  predicate re-evaluates and the same branch is descended, keeping the nested
+ *  positions aligned (its own leaf Ops are then skipped individually by the
+ *  same rule). Before executing an eligible Op the current position is
+ *  checkpointed, so a suspension resumes at exactly this Op and its
+ *  `requestChoice` / `noteChoice` entries key their `collectedChoices` under
+ *  it. Ops whose selector / ref cannot be satisfied are skipped individually
+ *  (CR 608.2b). */
+function runOpList(
+    ctx: SpellContext,
+    ops: readonly EffectOp[],
+    cursor: Cursor
+): OpOutcome {
     for (const op of ops) {
+        const myPos = cursor.pos++;
+        // Already-completed leaf Ops never re-run. A structural `if` is the
+        // sole exception: it re-evaluates to re-descend the correct branch
+        // (its own nested Ops are skipped by this same position check).
+        if (myPos < cursor.resume && op.op !== "if") continue;
+        // Checkpoint BEFORE executing (mirrors the engine's stepped-resolve
+        // protocol): a suspension inside the Op resumes at THIS position.
+        ctx.setScriptCheckpoint(myPos);
         const outcome = (
-            OP_EXECUTORS[op.op] as (c: SpellContext, o: EffectOp) => OpOutcome
-        )(ctx, op);
+            OP_EXECUTORS[op.op] as (
+                c: SpellContext,
+                o: EffectOp,
+                cur: Cursor
+            ) => OpOutcome
+        )(ctx, op, cursor);
         if (outcome === "suspend") return "suspend";
     }
 }
@@ -482,13 +536,15 @@ function runOpList(ctx: SpellContext, ops: readonly EffectOp[]): OpOutcome {
  *  `bind`. The static validator pre-declares it for ability sites. */
 export const SOURCE_BINDING = "$source";
 
-/** Executes a flat Op sequence in order (CR 608.2c), checkpointing the
- *  current Op index in the stack item (issue #805) so a `choice` Op's
- *  suspension resumes at the SAME Op — completed (possibly irreversible) Ops
- *  never re-run (CR 608.3), mirroring the engine's `resolveSteps` protocol.
- *  Ops whose selector or ref cannot be satisfied are skipped individually —
- *  the rest of the script still runs (CR 608.2b, "the spell does as much as
- *  it can").
+/** Executes an Op sequence (CR 608.2c) through `runOpList`, checkpointing a
+ *  PRE-ORDER position in the stack item (issue #805 / #806) so a suspending Op
+ *  — anywhere in the nested tree, including AFTER a side-effecting Op inside an
+ *  `if` branch — resumes at the SAME Op. Completed (possibly irreversible) Ops
+ *  never re-run (CR 608.3): on resume the tree is re-walked and every Op before
+ *  the checkpointed position is skipped, so a pre-op inside a branch fires
+ *  exactly once. Ops whose selector or ref cannot be satisfied are skipped
+ *  individually — the rest of the script still runs (CR 608.2b, "the spell does
+ *  as much as it can").
  *
  *  Same code path for spell and ability sites (ADR 0045 "one execution path").
  *  The only site-dependent seam is the implicit `$source` binding: when the
@@ -516,18 +572,11 @@ export function runEffectScript(
             id: ctx.sourceInstanceId,
         });
     }
-    for (let i = checkpoint ?? 0; i < effects.length; i++) {
-        // Commit the Op index BEFORE running the Op (mirrors the engine's
-        // stepped-resolve protocol): `requestChoice` inside keys its
-        // `collectedChoices` entry under this index, and a suspension
-        // resumes exactly here.
-        ctx.setScriptCheckpoint(i);
-        const op = effects[i];
-        const outcome = (
-            OP_EXECUTORS[op.op] as (c: SpellContext, o: EffectOp) => OpOutcome
-        )(ctx, op);
-        if (outcome === "suspend") return; // engine sees pendingChoices > 0
-    }
+    // A fresh run resumes from position 0 (nothing skipped); a resume skips
+    // every Op before the checkpointed position across the whole nested tree.
+    const cursor: Cursor = { pos: 0, resume: checkpoint ?? 0 };
+    const outcome = runOpList(ctx, effects, cursor);
+    if (outcome === "suspend") return; // engine sees pendingChoices > 0
     // Completed — clear the checkpoint so the item carries no stale
     // `resolutionStep` into its next zone (the engine clears
     // `collectedChoices` itself when the item leaves the stack).
