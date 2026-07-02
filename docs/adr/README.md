@@ -63,3 +63,6 @@ added later (see issue tracker).
 | 0042 | Cumulative Upkeep via Age Counters and a Scaling Cost Template                                     | [link](0042-cumulative-upkeep-age-counter-template.md)                 |
 | 0043 | Set-file decomposition by colour for parallel agentic throughput                                   | [link](0043-set-file-decomposition-for-parallel-agentic-throughput.md) |
 | 0044 | DB-backed, LLM-generated debug scenarios                                                           | [link](0044-db-backed-llm-generated-debug-scenarios.md)                |
+| 0045 | Effect Script: hybrid declarative DSL with a frozen minimal grammar                                | [link](0045-effect-script-hybrid-dsl-frozen-grammar.md)                |
+| 0046 | Card registry: repo as source of truth, DB as a rebuildable projection                             | [link](0046-card-registry-repo-source-of-truth-db-projection.md)       |
+| 0047 | Expected Input as the authoritative gate (and why not a full FSM)                                  | [link](0047-expected-input-authoritative-gate.md)                      |

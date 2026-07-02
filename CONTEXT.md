@@ -318,6 +318,18 @@ _Avoid_: Edition, expansion (use the set code)
 The API surface available to a **Card Definition**'s `resolve()` function. Provides composable primitives (moveZone, drawCards, damage, gainLife, etc.) that the resolver calls to apply effects.
 _Avoid_: Resolver, effect context, spell API
 
+**Effect Script**:
+The declarative, serializable form of a **Card Definition**'s effect: an ordered list of **Ops** connected by exactly four structural constructs — bind, ref, if, forEach. Interpreted by the engine; the grammar is frozen while the **Op** vocabulary grows. A card whose effect cannot be expressed as an Effect Script uses `resolve()` instead (the escape hatch for protocol-like cards).
+_Avoid_: DSL script, effect JSON, card script
+
+**Op**:
+A single vocabulary entry of an **Effect Script** (dealDamage, draw, destroy, choice, …). Each Op maps to an engine primitive; new Ops may be added freely, new structural constructs may not.
+_Avoid_: Instruction, command, opcode
+
+**Mechanics Registry**:
+The machine-readable census of every CR keyword ability (702) and keyword action (701), each with an implementation status and its engine binding (**Op** name or static ability). The single authority on mechanic names: cards and **Effect Scripts** may only reference mechanics it lists. Census is total; implementation is demand-driven.
+_Avoid_: Mechanics doc, keyword list, capability matrix
+
 **Holding Bundle**:
 A record that pulls a **Permanent** (plus the Auras attached to it and a snapshot of its counters) off the battlefield as a unit and remembers how to put it back. Two flavours: the **phased-out bundle** (`phasedOut`, ADR 0021) keeps the same object off-battlefield with no zone change or triggers; the **exile-and-return bundle** (`exileHeld`, ADR 0028) is a real exile — leaves/enters triggers fire, the returned object is new, and counters are _noted_ then re-applied. The bundle's existence doubles as the "delayed return is armed" flag.
 _Avoid_: Limbo, stash, suspended permanent
@@ -441,6 +453,10 @@ _Avoid_: Long tap, press-and-hold
 The dismiss model for the **Card Preview Overlay** on touch devices. Release before 1s = peek (closes immediately). Hold >1s = lock (stays open, dismiss via tap on backdrop).
 
 ### Flow
+
+**Expected Input**:
+The single authoritative declaration of what the **Game** is waiting for at a stable point: which **Player** must act and what kind of input is legal (choice, target, priority, blockers). Maintained by the engine — every game mutation is gated against it, and UI, bot, and timeout all read it as their one contract. The explicit form of the game's waiting-state machine.
+_Avoid_: Waiting state, pending state, game mode
 
 **Announce**:
 The first step of **Casting**: the client declares intent to cast a card. Reserves the card, puts it on the **Stack**, and waits for target selection and mana payment.
