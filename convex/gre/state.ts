@@ -1848,7 +1848,65 @@ export type GameState = {
      *  card state — so it serializes as plain data. Its existence is also the
      *  "delayed return is armed" flag (see TriggerStateView.exileHeld). */
     exileHeld?: ExileReturnBundle[];
+    /** Authoritative Expected Input (ADR 0047) — the single answer to "what is
+     *  the game waiting for, from whom?". Maintained by the engine at every
+     *  stable point via {@link refreshExpectedInput} (persistence seam +
+     *  shared test fixtures), NOT derived on read. Optional because it is
+     *  materialized lazily: `undefined` means "not yet computed on this state"
+     *  (e.g. an intermediate state a test built by hand) or "the game is over
+     *  and waits for nothing". This slice introduces the field and its
+     *  bookkeeping; mutation gating against it is a follow-up (#799). See
+     *  {@link ExpectedInput}. */
+    expectedInput?: ExpectedInput;
 };
+
+/** Authoritative discriminated union describing what input the game is
+ *  currently waiting for, and from which player (ADR 0047). Maintained by the
+ *  engine at every stable point — set/recomputed when a choice is
+ *  enqueued/dequeued, a target wait begins/ends, blockers are declared, or
+ *  priority is handed off — never derived on read.
+ *
+ *  Precedence when several waiting sources are simultaneously present
+ *  (see `computeExpectedInput`): `choice` > `target` > `blockers` >
+ *  `priority`. A mid-resolution suspension (PendingChoice) outranks
+ *  everything; an in-progress spell/ability payment
+ *  (pendingCast / pendingActivation) is a priority-holder state and maps to
+ *  `priority` (the payer still holds priority — CR 117). The coherence
+ *  invariant (`assertExpectedInputCoherent`) asserts the scattered pending*
+ *  fields + priority agree with this field. */
+export type ExpectedInput =
+    | {
+          /** CR 608.2 / 101.4 — the head PendingChoice (FIFO front) awaits
+           *  input from `playerId`. */
+          kind: "choice";
+          playerId: string;
+          /** Head PendingChoice identity, so consumers/gate can key on it. */
+          stackItemId: string;
+          choiceId: string;
+          choiceKind: PendingChoiceKind;
+      }
+    | {
+          /** CR 601.2c — target selection for a spell/ability awaits input
+           *  from `playerId`. */
+          kind: "target";
+          playerId: string;
+          cardInstanceId: string;
+          targetType: TargetRequirement["type"];
+      }
+    | {
+          /** CR 509.1 — the declaring player is choosing blockers this combat
+           *  (the defending player, or the attacking player under Melee). */
+          kind: "blockers";
+          playerId: string;
+      }
+    | {
+          /** CR 117 — `playerId` holds priority. The default waiting state,
+           *  and also the state during an in-progress cast/activation payment
+           *  (pendingCast / pendingActivation), where the payer holds
+           *  priority. */
+          kind: "priority";
+          playerId: string;
+      };
 
 /** Player-level replacement preferences. Each entry is opt-in: undefined
  *  means "use the replacement effect's default behavior" (typically the

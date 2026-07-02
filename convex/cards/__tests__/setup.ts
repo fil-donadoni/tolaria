@@ -10,6 +10,10 @@ import type {
     PlayerState,
     StackItem,
 } from "../../gre/state";
+import {
+    assertExpectedInputCoherent,
+    refreshExpectedInput,
+} from "../../gre/expectedInput";
 
 /** Builds a CardInstanceState from a registered card id. Honors overrides.
  *  The engine persists only the slim `{ id }` reference in `card.card`;
@@ -58,7 +62,7 @@ export function makePlayer(
 }
 
 export function makeState(overrides: Partial<GameState> = {}): GameState {
-    return {
+    const state: GameState = {
         players: [makePlayer("p1"), makePlayer("p2")],
         stack: [],
         turn: 1,
@@ -70,6 +74,17 @@ export function makeState(overrides: Partial<GameState> = {}): GameState {
         rngCounter: 0,
         ...overrides,
     };
+    // ADR 0047 — maintain the authoritative Expected Input on every
+    // fixture-built state, then assert the coherence invariant. We ALWAYS
+    // recompute (overwriting any value carried in via an override spread of a
+    // post-mutation state, e.g. `makeState({ ...state })` — the engine only
+    // maintains the field at the persistence seam, so a spread can carry a
+    // stale value). Wiring this into the shared fixture means every test that
+    // builds a scenario exercises `computeExpectedInput` over its pending* /
+    // combat / priority shape for free and stays green.
+    refreshExpectedInput(state);
+    assertExpectedInputCoherent(state);
+    return state;
 }
 
 /** Pushes a spell onto the stack as if it had just been legally cast. `ownerId`

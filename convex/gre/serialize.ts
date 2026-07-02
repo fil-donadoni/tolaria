@@ -765,6 +765,9 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "phasedOut",
     "exileHeld",
     "drawLookReplacements",
+    // ADR 0047 — authoritative Expected Input. Plain-data discriminated union,
+    // so it round-trips through the DB as-is.
+    "expectedInput",
 ] as const;
 
 /** Optional GameState keys that are intentionally ephemeral — never
