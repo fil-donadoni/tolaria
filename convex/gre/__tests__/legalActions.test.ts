@@ -63,16 +63,27 @@ function assertGateParity(state: GameState): LegalAction[] {
     }
 
     // Direction 2 — gate-accepted ⊆ enumerated, over the full kind × player
-    // matrix (EXPECTED_INPUT_KINDS is compiler-checked exhaustive).
+    // matrix (EXPECTED_INPUT_KINDS is compiler-checked exhaustive). The gate is
+    // probed through the SAME contract the production mutation submits
+    // (`gateRequestFor`), NOT a hand-rolled `{playerId, expect}`. Sub-flows that
+    // fold into a priority window — combat-damage confirmation (CR 510.1c) — are
+    // owned by their acting player via `anyPlayer`, not by `priorityPlayerId`,
+    // so a bare probe would spuriously reject a legal assigner action whose
+    // playerId differs from the priority holder. Reusing `gateRequestFor` on a
+    // representative enumerated action makes this direction reflect the real
+    // gate contract; when no action is enumerated for the class the canonical
+    // bare request is the right probe (that is exactly what a normal mutation of
+    // that class would send).
     for (const kind of EXPECTED_INPUT_KINDS) {
         for (const player of state.players) {
-            const accepted = gateAccepts(state, {
-                playerId: player.id,
-                expect: kind,
-            });
-            const enumerated = actions.some(
+            const rep = actions.find(
                 (a) => a.expect === kind && a.playerId === player.id
             );
+            const request: GateRequest = rep
+                ? gateRequestFor(rep)
+                : { playerId: player.id, expect: kind };
+            const accepted = gateAccepts(state, request);
+            const enumerated = rep !== undefined;
             expect(
                 enumerated,
                 `gate/enumeration mismatch for (${kind}, ${player.id}): ` +
@@ -518,5 +529,287 @@ describe("legalActions — in-progress spell payment (CR 601.2g)", () => {
             },
             { expect: "priority", playerId: "p1", action: { kind: "pass" } },
         ]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// In-progress ability activation payment (CR 602.2b)
+// ---------------------------------------------------------------------------
+
+describe("legalActions — in-progress ability activation (CR 602.2b)", () => {
+    it("holds gate parity and offers cancel-activation and pass to the paying priority holder", () => {
+        const source = makeInstance(MOUNTAIN, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [source] }),
+                makePlayer("p2"),
+            ],
+            pendingActivation: {
+                playerId: "p1",
+                cardInstanceId: source.id,
+                abilityId: "a1",
+                manaCost: { R: 1 },
+                tappedLandIds: [],
+                tapSource: false,
+                sacrificeSource: false,
+            },
+        });
+
+        const actions = assertGateParity(state);
+        expect(actions).toEqual([
+            {
+                expect: "priority",
+                playerId: "p1",
+                action: { kind: "cancel-activation" },
+            },
+            { expect: "priority", playerId: "p1", action: { kind: "pass" } },
+        ]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// name-card choice (CR 201.2 / 202.3)
+// ---------------------------------------------------------------------------
+
+describe("legalActions — name-card choice (CR 201.2 / 202.3)", () => {
+    it("holds gate parity and offers a single open submit-name-card action", () => {
+        const choice: PendingChoice = {
+            stackItemId: "s1",
+            step: 0,
+            choiceId: "c1",
+            playerId: "p2",
+            kind: "name-card",
+            count: 1,
+            prompt: "Name a card",
+        };
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            pendingChoices: [choice],
+        });
+
+        const actions = assertGateParity(state);
+        // The registry is the payload domain (CR 202.3), so one open action
+        // stands for the whole family — the caller supplies the name.
+        expect(actions).toEqual([
+            {
+                expect: "choice",
+                playerId: "p2",
+                action: { kind: "submit-name-card" },
+            },
+        ]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// random-reveal acknowledgement (CR 705.2, ADR 0023)
+// ---------------------------------------------------------------------------
+
+describe("legalActions — random-reveal ack (CR 705.2, ADR 0023)", () => {
+    it("holds gate parity and offers the no-decision acknowledgement", () => {
+        const choice: PendingChoice = {
+            stackItemId: "s1",
+            step: 0,
+            choiceId: "c1",
+            playerId: "p1",
+            kind: "random-reveal",
+            count: 1,
+            prompt: "Flip a coin",
+            randomKind: "coin",
+            sides: 2,
+            result: 1,
+        };
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+            pendingChoices: [choice],
+        });
+
+        const actions = assertGateParity(state);
+        // A suspended random reveal resumes with a single acknowledgement that
+        // carries the head's identity (CR 705.2) — no branch to choose.
+        expect(actions).toEqual([
+            {
+                expect: "choice",
+                playerId: "p1",
+                action: {
+                    kind: "submit-random-reveal-ack",
+                    stackItemId: "s1",
+                    choiceId: "c1",
+                },
+            },
+        ]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// choose-damage-target choice (CR 115.4)
+// ---------------------------------------------------------------------------
+
+describe("legalActions — choose-damage-target (CR 115.4)", () => {
+    it("holds gate parity and enumerates one submission per damageable permanent and player", () => {
+        const creature = makeInstance(BEARS, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const choice: PendingChoice = {
+            stackItemId: "s1",
+            step: 0,
+            choiceId: "c1",
+            playerId: "p1",
+            kind: "choose-damage-target",
+            count: 1,
+            prompt: "Choose any target for the damage",
+            candidateIds: [creature.id],
+            candidatePlayerIds: ["p1", "p2"],
+        };
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [creature] }),
+                makePlayer("p2"),
+            ],
+            pendingChoices: [choice],
+        });
+
+        const actions = assertGateParity(state);
+        // "Any target" (CR 115.4): the damageable permanent + both players.
+        const payloads = actions.map(
+            (a) => (a.action as { cardInstanceIds: string[] }).cardInstanceIds
+        );
+        expect(payloads).toContainEqual([creature.id]);
+        expect(payloads).toContainEqual(["p1"]);
+        expect(payloads).toContainEqual(["p2"]);
+        expect(payloads).toHaveLength(3);
+        expect(actions.every((a) => a.expect === "choice")).toBe(true);
+        expect(actions.every((a) => a.playerId === "p1")).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Divide-as-you-choose targeting (CR 601.2d)
+// ---------------------------------------------------------------------------
+
+describe("legalActions — divide-as-you-choose targeting (CR 601.2d)", () => {
+    it("holds gate parity and carries the minimal legal amount (1) on each select", () => {
+        const bolt = makeInstance(BOLT, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const creature = makeInstance(BEARS, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: [bolt] }),
+                makePlayer("p2", { battlefield: [creature] }),
+            ],
+            pendingTarget: {
+                playerId: "p1",
+                cardInstanceId: bolt.id,
+                targetType: "any",
+                count: { min: 1, max: 3 },
+                selected: [],
+                divideTotal: 3,
+            },
+        });
+
+        const actions = assertGateParity(state);
+        const selects = actions.filter(
+            (a) => a.action.kind === "select-target"
+        );
+        // "any" target: opponent creature + both players.
+        expect(selects).toHaveLength(3);
+        // CR 601.2d — every enumerated select carries the minimal legal
+        // division (1 point of the budget).
+        for (const s of selects) {
+            expect((s.action as { amount?: number }).amount).toBe(1);
+        }
+        // Budget still open with 0 assigned, and cancel always legal.
+        expect(actions.map((a) => a.action.kind)).toContain("cancel-target");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Combat damage confirmation (CR 510.1c)
+// ---------------------------------------------------------------------------
+
+describe("legalActions — combat damage confirmation (CR 510.1c)", () => {
+    /** phase = COMBAT_DAMAGE with an open assignment owned by two distinct
+     *  assigners — an attacker with 2+ blockers (the active player) and a
+     *  blocker blocking 2+ attackers (the defender). The defender-assigner
+     *  differs from `priorityPlayerId`, the exact case the parity probe must
+     *  reflect via the mutation's `anyPlayer` contract. */
+    function damageState(confirmedBy: string[] = []): GameState {
+        const attacker = makeInstance(BEARS, {
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const blocker = makeInstance(BEARS, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        return makeState({
+            phase: "COMBAT_DAMAGE",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+            combat: {
+                attackerIds: [attacker.id],
+                confirmed: true,
+                blockerAssignments: { [blocker.id]: [attacker.id] },
+                blockersConfirmed: true,
+                damageConfirmed: false,
+                damageAssignerIds: {
+                    [attacker.id]: "p1",
+                    [blocker.id]: "p2",
+                },
+                damageAssignmentConfirmedBy: confirmedBy,
+            },
+        });
+    }
+
+    it("holds gate parity and offers a confirm-damage per outstanding assigner (incl. a non-priority assigner)", () => {
+        const state = damageState();
+        const actions = assertGateParity(state);
+        // Both distinct assigners are outstanding — the active-player attacker
+        // (also the priority holder) and the defender blocker (NOT the priority
+        // holder). Parity holds because each probe uses the `anyPlayer` contract
+        // `gateRequestFor` builds for confirm-damage (CR 510.1c).
+        expect(actions).toEqual([
+            {
+                expect: "priority",
+                playerId: "p1",
+                action: { kind: "confirm-damage" },
+            },
+            {
+                expect: "priority",
+                playerId: "p2",
+                action: { kind: "confirm-damage" },
+            },
+        ]);
+    });
+
+    it("drops an assigner that already confirmed (CR 510.1c wait-for-all)", () => {
+        const state = damageState(["p1"]);
+        const actions = legalActions(state);
+        // Only the still-outstanding defender assigner remains.
+        expect(actions).toEqual([
+            {
+                expect: "priority",
+                playerId: "p2",
+                action: { kind: "confirm-damage" },
+            },
+        ]);
+        // Direction 1 still holds for the remaining action: its production
+        // gate request (anyPlayer) is admitted even though p2 isn't the
+        // priority holder.
+        expect(gateAccepts(state, gateRequestFor(actions[0]))).toBe(true);
     });
 });
