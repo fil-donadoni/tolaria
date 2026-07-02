@@ -258,8 +258,10 @@ function maxAffordableExtra(
 // Combination helpers
 // ---------------------------------------------------------------------------
 
-/** All size-`k` combinations of `items`, capped at `MAX_COMBINATIONS`. */
-function combinations<T>(items: T[], k: number): T[][] {
+/** All size-`k` combinations of `items`, capped at `MAX_COMBINATIONS`.
+ *  Exported for reuse by the Expected-Input-driven enumeration
+ *  (`legalActions.ts`, issue #801). */
+export function combinations<T>(items: T[], k: number): T[][] {
     const out: T[][] = [];
     const pick = (start: number, acc: T[]) => {
         if (out.length >= MAX_COMBINATIONS) return;
@@ -616,7 +618,14 @@ function otherPlayer(
     return state.players.find((p) => p.id !== playerId);
 }
 
-function enumerateAttackerMoves(state: GameState, player: PlayerState): Move[] {
+/** Every legal attacker declaration for the active player (CR 508.1),
+ *  respecting must-attack requirements (CR 508.1d), eligibility, and the
+ *  Caverns of Despair cap. Exported for the Expected-Input-driven enumeration
+ *  (`legalActions.ts`, issue #801). */
+export function enumerateAttackerMoves(
+    state: GameState,
+    player: PlayerState
+): Move[] {
     const defender = otherPlayer(state, player.id);
     const defBf = defender?.battlefield;
     const eligible = player.battlefield.filter(
@@ -642,7 +651,14 @@ function enumerateAttackerMoves(state: GameState, player: PlayerState): Move[] {
         }));
 }
 
-function enumerateBlockerMoves(state: GameState, player: PlayerState): Move[] {
+/** Every legal blocker assignment for the declaring player (CR 509.1),
+ *  respecting per-blocker eligibility, the Caverns of Despair blocker cap
+ *  (CR 509.1a), and menace-style minimums (CR 509.1b). Exported for the
+ *  Expected-Input-driven enumeration (`legalActions.ts`, issue #801). */
+export function enumerateBlockerMoves(
+    state: GameState,
+    player: PlayerState
+): Move[] {
     const combat = state.combat;
     if (!combat) return [{ kind: "declare-blockers", assignments: [] }];
     const attackerIds = combat.attackerIds;

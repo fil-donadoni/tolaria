@@ -121,6 +121,31 @@ export function assertExpectedInputCoherent(state: GameState): void {
  *  declares it belongs to when it calls the gate. */
 export type ExpectedInputKind = ExpectedInput["kind"];
 
+/** Every {@link ExpectedInputKind}, as a value (ADR 0047, issue #801). Used by
+ *  the gate parity tests to probe the gate across the full kind × player
+ *  matrix. Exhaustiveness is compiler-enforced in BOTH directions: `satisfies`
+ *  rejects a stray member, and the `Exclude` witness below fails to compile
+ *  when a new ExpectedInput variant is added without extending this list. */
+export const EXPECTED_INPUT_KINDS = [
+    "choice",
+    "target",
+    "blockers",
+    "priority",
+] as const satisfies readonly ExpectedInputKind[];
+
+/** Compile-time witness that {@link EXPECTED_INPUT_KINDS} covers every member
+ *  of {@link ExpectedInputKind}. Adding a variant to the union without adding
+ *  it to the list makes the conditional resolve to `never`, and assigning
+ *  `true` to it errors. */
+type MissingExpectedInputKind = Exclude<
+    ExpectedInputKind,
+    (typeof EXPECTED_INPUT_KINDS)[number]
+>;
+const _expectedInputKindsExhaustive: [MissingExpectedInputKind] extends [never]
+    ? true
+    : never = true;
+void _expectedInputKindsExhaustive;
+
 /** What a game mutation asks the single gate to authorize (ADR 0047, #799). */
 export type GateRequest = {
     /** The player submitting the action. */
