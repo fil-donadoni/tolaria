@@ -9,7 +9,7 @@ accepted
 All 1,180 card definitions are TypeScript compiled into the Convex bundle and
 loaded by every game mutation. This is fine today and impossible at 80k
 (bundle size, cold starts, Convex function limits). Draft/sealed also need
-pool *queries* ("all red uncommons of set X") that module imports cannot
+pool _queries_ ("all red uncommons of set X") that module imports cannot
 answer. But the entire high-throughput workflow — per-colour set files
 (ADR 0043), PR-diff review, vitest importing card modules, the agentic
 worklist (ADR 0041) — is built on files in git, and it is the best-working

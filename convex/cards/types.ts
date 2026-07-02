@@ -2304,6 +2304,7 @@ export interface SpellContext {
     getGraveyardCards: (playerId: string) => Array<{
         id: string;
         types: CardType[];
+        subtypes: string[];
         manaValue: number;
         colors: Color[];
     }>;

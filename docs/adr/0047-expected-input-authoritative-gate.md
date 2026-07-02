@@ -23,13 +23,13 @@ heavy refactoring — and rejected on domain grounds, not caution.
 mutation is gated through it.**
 
 - `expectedInput` is a discriminated union — `choice | target | priority |
-  blockers | …` — each variant carrying the acting player and the legal input
-  shape. It is *maintained* at every stable point (set when a choice is
+blockers | …` — each variant carrying the acting player and the legal input
+  shape. It is _maintained_ at every stable point (set when a choice is
   enqueued, recomputed when it resolves), not derived on read.
 - **One gate.** Every game mutation first checks the submitted action against
   the current `expectedInput`. "Are you allowed to do this now?" lives in one
   place instead of ~15.
-- **Runtime invariant** (asserted in tests and dev): the scattered pending*
+- **Runtime invariant** (asserted in tests and dev): the scattered pending\*
   fields must be consistent with `expectedInput` — incoherent combinations
   become loud errors instead of silent bugs.
 - The union is the single contract for UI rendering, bot decision-typing, and
@@ -41,7 +41,7 @@ mutation is gated through it.**
 hierarchical — mid-resolution of a stack item, suspended on a choice, with a
 second choice queued, during a combat step. A flat state enum must encode
 this combinatorially and ends up re-embedding the composite fields inside
-each state; the existing factored fields *are* the correct representation of
+each state; the existing factored fields _are_ the correct representation of
 a hierarchical machine. The rewrite would touch `game.ts`, `state.ts`,
 `phases.ts`, `stack.ts`, the timeout scheduler, solo mode, the bot, and
 thousands of test anchors — weeks of high-regression work concurrent with the
@@ -51,7 +51,7 @@ here, not rigour.
 
 This decision closes no doors: `expectedInput`'s union is exactly the state
 type a full FSM would use. If reified transitions ever prove necessary, they
-build *on top of* this gate with ~zero sunk cost.
+build _on top of_ this gate with ~zero sunk cost.
 
 ## Consequences
 

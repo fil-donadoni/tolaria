@@ -94,13 +94,19 @@ function countSet(ctx: SpellContext, env: Env, spec: EffectCountSpec): number {
             : undefined;
         return ctx.getBattlefieldIds(playerId, filter).length;
     }
-    // graveyard (CR 404) — the minimal filter matches by card type only
-    // (subtypes are not carried on the graveyard card view).
+    // graveyard (CR 404) — filter by card type and/or subtype (CR 205),
+    // mirroring the battlefield branch. Both fields are ANDed; an absent
+    // field imposes no constraint. Honouring `subtype` here (rather than
+    // rejecting it in the validator) is deliberate: subtype-scoped
+    // graveyard counts are legitimate ("for each Zombie in your graveyard").
     const cards = ctx.getGraveyardCards(playerId);
     const type = spec.filter?.type;
-    return type
-        ? cards.filter((c) => c.types.includes(type)).length
-        : cards.length;
+    const subtype = spec.filter?.subtype;
+    return cards.filter(
+        (c) =>
+            (type === undefined || c.types.includes(type)) &&
+            (subtype === undefined || c.subtypes.includes(subtype))
+    ).length;
 }
 
 /** Resolves a player selector to a concrete player id, or undefined when the

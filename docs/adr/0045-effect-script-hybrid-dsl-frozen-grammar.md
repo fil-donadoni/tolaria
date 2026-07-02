@@ -11,7 +11,7 @@ At 1,180 cards this already shows three structural limits, and all three worsen
 linearly toward the ~80k target:
 
 - **Closures are opaque.** The engine, the bot (ISMCTS), and any tooling can only
-  learn what a card does by *executing* it. Move ordering, target pruning, and
+  learn what a card does by _executing_ it. Move ordering, target pruning, and
   static evaluation are impossible; agent-generated cards can only be validated
   by tests, never by schema.
 - **Closures are not serializable.** Every card must live in the code bundle
@@ -22,7 +22,7 @@ linearly toward the ~80k target:
   `applyCamouflagePileBlocks`) because a closure author under pressure asks for
   a bespoke method rather than composing.
 
-The player-choice system is *not* part of the problem: `PendingChoice` is already
+The player-choice system is _not_ part of the problem: `PendingChoice` is already
 a single generic data format (~20 kinds, 4 generic mutations, one UI router).
 
 ## Decision
@@ -51,7 +51,7 @@ there, not in an ever-fatter grammar.
 **One execution path.** The interpreter executes Ops by calling the existing
 SpellContext primitives — no parallel engine. Effect Scripts apply to every
 effect site: spell resolution, triggered-ability and activated-ability effects.
-The SpellContext audit happens *inside* the Op-vocabulary design: orthogonal
+The SpellContext audit happens _inside_ the Op-vocabulary design: orthogonal
 primitives become Ops; card-shaped ones stay engine-internal, callable only
 from `resolve()`, and die by attrition as their cards migrate.
 

@@ -329,7 +329,7 @@ describe("Effect Script Op: destroy (CR 701.8)", () => {
     });
 });
 
-describe("Effect Script Op: exile (CR 701.19)", () => {
+describe("Effect Script Op: exile (CR 701.13)", () => {
     it("exiles the announced creature target to its owner's exile zone", () => {
         const id = registerScript("test-op-exile", [
             { op: "exile", target: { target: 0 } },
@@ -581,6 +581,64 @@ describe("Effect Script construct: count (ADR 0045, CR 122)", () => {
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
         // 2 cards in p2's graveyard → 2 damage to p2.
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("honours a subtype filter on a graveyard count (subset, not the whole zone)", () => {
+        // Regression (PR #817): a graveyard count with a subtype-only filter
+        // used to ignore the subtype and count the ENTIRE graveyard. It must
+        // count only the matching subtype (CR 205). Register a distinct
+        // subtype so the graveyard is genuinely mixed.
+        const ZOMBIE_ID = "test-effects-zombie";
+        registerTokenDefinition({
+            id: ZOMBIE_ID,
+            name: ZOMBIE_ID,
+            rarity: "common",
+            manaCost: { B: 1 },
+            types: ["Creature"],
+            subtypes: ["Zombie"],
+            power: 2,
+            toughness: 2,
+        });
+        const id = registerScript("test-count-gy-subtype", [
+            {
+                op: "dealDamage",
+                to: { player: "opponent" },
+                amount: {
+                    count: {
+                        zone: "graveyard",
+                        controller: "opponent",
+                        filter: { subtype: "Zombie" },
+                    },
+                },
+            },
+        ]);
+        // p2's graveyard: 2 Zombies + 3 Bears = 5 cards, but only 2 Zombies.
+        const zombies = ["z1", "z2"].map((cid) =>
+            makeInstance(ZOMBIE_ID, {
+                id: cid,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "graveyard",
+            })
+        );
+        const bears = ["b1", "b2", "b3"].map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "graveyard",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { graveyard: [...zombies, ...bears] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // Only the 2 Zombies count → 2 damage (NOT 5, the whole graveyard).
         expect(state.players[1].life).toBe(18);
     });
 });
