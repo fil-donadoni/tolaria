@@ -3,7 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingTarget, Player } from "~/types/game";
-import { getCardById } from "@convex/cards";
+import { getDefinition } from "@convex/cards";
 import { useDraggable } from "~/hooks/useDraggable";
 
 const TARGET_LABEL: Record<string, string> = {
@@ -97,7 +97,7 @@ export default function TargetSelectionBanner({
         (c) => c !== null && c.id === pendingTarget.cardInstanceId
     );
     const cardName = cardInHand
-        ? getCardById(cardInHand.card.id).name
+        ? getDefinition(cardInHand.card.id).name
         : isCopyRetarget
           ? "Copy"
           : "spell";

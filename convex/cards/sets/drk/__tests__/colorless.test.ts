@@ -72,14 +72,14 @@ import {
     normalizeManaCost,
     resolveTopOfStack,
 } from "../../../../gre/state";
-import { getAllCards, getCardById, getCardByName } from "../../../index";
+import { getAllCards, getDefinition, getCardByName } from "../../../index";
 import { lightningBolt } from "../../lea";
 
 describe("DRK registry parity", () => {
     it("registers the skeleton creatures by id", () => {
-        expect(getCardById(squire.id)).toBe(squire);
-        expect(getCardById(goblinHero.id)).toBe(goblinHero);
-        expect(getCardById(scarwoodGoblins.id)).toBe(scarwoodGoblins);
+        expect(getDefinition(squire.id)).toBe(squire);
+        expect(getDefinition(goblinHero.id)).toBe(goblinHero);
+        expect(getDefinition(scarwoodGoblins.id)).toBe(scarwoodGoblins);
     });
 
     it("registers them by name (debug-panel / pool lookup path)", () => {
@@ -154,7 +154,7 @@ describe("DRK Artifacts/Lands registry parity (#417)", () => {
     it("registers every implemented card by id, name and in the index", () => {
         const all = getAllCards();
         for (const c of cards) {
-            expect(getCardById(c.id)).toBe(c);
+            expect(getDefinition(c.id)).toBe(c);
             expect(getCardByName(c.name)).toBe(c);
             expect(all).toContain(c);
         }
@@ -440,7 +440,7 @@ describe("Stone Calendar — spells you cast cost {1} less (CR 601.2f)", () => {
         spellCardId: string,
         controllerId: string
     ): Record<string, number> {
-        const def = getCardById(spellCardId);
+        const def = getDefinition(spellCardId);
         const spellView = makeInstance(spellCardId, {
             controllerId,
             zone: "stack",

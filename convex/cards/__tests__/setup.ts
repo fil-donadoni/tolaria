@@ -2,7 +2,7 @@
 // no production logic. See `convex/cards/sets/__tests__/<set>.test.ts` for
 // the testing convention (one describe per card, GRE + wire format).
 
-import { getCardById } from "..";
+import { getDefinition } from "..";
 import type { Phase } from "../../gre/types";
 import type {
     CardInstanceState,
@@ -18,12 +18,12 @@ import {
 /** Builds a CardInstanceState from a registered card id. Honors overrides.
  *  The engine persists only the slim `{ id }` reference in `card.card`;
  *  definitions are hydrated server- and client-side from the in-memory
- *  registry via `getCardById`. */
+ *  registry via `getDefinition`. */
 export function makeInstance(
     cardId: string,
     overrides: Partial<CardInstanceState> = {}
 ): CardInstanceState {
-    const def = getCardById(cardId);
+    const def = getDefinition(cardId);
     return {
         id:
             overrides.id ??

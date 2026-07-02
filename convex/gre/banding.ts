@@ -1,6 +1,6 @@
 import type { CardInstanceState, GameState } from "./state";
 import { getPlayer, getOpponentId, untapPermanent } from "./state";
-import { tryGetCardById } from "../cards";
+import { tryGetDefinition } from "../cards";
 
 /**
  * Banding combat helpers (CR 702.21).
@@ -86,7 +86,7 @@ export function grantsDamageAssignment(card: CardInstanceState): boolean {
  *  carry these on their synthesized def, so the registry lookup covers them. */
 function bandDefinition(card: CardInstanceState) {
     const cardId = (card.card as { id?: string }).id;
-    return cardId ? tryGetCardById(cardId) : null;
+    return cardId ? tryGetDefinition(cardId) : null;
 }
 
 /** True if `card` satisfies the band `quality` (CR 702.22j). "legendary" reads

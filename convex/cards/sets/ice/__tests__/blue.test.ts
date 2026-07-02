@@ -57,7 +57,7 @@ import {
     realityTwist,
 } from "../../ice";
 import { matchesSpellFilter } from "../../../filters";
-import { getCardById, getCardByName } from "../../../index";
+import { getDefinition, getCardByName } from "../../../index";
 import {
     resolveTopOfStack,
     canPayMayPayCost,
@@ -113,17 +113,19 @@ import { mountain, island } from "../../lea";
 
 describe("ICE Blue reprints (CardPrint wiring, ADR 0014)", () => {
     it("Counterspell print resolves to the LEA definition", () => {
-        expect(getCardById(counterspellIce.printId).name).toBe("Counterspell");
+        expect(getDefinition(counterspellIce.printId).name).toBe(
+            "Counterspell"
+        );
         expect(counterspellIce.definitionId).toBe(
             "0df55e3f-14de-46ef-b6b1-616618724d9e"
         );
         expect(counterspellIce.setCode).toBe("ice");
     });
     it("Power Sink print resolves to the LEA definition", () => {
-        expect(getCardById(powerSinkIce.printId).name).toBe("Power Sink");
+        expect(getDefinition(powerSinkIce.printId).name).toBe("Power Sink");
     });
     it("Sleight of Mind print resolves to the LEA definition", () => {
-        expect(getCardById(sleightOfMindIce.printId).name).toBe(
+        expect(getDefinition(sleightOfMindIce.printId).name).toBe(
             "Sleight of Mind"
         );
     });

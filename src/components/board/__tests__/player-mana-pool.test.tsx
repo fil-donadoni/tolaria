@@ -10,7 +10,7 @@ import { GameContext } from "~/hooks/useGameContext";
 
 // Resolve the Ice-Cauldron exiled card name without loading the full registry.
 vi.mock("@convex/cards", () => ({
-    tryGetCardById: (id: string) =>
+    tryGetDefinition: (id: string) =>
         id === "brainstorm-def" ? { name: "Brainstorm" } : undefined,
 }));
 

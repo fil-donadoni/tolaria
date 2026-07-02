@@ -10,7 +10,7 @@
 // (`pt-buff`) scan all permanents and buff a filtered set, and of
 // `globalAttackProhibitionReason` in `attackRestrictions.ts`.
 
-import { tryGetCardById } from ".";
+import { tryGetDefinition } from ".";
 import { ATTACK_RESTRICTION_CTX } from "./attackRestrictions";
 import type { PermanentView, StaticEffectStateView } from "./types";
 
@@ -31,7 +31,7 @@ export function entersTappedByReplacement(
         for (const source of player.battlefield) {
             const cardId = (source.card as { id?: string }).id;
             if (!cardId) continue;
-            const def = tryGetCardById(cardId);
+            const def = tryGetDefinition(cardId);
             if (!def?.staticEffects) continue;
             for (const effect of def.staticEffects) {
                 if (effect.kind !== "enters-tapped-restriction") continue;

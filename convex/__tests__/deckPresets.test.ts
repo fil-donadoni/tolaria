@@ -6,7 +6,7 @@ import {
     presetRowToLobby,
     sortLobbyPresets,
 } from "../decks";
-import { getCardById } from "../cards";
+import { getDefinition } from "../cards";
 import type { Doc } from "../_generated/dataModel";
 
 // `deckPresets.ts` is now seed data only (PRD #466, ADR 0033). These tests
@@ -29,7 +29,7 @@ describe("PRESET_DECKS (seed source)", () => {
         "%s only contains cards present in the registry",
         (_name, deck) => {
             for (const { cardId } of deck.cards) {
-                expect(() => getCardById(cardId)).not.toThrow();
+                expect(() => getDefinition(cardId)).not.toThrow();
             }
         }
     );
@@ -38,7 +38,7 @@ describe("PRESET_DECKS (seed source)", () => {
         "%s cardName matches the registry name",
         (_name, deck) => {
             for (const { cardId, cardName } of deck.cards) {
-                expect(getCardById(cardId).name).toBe(cardName);
+                expect(getDefinition(cardId).name).toBe(cardName);
             }
         }
     );

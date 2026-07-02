@@ -6,7 +6,7 @@ import {
     PointerSensor,
 } from "@dnd-kit/react";
 import { PointerActivationConstraints } from "@dnd-kit/dom";
-import { getCardById } from "@convex/cards";
+import { getDefinition } from "@convex/cards";
 import { getCardColors } from "@convex/cards/colors";
 import { effectiveFeatured, toggleFeatured } from "~/lib/featuredPicker";
 import { FORMAT_RULES, type FormatId, validateDeck } from "@convex/formats";
@@ -103,7 +103,7 @@ function computeDeckColors(cards: DeckCard[]): string[] {
     const set = new Set<string>();
     for (const card of cards) {
         try {
-            const def = getCardById(card.cardId);
+            const def = getDefinition(card.cardId);
             for (const color of getCardColors(def)) set.add(color);
         } catch {
             // ignore — card may have been removed from the registry

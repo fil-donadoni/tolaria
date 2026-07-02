@@ -324,7 +324,7 @@ describe("Llanowar Elves ({T}: Add {G}, CR 605.1a)", () => {
 
     it("wire format: mana ability survives projectPublicState", () => {
         // The projection slims `card.card` to `{ id }`. The constants helpers
-        // read the ability via `getCardById(card.card.id)` — this test guards
+        // read the ability via `getDefinition(card.card.id)` — this test guards
         // against any future refactor that reads ability data off the fat embed.
         const elf = makeInstance(llanowarElves.id, { id: "elf" });
         const state = makeState({

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getAllCards, getCardById } from "../index";
+import { getAllCards, getDefinition } from "../index";
 import { lightningBoltLeb, volcanicIsland } from "../sets/leb";
 import { badlands } from "../sets/lea";
 import type { Rarity } from "../types";
@@ -23,25 +23,25 @@ const VALID_RARITIES: ReadonlySet<Rarity> = new Set([
 
 describe("per-card rarity (CR 206, issue #511)", () => {
     it("a common spell is common (Lightning Bolt)", () => {
-        expect(getCardById(LIGHTNING_BOLT_LEA).rarity).toBe("common");
+        expect(getDefinition(LIGHTNING_BOLT_LEA).rarity).toBe("common");
     });
 
     it("a Power Nine artifact is rare (Mox Sapphire, Black Lotus)", () => {
-        expect(getCardById(MOX_SAPPHIRE_LEA).rarity).toBe("rare");
-        expect(getCardById(BLACK_LOTUS_LEA).rarity).toBe("rare");
+        expect(getDefinition(MOX_SAPPHIRE_LEA).rarity).toBe("rare");
+        expect(getDefinition(BLACK_LOTUS_LEA).rarity).toBe("rare");
     });
 
     it("a basic land carries a rarity (informational — gated by Basic)", () => {
         // Forest is a Basic land; rarity is informational for it but still
         // present and valid (it is a printed common in Alpha).
-        expect(getCardById(FOREST_LEA).rarity).toBe("common");
+        expect(getDefinition(FOREST_LEA).rarity).toBe("common");
     });
 
     it("definitions built via a factory carry their rarity (duals are rare)", () => {
         // Volcanic Island (Beta-original dual) and the Alpha duals are rare;
         // verifies the factory-forwarded path, not just plain literals.
-        expect(getCardById(volcanicIsland.id).rarity).toBe("rare");
-        expect(getCardById(badlands.id).rarity).toBe("rare");
+        expect(getDefinition(volcanicIsland.id).rarity).toBe("rare");
+        expect(getDefinition(badlands.id).rarity).toBe("rare");
     });
 
     it("every card definition in the pool declares a valid rarity", () => {

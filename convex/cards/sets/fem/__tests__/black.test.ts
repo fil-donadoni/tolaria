@@ -39,7 +39,7 @@ import {
     tourachsChant,
     tourachsGate,
 } from "..";
-import { getCardById, getCardByName, getAllCards } from "../../../index";
+import { getDefinition, getCardByName, getAllCards } from "../../../index";
 import { resolveTopOfStack, getCostModifiers } from "../../../../gre/state";
 import type {
     CardInstanceState,
@@ -155,7 +155,7 @@ describe("FEM black registry parity + multi-art prints (ADR 0014)", () => {
 
     it("registers every C5 black card by id and by name", () => {
         for (const def of C5_DEFS) {
-            expect(getCardById(def.id)).toBe(def);
+            expect(getDefinition(def.id)).toBe(def);
             expect(getCardByName(def.name)).toBe(def);
             expect(getAllCards()).toContain(def);
         }
@@ -164,7 +164,7 @@ describe("FEM black registry parity + multi-art prints (ADR 0014)", () => {
     it("resolves every alternate artwork to the shared definition (fem set code)", () => {
         for (const { print, defId } of C5_MULTI_ART_PRINTS) {
             expect(print.definitionId).toBe(defId);
-            expect(getCardById(print.printId).id).toBe(defId);
+            expect(getDefinition(print.printId).id).toBe(defId);
             expect(print.setCode).toBe("fem");
         }
     });

@@ -61,7 +61,7 @@ import {
     tetravus,
 } from "..";
 import { grizzlyBears, holyStrength, shatter } from "../../lea";
-import { getCardById, getInstanceManaCost } from "../../..";
+import { getDefinition, getInstanceManaCost } from "../../..";
 import {
     makeInstance,
     makePlayer,
@@ -136,10 +136,10 @@ import {
 
 describe("ATQ set registration", () => {
     it("Ornithopter resolves from the registry by id", () => {
-        expect(getCardById(ornithopter.id).name).toBe("Ornithopter");
+        expect(getDefinition(ornithopter.id).name).toBe("Ornithopter");
     });
     it("Yotian Soldier resolves from the registry by id", () => {
-        expect(getCardById(yotianSoldier.id).name).toBe("Yotian Soldier");
+        expect(getDefinition(yotianSoldier.id).name).toBe("Yotian Soldier");
     });
 });
 
@@ -201,7 +201,7 @@ describe("ATQ walking skeleton survives projection (wire format)", () => {
         // and the definition is re-resolvable from the registry by that id.
         expect(slim.card.id).toBe(ornithopter.id);
         expect(slim.staticAbilities).toContain("flying");
-        expect(getCardById(slim.card.id).staticAbilities).toContain("flying");
+        expect(getDefinition(slim.card.id).staticAbilities).toContain("flying");
     });
 
     it("Yotian Soldier keeps vigilance + creature-ness after projection", () => {
@@ -222,7 +222,7 @@ describe("ATQ walking skeleton survives projection (wire format)", () => {
             .battlefield.find((c) => c.id === "yot")!;
         expect(slim.card.id).toBe(yotianSoldier.id);
         expect(slim.staticAbilities).toContain("vigilance");
-        expect(getCardById(slim.card.id).staticAbilities).toContain(
+        expect(getDefinition(slim.card.id).staticAbilities).toContain(
             "vigilance"
         );
     });
@@ -242,7 +242,7 @@ describe("ATQ free-tranche registration", () => {
         ["Strip Mine", stripMine],
         ["Obelisk of Undoing", obeliskOfUndoing],
     ])("%s resolves from the registry by id", (name, card) => {
-        expect(getCardById(card.id).name).toBe(name);
+        expect(getDefinition(card.id).name).toBe(name);
     });
 });
 
@@ -666,7 +666,7 @@ describe("ATQ free-tranche #275 registration", () => {
         ["Jalum Tome", jalumTome],
         ["Candelabra of Tawnos", candelabraOfTawnos],
     ])("%s resolves from the registry by id", (name, card) => {
-        expect(getCardById(card.id).name).toBe(name);
+        expect(getDefinition(card.id).name).toBe(name);
     });
 });
 
@@ -2297,7 +2297,7 @@ describe("Mishra's Workshop (restricted mana 'artifact-spell', CR 106.6)", () =>
     }
 
     it("is a Land whose mana ability declares the artifact-spell restriction", () => {
-        const def = getCardById(mishrasWorkshop.id);
+        const def = getDefinition(mishrasWorkshop.id);
         expect(def.name).toBe("Mishra's Workshop");
         expect(def.types).toEqual(["Land"]);
         const ability = def.activatedAbilities?.[0];
@@ -2358,7 +2358,7 @@ describe("Mishra's Workshop (restricted mana 'artifact-spell', CR 106.6)", () =>
             )!,
             { chosenX: 1 }
         );
-        const artifactTypes = getCardById(urzasChaliceDef.id).types;
+        const artifactTypes = getDefinition(urzasChaliceDef.id).types;
 
         const caster = makePlayer("p1", {
             restrictedMana: [
@@ -2497,7 +2497,7 @@ describe("Urza land trio (board-conditional mana, CR 106.1)", () => {
 
     it("each land is a colorless mana Land carrying its Urza subtype", () => {
         for (const { def, name, subtype } of TRIO) {
-            const looked = getCardById(def.id);
+            const looked = getDefinition(def.id);
             expect(looked.name).toBe(name);
             expect(looked.types).toEqual(["Land"]);
             expect(looked.subtypes).toEqual([subtype]);
@@ -3820,7 +3820,7 @@ describe("Tetravus (token provenance link, CR 111 / 122 / 303.4)", () => {
             cardInstanceIds: ["1"],
         });
         const token = tetravites(state)[0]!;
-        expect(getCardById(token.card.id as string).staticEffects).toEqual([
+        expect(getDefinition(token.card.id as string).staticEffects).toEqual([
             expect.objectContaining({
                 kind: "permanent-guard",
                 cantBeEnchanted: true,

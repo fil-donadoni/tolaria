@@ -92,8 +92,8 @@ const REGISTRY: Record<string, unknown> = {
     "choice-def": CHOICE_DEF,
 };
 vi.mock("@convex/cards", () => ({
-    getCardById: (id: string) => REGISTRY[id] ?? PLAIN_DEF,
-    tryGetCardById: (id: string) => REGISTRY[id] ?? PLAIN_DEF,
+    getDefinition: (id: string) => REGISTRY[id] ?? PLAIN_DEF,
+    tryGetDefinition: (id: string) => REGISTRY[id] ?? PLAIN_DEF,
 }));
 
 vi.mock("~/hooks/usePendingChoiceBuffer", () => ({

@@ -1,4 +1,4 @@
-import { tryGetCardById } from "@convex/cards";
+import { tryGetDefinition } from "@convex/cards";
 
 export function getImageUrl(id: string): string {
     return getScryfallImageUrl(id);
@@ -18,7 +18,7 @@ export function getArtCropImageUrl(scryfallId: string): string {
  *  synthetic `token:` id itself: Scryfall would 404 on it. */
 export function resolveCardImageId(cardId: string): string | null {
     if (!cardId.startsWith("token:")) return cardId;
-    const def = tryGetCardById(cardId);
+    const def = tryGetDefinition(cardId);
     return def?.imagePrintId ?? null;
 }
 

@@ -24,7 +24,7 @@ import { cardValueById } from "@convex/gre";
 import { manaValue } from "@convex/gre/constants";
 import { matchesPermanentFilter } from "@convex/cards/filters";
 import { getColorsFromCost, getCardColors } from "@convex/cards/colors";
-import { tryGetCardById } from "@convex/cards";
+import { tryGetDefinition } from "@convex/cards";
 import type { Color } from "@convex/cards/types";
 import type {
     BotAction,
@@ -67,7 +67,7 @@ function handCardIsLand(types: string[] | undefined): boolean {
 function toCandidate(card: SlimCardInstance): ChoiceCandidate {
     // `card.id` is the INSTANCE id (what the submission selects); `card.card.id`
     // is the card-definition id the shared `cardValueById` derives worth from.
-    const def = tryGetCardById(card.card.id);
+    const def = tryGetDefinition(card.card.id);
     // CR 305.1 — a land has "Land" among its (projected) printed types; the
     // discard heuristic (issue #242) treats lands as the constraining resource.
     const isLand = handCardIsLand(card.types);
@@ -91,7 +91,7 @@ function producibleColors(battlefield: SlimCardInstance[]): Color[] {
     const set = new Set<Color>();
     for (const perm of battlefield) {
         if (!handCardIsLand(perm.types)) continue;
-        const def = tryGetCardById(perm.card.id);
+        const def = tryGetDefinition(perm.card.id);
         if (!def) continue;
         for (const c of getCardColors(def)) set.add(c);
     }
@@ -169,7 +169,7 @@ function readChoiceZone(
                             colors: ((c as { colorOverride?: string[] })
                                 .colorOverride ??
                                 getColorsFromCost(
-                                    tryGetCardById(
+                                    tryGetDefinition(
                                         (c.card as { id: string }).id
                                     )?.manaCost
                                 )) as Color[],
@@ -308,7 +308,7 @@ function nameCardDefaultFor(
             : undefined;
     // `top` is a slim instance; its DEFINITION id lives at `top.card.id`.
     const defId = top?.card?.id;
-    const def = defId ? tryGetCardById(defId) : undefined;
+    const def = defId ? tryGetDefinition(defId) : undefined;
     return def?.name ?? "Plains";
 }
 

@@ -16,7 +16,7 @@ import {
 import { seededShuffle } from "./rng";
 import { makeMulliganState } from "./mulligan";
 import type { Phase } from "./types";
-import { getCardById } from "../cards";
+import { getDefinition } from "../cards";
 
 /** Number of cards in the opening hand (CR 103.4). */
 export const STARTING_HAND_SIZE = 7;
@@ -43,7 +43,7 @@ export function buildPlayerState(
     counter: { nextInstanceId?: number }
 ): PlayerState {
     const instances = player.deck.cards.map((deckCard) => {
-        const def = getCardById(deckCard.cardId);
+        const def = getDefinition(deckCard.cardId);
         return {
             id: allocInstanceId(counter),
             card: { id: def.id },

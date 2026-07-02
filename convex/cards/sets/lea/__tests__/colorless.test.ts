@@ -136,7 +136,7 @@ import {
     effectivePermanentView,
     finalizeCleanupDiscard,
 } from "../../../../gre/phases";
-import { tryGetCardById, FACE_DOWN_CARD_ID } from "../../../index";
+import { tryGetDefinition, FACE_DOWN_CARD_ID } from "../../../index";
 import { turnFaceDown, turnFaceUp } from "../../../../gre/faceDown";
 import { applyTapReplacements } from "../../../../gre/replacements";
 import {
@@ -1652,7 +1652,7 @@ describe("The Hive ({5}, {T}: create a 1/1 colorless flying Wasp Insect artifact
         activate(state, hive);
         const wasp = state.players[0].battlefield.find((c) => c.isToken)!;
         const defId = (wasp.card as { id: string }).id;
-        const def = tryGetCardById(defId);
+        const def = tryGetDefinition(defId);
         expect(def).not.toBeNull();
         expect(def!.imagePrintId).toBe("09921372-126f-4c81-b6d8-ea50b1d0eb44");
         // The id encoding includes the print id as a delimited `|`-segment

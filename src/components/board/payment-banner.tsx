@@ -3,7 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingActivation, PendingCast, Player } from "~/types/game";
-import { getCardById } from "@convex/cards";
+import { getDefinition } from "@convex/cards";
 import { useDraggable } from "~/hooks/useDraggable";
 
 type Props = {
@@ -34,13 +34,15 @@ export default function PaymentBanner(props: Props) {
         const cardInHand = props.me?.hand.find(
             (c) => c !== null && c.id === props.pendingCast.cardInstanceId
         );
-        cardName = cardInHand ? getCardById(cardInHand.card.id).name : "spell";
+        cardName = cardInHand
+            ? getDefinition(cardInHand.card.id).name
+            : "spell";
         subtitle = "pay the casting costs";
     } else {
         const source = props.me?.battlefield.find(
             (c) => c.id === props.pendingActivation.cardInstanceId
         );
-        cardName = source ? getCardById(source.card.id).name : "ability";
+        cardName = source ? getDefinition(source.card.id).name : "ability";
         subtitle = "pay the activation costs";
     }
 

@@ -3,7 +3,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { ReactMutation } from "convex/react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { getCardById } from "@convex/cards";
+import { getDefinition } from "@convex/cards";
 import {
     getEffectiveBlockGraph,
     damageSourcesForPlayer,
@@ -140,8 +140,8 @@ export default function DamageAssignmentPanel({
                     <div key={sourceId} className="mb-2 last:mb-0">
                         <div className="flex items-center gap-2 mb-1">
                             <span className="font-medium">
-                                {getCardById(source.card.id).name ?? "Source"} (
-                                {power} dmg)
+                                {getDefinition(source.card.id).name ?? "Source"}{" "}
+                                ({power} dmg)
                             </span>
                             <span
                                 className={
@@ -162,7 +162,7 @@ export default function DamageAssignmentPanel({
                                     targetId={targetId}
                                     label={
                                         target
-                                            ? getCardById(target.card.id).name
+                                            ? getDefinition(target.card.id).name
                                             : "Target"
                                     }
                                     dmg={dmg}

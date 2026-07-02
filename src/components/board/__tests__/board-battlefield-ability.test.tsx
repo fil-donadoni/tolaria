@@ -124,8 +124,8 @@ const DEFS: Record<string, unknown> = {
     "any-def": ANY_DEF,
 };
 vi.mock("@convex/cards", () => ({
-    getCardById: (id: string) => DEFS[id] ?? { id, name: id },
-    tryGetCardById: (id: string) => DEFS[id] ?? { id, name: id },
+    getDefinition: (id: string) => DEFS[id] ?? { id, name: id },
+    tryGetDefinition: (id: string) => DEFS[id] ?? { id, name: id },
 }));
 
 vi.mock("~/hooks/usePendingChoiceBuffer", () => ({

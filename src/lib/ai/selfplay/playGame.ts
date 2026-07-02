@@ -44,7 +44,7 @@ import {
 } from "@convex/gre";
 import { manaValue } from "@convex/gre/constants";
 import { getCardColors, getColorsFromCost } from "@convex/cards/colors";
-import { tryGetCardById } from "@convex/cards";
+import { tryGetDefinition } from "@convex/cards";
 import {
     chooseResolution,
     type ManaSituation,
@@ -157,7 +157,7 @@ function manaSituationFor(state: GameState, playerId: string): ManaSituation {
     const colors = new Set<string>();
     for (const perm of player.battlefield) {
         if (!instanceIsLand(perm)) continue;
-        const def = tryGetCardById(cardDefId(perm));
+        const def = tryGetDefinition(cardDefId(perm));
         if (!def) continue;
         for (const c of getCardColors(def)) colors.add(c);
     }
@@ -190,7 +190,7 @@ function resolvePending(state: GameState): boolean {
         const chooser = state.players.find((p) => p.id === head.playerId);
         const topId = chooser?.library[0]?.id;
         const topDef = topId
-            ? tryGetCardById(
+            ? tryGetDefinition(
                   (chooser!.library[0].card as { id?: string }).id ?? ""
               )
             : undefined;
@@ -202,7 +202,7 @@ function resolvePending(state: GameState): boolean {
     const min = getPendingChoiceMin(head.count);
     const max = getPendingChoiceMax(head.count);
     const candidates = listCandidates(state, head).map((c) => {
-        const def = tryGetCardById(cardDefId(c));
+        const def = tryGetDefinition(cardDefId(c));
         return {
             id: c.id,
             value: instanceValue(c),

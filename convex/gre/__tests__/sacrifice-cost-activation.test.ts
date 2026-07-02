@@ -23,7 +23,7 @@ import {
     type PendingActivation,
     type StackItem,
 } from "../state";
-import { getCardById, tryGetCardById } from "../../cards";
+import { getDefinition, tryGetDefinition } from "../../cards";
 import { matchesPermanentFilter } from "../../cards/filters";
 import {
     atog,
@@ -46,7 +46,7 @@ import {
 // --- pre-sacrifice mana value (mirror of game.ts sacrificedManaValue) ------
 function sacrificedManaValue(perm: CardInstanceState): number {
     const cardId = (perm.card as { id?: string }).id;
-    const def = cardId ? tryGetCardById(cardId) : undefined;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
     return def?.manaCost
         ? Object.entries(def.manaCost).reduce<number>(
               (acc, [, v]) => acc + (typeof v === "number" ? v : 0),
@@ -68,7 +68,7 @@ function activateWithSacrificeCost(
     const player = getPlayer(state, playerId);
     const card = player.battlefield.find((c) => c.id === cardInstanceId);
     if (!card) throw new Error("Card not on battlefield");
-    const def = getCardById((card.card as { id: string }).id);
+    const def = getDefinition((card.card as { id: string }).id);
     const ability = def.activatedAbilities?.find((a) => a.id === abilityId);
     if (!ability) throw new Error("Ability not found");
 

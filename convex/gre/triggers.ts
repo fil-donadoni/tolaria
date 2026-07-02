@@ -11,7 +11,7 @@
 // correct ordering for controlled simultaneous triggers.
 
 import type { GameEvent, StateCheckEvent } from "../cards/types";
-import { tryGetCardById } from "../cards";
+import { tryGetDefinition } from "../cards";
 import type { CardInstanceState, GameState, StackItem } from "./state";
 import { getPlayer, allocInstanceId } from "./state";
 import { effectiveTriggeredAbilities } from "./copy";
@@ -146,7 +146,7 @@ export function collectTriggers(
         for (const card of player.graveyard) {
             const cardId = (card.card as { id?: string }).id;
             if (!cardId) continue;
-            const abilities = tryGetCardById(cardId)?.triggeredAbilities;
+            const abilities = tryGetDefinition(cardId)?.triggeredAbilities;
             if (!abilities || abilities.length === 0) continue;
             for (const ability of abilities) {
                 if (ability.zone !== "graveyard") continue;

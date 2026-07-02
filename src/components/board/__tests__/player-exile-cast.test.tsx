@@ -32,8 +32,8 @@ vi.mock("@convex/_generated/api", () => ({
 }));
 // Vanilla def — no X, no modes — so the cast commits in one click with no prompt.
 vi.mock("@convex/cards", () => ({
-    getCardById: () => ({ name: "Brainstorm" }),
-    tryGetCardById: () => ({ name: "Brainstorm" }),
+    getDefinition: () => ({ name: "Brainstorm" }),
+    tryGetDefinition: () => ({ name: "Brainstorm" }),
 }));
 // Inert card visuals so the reveal renders without image plumbing.
 vi.mock("../../cards/card-image", () => ({

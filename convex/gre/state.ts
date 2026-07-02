@@ -22,7 +22,7 @@ import type {
 } from "../cards/types";
 import {
     registerTokenDefinition,
-    tryGetCardById,
+    tryGetDefinition,
     isPrintedInSet as isCardPrintedInSet,
 } from "../cards";
 import { turnFaceDown } from "./faceDown";
@@ -146,7 +146,7 @@ export { getBasicLandMana } from "./constants";
 export type CardInstanceState = {
     id: string;
     /** Reference to the card definition. Production constructions write only
-     *  `{ id }` and rely on `getCardById` to hydrate the rest from the
+     *  `{ id }` and rely on `getDefinition` to hydrate the rest from the
      *  in-memory registry; token ids encode the full token shape (see
      *  `maybeSynthesizeToken`) so the same lookup also rehydrates tokens on
      *  the client. The looser `Record<string, unknown>` shape exists for
@@ -243,7 +243,7 @@ export type CardInstanceState = {
     /** Activated abilities granted to this permanent by a lord-style static
      *  effect (CR 113.1, 611). Each entry references an ability template on
      *  another card def — the template is looked up at activation time via
-     *  `getCardById(sourceCardId).activatedAbilities`. The grant is keyed by
+     *  `getDefinition(sourceCardId).activatedAbilities`. The grant is keyed by
      *  `auraId` (the granting source's instance id) so it can be spliced out
      *  when the source leaves play. Used by Zombie Master ("Other Zombies
      *  have '{B}: Regenerate this creature.'"). */
@@ -750,7 +750,7 @@ export type PlayerDamagePreventionShield = {
 
 /** A reference to an activated ability template granted to a player by
  *  another card's effect (CR 113.1). Stores only ids — the actual ability
- *  is resolved at activation time via `getCardById(sourceCardId)`. */
+ *  is resolved at activation time via `getDefinition(sourceCardId)`. */
 export type GrantedAbilityInstance = {
     /** Unique instance id ("grant-N") generated from GameState.nextGrantSeq. */
     id: string;
@@ -2261,8 +2261,10 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     const cardId = (top.card as { id?: string }).id;
     // Unknown ids (e.g. synthetic test fixtures) collapse to the vanilla
     // ETB-or-graveyard path. Production stack items always carry registry
-    // ids, but tryGetCardById keeps the resolver robust either way.
-    const cardDef = cardId ? (tryGetCardById(cardId) ?? undefined) : undefined;
+    // ids, but tryGetDefinition keeps the resolver robust either way.
+    const cardDef = cardId
+        ? (tryGetDefinition(cardId) ?? undefined)
+        : undefined;
     const isSpell =
         !top.abilityId && !top.triggeredAbilityId && !top.delayedTriggerId;
 
@@ -2449,7 +2451,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     if (top.abilityId) {
         let ability;
         if (top.grantedSourceCardId) {
-            const grantingDef = tryGetCardById(top.grantedSourceCardId);
+            const grantingDef = tryGetDefinition(top.grantedSourceCardId);
             ability = grantingDef?.grantTemplates?.find(
                 (a) => a.id === top.abilityId
             );
@@ -2689,7 +2691,7 @@ export function landPlayLockActive(state: GameState): boolean {
         for (const card of player.battlefield) {
             const cardId = (card.card as { id?: string }).id;
             if (!cardId) continue;
-            const def = tryGetCardById(cardId);
+            const def = tryGetDefinition(cardId);
             if (def?.preventsLandPlayAndETB) return true;
         }
     }
@@ -2846,7 +2848,7 @@ export function applySourceStaticEffects(
     source: CardInstanceState
 ): void {
     const cardId = (source.card as { id?: string }).id;
-    const def = cardId ? tryGetCardById(cardId) : null;
+    const def = cardId ? tryGetDefinition(cardId) : null;
     const effects = getEffectiveStaticEffects(def, source.chosenModeId);
     if (effects.length === 0) return;
     for (const player of state.players) {
@@ -3054,7 +3056,7 @@ export function unapplySourceStaticEffects(
                     // remaining origin still grants it AND it wasn't printed.
                     const targetCardId = (target.card as { id?: string }).id;
                     const def = targetCardId
-                        ? tryGetCardById(targetCardId)
+                        ? tryGetDefinition(targetCardId)
                         : undefined;
                     const printedTypes = (def?.types ?? []) as string[];
                     for (const r of removed) {
@@ -3138,7 +3140,7 @@ export function applyExistingGrantsTo(
         for (const source of player.battlefield) {
             if (source.id === newPermanent.id) continue;
             const cardId = (source.card as { id?: string }).id;
-            const def = cardId ? tryGetCardById(cardId) : null;
+            const def = cardId ? tryGetDefinition(cardId) : null;
             const effects = getEffectiveStaticEffects(def, source.chosenModeId);
             for (const effect of effects) {
                 if (effect.kind === "keyword-grant") {
@@ -3299,7 +3301,7 @@ function isLegalAuraHost(
     aura: CardInstanceState
 ): boolean {
     const cardId = (aura.card as { id?: string }).id;
-    const def = cardId ? tryGetCardById(cardId) : null;
+    const def = cardId ? tryGetDefinition(cardId) : null;
     const req = def?.targetRequirement;
     if (!req) return false;
     const types = Array.isArray(req.type) ? req.type : [req.type];
@@ -3334,7 +3336,7 @@ export function applyAuraControlChange(
     const found = findOnBattlefield(state, hostId);
     if (!found) return;
     const cardId = (aura.card as { id?: string }).id;
-    const def = cardId ? tryGetCardById(cardId) : null;
+    const def = cardId ? tryGetDefinition(cardId) : null;
     const effects = def?.staticEffects ?? [];
     const applies = effects.some(
         (e) =>
@@ -4296,7 +4298,7 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     // unlocking attacks against them on the opponent's following turn.
     const caster = state.players.find((p) => p.id === item.castById);
     if (caster) caster.qualifyingActionThisTurn = true;
-    const def = tryGetCardById(cardId);
+    const def = tryGetDefinition(cardId);
     const colors = def?.manaCost ? getColorsFromCost(def.manaCost) : [];
     state.pendingEvents = [
         ...(state.pendingEvents ?? []),
@@ -5920,14 +5922,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 const found = findOnBattlefield(state, target.id);
                 if (!found) return 0;
                 const cardId = (found.card.card as { id?: string }).id;
-                const def = cardId ? tryGetCardById(cardId) : undefined;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
                 return manaValue(def?.manaCost);
             }
             if (target.type === "spell") {
                 const stackItem = state.stack.find((s) => s.id === target.id);
                 if (!stackItem) return 0;
                 const cardId = (stackItem.card as { id?: string }).id;
-                const def = cardId ? tryGetCardById(cardId) : undefined;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
                 const base = manaValue(def?.manaCost);
                 return base + (stackItem.chosenX ?? 0);
             }
@@ -6029,7 +6031,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         },
         // Grants an activated ability to a player for a limited duration
         // (CR 113.1). The ability is stored as a reference — the template is
-        // looked up at activation time via getCardById. Used by Channel.
+        // looked up at activation time via getDefinition. Used by Channel.
         grantAbility(
             playerId: string,
             sourceCardId: string,
@@ -6804,7 +6806,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             // spell requirement and any activated-ability requirements — e.g. a
             // Circle of Protection's "<color> source of your choice").
             const cardId = (instance.card as { id?: string }).id;
-            const def = cardId ? tryGetCardById(cardId) : undefined;
+            const def = cardId ? tryGetDefinition(cardId) : undefined;
             const extraColorCodes: Color[] = [];
             const collect = (req: TargetRequirement | undefined): void => {
                 if (req?.colorFilter) extraColorCodes.push(req.colorFilter);
@@ -6921,7 +6923,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const copy = state.stack.find((s) => s.id === copyStackItemId);
             if (!copy) return;
             const cardId = (copy.card as { id?: string }).id;
-            const def = cardId ? tryGetCardById(cardId) : undefined;
+            const def = cardId ? tryGetDefinition(cardId) : undefined;
             // A copy of a modal spell retargets within its chosen mode
             // (CR 700.2); otherwise use the card-level requirement.
             const req =
@@ -7231,7 +7233,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     const found = zone.find((c) => c.id === cardInstanceId);
                     if (found) {
                         const id = (found.card as { id?: string }).id;
-                        return id ? tryGetCardById(id)?.name : undefined;
+                        return id ? tryGetDefinition(id)?.name : undefined;
                     }
                 }
             }
@@ -7554,7 +7556,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         }> {
             return getPlayer(state, playerId).hand.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
-                const def = cardId ? tryGetCardById(cardId) : undefined;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
                 return {
                     id: c.id,
                     types: def?.types ?? c.types,
@@ -7579,7 +7581,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         }> {
             return getPlayer(state, playerId).library.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
-                const def = cardId ? tryGetCardById(cardId) : undefined;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
                 return {
                     id: c.id,
                     types: def?.types ?? c.types,
@@ -7599,7 +7601,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         }> {
             return getPlayer(state, playerId).graveyard.map((c) => {
                 const cardId = (c.card as { id?: string }).id;
-                const def = cardId ? tryGetCardById(cardId) : undefined;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
                 return {
                     id: c.id,
                     types: def?.types ?? c.types,
@@ -7648,7 +7650,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const cardId = handCard
                 ? (handCard.card as { id?: string }).id
                 : undefined;
-            const def = cardId ? tryGetCardById(cardId) : undefined;
+            const def = cardId ? tryGetDefinition(cardId) : undefined;
             return def?.targetRequirement;
         },
         getCardModes(casterId, cardInstanceId) {
@@ -7753,7 +7755,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const cardId = handCard
                 ? (handCard.card as { id?: string }).id
                 : undefined;
-            const def = cardId ? tryGetCardById(cardId) : undefined;
+            const def = cardId ? tryGetDefinition(cardId) : undefined;
             const sourceColors = getColorsFromCost(def?.manaCost);
             return getLegalTargets(
                 state,
@@ -7793,7 +7795,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (!handCard) return false; // not in hand — no-op (CR 608.2b)
 
             const cardId = (handCard.card as { id?: string }).id;
-            const def = cardId ? tryGetCardById(cardId) : undefined;
+            const def = cardId ? tryGetDefinition(cardId) : undefined;
             if (!def) return false;
 
             // CR 117.9 — additional sacrifice cost. The picked permanent must
@@ -7868,7 +7870,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (sacrificed) {
                 const sacCardId = (sacrificed.card as { id?: string }).id;
                 const sacDef = sacCardId
-                    ? tryGetCardById(sacCardId)
+                    ? tryGetDefinition(sacCardId)
                     : undefined;
                 const mv = sacDef?.manaCost
                     ? Object.entries(sacDef.manaCost).reduce<number>(
@@ -7961,7 +7963,7 @@ function getHandCardDef(
     const owner = getPlayer(state, playerId);
     const handCard = owner.hand.find((c) => c.id === cardInstanceId);
     const cardId = handCard ? (handCard.card as { id?: string }).id : undefined;
-    return (cardId ? tryGetCardById(cardId) : undefined) ?? undefined;
+    return (cardId ? tryGetDefinition(cardId) : undefined) ?? undefined;
 }
 
 export function allocInstanceId(counter: { nextInstanceId?: number }): string {
@@ -8237,7 +8239,7 @@ export function discardCardsAtRandom(
         }
         const matching = player.hand.filter((c) => {
             const cardId = (c.card as { id?: string }).id;
-            const def = cardId ? tryGetCardById(cardId) : undefined;
+            const def = cardId ? tryGetDefinition(cardId) : undefined;
             return (def?.types ?? c.types).includes(requireType);
         });
         if (matching.length === 0) return undefined;
@@ -8632,7 +8634,7 @@ export function getCostModifiers(
     for (const player of state.players) {
         for (const source of player.battlefield) {
             const cardId = (source.card as { id?: string }).id;
-            const def = cardId ? tryGetCardById(cardId) : null;
+            const def = cardId ? tryGetDefinition(cardId) : null;
             const effects = getEffectiveStaticEffects(def, source.chosenModeId);
             for (const effect of effects) {
                 if (effect.kind !== "cost-modifier") continue;
@@ -8678,7 +8680,7 @@ export function getManaSubstitutions(
         for (const source of player.battlefield) {
             if (source.controllerId !== playerId) continue;
             const cardId = (source.card as { id?: string }).id;
-            const def = cardId ? tryGetCardById(cardId) : null;
+            const def = cardId ? tryGetDefinition(cardId) : null;
             const effects = getEffectiveStaticEffects(def, source.chosenModeId);
             for (const effect of effects) {
                 if (effect.kind !== "mana-substitution") continue;

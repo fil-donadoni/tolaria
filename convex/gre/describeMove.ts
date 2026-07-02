@@ -9,7 +9,7 @@
 import type { GameState, CardInstanceState } from "./state";
 import type { Move } from "./moves";
 import type { TargetSelection } from "../cards/types";
-import { tryGetCardById } from "../cards";
+import { tryGetDefinition } from "../cards";
 
 type Named = { id: string; card: Record<string, unknown> };
 
@@ -19,7 +19,7 @@ function cardName(obj: Named): string {
     const inlined = (obj.card as { name?: string }).name;
     if (inlined) return inlined;
     const id = (obj.card as { id?: string }).id;
-    return (id ? tryGetCardById(id)?.name : undefined) ?? obj.id;
+    return (id ? tryGetDefinition(id)?.name : undefined) ?? obj.id;
 }
 
 function findInstanceAnyZone(

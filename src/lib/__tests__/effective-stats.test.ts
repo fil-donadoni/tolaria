@@ -358,7 +358,7 @@ describe("effectivePower / effectiveToughness (CR 611, 613)", () => {
     it("Bad Moon resolves color via registry when card.card is slimmed to { id }", () => {
         // Savannah Lions is WHITE (manaCost: W). Bad Moon must NOT buff it
         // even though the card is slimmed to { id } only — getColors must
-        // resolve via getCardById to see the actual cost.
+        // resolve via getDefinition to see the actual cost.
         const whiteLion = makeCreature({
             id: "white-lion",
             cardId: SAVANNAH_LIONS,

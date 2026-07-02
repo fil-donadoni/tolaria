@@ -43,7 +43,7 @@ import { recordBlockedAttackers } from "./banding";
 import { cloneGameState } from "./clone";
 import { enumerateMoves, type Move } from "./moves";
 import { evaluate } from "./evaluate";
-import { tryGetCardById } from "../cards";
+import { tryGetDefinition } from "../cards";
 
 /** Tap the planned mana sources on the (already cloned) state. Coarse model:
  *  a source listed in the tap plan is marked tapped so the resulting position
@@ -213,7 +213,7 @@ export function applyMoveForSearch(
                     if (src) break;
                 }
                 if (src) {
-                    const def = tryGetCardById(
+                    const def = tryGetDefinition(
                         (src.card as { id?: string }).id ?? ""
                     );
                     const ability = def?.activatedAbilities?.find(
@@ -249,7 +249,7 @@ export function applyMoveForSearch(
                         if (candidates.length > 0) {
                             const pick = candidates.reduce((lo, c) => {
                                 const mv = (d: CardInstanceState) => {
-                                    const cd = tryGetCardById(
+                                    const cd = tryGetDefinition(
                                         (d.card as { id?: string }).id ?? ""
                                     );
                                     return cd?.manaCost

@@ -19,7 +19,7 @@ import {
     type PendingActivation,
     type StackItem,
 } from "../state";
-import { getCardById, getCardByName, tryGetCardById } from "../../cards";
+import { getDefinition, getCardByName, tryGetDefinition } from "../../cards";
 import { tracker } from "../../cards/sets/drk";
 import { checkStateBasedActions } from "../sba";
 import {
@@ -73,7 +73,7 @@ function activateAbility(
     }
     if (!card) throw new Error("Card not on battlefield");
 
-    const def = getCardById((card.card as { id: string }).id);
+    const def = getDefinition((card.card as { id: string }).id);
     const ability = def.activatedAbilities?.find((a) => a.id === abilityId);
     if (!ability || !ability.useStack) {
         throw new Error("Not a stack ability");
@@ -287,7 +287,7 @@ function makeInstance(
           }
         | undefined;
     const id = cardRef?.id ?? `synth-${crypto.randomUUID()}`;
-    const def = tryGetCardById(id);
+    const def = tryGetDefinition(id);
     const cardField: { id: string; manaCost?: unknown } = { id };
     if (cardRef?.manaCost !== undefined) {
         cardField.manaCost = cardRef.manaCost;

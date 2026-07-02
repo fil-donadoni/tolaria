@@ -80,8 +80,9 @@ const CHOICE_DEF = {
     ],
 };
 vi.mock("@convex/cards", () => ({
-    getCardById: (id: string) => (id === "choice-def" ? CHOICE_DEF : LAND_DEF),
-    tryGetCardById: (id: string) =>
+    getDefinition: (id: string) =>
+        id === "choice-def" ? CHOICE_DEF : LAND_DEF,
+    tryGetDefinition: (id: string) =>
         id === "choice-def" ? CHOICE_DEF : LAND_DEF,
 }));
 

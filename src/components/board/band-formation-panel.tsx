@@ -3,7 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { CardInstance, Combat } from "~/types/game";
-import { getCardById } from "@convex/cards";
+import { getDefinition } from "@convex/cards";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
 import { hasBandingLike, canFormBand } from "~/lib/banding";
 
@@ -97,7 +97,7 @@ export default function BandFormationPanel({
                                             : "bg-white/10 border-white/20"
                                     }`}
                                 >
-                                    {getCardById(c.card.id).name}
+                                    {getDefinition(c.card.id).name}
                                     {hasBandingLike(c) ? " ⟡" : ""}
                                 </button>
                             );
@@ -126,7 +126,7 @@ export default function BandFormationPanel({
                                             (a) => a.id === id
                                         );
                                         return c
-                                            ? getCardById(c.card.id).name
+                                            ? getDefinition(c.card.id).name
                                             : id;
                                     })
                                     .join(" + ")}

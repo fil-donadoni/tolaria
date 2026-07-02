@@ -3,7 +3,7 @@
 // (`{name, manaCost, types, ...}`), so it accidentally exercises a code path
 // that production no longer hits: `card.card.manaCost` reads succeed in tests
 // but yield `undefined` in production. Production must go through
-// `getInstanceManaCost` / `getCardById`, and these tests prove it does by
+// `getInstanceManaCost` / `getDefinition`, and these tests prove it does by
 // constructing instances via `makeInstance(cardId)` (registry-backed slim).
 
 import { describe, expect, it } from "vitest";

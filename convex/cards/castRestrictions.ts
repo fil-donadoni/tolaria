@@ -14,7 +14,7 @@
 // never mutates a permanent (`applySourceStaticEffects` ignores the kind), so
 // it carries no per-instance flag and auto-reverts when the source leaves play.
 
-import { tryGetCardById } from ".";
+import { tryGetDefinition } from ".";
 import { getColorsFromCost } from "./colors";
 import type {
     CardType,
@@ -36,7 +36,8 @@ export const CAST_RESTRICTION_CTX: StaticEffectContext = {
         const embedded = (card.card as { manaCost?: ManaCost }).manaCost;
         const cardId = (card.card as { id?: string }).id;
         const cost =
-            embedded ?? (cardId ? tryGetCardById(cardId)?.manaCost : undefined);
+            embedded ??
+            (cardId ? tryGetDefinition(cardId)?.manaCost : undefined);
         return getColorsFromCost(cost);
     },
     isCreature(card: PermanentView): boolean {
@@ -49,14 +50,15 @@ export const CAST_RESTRICTION_CTX: StaticEffectContext = {
         const embedded = (card.card as { supertypes?: string[] }).supertypes;
         if (embedded) return embedded.includes(supertype);
         const cardId = (card.card as { id?: string }).id;
-        const def = cardId ? tryGetCardById(cardId) : undefined;
+        const def = cardId ? tryGetDefinition(cardId) : undefined;
         return def?.supertypes?.includes(supertype as never) ?? false;
     },
     getManaValue(card: PermanentView): number {
         const embedded = (card.card as { manaCost?: ManaCost }).manaCost;
         const cardId = (card.card as { id?: string }).id;
         const cost =
-            embedded ?? (cardId ? tryGetCardById(cardId)?.manaCost : undefined);
+            embedded ??
+            (cardId ? tryGetDefinition(cardId)?.manaCost : undefined);
         if (!cost) return 0;
         let total = 0;
         for (const [k, v] of Object.entries(cost)) {
@@ -67,14 +69,14 @@ export const CAST_RESTRICTION_CTX: StaticEffectContext = {
     },
     getPrintedTypes(card: PermanentView): CardType[] {
         const cardId = (card.card as { id?: string }).id;
-        const def = cardId ? tryGetCardById(cardId) : undefined;
+        const def = cardId ? tryGetDefinition(cardId) : undefined;
         return (def?.types ?? []) as CardType[];
     },
     getName(card: PermanentView): string {
         const embedded = (card.card as { name?: string }).name;
         if (embedded) return embedded;
         const cardId = (card.card as { id?: string }).id;
-        const def = cardId ? tryGetCardById(cardId) : undefined;
+        const def = cardId ? tryGetDefinition(cardId) : undefined;
         return def?.name ?? "";
     },
 };
@@ -100,7 +102,7 @@ export function castProhibitionReason(
         for (const source of player.battlefield) {
             const cardId = (source.card as { id?: string }).id;
             if (!cardId) continue;
-            const def = tryGetCardById(cardId);
+            const def = tryGetDefinition(cardId);
             if (!def?.staticEffects) continue;
             for (const effect of def.staticEffects) {
                 if (effect.kind !== "cast-restriction") continue;

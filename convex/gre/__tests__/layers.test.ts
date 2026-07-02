@@ -13,7 +13,7 @@ import {
     type StackItem,
 } from "../state";
 import type { CardType } from "../../cards/types";
-import { tryGetCardById } from "../../cards";
+import { tryGetDefinition } from "../../cards";
 import { projectPublicState } from "../../gameProjections";
 import { checkCounterAnnihilationSBA } from "../sba";
 import {
@@ -40,7 +40,7 @@ function makeCard(
         | { id?: string; manaCost?: unknown }
         | undefined;
     const id = cardRef?.id ?? `synth-${crypto.randomUUID()}`;
-    const def = tryGetCardById(id);
+    const def = tryGetDefinition(id);
     const cardField: { id: string; manaCost?: unknown } = { id };
     if (cardRef?.manaCost !== undefined) {
         cardField.manaCost = cardRef.manaCost;

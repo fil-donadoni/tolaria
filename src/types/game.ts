@@ -93,7 +93,7 @@ export type DeckCard = {
 
 export interface CardInstance {
     id: string;
-    /** Static definition reference. Resolve via getCardById(card.id). */
+    /** Static definition reference. Resolve via getDefinition(card.id). */
     card: { id: string };
     controllerId: string;
     ownerId: string;
@@ -120,7 +120,7 @@ export interface CardInstance {
     /** Activated abilities granted to this permanent by another card
      *  (CR 113.1, e.g. Zombie Master granting "{B}: Regenerate ~"). The
      *  template lives on the granting card's def — UI resolves via
-     *  `getCardById(grant.sourceCardId)`. */
+     *  `getDefinition(grant.sourceCardId)`. */
     grantedActivatedAbilities?: {
         sourceCardId: string;
         abilityId: string;
@@ -142,7 +142,7 @@ export interface CardInstance {
      *  to every artifact) or by a one-shot until-end-of-turn grant (CR 611.1b,
      *  Rapid Fire's "gains rampage 2 until end of turn"). The template lives on
      *  the granting card's `triggeredGrantTemplates` — UI resolves the oracle
-     *  text via `getCardById(grant.sourceCardId)`. Exactly one of `auraId`
+     *  text via `getDefinition(grant.sourceCardId)`. Exactly one of `auraId`
      *  (continuous, aura-keyed) / `duration` (until-end-of-turn) is set. */
     grantedTriggeredAbilities?: {
         sourceCardId: string;

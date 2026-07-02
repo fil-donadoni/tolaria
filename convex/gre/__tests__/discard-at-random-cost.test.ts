@@ -20,7 +20,7 @@ import {
     type GameState,
     type StackItem,
 } from "../state";
-import { getCardById } from "../../cards";
+import { getDefinition } from "../../cards";
 import { coralHelm } from "../../cards/sets/atq";
 import { grizzlyBears } from "../../cards/sets/lea";
 import {
@@ -42,7 +42,7 @@ function activateCoralHelm(
     const player = getPlayer(state, playerId);
     const card = player.battlefield.find((c) => c.id === sourceId);
     if (!card) throw new Error("Source not on battlefield");
-    const def = getCardById((card.card as { id: string }).id);
+    const def = getDefinition((card.card as { id: string }).id);
     const ability = def.activatedAbilities!.find(
         (a) => a.id === "coral-helm-pump"
     )!;

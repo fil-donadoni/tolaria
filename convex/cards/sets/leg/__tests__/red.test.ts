@@ -78,7 +78,7 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { getCardById } from "../../../index";
+import { getDefinition } from "../../../index";
 import {
     forest,
     grizzlyBears,
@@ -1070,7 +1070,7 @@ describe("Chain Lightning (CR 119 / 608.2 / 707.12)", () => {
             type: "any",
             count: 1,
         });
-        expect(getCardById(chainLightning.id)).toBe(chainLightning);
+        expect(getDefinition(chainLightning.id)).toBe(chainLightning);
     });
 
     it("deals 3 damage to a player target (CR 119.3)", () => {

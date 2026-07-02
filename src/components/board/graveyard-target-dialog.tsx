@@ -3,7 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingTarget, Player } from "~/types/game";
-import { getCardById } from "@convex/cards";
+import { getDefinition } from "@convex/cards";
 import { getEligibleGraveyards } from "~/lib/graveyard-targets";
 import GameDialog from "~/components/ui/game-dialog";
 import GraveyardChoiceDialog from "./graveyard-choice-dialog";
@@ -53,7 +53,7 @@ export default function GraveyardTargetDialog({
         (c) => c !== null && c.id === pendingTarget.cardInstanceId
     );
     const cardName = cardInHand
-        ? getCardById(cardInHand.card.id).name
+        ? getDefinition(cardInHand.card.id).name
         : "spell";
 
     // A single eligible graveyard skips the choice step entirely; ≥2 requires

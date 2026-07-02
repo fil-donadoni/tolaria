@@ -86,7 +86,7 @@ import {
     untapStep,
     emitAttackersDeclaredEvents,
 } from "../../../../gre/phases";
-import { tryGetCardById } from "../../../index";
+import { tryGetDefinition } from "../../../index";
 import { compactState, expandState } from "../../../../gre/serialize";
 import type { CardType } from "../../../types";
 import {
@@ -1995,7 +1995,7 @@ describe("Rock Hydra (CR 107.3 — enters with X +1/+1 counters)", () => {
     });
 
     it("{RRR} is restricted to upkeep phase (definition check)", () => {
-        const def = tryGetCardById(rockHydra.id)!;
+        const def = tryGetDefinition(rockHydra.id)!;
         const growAbility = def.activatedAbilities!.find(
             (a) => a.id === "rock-hydra-grow"
         )!;

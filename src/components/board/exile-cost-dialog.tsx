@@ -3,7 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { CardInstance, Player } from "~/types/game";
-import { getCardById } from "@convex/cards";
+import { getDefinition } from "@convex/cards";
 import GameDialog from "~/components/ui/game-dialog";
 import CardImage from "~/components/cards/card-image";
 
@@ -33,7 +33,7 @@ export default function ExileCostDialog({
 
     const matches = (card: CardInstance): boolean =>
         choice.cardType === undefined ||
-        getCardById(card.card.id).types.includes(choice.cardType as never);
+        getDefinition(card.card.id).types.includes(choice.cardType as never);
 
     // Graveyards that hold enough matching cards to pay the whole cost from one
     // pile (CR 118.5).
@@ -135,7 +135,7 @@ export default function ExileCostDialog({
                                     type="button"
                                     disabled={isPending}
                                     onClick={() => toggle(card.id)}
-                                    title={getCardById(card.card.id).name}
+                                    title={getDefinition(card.card.id).name}
                                     className={`relative rounded-sm overflow-hidden ring-1 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                                         isSel
                                             ? "ring-2 ring-accent"

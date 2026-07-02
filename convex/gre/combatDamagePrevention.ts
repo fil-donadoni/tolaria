@@ -25,7 +25,7 @@
 import type { CardInstanceState, GameState } from "./state";
 import type { CombatPreventionStateView } from "../cards/types";
 import { STATIC_EFFECT_CTX } from "./layers";
-import { tryGetCardById } from "../cards";
+import { tryGetDefinition } from "../cards";
 
 /** True if a `combat-damage-prevention` static on `target`'s card definition
  *  prevents combat damage from `damageSource` to `target` right now (CR 615).
@@ -41,7 +41,7 @@ export function isCombatDamagePreventedFromSource(
     damageSource: CardInstanceState
 ): boolean {
     const cardId = (target.card as { id?: string }).id;
-    const def = cardId ? tryGetCardById(cardId) : null;
+    const def = cardId ? tryGetDefinition(cardId) : null;
     const effects = def?.staticEffects;
     if (!effects) return false;
     // The block graph is present only during combat (where a "creatures it's

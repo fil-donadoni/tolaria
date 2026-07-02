@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { tryGetCardById } from "@convex/cards";
+import { tryGetDefinition } from "@convex/cards";
 import { getArtCropImageUrl, resolveCardImageId } from "~/lib/images";
 import {
     formatTypeLine,
@@ -153,7 +153,7 @@ export default function CardPreview({
         e.stopPropagation();
     }, []);
 
-    const def = tryGetCardById(cardId);
+    const def = tryGetDefinition(cardId);
     const abilities = def
         ? getDisplayAbilities(cardId, cardInstance)
         : { keywords: [], activated: [], triggered: [] };

@@ -37,4 +37,42 @@ export default defineConfig([
             globals: globals.browser,
         },
     },
+    {
+        // ADR 0046 — registry seam guard. Production code (engine, mutations,
+        // projections, frontend) must resolve card definitions exclusively
+        // through `getDefinition`/`tryGetDefinition` in `convex/cards` — never
+        // by importing a set module directly. Today the registry wraps an
+        // in-code map; later it becomes a cache + DB read, and this rule is
+        // what lets that swap happen without touching every consumer.
+        //
+        // Test files are exempt: fixtures legitimately reach for a concrete
+        // card (e.g. `import { lightningBolt } from "../../cards/sets/lea"`)
+        // to build scenario state — that's an established, repo-wide testing
+        // convention (see `.claude/rules/gre-development.md`), not a registry
+        // bypass. `convex/cards/sets/**` itself and `convex/cards/index.ts`
+        // (the registry module) are exempt because they ARE the set modules /
+        // the seam that wraps them.
+        files: ["**/*.{ts,tsx}"],
+        ignores: [
+            "**/__tests__/**",
+            "**/*.test.ts",
+            "**/*.test.tsx",
+            "convex/cards/index.ts",
+            "convex/cards/sets/**",
+        ],
+        rules: {
+            "no-restricted-imports": [
+                "error",
+                {
+                    patterns: [
+                        {
+                            group: ["**/cards/sets/*", "**/cards/sets/**"],
+                            message:
+                                "Import card definitions via the registry seam (`getDefinition` / `tryGetDefinition` from `convex/cards`), not directly from set modules (ADR 0046).",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

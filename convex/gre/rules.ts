@@ -27,7 +27,7 @@ import { isProtectedFromColors } from "./protection";
 import { hasSupertypeLive } from "./snow";
 import { isGuardedAgainst } from "./permanentGuard";
 import { castProhibitionReason } from "../cards/castRestrictions";
-import { getInstanceManaCost, tryGetCardById } from "../cards";
+import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import {
     landPlayLockActive,
     normalizeManaCost,
@@ -48,7 +48,7 @@ export function getExtraLandDrops(player: PlayerState): number {
     for (const card of player.battlefield) {
         const cardId = (card.card as { id?: string }).id;
         if (!cardId) continue;
-        const def = tryGetCardById(cardId);
+        const def = tryGetDefinition(cardId);
         if (def?.extraLandDrops) extra += def.extraLandDrops;
     }
     return extra;
@@ -165,7 +165,7 @@ function hasEnoughLegalTargets(
 ): boolean {
     const cardId = (card.card as { id?: string }).id;
     if (!cardId) return true;
-    const def = tryGetCardById(cardId);
+    const def = tryGetDefinition(cardId);
     const requirement = def?.targetRequirement;
     if (!requirement) return true;
     // X = 0 path is always available; cast remains legal even with no targets.
@@ -212,7 +212,7 @@ export function getProducibleManaOptions(
     // handler and trip "Must choose a mana color". So resolve abilities first
     // and let the CR 305.6 subtype path only fill colors no ability covers.
     const cardId = (card.card as { id?: string }).id;
-    const def = cardId ? tryGetCardById(cardId) : undefined;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
     // CR 613.1f — a permanent that has lost all abilities (Titania's Song,
     // Blood Moon) exposes none of its PRINTED activated mana abilities. Keep
     // this planner in sync with the payment handler (`getActivatedManaAbility`),
@@ -266,7 +266,7 @@ export function getProducibleManaOptions(
  *  color set is the union of its options. */
 function getProducibleManaUnits(card: CardInstanceState): Set<Color>[] {
     const cardId = (card.card as { id?: string }).id;
-    const def = cardId ? tryGetCardById(cardId) : undefined;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
 
     // CR 613.1f — suppress PRINTED activated mana abilities while the source
     // has lost all abilities (Blood Moon / Titania's Song); fall through to the
@@ -396,7 +396,7 @@ function passesCastPhaseRestriction(
 ): boolean {
     const cardId = (card.card as { id?: string }).id;
     if (!cardId) return true;
-    const def = tryGetCardById(cardId);
+    const def = tryGetDefinition(cardId);
     const restriction = def?.castPhaseRestriction;
     if (
         restriction &&
@@ -427,7 +427,7 @@ function passesCastPhaseRestriction(
         const nameClash = state.players.some((p) =>
             p.battlefield.some(
                 (perm) =>
-                    tryGetCardById((perm.card as { id?: string }).id ?? "")
+                    tryGetDefinition((perm.card as { id?: string }).id ?? "")
                         ?.name === def.name
             )
         );
@@ -470,13 +470,13 @@ export function resolveMvFilter(
  *  in the chosen value carried by the stack item. */
 function mvOfPermanent(card: CardInstanceState): number {
     const cardId = (card.card as { id?: string }).id;
-    const def = cardId ? tryGetCardById(cardId) : undefined;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
     return manaValue(def?.manaCost);
 }
 
 function mvOfStackItem(item: { card: unknown; chosenX?: number }): number {
     const cardId = (item.card as { id?: string }).id;
-    const def = cardId ? tryGetCardById(cardId) : undefined;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
     return manaValue(def?.manaCost) + (item.chosenX ?? 0);
 }
 
@@ -522,7 +522,7 @@ export function spellWouldDestroyLandControlledBy(
         return false;
     }
     const cardId = (item.card as { id?: string }).id;
-    const def = cardId ? tryGetCardById(cardId) : undefined;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
     if (!def) return false;
 
     const controlsALand = state.players
@@ -1014,7 +1014,7 @@ export function assertLegalAction(
         const cardId = (card.card as { id?: string }).id;
         const cardName =
             (card.card as { name?: string }).name ??
-            (cardId ? (tryGetCardById(cardId)?.name ?? card.id) : card.id);
+            (cardId ? (tryGetDefinition(cardId)?.name ?? card.id) : card.id);
         throw new Error(
             `Illegal action "${action}" on "${cardName}". Legal actions: ${legal.join(", ") || "none"}`
         );

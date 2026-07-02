@@ -62,7 +62,11 @@ import {
 } from "../../ice";
 import { plains, island, swamp } from "../../lea";
 import { applyLandManaReplacement, manaValue } from "../../../../gre/constants";
-import { getCardById, getCardByName, FACE_DOWN_CARD_ID } from "../../../index";
+import {
+    getDefinition,
+    getCardByName,
+    FACE_DOWN_CARD_ID,
+} from "../../../index";
 import {
     resolveTopOfStack,
     discardCardsAtRandom,
@@ -121,17 +125,17 @@ import {
 
 describe("ICE Black reprints (CardPrint wiring, ADR 0014)", () => {
     it("Dark Ritual print resolves to the LEA definition", () => {
-        expect(getCardById(darkRitualIce.printId).name).toBe("Dark Ritual");
+        expect(getDefinition(darkRitualIce.printId).name).toBe("Dark Ritual");
         expect(darkRitualIce.definitionId).toBe(
             "ebb6664d-23ca-456e-9916-afcd6f26aa7f"
         );
         expect(darkRitualIce.setCode).toBe("ice");
     });
     it("Fear print resolves to the LEA definition", () => {
-        expect(getCardById(fearIce.printId).name).toBe("Fear");
+        expect(getDefinition(fearIce.printId).name).toBe("Fear");
     });
     it("Howl from Beyond print resolves to the LEA definition", () => {
-        expect(getCardById(howlFromBeyondIce.printId).name).toBe(
+        expect(getDefinition(howlFromBeyondIce.printId).name).toBe(
             "Howl from Beyond"
         );
     });
@@ -290,7 +294,7 @@ describe("Foul Familiar (can't block + bounce, CR 509.1b / 701.14)", () => {
         const slim = projected.players[0].battlefield.find(
             (c) => c.id === "ff"
         )!;
-        expect(getCardById(slim.card.id).name).toBe("Foul Familiar");
+        expect(getDefinition(slim.card.id).name).toBe("Foul Familiar");
     });
     it("returns itself to hand when the ability resolves", () => {
         const fam = makeInstance(foulFamiliar.id, {
@@ -647,9 +651,9 @@ describe("ICE Black tranche registry parity", () => {
         }
     });
     it("registers the three Black reprints by print id", () => {
-        expect(getCardById(darkRitualIce.printId).name).toBe("Dark Ritual");
-        expect(getCardById(fearIce.printId).name).toBe("Fear");
-        expect(getCardById(howlFromBeyondIce.printId).name).toBe(
+        expect(getDefinition(darkRitualIce.printId).name).toBe("Dark Ritual");
+        expect(getDefinition(fearIce.printId).name).toBe("Fear");
+        expect(getDefinition(howlFromBeyondIce.printId).name).toBe(
             "Howl from Beyond"
         );
     });
@@ -1764,7 +1768,7 @@ describe("Necropotence (CR 504/614 skip-draw + CR 701.8 discard→exile)", () =>
     });
 
     it("registers by id and name (#667)", () => {
-        expect(getCardById(necropotence.id)).toBe(necropotence);
+        expect(getDefinition(necropotence.id)).toBe(necropotence);
         expect(getCardByName("Necropotence")).toBe(necropotence);
     });
 
@@ -2025,7 +2029,7 @@ describe("LIFE_LOST seam + Oath of Lim-Dûl (CR 119.3 / 603)", () => {
     });
 
     it("registers by id and name", () => {
-        expect(getCardById(oathOfLimDul.id)).toBe(oathOfLimDul);
+        expect(getDefinition(oathOfLimDul.id)).toBe(oathOfLimDul);
         expect(getCardByName("Oath of Lim-Dûl")).toBe(oathOfLimDul);
     });
 
@@ -2162,7 +2166,7 @@ describe("Seizures (host-scoped becomes-tapped, CR 303.4b / 701.20a)", () => {
     });
 
     it("registers by id and name", () => {
-        expect(getCardById(seizures.id)).toBe(seizures);
+        expect(getDefinition(seizures.id)).toBe(seizures);
         expect(getCardByName("Seizures")).toBe(seizures);
     });
 

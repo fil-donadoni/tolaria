@@ -80,7 +80,7 @@ import { determinize } from "./determinize";
 import { makeRng } from "./rng";
 import { hasCastableInstantHint } from "./heldInteraction";
 import { isCreature, hasManaAbility } from "./constants";
-import { tryGetCardById } from "../cards";
+import { tryGetDefinition } from "../cards";
 
 /** Search budget: stop at `iterations` tree iterations, or once `timeMs` of
  *  wall-clock has elapsed (whichever comes first). At least one must be set —
@@ -620,7 +620,7 @@ export function isDiscouragedRolloutMove(
         const player = state.players.find((p) => p.id === pid);
         const card = player?.hand.find((c) => c.id === move.cardInstanceId);
         const cardId = (card?.card as { id?: string } | undefined)?.id;
-        const def = cardId ? tryGetCardById(cardId) : undefined;
+        const def = cardId ? tryGetDefinition(cardId) : undefined;
         if (!def || !def.types.includes("Instant")) return false;
         // Sorcery-speed window: the mover is the active player at a main phase,
         // where a pure instant could instead be held for a reactive moment.
@@ -775,7 +775,7 @@ export function isReactiveInstantCast(
     const player = state.players.find((p) => p.id === pid);
     const card = player?.hand.find((c) => c.id === move.cardInstanceId);
     const cardId = (card?.card as { id?: string } | undefined)?.id;
-    const def = cardId ? tryGetCardById(cardId) : undefined;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
     if (!def) return false;
     return (
         def.types.includes("Instant") ||
@@ -1501,7 +1501,7 @@ function isSorcerySpeedTrickDump(state: GameState, move: Move): boolean {
     const card = player?.hand.find((c) => c.id === move.cardInstanceId);
     if (!card || !card.types.includes("Instant")) return false;
     const cardId = (card.card as { id?: string } | undefined)?.id;
-    const def = cardId ? tryGetCardById(cardId) : undefined;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
     return !!def?.aiCombatHint?.pump;
 }
 

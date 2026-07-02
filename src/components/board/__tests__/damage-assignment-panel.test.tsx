@@ -29,8 +29,8 @@ const REGISTRY: Record<string, { id: string; name: string }> = {
     "def-unicorn": { id: "def-unicorn", name: "Pearled Unicorn" },
 };
 vi.mock("@convex/cards", () => ({
-    getCardById: (id: string) => REGISTRY[id] ?? { id, name: "Unknown" },
-    tryGetCardById: (id: string) => REGISTRY[id] ?? null,
+    getDefinition: (id: string) => REGISTRY[id] ?? { id, name: "Unknown" },
+    tryGetDefinition: (id: string) => REGISTRY[id] ?? null,
 }));
 
 import DamageAssignmentPanel from "../damage-assignment-panel";

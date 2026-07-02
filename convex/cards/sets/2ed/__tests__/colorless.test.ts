@@ -19,7 +19,7 @@ import {
 import { airElemental, ancestralRecall, lightningBolt } from "../../lea";
 import { volcanicIsland, circleOfProtectionBlack } from "../../leb";
 import {
-    getCardById,
+    getDefinition,
     getPrintingsForCard,
     getAllSetCodes,
 } from "../../../index";
@@ -29,16 +29,16 @@ import type { ValidatableDeck } from "../../../../formats";
 
 describe("2ED registry parity (ADR 0014)", () => {
     it("resolves reprint prints to their shared LEA definition", () => {
-        expect(getCardById(airElemental2ed.printId)).toBe(airElemental);
-        expect(getCardById(ancestralRecall2ed.printId)).toBe(ancestralRecall);
-        expect(getCardById(lightningBolt2ed.printId)).toBe(lightningBolt);
+        expect(getDefinition(airElemental2ed.printId)).toBe(airElemental);
+        expect(getDefinition(ancestralRecall2ed.printId)).toBe(ancestralRecall);
+        expect(getDefinition(lightningBolt2ed.printId)).toBe(lightningBolt);
     });
 
     it("resolves Beta-original reprints to their LEB definition", () => {
         // Volcanic Island and Circle of Protection: Black never existed in
         // Alpha — their CardDefinition lives in leb, and 2ED reprints it.
-        expect(getCardById(volcanicIsland2ed.printId)).toBe(volcanicIsland);
-        expect(getCardById(circleOfProtectionBlack2ed.printId)).toBe(
+        expect(getDefinition(volcanicIsland2ed.printId)).toBe(volcanicIsland);
+        expect(getDefinition(circleOfProtectionBlack2ed.printId)).toBe(
             circleOfProtectionBlack
         );
     });

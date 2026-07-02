@@ -49,7 +49,7 @@ let cardDef: { name: string; manaCost?: { X?: string }; modes?: unknown[] } = {
     name: "Test Card",
 };
 vi.mock("@convex/cards", () => ({
-    getCardById: () => cardDef,
+    getDefinition: () => cardDef,
 }));
 
 // Inert visuals / tilt / picker so the test sees only the gesture + dispatch.
