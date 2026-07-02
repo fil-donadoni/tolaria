@@ -42,6 +42,26 @@ export { advancePhase } from "./phases";
 export { enumerateMoves, planManaPayment, MAX_COMBINATIONS } from "./moves";
 export type { Move, ManaTap } from "./moves";
 
+// Expected-Input-driven legal action enumeration (ADR 0047, issue #801). The
+// gate's dual: yields the concrete action set for the acting player, derived
+// from the same contract every game mutation is gated through. Pure — usable
+// by client-side bot move generation and by server code alike.
+export { legalActions, gateRequestFor } from "./legalActions";
+export type {
+    LegalAction,
+    PriorityAction,
+    PriorityMove,
+    ChoiceAction,
+    TargetAction,
+    BlockersAction,
+} from "./legalActions";
+export {
+    assertExpectedInput,
+    computeExpectedInput,
+    EXPECTED_INPUT_KINDS,
+} from "./expectedInput";
+export type { ExpectedInputKind, GateRequest } from "./expectedInput";
+
 // Position heuristic + greedy 1-ply selection (issue #111). The bot scores each
 // enumerated move one ply ahead and plays the best; `evaluate` is the leaf
 // estimate that ISMCTS rollouts (issue #112) will reuse.
