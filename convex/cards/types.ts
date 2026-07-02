@@ -523,6 +523,16 @@ export interface ActivatedAbility {
     noteManaSpent?: boolean;
     /** Effect for stack abilities (useStack: true) — called with full SpellContext on resolution. */
     resolve?: (ctx: SpellContext) => void;
+    /** Effect Script (ADR 0045, issue #803) — this activated ability's effect
+     *  as declarative, JSON-pure data, executed by the interpreter
+     *  (`convex/gre/effects/interpreter.ts`) through the SAME shared code path
+     *  as spell-site scripts, with the ability's controller and source
+     *  permanent bound (`$source`, `ctx.controller`). Mutually exclusive with
+     *  `resolve` / `resolveSteps` on this ability — combining them throws at
+     *  the `getAbilityEffectFn` seam and fails the catalogue-wide validation
+     *  sweep. Only meaningful for `useStack: true` abilities (a mana ability's
+     *  `effect` is a separate, stackless site). */
+    effects?: EffectOp[];
     /** Multi-step resolve for stack abilities that gather player choices
      *  mid-resolution (CR 608.2, 101.4). Mirrors `CardDefinition.resolveSteps`:
      *  the engine runs steps in order; a step that calls
@@ -3976,6 +3986,17 @@ export interface TriggeredAbility {
     /** Effect run when the trigger resolves from the stack. Optional when
      *  `resolveSteps` is supplied instead. */
     resolve?: (ctx: SpellContext, event: GameEvent) => void;
+    /** Effect Script (ADR 0045, issue #803) — this triggered ability's effect
+     *  as declarative, JSON-pure data, executed by the interpreter
+     *  (`convex/gre/effects/interpreter.ts`) through the SAME shared code path
+     *  as spell-site scripts, with the trigger's controller and source
+     *  permanent bound (`$source`, `ctx.controller`). The firing event is not
+     *  threaded into a script (an Effect Script reads the resolution context,
+     *  not the event) — a trigger whose effect must inspect the event stays
+     *  imperative. Mutually exclusive with `resolve` / `resolveSteps` on this
+     *  ability — combining them throws at the `getAbilityEffectFn` seam and
+     *  fails the catalogue-wide validation sweep. */
+    effects?: EffectOp[];
     /** Multi-step resolution (CR 608.2), mirror of `CardDefinition.resolveSteps`
      *  and `ActivatedAbility.resolveSteps`. The engine runs the step closures in
      *  order, checkpointing `resolutionStep` so a `requestChoice` suspension

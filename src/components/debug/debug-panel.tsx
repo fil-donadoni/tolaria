@@ -109,6 +109,48 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 1,
     },
+    {
+        // Effect Script at an ACTIVATED-ability site (ADR 0045, issue #803):
+        // Prodigal Pyromancer's "{T}: deal 1 damage to any target" is a
+        // DSL-only ability resolved by the same interpreter as spell scripts.
+        // It enters already un-sick so you can tap it this turn — activate,
+        // target the opponent, and watch the scripted `dealDamage` fire from
+        // the stack.
+        label: "Prodigal Pyromancer — Effect Script activated ability (#803)",
+        cards: [
+            {
+                name: "Prodigal Pyromancer",
+                owner: "me",
+                zone: "battlefield",
+                summoningSick: false,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Effect Script at a TRIGGERED-ability site (ADR 0045, issue #803):
+        // Honden of Seeing Winds' upkeep trigger "draw a card for each Shrine
+        // you control" is a DSL-only script (a battlefield `count` feeding the
+        // `draw` Op). Two Hondens on the battlefield + a stocked library — pass
+        // priority through to your NEXT upkeep and the trigger fires, drawing 2
+        // via the interpreter. Start in the main phase (the scenario seeder sets
+        // the phase directly and does not re-scan phase-begin triggers, so the
+        // trigger fires on the next natural upkeep transition, not on load).
+        label: "Honden of Seeing Winds — Effect Script triggered ability (#803)",
+        cards: [
+            {
+                name: "Honden of Seeing Winds",
+                owner: "me",
+                zone: "battlefield",
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 10,
+        turn: 2,
+    },
 ];
 
 type DebugPanelProps = {

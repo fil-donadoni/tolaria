@@ -5,7 +5,14 @@
 // Add a new shorthand here as soon as the same `resolve` body repeats across
 // two cards (rule of two extraction, see feedback_extract_after_second.md).
 
-import type { CardDefinition, PumpCombatEffect, SpellContext } from "./types";
+import type {
+    ActivatedAbility,
+    CardDefinition,
+    EffectOp,
+    PumpCombatEffect,
+    SpellContext,
+    TriggeredAbility,
+} from "./types";
 import { compileEffectScript } from "../gre/effects/interpreter";
 
 type ResolveFn = (ctx: SpellContext) => void;
@@ -77,3 +84,45 @@ export function getResolveFn(def: CardDefinition): ResolveFn | undefined {
     }
     return undefined;
 }
+
+/** The narrow slice an ability shares for effect-site dispatch — an id (for a
+ *  legible error), an optional Effect Script, and the two imperative forms it
+ *  is mutually exclusive with. Both `ActivatedAbility` and `TriggeredAbility`
+ *  satisfy it structurally. */
+type AbilityEffectHost = {
+    id: string;
+    effects?: EffectOp[];
+    resolve?: unknown;
+    resolveSteps?: unknown;
+};
+
+/** Compiles an ability-site Effect Script (ADR 0045, issue #803) onto the SAME
+ *  resolve-closure seam as spell-site scripts — the interpreter never grows a
+ *  second execution path, and the ability's `SpellContext` (built once at the
+ *  stack-resolution site) supplies the correct controller and source
+ *  permanent. Returns `undefined` when the ability declares no `effects[]` (it
+ *  resolves imperatively). Throws when an ability declares both `effects[]` and
+ *  `resolve`/`resolveSteps` — the two authoring modes are mutually exclusive
+ *  per effect site (also caught statically by the catalogue-wide
+ *  `validateEffectScript` sweep). */
+export function getAbilityEffectFn(
+    ability: AbilityEffectHost
+): ResolveFn | undefined {
+    if (!ability.effects) return undefined;
+    if (ability.resolve || ability.resolveSteps) {
+        const other = ability.resolve ? "resolve" : "resolveSteps";
+        throw new Error(
+            `Ability "${ability.id}" declares both effects[] and ${other} — these are mutually exclusive`
+        );
+    }
+    return compileEffectScript(ability.effects);
+}
+
+// Structural conformance guards — a compile error here means an ability type
+// grew a shape `getAbilityEffectFn` can no longer accept.
+const _actConforms: (a: ActivatedAbility) => ResolveFn | undefined =
+    getAbilityEffectFn;
+const _trigConforms: (a: TriggeredAbility) => ResolveFn | undefined =
+    getAbilityEffectFn;
+void _actConforms;
+void _trigConforms;

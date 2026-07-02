@@ -251,9 +251,12 @@ function parseRef(ref: string): { binding: string; property: string } | null {
 function checkRefUses(
     effects: readonly unknown[],
     label: string,
-    errors: string[]
+    errors: string[],
+    implicit: ReadonlySet<string>
 ): void {
-    const declared = new Set<string>();
+    // Ability-site scripts (issue #803) get `$source` for free (the source
+    // permanent), so seed it as already-declared before the ordered pass.
+    const declared = new Set<string>(implicit);
     effects.forEach((raw, i) => {
         if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
             return;
@@ -293,39 +296,25 @@ function checkRefUses(
     });
 }
 
-/** Validates one card's Effect Script statically. Returns a list of
- *  human-readable errors — empty when the script is valid. A card without
- *  `effects[]` trivially passes (nothing to validate). */
-export function validateEffectScript(def: EffectScriptHost): string[] {
-    const errors: string[] = [];
-    const label = `${def.name} (${def.id})`;
-
-    if (def.effects === undefined) return errors;
-
-    // 3 — mutual exclusivity per effect site (ADR 0045: one authoring mode
-    // per site; `modes` carries its own per-mode resolution sites).
-    for (const [field, present] of [
-        ["resolve", !!def.resolve],
-        ["resolveSteps", !!def.resolveSteps],
-        ["effect", def.effect !== undefined],
-        ["modes", !!def.modes],
-    ] as const) {
-        if (present) {
-            errors.push(
-                `${label}: declares both effects[] and ${field} — one authoring mode per effect site`
-            );
-        }
-    }
-
-    // 1 + 2 — shape, schema and vocabulary.
-    if (!Array.isArray(def.effects)) {
+/** Validates one `effects[]` Op list in isolation (steps 1, 2, 4, 5) — shape,
+ *  vocabulary, ref/binding check and JSON purity. Site-agnostic: `implicit`
+ *  carries the bindings the site provides for free (`$source` at ability
+ *  sites, none at spell sites). Mutual-exclusivity (step 3) is the caller's
+ *  job because the mutually-exclusive fields differ per site. */
+function validateEffectOpList(
+    effects: unknown,
+    label: string,
+    implicit: ReadonlySet<string>,
+    errors: string[]
+): void {
+    if (!Array.isArray(effects)) {
         errors.push(`${label}: effects must be an array`);
-        return errors;
+        return;
     }
-    if (def.effects.length === 0) {
+    if (effects.length === 0) {
         errors.push(`${label}: effects[] must not be empty`);
     }
-    def.effects.forEach((raw, i) => {
+    effects.forEach((raw, i) => {
         const at = `${label}: effects[${i}]`;
         if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
             errors.push(`${at}: each Op must be a plain object`);
@@ -380,11 +369,82 @@ export function validateEffectScript(def: EffectScriptHost): string[] {
     });
 
     // 5 — ordered ref / binding check (#802).
-    checkRefUses(def.effects, label, errors);
+    checkRefUses(effects, label, errors, implicit);
 
     // 4 — JSON purity (ADR 0046).
-    const impurity = findImpurity(def.effects, `${label}: effects`);
+    const impurity = findImpurity(effects, `${label}: effects`);
     if (impurity) errors.push(impurity);
+}
 
+/** Validates a card's SPELL-SITE Effect Script statically. Returns a list of
+ *  human-readable errors — empty when the script is valid. A card without
+ *  `effects[]` trivially passes (nothing to validate). */
+export function validateEffectScript(def: EffectScriptHost): string[] {
+    const errors: string[] = [];
+    const label = `${def.name} (${def.id})`;
+
+    if (def.effects === undefined) return errors;
+
+    // 3 — mutual exclusivity per effect site (ADR 0045: one authoring mode
+    // per site; `modes` carries its own per-mode resolution sites).
+    for (const [field, present] of [
+        ["resolve", !!def.resolve],
+        ["resolveSteps", !!def.resolveSteps],
+        ["effect", def.effect !== undefined],
+        ["modes", !!def.modes],
+    ] as const) {
+        if (present) {
+            errors.push(
+                `${label}: declares both effects[] and ${field} — one authoring mode per effect site`
+            );
+        }
+    }
+
+    // A spell's source is the stack item, not a permanent — no `$source`.
+    validateEffectOpList(def.effects, label, EMPTY_BINDINGS, errors);
+    return errors;
+}
+
+/** No implicit bindings — a spell site provides no `$source` (its source is
+ *  the resolving stack item, not a battlefield permanent). */
+const EMPTY_BINDINGS: ReadonlySet<string> = new Set();
+/** The bindings an ability site provides for free (issue #803): `$source`. */
+const ABILITY_BINDINGS: ReadonlySet<string> = new Set(["$source"]);
+
+/** The narrow ability slice the ability-site validator reads. Both
+ *  `ActivatedAbility` and `TriggeredAbility` satisfy it structurally. */
+export type AbilityEffectScriptHost = {
+    id: string;
+    effects?: unknown;
+    resolve?: unknown;
+    resolveSteps?: unknown;
+};
+
+/** Validates an ABILITY-SITE Effect Script (activated / triggered, issue
+ *  #803). Same Op-list checks as the spell site, plus the ability-specific
+ *  mutual exclusivity (`effects[]` XOR `resolve`/`resolveSteps`) and the
+ *  `$source` implicit binding. `label` identifies the owning card; the ability
+ *  id is appended for a legible catalogue-sweep error. Returns [] when the
+ *  ability has no `effects[]`. */
+export function validateAbilityEffectScript(
+    ability: AbilityEffectScriptHost,
+    cardLabel: string
+): string[] {
+    const errors: string[] = [];
+    if (ability.effects === undefined) return errors;
+    const label = `${cardLabel} ability "${ability.id}"`;
+
+    if (ability.resolve) {
+        errors.push(
+            `${label}: declares both effects[] and resolve — one authoring mode per effect site`
+        );
+    }
+    if (ability.resolveSteps) {
+        errors.push(
+            `${label}: declares both effects[] and resolveSteps — one authoring mode per effect site`
+        );
+    }
+
+    validateEffectOpList(ability.effects, label, ABILITY_BINDINGS, errors);
     return errors;
 }
