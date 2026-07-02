@@ -151,6 +151,23 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         libraryCount: 10,
         turn: 2,
     },
+    {
+        // Effect Script choice Op — interpreter suspension/resume (ADR 0045,
+        // issue #805): Mind Rot ("Target player discards two cards") is the
+        // first DSL card with a MID-RESOLUTION choice. Cast it at the
+        // opponent: the script suspends on a `discard-hand` Pending Choice
+        // rendered by the existing generic prompt, the opponent picks two of
+        // their three cards, and the script resumes to discard them. Three
+        // lands cover the {2}{B}.
+        label: "Mind Rot — Effect Script choice Op (#805)",
+        cards: [
+            { name: "Mind Rot", owner: "me", zone: "hand" },
+            { name: "Swamp", owner: "me", zone: "battlefield", count: 3 },
+            { name: "Grizzly Bears", owner: "opp", zone: "hand", count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

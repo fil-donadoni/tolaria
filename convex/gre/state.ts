@@ -7417,6 +7417,27 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 [key]: values,
             };
         },
+        // --- Effect Script interpreter plumbing (ADR 0045, issue #805) ---
+        // The interpreter checkpoints the CURRENT Op index in the stack
+        // item's `resolutionStep` — the same resume checkpoint the stepped
+        // (`resolveSteps`) paths use — so a `choice` Op suspension resumes at
+        // the exact Op (earlier Ops never re-run, CR 608.3) and
+        // `requestChoice` / `noteChoice` key `collectedChoices` under the Op
+        // index. Interpreter-internal: card resolve bodies must never call
+        // these.
+        getScriptCheckpoint(): number | undefined {
+            return item.resolutionStep;
+        },
+        setScriptCheckpoint(opIndex: number): void {
+            item.resolutionStep = opIndex;
+        },
+        clearScriptCheckpoint(): void {
+            // Delete (not set undefined) so a completed script leaves no
+            // stale checkpoint on the card instance as it changes zone — a
+            // recast with a leftover `resolutionStep` would skip the
+            // target-legality gate (CR 608.2b) and mis-key its choices.
+            delete item.resolutionStep;
+        },
         // CR 701.16: to sacrifice a permanent is for its controller to put
         // it into its owner's graveyard. Indestructible does not prevent
         // sacrifice (CR 701.16a). No-op if the id is not on the battlefield.

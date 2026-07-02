@@ -23,7 +23,7 @@
 // invented Op name or a dangling ref fails CI before any game ever loads the
 // card.
 
-import type { CardDefinition } from "../../cards/types";
+import type { CardDefinition, EffectChoiceKind } from "../../cards/types";
 import { isRegisteredEffectOp } from "../../cards/mechanicsRegistry";
 
 /** The slice of CardDefinition the validator reads — kept narrow so tests
@@ -40,6 +40,10 @@ export type EffectScriptHost = Pick<
 interface OpSchema {
     required: Record<string, (value: unknown) => boolean>;
     optional?: Record<string, (value: unknown) => boolean>;
+    /** Cross-field rules that a per-field checker cannot express (e.g. the
+     *  choice Op's `filter` is only valid with `zone: "battlefield"`). Runs
+     *  after the per-field pass; returns human-readable error suffixes. */
+    check?: (entry: Record<string, unknown>) => string[];
 }
 
 /** CR 107.1 — amounts/counts written as literals are positive integers. */
@@ -127,6 +131,56 @@ function isPlayerRef(value: unknown): boolean {
     );
 }
 
+/** The Pending Choice kinds a `choice` Op may request (issue #805). Typed as
+ *  an exhaustive Record over `EffectChoiceKind` so adding a union member
+ *  without extending the allow-list (or vice versa) is a compile error. */
+const EFFECT_CHOICE_KINDS: Record<EffectChoiceKind, true> = {
+    "choose-permanents": true,
+    "sacrifice-permanents": true,
+    "discard-hand": true,
+    "search-library": true,
+    "choose-hand-card": true,
+    "choose-graveyard-card": true,
+};
+
+function isEffectChoiceKind(value: unknown): boolean {
+    return (
+        typeof value === "string" &&
+        value in EFFECT_CHOICE_KINDS &&
+        EFFECT_CHOICE_KINDS[value as EffectChoiceKind]
+    );
+}
+
+/** The zones a `choice` Op may pick from — exactly the zones the Pending
+ *  Choice submit validator knows how to gate (CR 608.2). */
+function isChoiceZone(value: unknown): boolean {
+    return (
+        value === "battlefield" ||
+        value === "hand" ||
+        value === "library" ||
+        value === "graveyard"
+    );
+}
+
+function isNonEmptyString(value: unknown): boolean {
+    return typeof value === "string" && value.length > 0;
+}
+
+/** `{ ref: "$picked" }` — a BARE picks ref (issue #805): a single `ref` key
+ *  holding a binding name with NO property path. Reads the instance ids a
+ *  `choice` Op bound. Whether the binding exists and is picks-typed is
+ *  decided by the ordered ref pass. */
+function isBarePicksRef(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    return (
+        keys.length === 1 &&
+        keys[0] === "ref" &&
+        typeof (value as { ref: unknown }).ref === "string" &&
+        /^\$[A-Za-z][A-Za-z0-9]*$/.test((value as { ref: string }).ref)
+    );
+}
+
 /** dealDamage's `to`: an announced target OR `{ player: <EffectPlayerRef> }`. */
 function isDamageRecipient(value: unknown): boolean {
     if (isTargetRef(value)) return true;
@@ -155,6 +209,30 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     exile: {
         required: { target: isTargetRef },
         optional: { bind: isBindingName },
+    },
+    // CR 608.2 / 101.4 (issue #805) — mid-resolution choice through the
+    // existing Pending Choice pipeline. `bind` is REQUIRED: a choice whose
+    // picks nothing consumes is meaningless.
+    choice: {
+        required: {
+            kind: isEffectChoiceKind,
+            player: isPlayerRef,
+            zone: isChoiceZone,
+            count: isPositiveInt,
+            prompt: isNonEmptyString,
+            bind: isBindingName,
+        },
+        optional: { filter: isCardFilter },
+        check: (entry) =>
+            "filter" in entry && entry.zone !== "battlefield"
+                ? [
+                      `field "filter" is only valid with zone "battlefield" — the Pending Choice submit validator applies filters to battlefield picks only`,
+                  ]
+                : [],
+    },
+    // CR 701.9 (issue #805) — discard the cards a `choice` Op picked.
+    discard: {
+        required: { player: isPlayerRef, cards: isBarePicksRef },
     },
 };
 
@@ -204,17 +282,19 @@ function findImpurity(value: unknown, path: string): string | null {
     return null;
 }
 
-/** One recorded `ref` use: the ref string and whether it sits in a numeric or
- *  a player position (which decides its legal property paths). */
+/** One recorded `ref` use: the ref string and whether it sits in a numeric, a
+ *  player, or a picks position (which decides its legal shape, its legal
+ *  property paths, and the binding family it may name). */
 interface RefUse {
     ref: string;
-    kind: "number" | "player";
+    kind: "number" | "player" | "picks";
 }
 
 /** Walks an Op's parameters collecting every `{ ref }` use, tagged by
- *  position. A ref under a `player` / `controller` key is a player ref; any
- *  other ref is numeric (amount / count). `count` specs are traversed so a
- *  ref in their `controller` is caught too. */
+ *  position. A ref under a `player` / `controller` key is a player ref; a ref
+ *  under a `cards` key is a picks ref (issue #805 — reads a choice Op's
+ *  picks); any other ref is numeric (amount / count). `count` specs are
+ *  traversed so a ref in their `controller` is caught too. */
 function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
     if (typeof value !== "object" || value === null) return;
     if (Array.isArray(value)) {
@@ -229,7 +309,9 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
             kind:
                 keyHint === "player" || keyHint === "controller"
                     ? "player"
-                    : "number",
+                    : keyHint === "cards"
+                      ? "picks"
+                      : "number",
         });
         return;
     }
@@ -243,11 +325,22 @@ function parseRef(ref: string): { binding: string; property: string } | null {
     return { binding: ref.slice(0, dot), property: ref.slice(dot + 1) };
 }
 
-/** Ordered ref pass (#802): walks Ops top to bottom, so a `ref` may only name
- *  a binding a PRECEDING Op declared with `bind` (snapshot semantics — the
- *  value must exist before it is read). Reports dangling bindings and unknown
- *  property paths. Only inspects Ops whose shape already passed schema
- *  validation (a `bind`/`ref` on a malformed Op is reported there instead). */
+/** The two binding families (issue #805). A SNAPSHOT binding (destroy/exile
+ *  `bind`, the implicit `$source`) stores the bound object's power/toughness/
+ *  controller; a PICKS binding (a `choice` Op's `bind`) stores the chooser's
+ *  submitted instance ids. Ref positions are family-typed: numeric and player
+ *  refs read snapshots, picks positions read picks — the interpreter relies
+ *  on this static agreement to interpret the persisted value unambiguously. */
+type BindingKind = "snapshot" | "picks";
+
+/** Ordered ref pass (#802, extended for #805): walks Ops top to bottom, so a
+ *  `ref` may only name a binding a PRECEDING Op declared with `bind`
+ *  (snapshot semantics — the value must exist before it is read). Reports
+ *  dangling bindings, unknown property paths, family mismatches (a picks
+ *  binding read in a numeric/player position or vice versa) and duplicate
+ *  binding names (uniqueness makes the persisted binding store unambiguous).
+ *  Only inspects Ops whose shape already passed schema validation (a
+ *  `bind`/`ref` on a malformed Op is reported there instead). */
 function checkRefUses(
     effects: readonly unknown[],
     label: string,
@@ -255,8 +348,9 @@ function checkRefUses(
     implicit: ReadonlySet<string>
 ): void {
     // Ability-site scripts (issue #803) get `$source` for free (the source
-    // permanent), so seed it as already-declared before the ordered pass.
-    const declared = new Set<string>(implicit);
+    // permanent — a snapshot), so seed it as already-declared.
+    const declared = new Map<string, BindingKind>();
+    for (const name of implicit) declared.set(name, "snapshot");
     effects.forEach((raw, i) => {
         if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
             return;
@@ -269,14 +363,43 @@ function checkRefUses(
             collectRefUses(v, k, uses);
         }
         for (const use of uses) {
+            // Picks position (issue #805): a BARE binding name, no property.
+            if (use.kind === "picks") {
+                if (use.ref.includes(".")) {
+                    errors.push(
+                        `${at}: picks ref "${use.ref}" must be a bare binding name (no property path)`
+                    );
+                    continue;
+                }
+                const family = declared.get(use.ref);
+                if (family === undefined) {
+                    errors.push(
+                        `${at}: ref "${use.ref}" references undefined binding "${use.ref}" — no earlier Op binds it`
+                    );
+                    continue;
+                }
+                if (family !== "picks") {
+                    errors.push(
+                        `${at}: ref "${use.ref}" names a snapshot binding in a picks position — only a choice Op's bind carries picks`
+                    );
+                }
+                continue;
+            }
             const parsed = parseRef(use.ref);
             if (!parsed) {
                 errors.push(`${at}: malformed ref "${use.ref}"`);
                 continue;
             }
-            if (!declared.has(parsed.binding)) {
+            const family = declared.get(parsed.binding);
+            if (family === undefined) {
                 errors.push(
                     `${at}: ref "${use.ref}" references undefined binding "${parsed.binding}" — no earlier Op binds it`
+                );
+                continue;
+            }
+            if (family !== "snapshot") {
+                errors.push(
+                    `${at}: ref "${use.ref}" names a picks binding in a ${use.kind} position — power/toughness/controller refs read snapshot bindings`
                 );
                 continue;
             }
@@ -291,8 +414,21 @@ function checkRefUses(
             }
         }
         // A binding becomes visible only AFTER its Op — a ref cannot read the
-        // result of the same Op that produces it (snapshot ordering).
-        if (typeof entry.bind === "string") declared.add(entry.bind);
+        // result of the same Op that produces it (snapshot ordering). Names
+        // must be unique within a script: the binding store persists entries
+        // by name (issue #805), so a re-declaration would be ambiguous.
+        if (typeof entry.bind === "string") {
+            if (declared.has(entry.bind)) {
+                errors.push(
+                    `${at}: bind "${entry.bind}" re-declares an existing binding — binding names must be unique within a script`
+                );
+            } else {
+                declared.set(
+                    entry.bind,
+                    entry.op === "choice" ? "picks" : "snapshot"
+                );
+            }
+        }
     });
 }
 
@@ -364,6 +500,12 @@ function validateEffectOpList(
                 errors.push(
                     `${at}: Op "${entry.op}" has unknown field "${field}" — the grammar is frozen (ADR 0045)`
                 );
+            }
+        }
+        // Cross-field rules (e.g. choice's filter ⇒ battlefield zone).
+        if (schema.check) {
+            for (const err of schema.check(entry)) {
+                errors.push(`${at}: Op "${entry.op}" ${err}`);
             }
         }
     });

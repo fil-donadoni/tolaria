@@ -4038,6 +4038,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Mind Rot",
+        "scryfallId": "5e117056-030a-4ec6-a669-dbe6c7ccb840",
+        "oracleId": "ad44cf74-b717-48fb-9fa2-77512024d76a",
+        "firstSet": "m11"
+    },
+    {
         "name": "Mind Stone",
         "scryfallId": "162e81d3-6cd4-4cb8-8ed8-cfbd8d34ca71",
         "oracleId": "c97361b5-af16-4a7b-af85-a429dbaf4ad2",

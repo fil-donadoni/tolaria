@@ -2281,6 +2281,19 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         mechanicId: "exile",
         note: "Effect Script Op for the CR 701 keyword action \"Exile\" — moves the target to its owner's exile zone (CR 406). Supports `bind` to snapshot the permanent's power/toughness/controller before it leaves (Swords to Plowshares reads the exiled creature's power, CR 608.2h).",
     },
+    {
+        op: "choice",
+        cr: "608.2",
+        binding: "SpellContext.requestChoice",
+        note: "Mid-resolution player choice (CR 101.4 / 608.2, issue #805) mapped 1:1 onto the existing Pending Choice zone-pick kinds (EffectChoiceKind ⊂ ZonePickKind) — same enqueue, same generic prompt UI, same submitResolutionChoice mutation. The interpreter SUSPENDS the script at this Op (resolutionStep checkpoints the Op index) and resumes here when the picks are submitted; its required `bind` names the picks for later Ops.",
+    },
+    {
+        op: "discard",
+        cr: "701.9",
+        binding: "SpellContext.discardCard",
+        mechanicId: "discard",
+        note: 'Effect Script Op for the CR 701 keyword action "Discard" — discards the cards a `choice` Op picked (a bare picks ref, e.g. { ref: "$picked" }). Routes through discardCard so the Library of Leng replacement and CARD_DISCARDED triggers apply (issue #805).',
+    },
 ];
 
 /** True if `name` is a registered Effect Script Op (ADR 0045). The single
