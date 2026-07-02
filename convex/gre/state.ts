@@ -1854,9 +1854,9 @@ export type GameState = {
      *  shared test fixtures), NOT derived on read. Optional because it is
      *  materialized lazily: `undefined` means "not yet computed on this state"
      *  (e.g. an intermediate state a test built by hand) or "the game is over
-     *  and waits for nothing". This slice introduces the field and its
-     *  bookkeeping; mutation gating against it is a follow-up (#799). See
-     *  {@link ExpectedInput}. */
+     *  and waits for nothing". Every public game mutation is gated through this
+     *  contract by `assertExpectedInput` (#799) before its action-specific
+     *  validation. See {@link ExpectedInput}. */
     expectedInput?: ExpectedInput;
 };
 

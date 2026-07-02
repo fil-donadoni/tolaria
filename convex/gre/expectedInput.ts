@@ -7,9 +7,13 @@
 // `expectedInput` field on GameState — MAINTAINED at every stable point rather
 // than derived on read.
 //
-// Scope (issue #796): this slice introduces the field + its bookkeeping and a
-// runtime coherence invariant. Gating every mutation against `expectedInput`
-// is a follow-up (#799) and is intentionally NOT done here.
+// Scope (issue #796): this slice introduced the field + its bookkeeping and a
+// runtime coherence invariant.
+//
+// Scope (issue #799): `assertExpectedInput` below is the SINGLE gate every game
+// mutation routes through before its action-specific validation. "Is this the
+// right moment, from the right player, for this kind of input?" now lives in
+// exactly one place (ADR 0047) instead of being re-derived in ~15 mutations.
 
 import type { ExpectedInput, GameState } from "./state";
 import { getOpponentId } from "./state";
@@ -109,6 +113,86 @@ export function assertExpectedInputCoherent(state: GameState): void {
             `expectedInput incoherent with pending state (ADR 0047): ` +
                 `field=${JSON.stringify(actual)} ` +
                 `derived=${JSON.stringify(expected)}`
+        );
+    }
+}
+
+/** The kind discriminant of {@link ExpectedInput} — the input class a mutation
+ *  declares it belongs to when it calls the gate. */
+export type ExpectedInputKind = ExpectedInput["kind"];
+
+/** What a game mutation asks the single gate to authorize (ADR 0047, #799). */
+export type GateRequest = {
+    /** The player submitting the action. */
+    playerId: string;
+    /** The Expected Input kind this mutation's action belongs to. */
+    expect: ExpectedInputKind;
+    /** CR 117.3a / 605.3b — a mana-ability mutation. While a player is being
+     *  asked an optional may-pay question the game's Expected Input is a
+     *  `choice`, yet that player may still activate mana abilities to make the
+     *  required mana. Set this so the gate admits the mana action during the
+     *  player's own may-pay window instead of demanding priority. */
+    allowManaForMayPay?: boolean;
+    /** Combat sub-flows (assign / confirm combat damage, CR 510) fold into a
+     *  priority window, but the acting player is owned by the sub-flow
+     *  (`damageAssignerIds`), not by `priorityPlayerId`. Set this to check only
+     *  the moment (a priority window, nothing else pending) and let the
+     *  mutation validate the assigner identity itself. */
+    anyPlayer?: boolean;
+};
+
+/** THE Expected Input gate (ADR 0047, issue #799). Every game mutation calls
+ *  this once, before its action-specific validation, so the "right moment /
+ *  right player / right input kind" question is answered in exactly one place.
+ *
+ *  It derives the authoritative Expected Input from `state` via
+ *  {@link computeExpectedInput} (the single decision site — robust whether or
+ *  not the persisted `expectedInput` field was materialized) and rejects when:
+ *
+ *   - the game is over (CR 104.2a — no further actions);
+ *   - the game is waiting for a different KIND of input than the mutation
+ *     submits (e.g. casting a spell while a Pending Choice is open); or
+ *   - the input is the right kind but from the WRONG player (e.g. the
+ *     non-active player submitting a choice owed by their opponent).
+ *
+ *  Throwing — not returning a boolean — so the rejection surfaces to the
+ *  client as a consistent, single-sourced error. Per-mutation code keeps only
+ *  its action-specific semantics (does this pendingCast exist, is this a legal
+ *  target, etc.). */
+export function assertExpectedInput(
+    state: GameState,
+    request: GateRequest
+): void {
+    // CR 104.2a — a finished game accepts no further actions.
+    if (state.gameOver) {
+        throw new Error("Game is over");
+    }
+
+    const current = computeExpectedInput(state);
+
+    // CR 117.3a / 605.3b — mana abilities during the player's own may-pay
+    // window are legal even though the Expected Input is a `choice`.
+    if (
+        request.allowManaForMayPay &&
+        current?.kind === "choice" &&
+        current.choiceKind === "may-pay" &&
+        current.playerId === request.playerId
+    ) {
+        return;
+    }
+
+    if (!current || current.kind !== request.expect) {
+        throw new Error(
+            `Illegal action (ADR 0047): the game is waiting for ` +
+                `${current ? current.kind : "nothing"} input, not ` +
+                `${request.expect}.`
+        );
+    }
+
+    if (!request.anyPlayer && current.playerId !== request.playerId) {
+        throw new Error(
+            `Illegal action (ADR 0047): the game is waiting for ` +
+                `${current.kind} input from another player.`
         );
     }
 }
