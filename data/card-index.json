@@ -3612,6 +3612,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Lava Spike",
+        "scryfallId": "60b2fae1-242b-45e0-a757-b1adc02c06f3",
+        "oracleId": "2837888c-bfa8-4955-9334-0605ad409f7e",
+        "firstSet": "chk"
+    },
+    {
         "name": "Lava Tubes",
         "scryfallId": "5e7c2cf6-f36f-451b-bba5-19a82c659c4c",
         "oracleId": "2ffb2647-60bb-4916-b919-cbcf18e5e424",

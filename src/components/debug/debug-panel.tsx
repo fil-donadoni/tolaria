@@ -80,7 +80,21 @@ type PresetScenario = {
     poison?: { me?: number; opp?: number };
 };
 
-const PRESET_SCENARIOS: PresetScenario[] = [];
+const PRESET_SCENARIOS: PresetScenario[] = [
+    {
+        // Effect Script tracer bullet (ADR 0045, issue #800): Lava Spike is
+        // the first DSL-only card — cast it at a player to exercise the
+        // effects[] interpreter end-to-end. Two copies in hand + one for the
+        // opponent so both seats can fire the script; 2 lands cover the {R}.
+        label: "Lava Spike — Effect Script DSL (#800)",
+        cards: [
+            { name: "Lava Spike", owner: "me", zone: "hand", count: 2 },
+            { name: "Lava Spike", owner: "opp", zone: "hand" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+];
 
 type DebugPanelProps = {
     gameId: Id<"games">;

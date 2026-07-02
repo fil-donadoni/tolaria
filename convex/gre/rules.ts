@@ -535,7 +535,12 @@ export function spellWouldDestroyLandControlledBy(
 
     // Single-target "Destroy target land" (Stone Rain / Sinkhole / Ice Storm):
     // qualifies iff one of the chosen targets is a land this player controls.
-    if (def.effect === "destroy-target") {
+    // Both declarative authoring modes qualify: the `effect: "destroy-target"`
+    // shorthand and an Effect Script carrying a `destroy` Op (ADR 0045).
+    if (
+        def.effect === "destroy-target" ||
+        def.effects?.some((op) => op.op === "destroy")
+    ) {
         for (const t of item.targets ?? []) {
             if (t.type !== "permanent") continue;
             for (const p of state.players) {

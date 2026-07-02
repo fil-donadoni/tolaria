@@ -2216,6 +2216,72 @@ export const ENGINE_INTERNAL_MARKERS: EngineInternalMarker[] = [
     },
 ];
 
+// --- Effect Script Op census (ADR 0045) ---
+
+/** One row of the Effect Script Op vocabulary (ADR 0045). The Mechanics
+ *  Registry is the single authority on Op names: `validateEffectScript`
+ *  (`convex/gre/effects/validate.ts`) rejects any script whose `op` is not
+ *  listed here, and the interpreter-coverage guard test fails CI when this
+ *  table and the interpreter's executor table drift apart — a row without an
+ *  executor (or vice versa) is a registry bug. */
+export interface EffectOpRow {
+    /** Op name exactly as written in `effects[]` (camelCase verb). */
+    op: string;
+    /** CR section for the verb (2025-09-19 numbering). Game actions that are
+     *  not CR 701 keyword actions (damage, draw, life change) cite their own
+     *  rules section. */
+    cr: string;
+    /** The SpellContext primitive the interpreter calls — Ops are a thin
+     *  declarative skin over the existing primitives, never a parallel
+     *  engine (ADR 0045 "one execution path"). */
+    binding: string;
+    /** When the Op implements a CR 701 keyword action, the census row id in
+     *  `MECHANICS_REGISTRY` it binds (e.g. "destroy"). Undefined for plain
+     *  game actions with no keyword. */
+    mechanicId?: string;
+    note?: string;
+}
+
+/** Starter Op vocabulary (issue #800 — flat-sequence core). Grows freely,
+ *  one orthogonal verb at a time; the structural grammar around it is frozen
+ *  (ADR 0045). Keep each Op a general zone/mana/life/damage operation — a
+ *  card-shaped verb fails the orthogonality test and belongs in `resolve()`. */
+export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
+    {
+        op: "dealDamage",
+        cr: "120.1",
+        binding: "SpellContext.dealDamage",
+    },
+    {
+        op: "draw",
+        cr: "121.1",
+        binding: "SpellContext.drawCards",
+    },
+    {
+        op: "gainLife",
+        cr: "119.3a",
+        binding: "SpellContext.gainLife",
+    },
+    {
+        op: "loseLife",
+        cr: "119.3b",
+        binding: "SpellContext.loseLife",
+    },
+    {
+        op: "destroy",
+        cr: "701.8",
+        binding: "SpellContext.destroy",
+        mechanicId: "destroy",
+        note: 'Effect Script Op for the CR 701 keyword action "Destroy" — routes through the regen/indestructible replacement layer like the "destroy-target" shorthand.',
+    },
+];
+
+/** True if `name` is a registered Effect Script Op (ADR 0045). The single
+ *  vocabulary authority consulted by `validateEffectScript`. */
+export function isRegisteredEffectOp(name: string): boolean {
+    return EFFECT_OP_REGISTRY.some((row) => row.op === name);
+}
+
 /** True if `value` (a literal `staticAbilities` string as declared on a
  *  CardDefinition or TokenSpec) resolves to a known mechanic — a CR 701/702
  *  census row (by plain lowercase name, exact `binding`, or
