@@ -94,6 +94,21 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 2,
     },
+    {
+        // Effect Script bind + ref (ADR 0045, issue #802): Swords to Plowshares
+        // is the first DSL card using bind-on-Op + ref-on-bound-object — `exile`
+        // snapshots the creature's power/controller, then `gainLife` reads that
+        // snapshot after the creature has changed zone (CR 608.2h). Cast it at
+        // the opponent's Serra Angel: the Angel is exiled and its controller
+        // gains 4 life. One {W} land covers the cost.
+        label: "Swords to Plowshares — bind + ref DSL (#802)",
+        cards: [
+            { name: "Swords to Plowshares", owner: "me", zone: "hand" },
+            { name: "Serra Angel", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 1,
+    },
 ];
 
 type DebugPanelProps = {

@@ -68,20 +68,17 @@ https://mtgjson.com/api/v5/<CODE_UPPER>.json`.
    a pre-existing `convex/cards/sets/<code>/` directory (colour-split per
    ADR 0043: `white|blue|black|red|green|multicolor|colorless.ts` + an
    `index.ts` barrel) from an earlier rollout. You MUST treat it as the source
-   of truth for what's already implemented and **never lose it**:
-    - **`json-to-cards.mjs` OVERWRITES the whole `<code>/` directory** (every
-      colour module + the barrel). Do NOT run it against an existing, non-empty
-      set directory — it would clobber hand-written implementations. If the
-      directory exists, import into a scratch path instead (e.g. import to a
-      temp set code, then diff per colour module), and **only graft in the
-      cards that are missing**.
-    - Parse the existing colour modules: **active** `export const … :
+   of truth for what's already implemented and **never lose it**: - **`json-to-cards.mjs` OVERWRITES the whole `<code>/` directory** (every
+   colour module + the barrel). Do NOT run it against an existing, non-empty
+   set directory — it would clobber hand-written implementations. If the
+   directory exists, import into a scratch path instead (e.g. import to a
+   temp set code, then diff per colour module), and **only graft in the
+   cards that are missing**. - Parse the existing colour modules: **active** `export const … :
 CardDefinition` (and `CardPrint`) are implemented; **commented-out** stub
-      blocks are capability cards staged earlier — uncomment them when their
-      cluster ships, do not re-stub or duplicate them.
-    - The set directory and the lockfile can disagree if the lockfile is stale
-      — reconcile by running `bun run check:index` (and backfilling if it
-      fails) so "done" reflects reality before you scope.
+   blocks are capability cards staged earlier — uncomment them when their
+   cluster ships, do not re-stub or duplicate them. - The set directory and the lockfile can disagree if the lockfile is stale
+   — reconcile by running `bun run check:index` (and backfilling if it
+   fails) so "done" reflects reality before you scope.
 3. **Profile the set from the blob** (use `jq`): total unique cards, breakdown
    by colour, by rarity, and — critically — by **card layout** (`normal` vs
    `transform`/`modal_dfc`/`split`/`adventure`/`flip`/`meld`/`saga`/`leveler`/

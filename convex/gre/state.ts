@@ -7596,6 +7596,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         getGraveyardCards(playerId: string): Array<{
             id: string;
             types: CardType[];
+            subtypes: string[];
             manaValue: number;
             colors: Color[];
         }> {
@@ -7605,6 +7606,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 return {
                     id: c.id,
                     types: def?.types ?? c.types,
+                    subtypes: def?.subtypes ?? c.subtypes,
                     manaValue: manaValue(def?.manaCost),
                     colors: getColorsFromCost(def?.manaCost),
                 };
