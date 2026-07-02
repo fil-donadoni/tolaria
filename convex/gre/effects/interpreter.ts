@@ -53,16 +53,23 @@
 // on the skip side still re-evaluates its predicate (a stored, deterministic
 // binding) and descends the same branch, keeping positions aligned; a
 // completed Op nested inside that branch is skipped by the same position rule.
-// `forEach` lands in a later slice but reuses the same cursor, so its per-Op
-// checkpoint composes for free. The Op vocabulary is governed by
-// `EFFECT_OP_REGISTRY` in `convex/cards/mechanicsRegistry.ts`; the
-// interpreter-coverage guard test keeps `OP_EXECUTORS` and that census in exact
-// 1:1 correspondence.
+// `forEach` (issue #807, the fourth and final construct — the grammar is now
+// closed) reuses the SAME cursor: each iteration re-walks the body through
+// `runOpList`, so body Ops get fresh positions per iteration and a body
+// `choice` Op resumes at its exact (iteration, Op). forEach adds two things the
+// cursor does not give for free — a FROZEN member set (CR 608.2i, persisted so
+// a resume re-iterates the identical set) and PER-ITERATION binding scoping (so
+// the same `choice` re-prompts each iteration); see the forEach machinery
+// below. The Op vocabulary is governed by `EFFECT_OP_REGISTRY` in
+// `convex/cards/mechanicsRegistry.ts`; the interpreter-coverage guard test
+// keeps `OP_EXECUTORS` and that census in exact 1:1 correspondence.
 
 import type {
     EffectCardFilter,
     EffectComparisonOp,
     EffectCountSpec,
+    EffectForEachSelector,
+    EffectObjectSelector,
     EffectOp,
     EffectPlayerRef,
     EffectPredicate,
@@ -91,12 +98,21 @@ type OpOutcome = void | "suspend";
  *  its stored answer back. */
 type Cursor = { pos: number; readonly resume: number };
 
-/** Snapshot-triple layout inside `collectedChoices` (see module doc):
- *  [0] power, [1] toughness, [2] controller — all strings (the store is the
- *  same `string[]` shape every collected answer uses). */
+/** Snapshot layout inside `collectedChoices` (see module doc):
+ *  [0] power, [1] toughness, [2] controller, [3] instance id — all strings
+ *  (the store is the same `string[]` shape every collected answer uses).
+ *  The id slot (issue #807) lets a `forEach` body act ON the snapshotted
+ *  object (`{ ref: "$each" }` in an object position); snapshots written
+ *  before #807 lack it, and readers treat a missing id as "no object". */
 const SNAP_POWER = 0;
 const SNAP_TOUGHNESS = 1;
 const SNAP_CONTROLLER = 2;
+const SNAP_ID = 3;
+
+/** A players-set `$each` binding (issue #807) is stored as the single-element
+ *  `[playerId]` — distinguishable from a 4-slot object snapshot by the
+ *  validator's family typing, never by sniffing the array. */
+const PLAYER_BINDING_ID = 0;
 
 /** Splits a `"$binding.property"` ref string into its parts, or `null` when
  *  the ref carries no property (`"$binding"` — the bare shape a PICKS ref
@@ -250,7 +266,20 @@ function resolvePlayerRef(
     }
     if ("ref" in ref) {
         const parsed = parseRef(ref.ref);
-        if (!parsed) return undefined;
+        if (!parsed) {
+            // Bare `{ ref: "$each" }` in a player position (issue #807): the
+            // current member of a players-set forEach, stored as the
+            // single-element [playerId]. The static validator guarantees a
+            // bare player ref names a player-family binding; an unscoped /
+            // uncaptured lookup skips the Op (CR 608.2b).
+            if (!ref.ref.startsWith("$") || ref.ref.includes(".")) {
+                return undefined;
+            }
+            const bound = readBinding(ctx, ref.ref);
+            return bound && bound.length === 1
+                ? bound[PLAYER_BINDING_ID]
+                : undefined;
+        }
         const snap = readBinding(ctx, parsed.binding);
         if (!snap) return undefined;
         return parsed.property === "controller"
@@ -276,6 +305,28 @@ function resolveTargetRef(
     ref: EffectTargetRef
 ): TargetSelection | undefined {
     return ctx.targets[ref.target];
+}
+
+/** Resolves an object selector to a TargetSelection: the announced target
+ *  slot, or — inside a `forEach` over permanents (issue #807) — the bare
+ *  `{ ref: "$each" }` naming the current member. Returns undefined when the
+ *  slot is missing (illegal / removed at resolution), the binding was never
+ *  captured, or the referenced permanent has since LEFT the battlefield —
+ *  in every case the Op is skipped (CR 608.2b, the spell does as much as it
+ *  can; a frozen-set member that left mid-iteration is not acted on). */
+function resolveObjectRef(
+    ctx: SpellContext,
+    ref: EffectObjectSelector
+): TargetSelection | undefined {
+    if ("target" in ref) return ctx.targets[ref.target];
+    if (!ref.ref.startsWith("$") || ref.ref.includes(".")) return undefined;
+    const snap = readBinding(ctx, ref.ref);
+    const id = snap?.[SNAP_ID];
+    if (!id) return undefined;
+    // CR 608.2b — the snapshotted object must still be on the battlefield;
+    // `getOwnerId` is battlefield-scoped, so undefined means it left.
+    if (ctx.getOwnerId(id) === undefined) return undefined;
+    return { type: "permanent", id };
 }
 
 /** Resolves a bare picks ref (`{ ref: "$picked" }`) to the instance ids a
@@ -306,6 +357,10 @@ function bindSnapshot(
         String(ctx.getPower(target)),
         String(ctx.getToughness(target)),
         ctx.getController(target),
+        // SNAP_ID (issue #807) — lets a forEach body act on the snapshotted
+        // member via `{ ref: "$each" }`; readers re-check battlefield
+        // presence before acting (CR 608.2b).
+        target.id,
     ]);
 }
 
@@ -350,7 +405,8 @@ export const OP_EXECUTORS: {
         cursor: Cursor
     ) => OpOutcome;
 } = {
-    // CR 120 — damage to an announced target or to a relative player.
+    // CR 120 — damage to an announced target, the current forEach member, or
+    // a relative player.
     dealDamage(ctx, op) {
         const amount = resolveValue(ctx, op.amount);
         if (amount === undefined || amount <= 0) return; // 0 damage is a no-op
@@ -360,7 +416,7 @@ export const OP_EXECUTORS: {
             ctx.dealDamage({ type: "player", id: playerId }, amount);
             return;
         }
-        const target = resolveTargetRef(ctx, op.to);
+        const target = resolveObjectRef(ctx, op.to);
         if (target) ctx.dealDamage(target, amount);
     },
     // CR 121.1 — draw from the top of the library.
@@ -390,7 +446,7 @@ export const OP_EXECUTORS: {
     // CR 701.8 — destroy, through the replacement layer (regeneration /
     // indestructible / destroy replacements, ADR 0020).
     destroy(ctx, op) {
-        const target = resolveTargetRef(ctx, op.target);
+        const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
         if (op.bind) bindSnapshot(ctx, op.bind, target);
         ctx.destroy(target);
@@ -399,7 +455,7 @@ export const OP_EXECUTORS: {
     // snapshot is taken before the move, so "its controller / its power"
     // refs read last-known information (CR 608.2h; Swords to Plowshares).
     exile(ctx, op) {
-        const target = resolveTargetRef(ctx, op.target);
+        const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
         if (op.bind) bindSnapshot(ctx, op.bind, target);
         ctx.exile(target);
@@ -485,6 +541,29 @@ export const OP_EXECUTORS: {
         if (!branch) return; // predicate false, no else — nothing to do
         return runOpList(ctx, branch, cursor);
     },
+    // CR 701.16 (issue #807) — sacrifice the permanents a `choice` Op picked.
+    // Routes through `SpellContext.sacrifice`: the controller puts each pick
+    // into its owner's graveyard; indestructible does not prevent sacrifice
+    // (CR 701.16a) and dies-triggers fire as for imperative cards. A pick
+    // already gone from the battlefield is a no-op inside the primitive.
+    sacrifice(ctx, op) {
+        const ids = resolvePicks(ctx, op.permanents);
+        if (!ids) return; // binding never captured — CR 608.2b, skip
+        for (const id of ids) ctx.sacrifice(id);
+    },
+    // forEach — the fourth structural construct (ADR 0045, issue #807).
+    // Iterates the body over a frozen, declaratively-selected set through
+    // `execForEach`, threading the SHARED cursor so each body Op — in each
+    // iteration — gets its own pre-order position and per-Op checkpoint. A
+    // suspending Op inside a body iteration propagates "suspend" up; on resume
+    // the whole tree is re-walked, forEach re-selects nothing (the set is
+    // persisted), re-iterates, and every Op before the checkpointed position
+    // is skipped — so a side-effecting body Op fires EXACTLY ONCE per
+    // iteration (CR 608.3). Like `if`, forEach holds no position of its own:
+    // it always re-descends on a re-walk.
+    forEach(ctx, op, cursor) {
+        return execForEach(ctx, op, cursor);
+    },
 };
 
 /** Runs an Op list top to bottom (CR 608.2c) against a shared pre-order
@@ -511,10 +590,14 @@ function runOpList(
 ): OpOutcome {
     for (const op of ops) {
         const myPos = cursor.pos++;
-        // Already-completed leaf Ops never re-run. A structural `if` is the
-        // sole exception: it re-evaluates to re-descend the correct branch
-        // (its own nested Ops are skipped by this same position check).
-        if (myPos < cursor.resume && op.op !== "if") continue;
+        // Already-completed leaf Ops never re-run. The structural constructs
+        // `if` and `forEach` (issue #807) are the exceptions: they must still
+        // run so they re-descend / re-iterate the same nested Ops, keeping the
+        // pre-order positions aligned across the re-walk (their own leaf Ops
+        // are then skipped individually by this same position check).
+        if (myPos < cursor.resume && op.op !== "if" && op.op !== "forEach") {
+            continue;
+        }
         // Checkpoint BEFORE executing (mirrors the engine's stepped-resolve
         // protocol): a suspension inside the Op resumes at THIS position.
         ctx.setScriptCheckpoint(myPos);
@@ -535,6 +618,144 @@ function runOpList(
  *  equal to its power" — as `{ ref: "$source.power" }` without an explicit
  *  `bind`. The static validator pre-declares it for ability sites. */
 export const SOURCE_BINDING = "$source";
+
+/** The per-iteration binding name a `forEach` body gets for free (ADR 0045,
+ *  issue #807): the current member of the iterated set. */
+export const EACH_BINDING = "$each";
+
+// --- forEach construct machinery (ADR 0045, issue #807) ----------------------
+//
+// forEach composes onto main's pre-order cursor (issue #806) rather than
+// introducing a parallel checkpoint: each iteration re-walks the body through
+// `runOpList` with the SHARED cursor, so body Ops get fresh positions per
+// iteration and a `choice` Op suspension resumes at the exact (iteration, Op)
+// via the same position rule. Two things the cursor does NOT give for free,
+// handled here:
+//   - the FROZEN member set (CR 608.2i): selected once and persisted in
+//     `collectedChoices` under a reserved `#forEach:<pos>:` key, so a resume
+//     re-iterates the identical set (positions stay aligned) and members
+//     leaving mid-iteration are skipped (CR 608.2b), not re-selected out;
+//   - PER-ITERATION binding names: every `$`-binding written or read by a body
+//     Op is transparently scoped to `@<pos>:<iteration>` via a wrapped
+//     SpellContext, so the same `choice` Op prompts fresh each iteration and a
+//     picks binding read back inside the iteration is unambiguous, while
+//     bindings made BEFORE the construct (an outer `bind`, `$source`) stay
+//     readable through a fallback to the unscoped name.
+
+/** Scopes a `$`-binding name to one forEach iteration. `pos` (the construct's
+ *  own pre-order position) disambiguates two forEach constructs in the same
+ *  script; `iteration` disambiguates iterations, so the SAME `choice` Op's
+ *  binding does not collide across iterations. `@` and `:` are illegal in
+ *  author binding names (validator-enforced `$[A-Za-z][A-Za-z0-9]*`), so
+ *  scoped names can never collide with authored ones. */
+function scopeBindingName(
+    name: string,
+    pos: number,
+    iteration: number
+): string {
+    return `${name}@${pos}:${iteration}`;
+}
+
+/** Wraps a SpellContext so every `$`-binding written or read by a forEach
+ *  BODY Op is transparently iteration-scoped: `noteChoice` / `requestChoice`
+ *  write under the scoped name, and `recallChoice` reads the scoped name
+ *  first, falling back to the unscoped one — that fallback keeps bindings made
+ *  BEFORE the construct (an outer `bind`, the implicit `$source`) readable
+ *  across every iteration and across suspensions ("bind across iterations",
+ *  issue #807). Non-`$` choice ids pass through unscoped. Every other
+ *  primitive is the real one — the wrapper is pure name translation, no game
+ *  logic (ADR 0045 "one execution path"). */
+function scopedContext(
+    ctx: SpellContext,
+    pos: number,
+    iteration: number
+): SpellContext {
+    const scope = (name: string): string =>
+        name.startsWith("$") ? scopeBindingName(name, pos, iteration) : name;
+    return {
+        ...ctx,
+        noteChoice: (choiceId, values) =>
+            ctx.noteChoice(scope(choiceId), values),
+        recallChoice: (choiceId) =>
+            ctx.recallChoice(scope(choiceId)) ?? ctx.recallChoice(choiceId),
+        requestChoice: (req) =>
+            ctx.requestChoice({ ...req, choiceId: scope(req.choiceId) }),
+    };
+}
+
+/** Selects the members of a forEach set (issue #807), ONCE, at construct entry
+ *  (CR 608.2i — information from the game is determined only once, as the
+ *  effect is applied). Players iterate in APNAP order (CR 101.4: active player
+ *  first, then each other player in turn order) — this is what makes choice
+ *  Ops inside a players-set body APNAP-ordered decisions. Permanents are
+ *  gathered per player in the same APNAP order, optionally scoped to one
+ *  controller and filtered (CR 205). */
+function selectForEachMembers(
+    ctx: SpellContext,
+    select: EffectForEachSelector
+): string[] {
+    if (select.set === "players") return [...ctx.apNapOrder()];
+    let owners: string[];
+    if (select.controller !== undefined) {
+        const pid = resolvePlayerRef(ctx, select.controller);
+        owners = pid === undefined ? [] : [pid];
+    } else {
+        owners = [...ctx.apNapOrder()];
+    }
+    return owners.flatMap((pid) =>
+        ctx.getBattlefieldIds(pid, toPermanentFilter(select.filter))
+    );
+}
+
+/** Executes one `forEach` construct (ADR 0045, issue #807) against the shared
+ *  pre-order cursor. The construct's own position (checkpointed by `runOpList`
+ *  just before dispatch) keys the frozen member set; each iteration binds
+ *  `$each`, then re-walks the body through `runOpList` so a body `choice` Op's
+ *  suspension resumes at its exact (iteration, Op) position (CR 608.3). */
+function execForEach(
+    ctx: SpellContext,
+    op: OpOf<"forEach">,
+    cursor: Cursor
+): OpOutcome {
+    // The construct's own pre-order position — committed by `runOpList` right
+    // before dispatch, and stable across suspensions (the deterministic walk
+    // reaches this forEach at the same position every time). Captured ONCE
+    // here because the body's `runOpList` overwrites the checkpoint per Op.
+    const pos = ctx.getScriptCheckpoint() ?? 0;
+    const setKey = `#forEach:${pos}:set`;
+
+    let members = ctx.recallChoice(setKey);
+    if (members === undefined) {
+        // Construct entry: determine the set ONCE and freeze it (CR 608.2i).
+        members = selectForEachMembers(ctx, op.select);
+        ctx.noteChoice(setKey, members);
+    }
+
+    for (let k = 0; k < members.length; k++) {
+        const inner = scopedContext(ctx, pos, k);
+        // Bind `$each` once per iteration (a resume mid-iteration keeps the
+        // persisted binding authoritative — the member may have changed or
+        // left since, CR 603.10 LKI). The suffix-scanning recall makes the
+        // guard prefix-agnostic.
+        const eachId = scopeBindingName(EACH_BINDING, pos, k);
+        if (ctx.recallChoice(eachId) === undefined) {
+            if (op.select.set === "players") {
+                ctx.noteChoice(eachId, [members[k]]);
+            } else if (ctx.getOwnerId(members[k]) !== undefined) {
+                // Snapshot BEFORE the body acts on the member (CR 608.2h).
+                bindSnapshot(ctx, eachId, {
+                    type: "permanent",
+                    id: members[k],
+                });
+            }
+            // else: the frozen-set member already left the battlefield —
+            // leave `$each` uncaptured; body Ops reading it skip (CR 608.2b).
+        }
+        const outcome = runOpList(inner, op.effects, cursor);
+        if (outcome === "suspend") return "suspend";
+    }
+    return undefined;
+}
 
 /** Executes an Op sequence (CR 608.2c) through `runOpList`, checkpointing a
  *  PRE-ORDER position in the stack item (issue #805 / #806) so a suspending Op

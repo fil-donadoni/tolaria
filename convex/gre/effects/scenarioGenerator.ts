@@ -243,8 +243,12 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             analyseValue(op.amount, req);
             if ("player" in op.to) {
                 analysePlayer(op.to.player, req, false);
-            } else {
+            } else if ("target" in op.to) {
                 recordSlot(req, op.to.target, "permanent");
+            } else {
+                // `{ ref: "$each" }` — only reachable inside a forEach body,
+                // and forEach scripts are skipped wholesale below.
+                req.skip ??= `object ref "${op.to.ref}" — recipient depends on a forEach iteration`;
             }
             return;
         case "draw":
@@ -258,7 +262,13 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             return;
         case "destroy":
         case "exile":
-            recordSlot(req, op.target.target, "permanent");
+            if ("target" in op.target) {
+                recordSlot(req, op.target.target, "permanent");
+            } else {
+                // `{ ref: "$each" }` — forEach-body only; see the forEach
+                // skip below.
+                req.skip ??= `object ref "${op.target.ref}" — target depends on a forEach iteration`;
+            }
             return;
         case "choice":
             // A `choice` Op suspends resolution for a live player decision
@@ -295,6 +305,18 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // not model, so it is reported as an explicit skip; branch
             // execution is proved by the card's own tests.
             req.skip ??= `construct "if" branches on a runtime predicate — covered by the card's own tests`;
+            return;
+        case "sacrifice":
+            // `sacrifice` (issue #807) consumes a `choice` Op's picks binding
+            // — same skip rationale as `discard`.
+            req.skip ??= `Op "sacrifice" consumes a choice binding — covered by the card's own suspension/resume tests`;
+            return;
+        case "forEach":
+            // The forEach construct (issue #807) iterates a runtime-selected
+            // set; the generator cannot predict per-member outcomes (and a
+            // body `choice` would suspend for live input). Explicit skip —
+            // forEach cards keep their own full per-card tests.
+            req.skip ??= `construct "forEach" iterates a runtime-selected set — covered by the card's own tests`;
             return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
@@ -462,6 +484,9 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 },
             };
         }
+        // `{ ref: "$each" }` recipients never reach the assertor (their
+        // script is skipped in analysis) — defensive.
+        if (!("target" in op.to)) return null;
         const permId = scenario.targetPermanentIds[op.to.target];
         return {
             label: `dealDamage ${amount} marks target permanent ${permId}`,
@@ -538,6 +563,7 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // (CR 701.8 — the filler is not indestructible).
     destroy(rawOp, scenario) {
         const op = rawOp as Extract<EffectOp, { op: "destroy" }>;
+        if (!("target" in op.target)) return null; // $each — skipped upstream
         const permId = scenario.targetPermanentIds[op.target.target];
         return {
             label: `destroy moves target permanent ${permId} to graveyard`,
@@ -588,9 +614,22 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     counter() {
         return null;
     },
+    // `sacrifice` (issue #807) — never reached, same rationale as `discard`
+    // (its `permanents` picks binding depends on a live player pick).
+    sacrifice() {
+        return null;
+    },
+    // `forEach` (issue #807) — never reached: `analyseOp` skips every script
+    // with a forEach construct (per-member outcomes are runtime-selected).
+    // Kept for the 1:1 coverage guard; forEach coverage is the card's own
+    // tests.
+    forEach() {
+        return null;
+    },
     // Zone change: exile moves the target to its owner's exile zone (CR 701.13).
     exile(rawOp, scenario) {
         const op = rawOp as Extract<EffectOp, { op: "exile" }>;
+        if (!("target" in op.target)) return null; // $each — skipped upstream
         const permId = scenario.targetPermanentIds[op.target.target];
         return {
             label: `exile moves target permanent ${permId} to exile`,

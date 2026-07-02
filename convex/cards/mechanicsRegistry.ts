@@ -2313,6 +2313,19 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "interpreter branch selection (no primitive)",
         note: "The `if` structural construct (ADR 0045, issue #806) — NOT an Op verb but the third frozen construct, registered here so the Op-vocabulary coverage guard (registry ⇄ interpreter ⇄ validator ⇄ scenario-assertor, 1:1) counts it. Branches the script on a PREDEFINED predicate form (a boolean-binding test — e.g. a mayPay outcome — or a numeric comparison), never an arbitrary expression, so the validator and the bot can read the condition. then/else are Op lists; a suspending Op inside a branch suspends/resumes exactly as at the top level.",
     },
+    {
+        op: "sacrifice",
+        cr: "701.16",
+        binding: "SpellContext.sacrifice",
+        mechanicId: "sacrifice",
+        note: 'Effect Script Op for the CR 701 keyword action "Sacrifice" — sacrifices the permanents a `choice` Op picked (a bare picks ref, e.g. { ref: "$sac" }). Indestructible does not prevent sacrifice (CR 701.16a); dies-triggers fire as for imperative cards. Ships with the forEach construct (issue #807) for the "each player sacrifices …" pattern (Innocent Blood).',
+    },
+    {
+        op: "forEach",
+        cr: "608.2i",
+        binding: "interpreter set iteration (no primitive)",
+        note: "The `forEach` structural construct (ADR 0045, issue #807) — the FOURTH and final frozen construct, closing the grammar. NOT an Op verb; registered here so the Op-vocabulary coverage guard (registry ⇄ interpreter ⇄ validator ⇄ scenario-assertor, 1:1) counts it. Iterates the body over a declaratively-selected set (players in APNAP order CR 101.4, or battlefield permanents by controller/filter), determined ONCE at construct entry (CR 608.2i) and frozen. `$each` is bound per iteration; a `choice` Op inside the body suspends/resumes per iteration through the same Pending Choice pipeline as a top-level choice.",
+    },
 ];
 
 /** True if `name` is a registered Effect Script Op (ADR 0045). The single

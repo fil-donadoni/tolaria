@@ -4322,6 +4322,15 @@ export type EffectPlayerRef =
  *  the Op is skipped (CR 608.2b). */
 export type EffectTargetRef = { target: number };
 
+/** Object selector accepted by object-acting Ops (destroy / exile /
+ *  dealDamage): an announced target slot, OR — inside a `forEach` over
+ *  permanents (issue #807) — the bare `{ ref: "$each" }` naming the current
+ *  iteration member. The bare ref carries the member's instance id (captured
+ *  in the per-iteration snapshot); when the member has left the battlefield
+ *  before its iteration the Op is skipped (CR 608.2b — the spell does as much
+ *  as it can). */
+export type EffectObjectSelector = EffectTargetRef | EffectRef;
+
 // --- Structural constructs: ref + count (ADR 0045, issue #802) ---
 //
 // The Effect Script grammar is FROZEN at four structural constructs
@@ -4372,6 +4381,50 @@ export interface EffectCardFilter {
  *  (the frozen-grammar defence, ADR 0045). */
 export type EffectValue = number | EffectRef | EffectCount;
 
+// --- Structural construct: forEach (ADR 0045, issue #807) ---
+//
+// The LAST of the four frozen structural constructs (bind/ref/if/forEach):
+// iterate a sub-list of Ops over a declaratively-selected set, with `$each`
+// bound per iteration. This closes the grammar — it never grows again; only
+// the Op vocabulary does (reopening ADR 0045 is the only path to a fifth
+// construct).
+
+/** The declarative set selector of a `forEach` construct (issue #807). The
+ *  set is determined ONCE, at construct entry (CR 608.2i — information from
+ *  the game is determined only once, as the effect is applied), then frozen:
+ *  members that leave their zone mid-iteration are skipped when their turn
+ *  comes (CR 608.2b — the spell does as much as it can), and objects that
+ *  enter after the selection are never iterated.
+ *
+ *  - `{ set: "players" }` — every player, iterated in APNAP order
+ *    (CR 101.4: active player first, then each other player in turn order).
+ *    `$each` is the current player, read with a bare `{ ref: "$each" }` in a
+ *    player position ("each player sacrifices…", Innocent Blood).
+ *  - `{ set: "permanents", … }` — battlefield permanents (CR 110), optionally
+ *    scoped to one controller (omitted = every player's battlefield — the
+ *    sweep default, "destroy all creatures") and filtered by type/subtype
+ *    (CR 205). `$each` is the current permanent: object positions take the
+ *    bare `{ ref: "$each" }`; `$each.power` / `$each.toughness` /
+ *    `$each.controller` read its snapshot (CR 608.2h last-known information,
+ *    captured at iteration entry).
+ *
+ *  Like the Op vocabulary — and unlike the construct list — the selector
+ *  shapes may grow (new zones, new scopes) without reopening ADR 0045. */
+export type EffectForEachSelector =
+    | { set: "players" }
+    | {
+          set: "permanents";
+          /** Permanents only exist on the battlefield (CR 110.1); the field
+           *  is explicit so future card-set selectors (graveyard sweeps) can
+           *  join without a shape change. */
+          zone: "battlefield";
+          /** Whose battlefield (CR 109.5 relative selectors). Omitted =
+           *  every player's (mass sweeps). */
+          controller?: EffectPlayerRef;
+          /** Optional type/subtype filter (AND, CR 205). Omitted = all. */
+          filter?: EffectCardFilter;
+      };
+
 /** The Pending Choice kinds a `choice` Op may request (issue #805). A strict
  *  subset of the existing `ZonePickKind` taxonomy — the Op maps 1:1 onto
  *  `SpellContext.requestChoice`, reusing the whole Pending Choice pipeline
@@ -4399,11 +4452,12 @@ export type EffectChoiceKind =
 export type EffectOp =
     /** CR 120 — deal `amount` damage to an announced target (player,
      *  creature, planeswalker or battle — whatever the target requirement
-     *  legalised) or to a player picked relative to the controller. */
+     *  legalised), to the current `forEach` member (`{ ref: "$each" }`,
+     *  issue #807), or to a player picked relative to the controller. */
     | {
           op: "dealDamage";
           amount: EffectValue;
-          to: EffectTargetRef | { player: EffectPlayerRef };
+          to: EffectObjectSelector | { player: EffectPlayerRef };
       }
     /** CR 121.1 — `player` draws `count` cards. */
     | { op: "draw"; player: EffectPlayerRef; count: EffectValue }
@@ -4412,17 +4466,19 @@ export type EffectOp =
     /** CR 119.3b — `player` loses `amount` life (not damage — no
      *  damage-replacement interaction). */
     | { op: "loseLife"; player: EffectPlayerRef; amount: EffectValue }
-    /** CR 701.8 — destroy the announced target permanent. Routes through
+    /** CR 701.8 — destroy the announced target permanent, or the current
+     *  `forEach` member (`{ ref: "$each" }`, issue #807). Routes through
      *  `SpellContext.destroy`, so regeneration / indestructible / destroy
      *  replacements (ADR 0020) apply exactly as for imperative cards.
      *  `bind` snapshots the permanent's power/toughness/controller BEFORE it
      *  leaves the battlefield (CR 608.2h). */
-    | { op: "destroy"; target: EffectTargetRef; bind?: string }
-    /** CR 701.13 — exile the announced target permanent to its owner's exile
-     *  zone (CR 406). `bind` snapshots the permanent's power/toughness/
-     *  controller BEFORE it leaves the battlefield, so a later `ref` reads
-     *  its last-known values (Swords to Plowshares, CR 608.2h). */
-    | { op: "exile"; target: EffectTargetRef; bind?: string }
+    | { op: "destroy"; target: EffectObjectSelector; bind?: string }
+    /** CR 701.13 — exile the announced target permanent (or the current
+     *  `forEach` member, issue #807) to its owner's exile zone (CR 406).
+     *  `bind` snapshots the permanent's power/toughness/controller BEFORE it
+     *  leaves the battlefield, so a later `ref` reads its last-known values
+     *  (Swords to Plowshares, CR 608.2h). */
+    | { op: "exile"; target: EffectObjectSelector; bind?: string }
     /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a
      *  Pending Choice of the given `kind` and SUSPENDS the script (the stack
@@ -4501,7 +4557,39 @@ export type EffectOp =
           predicate: EffectPredicate;
           then: EffectOp[];
           else?: EffectOp[];
-      };
+      }
+    /** CR 701.16 — sacrifice the permanents a `choice` Op picked (a bare
+     *  picks ref, issue #807). Each picked permanent still on the battlefield
+     *  is sacrificed through `SpellContext.sacrifice` — its controller puts
+     *  it into its owner's graveyard; indestructible does not save it
+     *  (CR 701.16a) and dies-triggers fire exactly as for imperative cards.
+     *  Skipped when the binding was never captured (the choice found no
+     *  candidates — CR 608.2b: a player with nothing to sacrifice does
+     *  nothing). */
+    | { op: "sacrifice"; permanents: EffectRef }
+    /** forEach — the fourth and FINAL structural construct (ADR 0045, issue
+     *  #807; the grammar is now closed). Executes the `effects` sub-list once
+     *  per member of the declaratively-selected set, in selection order
+     *  (players: APNAP, CR 101.4; permanents: APNAP by controller). The set
+     *  is determined ONCE at construct entry (CR 608.2i) and frozen; a member
+     *  that left the battlefield before its iteration is skipped (CR 608.2b).
+     *
+     *  `$each` is bound per iteration: the current player (players set — a
+     *  bare `{ ref: "$each" }` in player positions) or the current
+     *  permanent's snapshot (permanents set — bare `{ ref: "$each" }` in
+     *  object positions, `$each.power` / `$each.toughness` /
+     *  `$each.controller` in value positions, CR 608.2h LKI). Bindings made
+     *  inside the body (`bind`, a `choice` Op's picks) are scoped to their
+     *  iteration; bindings made BEFORE the construct stay readable in every
+     *  iteration. `choice` Ops inside the body suspend/resume per iteration
+     *  through the same Pending Choice pipeline as top-level choices — with a
+     *  players set this yields APNAP-ordered decisions (CR 101.4). One
+     *  deliberate simplification, flagged per the GRE rules: each iteration's
+     *  actions apply as soon as they resolve (sequential), not batched
+     *  simultaneously after all choices (CR 101.4d timing) — visible only
+     *  when a later chooser's options depend on an earlier iteration's
+     *  action. `forEach` does not nest (the validator rejects it). */
+    | { op: "forEach"; select: EffectForEachSelector; effects: EffectOp[] };
 
 /** A PREDEFINED predicate form for the `if` construct (ADR 0045, issue #806).
  *  The grammar is frozen at two enumerated forms — there are NO arbitrary
