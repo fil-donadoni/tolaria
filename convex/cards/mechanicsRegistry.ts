@@ -2294,6 +2294,25 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         mechanicId: "discard",
         note: 'Effect Script Op for the CR 701 keyword action "Discard" — discards the cards a `choice` Op picked (a bare picks ref, e.g. { ref: "$picked" }). Routes through discardCard so the Library of Leng replacement and CARD_DISCARDED triggers apply (issue #805).',
     },
+    {
+        op: "counter",
+        cr: "701.5a",
+        binding: "SpellContext.counter",
+        mechanicId: "counter",
+        note: 'Effect Script Op for the CR 701 keyword action "Counter" — removes the target spell from the stack into its owner\'s graveyard. The consequence half of the counter/punisher pattern ("Counter target spell unless its controller pays {N}", issue #806).',
+    },
+    {
+        op: "mayPay",
+        cr: "117.3a",
+        binding: "SpellContext.requestMayPay",
+        note: 'Optional "you may pay {cost}" decision (CR 117.3a / 118.4, issue #806) mapped 1:1 onto the existing `may-pay` Pending Choice pipeline — same enqueue, same generic Pay/Skip prompt UI, same submitMayPay mutation. The interpreter SUSPENDS the script at this Op and resumes here when the player answers; its required `bind` names a BOOLEAN binding (true = paid) read by a later `if` predicate. The counter/punisher primitive: "… unless its controller pays {2}".',
+    },
+    {
+        op: "if",
+        cr: "608.2c",
+        binding: "interpreter branch selection (no primitive)",
+        note: "The `if` structural construct (ADR 0045, issue #806) — NOT an Op verb but the third frozen construct, registered here so the Op-vocabulary coverage guard (registry ⇄ interpreter ⇄ validator ⇄ scenario-assertor, 1:1) counts it. Branches the script on a PREDEFINED predicate form (a boolean-binding test — e.g. a mayPay outcome — or a numeric comparison), never an arbitrary expression, so the validator and the bot can read the condition. then/else are Op lists; a suspending Op inside a branch suspends/resumes exactly as at the top level.",
+    },
 ];
 
 /** True if `name` is a registered Effect Script Op (ADR 0045). The single

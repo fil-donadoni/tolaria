@@ -106,7 +106,9 @@ function resolveScenarioPlayer(ref: EffectPlayerRef): string | "skip" | "ref" {
     if (ref === "controller") return CASTER_ID;
     if (ref === "opponent") return OPPONENT_ID;
     if ("target" in ref) return "target"; // a targeted player slot
-    return "ref"; // { ref } — value depends on a runtime snapshot
+    // `{ controllerOf }` — the controller of a targeted object, unknown until
+    // the object is set up; treated like a ref (runtime-dependent).
+    return "ref"; // { ref } / { controllerOf } — depends on runtime state
 }
 
 /** Reads player id for the ASSERTION (post-run) — same rules, but a targeted
@@ -271,6 +273,28 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // choice's submitted picks the outcome is undefined in a canned
             // scenario — same skip rationale as `choice`.
             req.skip ??= `Op "discard" consumes a choice binding — covered by the card's own suspension/resume tests`;
+            return;
+        case "mayPay":
+            // A `mayPay` Op suspends resolution for a live Pay/Skip decision
+            // (issue #806) — a canned scenario cannot submit an answer, so the
+            // script is reported as an explicit skip; execution coverage comes
+            // from the card's own suspension/resume tests.
+            req.skip ??= `Op "mayPay" suspends for a Pay/Skip decision — covered by the card's own suspension/resume tests`;
+            return;
+        case "counter":
+            // `counter` targets a SPELL on the stack (issue #806); the canned
+            // generator seeds only players and battlefield permanents, not a
+            // spell to counter, so it is reported as an explicit skip. Counter
+            // execution is proved by the card's own resolution test.
+            req.skip ??= `Op "counter" targets a spell on the stack — covered by the card's own resolution test`;
+            return;
+        case "if":
+            // The `if` construct branches on a runtime predicate (issue #806).
+            // The taken branch — and thus the observable outcome — depends on
+            // a live may-pay outcome or a runtime snapshot the generator does
+            // not model, so it is reported as an explicit skip; branch
+            // execution is proved by the card's own tests.
+            req.skip ??= `construct "if" branches on a runtime predicate — covered by the card's own tests`;
             return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
@@ -542,6 +566,26 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // `discard` (issue #805) — never reached, same rationale as `choice`
     // (its `cards` picks binding depends on a live player pick).
     discard() {
+        return null;
+    },
+    // `mayPay` (issue #806) — never reached: `analyseOp` skips every script
+    // containing a mayPay Op (a canned scenario cannot answer a live Pay/Skip
+    // prompt). The entry keeps the registry ⇄ assertor guard 1:1; execution
+    // coverage is the card's own suspension/resume tests.
+    mayPay() {
+        return null;
+    },
+    // `if` (issue #806) — never reached: `analyseOp` skips every script with an
+    // `if` construct (the taken branch depends on a runtime predicate). Kept for
+    // the 1:1 coverage guard; branch coverage is the card's own tests.
+    if() {
+        return null;
+    },
+    // `counter` (issue #806) — never reached: `analyseOp` skips every script
+    // with a counter Op (needs a spell on the stack the generator does not
+    // seed). Kept for the 1:1 coverage guard; counter coverage is the card's
+    // own resolution test.
+    counter() {
         return null;
     },
     // Zone change: exile moves the target to its owner's exile zone (CR 701.13).

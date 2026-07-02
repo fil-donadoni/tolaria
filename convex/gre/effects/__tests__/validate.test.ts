@@ -347,8 +347,14 @@ describe("Op coverage guard — registry ↔ interpreter ↔ validator (1:1)", (
     });
 
     it("every registered Op carries a CR reference and a SpellContext binding", () => {
+        // The frozen STRUCTURAL constructs (ADR 0045: bind / ref / if / forEach)
+        // are registered for the coverage guard but bind to interpreter control
+        // flow, not a SpellContext primitive — they are exempt from the
+        // primitive-binding requirement (they have no game-action primitive).
+        const STRUCTURAL_OPS = new Set(["if"]);
         for (const row of EFFECT_OP_REGISTRY) {
             expect(row.cr, row.op).toMatch(/^\d+\.\d+/);
+            if (STRUCTURAL_OPS.has(row.op)) continue;
             expect(row.binding, row.op).toMatch(/^SpellContext\./);
         }
     });
@@ -529,5 +535,162 @@ describe("validateEffectScript — choice Op (CR 608.2 / 101.4, issue #805)", ()
                 })
             )
         ).toEqual([]);
+    });
+});
+
+// --- if construct + mayPay / counter Ops (ADR 0045, issue #806) --------------
+
+describe("validateEffectScript — if construct + mayPay/counter (issue #806)", () => {
+    it("accepts the Force Spike shape (mayPay binds a boolean, if reads it)", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "mayPay",
+                player: { controllerOf: { target: 0 } },
+                cost: { X: 1 },
+                prompt: "Pay {1}?",
+                bind: "$paid",
+            },
+            {
+                op: "if",
+                predicate: { not: { binding: "$paid" } },
+                then: [{ op: "counter", target: { target: 0 } }],
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("accepts a comparison predicate over a bound snapshot", () => {
+        const effects: EffectOp[] = [
+            { op: "exile", target: { target: 0 }, bind: "$c" },
+            {
+                op: "if",
+                predicate: { left: { ref: "$c.power" }, op: "ge", right: 3 },
+                then: [{ op: "gainLife", player: "controller", amount: 2 }],
+                else: [{ op: "gainLife", player: "controller", amount: 1 }],
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects an if predicate naming an undefined boolean binding", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "if",
+                        predicate: { binding: "$ghost" },
+                        then: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    },
+                ] as never,
+            })
+        );
+        expect(errors.some((e) => /undefined binding "\$ghost"/.test(e))).toBe(
+            true
+        );
+    });
+
+    it("rejects a snapshot binding read in a boolean predicate position (family mismatch)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    { op: "exile", target: { target: 0 }, bind: "$snap" },
+                    {
+                        op: "if",
+                        predicate: { binding: "$snap" },
+                        then: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    },
+                ] as never,
+            })
+        );
+        expect(
+            errors.some((e) => /snapshot binding in a boolean position/.test(e))
+        ).toBe(true);
+    });
+
+    it("rejects a boolean binding read in a numeric position (family mismatch)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "mayPay",
+                        player: "opponent",
+                        cost: { X: 1 },
+                        prompt: "Pay?",
+                        bind: "$paid",
+                    },
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: { ref: "$paid.power" },
+                    },
+                ] as never,
+            })
+        );
+        expect(
+            errors.some((e) => /boolean binding in a number position/.test(e))
+        ).toBe(true);
+    });
+
+    it("validates Ops nested inside an if branch (a malformed branch Op fails)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "if",
+                        predicate: { left: 1, op: "eq", right: 1 },
+                        then: [{ op: "gainLife", player: "controller" }],
+                    },
+                ] as never,
+            })
+        );
+        expect(errors.some((e) => /then\[0\].*missing field/.test(e))).toBe(
+            true
+        );
+    });
+
+    it("a branch-local bind does not leak past the if (scoping)", () => {
+        // `$b` is bound only inside the then branch; a later top-level Op that
+        // references it must fail as undefined.
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "if",
+                        predicate: { left: 1, op: "eq", right: 1 },
+                        then: [
+                            { op: "exile", target: { target: 0 }, bind: "$b" },
+                        ],
+                    },
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: { ref: "$b.power" },
+                    },
+                ] as never,
+            })
+        );
+        expect(errors.some((e) => /undefined binding "\$b"/.test(e))).toBe(
+            true
+        );
+    });
+
+    it("rejects a mayPay whose bind is missing (a boolean nothing reads is meaningless)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "mayPay",
+                        player: "opponent",
+                        cost: { X: 1 },
+                        prompt: "Pay?",
+                    },
+                ] as never,
+            })
+        );
+        expect(errors.some((e) => /missing field "bind"/.test(e))).toBe(true);
     });
 });

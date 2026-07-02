@@ -4309,6 +4309,12 @@ export type EffectPlayerRef =
     | "controller"
     | "opponent"
     | { target: number }
+    /** The controller of the object in an announced target slot (CR 109.5 —
+     *  "its controller"). Resolves through `SpellContext.getController`, which
+     *  reads a spell's caster or a permanent's controller — so this is the
+     *  "its controller pays" selector (Force Spike, issue #806). Skipped when
+     *  the slot is missing at resolution (CR 608.2b). */
+    | { controllerOf: EffectTargetRef }
     | EffectRef;
 
 /** Object selector for object-scoped Ops: the spell's n-th announced target
@@ -4451,7 +4457,91 @@ export type EffectOp =
      *  (Library of Leng replacement + CARD_DISCARDED triggers apply exactly
      *  as for imperative cards). Skipped when the binding was never captured
      *  (the choice found no candidates — CR 608.2b). */
-    | { op: "discard"; player: EffectPlayerRef; cards: EffectRef };
+    | { op: "discard"; player: EffectPlayerRef; cards: EffectRef }
+    /** CR 117.3a / 118.4 — an optional "you may pay {cost}" decision offered to
+     *  a player (issue #806). Maps 1:1 onto `SpellContext.requestMayPay`, riding
+     *  the existing `may-pay` Pending Choice pipeline (enqueue → generic Pay/Skip
+     *  prompt UI → `submitMayPay` mutation → resume): no new choice
+     *  infrastructure. Like `choice`, the interpreter SUSPENDS the script at this
+     *  Op (`resolutionStep` checkpoints the Op index) and resumes here when the
+     *  player answers. `bind` (REQUIRED) names a BOOLEAN binding — `true` when the
+     *  player paid, `false` when they declined — read by a later `if` predicate.
+     *  This is the counter/punisher primitive: "… unless its controller pays
+     *  {2}" is `mayPay` + an `if` on the outcome. */
+    | {
+          op: "mayPay";
+          /** Who is offered the payment (CR 117.3a — usually the controller of
+           *  the affected object, "its controller pays"). */
+          player: EffectPlayerRef;
+          /** The cost to pay on accept (mana / life / sacrifice union, CR
+           *  702.24 shape). */
+          cost: MayPayCost;
+          prompt: string;
+          /** REQUIRED — the boolean binding name (`"$paid"`). A may-pay whose
+           *  outcome nothing reads is meaningless, so the grammar demands it. */
+          bind: string;
+      }
+    /** CR 701.5a — counter the announced target spell (remove it from the
+     *  stack, put it into its owner's graveyard). Routes through
+     *  `SpellContext.counter`; skipped when the target already left the stack
+     *  (CR 608.2b). The consequence half of the counter/punisher pattern
+     *  ("Counter target spell unless its controller pays {N}", issue #806). */
+    | { op: "counter"; target: EffectTargetRef }
+    /** if — the third frozen structural construct (ADR 0045, issue #806). NOT
+     *  an Op verb: it branches the script on a PREDEFINED predicate form (never
+     *  an arbitrary boolean expression — the validator and the bot must read
+     *  it). `then` runs when the predicate holds; `else` (optional) runs
+     *  otherwise. Each branch is itself an Op list, so `if` nests inside
+     *  sequences and other branches, and a suspending Op (choice / mayPay)
+     *  inside a branch suspends and resumes exactly as at the top level (the
+     *  branch re-runs from the checkpointed `if` Op; the suspending Op reads its
+     *  stored answer back). */
+    | {
+          op: "if";
+          predicate: EffectPredicate;
+          then: EffectOp[];
+          else?: EffectOp[];
+      };
+
+/** A PREDEFINED predicate form for the `if` construct (ADR 0045, issue #806).
+ *  The grammar is frozen at two enumerated forms — there are NO arbitrary
+ *  boolean expressions, so the validator can statically check every reference
+ *  and the bot can read the branch condition without executing the card:
+ *
+ *  - a BOOLEAN BINDING test — reads a boolean binding produced by an earlier
+ *    Op (today: a `mayPay` Op's outcome), optionally negated with `not`. This
+ *    is the "unless its controller pays {2}" form: `{ not: { binding: "$paid" } }`.
+ *  - a COMPARISON between two numeric operands — each a literal, a `ref` on a
+ *    bound snapshot's power/toughness, or a `count` of a declaratively-selected
+ *    set — with one of the standard relational operators.
+ *
+ *  Growing the predicate vocabulary (a new comparison operator, a new binding
+ *  kind) is cheap; adding a NON-enumerated form (a raw expression) requires
+ *  reopening ADR 0045. */
+export type EffectPredicate =
+    | EffectBindingPredicate
+    | EffectComparisonPredicate;
+
+/** Boolean-binding predicate: true iff the named boolean binding is true
+ *  (`{ binding }`) or false (`{ not: { binding } }`). The binding MUST be a
+ *  boolean binding declared by an earlier Op — `validateEffectScript` rejects a
+ *  dangling or wrong-family reference. */
+export type EffectBindingPredicate =
+    | { binding: string }
+    | { not: { binding: string } };
+
+/** The relational operators a comparison predicate may use (CR 107 — number
+ *  comparisons). Frozen enumerated set. */
+export type EffectComparisonOp = "eq" | "ne" | "lt" | "le" | "gt" | "ge";
+
+/** Comparison predicate: `left <op> right`, each side a numeric `EffectValue`
+ *  (literal / ref / count). Reads like "the creature's power is 3 or greater"
+ *  (`{ left: { ref: "$src.power" }, op: "ge", right: 3 }`). */
+export interface EffectComparisonPredicate {
+    left: EffectValue;
+    op: EffectComparisonOp;
+    right: EffectValue;
+}
 
 // `EffectChoiceKind` must stay a subset of the engine's `ZonePickKind` — the
 // choice Op rides the existing Pending Choice pipeline verbatim (issue #805).

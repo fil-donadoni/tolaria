@@ -17,7 +17,10 @@ import {
     pushSpell,
 } from "../../../cards/__tests__/setup";
 import { resolveTopOfStack } from "../../state";
-import { applyPendingChoiceSubmit } from "../../pendingChoiceSubmit";
+import {
+    applyMayPaySubmit,
+    applyPendingChoiceSubmit,
+} from "../../pendingChoiceSubmit";
 import { compactState, expandState } from "../../serialize";
 import { refreshExpectedInput } from "../../expectedInput";
 import { projectPublicState } from "../../../gameProjections";
@@ -1257,5 +1260,433 @@ describe("Effect Script Op: choice (CR 608.2 / 101.4, issue #805)", () => {
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["ha"]);
         expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["hb"]);
         expect(state.stack).toHaveLength(0); // ability resolved and popped
+    });
+});
+
+// --- if construct + mayPay / counter Ops (ADR 0045, issue #806) --------------
+
+describe("Effect Script Op: mayPay (CR 117.3a / 118.4, issue #806)", () => {
+    it("suspends with a may-pay PendingChoice and binds the outcome true when paid", () => {
+        const id = registerScript("test-op-maypay-paid", [
+            {
+                op: "mayPay",
+                player: "opponent",
+                cost: { X: 1 },
+                prompt: "Pay {1}?",
+                bind: "$paid",
+            },
+            // Fires only when NOT paid — so a paid answer leaves life alone.
+            {
+                op: "if",
+                predicate: { not: { binding: "$paid" } },
+                then: [{ op: "loseLife", player: "opponent", amount: 5 }],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { manaPool: { C: 1 } }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        expect(head.playerId).toBe("p2");
+        expect(state.stack).toHaveLength(1); // CR 608.3 — stays on the stack
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        // Paid → predicate `not $paid` is false → loseLife skipped.
+        expect(state.players[1].life).toBe(20);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("binds the outcome false when the payment is declined, firing the consequence", () => {
+        const id = registerScript("test-op-maypay-declined", [
+            {
+                op: "mayPay",
+                player: "opponent",
+                cost: { X: 1 },
+                prompt: "Pay {1}?",
+                bind: "$paid",
+            },
+            {
+                op: "if",
+                predicate: { not: { binding: "$paid" } },
+                then: [{ op: "loseLife", player: "opponent", amount: 5 }],
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        // Declined → predicate true → 5 life lost (base 20).
+        expect(state.players[1].life).toBe(15);
+        expect(state.stack).toHaveLength(0);
+    });
+});
+
+describe("Effect Script construct: if (ADR 0045, CR 608.2c, issue #806)", () => {
+    it("runs the then branch and skips else on a true binding predicate", () => {
+        const id = registerScript("test-if-then", [
+            {
+                op: "mayPay",
+                player: "opponent",
+                cost: { X: 1 },
+                prompt: "Pay {1}?",
+                bind: "$paid",
+            },
+            {
+                op: "if",
+                predicate: { binding: "$paid" },
+                then: [{ op: "gainLife", player: "controller", amount: 3 }],
+                else: [{ op: "gainLife", player: "controller", amount: 9 }],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { manaPool: { C: 1 } }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        // Paid → `binding $paid` true → then branch (gain 3).
+        expect(state.players[0].life).toBe(23);
+    });
+
+    it("runs the else branch when the predicate is false", () => {
+        const id = registerScript("test-if-else", [
+            {
+                op: "mayPay",
+                player: "opponent",
+                cost: { X: 1 },
+                prompt: "Pay {1}?",
+                bind: "$paid",
+            },
+            {
+                op: "if",
+                predicate: { binding: "$paid" },
+                then: [{ op: "gainLife", player: "controller", amount: 3 }],
+                else: [{ op: "gainLife", player: "controller", amount: 9 }],
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        // Declined → false → else branch (gain 9).
+        expect(state.players[0].life).toBe(29);
+    });
+
+    it("evaluates a comparison predicate against a bound snapshot (CR 107)", () => {
+        // A 2/5 bear is exiled and its power (2) snapshotted; the comparison
+        // `2 >= 2` fires the then branch.
+        const id = registerScript(
+            "test-if-comparison",
+            [
+                { op: "exile", target: { target: 0 }, bind: "$gone" },
+                {
+                    op: "if",
+                    predicate: {
+                        left: { ref: "$gone.power" },
+                        op: "ge",
+                        right: 2,
+                    },
+                    then: [{ op: "gainLife", player: "controller", amount: 4 }],
+                    else: [{ op: "gainLife", player: "controller", amount: 1 }],
+                },
+            ],
+            { targetRequirement: { type: "Creature", count: 1 } }
+        );
+        const bear = makeInstance(BEAR_ID, { controllerId: "p2", id: "cmpB" });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "cmpB" }]);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(24); // 2 >= 2 → then (+4)
+    });
+
+    it("suspends on a choice Op INSIDE a branch and resumes into the branch (nested suspension)", () => {
+        const handOf = (owner: "p1" | "p2", ids: string[]) =>
+            ids.map((cid) =>
+                makeInstance(BEAR_ID, {
+                    id: cid,
+                    controllerId: owner,
+                    ownerId: owner,
+                    zone: "hand",
+                })
+            );
+        const id = registerScript("test-if-branch-suspend", [
+            {
+                op: "mayPay",
+                player: "opponent",
+                cost: { X: 1 },
+                prompt: "Pay {1}?",
+                bind: "$paid",
+            },
+            {
+                // When unpaid, the branch itself suspends on a discard
+                // choice, then consumes the picks — a suspension INSIDE a
+                // branch (issue #806 acceptance criterion).
+                op: "if",
+                predicate: { not: { binding: "$paid" } },
+                then: [
+                    {
+                        op: "choice",
+                        kind: "discard-hand",
+                        player: "opponent",
+                        zone: "hand",
+                        count: 1,
+                        prompt: "Discard a card.",
+                        bind: "$picked",
+                    },
+                    {
+                        op: "discard",
+                        player: "opponent",
+                        cards: { ref: "$picked" },
+                    },
+                ],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf("p2", ["d1", "d2"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        // First suspension: the may-pay.
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        // Declined → branch runs → SECOND suspension on the discard choice.
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("discard-hand");
+        expect(head.playerId).toBe("p2");
+        expect(state.stack).toHaveLength(1); // still resolving
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["d1"],
+        });
+        // Branch consumed the pick: d1 discarded, d2 kept, resolution done.
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["d2"]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["d1"]);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("a paid may-pay skips the whole suspending branch (predicate false)", () => {
+        const handOf = (ids: string[]) =>
+            ids.map((cid) =>
+                makeInstance(BEAR_ID, {
+                    id: cid,
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    zone: "hand",
+                })
+            );
+        const id = registerScript("test-if-branch-skipped", [
+            {
+                op: "mayPay",
+                player: "opponent",
+                cost: { X: 1 },
+                prompt: "Pay {1}?",
+                bind: "$paid",
+            },
+            {
+                op: "if",
+                predicate: { not: { binding: "$paid" } },
+                then: [
+                    {
+                        op: "choice",
+                        kind: "discard-hand",
+                        player: "opponent",
+                        zone: "hand",
+                        count: 1,
+                        prompt: "Discard a card.",
+                        bind: "$picked",
+                    },
+                    {
+                        op: "discard",
+                        player: "opponent",
+                        cards: { ref: "$picked" },
+                    },
+                ],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    manaPool: { C: 1 },
+                    hand: handOf(["k1", "k2"]),
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        // Paid → branch skipped → no discard choice raised, resolution done.
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["k1", "k2"]);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("a side-effecting Op BEFORE a suspending Op inside a branch fires EXACTLY ONCE across suspend→resume (CR 608.3, issue #806 double-execution regression)", () => {
+        // The regression: the branch is [loseLife 5, choice, discard]. The
+        // suspending `choice` sits AFTER a side-effecting `loseLife`. Before the
+        // per-Op checkpoint fix, resume replayed the WHOLE `if` — `loseLife`
+        // fired a SECOND time (dropping p2 to 10 instead of 15). The pre-order
+        // checkpoint must skip the already-completed `loseLife` on resume.
+        const handOf = (ids: string[]) =>
+            ids.map((cid) =>
+                makeInstance(BEAR_ID, {
+                    id: cid,
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    zone: "hand",
+                })
+            );
+        const id = registerScript("test-if-branch-preop-once", [
+            {
+                op: "mayPay",
+                player: "opponent",
+                cost: { X: 1 },
+                prompt: "Pay {1}?",
+                bind: "$paid",
+            },
+            {
+                op: "if",
+                predicate: { not: { binding: "$paid" } },
+                then: [
+                    // Side-effecting Op BEFORE the suspending choice.
+                    { op: "loseLife", player: "opponent", amount: 5 },
+                    {
+                        op: "choice",
+                        kind: "discard-hand",
+                        player: "opponent",
+                        zone: "hand",
+                        count: 1,
+                        prompt: "Discard a card.",
+                        bind: "$picked",
+                    },
+                    {
+                        op: "discard",
+                        player: "opponent",
+                        cards: { ref: "$picked" },
+                    },
+                ],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf(["e1", "e2"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        // First suspension: the may-pay. loseLife has NOT run yet.
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].kind).toBe("may-pay");
+        expect(state.players[1].life).toBe(20);
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        // Declined → branch runs: loseLife fires ONCE (20 → 15), then the
+        // discard choice suspends.
+        expect(state.players[1].life).toBe(15);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("discard-hand");
+        expect(state.stack).toHaveLength(1); // still resolving
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["e1"],
+        });
+        // The fix: loseLife did NOT replay on resume — p2 is still at 15, not
+        // 10. The choice's picked card was discarded and resolution completed.
+        expect(state.players[1].life).toBe(15);
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["e2"]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["e1"]);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("the pre-op-once checkpoint survives a DB round-trip (compact/expand) mid-suspension", () => {
+        // Same [loseLife, choice, discard] branch, but the state is serialized
+        // and rehydrated WHILE suspended on the discard choice — proving the
+        // pre-order checkpoint (resolutionStep) persists and still skips the
+        // completed loseLife after a real DB write.
+        const handOf = (ids: string[]) =>
+            ids.map((cid) =>
+                makeInstance(BEAR_ID, {
+                    id: cid,
+                    controllerId: "p2",
+                    ownerId: "p2",
+                    zone: "hand",
+                })
+            );
+        const id = registerScript("test-if-branch-preop-roundtrip", [
+            {
+                op: "mayPay",
+                player: "opponent",
+                cost: { X: 1 },
+                prompt: "Pay {1}?",
+                bind: "$paid",
+            },
+            {
+                op: "if",
+                predicate: { not: { binding: "$paid" } },
+                then: [
+                    { op: "loseLife", player: "opponent", amount: 5 },
+                    {
+                        op: "choice",
+                        kind: "discard-hand",
+                        player: "opponent",
+                        zone: "hand",
+                        count: 1,
+                        prompt: "Discard a card.",
+                        bind: "$picked",
+                    },
+                    {
+                        op: "discard",
+                        player: "opponent",
+                        cards: { ref: "$picked" },
+                    },
+                ],
+            },
+        ]);
+        let state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf(["r1", "r2"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.players[1].life).toBe(15); // loseLife fired once
+        // DB round-trip while suspended on the discard choice.
+        state = expandState(compactState(state));
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("discard-hand");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["r1"],
+        });
+        // Still 15 — the checkpoint carried across the round-trip, loseLife
+        // did not replay.
+        expect(state.players[1].life).toBe(15);
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["r2"]);
+        expect(state.stack).toHaveLength(0);
     });
 });

@@ -168,6 +168,27 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Effect Script `if` construct — the unless-pays pattern (ADR 0045,
+        // issue #806): Force Spike ("Counter target spell unless its controller
+        // pays {1}") is DSL-only — a `mayPay` Op offers the spell's controller
+        // the {1} and binds the outcome, and the `if` construct fires the
+        // `counter` consequence only when the payment went unpaid. To exercise
+        // it end-to-end: let the opponent cast their Lightning Bolt (it goes on
+        // the stack), respond with Force Spike targeting it, then the opponent
+        // sees the generic Pay/Skip prompt — decline and the Bolt is countered,
+        // pay {1} and it resolves. One Island covers Force Spike's {U}; the
+        // opponent's Mountains cover the Bolt and the {1}.
+        label: "Force Spike — Effect Script if / unless-pays (#806)",
+        cards: [
+            { name: "Force Spike", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield" },
+            { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+            { name: "Mountain", owner: "opp", zone: "battlefield", count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
