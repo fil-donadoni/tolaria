@@ -191,7 +191,9 @@ Conventions to hold it to:
   `## What to build` (end-to-end, no file paths) · `## Design decisions
 (grill <date> → ADR NNNN)` · `## Acceptance criteria` (checkboxes, ending
   with "`bun run check:all` + `bun run test` green") · `## Blocked by` ·
-  `## Related`.
+  `## Related` · `## Target files` (module/glob-level scheduling metadata for
+  the processing loop's disjoint batching — e.g. the colour files + engine
+  registries the cluster touches; coarse ok, `- *` if it touches everything).
 - A card may ship (as a body/stub) before its cluster's mechanic and be
   corrected by the cluster PR — keep the build green throughout.
 - **Every staged/capability card is named in exactly one cut issue.** Reconcile

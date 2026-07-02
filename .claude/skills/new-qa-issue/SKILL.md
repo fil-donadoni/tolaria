@@ -69,11 +69,16 @@ What should happen after the fix. Be specific about edge cases.
 
 - What should NOT be changed
 - Adjacent features that are separate
+
+**Target files:**
+
+- `path/or/glob`
 ```
 
 **Durability rules:**
 
-- NO file paths or line numbers — they go stale
+- NO file paths or line numbers in the descriptive sections — they go stale
+- Exception: the **Target files** section is scheduling metadata for the processing loop's file-disjoint batching — module/glob granularity, coarse is fine, staleness acceptable, the implementing agent is not bound by it. Always include it; a change that touches everything gets `- *` (schedules solo).
 - Describe types, interfaces, and behavioral contracts
 - Each acceptance criterion must be independently testable
 
