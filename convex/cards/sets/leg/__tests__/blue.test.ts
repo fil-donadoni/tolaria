@@ -245,6 +245,35 @@ describe("Force Spike (counter unless controller pays {1}, CR 701.5a)", () => {
         resolveTopOfStack(state);
         expect(state.stack.find((s) => s.id === bolt.id)).toBeDefined();
     });
+
+    // Backend-integration path (issue #806): DSL Force Spike (mayPay + if
+    // constructs) driven through `applyMayPaySubmit` — the exact primitive the
+    // `submitMayPay` game.ts mutation calls — and asserted through the wire
+    // projection. Proves the DSL-only card behaves identically across the full
+    // GRE → game.ts → UI boundary, not just in the unit seam.
+    it("drives the may-pay through applyMayPaySubmit and the counter survives projection (wire format)", () => {
+        const p1 = makePlayer("p1");
+        const p2 = makePlayer("p2", {
+            manaPool: { W: 0, U: 0, B: 0, R: 3, G: 0, C: 0 },
+        });
+        const state = makeState({ players: [p1, p2] });
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        pushSpell(state, forceSpike.id, "p1", [{ type: "spell", id: bolt.id }]);
+        resolveTopOfStack(state); // suspends on the mayPay Op
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        expect(head.playerId).toBe("p2"); // controllerOf the bolt spell
+        // The spell's controller declines — `applyMayPaySubmit` completes the
+        // resolution (the `if` fires the counter Op).
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.stack.find((s) => s.id === bolt.id)).toBeUndefined();
+        // Wire format: the countered bolt is absent from both players' stacks
+        // in the projected public state (nothing engine-internal leaked).
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.stack.find((s) => s.id === bolt.id)).toBeUndefined();
+    });
 });
 
 describe("Boomerang (return target permanent to hand, CR 701.10)", () => {

@@ -41,16 +41,22 @@
 // serialization drift guard needs nothing.
 //
 // The value grammar is exactly literal | ref | count (ADR 0045 frozen
-// grammar). The `if` / `forEach` constructs land in later slices. The Op
-// vocabulary is governed by `EFFECT_OP_REGISTRY` in
+// grammar). The `if` structural construct (issue #806) is a registered Op
+// (`{ op: "if", predicate, then, else? }`) whose executor runs the matching
+// branch through `runOpList`; a suspending Op inside a branch propagates
+// "suspend" up so the whole `if` re-runs on resume (the branch replays, the
+// suspending Op reading its stored answer back). `forEach` lands in a later
+// slice. The Op vocabulary is governed by `EFFECT_OP_REGISTRY` in
 // `convex/cards/mechanicsRegistry.ts`; the interpreter-coverage guard test
 // keeps `OP_EXECUTORS` and that census in exact 1:1 correspondence.
 
 import type {
     EffectCardFilter,
+    EffectComparisonOp,
     EffectCountSpec,
     EffectOp,
     EffectPlayerRef,
+    EffectPredicate,
     EffectTargetRef,
     EffectValue,
     PermanentFilter,
@@ -90,6 +96,66 @@ function parseRef(ref: string): { binding: string; property: string } | null {
  *  the `requestChoice` entry keyed by the binding name. */
 function readBinding(ctx: SpellContext, name: string): string[] | undefined {
     return ctx.recallChoice(name);
+}
+
+/** Boolean payload stored by a `mayPay` Op (issue #806): the single-element
+ *  `["yes"]` / `["no"]` array `requestMayPay` persists (mirroring the may-pay
+ *  Pending Choice answer). Read by an `if` binding predicate. */
+const MAYPAY_YES = "yes";
+
+/** Reads a BOOLEAN binding (a `mayPay` outcome). Returns `undefined` when the
+ *  binding was never captured (its Op was skipped — CR 608.2b), which the `if`
+ *  predicate treats as "not true" (an unpaid may-pay). */
+function readBoolBinding(ctx: SpellContext, name: string): boolean | undefined {
+    const stored = readBinding(ctx, name);
+    if (stored === undefined) return undefined;
+    return stored[0] === MAYPAY_YES;
+}
+
+/** Applies a relational operator (CR 107 — number comparison). */
+function compareNumbers(
+    left: number,
+    op: EffectComparisonOp,
+    right: number
+): boolean {
+    switch (op) {
+        case "eq":
+            return left === right;
+        case "ne":
+            return left !== right;
+        case "lt":
+            return left < right;
+        case "le":
+            return left <= right;
+        case "gt":
+            return left > right;
+        case "ge":
+            return left >= right;
+    }
+}
+
+/** Evaluates a PREDEFINED `if` predicate (ADR 0045, issue #806) — never an
+ *  arbitrary expression. A binding predicate reads a boolean binding (a
+ *  `mayPay` outcome), optionally negated; a comparison predicate resolves each
+ *  numeric side (literal / ref / count) and applies the operator. An
+ *  uncaptured boolean binding (its Op was skipped — CR 608.2b) reads as
+ *  `false`; an unresolvable numeric operand (a ref whose binding was skipped)
+ *  makes the comparison `false` — the branch is not taken, the script does as
+ *  much as it can. */
+function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
+    if ("binding" in pred) {
+        return readBoolBinding(ctx, pred.binding) === true;
+    }
+    if ("not" in pred) {
+        // `not` over a boolean binding: an uncaptured (undefined) binding is
+        // "not true" → the negation is TRUE (the may-pay went unpaid, so the
+        // "unless pays" consequence fires — CR 117.3a).
+        return readBoolBinding(ctx, pred.not.binding) !== true;
+    }
+    const left = resolveValue(ctx, pred.left);
+    const right = resolveValue(ctx, pred.right);
+    if (left === undefined || right === undefined) return false;
+    return compareNumbers(left, pred.op, right);
 }
 
 /** Resolves a numeric Op parameter (ADR 0045 value grammar): a literal, a
@@ -171,6 +237,13 @@ function resolvePlayerRef(
         return parsed.property === "controller"
             ? snap[SNAP_CONTROLLER]
             : undefined;
+    }
+    // `{ controllerOf: { target: n } }` (issue #806) — the controller of the
+    // object in slot n (a spell's caster or a permanent's controller, CR
+    // 109.5). Skipped when the slot is missing (CR 608.2b).
+    if ("controllerOf" in ref) {
+        const target = ctx.targets[ref.controllerOf.target];
+        return target ? ctx.getController(target) : undefined;
     }
     const target = ctx.targets[ref.target];
     return target && target.type === "player" ? target.id : undefined;
@@ -346,7 +419,61 @@ export const OP_EXECUTORS: {
         if (!ids) return; // binding never captured — CR 608.2b, skip
         for (const id of ids) ctx.discardCard(playerId, id);
     },
+    // CR 117.3a / 118.4 (issue #806) — an optional "you may pay {cost}"
+    // decision through the existing `may-pay` Pending Choice pipeline. First
+    // execution enqueues the Pay/Skip choice and SUSPENDS; the resumed
+    // execution (after the generic `submitMayPay` commit) reads the boolean
+    // outcome back — `requestMayPay` stores it under this Op's binding name, so
+    // the binding IS the may-pay answer. A later `if` predicate reads it.
+    mayPay(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — payer gone, skip
+        const paid = ctx.requestMayPay({
+            playerId,
+            // The binding name doubles as the choiceId (unique within the
+            // script, validator-enforced), so the stored ["yes"|"no"] answer
+            // IS the boolean binding read by `readBoolBinding`.
+            choiceId: op.bind,
+            cost: op.cost,
+            prompt: op.prompt,
+        });
+        if (paid === undefined) return "suspend"; // enqueued — wait
+    },
+    // CR 701.5a — counter the announced target spell. A silent no-op when the
+    // target already left the stack (CR 608.2b — the spell does as much as it
+    // can). The consequence half of the counter/punisher pattern.
+    counter(ctx, op) {
+        const target = resolveTargetRef(ctx, op.target);
+        if (target && target.type === "spell") ctx.counter(target);
+    },
+    // if — the `if` structural construct (ADR 0045, issue #806). Evaluates a
+    // predefined predicate and runs the matching branch. The branch is itself
+    // an Op list run through `runOpList`, so a suspending Op (choice / mayPay)
+    // inside it propagates "suspend" up: the engine leaves the item on the
+    // stack, the `if` Op stays checkpointed, and on resume the whole `if`
+    // re-runs — the predicate re-evaluates identically (its binding is a stored
+    // answer) and the branch replays, the suspending Op reading its stored
+    // answer back (CR 608.3 — completed choices never re-prompt).
+    if(ctx, op) {
+        const branch = evalPredicate(ctx, op.predicate) ? op.then : op.else;
+        if (!branch) return; // predicate false, no else — nothing to do
+        return runOpList(ctx, branch);
+    },
 };
+
+/** Runs an Op list top to bottom (CR 608.2c), stopping at the first Op that
+ *  suspends (propagating "suspend" so the caller — a branch's `if`, or the
+ *  top-level `runEffectScript` — halts too). Used for BOTH the top-level
+ *  sequence and each `if` branch, so nesting is uniform. Ops whose selector /
+ *  ref cannot be satisfied are skipped individually (CR 608.2b). */
+function runOpList(ctx: SpellContext, ops: readonly EffectOp[]): OpOutcome {
+    for (const op of ops) {
+        const outcome = (
+            OP_EXECUTORS[op.op] as (c: SpellContext, o: EffectOp) => OpOutcome
+        )(ctx, op);
+        if (outcome === "suspend") return "suspend";
+    }
+}
 
 /** The implicit binding name every ability-site script gets for free: a
  *  snapshot of the source permanent (ADR 0045, issue #803). Lets an ability

@@ -470,6 +470,14 @@ export const removeSoul: CardDefinition = {
 // Force Spike — "Counter target spell unless its controller pays {1}."
 // (CR 701.5a counter-unless-pay, CR 117.3a may-pay against the spell's
 // controller.)
+//
+// DSL-only (ADR 0045, issue #806) — the canonical "unless pays" card, migrated
+// off `resolve()` to prove the counter/punisher pattern composes from frozen
+// constructs: a `mayPay` Op offers the spell's controller the {1} payment and
+// binds the boolean outcome; the `if` construct fires the `counter` consequence
+// only when the payment went unpaid (`{ not: { binding: "$paid" } }`). The
+// existing per-card test (`leg/blue.test.ts`) stays green as the migration
+// harness — identical behaviour, no `resolve()`.
 export const forceSpike: CardDefinition = {
     id: "70e64028-ae96-4950-aa6c-9d347409fad3",
     rarity: "common",
@@ -478,19 +486,22 @@ export const forceSpike: CardDefinition = {
     manaCost: { U: 1 },
     types: ["Instant"],
     targetRequirement: { type: "spell", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type !== "spell") return;
-        const spellController = ctx.getController(target);
-        const paid = ctx.requestMayPay({
-            playerId: spellController,
-            choiceId: "force-spike-pay",
+    effects: [
+        {
+            op: "mayPay",
+            // CR 117.3a — the spell's controller decides whether to pay.
+            player: { controllerOf: { target: 0 } },
             cost: { X: 1 },
             prompt: "Pay {1} to prevent your spell from being countered?",
-        });
-        if (paid === undefined) return; // suspended on the may-pay choice
-        if (!paid) ctx.counter(target);
-    },
+            bind: "$paid",
+        },
+        {
+            // CR 701.5a — counter unless the payment was made.
+            op: "if",
+            predicate: { not: { binding: "$paid" } },
+            then: [{ op: "counter", target: { target: 0 } }],
+        },
+    ],
 };
 
 // --- Bounce / removal spells -----------------------------------------------

@@ -121,12 +121,26 @@ function isEffectValue(value: unknown): boolean {
     return isPositiveInt(value) || isRefValue(value) || isCountValue(value);
 }
 
-/** `"controller" | "opponent" | { target: n } | { ref }` (EffectPlayerRef). */
+/** `{ controllerOf: { target: n } }` — the controller of a targeted object
+ *  (issue #806, "its controller"). */
+function isControllerOfRef(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    return (
+        keys.length === 1 &&
+        keys[0] === "controllerOf" &&
+        isTargetRef((value as { controllerOf: unknown }).controllerOf)
+    );
+}
+
+/** `"controller" | "opponent" | { target: n } | { controllerOf } | { ref }`
+ *  (EffectPlayerRef). */
 function isPlayerRef(value: unknown): boolean {
     return (
         value === "controller" ||
         value === "opponent" ||
         isTargetRef(value) ||
+        isControllerOfRef(value) ||
         isRefValue(value)
     );
 }
@@ -179,6 +193,119 @@ function isBarePicksRef(value: unknown): boolean {
         typeof (value as { ref: unknown }).ref === "string" &&
         /^\$[A-Za-z][A-Za-z0-9]*$/.test((value as { ref: string }).ref)
     );
+}
+
+/** A ManaCost's numeric pips — WUBRGC + generic + xFactor are non-negative
+ *  integers; `X` is a non-negative integer or the variable marker `"X"`. */
+const MANA_PIP_KEYS = new Set([
+    "W",
+    "U",
+    "B",
+    "R",
+    "G",
+    "C",
+    "generic",
+    "xFactor",
+]);
+function isManaCost(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    for (const [k, v] of Object.entries(value)) {
+        if (k === "X") {
+            if (
+                v !== "X" &&
+                !(typeof v === "number" && Number.isInteger(v) && v >= 0)
+            ) {
+                return false;
+            }
+            continue;
+        }
+        if (!MANA_PIP_KEYS.has(k)) return false;
+        if (!(typeof v === "number" && Number.isInteger(v) && v >= 0)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/** A `mayPay` cost (CR 117.3a / 118.4 / 702.24): a bare `ManaCost`, or the
+ *  `{ mana?, life?, sacrifice? }` union. At least one leg must be present. */
+function isMayPayCost(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const obj = value as Record<string, unknown>;
+    const unionKeys = new Set(["mana", "life", "sacrifice"]);
+    const isUnion = Object.keys(obj).every((k) => unionKeys.has(k));
+    if (isUnion && Object.keys(obj).length > 0) {
+        if ("mana" in obj && !isManaCost(obj.mana)) return false;
+        if (
+            "life" in obj &&
+            !(
+                typeof obj.life === "number" &&
+                Number.isInteger(obj.life) &&
+                obj.life > 0
+            )
+        ) {
+            return false;
+        }
+        if ("sacrifice" in obj) {
+            const s = obj.sacrifice;
+            if (typeof s !== "object" || s === null) return false;
+            const sac = s as Record<string, unknown>;
+            if (!("filter" in sac) || !("count" in sac)) return false;
+            if (!isPositiveInt(sac.count)) return false;
+        }
+        return true;
+    }
+    // Bare ManaCost shape (the historical mana-only value).
+    return isManaCost(value);
+}
+
+/** The relational operators an `if` comparison predicate may use (CR 107). */
+const COMPARISON_OPS = new Set(["eq", "ne", "lt", "le", "gt", "ge"]);
+
+/** SHAPE of an `if` predicate (issue #806): a boolean-binding test
+ *  (`{ binding }` / `{ not: { binding } }`) or a comparison
+ *  (`{ left, op, right }`). Binding EXISTENCE and family are checked by the
+ *  ordered ref pass; this only rejects malformed shapes. */
+function isPredicate(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const obj = value as Record<string, unknown>;
+    const keys = Object.keys(obj);
+    if (keys.length === 1 && keys[0] === "binding") {
+        return isBindingName(obj.binding);
+    }
+    if (keys.length === 1 && keys[0] === "not") {
+        const n = obj.not;
+        if (typeof n !== "object" || n === null) return false;
+        const nk = Object.keys(n);
+        return (
+            nk.length === 1 &&
+            nk[0] === "binding" &&
+            isBindingName((n as { binding: unknown }).binding)
+        );
+    }
+    // Comparison form.
+    if (keys.length !== 3) return false;
+    return (
+        "left" in obj &&
+        "op" in obj &&
+        "right" in obj &&
+        isEffectValue(obj.left) &&
+        typeof obj.op === "string" &&
+        COMPARISON_OPS.has(obj.op) &&
+        isEffectValue(obj.right)
+    );
+}
+
+/** An `if` branch — an array of Ops. Deep validity (each Op's schema, refs) is
+ *  checked by the recursive branch pass; this only asserts the array shape. */
+function isOpList(value: unknown): boolean {
+    return Array.isArray(value);
 }
 
 /** dealDamage's `to`: an announced target OR `{ player: <EffectPlayerRef> }`. */
@@ -234,6 +361,28 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     discard: {
         required: { player: isPlayerRef, cards: isBarePicksRef },
     },
+    // CR 701.5a (issue #806) — counter the target spell.
+    counter: {
+        required: { target: isTargetRef },
+    },
+    // CR 117.3a / 118.4 (issue #806) — optional "you may pay {cost}". `bind`
+    // is REQUIRED: a may-pay whose boolean outcome nothing reads is
+    // meaningless.
+    mayPay: {
+        required: {
+            player: isPlayerRef,
+            cost: isMayPayCost,
+            prompt: isNonEmptyString,
+            bind: isBindingName,
+        },
+    },
+    // if — the `if` structural construct (ADR 0045, issue #806). `predicate`
+    // shape is checked here; branch Op validity and predicate binding
+    // references are checked by the recursive branch / ordered ref passes.
+    if: {
+        required: { predicate: isPredicate, then: isOpList },
+        optional: { else: isOpList },
+    },
 };
 
 /** Names of the Ops that have a static field schema — used by the coverage
@@ -283,18 +432,20 @@ function findImpurity(value: unknown, path: string): string | null {
 }
 
 /** One recorded `ref` use: the ref string and whether it sits in a numeric, a
- *  player, or a picks position (which decides its legal shape, its legal
- *  property paths, and the binding family it may name). */
+ *  player, a picks, or a boolean position (which decides its legal shape, its
+ *  legal property paths, and the binding family it may name). */
 interface RefUse {
     ref: string;
-    kind: "number" | "player" | "picks";
+    kind: "number" | "player" | "picks" | "boolean";
 }
 
 /** Walks an Op's parameters collecting every `{ ref }` use, tagged by
  *  position. A ref under a `player` / `controller` key is a player ref; a ref
  *  under a `cards` key is a picks ref (issue #805 — reads a choice Op's
  *  picks); any other ref is numeric (amount / count). `count` specs are
- *  traversed so a ref in their `controller` is caught too. */
+ *  traversed so a ref in their `controller` is caught too. `if` predicates and
+ *  branch Op lists are NOT walked here — the caller handles them explicitly
+ *  (boolean-binding refs and per-branch scoping). */
 function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
     if (typeof value !== "object" || value === null) return;
     if (Array.isArray(value)) {
@@ -325,111 +476,274 @@ function parseRef(ref: string): { binding: string; property: string } | null {
     return { binding: ref.slice(0, dot), property: ref.slice(dot + 1) };
 }
 
-/** The two binding families (issue #805). A SNAPSHOT binding (destroy/exile
- *  `bind`, the implicit `$source`) stores the bound object's power/toughness/
- *  controller; a PICKS binding (a `choice` Op's `bind`) stores the chooser's
- *  submitted instance ids. Ref positions are family-typed: numeric and player
- *  refs read snapshots, picks positions read picks — the interpreter relies
- *  on this static agreement to interpret the persisted value unambiguously. */
-type BindingKind = "snapshot" | "picks";
+/** The binding families. A SNAPSHOT binding (destroy/exile `bind`, the implicit
+ *  `$source`) stores the bound object's power/toughness/controller; a PICKS
+ *  binding (a `choice` Op's `bind`) stores the chooser's submitted instance
+ *  ids; a BOOLEAN binding (a `mayPay` Op's `bind`, issue #806) stores a paid /
+ *  declined bit. Ref positions are family-typed — numeric and player refs read
+ *  snapshots, picks positions read picks, an `if` binding predicate reads a
+ *  boolean — so the interpreter interprets the persisted value unambiguously. */
+type BindingKind = "snapshot" | "picks" | "boolean";
 
-/** Ordered ref pass (#802, extended for #805): walks Ops top to bottom, so a
- *  `ref` may only name a binding a PRECEDING Op declared with `bind`
- *  (snapshot semantics — the value must exist before it is read). Reports
- *  dangling bindings, unknown property paths, family mismatches (a picks
- *  binding read in a numeric/player position or vice versa) and duplicate
- *  binding names (uniqueness makes the persisted binding store unambiguous).
- *  Only inspects Ops whose shape already passed schema validation (a
- *  `bind`/`ref` on a malformed Op is reported there instead). */
-function checkRefUses(
-    effects: readonly unknown[],
-    label: string,
-    errors: string[],
-    implicit: ReadonlySet<string>
+/** The binding family a `bind`-carrying Op declares. */
+function bindingKindOf(op: unknown): BindingKind {
+    if (op === "choice") return "picks";
+    if (op === "mayPay") return "boolean";
+    return "snapshot";
+}
+
+/** Collects the boolean-binding refs an `if` predicate reads (issue #806): a
+ *  `{ binding }` or `{ not: { binding } }` form names a boolean binding. A
+ *  comparison predicate's numeric refs (`left` / `right`) are collected as
+ *  ordinary numeric refs. */
+function collectPredicateRefUses(predicate: unknown, out: RefUse[]): void {
+    if (typeof predicate !== "object" || predicate === null) return;
+    const p = predicate as Record<string, unknown>;
+    if (typeof p.binding === "string") {
+        out.push({ ref: p.binding, kind: "boolean" });
+        return;
+    }
+    if (
+        typeof p.not === "object" &&
+        p.not !== null &&
+        typeof (p.not as { binding?: unknown }).binding === "string"
+    ) {
+        out.push({
+            ref: (p.not as { binding: string }).binding,
+            kind: "boolean",
+        });
+        return;
+    }
+    // Comparison: numeric refs on either side.
+    collectRefUses(p.left, "left", out);
+    collectRefUses(p.right, "right", out);
+}
+
+/** Validates one recorded ref use against the bindings declared so far, pushing
+ *  a human-readable error for a dangling binding, a family mismatch, or an
+ *  unknown property path. */
+function checkRefUse(
+    use: RefUse,
+    declared: ReadonlyMap<string, BindingKind>,
+    at: string,
+    errors: string[]
 ): void {
-    // Ability-site scripts (issue #803) get `$source` for free (the source
-    // permanent — a snapshot), so seed it as already-declared.
-    const declared = new Map<string, BindingKind>();
-    for (const name of implicit) declared.set(name, "snapshot");
+    // Bare-binding positions (no property path): picks (#805) and boolean
+    // (#806, an `if` predicate).
+    if (use.kind === "picks" || use.kind === "boolean") {
+        if (use.ref.includes(".")) {
+            errors.push(
+                `${at}: ${use.kind} ref "${use.ref}" must be a bare binding name (no property path)`
+            );
+            return;
+        }
+        const family = declared.get(use.ref);
+        if (family === undefined) {
+            errors.push(
+                `${at}: ref "${use.ref}" references undefined binding "${use.ref}" — no earlier Op binds it`
+            );
+            return;
+        }
+        const wanted = use.kind === "picks" ? "picks" : "boolean";
+        if (family !== wanted) {
+            errors.push(
+                `${at}: ref "${use.ref}" names a ${family} binding in a ${use.kind} position — a ${use.kind} position reads a ${wanted} binding (${use.kind === "picks" ? "a choice Op's bind" : "a mayPay Op's bind"})`
+            );
+        }
+        return;
+    }
+    const parsed = parseRef(use.ref);
+    if (!parsed) {
+        errors.push(`${at}: malformed ref "${use.ref}"`);
+        return;
+    }
+    const family = declared.get(parsed.binding);
+    if (family === undefined) {
+        errors.push(
+            `${at}: ref "${use.ref}" references undefined binding "${parsed.binding}" — no earlier Op binds it`
+        );
+        return;
+    }
+    if (family !== "snapshot") {
+        errors.push(
+            `${at}: ref "${use.ref}" names a ${family} binding in a ${use.kind} position — power/toughness/controller refs read snapshot bindings`
+        );
+        return;
+    }
+    const legal =
+        use.kind === "player" ? PLAYER_REF_PROPERTIES : NUMBER_REF_PROPERTIES;
+    if (!legal.has(parsed.property)) {
+        errors.push(
+            `${at}: ref "${use.ref}" has unknown property path ".${parsed.property}" in a ${use.kind} position`
+        );
+    }
+}
+
+/** Ordered ref pass (#802, extended #805 picks / #806 boolean + `if`): walks
+ *  Ops top to bottom so a `ref` may only name a binding a PRECEDING Op
+ *  declared. Reports dangling bindings, unknown property paths, family
+ *  mismatches and duplicate binding names. Recurses into `if` branches
+ *  (issue #806): a branch sees the bindings declared before the `if` (a CLONE,
+ *  so a branch-local `bind` does not leak past the `if` — at runtime the branch
+ *  may not run). Only inspects Ops whose shape already passed schema validation.
+ *  Mutates `declared` in place with the top-level binds it encounters. */
+function checkOpListRefs(
+    effects: readonly unknown[],
+    label: (i: number) => string,
+    errors: string[],
+    declared: Map<string, BindingKind>
+): void {
     effects.forEach((raw, i) => {
         if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
             return;
         }
         const entry = raw as Record<string, unknown>;
-        const at = `${label}: effects[${i}]`;
+        const at = label(i);
         const uses: RefUse[] = [];
         for (const [k, v] of Object.entries(entry)) {
-            if (k === "op" || k === "bind") continue;
+            // `predicate`, `then`, `else` are handled explicitly below (branch
+            // scoping / boolean predicate refs); `op` / `bind` never carry refs.
+            if (
+                k === "op" ||
+                k === "bind" ||
+                k === "predicate" ||
+                k === "then" ||
+                k === "else"
+            ) {
+                continue;
+            }
             collectRefUses(v, k, uses);
         }
-        for (const use of uses) {
-            // Picks position (issue #805): a BARE binding name, no property.
-            if (use.kind === "picks") {
-                if (use.ref.includes(".")) {
-                    errors.push(
-                        `${at}: picks ref "${use.ref}" must be a bare binding name (no property path)`
+        // `if` predicate refs (issue #806) — boolean bindings + comparison
+        // numeric refs, resolved against the bindings declared BEFORE the `if`.
+        if (entry.op === "if") {
+            collectPredicateRefUses(entry.predicate, uses);
+        }
+        for (const use of uses) checkRefUse(use, declared, at, errors);
+
+        // Recurse into branches with a CLONED scope (branch-local binds do not
+        // escape the branch — CR: the branch may not execute).
+        if (entry.op === "if") {
+            for (const key of ["then", "else"] as const) {
+                const branch = entry[key];
+                if (Array.isArray(branch)) {
+                    checkOpListRefs(
+                        branch,
+                        (j) => `${at}: ${key}[${j}]`,
+                        errors,
+                        new Map(declared)
                     );
-                    continue;
                 }
-                const family = declared.get(use.ref);
-                if (family === undefined) {
-                    errors.push(
-                        `${at}: ref "${use.ref}" references undefined binding "${use.ref}" — no earlier Op binds it`
-                    );
-                    continue;
-                }
-                if (family !== "picks") {
-                    errors.push(
-                        `${at}: ref "${use.ref}" names a snapshot binding in a picks position — only a choice Op's bind carries picks`
-                    );
-                }
-                continue;
-            }
-            const parsed = parseRef(use.ref);
-            if (!parsed) {
-                errors.push(`${at}: malformed ref "${use.ref}"`);
-                continue;
-            }
-            const family = declared.get(parsed.binding);
-            if (family === undefined) {
-                errors.push(
-                    `${at}: ref "${use.ref}" references undefined binding "${parsed.binding}" — no earlier Op binds it`
-                );
-                continue;
-            }
-            if (family !== "snapshot") {
-                errors.push(
-                    `${at}: ref "${use.ref}" names a picks binding in a ${use.kind} position — power/toughness/controller refs read snapshot bindings`
-                );
-                continue;
-            }
-            const legal =
-                use.kind === "player"
-                    ? PLAYER_REF_PROPERTIES
-                    : NUMBER_REF_PROPERTIES;
-            if (!legal.has(parsed.property)) {
-                errors.push(
-                    `${at}: ref "${use.ref}" has unknown property path ".${parsed.property}" in a ${use.kind} position`
-                );
             }
         }
-        // A binding becomes visible only AFTER its Op — a ref cannot read the
-        // result of the same Op that produces it (snapshot ordering). Names
-        // must be unique within a script: the binding store persists entries
-        // by name (issue #805), so a re-declaration would be ambiguous.
+
+        // A binding becomes visible only AFTER its Op (snapshot ordering) and
+        // must be unique within its scope (the persisted store keys by name).
         if (typeof entry.bind === "string") {
             if (declared.has(entry.bind)) {
                 errors.push(
                     `${at}: bind "${entry.bind}" re-declares an existing binding — binding names must be unique within a script`
                 );
             } else {
-                declared.set(
-                    entry.bind,
-                    entry.op === "choice" ? "picks" : "snapshot"
-                );
+                declared.set(entry.bind, bindingKindOf(entry.op));
             }
         }
     });
+}
+
+/** Entry point for the ordered ref pass over a whole script (spell or ability
+ *  site). Seeds the `$source` implicit binding (issue #803, a snapshot) and
+ *  delegates to the recursive walker. */
+function checkRefUses(
+    effects: readonly unknown[],
+    label: string,
+    errors: string[],
+    implicit: ReadonlySet<string>
+): void {
+    const declared = new Map<string, BindingKind>();
+    for (const name of implicit) declared.set(name, "snapshot");
+    checkOpListRefs(
+        effects,
+        (i) => `${label}: effects[${i}]`,
+        errors,
+        declared
+    );
+}
+
+/** Validates one Op's shape/vocabulary/schema (steps 1, 2) and RECURSES into an
+ *  `if` construct's branches (issue #806) so a malformed branch Op is reported
+ *  at its own path. Ref/binding and JSON-purity checks run once over the whole
+ *  script in `validateEffectOpList`, not here. */
+function validateOpSchema(raw: unknown, at: string, errors: string[]): void {
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+        errors.push(`${at}: each Op must be a plain object`);
+        return;
+    }
+    const entry = raw as Record<string, unknown>;
+    if (typeof entry.op !== "string") {
+        errors.push(`${at}: missing string "op" field`);
+        return;
+    }
+    if (!isRegisteredEffectOp(entry.op)) {
+        errors.push(
+            `${at}: unknown Op "${entry.op}" — not in EFFECT_OP_REGISTRY (mechanicsRegistry.ts)`
+        );
+        return;
+    }
+    const schema = OP_SCHEMAS[entry.op];
+    if (!schema) {
+        errors.push(
+            `${at}: Op "${entry.op}" is registered but has no field schema — add it to OP_SCHEMAS`
+        );
+        return;
+    }
+    const optional = schema.optional ?? {};
+    for (const [field, check] of Object.entries(schema.required)) {
+        if (!(field in entry)) {
+            errors.push(`${at}: Op "${entry.op}" missing field "${field}"`);
+        } else if (!check(entry[field])) {
+            errors.push(
+                `${at}: Op "${entry.op}" field "${field}" has invalid value ${JSON.stringify(entry[field])}`
+            );
+        }
+    }
+    for (const [field, check] of Object.entries(optional)) {
+        if (field in entry && !check(entry[field])) {
+            errors.push(
+                `${at}: Op "${entry.op}" field "${field}" has invalid value ${JSON.stringify(entry[field])}`
+            );
+        }
+    }
+    for (const field of Object.keys(entry)) {
+        if (
+            field !== "op" &&
+            !(field in schema.required) &&
+            !(field in optional)
+        ) {
+            errors.push(
+                `${at}: Op "${entry.op}" has unknown field "${field}" — the grammar is frozen (ADR 0045)`
+            );
+        }
+    }
+    // Cross-field rules (e.g. choice's filter ⇒ battlefield zone).
+    if (schema.check) {
+        for (const err of schema.check(entry)) {
+            errors.push(`${at}: Op "${entry.op}" ${err}`);
+        }
+    }
+    // Recurse into `if` branches (issue #806) — each branch Op is validated at
+    // its own path. Only when the branch shape passed (`isOpList`); a
+    // non-array branch was already reported above.
+    if (entry.op === "if") {
+        for (const key of ["then", "else"] as const) {
+            const branch = entry[key];
+            if (Array.isArray(branch)) {
+                branch.forEach((op, j) => {
+                    validateOpSchema(op, `${at}: ${key}[${j}]`, errors);
+                });
+            }
+        }
+    }
 }
 
 /** Validates one `effects[]` Op list in isolation (steps 1, 2, 4, 5) — shape,
@@ -451,66 +765,11 @@ function validateEffectOpList(
         errors.push(`${label}: effects[] must not be empty`);
     }
     effects.forEach((raw, i) => {
-        const at = `${label}: effects[${i}]`;
-        if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-            errors.push(`${at}: each Op must be a plain object`);
-            return;
-        }
-        const entry = raw as Record<string, unknown>;
-        if (typeof entry.op !== "string") {
-            errors.push(`${at}: missing string "op" field`);
-            return;
-        }
-        if (!isRegisteredEffectOp(entry.op)) {
-            errors.push(
-                `${at}: unknown Op "${entry.op}" — not in EFFECT_OP_REGISTRY (mechanicsRegistry.ts)`
-            );
-            return;
-        }
-        const schema = OP_SCHEMAS[entry.op];
-        if (!schema) {
-            errors.push(
-                `${at}: Op "${entry.op}" is registered but has no field schema — add it to OP_SCHEMAS`
-            );
-            return;
-        }
-        const optional = schema.optional ?? {};
-        for (const [field, check] of Object.entries(schema.required)) {
-            if (!(field in entry)) {
-                errors.push(`${at}: Op "${entry.op}" missing field "${field}"`);
-            } else if (!check(entry[field])) {
-                errors.push(
-                    `${at}: Op "${entry.op}" field "${field}" has invalid value ${JSON.stringify(entry[field])}`
-                );
-            }
-        }
-        for (const [field, check] of Object.entries(optional)) {
-            if (field in entry && !check(entry[field])) {
-                errors.push(
-                    `${at}: Op "${entry.op}" field "${field}" has invalid value ${JSON.stringify(entry[field])}`
-                );
-            }
-        }
-        for (const field of Object.keys(entry)) {
-            if (
-                field !== "op" &&
-                !(field in schema.required) &&
-                !(field in optional)
-            ) {
-                errors.push(
-                    `${at}: Op "${entry.op}" has unknown field "${field}" — the grammar is frozen (ADR 0045)`
-                );
-            }
-        }
-        // Cross-field rules (e.g. choice's filter ⇒ battlefield zone).
-        if (schema.check) {
-            for (const err of schema.check(entry)) {
-                errors.push(`${at}: Op "${entry.op}" ${err}`);
-            }
-        }
+        validateOpSchema(raw, `${label}: effects[${i}]`, errors);
     });
 
-    // 5 — ordered ref / binding check (#802).
+    // 5 — ordered ref / binding check (#802, extended for #806 predicates +
+    // branches).
     checkRefUses(effects, label, errors, implicit);
 
     // 4 — JSON purity (ADR 0046).
