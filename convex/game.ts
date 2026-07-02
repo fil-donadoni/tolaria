@@ -95,7 +95,7 @@ import { projectFullState, projectPublicState } from "./gameProjections";
 import { hasSupertypeLive, liveSupertypesOf } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
 import { compactState, expandState } from "./gre/serialize";
-import { refreshExpectedInput } from "./gre/expectedInput";
+import { assertExpectedInput, refreshExpectedInput } from "./gre/expectedInput";
 import { turnFaceDown } from "./gre/faceDown";
 import { substituteColorFilter } from "./gre/textChanges";
 import {
@@ -2100,6 +2100,10 @@ export const playCard = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
         assertNoPendingChoices(state);
         const player = getPlayer(state, args.playerId);
 
@@ -2801,6 +2805,10 @@ export const announceCast = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
         assertNoPendingChoices(state);
         const player = getPlayer(state, args.playerId);
 
@@ -3162,6 +3170,10 @@ export const tapForPayment = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
 
         if (!state.pendingCast) throw new Error("No spell being cast");
         if (state.pendingCast.playerId !== args.playerId) {
@@ -3292,6 +3304,10 @@ export const untapForPayment = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
 
         if (!state.pendingCast) throw new Error("No spell being cast");
         if (state.pendingCast.playerId !== args.playerId) {
@@ -3366,6 +3382,10 @@ export const selectAdditionalCost = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
 
         if (!state.pendingCast) throw new Error("No spell being cast");
         if (state.pendingCast.playerId !== args.playerId) {
@@ -3422,6 +3442,10 @@ export const cancelCast = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
 
         if (!state.pendingCast) throw new Error("No spell being cast");
         if (state.pendingCast.playerId !== args.playerId) {
@@ -3455,6 +3479,10 @@ export const tapForActivationPayment = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
 
         const pa = state.pendingActivation;
         if (!pa) throw new Error("No ability being activated");
@@ -3509,6 +3537,10 @@ export const autoTapForPayment = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
 
         const pending =
             state.pendingCast?.playerId === args.playerId
@@ -3627,6 +3659,10 @@ export const untapForActivationPayment = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
 
         const pa = state.pendingActivation;
         if (!pa) throw new Error("No ability being activated");
@@ -3671,6 +3707,10 @@ export const cancelActivation = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
 
         const pa = state.pendingActivation;
         if (!pa) throw new Error("No ability being activated");
@@ -3709,6 +3749,10 @@ export const selectActivationCost = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
 
         const pa = state.pendingActivation;
         if (!pa) throw new Error("No ability being activated");
@@ -3820,6 +3864,10 @@ export const selectActivationExileCost = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
 
         const pa = state.pendingActivation;
         if (!pa) throw new Error("No ability being activated");
@@ -3903,6 +3951,10 @@ export const selectTarget = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "target",
+        });
 
         if (!state.pendingTarget)
             throw new Error("No target selection in progress");
@@ -4330,6 +4382,10 @@ export const confirmTargets = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "target",
+        });
 
         if (!state.pendingTarget)
             throw new Error("No target selection in progress");
@@ -4367,6 +4423,10 @@ export const cancelTarget = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "target",
+        });
 
         if (!state.pendingTarget)
             throw new Error("No target selection in progress");
@@ -4412,6 +4472,10 @@ export const toggleAttacker = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
 
         if (state.phase !== "DECLARE_ATTACKERS") {
             throw new Error("Not in DECLARE_ATTACKERS phase");
@@ -4518,6 +4582,10 @@ export const createBand = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
 
         if (state.phase !== "DECLARE_ATTACKERS") {
             throw new Error("Not in DECLARE_ATTACKERS phase");
@@ -4590,6 +4658,10 @@ export const removeBand = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
 
         if (state.phase !== "DECLARE_ATTACKERS") {
             throw new Error("Not in DECLARE_ATTACKERS phase");
@@ -4628,6 +4700,10 @@ export const confirmAttackers = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
 
         if (state.phase !== "DECLARE_ATTACKERS") {
             throw new Error("Not in DECLARE_ATTACKERS phase");
@@ -4723,6 +4799,10 @@ export const selectBlocker = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "blockers",
+        });
 
         if (state.phase !== "DECLARE_BLOCKERS") {
             throw new Error("Not in DECLARE_BLOCKERS phase");
@@ -4787,6 +4867,10 @@ export const assignBlockerTarget = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "blockers",
+        });
 
         if (state.phase !== "DECLARE_BLOCKERS") {
             throw new Error("Not in DECLARE_BLOCKERS phase");
@@ -4885,6 +4969,10 @@ export const confirmBlockers = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "blockers",
+        });
 
         if (state.phase !== "DECLARE_BLOCKERS") {
             throw new Error("Not in DECLARE_BLOCKERS phase");
@@ -5019,6 +5107,11 @@ export const setDamageAssignment = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+            anyPlayer: true,
+        });
 
         if (
             state.phase !== "FIRST_STRIKE_DAMAGE" &&
@@ -5127,6 +5220,11 @@ export const confirmDamage = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+            anyPlayer: true,
+        });
 
         if (
             state.phase !== "FIRST_STRIKE_DAMAGE" &&
@@ -5196,6 +5294,10 @@ export const passPriority = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
         assertNoPendingChoices(state);
 
         // CR 103.5: no priority is given during the pre-game mulligan phase.
@@ -5306,6 +5408,10 @@ export const submitResolutionChoice = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "choice",
+        });
 
         applyPendingChoiceSubmit(state, {
             playerId: args.playerId,
@@ -5341,6 +5447,10 @@ export const submitMayPay = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "choice",
+        });
 
         applyMayPaySubmit(state, {
             playerId: args.playerId,
@@ -5370,6 +5480,10 @@ export const submitNameCard = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "choice",
+        });
 
         applyNameCardSubmit(state, {
             playerId: args.playerId,
@@ -5401,6 +5515,10 @@ export const submitRandomRevealAck = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "choice",
+        });
 
         applyRandomRevealAck(state, {
             playerId: args.playerId,
@@ -5687,6 +5805,10 @@ export const activateAbility = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
         assertNoPendingChoices(state);
 
         if (state.priorityPlayerId !== args.playerId) {
@@ -6173,6 +6295,11 @@ export const tapUntap = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+            allowManaForMayPay: true,
+        });
         // CR 117.3a / 605.3b — while answering a may-pay choice, the player
         // may activate mana abilities to make the mana the cost requires.
         // Other pending-choice kinds (keep-permanents, etc.) still freeze
@@ -6625,6 +6752,11 @@ export const activateManaAbility = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+            allowManaForMayPay: true,
+        });
 
         // CR 117.3a / 605.3b — answering a may-pay choice opens a mana-payment
         // window; otherwise other pending choices freeze priority.
@@ -6744,6 +6876,10 @@ export const activatePlayerAbility = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
         assertNoPendingChoices(state);
 
         const player = getPlayer(state, args.playerId);
