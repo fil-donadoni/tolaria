@@ -1057,6 +1057,11 @@ export const serraAngel: CardDefinition = {
     staticAbilities: ["flying", "vigilance"],
 };
 
+// First DSL card exercising the bind + ref constructs (ADR 0045, issue #802).
+// The whole effect is a declarative Effect Script: `exile` snapshots the
+// creature's power and controller BEFORE it leaves the battlefield (CR 608.2h
+// last-known information), then `gainLife` reads that snapshot — "its
+// controller gains life equal to its power". No imperative `resolve()`.
 export const swordsToPlowshares: CardDefinition = {
     id: "386ea9eb-abc1-4862-aa2d-8fb808d79490",
     rarity: "uncommon",
@@ -1066,12 +1071,14 @@ export const swordsToPlowshares: CardDefinition = {
     manaCost: { W: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const power = ctx.getPower(ctx.targets[0]);
-        const controller = ctx.getController(ctx.targets[0]);
-        ctx.exile(ctx.targets[0]);
-        ctx.gainLife(controller, power);
-    },
+    effects: [
+        { op: "exile", target: { target: 0 }, bind: "$creature" },
+        {
+            op: "gainLife",
+            player: { ref: "$creature.controller" },
+            amount: { ref: "$creature.power" },
+        },
+    ],
 };
 
 // Veteran Bodyguard — "As long as Veteran Bodyguard remains untapped, all

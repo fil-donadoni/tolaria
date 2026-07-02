@@ -2274,6 +2274,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         mechanicId: "destroy",
         note: 'Effect Script Op for the CR 701 keyword action "Destroy" — routes through the regen/indestructible replacement layer like the "destroy-target" shorthand.',
     },
+    {
+        op: "exile",
+        cr: "701.13",
+        binding: "SpellContext.exile",
+        mechanicId: "exile",
+        note: "Effect Script Op for the CR 701 keyword action \"Exile\" — moves the target to its owner's exile zone (CR 406). Supports `bind` to snapshot the permanent's power/toughness/controller before it leaves (Swords to Plowshares reads the exiled creature's power, CR 608.2h).",
+    },
 ];
 
 /** True if `name` is a registered Effect Script Op (ADR 0045). The single

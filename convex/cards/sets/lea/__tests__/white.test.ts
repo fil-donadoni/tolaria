@@ -264,6 +264,32 @@ describe("Swords to Plowshares (exile + gain life = power, CR 608.3)", () => {
         // Controller of the exiled creature (p2) gains life = angel's power (4).
         expect(state.players[1].life).toBe(24);
     });
+
+    // Wire format (mandatory for the DSL bind+ref card, issue #802): the
+    // exile + snapshotted-power life gain must survive the GameState → public
+    // projection, which strips `card.card` and reshapes zones.
+    it("wire format: exile + ref-driven life gain survive projectPublicState", () => {
+        const angel = makeInstance(serraAngel.id, {
+            id: "angel",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [angel] }),
+            ],
+        });
+        pushSpell(state, swordsToPlowshares.id, "p1", [
+            { type: "permanent", id: "angel" },
+        ]);
+        resolveTopOfStack(state);
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].battlefield).toHaveLength(0);
+        expect(projected.players[1].exile.map((c) => c.id)).toContain("angel");
+        expect(projected.players[1].life).toBe(24);
+    });
 });
 
 describe("target-legality gate at resolution (CR 608.2b / 608.2c)", () => {

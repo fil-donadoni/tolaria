@@ -26,6 +26,7 @@ const validScript: EffectOp[] = [
     { op: "gainLife", player: { target: 0 }, amount: 1 },
     { op: "loseLife", player: "opponent", amount: 2 },
     { op: "destroy", target: { target: 1 } },
+    { op: "exile", target: { target: 2 } },
 ];
 
 describe("validateEffectScript — schema + vocabulary (ADR 0045)", () => {
@@ -103,6 +104,154 @@ describe("validateEffectScript — schema + vocabulary (ADR 0045)", () => {
         );
         expect(errors).toHaveLength(1);
         expect(errors[0]).toMatch(/unknown field "forEach".*frozen/);
+    });
+});
+
+describe("validateEffectScript — bind + ref + count constructs (#802)", () => {
+    it("accepts the Swords to Plowshares shape (bind then ref-on-bound-object)", () => {
+        const effects: EffectOp[] = [
+            { op: "exile", target: { target: 0 }, bind: "$c" },
+            {
+                op: "gainLife",
+                player: { ref: "$c.controller" },
+                amount: { ref: "$c.power" },
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("accepts a count-driven amount (draw a card for each creature)", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature" },
+                    },
+                },
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects a ref to an undefined binding (static ref-check)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: { ref: "$ghost.power" },
+                    },
+                ] as never,
+            })
+        );
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatch(/undefined binding "\$ghost"/);
+    });
+
+    it("rejects a ref that reads a binding declared by a LATER Op (snapshot ordering)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: { ref: "$c.power" },
+                    },
+                    { op: "exile", target: { target: 0 }, bind: "$c" },
+                ] as never,
+            })
+        );
+        expect(errors.some((e) => /undefined binding "\$c"/.test(e))).toBe(
+            true
+        );
+    });
+
+    it("rejects an unknown property path on a bound object", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    { op: "exile", target: { target: 0 }, bind: "$c" },
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: { ref: "$c.banana" },
+                    },
+                ] as never,
+            })
+        );
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatch(/unknown property path "\.banana"/);
+    });
+
+    it("rejects a player property in a numeric position and vice versa", () => {
+        const numericMisuse = validateEffectScript(
+            host({
+                effects: [
+                    { op: "exile", target: { target: 0 }, bind: "$c" },
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: { ref: "$c.controller" },
+                    },
+                ] as never,
+            })
+        );
+        expect(numericMisuse[0]).toMatch(/number position/);
+
+        const playerMisuse = validateEffectScript(
+            host({
+                effects: [
+                    { op: "exile", target: { target: 0 }, bind: "$c" },
+                    {
+                        op: "gainLife",
+                        player: { ref: "$c.power" },
+                        amount: 1,
+                    },
+                ] as never,
+            })
+        );
+        expect(playerMisuse[0]).toMatch(/player position/);
+    });
+
+    it("rejects a bad count spec (unknown zone / bad controller)", () => {
+        for (const bad of [
+            {
+                op: "draw",
+                player: "controller",
+                count: { count: { zone: "moon", controller: "controller" } },
+            },
+            {
+                op: "draw",
+                player: "controller",
+                count: { count: { zone: "battlefield", controller: "nobody" } },
+            },
+        ] as never[]) {
+            const errors = validateEffectScript(host({ effects: [bad] }));
+            expect(errors.length, JSON.stringify(bad)).toBeGreaterThan(0);
+        }
+    });
+
+    it("rejects `bind` on an Op that does not support it (frozen grammar)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: 1,
+                        bind: "$x",
+                    },
+                ] as never,
+            })
+        );
+        expect(errors.some((e) => /unknown field "bind".*frozen/.test(e))).toBe(
+            true
+        );
     });
 });
 

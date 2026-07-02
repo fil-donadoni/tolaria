@@ -329,6 +329,262 @@ describe("Effect Script Op: destroy (CR 701.8)", () => {
     });
 });
 
+describe("Effect Script Op: exile (CR 701.19)", () => {
+    it("exiles the announced creature target to its owner's exile zone", () => {
+        const id = registerScript("test-op-exile", [
+            { op: "exile", target: { target: 0 } },
+        ]);
+        const bear = makeInstance(BEAR_ID, { controllerId: "p2", id: "bearE" });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearE" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].exile.map((c) => c.id)).toContain("bearE");
+        // Exiled, NOT destroyed — nothing in the graveyard.
+        expect(state.players[1].graveyard).toHaveLength(0);
+    });
+
+    it("is a no-op when the announced target is missing (CR 608.2b)", () => {
+        const id = registerScript("test-op-exile-missing", [
+            { op: "exile", target: { target: 0 } },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+
+    it("the exile survives projection (wire format)", () => {
+        const id = registerScript("test-op-exile-wire", [
+            { op: "exile", target: { target: 0 } },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "bearEW",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearEW" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].battlefield).toHaveLength(0);
+        expect(projected.players[1].exile.map((c) => c.id)).toContain("bearEW");
+    });
+});
+
+describe("Effect Script construct: bind + ref (ADR 0045, CR 608.2h)", () => {
+    // The Swords to Plowshares shape: bind the exiled creature, then read its
+    // snapshotted power/controller after it has changed zone. The snapshot is
+    // taken BEFORE the exile, so the ref still resolves (last-known info).
+    it("reads a bound object's power AFTER it changed zone (snapshot semantics)", () => {
+        const id = registerScript("test-bind-ref-swords", [
+            { op: "exile", target: { target: 0 }, bind: "$c" },
+            {
+                op: "gainLife",
+                player: { ref: "$c.controller" },
+                amount: { ref: "$c.power" },
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearB",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearB" }]);
+        resolveTopOfStack(state);
+        // Creature gone, and its controller (p2) gained life = its power (2).
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].exile.map((c) => c.id)).toContain("bearB");
+        expect(state.players[1].life).toBe(22);
+    });
+
+    it("ref on destroy binding reads the last-known power before the creature died", () => {
+        const id = registerScript("test-bind-ref-destroy", [
+            { op: "destroy", target: { target: 0 }, bind: "$x" },
+            {
+                op: "dealDamage",
+                to: { player: "controller" },
+                amount: { ref: "$x.power" },
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearK",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearK" }]);
+        resolveTopOfStack(state);
+        // Creature destroyed; controller (p1) took 2 damage (its power).
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("bearK");
+        expect(state.players[0].life).toBe(18);
+    });
+
+    it("skips the dependent Op when the binding was never captured (target gone, CR 608.2b)", () => {
+        const id = registerScript("test-bind-ref-skip", [
+            { op: "exile", target: { target: 0 }, bind: "$c" },
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { ref: "$c.power" },
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []); // no target survives → no snapshot
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].life).toBe(20); // no life gained
+    });
+
+    it("the bound-ref life gain survives projection (wire format)", () => {
+        const id = registerScript("test-bind-ref-wire", [
+            { op: "exile", target: { target: 0 }, bind: "$c" },
+            {
+                op: "gainLife",
+                player: { ref: "$c.controller" },
+                amount: { ref: "$c.power" },
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearBW",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearBW" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].life).toBe(22);
+    });
+});
+
+describe("Effect Script construct: count (ADR 0045, CR 122)", () => {
+    const withLibrary = (owner: "p1" | "p2", n: number) =>
+        Array.from({ length: n }, (_, i) =>
+            makeInstance(BEAR_ID, {
+                id: `cnt-lib-${owner}-${i}`,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    it('draws a card for each creature you control ("for each" count on battlefield)', () => {
+        const id = registerScript("test-count-draw", [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature" },
+                    },
+                },
+            },
+        ]);
+        const creatures = ["c1", "c2", "c3"].map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: creatures,
+                    library: withLibrary("p1", 5),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // 3 creatures on the battlefield → draw 3.
+        expect(state.players[0].hand).toHaveLength(3);
+        expect(state.players[0].library).toHaveLength(2);
+    });
+
+    it("counts zero cleanly — an empty set draws nothing", () => {
+        const id = registerScript("test-count-zero", [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature" },
+                    },
+                },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: withLibrary("p1", 2) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].hand).toHaveLength(0);
+    });
+
+    it("deals damage for each card in a graveyard (count on graveyard zone)", () => {
+        const id = registerScript("test-count-gy", [
+            {
+                op: "dealDamage",
+                to: { player: "opponent" },
+                amount: {
+                    count: {
+                        zone: "graveyard",
+                        controller: "opponent",
+                    },
+                },
+            },
+        ]);
+        const gy = ["g1", "g2"].map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "graveyard",
+            })
+        );
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { graveyard: gy })],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // 2 cards in p2's graveyard → 2 damage to p2.
+        expect(state.players[1].life).toBe(18);
+    });
+});
+
 describe("Effect Script flat sequencing (CR 608.2c)", () => {
     it("executes Ops in written order — a Sign in Blood-shaped composite applies both", () => {
         const id = registerScript(

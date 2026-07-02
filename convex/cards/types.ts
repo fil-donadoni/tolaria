@@ -4257,40 +4257,106 @@ export type EffectShorthand = "destroy-target" | PumpCombatEffect;
  *  - `{ target: n }` — the spell's n-th announced target (CR 601.2c order),
  *    which must have been chosen as a player target; if the announced target
  *    is missing or is not a player, the Op is skipped (CR 608.2b — the spell
- *    does as much as it can). */
-export type EffectPlayerRef = "controller" | "opponent" | { target: number };
+ *    does as much as it can).
+ *  - `{ ref: "$x.controller" }` — the controller of a bound object snapshot
+ *    (ADR 0045 ref construct). Used by "its controller gains…" (Swords to
+ *    Plowshares) — snapshot semantics let the controller survive the object
+ *    changing zone (CR 608.2h last-known information). */
+export type EffectPlayerRef =
+    | "controller"
+    | "opponent"
+    | { target: number }
+    | EffectRef;
 
 /** Object selector for object-scoped Ops: the spell's n-th announced target
  *  (CR 601.2c order). If the announced target no longer exists at resolution,
  *  the Op is skipped (CR 608.2b). */
 export type EffectTargetRef = { target: number };
 
+// --- Structural constructs: ref + count (ADR 0045, issue #802) ---
+//
+// The Effect Script grammar is FROZEN at four structural constructs
+// (bind/ref/if/forEach). This slice adds two of them — `bind` (a field on an
+// Op that names its result) and the value-reading constructs `ref` and
+// `count`. There are NO expressions: an Op parameter that carries a runtime
+// number is exactly one of a literal, a ref, or a count — nothing composes.
+
+/** ref — reads a single property off a bound object snapshot (ADR 0045). The
+ *  string is `"$binding.property"`; `$binding` MUST be named by an earlier
+ *  Op's `bind`, and `property` is `power` / `toughness` (numeric contexts) or
+ *  `controller` (player contexts). The snapshot is captured when the binding
+ *  Op ran (CR 608.2h / 603.10 last-known information), so a ref still reads the
+ *  right value after the object has changed zone — e.g. Swords to Plowshares
+ *  reads the exiled creature's power. `validateEffectScript` statically
+ *  rejects an undefined binding or an unknown property path. */
+export type EffectRef = { ref: string };
+
+/** count — the size of a declaratively-selected set of cards (ADR 0045),
+ *  the "for each …" numeric construct (CR 122 counting). No object handles
+ *  escape: only the cardinality is produced. */
+export type EffectCount = { count: EffectCountSpec };
+
+/** A declarative card-set selector for the `count` construct. Counts the cards
+ *  in one zone controlled/owned by a player, optionally filtered. */
+export interface EffectCountSpec {
+    /** The zone whose cards are counted. `battlefield` counts permanents the
+     *  player controls (CR 110); `graveyard` counts cards in the player's
+     *  graveyard (CR 404). */
+    zone: "battlefield" | "graveyard";
+    /** Whose zone (CR 109.5 relative selectors). */
+    controller: EffectPlayerRef;
+    /** Optional card filter (AND of the listed fields). Omitted = count all. */
+    filter?: EffectCardFilter;
+}
+
+/** Minimal JSON-pure card filter for `count` sets — a card type and/or a
+ *  subtype (CR 205). Deliberately small: the count construct answers
+ *  "how many X" for the common "for each" cards, not arbitrary predicates. */
+export interface EffectCardFilter {
+    type?: CardType;
+    subtype?: string;
+}
+
+/** A runtime numeric parameter of an Op (ADR 0045): a literal count, a `ref`
+ *  reading a bound object's numeric property, or a `count` of a selected set.
+ *  The value grammar is capped at these three — no arithmetic, no expressions
+ *  (the frozen-grammar defence, ADR 0045). */
+export type EffectValue = number | EffectRef | EffectCount;
+
 /** One step of an Effect Script. Ops are small, orthogonal and composable
  *  (target scale ~80k cards) — each maps 1:1 onto a SpellContext primitive.
  *  The Op vocabulary grows freely; the grammar never does (ADR 0045). Op
  *  names are governed by `EFFECT_OP_REGISTRY` in
  *  `convex/cards/mechanicsRegistry.ts` — a script using an unregistered Op
- *  name fails the catalogue-wide validation sweep. */
+ *  name fails the catalogue-wide validation sweep. An Op may carry a `bind`
+ *  naming a snapshot of the object it acts on, for a later Op's `ref`. */
 export type EffectOp =
     /** CR 120 — deal `amount` damage to an announced target (player,
      *  creature, planeswalker or battle — whatever the target requirement
      *  legalised) or to a player picked relative to the controller. */
     | {
           op: "dealDamage";
-          amount: number;
+          amount: EffectValue;
           to: EffectTargetRef | { player: EffectPlayerRef };
       }
     /** CR 121.1 — `player` draws `count` cards. */
-    | { op: "draw"; player: EffectPlayerRef; count: number }
+    | { op: "draw"; player: EffectPlayerRef; count: EffectValue }
     /** CR 119.3a — `player` gains `amount` life. */
-    | { op: "gainLife"; player: EffectPlayerRef; amount: number }
+    | { op: "gainLife"; player: EffectPlayerRef; amount: EffectValue }
     /** CR 119.3b — `player` loses `amount` life (not damage — no
      *  damage-replacement interaction). */
-    | { op: "loseLife"; player: EffectPlayerRef; amount: number }
+    | { op: "loseLife"; player: EffectPlayerRef; amount: EffectValue }
     /** CR 701.8 — destroy the announced target permanent. Routes through
      *  `SpellContext.destroy`, so regeneration / indestructible / destroy
-     *  replacements (ADR 0020) apply exactly as for imperative cards. */
-    | { op: "destroy"; target: EffectTargetRef };
+     *  replacements (ADR 0020) apply exactly as for imperative cards.
+     *  `bind` snapshots the permanent's power/toughness/controller BEFORE it
+     *  leaves the battlefield (CR 608.2h). */
+    | { op: "destroy"; target: EffectTargetRef; bind?: string }
+    /** CR 701.13 — exile the announced target permanent to its owner's exile
+     *  zone (CR 406). `bind` snapshots the permanent's power/toughness/
+     *  controller BEFORE it leaves the battlefield, so a later `ref` reads
+     *  its last-known values (Swords to Plowshares, CR 608.2h). */
+    | { op: "exile"; target: EffectTargetRef; bind?: string };
 
 /** Opt-in structured AI combat hints (ADR 0021, issue #229). Declares the
  *  combat-relevant SHAPE of a card whose effect lives in an opaque imperative
