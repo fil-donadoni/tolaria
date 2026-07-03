@@ -86,10 +86,7 @@ export const aladdinsRing: CardDefinition = {
             cost: { mana: { X: 8 }, tap: true },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target) ctx.dealDamage(target, 4);
-            },
+            effects: [{ op: "dealDamage", amount: 4, to: { target: 0 } }],
         },
     ],
 };
@@ -113,9 +110,7 @@ export const jandorsRing: CardDefinition = {
             // the ability is unactivatable when no such card exists.
             cost: { mana: { X: 2 }, tap: true, discardLastDrawn: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.drawCards(ctx.controller, 1);
-            },
+            effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
 };
@@ -172,9 +167,9 @@ export const cityOfBrass: CardDefinition = {
             matches: (event, self) =>
                 event.type === "PERMANENT_TAPPED" &&
                 event.permanentId === self.id,
-            resolve: (ctx) => {
-                ctx.dealDamage({ type: "player", id: ctx.controller }, 1);
-            },
+            effects: [
+                { op: "dealDamage", amount: 1, to: { player: "controller" } },
+            ],
         },
     ],
     activatedAbilities: [
@@ -252,9 +247,7 @@ export const libraryOfAlexandria: CardDefinition = {
                 );
                 return controller?.hand.length === 7;
             },
-            resolve: (ctx: SpellContext) => {
-                ctx.drawCards(ctx.controller, 1);
-            },
+            effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
 };
@@ -277,6 +270,10 @@ export const bazaarOfBaghdad: CardDefinition = {
             oracleText: "{T}: Draw two cards, then discard three cards.",
             cost: { tap: true },
             useStack: true,
+            // DSL-expressible (draw → choice → discard) but NOT migrated: the
+            // per-card test pins the internal choice id "bazaar-discard", which
+            // the interpreter regenerates for a `choice` Op — migrating would
+            // force a test edit, breaking the untouched-harness invariant.
             resolveSteps: [
                 // Step 0 — draw two (CR 121.6). Isolated in its own step so a
                 // suspension in the discard step never re-runs the draw.
@@ -393,11 +390,7 @@ export const pyramids: CardDefinition = {
                 subtypeFilter: "Aura",
                 count: 1,
             },
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (!target) return;
-                ctx.destroy(target);
-            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
         {
             id: "pyramids-save-land",
@@ -480,10 +473,7 @@ export const desert: CardDefinition = {
                 count: 1,
                 combatRoleFilter: "attacking",
             },
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (target?.type === "permanent") ctx.dealDamage(target, 1);
-            },
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
 };
