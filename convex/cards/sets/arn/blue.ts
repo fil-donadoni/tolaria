@@ -187,22 +187,29 @@ export const islandFishJasconius: CardDefinition = {
                 "At the beginning of your upkeep, you may pay {U}{U}{U}. If you do, untap Island Fish Jasconius.",
             phase: "UPKEEP",
             scope: "your",
-            // NOT DSL-migratable (ADR 0045): the pay-then-untap-source clause
-            // needs an `untap` Op (planned, tapUntap cluster) targeting the
-            // source. The no-Islands state trigger below sacrifices the source,
-            // which the `sacrifice` Op cannot express either. Stays resolve().
-            resolve: (ctx, _event, scopedPlayerId) => {
-                const paid = ctx.requestMayPay({
-                    playerId: scopedPlayerId,
-                    choiceId: `island-fish-${ctx.sourceInstanceId}`,
+            // Migrated resolve()→effects[] (ADR 0045, #842): may pay {U}{U}{U};
+            // if paid, untap the source (CR 117.3a, 701.26b). A `your`-scoped
+            // phaseTrigger so the scoped player == controller.
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
                     cost: { U: 3 },
                     prompt: "Pay {U}{U}{U} to untap Island Fish Jasconius?",
-                });
-                if (paid === undefined) return; // suspended
-                if (paid) {
-                    ctx.untap({ type: "permanent", id: ctx.sourceInstanceId });
-                }
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [
+                        {
+                            op: "tapUntap",
+                            action: "untap",
+                            target: { ref: "$source" },
+                        },
+                    ],
+                },
+            ],
         }),
         stateTrigger({
             id: "island-fish-no-islands",

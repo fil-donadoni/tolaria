@@ -675,6 +675,12 @@ export const meriekeRiBerit: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
+            // NOT DSL-migratable (ADR 0045): gains control of the target for a
+            // "for as long as" duration (`gainControl` — a planned Op, not yet
+            // shipped). The classifier's tap/untap hit here is a false positive
+            // (a neighbouring brace-less trigger body over-captured); this
+            // ability uses no tap/untap. Migrates in the gainControl Op's issue.
+            // Blocked on: the gainControl Op.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "permanent") return;
@@ -730,6 +736,13 @@ export const monsoon: CardDefinition = {
                 "At the beginning of each player's end step, tap all untapped Islands that player controls and this enchantment deals X damage to the player, where X is the number of Islands tapped this way.",
             phase: "END_STEP",
             scope: "each",
+            // NOT DSL-migratable (ADR 0045): an `each`-scoped phaseTrigger
+            // (scoped player ≠ controller, so `effects` is disallowed) that taps
+            // only UNTAPPED Islands (no tap-state filter on the forEach
+            // selector) and deals damage equal to the number tapped THIS WAY (a
+            // count of the just-tapped subset, not a selectable set count).
+            // Blocked on: non-"your" trigger effects + a tap-state filter +
+            // a "tapped-this-way" count value.
             resolve: (ctx, _event, scopedPlayerId) => {
                 const islandIds = ctx.getBattlefieldIds(scopedPlayerId, {
                     subtypes: "Island",

@@ -646,6 +646,12 @@ export const curseOfMaritLage: CardDefinition = {
             id: "curse-marit-lage-tap-islands",
             oracleText: "When this enchantment enters, tap all Islands.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): the mass tap of all Islands is
+            // itself a forEach-permanents (subtype Island) skin, but the
+            // `enteredTrigger` factory has no `effects[]` site (only
+            // `phaseTrigger` does) — an ETB effect can't be authored
+            // declaratively yet.
+            // Blocked on: an `effects[]` site on enteredTrigger.
             resolve: (ctx) => {
                 for (const pid of ctx.allPlayerIds) {
                     const islands = ctx.getBattlefieldIds(pid, {
@@ -1524,6 +1530,13 @@ export const mudslide: CardDefinition = {
                 "At the beginning of each player's upkeep, that player may choose any number of tapped creatures without flying they control and pay {2} for each creature chosen this way. If the player does, untap those creatures.",
             phase: "UPKEEP",
             scope: "each",
+            // NOT DSL-migratable (ADR 0045): an `each`-scoped phaseTrigger
+            // (scoped player ≠ controller, so `effects` is disallowed) that
+            // selects tapped non-flying creatures (no tap-state/ability filter
+            // on the forEach selector) and runs a per-creature mayPay→untap loop
+            // over a runtime candidate set. Same shape as Thelon's Curse.
+            // Blocked on: non-"your" trigger effects + tap/ability filters +
+            // a per-member mayPay iteration.
             resolve: (ctx, _event, scopedPlayerId) => {
                 const player = scopedPlayerId;
                 const candidates = ctx

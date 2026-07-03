@@ -97,20 +97,40 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // `if` predicate cannot test a choice binding's cardinality). That restores
     // one FREE/AFK-ready closure (total 748→749, FREE 299→300, AFK-ready
     // 273→274; Op-blocked/X-only unchanged).
+    // #842 (tapUntap Op): tap / untap are now COVERED Ops — the tap/untap
+    // cluster's closures moved from Op-blocked to FREE, and the 22
+    // cleanly-expressible ones (tap/untap an announced slot or `$source`,
+    // may-pay→untap-source upkeeps, a forEach mass-untap, an exile+untap chain,
+    // and the tap/untap + next-upkeep-cantrip pair via an inline delayedTrigger)
+    // were migrated away (total 749→728; Op-blocked 431→383 as the residual tap
+    // closures surface as FREE; FREE 300→326). The remaining FREE tap/untap
+    // closures stay resolve() with a recorded NOT-migratable reason: mass taps
+    // gated on COLOUR (no colour on EffectCardFilter — Riptide, Wrath/Curse of
+    // Marit Lage), X-count announced-target iteration (Word of Binding,
+    // Candelabra of Tawnos, Winter Blast), `each`-scoped upkeep escapes (no
+    // effects on non-"your" phaseTrigger — Thelon's Curse, Mudslide, Magnetic
+    // Mountain, Monsoon), Aura attached-host targets (`getAttachedTo` —
+    // Instill Energy, Paralyze, Dance of the Dead, Mind Whip, Cocoon,
+    // Tourach's Gate), sacrifice/discard-as-cost may-pays with a conditional
+    // self-tap (Yawgmoth Demon, Mishra's War Machine, Minion of Leshrac), a
+    // tap-toggle needing an isTapped predicate (Twiddle), cross-controller
+    // choices (Demonic Hordes, Soldevi Golem), and enteredTrigger ETB taps
+    // (no effects[] site). The X-only bucket gains one (16→...→19) as a residual
+    // {X}-cost closure surfaces.
     it("reports the committed baseline bucket totals", () => {
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(749);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(300);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(274);
-        expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(18);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(431);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(728);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(326);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(299);
+        expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(19);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(383);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is grantStaticAbility)", () => {
-        // pump SHIPPED (#840) and counters SHIPPED (#841): addTemporaryPTBuff
-        // and addCounter / removeCounter are now COVERED Ops (they appear in the
-        // "Covered Ops" line, no longer in the backlog). The most-blocking
-        // remaining primitive is grantStaticAbility — a stable, high-frequency
-        // signal that the Op backlog is being read.
+        // pump (#840), counters (#841) and tapUntap (#842) SHIPPED:
+        // addTemporaryPTBuff, addCounter / removeCounter and tap / untap are now
+        // COVERED Ops (they appear in the "Covered Ops" line, no longer in the
+        // backlog). The most-blocking remaining primitive is grantStaticAbility
+        // — a stable, high-frequency signal that the Op backlog is being read.
         expect(summary).toMatch(/New-Op backlog/);
         expect(summary).toMatch(/grantStaticAbility/);
         expect(summary).toMatch(/Covered Ops[^\n]*addCounter/);
@@ -129,13 +149,12 @@ describe("migration classifier — known-card routing (PRD #826)", () => {
         expect(free).toMatch(/Night's Whisper/);
     });
 
-    it("does NOT route an Op-blocked card (Icy Manipulator) to the FREE tranche", () => {
-        // Icy Manipulator calls ctx.tap — blocked on the unshipped `tapUntap`
-        // Op, so it belongs to that Op's cluster issue, not the free tranche.
-        // (Canary swapped from Sengir Vampire, whose `counters` Op shipped —
-        // issue #841 — so the classifier now counts it FREE; it stays resolve()
-        // only because its `diedTrigger` factory exposes no `effects[]` site,
-        // which the classifier does not model.)
-        expect(free).not.toMatch(/Icy Manipulator/);
+    it("does NOT route an Op-blocked card (Flying Carpet) to the FREE tranche", () => {
+        // Flying Carpet calls ctx.grantStaticAbility — blocked on the unshipped
+        // `grantAbility` Op, so it belongs to that Op's cluster issue, not the
+        // free tranche. (Canary swapped from Icy Manipulator, whose `tapUntap`
+        // Op shipped — issue #842 — so it migrated to effects[] and is no longer
+        // a resolve() closure the classifier counts.)
+        expect(free).not.toMatch(/Flying Carpet/);
     });
 });

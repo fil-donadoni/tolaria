@@ -320,6 +320,11 @@ export const danceOfTheDead: CardDefinition = {
             oracleText:
                 "Put enchanted creature card onto the battlefield tapped under your control.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): taps the ENCHANTED host
+            // (`getAttachedTo` — no attached-object selector) on an
+            // `enteredTrigger`, which has no `effects[]` site (only phaseTrigger
+            // does).
+            // Blocked on: attached-object selector + enteredTrigger effects site.
             resolve: (ctx) => {
                 const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
                 if (hostId) ctx.tap({ type: "permanent", id: hostId });
@@ -331,6 +336,11 @@ export const danceOfTheDead: CardDefinition = {
                 "At the beginning of the upkeep of enchanted creature's controller, that player may pay {1}{B}. If the player does, untap that creature.",
             phase: "UPKEEP",
             scope: "host-controller",
+            // NOT DSL-migratable (ADR 0045): untaps the ENCHANTED host
+            // (`getAttachedTo` — no attached-object selector) on a
+            // `host-controller`-scoped trigger (scoped player ≠ controller, so
+            // `effects` is disallowed on the phaseTrigger).
+            // Blocked on: attached-object selector + non-"your" trigger effects.
             resolve: (ctx, _event, hostController) => {
                 const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
                 if (!hostId) return;
@@ -1532,6 +1542,11 @@ export const mindWhip: CardDefinition = {
                 "At the beginning of the upkeep of enchanted creature's controller, that player may pay {3}. If they don't, this Aura deals 2 damage to that player and you tap that creature.",
             phase: "UPKEEP",
             scope: "host-controller",
+            // NOT DSL-migratable (ADR 0045): on decline, taps the ENCHANTED host
+            // (`getAttachedTo` — no attached-object selector) on a
+            // `host-controller`-scoped trigger (scoped player ≠ controller, so
+            // `effects` is disallowed on the phaseTrigger).
+            // Blocked on: attached-object selector + non-"your" trigger effects.
             resolve: (ctx, _event, hostController) => {
                 const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
                 if (!hostId) return;
@@ -1578,6 +1593,13 @@ export const minionOfLeshrac: CardDefinition = {
                 "At the beginning of your upkeep, this creature deals 5 damage to you unless you sacrifice a creature other than this creature. If this creature deals damage to you this way, tap it.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): "deals 5 damage unless you
+            // sacrifice a creature; if it deals damage this way, tap it" is a
+            // sacrifice-as-alternative-cost (a mayPay whose cost is a chosen
+            // sacrifice, not mana — the `mayPay` Op only pays a ManaCost) with a
+            // conditional self-tap on the declined branch. Same class as
+            // Yawgmoth Demon.
+            // Blocked on: a sacrifice-cost mayPay + declined-branch predicate.
             resolve: (ctx) => {
                 const accept = ctx.requestMayPay({
                     playerId: ctx.controller,
@@ -1856,10 +1878,11 @@ export const norritt: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1, colorFilter: "U" },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") ctx.untap(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #842): untap the announced
+            // blue-creature target (CR 701.26b).
+            effects: [
+                { op: "tapUntap", action: "untap", target: { target: 0 } },
+            ],
         },
         {
             id: "norritt-force-attack",

@@ -1153,6 +1153,11 @@ export const twiddle: CardDefinition = {
     manaCost: { U: 1 },
     types: ["Instant"],
     targetRequirement: TARGET_ACL_PERMANENT,
+    // NOT DSL-migratable (ADR 0045): toggles tap state by reading the target's
+    // current tapped status (the modal "tap OR untap" collapsed to a toggle
+    // until modal cast lands). The `if` predicate grammar has no tap-state
+    // test, so the branch on `getIsTapped` cannot be expressed.
+    // Blocked on: an isTapped EffectPredicate (value/predicate grammar gap).
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (!target) return;

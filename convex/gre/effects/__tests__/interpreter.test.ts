@@ -980,6 +980,182 @@ describe("Effect Script Op: counters (CR 122, issue #841)", () => {
     });
 });
 
+describe("Effect Script Op: tapUntap (CR 701.26, issue #842)", () => {
+    // Tapping an announced permanent target: `isTapped` flips false→true, and
+    // that state must survive the projection (the client reads tap state off
+    // the slimmed wire state — a permanent's tap status is board-visible).
+    it("taps an announced target and survives the projection (wire format)", () => {
+        const id = registerScript("test-op-tapuntap-tap", [
+            { op: "tapUntap", action: "tap", target: { target: 0 } },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearTap",
+            isTapped: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearTap" }]);
+        resolveTopOfStack(state);
+        const tapped = state.players[1].battlefield.find(
+            (c) => c.id === "bearTap"
+        )!;
+        expect(tapped.isTapped).toBe(true);
+        // Same assertion after the projection — tap state is board-visible and
+        // must not be stripped on the way to the client.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bearTap"
+        )!;
+        expect(slim.isTapped).toBe(true);
+    });
+
+    // Untapping an announced target: seed it tapped, `untap` flips it back.
+    it("untaps an announced target (CR 701.26b)", () => {
+        const id = registerScript("test-op-tapuntap-untap", [
+            { op: "tapUntap", action: "untap", target: { target: 0 } },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearUntap",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearUntap" }]);
+        resolveTopOfStack(state);
+        const untapped = state.players[1].battlefield.find(
+            (c) => c.id === "bearUntap"
+        )!;
+        expect(untapped.isTapped).toBe(false);
+    });
+
+    // A self-tap via the implicit `$source` binding — a permanent tapping
+    // itself as part of an activated ability's effect.
+    it("taps the source permanent via the implicit $source binding", () => {
+        const TAPPER_ID = "test-op-tapuntap-source";
+        registerTokenDefinition({
+            id: TAPPER_ID,
+            name: TAPPER_ID,
+            rarity: "common",
+            manaCost: { generic: 1 },
+            types: ["Artifact"],
+            activatedAbilities: [
+                {
+                    id: "self-tap",
+                    oracleText: "{1}: Tap this artifact.",
+                    cost: { mana: { generic: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "tap",
+                            target: { ref: "$source" },
+                        },
+                    ],
+                },
+            ],
+        });
+        const tapper = makeInstance(TAPPER_ID, {
+            id: "tapper1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+            isTapped: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tapper] }),
+                makePlayer("p2"),
+            ],
+        });
+        const src = state.players[0].battlefield[0];
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "self-tap",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        const self = state.players[0].battlefield.find(
+            (c) => c.id === "tapper1"
+        )!;
+        expect(self.isTapped).toBe(true);
+    });
+
+    // A mass tap: forEach over the opponent's creatures, each tapped via the
+    // per-iteration `{ ref: "$each" }` object binding.
+    it("taps every member of a forEach set via { ref: $each }", () => {
+        const id = registerScript("test-op-tapuntap-foreach", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    controller: "opponent",
+                    filter: { type: "Creature" },
+                },
+                effects: [
+                    {
+                        op: "tapUntap",
+                        action: "tap",
+                        target: { ref: "$each" },
+                    },
+                ],
+            },
+        ]);
+        const theirs = ["tA", "tB"].map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: "p2",
+                ownerId: "p2",
+                isTapped: false,
+            })
+        );
+        const mine = makeInstance(BEAR_ID, {
+            id: "mA",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mine] }),
+                makePlayer("p2", { battlefield: theirs }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        for (const cid of ["tA", "tB"]) {
+            const c = state.players[1].battlefield.find((x) => x.id === cid)!;
+            expect(c.isTapped).toBe(true);
+        }
+        // The caster's own creature is outside the opponent-scoped set.
+        const own = state.players[0].battlefield.find((x) => x.id === "mA")!;
+        expect(own.isTapped).toBe(false);
+    });
+
+    it("is a no-op when the announced target is missing (CR 608.2b)", () => {
+        const id = registerScript("test-op-tapuntap-missing", [
+            { op: "tapUntap", action: "tap", target: { target: 0 } },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+});
+
 describe("Effect Script construct: bind + ref (ADR 0045, CR 608.2h)", () => {
     // The Swords to Plowshares shape: bind the exiled creature, then read its
     // snapshotted power/controller after it has changed zone. The snapshot is

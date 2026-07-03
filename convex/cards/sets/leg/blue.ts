@@ -691,11 +691,23 @@ export const reset: CardDefinition = {
         "POSTCOMBAT_MAIN",
         "END_STEP",
     ],
-    resolve: (ctx: SpellContext) => {
-        for (const id of ctx.getBattlefieldIds(ctx.caster, { types: "Land" })) {
-            ctx.untap({ type: "permanent", id });
-        }
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #842): untap every land you
+    // control — a forEach over your battlefield lands, untapping each (CR
+    // 701.26b).
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                controller: "controller",
+                filter: { type: "Land" },
+            },
+            effects: [
+                { op: "tapUntap", action: "untap", target: { ref: "$each" } },
+            ],
+        },
+    ],
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

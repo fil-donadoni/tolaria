@@ -543,12 +543,19 @@ export const enervate: CardDefinition = {
     manaCost: { X: 1, U: 1 },
     types: ["Instant"],
     targetRequirement: { type: ["Artifact", "Creature", "Land"], count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type === "permanent") ctx.tap(t);
-        scheduleNextUpkeepDraw(ctx, enervate.id);
-    },
-    delayedTriggers: [nextUpkeepDrawTrigger()],
+    // Migrated resolve()→effects[] (ADR 0045, #842): tap the announced
+    // artifact/creature/land target (CR 701.26a), then the next-upkeep cantrip
+    // as an inline `delayedTrigger` Op (ADR 0048, CR 603.7d).
+    effects: [
+        { op: "tapUntap", action: "tap", target: { target: 0 } },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText:
+                "At the beginning of the next turn's upkeep, draw a card.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
 };
 // TODO(#628): implement.
 // export const errantMinion: CardDefinition = {
@@ -937,12 +944,19 @@ export const infuse: CardDefinition = {
     manaCost: { X: 2, U: 1 },
     types: ["Instant"],
     targetRequirement: { type: ["Artifact", "Creature", "Land"], count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type === "permanent") ctx.untap(t);
-        scheduleNextUpkeepDraw(ctx, infuse.id);
-    },
-    delayedTriggers: [nextUpkeepDrawTrigger()],
+    // Migrated resolve()→effects[] (ADR 0045, #842): untap the announced
+    // artifact/creature/land target (CR 701.26b), then the next-upkeep cantrip
+    // as an inline `delayedTrigger` Op (ADR 0048, CR 603.7d).
+    effects: [
+        { op: "tapUntap", action: "untap", target: { target: 0 } },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText:
+                "At the beginning of the next turn's upkeep, draw a card.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
 };
 // Krovikan Sorcerer — two looters whose discard cost is colour-filtered
 // (CR 601.2h convention — the chosen-discard is paid in-resolve, Mesmeric
@@ -1913,6 +1927,11 @@ export const wrathOfMaritLage: CardDefinition = {
             id: "wrath-marit-lage-tap-red",
             oracleText: "When this enchantment enters, tap all red creatures.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): a mass tap of all RED creatures.
+            // The forEach `permanents` selector filters only by type/subtype
+            // (`EffectCardFilter`), not colour, so "red creatures" cannot be
+            // selected.
+            // Blocked on: a colour member on EffectCardFilter.
             resolve: (ctx) => {
                 for (const pid of ctx.allPlayerIds) {
                     const reds = ctx.getBattlefieldIds(pid, {

@@ -49,10 +49,9 @@ export const aliBaba: CardDefinition = {
                 count: 1,
                 subtypeFilter: "Wall",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") ctx.tap(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #842): tap the announced
+            // Wall target (CR 701.26a).
+            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
         },
     ],
 };
@@ -290,6 +289,11 @@ export const magneticMountain: CardDefinition = {
                 "At the beginning of each player's upkeep, that player may choose any number of tapped blue creatures they control and pay {4} for each creature chosen this way. If the player does, untap those creatures.",
             phase: "UPKEEP",
             scope: "each",
+            // NOT DSL-migratable (ADR 0045): an `each`-scoped phaseTrigger
+            // (scoped player ≠ controller, so `effects` is disallowed) whose
+            // pay cost is {4} × (chosen creatures) — a runtime-arithmetic mana
+            // cost the EffectValue grammar cannot express.
+            // Blocked on: non-"your" trigger effects + an arithmetic-cost mayPay.
             resolve: (ctx, _event, scopedPlayerId) => {
                 const eligible = ctx.getBattlefieldIds(scopedPlayerId, {
                     types: "Creature",

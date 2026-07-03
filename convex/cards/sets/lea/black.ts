@@ -270,6 +270,13 @@ export const demonicHordes: CardDefinition = {
                 "At the beginning of your upkeep, unless you pay {B}{B}{B}, tap this creature and sacrifice a land of an opponent's choice.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): on decline, the OPPONENT chooses
+            // which of the CONTROLLER's lands to sacrifice (a cross-player
+            // choice — chooser ≠ zone owner, resolved via apNapOrder +
+            // requestChoice with zoneOwnerId). The `choice` Op picks from the
+            // resolving player's own zone; it cannot express an opponent-driven
+            // pick of the controller's permanents.
+            // Blocked on: a cross-player (chooser ≠ owner) choice selector.
             resolve: (ctx) => {
                 const accept = ctx.requestMayPay({
                     playerId: ctx.controller,
@@ -943,15 +950,10 @@ export const paralyze: CardDefinition = {
             keyword: "does-not-untap",
         },
     ],
-    resolve: (ctx: SpellContext) => {
-        // ETB tap-the-host effect (CR 603 — this is modeled as part of the
-        // aura's spell resolution rather than a PERMANENT_ENTERED trigger,
-        // since no such event exists in the engine yet). Runs before
-        // `finalizeSpellResolution` attaches the aura, so the host is still
-        // a regular battlefield permanent and the tap applies normally.
-        const [host] = ctx.targets;
-        if (host) ctx.tap(host);
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #842): the aura's ETB tap-the-
+    // host effect (CR 603) — tap the announced creature target (slot 0), the
+    // future host, before `finalizeSpellResolution` attaches the aura.
+    effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
     triggeredAbilities: [
         phaseTrigger({
             id: "paralyze-upkeep",
@@ -959,6 +961,11 @@ export const paralyze: CardDefinition = {
                 "At the beginning of the upkeep of enchanted creature's controller, that player may pay {4}. If the player does, untap the creature.",
             phase: "UPKEEP",
             scope: "host-controller",
+            // NOT DSL-migratable (ADR 0045): untaps the enchanted host
+            // (`getAttachedTo` — an attached-object target with no selector
+            // member) on a `host-controller`-scoped trigger (scoped player ≠
+            // controller, so `effects` is disallowed on the phaseTrigger).
+            // Blocked on: attached-object selector + non-"your" trigger effects.
             resolve: (ctx, _event, hostController) => {
                 const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
                 if (!hostId) return;

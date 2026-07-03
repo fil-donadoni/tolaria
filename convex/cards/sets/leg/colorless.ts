@@ -192,10 +192,9 @@ export const relicBarrier: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Artifact", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") ctx.tap(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #842): tap the announced
+            // artifact target (CR 701.26a).
+            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
         },
     ],
 };

@@ -208,9 +208,11 @@ export const colossusOfSardia: CardDefinition = {
             useStack: true,
             activationPhaseRestriction: ["UPKEEP"],
             controllerTurnOnly: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.untap({ type: "permanent", id: ctx.sourceInstanceId });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #842): untap the source
+            // creature (CR 701.26b). `$source` is the resolving permanent.
+            effects: [
+                { op: "tapUntap", action: "untap", target: { ref: "$source" } },
+            ],
         },
     ],
 };
@@ -433,6 +435,12 @@ export const candelabraOfTawnos: CardDefinition = {
             cost: { tap: true, mana: { X: "X" } },
             useStack: true,
             targetRequirement: { type: "Land", count: "X" },
+            // NOT DSL-migratable (ADR 0045): untaps a VARIABLE number (X) of
+            // announced land targets by iterating `ctx.targets`. The DSL acts
+            // on fixed positional slots (`{ target: 0 }`) or a declarative
+            // forEach set — there is no forEach-over-announced-target-slots
+            // construct, and the X-count target list is neither.
+            // Blocked on: an announced-targets iteration construct (X-count).
             resolve: (ctx: SpellContext) => {
                 for (const target of ctx.targets) {
                     if (target.type === "permanent") ctx.untap(target);
@@ -1222,6 +1230,12 @@ export const mishrasWarMachine: CardDefinition = {
                 "At the beginning of your upkeep, this creature deals 3 damage to you unless you discard a card. If it deals damage to you this way, tap it.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): "deals 3 damage unless you discard
+            // a card" is a discard-as-alternative-cost (a mayPay whose cost is a
+            // hand card, not mana — the `mayPay` Op only pays a ManaCost), and
+            // "if it deals damage this way, tap it" is conditional on whether
+            // the else-branch ran. Same class as Psychic Frog (#841 revert).
+            // Blocked on: a discard-cost mayPay + a damage-was-dealt predicate.
             resolve: (ctx, _event, playerId) => {
                 const self: TargetSelection = {
                     type: "permanent",

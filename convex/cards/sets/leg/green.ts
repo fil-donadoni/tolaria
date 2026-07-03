@@ -590,6 +590,12 @@ export const winterBlast: CardDefinition = {
     manaCost: { X: "X", G: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "Creature", count: "X" },
+    // NOT DSL-migratable (ADR 0045): acts on a VARIABLE number (X) of announced
+    // targets (no forEach-over-target-slots construct) and gates the 2 damage on
+    // "those creatures with flying" (a subset of the targets, not expressible by
+    // a value/filter). Also has no per-card test, so it is not AFK-eligible.
+    // Blocked on: an announced-targets iteration construct + a per-target flying
+    // predicate.
     resolve: (ctx: SpellContext) => {
         // "each of those creatures with flying" — derive the flying set from
         // the live battlefield (CR 702.9, snapshot at resolution) and gate the
@@ -773,6 +779,10 @@ export const cocoon: CardDefinition = {
             oracleText:
                 "When this Aura enters, tap enchanted creature and put three pupa counters on this Aura.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): taps the ENCHANTED creature — the
+            // Aura's attached host, read via `getAttachedToId`. The
+            // EffectObjectSelector grammar has no attached-object member.
+            // Blocked on: an attached-object EffectObjectSelector.
             resolve: (ctx) => {
                 const hostId = ctx.getAttachedToId();
                 if (hostId) ctx.tap({ type: "permanent", id: hostId });

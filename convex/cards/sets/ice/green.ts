@@ -803,10 +803,11 @@ export const fyndhornBrownie: CardDefinition = {
             cost: { mana: { X: 2, G: 1 }, tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent") ctx.untap(t);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #842): untap the announced
+            // creature target (CR 701.26b).
+            effects: [
+                { op: "tapUntap", action: "untap", target: { target: 0 } },
+            ],
         },
     ],
 };
@@ -1041,10 +1042,11 @@ export const juniperOrderDruid: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Land", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent") ctx.untap(t);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #842): untap the announced
+            // land target (CR 701.26b).
+            effects: [
+                { op: "tapUntap", action: "untap", target: { target: 0 } },
+            ],
         },
     ],
 };

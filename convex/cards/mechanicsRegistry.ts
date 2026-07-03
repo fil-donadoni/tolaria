@@ -2381,6 +2381,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.addCounter / removeCounter",
         note: 'Add or remove counters on a permanent (CR 122, issue #841). A thin declarative skin over two SpellContext primitives, one execution path (ADR 0045): `action: "add"` → addCounter (Sengir Vampire\'s +1/+1 on kill, a charge-counter accrual), `action: "remove"` → removeCounter (a counter-shedding effect, clamped to the counters present). `counter` is the free-form counter type ("+1/+1", "+1/+0", "-1/-1", "charge", "corpse", …; P/T-modifying types read at stat-lookup time by layer 7d). `target` is an announced slot, the resolving source (`$source` — a permanent counter-ing itself), or a forEach `$each` (a mass counter placement); `count` is the number of counters (literal / ref / count). Subsumes the addCounter / removeCounter closures the migration classifier folds here (~80 blocked closures at ship time).',
     },
+    {
+        op: "tapUntap",
+        status: "implemented",
+        cr: "701.26",
+        mechanicId: "tap-and-untap",
+        binding: "SpellContext.tap / untap",
+        note: 'Tap or untap a permanent (CR 701.26, issue #842). A thin declarative skin over two SpellContext primitives, one execution path (ADR 0045): `action: "tap"` → tap (Icy Manipulator\'s "tap target artifact, creature, or land"), `action: "untap"` → untap (Twiddle\'s untap mode). `target` is an announced slot, the resolving source (`$source` — a permanent tapping itself), or a forEach `$each` (a mass tap). No amount — a permanent is tapped or it isn\'t; the primitives no-op when the permanent is already in the requested state (CR 701.26a/b) and are skipped when it has left the battlefield (CR 608.2b). Subsumes the tap / untap closures the migration classifier folds here (~68 blocked closures at ship time). `tapAllLands` (Mana Short, Drain Power — a whole-player tap, not a permanent target) stays resolve() by design; it is not a `tap`-on-a-selected-permanent skin.',
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
@@ -2419,13 +2427,8 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // counters SHIPPED (issue #841) — addCounter / removeCounter are now
     // COVERED live via EFFECT_OP_REGISTRY; row moved there with status
     // "implemented".
-    {
-        op: "tapUntap",
-        status: "planned",
-        cr: "701.26",
-        mechanicId: "tap-and-untap",
-        note: 'CR 701.26 keyword action "Tap and Untap". Folds SpellContext.tap / untap / tapAllLands (~68 blocked closures).',
-    },
+    // tapUntap SHIPPED (issue #842) — tap / untap are now COVERED live via
+    // EFFECT_OP_REGISTRY; row moved there with status "implemented".
     {
         op: "grantAbility",
         status: "planned",

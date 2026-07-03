@@ -528,6 +528,20 @@ export const OP_EXECUTORS: {
             ctx.removeCounter(target, op.counter, count);
         }
     },
+    // CR 701.26 (issue #842) — tap or untap a permanent. A thin declarative
+    // skin over `tap` / `untap`, ONE execution path (ADR 0045). Skipped when
+    // the target is gone (CR 608.2b — the permanent left the battlefield;
+    // `resolveObjectRef` returns undefined). The primitives themselves no-op
+    // when the permanent is already in the requested state (CR 701.26a/b).
+    tapUntap(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        if (op.action === "tap") {
+            ctx.tap(target);
+        } else {
+            ctx.untap(target);
+        }
+    },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution player choice through
     // the existing Pending Choice pipeline. First execution enqueues the
     // choice and SUSPENDS the script; the resumed execution (after the

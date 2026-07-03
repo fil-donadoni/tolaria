@@ -508,6 +508,13 @@ export const goblinLyre: CardDefinition = {
                 count: 1,
                 controller: "opponent",
             },
+            // NOT DSL-migratable (ADR 0045): a coin flip branches the effect
+            // (`requestCoinFlip` — a planned Op, not yet shipped), and each
+            // branch deals damage equal to a live creature count. The
+            // classifier's tap/untap hit here is a false positive (a
+            // neighbouring brace-less body over-captured); this ability uses no
+            // tap/untap. Migrates in the coinFlip Op's issue.
+            // Blocked on: the coinFlip Op (+ a creature-count damage value).
             resolve: (ctx: SpellContext) => {
                 const t = ctx.targets[0];
                 if (t?.type !== "player") return;
@@ -717,10 +724,9 @@ export const icyManipulator: CardDefinition = {
                 type: ["Artifact", "Creature", "Land"],
                 count: 1,
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t) ctx.tap(t);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #842): tap the announced
+            // artifact/creature/land target (CR 701.26a).
+            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
         },
     ],
 };
@@ -1291,6 +1297,12 @@ export const soldeviGolem: CardDefinition = {
                 "At the beginning of your upkeep, you may untap target tapped creature an opponent controls. If you do, untap this creature.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): "you may untap target tapped
+            // creature an OPPONENT controls" needs a mid-resolution choice over
+            // the opponent's tapped creatures — but the `choice` Op's
+            // battlefield candidates are limited to the chooser's own permanents
+            // (no cross-controller candidate set, no tap-state filter).
+            // Blocked on: a cross-controller + tap-state candidate set for choice.
             resolve: (ctx, _event, scopedPlayerId) => {
                 const opponents = ctx.allPlayerIds.filter(
                     (pid) => pid !== scopedPlayerId
