@@ -47,9 +47,9 @@ export const juzamDjinn: CardDefinition = {
                 "At the beginning of your upkeep, Juzám Djinn deals 1 damage to you.",
             phase: "UPKEEP",
             scope: "your",
-            resolve: (ctx, _event, scopedPlayerId) => {
-                ctx.dealDamage({ type: "player", id: scopedPlayerId }, 1);
-            },
+            effects: [
+                { op: "dealDamage", amount: 1, to: { player: "controller" } },
+            ],
         }),
     ],
 };
@@ -73,6 +73,10 @@ export const jununEfreet: CardDefinition = {
                 "At the beginning of your upkeep, sacrifice Junún Efreet unless you pay {B}{B}.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): the `sacrifice` Op only sacrifices
+            // permanents a `choice` Op picked (a picks ref) — there is no
+            // sacrifice-the-source form for the "sacrifice Junún Efreet" clause.
+            // Planned-migratable pending a self/source sacrifice Op.
             resolve: (ctx, _event, scopedPlayerId) => {
                 const paid = ctx.requestMayPay({
                     playerId: scopedPlayerId,
@@ -107,18 +111,28 @@ export const hasranOgress: CardDefinition = {
             matches: (event, self) =>
                 event.type === "ATTACKERS_DECLARED" &&
                 event.attackerIds.includes(self.id),
-            resolve: (ctx) => {
-                const paid = ctx.requestMayPay({
-                    playerId: ctx.controller,
-                    choiceId: `hasran-ogress-${ctx.sourceInstanceId}`,
+            effects: [
+                {
+                    // CR 117.3a — the controller ("you") decides whether to pay.
+                    op: "mayPay",
+                    player: "controller",
                     cost: { X: 2 },
                     prompt: "Pay {2} or Hasran Ogress deals 3 damage to you?",
-                });
-                if (paid === undefined) return; // suspended
-                if (!paid) {
-                    ctx.dealDamage({ type: "player", id: ctx.controller }, 3);
-                }
-            },
+                    bind: "$paid",
+                },
+                {
+                    // CR 120 — unless paid, Hasran Ogress deals 3 damage to you.
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [
+                        {
+                            op: "dealDamage",
+                            amount: 3,
+                            to: { player: "controller" },
+                        },
+                    ],
+                },
+            ],
         },
     ],
 };
@@ -139,6 +153,11 @@ export const elHajjaj: CardDefinition = {
             oracleText:
                 "Whenever El-Hajjâj deals damage, you gain that much life.",
             source: "self",
+            // NOT DSL-migratable (ADR 0045): the gained amount is event.amount
+            // (the damage just dealt), a runtime value with no EffectValue
+            // construct (literal / ref / count only); damageDealtTrigger also has
+            // no effects[] passthrough. Planned-migratable pending a
+            // triggering-event value ref.
             resolve: (ctx, event) => {
                 ctx.gainLife(ctx.controller, event.amount);
             },
@@ -210,9 +229,9 @@ export const ergRaiders: CardDefinition = {
             // CR 603.4 intervening-if — "if it didn't attack this turn".
             // Re-checked at resolve; `hasAttackedThisTurn` persists to CLEANUP.
             interveningIf: (_event, self) => self.hasAttackedThisTurn !== true,
-            resolve: (ctx, _event, scopedPlayerId) => {
-                ctx.dealDamage({ type: "player", id: scopedPlayerId }, 2);
-            },
+            effects: [
+                { op: "dealDamage", amount: 2, to: { player: "controller" } },
+            ],
         }),
     ],
 };
@@ -334,6 +353,11 @@ export const cuombajjWitches: CardDefinition = {
             useStack: true,
             // Controller's target (CR 602.2b — chosen at activation).
             targetRequirement: { type: "any", count: 1 },
+            // NOT DSL-migratable (ADR 0045): the second ping is an opponent's
+            // mid-resolution `choose-damage-target` pick over "any target"
+            // (players + damageable permanents), a Pending Choice kind outside
+            // the scriptable EffectChoiceKind subset, plus id-disambiguation of
+            // the pick. Protocol-shaped; stays resolve().
             resolve: (ctx) => {
                 // The opponent's choice (CR 601.2c) suspends and resumes the
                 // resolve step: on suspend `requestChoice` returns undefined,

@@ -42,9 +42,9 @@ export const serendibEfreet: CardDefinition = {
                 "At the beginning of your upkeep, Serendib Efreet deals 1 damage to you.",
             phase: "UPKEEP",
             scope: "your",
-            resolve: (ctx, _event, scopedPlayerId) => {
-                ctx.dealDamage({ type: "player", id: scopedPlayerId }, 1);
-            },
+            effects: [
+                { op: "dealDamage", amount: 1, to: { player: "controller" } },
+            ],
         }),
     ],
 };
@@ -68,6 +68,11 @@ export const serendibDjinn: CardDefinition = {
                 "At the beginning of your upkeep, sacrifice a land. If you sacrifice an Island this way, Serendib Djinn deals 3 damage to you.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): "if you sacrifice an Island this way,
+            // deal 3" needs an `if` predicate on the sacrificed permanent's
+            // subtype (no subtype/binding predicate form), and the sacrifice
+            // targets a chosen land — expressible — but the conditional-damage
+            // clause is not. Stays resolve().
             resolve: (ctx, _event, scopedPlayerId) => {
                 const lands = ctx.getBattlefieldIds(scopedPlayerId, {
                     types: "Land",
@@ -182,6 +187,10 @@ export const islandFishJasconius: CardDefinition = {
                 "At the beginning of your upkeep, you may pay {U}{U}{U}. If you do, untap Island Fish Jasconius.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): the pay-then-untap-source clause
+            // needs an `untap` Op (planned, tapUntap cluster) targeting the
+            // source. The no-Islands state trigger below sacrifices the source,
+            // which the `sacrifice` Op cannot express either. Stays resolve().
             resolve: (ctx, _event, scopedPlayerId) => {
                 const paid = ctx.requestMayPay({
                     playerId: scopedPlayerId,

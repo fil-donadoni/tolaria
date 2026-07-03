@@ -111,6 +111,9 @@ export const sandstorm: CardDefinition = {
     oracleText: "Sandstorm deals 1 damage to each attacking creature.",
     manaCost: { G: 1 },
     types: ["Instant"],
+    // NOT DSL-migratable (ADR 0045): "each attacking creature" needs a forEach
+    // over permanents filtered by combat role, but EffectCardFilter is
+    // type/subtype only — no isAttacking predicate. Stays resolve().
     resolve: (ctx: SpellContext) => {
         ctx.dealDamageToEach(1, { creatures: { isAttacking: true } });
     },
@@ -267,6 +270,10 @@ export const nafsAsp: CardDefinition = {
             oracleText:
                 "That player loses 1 life unless they paid {1} before this draw step.",
             timing: "next-draw-step",
+            // NOT DSL-migratable (ADR 0045): a delayedTrigger body whose payer is
+            // read from the delayed-trigger payload (payload.playerId), not a
+            // relative player ref; delayedTriggers also have no effects[]
+            // passthrough. Stays resolve().
             resolve: (ctx, payload) => {
                 const pid = payload.playerId;
                 if (!pid) return;
@@ -349,6 +356,11 @@ export const dropOfHoney: CardDefinition = {
                 "At the beginning of your upkeep, destroy the creature with the least power. It can't be regenerated. If two or more creatures are tied for least power, you choose one of them.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): "destroy the creature with the least
+            // power" requires a min-power selection across the battlefield with a
+            // tie-break choice — no declarative selector or predicate expresses
+            // "least power". The no-creatures state trigger below sacrifices the
+            // source, which `sacrifice` also cannot express. Stays resolve().
             resolve: (ctx, _event, scopedPlayerId) => {
                 const creatureIds = ctx.allPlayerIds.flatMap((pid) =>
                     ctx.getBattlefieldIds(pid, { types: "Creature" })
@@ -486,6 +498,10 @@ export const ifhBiffEfreet: CardDefinition = {
             cost: { mana: { G: 1 } },
             useStack: true,
             activatableByAnyPlayer: true,
+            // NOT DSL-migratable (ADR 0045): "each creature with flying and each
+            // player" is a mixed sweep — a forEach over permanents can't filter
+            // by keyword ability (EffectCardFilter is type/subtype only) and
+            // can't fold players into the same set. Stays resolve().
             resolve: (ctx: SpellContext) => {
                 ctx.dealDamageToEach(1, {
                     creatures: { requireAbility: "flying" },

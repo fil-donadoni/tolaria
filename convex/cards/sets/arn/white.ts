@@ -76,10 +76,7 @@ export const kingSuleiman: CardDefinition = {
                 count: 1,
                 subtypeFilter: ["Djinn", "Efreet"],
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") ctx.destroy(target);
-            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };
@@ -197,6 +194,11 @@ export const abuJafar: CardDefinition = {
             oracleText:
                 "When this creature dies, destroy all creatures blocking or blocked by it. They can't be regenerated.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): iterates deadCreature.combatPartnerIds,
+            // an opaque event-snapshot set that no declarative forEach selector
+            // (players / permanents-by-type) can express; diedTrigger also has no
+            // effects[] passthrough. Planned-migratable pending a combat-partner
+            // forEach selector.
             resolve: (ctx, _event, deadCreature) => {
                 for (const partnerId of deadCreature.combatPartnerIds) {
                     ctx.destroy(
