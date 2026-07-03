@@ -77,6 +77,10 @@ export const dragonWhelp: CardDefinition = {
                 "{R}: Dragon Whelp gets +1/+0 until end of turn. If this ability has been activated four or more times this turn, sacrifice Dragon Whelp at the beginning of the next end step.",
             cost: { mana: { R: 1 } },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045, issue #831): needs a temporary P/T
+            // pump plus a conditional delayed sacrifice keyed on activation
+            // count — both Ops (`pump`, `delayedTrigger`) are `planned`, not
+            // implemented. Blocked on: `pump` + `delayedTrigger` Ops.
             resolve: (ctx: SpellContext) => {
                 ctx.addTemporaryPTBuff(
                     { type: "permanent", id: ctx.sourceInstanceId },
@@ -134,10 +138,10 @@ export const dwarvenDemolitionTeam: CardDefinition = {
                 count: 1,
                 subtypeFilter: "Wall",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target) ctx.destroy(target);
-            },
+            // Migrated resolve() → effects[] (ADR 0045, issue #831): a single
+            // `destroy` Op on the announced target (CR 701.7). Per-card test
+            // ("destroys a target Wall on resolution") is the harness.
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };
@@ -217,6 +221,11 @@ export const earthbind: CardDefinition = {
             oracleText:
                 "When Earthbind enters, if enchanted creature has flying, Earthbind deals 2 damage to that creature.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045, issue #831): the ETB damage is
+            // gated on the host having originally had flying (a removed-keyword
+            // read) and targets the aura's host, neither of which the `if`
+            // predicate forms or EffectObjectSelector express. Blocked on:
+            // host object ref + removed-keyword predicate.
             resolve: (ctx) => {
                 const hostId = ctx.getAttachedToId();
                 if (!hostId) return;
@@ -354,9 +363,21 @@ export const flashfires: CardDefinition = {
     oracleText: "Destroy all Plains.",
     manaCost: { X: 3, R: 1 },
     types: ["Sorcery"],
-    resolve: (ctx: SpellContext) => {
-        ctx.destroyAll({ subtypes: "Plains" });
-    },
+    // Migrated resolve() → effects[] (ADR 0045, issue #831): `destroyAll` is
+    // `forEach` over every player's battlefield Plains (CR 110/205) → `destroy`
+    // each — same sweep shape as Day of Judgment (m11/white). A behaviour test
+    // was authored first (green-before) since the card had none.
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { subtype: "Plains" },
+            },
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        },
+    ],
 };
 
 // Fork — "Copy target instant or sorcery spell, except that the copy is red.
@@ -666,6 +687,10 @@ export const manabarbs: CardDefinition = {
             scope: "any",
             filter: { types: "Land" },
             forMana: true,
+            // NOT DSL-migratable (ADR 0045, issue #831): the damaged player is
+            // read from the PERMANENT_TAPPED event (the tapping player), not the
+            // ability's controller/opponent, so no EffectPlayerRef targets it.
+            // Blocked on: event-player ref for tapped-land triggers.
             resolve: (ctx, _event, tapped) => {
                 ctx.dealDamage({ type: "player", id: tapped.controllerId }, 1);
             },
@@ -708,11 +733,13 @@ export const orcishArtillery: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target) ctx.dealDamage(target, 2);
-                ctx.dealDamage({ type: "player", id: ctx.controller }, 3);
-            },
+            // Migrated resolve() → effects[] (ADR 0045, issue #831): two
+            // `dealDamage` Ops (CR 120.1) — 2 to the announced target, then 3
+            // to the ability's controller ("you"). Per-card test is the harness.
+            effects: [
+                { op: "dealDamage", amount: 2, to: { target: 0 } },
+                { op: "dealDamage", amount: 3, to: { player: "controller" } },
+            ],
         },
     ],
 };
@@ -756,6 +783,11 @@ export const powerSurge: CardDefinition = {
                 "At the beginning of each player's upkeep, Power Surge deals damage to that player equal to the number of untapped lands they control.",
             phase: "UPKEEP",
             scope: "each",
+            // NOT DSL-migratable (ADR 0045, issue #831): the damaged player is
+            // the upkeep player (each-scope, event-derived), and the amount is a
+            // count of that player's untapped lands — neither the dynamic player
+            // nor an "untapped" filter is expressible. Blocked on: event-player
+            // ref + tapped-state count filter.
             resolve: (ctx, _event, playerId) => {
                 const landIds = ctx.getBattlefieldIds(playerId, {
                     types: "Land",
@@ -1106,6 +1138,10 @@ export const stoneGiant: CardDefinition = {
                 controller: "you" as const,
                 toughnessFilter: { max: (source.power ?? 0) - 1 },
             }),
+            // NOT DSL-migratable (ADR 0045, issue #831): grants flying until EOT
+            // and schedules a delayed end-step destroy — both Ops
+            // (`grantAbility`, `delayedTrigger`) are `planned`, not implemented.
+            // Blocked on: `grantAbility` + `delayedTrigger` Ops.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (!target || target.type !== "permanent") return;

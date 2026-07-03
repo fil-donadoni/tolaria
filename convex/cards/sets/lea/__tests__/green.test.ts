@@ -23,10 +23,13 @@ import {
     giantSpider,
     grizzlyBears,
     hurricane,
+    hypnoticSpecter,
     iceStorm,
     instillEnergy,
+    island,
     kudzu,
     leyDruid,
+    lifeforce,
     lightningBolt,
     livingArtifact,
     livingLands,
@@ -45,6 +48,8 @@ import {
     streamOfLife,
     swamp,
     thicketBasilisk,
+    tranquility,
+    tsunami,
     verduranEnchantress,
     wallOfBrambles,
     wanderlust,
@@ -2924,5 +2929,116 @@ describe("Gaea's Liege (Forest-count P/T + {T} land→Forest)", () => {
             type: "Land",
             count: 1,
         });
+    });
+});
+
+// Migration harnesses (ADR 0045, issue #831): Lifeforce / Tranquility / Tsunami
+// had no per-card tests, so these behaviour tests are authored to guard the
+// resolve()→effects[] migrations (counter / destroyAll sweeps).
+describe("Lifeforce ({G}, Sacrifice — counter target black spell, CR 701.5a)", () => {
+    it("counters the targeted spell (removes it from the stack)", () => {
+        const lf = makeInstance(lifeforce.id, {
+            id: "lf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lf] }),
+                makePlayer("p2"),
+            ],
+        });
+        const blackSpell = pushSpell(state, hypnoticSpecter.id, "p2");
+        state.stack.push({
+            ...lf,
+            id: "stack-lf",
+            zone: "stack",
+            castById: "p1",
+            abilityId: "lifeforce-counter",
+            targets: [{ type: "spell", id: blackSpell.id }],
+        });
+        resolveTopOfStack(state);
+        expect(
+            state.stack.find((s) => s.id === blackSpell.id)
+        ).toBeUndefined();
+        // The countered spell goes to its owner's graveyard (CR 701.5a).
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain(
+            blackSpell.id
+        );
+    });
+});
+
+describe("Tranquility ({2}{G} — destroy all enchantments, CR 701.7)", () => {
+    it("destroys every enchantment across both players, spares non-enchantments", () => {
+        const p1Ench = makeInstance(livingLands.id, {
+            id: "p1-ench",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p2Ench = makeInstance(livingLands.id, {
+            id: "p2-ench",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [p1Ench, bear] }),
+                makePlayer("p2", { battlefield: [p2Ench] }),
+            ],
+        });
+        pushSpell(state, tranquility.id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "p1-ench")
+        ).toBeUndefined();
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "p2-ench")
+        ).toBeUndefined();
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "bear")
+        ).toBeDefined();
+    });
+});
+
+describe("Tsunami ({3}{G} — destroy all Islands, CR 701.7)", () => {
+    it("destroys every Island across both players and spares other lands", () => {
+        const p1Island = makeInstance(island.id, {
+            id: "p1-island",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p1Forest = makeInstance(forest.id, {
+            id: "p1-forest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const p2Island = makeInstance(island.id, {
+            id: "p2-island",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [p1Island, p1Forest] }),
+                makePlayer("p2", { battlefield: [p2Island] }),
+            ],
+        });
+        pushSpell(state, tsunami.id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "p1-island")
+        ).toBeUndefined();
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "p2-island")
+        ).toBeUndefined();
+        // Non-Island land survives.
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "p1-forest")
+        ).toBeDefined();
     });
 });

@@ -52,11 +52,24 @@ export const armageddon: CardDefinition = {
     types: ["Sorcery"],
     // CR 701.7 — mass land destruction. The declarative marker lets effects that
     // reason about a spell's outcome (Equinox's counter) recognise this as
-    // land destruction without running the imperative resolve below.
+    // land destruction without running the effect script below.
     destroysAllLands: true,
-    resolve: (ctx: SpellContext) => {
-        ctx.destroyAll("Land");
-    },
+    // Migrated resolve() → effects[] (ADR 0045, issue #831). `destroyAll("Land")`
+    // is `forEach` over every player's battlefield Lands (CR 110) → `destroy`
+    // each — the same sweep shape proven by Day of Judgment (m11/white). The
+    // per-card behaviour test (Consecrate Land's "Armageddon spares it") is the
+    // migration harness.
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Land" },
+            },
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        },
+    ],
 };
 
 // Balance — "Each player chooses a number of lands they control equal to the
@@ -187,6 +200,10 @@ export const balance: CardDefinition = {
         "Each player chooses a number of lands they control equal to the number of lands controlled by the player who controls the fewest, then sacrifices the rest. Players discard cards and sacrifice creatures the same way.",
     manaCost: { X: 1, W: 1 },
     types: ["Sorcery"],
+    // NOT DSL-migratable (ADR 0045, issue #831): planned-migratable. Needs a
+    // "keep N / sacrifice the rest" APNAP choice keyed on a cross-player minimum
+    // count — no `choice` kind or value construct expresses "equal to the fewest
+    // any player controls". Blocked on: keep-count choice semantics.
     resolveSteps: [
         balanceEqualizeLands,
         balanceEqualizeHand,
@@ -487,6 +504,10 @@ export const farmstead: CardDefinition = {
                 "At the beginning of the upkeep step of enchanted land's controller, that player gains 2 life.",
             phase: "UPKEEP",
             scope: "host-controller",
+            // NOT DSL-migratable (ADR 0045, issue #831): the affected player is
+            // the enchanted land's controller (host-controller scope), which no
+            // EffectPlayerRef expresses ("controller" is the Aura's controller).
+            // Blocked on: host-controller player ref.
             resolve: (ctx, _event, hostController) => {
                 ctx.gainLife(hostController, 2);
             },
@@ -534,6 +555,9 @@ export const healingSalve: CardDefinition = {
         "Choose one —\n• Target player gains 3 life.\n• Prevent the next 3 damage that would be dealt to any target this turn.",
     manaCost: { W: 1 },
     types: ["Instant"],
+    // NOT DSL-migratable (ADR 0045, issue #831): the "prevent next 3 damage"
+    // mode needs a damage-prevention Op that is `planned`, not implemented; a
+    // modal card can't be half-migrated. Blocked on: `preventDamage` Op.
     modes: [
         {
             id: "gain-life",
@@ -685,6 +709,11 @@ export const karma: CardDefinition = {
                 "At the beginning of each player's upkeep, Karma deals damage to that player equal to the number of Swamps they control.",
             phase: "UPKEEP",
             scope: "each",
+            // NOT DSL-migratable (ADR 0045, issue #831): the damaged player is
+            // the upkeep player (each-scope, event-derived), not the ability's
+            // controller/opponent, so no EffectPlayerRef targets it; the amount
+            // is a Swamp count on that same dynamic player. Blocked on:
+            // event-player ref for `each`-scope triggers.
             resolve: (ctx, _event, playerId) => {
                 const swamps = ctx.getBattlefieldIds(playerId, {
                     subtypes: "Swamp",
@@ -757,10 +786,10 @@ export const northernPaladin: CardDefinition = {
                 count: 1,
                 colorFilter: "B",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") ctx.destroy(target);
-            },
+            // Migrated resolve() → effects[] (ADR 0045, issue #831): a single
+            // `destroy` Op on the announced target (CR 701.7), same shape as
+            // Dwarven Demolition Team. Per-card test is the migration harness.
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };
@@ -830,6 +859,10 @@ export const personalIncarnation: CardDefinition = {
                 "When this creature dies, its owner loses half their life, rounded up.",
             scope: "self",
             toZone: "graveyard",
+            // NOT DSL-migratable (ADR 0045, issue #831): the loss is
+            // Math.ceil(life/2) — arithmetic on a runtime read, which the value
+            // grammar (literal | ref | count) forbids. Blocked on: arithmetic
+            // value construct (half-life).
             resolve: (ctx, _event, leaving) => {
                 const life = ctx.getLife(leaving.ownerId);
                 const loss = Math.ceil(life / 2);
@@ -1180,6 +1213,10 @@ export const wrathOfGod: CardDefinition = {
     oracleText: "Destroy all creatures. They can't be regenerated.",
     manaCost: { X: 2, W: 2 },
     types: ["Sorcery"],
+    // NOT DSL-migratable (ADR 0045, issue #831): the `destroy` Op has no
+    // "can't be regenerated" option, so a forEach/destroy sweep would let
+    // regeneration shields save creatures (unlike this card). Blocked on:
+    // cantBeRegenerated flag on the `destroy` Op.
     resolve: (ctx: SpellContext) => {
         ctx.destroyAll("Creature", { cantBeRegenerated: true });
     },
