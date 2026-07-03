@@ -129,10 +129,25 @@ src/                           # Frontend (React + Vite)
 Cards are defined as **data**, not imperative code. Three complexity levels:
 
 1. **Pure data** — Vanilla creatures and basic lands (stats only)
-2. **Declarative behavior** — Triggered/activated/static abilities using structured templates
-3. **Imperative behavior** — `resolve()` closures for one-shot spell/ability effects. Continuous static effects are data: declare `staticEffects[]` and the layer system (`convex/gre/layers.ts`, CR 611/613) computes them at read time. Replacement effects have shipped.
+2. **Declarative behavior** — Triggered/activated/static abilities using structured templates; one-shot spell/ability effects as an **Effect Script** (`effects: EffectOp[]`, ADR 0045) — the DSL-first default, see below
+3. **Imperative behavior** — `resolve()` closures, now the escape hatch reserved for protocol-like cards (Word of Command, Camouflage), not the default. Continuous static effects are data: declare `staticEffects[]` and the layer system (`convex/gre/layers.ts`, CR 611/613) computes them at read time. Replacement effects have shipped.
 
-Key types in `convex/cards/types.ts`: `CardDefinition`, `ActivatedAbility`, `ManaCost`, `SpellContext`, `TargetRequirement`, `TargetSelection`.
+**Effect Script DSL (ADR 0045/0046).** A card's effect is an ordered list of
+**Ops** (`dealDamage`, `draw`, `destroy`, `choice`, …) connected by four frozen
+structural constructs — `bind`, `ref`, `if`, `forEach` — interpreted by
+`convex/gre/effects/interpreter.ts` on top of the existing `SpellContext`
+primitives. It applies at every effect site (spell resolution, triggered and
+activated ability effects). **DSL-first is mandatory for new cards** —
+`resolve()` needs an explicit justification (`.claude/rules/gre-development.md`
+§ DSL-first authoring). The **Mechanics Registry**
+(`convex/cards/mechanicsRegistry.ts`) is the single authority on keyword-ability
+and Op names, enforced by a catalogue-wide CI guard; an uncensused mechanic is
+a stop-and-open-an-issue case, never an invented name. Testing shifts from
+per-card to per-Op: a DSL card reusing already-exercised Ops needs no
+hand-written test (static validation + an auto-generated canned-scenario smoke
+test cover it); a card introducing a new Op earns that Op its permanent test.
+
+Key types in `convex/cards/types.ts`: `CardDefinition`, `ActivatedAbility`, `ManaCost`, `SpellContext`, `TargetRequirement`, `TargetSelection`, `EffectOp`.
 
 Mana abilities have `useStack: false` (resolve immediately). SBAs are global game rules in `sba.ts`; cards only declare `sbaMods` for exceptions (indestructible, etc.).
 
@@ -179,11 +194,11 @@ workflow.
 
 ### Skills (invoke explicitly or auto-triggered)
 
-| Skill              | Trigger                               | What it does                                               |
-| ------------------ | ------------------------------------- | ---------------------------------------------------------- |
-| `/mtg-rules-check` | Before implementing any game mechanic | Fetches CR text, finds implementation, reports gaps        |
-| `/new-card`        | When adding a new card                | Fetches Scryfall data, generates CardDefinition, validates |
-| `/gre-test`        | When adding/modifying GRE logic       | Generates vitest tests following project patterns          |
+| Skill              | Trigger                               | What it does                                                                                                                                     |
+| ------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/mtg-rules-check` | Before implementing any game mechanic | Fetches CR text, finds implementation, reports gaps                                                                                              |
+| `/new-card`        | When adding a new card                | Fetches Scryfall data, generates a CardDefinition as an Effect Script by default (DSL-first, ADR 0045), validates against the Mechanics Registry |
+| `/gre-test`        | When adding/modifying GRE logic       | Generates vitest tests following project patterns                                                                                                |
 
 ### Path-specific rules (auto-loaded)
 
@@ -195,8 +210,8 @@ workflow.
 1. **Discuss** — User describes the feature/rule at high level
 2. **Verify rules** — `/mtg-rules-check` to get exact CR text and current implementation status
 3. **Plan** — Agree on scope: what to implement now, what to defer
-4. **Implement** — Write code, following CR and project patterns
-5. **Test** — Write tests at ALL layers: GRE unit tests, backend integration (game.ts mutations), frontend utils, AND wire format. Two pieces passing individually but failing together is a shipped bug. Every feature that crosses the GRE → game.ts → UI boundary MUST have at least one integration test exercising the full path. While iterating, run only the **targeted tests** for what you changed (`bun run test <path>`); the full `bun run test` suite is part of the pre-done gate (step 6, see § Quality gates for cadence).
+4. **Implement** — Write a card's effect as an **Effect Script** (`effects: EffectOp[]`) by default — the DSL-first mandate (ADR 0045). Consult the Mechanics Registry (`convex/cards/mechanicsRegistry.ts`) for the keyword/Op name before writing anything; an uncensused mechanic is a stop-and-open-an-issue case, not an invented name. Reach for `resolve()` only for a genuinely protocol-like card, with a recorded justification (`.claude/rules/gre-development.md` § DSL-first authoring). Otherwise follow CR and project patterns as usual.
+5. **Test** — For a `resolve()` card (or a DSL card introducing a new Op): write tests at ALL layers — GRE unit tests, backend integration (game.ts mutations), frontend utils, AND wire format. Two pieces passing individually but failing together is a shipped bug. Every feature that crosses the GRE → game.ts → UI boundary MUST have at least one integration test exercising the full path. For a DSL card that only reuses already-exercised Ops, the per-Op regime applies instead: the catalogue-wide `validateEffectScript` sweep plus the auto-generated canned-scenario smoke test cover it — no hand-written per-card test required. While iterating, run only the **targeted tests** for what you changed (`bun run test <path>`); the full `bun run test` suite is part of the pre-done gate (step 6, see § Quality gates for cadence).
 6. **Validate** — Run the full gate once, before marking done: `bun run check:all` (zero errors) + full `bun run test` (zero failures). See § Quality gates.
 7. **Preset scenario** — For any new card or gameplay feature, add a dedicated entry to `PRESET_SCENARIOS` in `src/components/debug/debug-panel.tsx` so the user can load it one-click from the Debug panel and exercise the feature end-to-end. Choose cards/zones/phase/`landCount` that hit the golden path (and ideally a key edge case). Skip only for pure refactors with no user-visible behavior change.
 8. **UI verify** — Only when the user explicitly requests browser verification. Do NOT auto-test new cards or gameplay features in Chrome — preset scenarios + vitest + wire format tests are the default verification. The user will ask for a Chrome run when they want one.
@@ -233,6 +248,12 @@ have since **shipped** — do not treat them as out of scope:
 - **Replacement effects** (`gre/replacements.ts`) — damage, destroy (ADR 0020), etc.
 - **Complex / choice triggered abilities** and **simultaneous-trigger APNAP ordering**
   (CR 603.3b).
+- **Effect Script DSL** (`gre/effects/interpreter.ts`, ADR 0045) — declarative
+  card effects at spell/triggered/activated sites, the four frozen structural
+  constructs (bind/ref/if/forEach), a growing Op vocabulary, and the Mechanics
+  Registry (`cards/mechanicsRegistry.ts`, ADR 0046) as the name authority.
+  DSL-first is now the mandatory authoring default for new cards — see
+  `.claude/rules/gre-development.md` § DSL-first authoring.
 
 ## Out of Scope
 

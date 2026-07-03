@@ -16,13 +16,85 @@ When modifying files in `convex/gre/` or `convex/cards/`:
 - Before implementing a new rule or modifying existing behavior, verify against official CR using `/mtg-rules-check`
 - Flag any deviation from CR explicitly — document what's simplified and why
 
+## DSL-first authoring (ADR 0045)
+
+**A new card's effect is written as an Effect Script by default.** Every
+effect site accepts one: `CardDefinition.effects` (spell resolution),
+`ActivatedAbility.effects`, `TriggeredAbility.effects` — an ordered
+`EffectOp[]` interpreted by `convex/gre/effects/interpreter.ts` through the
+four frozen structural constructs (bind/ref/if/forEach). `resolve()` /
+`resolveSteps` / the `effect` shorthand remain mutually-exclusive alternatives
+on the same site, reserved for **protocol-like cards** (Word of Command,
+Camouflage — ~10–15% of the pool, ADR 0045) whose effect genuinely cannot be
+expressed by the current Op vocabulary.
+
+- **`resolve()` requires an explicit justification.** A closure with no
+  justification is a review blocker, not a style nit. Record it as a code
+  comment on the ability/card (`// protocol card: <why the Op vocabulary
+can't express this>`) AND restate it in the PR description. "The Op I need
+  doesn't exist yet" is NOT a valid justification for `resolve()` — that's the
+  stop-and-issue case below, not the escape hatch.
+- **Consult the Mechanics Registry before writing anything.**
+  `convex/cards/mechanicsRegistry.ts` is the single authority on mechanic
+  names:
+    - A **keyword ability** (CR 702, a `staticAbilities[]` string) must
+      case-insensitively match a registry row's `name`, or its
+      `bindingPattern` for a parametrized keyword (protection, rampage N,
+      landwalk, "bands with other …").
+    - An **Op** (`EffectOp.op`) must be a row in `EFFECT_OP_REGISTRY`
+      (`isRegisteredEffectOp`) — the same file.
+- **Stop-and-issue on an uncensused mechanic.** If the oracle text needs a
+  keyword or Op that is `planned` or simply absent from the registry, do NOT
+  invent a name and do NOT paper over the gap with a card-shaped `resolve()`
+  closure. Open a GitHub issue flagging the gap (or ask the user) and leave
+  the card as a tracked stub. The registry-wide guard test
+  (`convex/cards/__tests__/mechanicsRegistry.test.ts`) fails CI on any
+  unlisted name regardless — catching it during authoring is cheaper than
+  catching it in CI.
+
+**Per-Op test regime replaces per-card mandates for DSL cards.** The `Card
+testing convention` table below still governs `resolve()` cards in full, and
+governs a DSL card that introduces a genuinely new Op or construct usage. For
+a card whose `effects[]` uses ONLY Ops the interpreter suite already
+exercises (check coverage in `convex/gre/effects/__tests__/interpreter.test.ts`,
+including its wire-format assertion), **no hand-written per-card GRE or wire
+test is required.** Its proof obligation is two things that already run
+catalogue-wide, with zero per-card authoring:
+
+1. `validateEffectScript` / `validateAbilityEffectScript` passes — the
+   catalogue-wide static sweep (`convex/cards/__tests__/effectScripts.test.ts`):
+   schema, ref/binding references, vocabulary, JSON purity (ADR 0046),
+   mutual-exclusivity with `resolve`/`resolveSteps`/`effect`.
+2. The auto-generated canned-scenario smoke test
+   (`convex/gre/effects/scenarioGenerator.ts`, wired catalogue-wide in
+   `convex/cards/__tests__/effectScriptSmoke.test.ts`) picks the card up
+   automatically and asserts its declared outcomes by resolving it through
+   the real path (`resolveTopOfStack`). A script the generator can't
+   faithfully scenario-ize surfaces as an explicit skip with a reason —
+   never a silent pass — which is the signal to add a hand-written test for
+   that card after all.
+
+A card that introduces a **new Op** (or exercises bind/ref/if/forEach in a
+combination the interpreter suite doesn't already cover) gets the FULL regime
+as that Op's own test: an interpreter unit test covering the construct
+combinations it participates in, plus a wire-format assertion once through
+`projectPublicState`. That test becomes the Op's permanent test, inherited
+free by every later card that reuses the Op — the "new Op pays the entry fee
+once, reuse rides free" trade the per-Op suite is built around (PRD #795).
+
 ## Testing requirement
 
 - Every new function or behavior change MUST have corresponding tests in `convex/gre/__tests__/`
 - Tests MUST reference the CR section they validate (e.g. `describe("lands (CR 305.2)")`)
 - Run `bun run test` after any change — zero failures required
 
-## Card testing convention (mandatory)
+## Card testing convention (mandatory for `resolve()` cards and new Ops)
+
+This table governs `resolve()` / `resolveSteps` cards, and a DSL card
+introducing a new Op or construct combination (see `DSL-first authoring`
+above). A DSL card that only reuses already-exercised Ops is covered by the
+per-Op regime instead — the catalogue-wide static sweep plus the
+auto-generated canned-scenario smoke test, no hand-written test required.
 
 Every set is a colour-split DIRECTORY (`sets/<code>/<colour>.ts`, ADR 0043), and
 every card with non-trivial behavior gets a dedicated `describe` block in the
@@ -114,6 +186,11 @@ If after those checks a new primitive is still needed, flag it explicitly in the
 When adding/modifying cards in `convex/cards/sets/`:
 
 - Verify mana cost against Scryfall
-- Map keywords to `staticAbilities[]`
+- Map keywords to `staticAbilities[]` — check the Mechanics Registry
+  (`convex/cards/mechanicsRegistry.ts`) for the exact name/pattern first
 - Set `targetRequirement` for targeted spells
-- Use `SpellContext` methods in `resolve()` — if a needed method doesn't exist, flag it
+- **Write the effect as an Effect Script (`effects: EffectOp[]`) by default** —
+  check `EFFECT_OP_REGISTRY` for the Ops you need before writing anything.
+  Use `resolve()` only for a protocol-like card, with a recorded
+  justification (see `DSL-first authoring` above); if a needed Op doesn't
+  exist yet, flag it / open an issue rather than reaching for `resolve()`
