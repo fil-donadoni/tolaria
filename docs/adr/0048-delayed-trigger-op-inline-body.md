@@ -12,8 +12,8 @@ boundary through an **explicit `capture` map**.
     "op": "delayedTrigger",
     "timing": "next-end-step",
     "oracleText": "At the beginning of the next end step, destroy it.",
-    "capture": { "it": { "ref": "target" } },
-    "effects": [{ "op": "destroy", "target": { "ref": "it" } }],
+    "capture": { "$it": { "target": 0 } },
+    "effects": [{ "op": "destroy", "target": { "ref": "$it" } }]
 }
 ```
 
