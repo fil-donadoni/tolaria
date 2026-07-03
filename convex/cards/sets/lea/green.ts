@@ -90,6 +90,10 @@ export const berserk: CardDefinition = {
         "FIRST_STRIKE_DAMAGE",
     ],
     targetRequirement: { type: "Creature", count: 1 },
+    // NOT DSL-migratable (ADR 0045, issue #831): grants trample, applies a
+    // +power/+0 pump where the amount is the creature's own power, and schedules
+    // a conditional delayed destroy — the pump/grant/delayed Ops are `planned`,
+    // not implemented. Blocked on: `grantAbility` + `pump` + `delayedTrigger` Ops.
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (!target || target.type !== "permanent") return;
@@ -660,10 +664,11 @@ export const lifeforce: CardDefinition = {
                 count: 1,
                 colorFilter: "B",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "spell") ctx.counter(target);
-            },
+            // Migrated resolve() → effects[] (ADR 0045, issue #831): a single
+            // `counter` Op on the announced target spell (CR 701.5a). A
+            // behaviour test was authored first (green-before) since the card
+            // had none.
+            effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
 };
@@ -999,9 +1004,21 @@ export const tranquility: CardDefinition = {
     oracleText: "Destroy all enchantments.",
     manaCost: { X: 2, G: 1 },
     types: ["Sorcery"],
-    resolve: (ctx: SpellContext) => {
-        ctx.destroyAll("Enchantment");
-    },
+    // Migrated resolve() → effects[] (ADR 0045, issue #831): `destroyAll` is
+    // `forEach` over every player's battlefield Enchantments (CR 110) →
+    // `destroy` each — same sweep shape as Day of Judgment (m11/white). A
+    // behaviour test was authored first (green-before) since the card had none.
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Enchantment" },
+            },
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        },
+    ],
 };
 
 export const tsunami: CardDefinition = {
@@ -1011,9 +1028,21 @@ export const tsunami: CardDefinition = {
     oracleText: "Destroy all Islands.",
     manaCost: { X: 3, G: 1 },
     types: ["Sorcery"],
-    resolve: (ctx: SpellContext) => {
-        ctx.destroyAll({ subtypes: "Island" });
-    },
+    // Migrated resolve() → effects[] (ADR 0045, issue #831): `destroyAll` is
+    // `forEach` over every player's battlefield Islands (CR 110/205) →
+    // `destroy` each — same sweep shape as Day of Judgment (m11/white). A
+    // behaviour test was authored first (green-before) since the card had none.
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { subtype: "Island" },
+            },
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        },
+    ],
 };
 
 // Verduran Enchantress — "Whenever you cast an enchantment spell, you may
@@ -1036,6 +1065,10 @@ export const verduranEnchantress: CardDefinition = {
                 "Whenever you cast an enchantment spell, you may draw a card.",
             scope: "you",
             filter: { types: "Enchantment" },
+            // NOT DSL-migratable (ADR 0045, issue #831): "you may draw a card"
+            // is an optional (no-cost) yes/no effect; `mayPay` models paying a
+            // cost, not a bare optional, and the optional-choice Op is `planned`.
+            // Blocked on: `optionChoice` (cost-free may) Op.
             resolve: (ctx) => {
                 const accept = ctx.requestMayPay({
                     playerId: ctx.controller,
@@ -1113,6 +1146,9 @@ export const wanderlust: CardDefinition = {
                 "At the beginning of the upkeep of enchanted creature's controller, this Aura deals 1 damage to that player.",
             phase: "UPKEEP",
             scope: "host-controller",
+            // NOT DSL-migratable (ADR 0045, issue #831): the damaged player is
+            // the enchanted creature's controller (host-controller scope), which
+            // no EffectPlayerRef expresses. Blocked on: host-controller player ref.
             resolve: (ctx, _event, hostController) => {
                 ctx.dealDamage({ type: "player", id: hostController }, 1);
             },
@@ -1230,6 +1266,10 @@ export const fastbond: CardDefinition = {
                 );
                 return (player?.landsPlayedThisTurn ?? 0) > 1;
             },
+            // NOT DSL-migratable (ADR 0045, issue #831): the ETB damage is gated
+            // on an intervening-if over landsPlayedThisTurn — a game-state read
+            // no `if` predicate form expresses. Blocked on: state-read predicate
+            // (landsPlayedThisTurn).
             resolve: (ctx) => {
                 ctx.dealDamage({ type: "player", id: ctx.controller }, 1);
             },
