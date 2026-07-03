@@ -13,7 +13,7 @@ boundary through an **explicit `capture` map**.
     "timing": "next-end-step",
     "oracleText": "At the beginning of the next end step, destroy it.",
     "capture": { "$it": { "target": 0 } },
-    "effects": [{ "op": "destroy", "target": { "ref": "$it" } }]
+    "effects": [{ "op": "destroy", "target": { "ref": "$it" } }],
 }
 ```
 

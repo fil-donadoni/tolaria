@@ -910,14 +910,17 @@ export const mishrasFactory: CardDefinition = {
                 count: 1,
                 subtypeFilter: "Assembly-Worker",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.addTemporaryPTBuff(target, 1, 1, {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+1 EOT
+            // on the announced target (CR 613.4c) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 1,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

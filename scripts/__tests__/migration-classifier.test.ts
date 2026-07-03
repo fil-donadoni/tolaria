@@ -72,10 +72,14 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // aura-pumps (getAttachedTo — blocked on an attached-object selector, a
     // classifier read the tool counts as harmless) and count/colour/combat-
     // role-scaled pumps not expressible by the current value grammar.
+    // #840 fixup: the remaining cleanly-expressible pump-only closures the
+    // first pass missed were migrated (Mishra's Factory, Krovikan Elementalist,
+    // Minion of Tevesh Szat, Electric Eel) — 4 more FREE/AFK-ready closures
+    // migrated away (total 783→779, FREE 270→266, AFK-ready 245→241).
     it("reports the committed baseline bucket totals", () => {
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(783);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(270);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(245);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(779);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(266);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(241);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(16);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(497);
     });

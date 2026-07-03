@@ -1271,6 +1271,13 @@ export const karplusanGiant: CardDefinition = {
                 },
             },
             useStack: true,
+            // AFK-migration skip (ADR 0045, issue #840), NOT a capability gap:
+            // this is a plain +1/+1 EOT self-pump ({ ref: "$source" }) the pump
+            // Op covers. It stays resolve() because the migration classifier
+            // flags it ✗no-test — its per-card test lives in the snow cluster
+            // (ice/__tests__/colorless.test.ts), not the parallel red.test.ts,
+            // so the sweep can't confirm the green-before equivalence harness in
+            // the expected location. Migrate when that test moves/parallels.
             resolve: (ctx: SpellContext) => {
                 ctx.addTemporaryPTBuff(
                     { type: "permanent", id: ctx.sourceInstanceId },
