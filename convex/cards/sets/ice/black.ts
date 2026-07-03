@@ -232,10 +232,11 @@ export const brineShaman: CardDefinition = {
                 count: 1,
                 spellTypeFilter: "Creature",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "spell") ctx.counter(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): counter the announced
+            // target creature spell (CR 701.5a). The other ability (pump) stays
+            // resolve() pending an addTemporaryPTBuff Op. Untouched per-card
+            // test is the equivalence harness.
+            effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
 };
@@ -2405,10 +2406,10 @@ export const stromgaldCabal: CardDefinition = {
             cost: { tap: true, life: 1 },
             useStack: true,
             targetRequirement: { type: "spell", count: 1, colorFilter: "W" },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "spell") ctx.counter(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): counter the announced
+            // target spell (CR 701.5a). Untouched per-card test is the
+            // equivalence harness.
+            effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
 };
