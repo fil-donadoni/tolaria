@@ -66,6 +66,11 @@ function tideEnterTrigger(id: string) {
         id,
         oracleText: "This permanent enters with a tide counter on it.",
         scope: "self",
+        // NOT DSL-migratable (ADR 0045): built via the `enteredTrigger`
+        // factory, which owns the `resolve` closure and exposes no `effects[]`
+        // site. The body is a clean `counters` add on `$source`, but the factory
+        // wrapper blocks it. Stays resolve() until the trigger factories accept
+        // effects.
         resolve: (ctx) => {
             ctx.addCounter(
                 { type: "permanent", id: ctx.sourceInstanceId },
@@ -83,13 +88,16 @@ function tideUpkeepTrigger(id: string) {
             "At the beginning of your upkeep, put a tide counter on this permanent.",
         phase: "UPKEEP",
         scope: "your",
-        resolve: (ctx) => {
-            ctx.addCounter(
-                { type: "permanent", id: ctx.sourceInstanceId },
-                "tide",
-                1
-            );
-        },
+        // CR 122 (issue #841) — put one tide counter on the source.
+        effects: [
+            {
+                op: "counters",
+                action: "add",
+                counter: "tide",
+                target: { ref: "$source" },
+                count: 1,
+            },
+        ],
     });
 }
 
@@ -99,6 +107,10 @@ function tideSheddingTrigger(id: string) {
         oracleText:
             "Whenever there are four or more tide counters on this permanent, remove all tide counters from it.",
         condition: (self) => (self.counters?.["tide"] ?? 0) >= 4,
+        // NOT DSL-migratable (ADR 0045): built via the `stateTrigger` factory
+        // (no `effects[]` site), and "remove ALL tide counters" removes a
+        // runtime count (`getCounterCount`) — a counter tally the `count`
+        // grammar cannot express. Stays resolve().
         resolve: (ctx) => {
             const src = {
                 type: "permanent" as const,
@@ -720,6 +732,11 @@ export const merseine: CardDefinition = {
             id: "merseine-enter-counters",
             oracleText: "This Aura enters with three net counters on it.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): built via the `enteredTrigger`
+            // factory, which owns the `resolve` closure and exposes no
+            // `effects[]` site. The body is a clean `counters` add on
+            // `$source`, but the factory wrapper blocks it. Stays resolve()
+            // until the trigger factories accept effects.
             resolve: (ctx) => {
                 ctx.addCounter(
                     { type: "permanent", id: ctx.sourceInstanceId },

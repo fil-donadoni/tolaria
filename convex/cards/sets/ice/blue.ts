@@ -584,6 +584,12 @@ export const essenceFlare: CardDefinition = {
                 "At the beginning of the upkeep of enchanted creature's controller, put a -0/-1 counter on that creature.",
             phase: "UPKEEP",
             scope: "host-controller",
+            // NOT DSL-migratable (ADR 0045): the counter target is the ENCHANTED
+            // creature (`getAttachedTo`), and no `EffectObjectSelector` names an
+            // Aura's attached object (only announced slots, `$source`, `$each`).
+            // The phaseTrigger `effects[]` site is also restricted to
+            // `scope: "your"`; this is `host-controller`. Stays resolve() until
+            // an attached-object selector exists.
             resolve: (ctx) => {
                 const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
                 if (!hostId) return;
@@ -694,13 +700,16 @@ export const iceberg: CardDefinition = {
             oracleText: "{3}: Put an ice counter on this enchantment.",
             cost: { mana: { X: 3 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "ice",
-                    1
-                );
-            },
+            // CR 122 (issue #841) — put one ice counter on the source.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "ice",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         },
         {
             id: "iceberg-tap-for-mana",

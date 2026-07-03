@@ -781,6 +781,11 @@ export const primordialOoze: CardDefinition = {
             // CR 608.2 — two steps so the counter add (step 0, irreversible)
             // is NOT re-applied when the `requestMayPay` in step 1 suspends and
             // resumes. A single `resolve` would grow the Ooze twice on resume.
+            // NOT DSL-migratable (ADR 0045): the `counters` add is expressible,
+            // but the follow-on `mayPay` cost is {X} where X is the +1/+1
+            // counter tally (`getCounterCount`) and the punisher damage equals
+            // that same tally — neither a dynamic counter-count mayPay cost nor
+            // a counter-count value is expressible today. Stays resolve().
             resolveSteps: [
                 (ctx) => {
                     ctx.addCounter(

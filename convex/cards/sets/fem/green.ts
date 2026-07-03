@@ -36,13 +36,16 @@ function sporeUpkeepTrigger(id: string) {
             "At the beginning of your upkeep, put a spore counter on this creature.",
         phase: "UPKEEP",
         scope: "your",
-        resolve: (ctx) => {
-            ctx.addCounter(
-                { type: "permanent", id: ctx.sourceInstanceId },
-                "spore",
-                1
-            );
-        },
+        // CR 122 (issue #841) — put one spore counter on the source.
+        effects: [
+            {
+                op: "counters",
+                action: "add",
+                counter: "spore",
+                target: { ref: "$source" },
+                count: 1,
+            },
+        ],
     });
 }
 
@@ -254,12 +257,16 @@ export const fungalBloom: CardDefinition = {
                 count: 1,
                 subtypeFilter: "Fungus",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.addCounter(target, "spore", 1);
-                }
-            },
+            // CR 122 (issue #841) — put one spore counter on the target Fungus.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "spore",
+                    target: { target: 0 },
+                    count: 1,
+                },
+            ],
         },
     ],
 };
@@ -609,6 +616,11 @@ export const thelonsChant: CardDefinition = {
                 }
                 return false;
             },
+            // NOT DSL-migratable (ADR 0045): built via the `enteredTrigger`
+            // factory (no `effects[]` site), and the "3 damage unless they put a
+            // -1/-1 counter" branch is a punisher choice whose target is the
+            // punished player's own creature pick (`requestChoice`) — not a
+            // covered object selector. Stays resolve().
             resolve: (ctx, event, entered) => {
                 if (event.type !== "PERMANENT_ENTERED") return;
                 const player = entered.controllerId;

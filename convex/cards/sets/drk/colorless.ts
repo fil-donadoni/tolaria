@@ -237,6 +237,11 @@ export const livingArmor: CardDefinition = {
             cost: { tap: true, sacrifice: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
+            // NOT DSL-migratable (ADR 0045): planned-migratable, blocked on a
+            // value construct. The counter count X is the TARGET's mana value
+            // (`getManaValue`), which the `count` grammar (battlefield/graveyard
+            // card-set cardinality only) cannot express. Stays resolve() until
+            // a mana-value value member exists.
             resolve: (ctx: SpellContext) => {
                 const t = ctx.targets[0];
                 if (t?.type !== "permanent") return;
@@ -279,6 +284,11 @@ export const necropolis: CardDefinition = {
                 zone: "graveyard",
                 controller: "you",
             },
+            // NOT DSL-migratable (ADR 0045): planned-migratable, blocked on a
+            // value construct. The counter count X is the exiled graveyard
+            // card's mana value (`getGraveyardCards` → `manaValue`), which the
+            // `count` grammar cannot express. Stays resolve() until a mana-value
+            // value member exists.
             resolve: (ctx: SpellContext) => {
                 const t = ctx.targets[0];
                 if (t?.type !== "graveyard-card" || !t.playerId) return;
@@ -555,16 +565,18 @@ export const cityOfShadows: CardDefinition = {
                 count: 1,
                 controller: "you",
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type !== "permanent") return;
-                ctx.exile(t);
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "storage",
-                    1
-                );
-            },
+            // CR 701.18 exile the target creature, then CR 122 put one storage
+            // counter on the source (issue #841).
+            effects: [
+                { op: "exile", target: { target: 0 } },
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "storage",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         },
         {
             id: "city-of-shadows-mana",

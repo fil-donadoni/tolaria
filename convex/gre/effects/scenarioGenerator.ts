@@ -344,6 +344,28 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSlot(req, op.target.target, "permanent");
             return;
+        case "counters":
+            // `counters` (issue #841) puts/removes counters (CR 122). The
+            // generator can assert a FIXED-count ADD on an announced permanent
+            // slot (it seeds a filler creature there and reads the counter
+            // tally after resolution). A `$source` / `$each` target, a
+            // `ref`/`count` amount, or a `remove` (which needs pre-seeded
+            // counters the canned generator does not place) is not modelled —
+            // skip and let the card's own per-card test cover it.
+            if (op.action !== "add") {
+                req.skip ??= `Op "counters" removes counters the canned generator does not pre-seed — covered by the card's own per-card test`;
+                return;
+            }
+            if (!("target" in op.target)) {
+                req.skip ??= `Op "counters" targets $source/$each — covered by the card's own per-card test`;
+                return;
+            }
+            if (typeof op.count !== "number") {
+                req.skip ??= `Op "counters" uses a ref/count amount the canned generator does not model — covered by the card's own per-card test`;
+                return;
+            }
+            recordSlot(req, op.target.target, "permanent");
+            return;
         case "forEach":
             // The forEach construct (issue #807) iterates a runtime-selected
             // set; the generator cannot predict per-member outcomes (and a
@@ -709,6 +731,41 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 return {
                     ok: ap === expP && at === expT,
                     detail: `P/T ${ap}/${at}, expected ${expP}/${expT}`,
+                };
+            },
+        };
+    },
+    // `counters` (issue #841, CR 122) — a fixed-count ADD on an announced
+    // permanent slot is observable as a rise in the counter tally on the card
+    // (counters are stored on the instance and persist, so they read
+    // immediately after resolution). `remove`, `$source`/`$each` targets and
+    // `ref`/`count` amounts are skipped upstream in `analyseOp` (returns null
+    // defensively here).
+    counters(rawOp, scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "counters" }>;
+        if (op.action !== "add") return null;
+        if (!("target" in op.target)) return null;
+        if (typeof op.count !== "number") return null;
+        const permId = scenario.targetPermanentIds[op.target.target];
+        const permBefore = pre.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === permId);
+        if (!permBefore) return null;
+        const before = permBefore.counters?.[op.counter] ?? 0;
+        const expected = before + op.count;
+        return {
+            label: `add ${op.count} ${op.counter} counter(s) to permanent ${permId} (${before}→${expected})`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                const actual = perm.counters?.[op.counter] ?? 0;
+                return {
+                    ok: actual === expected,
+                    detail: `${op.counter} counters ${actual}, expected ${expected}`,
                 };
             },
         };

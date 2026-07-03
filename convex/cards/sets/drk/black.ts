@@ -583,6 +583,11 @@ export const theFallen: CardDefinition = {
                 "Marks each opponent The Fallen has dealt damage to this game.",
             source: "self",
             target: { kind: "player", player: { relation: "opponent" } },
+            // NOT DSL-migratable (ADR 0045): built via the `damageDealtTrigger`
+            // factory, which owns the `resolve` closure and exposes no
+            // `effects[]` site. The body is a clean `counters` add on
+            // `$source`, but the factory wrapper blocks it. Stays resolve()
+            // until the trigger factories accept effects.
             resolve: (ctx) => {
                 ctx.addCounter(
                     { type: "permanent", id: ctx.sourceInstanceId },

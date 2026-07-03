@@ -825,13 +825,16 @@ export const fylgja: CardDefinition = {
             oracleText: "{2}{W}: Put a healing counter on this Aura.",
             cost: { mana: { X: 2, W: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "healing",
-                    1
-                );
-            },
+            // CR 122 (issue #841) — put one healing counter on the source Aura.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "healing",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         },
     ],
 };

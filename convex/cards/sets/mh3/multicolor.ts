@@ -52,6 +52,21 @@ export const psychicFrog: CardDefinition = {
             oracleText: "Discard a card: Put a +1/+1 counter on this creature.",
             cost: {},
             useStack: true,
+            // NOT DSL-migratable (ADR 0045, issue #841): "Discard a card:" is
+            // an activation COST (CR 118.3 / 602.1b), so with an empty hand the
+            // ability is UNACTIVATABLE — the +1/+1 counter must not land. The
+            // engine has no "discard a chosen card" activation cost (the cost
+            // union offers only `discardLastDrawn` / `discardAtRandom`), and the
+            // choice→discard→counters chain cannot express the cost-gating: on
+            // an empty hand the choice/discard clamp to no-ops but a subsequent
+            // `counters add` still fires, granting a free counter without paying
+            // the discard. The `if` predicate grammar cannot test a choice
+            // binding's cardinality (nor count the hand zone), so the counter
+            // cannot be gated on the discard having happened. Kept as resolve():
+            // the discard is performed via a resolve-time `requestChoice` and
+            // the counter is added ONLY when a card is actually discarded (the
+            // empty-hand early-return preserves the cost semantics). Mirrors the
+            // established cost→resolve-time-pick Necropolis idiom.
             resolve: (ctx: SpellContext) => {
                 const handIds = ctx.getHandIds(ctx.controller);
                 if (handIds.length === 0) return;

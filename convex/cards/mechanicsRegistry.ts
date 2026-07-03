@@ -2374,6 +2374,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.addTemporaryPTBuff",
         note: 'Temporary P/T boost until a phase boundary (layer 7c, CR 613.4c, issue #840). A thin declarative skin over SpellContext.addTemporaryPTBuff, one execution path (ADR 0045). `target` is an announced slot (Giant Growth), the resolving source (`$source` — a self-pump activated ability, "~ gets +1/+0 until end of turn"), or a forEach `$each` (a mass pump); `power`/`toughness` are SIGNED values (a negative is a shrink — Weakness; a zero is a one-sided pump); `duration` is the expiry phase boundary (CR 514.2 / 511.3). The source-tapped variant (addSourceTappedPTBuff — Ashnod\'s Battle Gear, "for as long as this remains tapped") uses a state-tied duration outside the DurationSpec grammar and stays resolve() by design. Subsumes the addTemporaryPTBuff closures the migration classifier folds here (~99 blocked closures at ship time).',
     },
+    {
+        op: "counters",
+        status: "implemented",
+        cr: "122.1",
+        binding: "SpellContext.addCounter / removeCounter",
+        note: 'Add or remove counters on a permanent (CR 122, issue #841). A thin declarative skin over two SpellContext primitives, one execution path (ADR 0045): `action: "add"` → addCounter (Sengir Vampire\'s +1/+1 on kill, a charge-counter accrual), `action: "remove"` → removeCounter (a counter-shedding effect, clamped to the counters present). `counter` is the free-form counter type ("+1/+1", "+1/+0", "-1/-1", "charge", "corpse", …; P/T-modifying types read at stat-lookup time by layer 7d). `target` is an announced slot, the resolving source (`$source` — a permanent counter-ing itself), or a forEach `$each` (a mass counter placement); `count` is the number of counters (literal / ref / count). Subsumes the addCounter / removeCounter closures the migration classifier folds here (~80 blocked closures at ship time).',
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
@@ -2409,12 +2416,9 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- High-frequency skins (by blocked-closure count) ---
     // pump SHIPPED (issue #840) — addTemporaryPTBuff is now COVERED live via
     // EFFECT_OP_REGISTRY; row moved there with status "implemented".
-    {
-        op: "counters",
-        status: "planned",
-        cr: "122.1",
-        note: "Add/remove counters on a permanent (CR 122). Folds SpellContext.addCounter / removeCounter (~80 blocked closures).",
-    },
+    // counters SHIPPED (issue #841) — addCounter / removeCounter are now
+    // COVERED live via EFFECT_OP_REGISTRY; row moved there with status
+    // "implemented".
     {
         op: "tapUntap",
         status: "planned",

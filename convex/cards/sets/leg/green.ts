@@ -841,13 +841,16 @@ export const whirlingDervish: CardDefinition = {
             // turn. Re-checked at resolve (the flag persists to CLEANUP).
             interveningIf: (_event, self) =>
                 self.dealtDamageToOpponentThisTurn === true,
-            resolve: (ctx) => {
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "+1/+1",
-                    1
-                );
-            },
+            // CR 122 (issue #841) — put one +1/+1 counter on the source.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         }),
     ],
 };

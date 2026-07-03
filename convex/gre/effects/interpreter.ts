@@ -510,6 +510,24 @@ export const OP_EXECUTORS: {
         if (power === undefined || toughness === undefined) return;
         ctx.addTemporaryPTBuff(target, power, toughness, op.duration);
     },
+    // CR 122 (issue #841) — put or remove counters on a permanent. A thin
+    // declarative skin over `addCounter` / `removeCounter`, ONE execution path
+    // (ADR 0045). Skipped when the target is gone (CR 608.2b — the permanent
+    // left the battlefield; `resolveObjectRef` returns undefined) or a
+    // `ref`/`count` value cannot be resolved (its binding was never captured).
+    // The primitives themselves no-op a non-positive count and clamp a remove
+    // to the counters present (CR 122.6).
+    counters(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        const count = resolveValue(ctx, op.count);
+        if (count === undefined) return;
+        if (op.action === "add") {
+            ctx.addCounter(target, op.counter, count);
+        } else {
+            ctx.removeCounter(target, op.counter, count);
+        }
+    },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution player choice through
     // the existing Pending Choice pipeline. First execution enqueues the
     // choice and SUSPENDS the script; the resumed execution (after the

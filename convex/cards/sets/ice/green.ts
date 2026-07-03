@@ -729,6 +729,10 @@ export const freyalisesWinds: CardDefinition = {
             // CR 701.20a — any permanent becoming tapped, regardless of
             // controller (including a tap for mana — no `forMana` gate).
             scope: "any",
+            // NOT DSL-migratable (ADR 0045): built via the `tappedTrigger`
+            // factory (no `effects[]` site), and the counter target is the
+            // permanent that became tapped (a trigger-event object) — not a
+            // covered `EffectObjectSelector`. Stays resolve().
             resolve: (ctx, _event, tapped) => {
                 // CR 122.1 — add a wind counter to the tapped permanent. The
                 // untap-step seam later keys off this counter.
@@ -1677,6 +1681,11 @@ export const wiitigo: CardDefinition = {
                     event.blockerId === self.id || event.attackerId === self.id
                 );
             },
+            // NOT DSL-migratable (ADR 0045): the marker add is gated on a
+            // counter-COUNT predicate (add only if the marker count is 0) — the
+            // `if` predicate grammar reads only a bound `$paid` outcome, not a
+            // counter tally. Stays resolve() until a counter-count predicate
+            // exists.
             resolve: (ctx: SpellContext, event) => {
                 if (event.type !== "BLOCKERS_CONFIRMED") return;
                 const self = {
@@ -1696,6 +1705,11 @@ export const wiitigo: CardDefinition = {
                 "At the beginning of your upkeep, put a +1/+1 counter on this creature if it has blocked or been blocked since your last upkeep. Otherwise, remove a +1/+1 counter from it.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): the +1/+1 add-or-remove branch is
+            // gated on a counter-COUNT predicate (whether the blocked-marker
+            // tally is > 0), and the marker-clear removes a runtime count — the
+            // `if` predicate grammar reads only a bound `$paid` outcome, and the
+            // `count` grammar cannot express a counter tally. Stays resolve().
             resolve: (ctx) => {
                 const self = {
                     type: "permanent" as const,

@@ -617,14 +617,16 @@ function makeManaBattery(config: {
                 // CR 605: this ability adds a counter, not mana, so it uses the
                 // stack like any ordinary activated ability.
                 useStack: true,
-                resolve: (ctx: SpellContext) => {
-                    // CR 122.1 — accrue one charge counter on the source.
-                    ctx.addCounter(
-                        { type: "permanent", id: ctx.sourceInstanceId },
-                        "charge",
-                        1
-                    );
-                },
+                // CR 122 (issue #841) — accrue one charge counter on the source.
+                effects: [
+                    {
+                        op: "counters",
+                        action: "add",
+                        counter: "charge",
+                        target: { ref: "$source" },
+                        count: 1,
+                    },
+                ],
             },
             {
                 id: "mana-battery-tap",

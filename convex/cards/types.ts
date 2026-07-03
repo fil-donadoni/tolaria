@@ -4569,6 +4569,27 @@ export type EffectOp =
           toughness: EffectValue;
           duration: DurationSpec;
       }
+    /** CR 122 (issue #841) — put or remove counters on a permanent. A thin
+     *  declarative skin over the SpellContext primitives `addCounter` /
+     *  `removeCounter`, one execution path (ADR 0045). `action` selects the
+     *  direction (`"add"` — Sengir Vampire's +1/+1 on kill; `"remove"` — a
+     *  counter-shedding effect). `counter` is the free-form counter type
+     *  ("+1/+1", "+1/+0", "-1/-1", "charge", "corpse", …; P/T-modifying types
+     *  are recognized at stat-read time by layer 7d). `target` names the
+     *  permanent: an announced target slot, the resolving source (`$source` —
+     *  a permanent putting counters on itself), or the current member of a
+     *  `forEach` set (`{ ref: "$each" }`). `count` is the number of counters
+     *  (a literal, a bound object's power/toughness `ref`, or a `count`).
+     *  Skipped when the referenced permanent is gone (CR 608.2b — the spell
+     *  does as much as it can); `removeCounter` additionally clamps to the
+     *  counters actually present. */
+    | {
+          op: "counters";
+          action: "add" | "remove";
+          counter: string;
+          target: EffectObjectSelector;
+          count: EffectValue;
+      }
     /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a
      *  Pending Choice of the given `kind` and SUSPENDS the script (the stack

@@ -792,6 +792,10 @@ export const spiritShackle: CardDefinition = {
             scope: "any",
             // CR 303.4b — only the aura's host firing matters.
             condition: (event, self) => event.permanentId === self.attachedTo,
+            // NOT DSL-migratable (ADR 0045): built via the `tappedTrigger`
+            // factory (no `effects[]` site), and the counter target is the
+            // permanent that became tapped (a trigger-event object) — not a
+            // covered `EffectObjectSelector`. Stays resolve().
             resolve: (ctx, _event, tapped) => {
                 ctx.addCounter(
                     { type: "permanent", id: tapped.id },

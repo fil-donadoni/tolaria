@@ -285,6 +285,12 @@ export const unstableMutation: CardDefinition = {
                 "At the beginning of the upkeep of enchanted creature's controller, put a -1/-1 counter on that creature.",
             phase: "UPKEEP",
             scope: "host-controller",
+            // NOT DSL-migratable (ADR 0045): the counter target is the ENCHANTED
+            // creature (`getAttachedToId`), and no `EffectObjectSelector`
+            // names an Aura's attached object (only announced slots, `$source`,
+            // `$each`). The phaseTrigger `effects[]` site is also restricted to
+            // `scope: "your"`; this is `host-controller`. Stays resolve() until
+            // an attached-object selector exists.
             resolve: (ctx) => {
                 const hostId = ctx.getAttachedToId();
                 if (hostId) {

@@ -799,6 +799,11 @@ export const mountainTitan: CardDefinition = {
                 "Whenever you cast a black spell, put a +1/+1 counter on this creature.",
             scope: "you",
             filter: { colors: "B" },
+            // NOT DSL-migratable (ADR 0045): built via the `spellCastTrigger`
+            // factory, which owns the `resolve` closure and exposes no
+            // `effects[]` site. The body is a clean `counters` add on
+            // `$source`, but the factory wrapper blocks it. Stays resolve()
+            // until the trigger factories accept effects.
             resolve: (ctx) => {
                 ctx.addCounter(
                     { type: "permanent", id: ctx.sourceInstanceId },
@@ -859,10 +864,16 @@ export const skeletonShip: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent") ctx.addCounter(t, "-1/-1", 1);
-            },
+            // CR 122 (issue #841) — put one -1/-1 counter on the target.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "-1/-1",
+                    target: { target: 0 },
+                    count: 1,
+                },
+            ],
         },
     ],
 };

@@ -268,13 +268,16 @@ export const balduvianHydra: CardDefinition = {
             useStack: true,
             activationPhaseRestriction: ["UPKEEP"],
             controllerTurnOnly: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "+1/+0",
-                    1
-                );
-            },
+            // CR 122 (issue #841) — put one +1/+0 counter on the source.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+0",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         },
     ],
 };
@@ -680,12 +683,16 @@ export const dwarvenArmory: CardDefinition = {
             useStack: true,
             activationPhaseRestriction: ["UPKEEP"],
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.addCounter(target, "+2/+2", 1);
-                }
-            },
+            // CR 122 (issue #841) — put one +2/+2 counter on the target.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+2/+2",
+                    target: { target: 0 },
+                    count: 1,
+                },
+            ],
         },
     ],
 };

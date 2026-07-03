@@ -223,12 +223,16 @@ export const dwarvenWeaponsmith: CardDefinition = {
             activationPhaseRestriction: ["UPKEEP"],
             controllerTurnOnly: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.addCounter(target, "+1/+1", 1);
-                }
-            },
+            // CR 122 (issue #841) — put one +1/+1 counter on the target.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    target: { target: 0 },
+                    count: 1,
+                },
+            ],
         },
     ],
 };

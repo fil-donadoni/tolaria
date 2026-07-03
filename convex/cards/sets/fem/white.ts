@@ -495,13 +495,16 @@ export const icatianMoneychanger: CardDefinition = {
                 "At the beginning of your upkeep, put a credit counter on this creature.",
             phase: "UPKEEP",
             scope: "your",
-            resolve: (ctx) => {
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "credit",
-                    1
-                );
-            },
+            // CR 122 (issue #841) — put one credit counter on the source.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "credit",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         }),
     ],
     activatedAbilities: [

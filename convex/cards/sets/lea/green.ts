@@ -321,6 +321,11 @@ export const fungusaur: CardDefinition = {
                 kind: "permanent",
                 filter: { controllerRelation: "self" },
             },
+            // NOT DSL-migratable (ADR 0045): built via the `damageTakenTrigger`
+            // factory, which owns the `resolve` closure and exposes no
+            // `effects[]` site. The body is a clean `counters` add on
+            // `$source`, but the factory wrapper blocks it. Stays resolve()
+            // until the trigger factories accept effects.
             resolve: (ctx) => {
                 ctx.addCounter(
                     { type: "permanent", id: ctx.sourceInstanceId },
@@ -413,12 +418,18 @@ export const gaeasLiege: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Land", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent") {
-                    ctx.addCounter(t, "gaea-forest", 1);
-                }
-            },
+            // CR 122 (issue #841) — mark the targeted land with a gaea-forest
+            // counter; the counter-driven subtype-set (layer 4) makes it a
+            // Forest while Gaea's Liege is on the battlefield.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "gaea-forest",
+                    target: { target: 0 },
+                    count: 1,
+                },
+            ],
         },
     ],
 };
@@ -708,6 +719,10 @@ export const livingArtifact: CardDefinition = {
                 kind: "player",
                 player: { relation: "controller" },
             },
+            // NOT DSL-migratable (ADR 0045): built via the `damageTakenTrigger`
+            // factory (no `effects[]` site) AND the counter count is the
+            // event's damage amount (`damage.amount`), a trigger-event field the
+            // `count` value grammar cannot express. Stays resolve().
             resolve: (ctx, _event, damage) => {
                 ctx.addCounter(
                     { type: "permanent", id: ctx.sourceInstanceId },
@@ -725,6 +740,12 @@ export const livingArtifact: CardDefinition = {
             interveningIf: (_event, self) => {
                 return (self.counters?.["vitality"] ?? 0) > 0;
             },
+            // NOT DSL-migratable (ADR 0045): the "you may remove a counter"
+            // choice is a COST-FREE yes/no gate, but the `mayPay` Op requires a
+            // mana `cost`; and "if you do, gain 1 life" is gated on the
+            // `removeCounter` return value (whether a counter was actually
+            // removed), which the declarative `counters` Op does not expose.
+            // Stays resolve() until a cost-free "may" construct exists.
             resolve: (ctx) => {
                 const accept = ctx.requestMayPay({
                     playerId: ctx.controller,

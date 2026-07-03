@@ -48,11 +48,16 @@ export const armorThrull: CardDefinition = {
             cost: { tap: true, sacrifice: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type !== "permanent") return;
-                ctx.addCounter(target, "+1/+2", 1);
-            },
+            // CR 122 (issue #841) — put one +1/+2 counter on the target.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+2",
+                    target: { target: 0 },
+                    count: 1,
+                },
+            ],
         },
     ],
 };
@@ -189,13 +194,16 @@ export const ebonPraetor: CardDefinition = {
             scope: "your",
             oracleText:
                 "At the beginning of your upkeep, put a -2/-2 counter on this creature.",
-            resolve: (ctx) => {
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "-2/-2",
-                    1
-                );
-            },
+            // CR 122 (issue #841) — put one -2/-2 counter on the source.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "-2/-2",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         }),
     ],
     activatedAbilities: [
@@ -208,6 +216,11 @@ export const ebonPraetor: CardDefinition = {
             oncePerTurn: true,
             activationPhaseRestriction: ["UPKEEP"],
             controllerTurnOnly: true,
+            // NOT DSL-migratable (ADR 0045): the `+1/+0` counter is gated on
+            // whether the sacrificed creature (paid as an activation cost) was a
+            // Thrull (`getAdditionalCostSubtypes`) — the `if` predicate grammar
+            // reads only a bound `$paid` outcome, not a paid-cost object's
+            // subtypes. Stays resolve().
             resolve: (ctx: SpellContext) => {
                 const self = {
                     type: "permanent" as const,
@@ -548,6 +561,12 @@ export const soulExchange: CardDefinition = {
         zone: "graveyard",
         controller: "you",
     },
+    // NOT DSL-migratable (ADR 0045): the `+2/+2` counter is gated on whether the
+    // exiled additional-cost creature was a Thrull (`getAdditionalCostSubtypes`)
+    // — the `if` predicate grammar reads only a bound `$paid` outcome, not a
+    // paid-cost object's subtypes; and the reanimated creature is named by the
+    // graveyard-card target's post-return instance id, not a covered object
+    // selector. Stays resolve().
     resolve: (ctx: SpellContext) => {
         const t = ctx.targets[0];
         if (!t || t.type !== "graveyard-card" || !t.playerId) return;
@@ -715,6 +734,11 @@ export const tourachsChant: CardDefinition = {
                 }
                 return false;
             },
+            // NOT DSL-migratable (ADR 0045): built via the `enteredTrigger`
+            // factory (no `effects[]` site), and the "3 damage unless they put a
+            // -1/-1 counter" branch is a punisher choice whose target is the
+            // punished player's own creature pick (`requestChoice`) — not a
+            // covered object selector. Stays resolve().
             resolve: (ctx, event, entered) => {
                 if (event.type !== "PERMANENT_ENTERED") return;
                 const player = entered.controllerId;
@@ -771,6 +795,12 @@ export const tourachsGate: CardDefinition = {
             scope: "your",
             oracleText:
                 "At the beginning of your upkeep, remove a time counter from this Aura. If there are no time counters on this Aura, sacrifice it.",
+            // NOT DSL-migratable (ADR 0045): the `counters` remove is
+            // expressible, but "if there are no time counters, sacrifice it" is
+            // gated on a counter-COUNT threshold (`getCounterCount` <= 0) — the
+            // `if` predicate grammar reads only a bound `$paid` outcome, not a
+            // counter tally. Stays resolve() until a counter-count predicate
+            // exists.
             resolve: (ctx) => {
                 const self = {
                     type: "permanent" as const,
@@ -789,13 +819,16 @@ export const tourachsGate: CardDefinition = {
                 "Sacrifice a Thrull: Put three time counters on this Aura.",
             cost: { sacrificeFilter: { subtypes: ["Thrull"] } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "time",
-                    3
-                );
-            },
+            // CR 122 (issue #841) — put three time counters on the source.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "time",
+                    target: { ref: "$source" },
+                    count: 3,
+                },
+            ],
         },
         {
             id: "tourachs-gate-pump",

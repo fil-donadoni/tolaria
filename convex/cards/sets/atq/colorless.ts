@@ -612,13 +612,16 @@ export const armageddonClock: CardDefinition = {
                 "At the beginning of your upkeep, put a doom counter on this artifact.",
             phase: "UPKEEP",
             scope: "your",
-            resolve: (ctx) => {
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "doom",
-                    1
-                );
-            },
+            // CR 122 (issue #841) — put one doom counter on the source.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "doom",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         }),
         phaseTrigger({
             id: "armageddon-clock-ping",
@@ -650,13 +653,16 @@ export const armageddonClock: CardDefinition = {
             // activate" — CR 113.3c.
             activationPhaseRestriction: ["UPKEEP"],
             activatableByAnyPlayer: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.removeCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "doom",
-                    1
-                );
-            },
+            // CR 122 (issue #841) — remove one doom counter from the source.
+            effects: [
+                {
+                    op: "counters",
+                    action: "remove",
+                    counter: "doom",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         },
     ],
 };
@@ -726,13 +732,16 @@ export const clockworkAvian: CardDefinition = {
             interveningIf: (_event, self) =>
                 self.hasAttackedThisTurn === true ||
                 self.hasBlockedThisTurn === true,
-            resolve: (ctx) => {
-                ctx.removeCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "+1/+0",
-                    1
-                );
-            },
+            // CR 122 (issue #841) — shed one +1/+0 counter from the source.
+            effects: [
+                {
+                    op: "counters",
+                    action: "remove",
+                    counter: "+1/+0",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         }),
     ],
     activatedAbilities: [
@@ -1174,13 +1183,17 @@ export const ashnodsTransmogrant: CardDefinition = {
                 count: 1,
                 excludeTypes: "Artifact",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.addCounter(target, "+1/+1", 1);
-                    // "becomes an artifact" omitted — see DIVERGENCE note above.
-                }
-            },
+            // CR 122 (issue #841) — put one +1/+1 counter on the target.
+            // "becomes an artifact" omitted — see DIVERGENCE note above.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    target: { target: 0 },
+                    count: 1,
+                },
+            ],
         },
     ],
 };
@@ -2049,6 +2062,11 @@ export const tetravus: CardDefinition = {
                 "At the beginning of your upkeep, you may exile any number of tokens created with this creature. If you do, put that many +1/+1 counters on this creature.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): the counter count is "that many"
+            // = the number of tokens the player exiles in the multi-select
+            // `requestChoice`, a choice-result cardinality the `count` grammar
+            // (battlefield/graveyard card sets) cannot express — and the exile
+            // consumes the very set that would be counted. Stays resolve().
             resolve: (ctx) => {
                 // CR 111 — "tokens created with this creature": tokens on the
                 // controller's battlefield whose provenance link points here.
