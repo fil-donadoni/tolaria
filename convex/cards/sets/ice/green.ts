@@ -673,12 +673,12 @@ export const freyalisesCharm: CardDefinition = {
             oracleText: "{G}{G}: Return this enchantment to its owner's hand.",
             cost: { mana: { G: 2 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.returnToHand({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #839): return the source
+            // permanent to its owner's hand via the implicit $source binding
+            // (CR 701.10 / 400.7).
+            effects: [
+                { op: "moveZone", target: { ref: "$source" }, to: "hand" },
+            ],
         },
     ],
 };

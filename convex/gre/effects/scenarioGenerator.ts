@@ -311,6 +311,18 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // — same skip rationale as `discard`.
             req.skip ??= `Op "sacrifice" consumes a choice binding — covered by the card's own suspension/resume tests`;
             return;
+        case "moveZone":
+            // `moveZone` (issue #839) changes an object's zone. The canned
+            // generator only seeds battlefield permanents and player targets —
+            // it does not model a graveyard-card target's source zone, and a
+            // permanent target it DID seed lives on the opponent's
+            // battlefield, whereas the Op's outcome (bounce to hand,
+            // reanimate, exile-from-graveyard) depends on which zone the object
+            // starts in. Rather than mis-assert, report an explicit skip;
+            // execution coverage is the card's own per-card test (the migrated
+            // resolve()-cards keep their full behavioural tests).
+            req.skip ??= `Op "moveZone" changes zones on an object whose source zone the canned generator does not model — covered by the card's own per-card test`;
+            return;
         case "forEach":
             // The forEach construct (issue #807) iterates a runtime-selected
             // set; the generator cannot predict per-member outcomes (and a
@@ -624,6 +636,13 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // Kept for the 1:1 coverage guard; forEach coverage is the card's own
     // tests.
     forEach() {
+        return null;
+    },
+    // `moveZone` (issue #839) — never reached: `analyseOp` skips every script
+    // with a moveZone Op (the object's source zone is not modelled by the
+    // canned generator). Kept for the 1:1 coverage guard; zone-move coverage
+    // is the card's own per-card test.
+    moveZone() {
         return null;
     },
     // Zone change: exile moves the target to its owner's exile zone (CR 701.13).

@@ -234,13 +234,14 @@ describe("Effect Script Op census (ADR 0045/0046, PRD #826)", () => {
         expect(collisions, "backlog Op already implemented").toEqual([]);
     });
 
-    it("the demonstrated wave-1 Op backlog (14 named Ops) is present as planned stubs", () => {
+    it("the demonstrated wave-1 Op backlog (still-planned named Ops) is present as planned stubs", () => {
         // The demand-driven backlog surfaced by the migration classifier
         // (scripts/migration-classifier.mjs). `X` is intentionally excluded —
-        // it is an EffectValue grammar member, not an Op (PRD #826).
+        // it is an EffectValue grammar member, not an Op (PRD #826). `moveZone`
+        // was a wave-1 stub but SHIPPED (issue #839) — it now lives in
+        // EFFECT_OP_REGISTRY, not the backlog.
         const named = [
             "delayedTrigger",
-            "moveZone",
             "pump",
             "counters",
             "tapUntap",

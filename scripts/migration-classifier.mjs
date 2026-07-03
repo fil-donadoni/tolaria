@@ -36,10 +36,13 @@ const SETS_ROOT = "convex/cards/sets";
 
 // Covered primitives = the SpellContext binding of every registered Op (live,
 // so adding an Op to EFFECT_OP_REGISTRY expands the free-tranche automatically).
+// An Op that folds SEVERAL primitives lists them " / "-separated in its binding
+// ("SpellContext.moveCardById / returnToHand / returnToBattlefield", issue
+// #839); split so every folded primitive is recognized as covered.
 const COVERED = new Set(
     EFFECT_OP_REGISTRY.map((r) => r.binding)
         .filter((b) => b.startsWith("SpellContext."))
-        .map((b) => b.slice("SpellContext.".length))
+        .flatMap((b) => b.slice("SpellContext.".length).split(" / "))
 );
 
 // Composition: primitive → base Op (must be covered) + a structural construct.

@@ -410,12 +410,12 @@ export const blinkingSpirit: CardDefinition = {
             oracleText: "{0}: Return this creature to its owner's hand.",
             cost: { mana: { X: 0 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.returnToHand({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #839): return the source
+            // permanent to its owner's hand via the implicit $source binding
+            // (CR 701.10 / 400.7).
+            effects: [
+                { op: "moveZone", target: { ref: "$source" }, to: "hand" },
+            ],
         },
     ],
 };
@@ -1527,14 +1527,13 @@ export const snowHound: CardDefinition = {
                 controller: "you",
                 colorFilterAny: ["G", "U"],
             },
-            resolve: (ctx: SpellContext) => {
-                ctx.returnToHand({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-                const t = ctx.targets[0];
-                if (t?.type === "permanent") ctx.returnToHand(t);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #839): return the source
+            // permanent ($source) and the targeted creature to their owners'
+            // hands (CR 701.10 / 400.7).
+            effects: [
+                { op: "moveZone", target: { ref: "$source" }, to: "hand" },
+                { op: "moveZone", target: { target: 0 }, to: "hand" },
+            ],
         },
     ],
 };

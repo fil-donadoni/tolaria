@@ -1172,9 +1172,9 @@ export const unsummon: CardDefinition = {
     manaCost: { U: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        ctx.returnToHand(ctx.targets[0]);
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #839): return the announced
+    // creature to its owner's hand (CR 701.10 / 400.7).
+    effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
 };
 
 // Vesuvan Doppelganger — enters as a copy of any creature, "except it doesn't

@@ -4331,6 +4331,17 @@ export type EffectTargetRef = { target: number };
  *  as it can). */
 export type EffectObjectSelector = EffectTargetRef | EffectRef;
 
+/** Destination zone for the `moveZone` Op (ADR 0045, issue #839). A card can
+ *  be moved to any of the five game zones a one-shot effect addresses
+ *  (CR 400.7). `battlefield` is only reachable from a graveyard card (the
+ *  reanimation half — Resurrection); the other four are plain zone changes. */
+export type EffectMoveZone =
+    | "hand"
+    | "library"
+    | "graveyard"
+    | "exile"
+    | "battlefield";
+
 // --- Structural constructs: ref + count (ADR 0045, issue #802) ---
 //
 // The Effect Script grammar is FROZEN at four structural constructs
@@ -4479,6 +4490,25 @@ export type EffectOp =
      *  leaves the battlefield, so a later `ref` reads its last-known values
      *  (Swords to Plowshares, CR 608.2h). */
     | { op: "exile"; target: EffectObjectSelector; bind?: string }
+    /** CR 400.7 — move a card between zones (issue #839). A thin declarative
+     *  skin over the SpellContext zone-movement primitives
+     *  (`returnToHand` / `moveCardById` / `returnToBattlefield`), one execution
+     *  path (ADR 0045). `target` names the object to move: an announced target
+     *  slot (a battlefield permanent — Unsummon, Boomerang — or a graveyard
+     *  card — Raise Dead, Resurrection) or a bare snapshot ref (`$source` for a
+     *  self-bounce, Blinking Spirit). Its CURRENT zone is INFERRED from its kind
+     *  (a permanent is on the battlefield; a graveyard-card is in the
+     *  graveyard) — the Op carries no `from`. `to` is the destination:
+     *  - a permanent → `hand` returns it to its owner's hand (CR 701.10;
+     *    battlefield-only state is cleared, CR 400.7);
+     *  - a graveyard card → `battlefield` reanimates it under its owner's
+     *    control (Resurrection), or → `hand`/`library`/`exile`/`graveyard`
+     *    moves it there (Raise Dead, Grave Robbers).
+     *  Skipped when the referenced object is gone (CR 608.2b — does as much as
+     *  it can), or for a zone pair with no plain-move primitive (e.g. a
+     *  battlefield permanent to exile, which needs LTB semantics — use
+     *  `exile`). */
+    | { op: "moveZone"; target: EffectObjectSelector; to: EffectMoveZone }
     /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a
      *  Pending Choice of the given `kind` and SUSPENDS the script (the stack
