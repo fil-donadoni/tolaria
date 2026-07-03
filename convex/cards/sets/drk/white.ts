@@ -137,10 +137,9 @@ export const exorcist: CardDefinition = {
                 colorFilter: "B",
                 count: 1,
             },
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (target?.type === "permanent") ctx.destroy(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #832): destroy the
+            // announced target black creature (CR 701.8).
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };
@@ -173,6 +172,10 @@ export const miracleWorker: CardDefinition = {
                 subtypeFilter: "Aura",
                 count: 1,
             },
+            // NOT DSL-migratable (ADR 0045): the destroy is gated on the target
+            // Aura's host being controlled by the controller (getAttachedTo +
+            // getController), a host-relation predicate the destroy Op can't
+            // express. Stays resolve().
             resolve: (ctx: SpellContext) => {
                 const [target] = ctx.targets;
                 if (!target || target.type !== "permanent") return;
@@ -213,10 +216,9 @@ export const witchHunter: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "player", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (target?.type === "player") ctx.dealDamage(target, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #832): 1 damage to the
+            // announced target player (CR 120).
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
         {
             id: "witch-hunter-bounce",
@@ -229,6 +231,9 @@ export const witchHunter: CardDefinition = {
                 controller: "opponent",
                 count: 1,
             },
+            // NOT DSL-migratable (ADR 0045): returnToHand is a zone move
+            // (moveZone Op, still `planned`, not in EFFECT_OP_REGISTRY). Stays
+            // resolve().
             resolve: (ctx: SpellContext) => {
                 const [target] = ctx.targets;
                 if (target?.type === "permanent") ctx.returnToHand(target);
@@ -317,11 +322,12 @@ export const dustToDust: CardDefinition = {
     manaCost: { X: 1, W: 2 },
     types: ["Sorcery"],
     targetRequirement: { type: "Artifact", count: 2 },
-    resolve: (ctx: SpellContext) => {
-        for (const target of ctx.targets) {
-            if (target.type === "permanent") ctx.exile(target);
-        }
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #832): exile both announced
+    // target artifacts (CR 701.13).
+    effects: [
+        { op: "exile", target: { target: 0 } },
+        { op: "exile", target: { target: 1 } },
+    ],
 };
 
 // Tivadar's Crusade — "Destroy all Goblins." (CR 701.7 mass destroy filtered on
@@ -333,9 +339,19 @@ export const tivadarsCrusade: CardDefinition = {
     oracleText: "Destroy all Goblins.",
     manaCost: { X: 1, W: 2 },
     types: ["Sorcery"],
-    resolve: (ctx: SpellContext) => {
-        ctx.destroyAll({ subtypes: "Goblin" });
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #832): destroyAll(Goblins) →
+    // forEach over every battlefield's Goblin creatures, destroy each (CR 701.8).
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature", subtype: "Goblin" },
+            },
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        },
+    ],
 };
 
 // Holy Light — "Nonwhite creatures get -1/-1 until end of turn." (CR 611.2
@@ -391,6 +407,9 @@ export const martyrsCry: CardDefinition = {
         "Exile all white creatures. For each creature exiled this way, its controller draws a card.",
     manaCost: { W: 2 },
     types: ["Sorcery"],
+    // NOT DSL-migratable (ADR 0045): "all white creatures" needs a colour
+    // filter (EffectCardFilter is type/subtype only), and the per-controller
+    // draw count is a snapshot the value grammar can't express. Stays resolve().
     resolve: (ctx: SpellContext) => {
         // Snapshot per-controller white creatures first (CR 608.2g — the count
         // is fixed by what is exiled, not by post-exile board state).
@@ -429,11 +448,12 @@ export const fireAndBrimstone: CardDefinition = {
         count: 1,
         playerAttackedThisTurn: true,
     },
-    resolve: (ctx: SpellContext) => {
-        const [target] = ctx.targets;
-        if (target?.type === "player") ctx.dealDamage(target, 4);
-        ctx.dealDamage({ type: "player", id: ctx.controller }, 4);
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #832): 4 damage to the announced
+    // target player, then 4 to the controller (CR 120).
+    effects: [
+        { op: "dealDamage", amount: 4, to: { target: 0 } },
+        { op: "dealDamage", amount: 4, to: { player: "controller" } },
+    ],
 };
 
 // Fasting — DRK C7 skip-draw-step enchantment. Modern Scryfall oracle text
@@ -470,6 +490,10 @@ export const fasting: CardDefinition = {
                 "At the beginning of your upkeep, put a hunger counter on this enchantment. Then destroy this enchantment if it has five or more hunger counters on it.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): Fasting adds/reads hunger counters
+            // (counters Op, still `planned`) and destroys itself on a counter
+            // threshold; its clauses are factory-built triggers with no
+            // `effects[]` site. Stays resolve().
             resolve: (ctx) => {
                 const self = {
                     type: "permanent" as const,

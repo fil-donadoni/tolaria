@@ -162,6 +162,10 @@ export const erosion: CardDefinition = {
             // resolve); the factory resolves `host-controller` to the host's
             // current controller.
             scope: "host-controller",
+            // NOT DSL-migratable (ADR 0045): destroys the SPECIFIC enchanted
+            // land (getAttachedToId), the payer is a host-controller scoped
+            // player, and it is a factory-built trigger with no `effects[]`
+            // site. Stays resolve().
             resolve: (ctx, _event, scopedPlayerId) => {
                 const hostId = ctx.getAttachedToId();
                 if (hostId === undefined) return; // host gone — nothing to tax
@@ -348,6 +352,11 @@ export const manaVortex: CardDefinition = {
             oracleText:
                 "When you cast this spell, counter it unless you sacrifice a land.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): Mana Vortex's clauses need a
+            // land-sacrifice-or-counter gate on a specific spell, each-player
+            // land sacrifice, and self-sacrifice — none expressible with the
+            // current Op vocabulary; all are factory-built triggers with no
+            // `effects[]` site. Stays resolve().
             resolve: (ctx, _event, spell) => {
                 const controller = ctx.controller;
                 const spellRef = {
@@ -455,10 +464,9 @@ export const merfolkAssassin: CardDefinition = {
                 count: 1,
                 requireAbility: "islandwalk",
             },
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (target?.type === "permanent") ctx.destroy(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #832): destroy the
+            // announced target creature (CR 701.8).
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };
@@ -476,6 +484,9 @@ export const mindBomb: CardDefinition = {
         "Each player may discard up to three cards. Mind Bomb deals damage to each player equal to 3 minus the number of cards they discarded this way.",
     manaCost: { U: 1 },
     types: ["Sorcery"],
+    // NOT DSL-migratable (ADR 0045): the damage is "3 minus the number of cards
+    // discarded" — arithmetic on a runtime pick count, which the value grammar
+    // (literal/ref/count, no arithmetic) can't express. Stays resolve().
     resolve: (ctx: SpellContext) => {
         for (const pid of ctx.allPlayerIds) {
             const handSize = ctx.getHandSize(pid);
@@ -537,6 +548,12 @@ export const psychicAllergy: CardDefinition = {
                 "At the beginning of each opponent's upkeep, this enchantment deals X damage to that player, where X is the number of nontoken permanents of the chosen color they control.",
             phase: "UPKEEP",
             scope: "opponents",
+            // NOT DSL-migratable (ADR 0045): damage equals a count of the
+            // chosen-colour nontoken permanents an opponent controls
+            // (getChosenModeId + a coloured battlefield count for a scoped
+            // player), and the sibling upkeep clause sacrifices two Islands —
+            // none expressible with the current Op vocabulary; both are
+            // factory-built triggers with no `effects[]` site. Stays resolve().
             resolve: (ctx, _event, scopedPlayerId) => {
                 const color = ctx.getChosenModeId();
                 if (!color) return;
@@ -751,6 +768,11 @@ export const danceOfMany: CardDefinition = {
             oracleText:
                 "When this enchantment enters, create a token that's a copy of target nontoken creature.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): Dance of Many creates a copy token
+            // (createToken Op, still `planned`), exiles/sacrifices specific
+            // permanents, and pays an upkeep tax — none expressible with the
+            // current Op vocabulary; all are factory-built triggers with no
+            // `effects[]` site. Stays resolve().
             resolve: (ctx: SpellContext) => {
                 // CR 707.2 — choose a nontoken creature to copy. Mirrors the
                 // Clone copy-target picker; `isToken: false` enforces the
@@ -908,6 +930,10 @@ export const electricEel: CardDefinition = {
             id: "electric-eel-etb-damage",
             oracleText: "When this creature enters, it deals 1 damage to you.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): built via the `enteredTrigger`
+            // factory, which owns the `resolve` closure (scope gating) and
+            // exposes no `effects[]` site. Stays resolve() until the trigger
+            // factories accept effects.
             resolve: (ctx) => {
                 ctx.dealDamage({ type: "player", id: ctx.controller }, 1);
             },

@@ -154,6 +154,10 @@ export const elvesOfDeepShadow: CardDefinition = {
             oracleText: "This creature deals 1 damage to you.",
             scope: "self",
             forMana: true,
+            // NOT DSL-migratable (ADR 0045): built via the `tappedTrigger`
+            // factory, which owns the `resolve` closure and exposes no
+            // `effects[]` site. Stays resolve() until the trigger factories
+            // accept effects.
             resolve: (ctx) => {
                 ctx.dealDamage({ type: "player", id: ctx.controller }, 1);
             },
@@ -390,6 +394,10 @@ export const savaenElves: CardDefinition = {
                 subtypeFilter: "Aura",
                 count: 1,
             },
+            // NOT DSL-migratable (ADR 0045): the destroy is gated on the target
+            // Aura's host being a land (getAttachedTo + battlefield membership),
+            // a host-relation predicate the destroy Op can't express. Stays
+            // resolve().
             resolve: (ctx: SpellContext) => {
                 const [target] = ctx.targets;
                 if (!target || target.type !== "permanent") return;
@@ -431,10 +439,10 @@ export const scavengerFolk: CardDefinition = {
             cost: { mana: { G: 1 }, tap: true, sacrifice: true },
             useStack: true,
             targetRequirement: { type: "Artifact", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (target?.type === "permanent") ctx.destroy(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #832): destroy the
+            // announced target artifact (CR 701.8). The self-sacrifice is an
+            // activation cost, not part of the effect.
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };

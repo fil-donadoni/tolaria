@@ -53,9 +53,9 @@ export const darkHeartOfTheWood: CardDefinition = {
             oracleText: "Sacrifice a Forest: You gain 3 life.",
             cost: { sacrificeFilter: { subtypes: "Forest" } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.gainLife(ctx.controller, 3);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #832): controller gains
+            // 3 life (CR 119.3a). The Forest sacrifice is an activation cost.
+            effects: [{ op: "gainLife", player: "controller", amount: 3 }],
         },
     ],
 };
