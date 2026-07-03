@@ -490,10 +490,12 @@ export const fasting: CardDefinition = {
                 "At the beginning of your upkeep, put a hunger counter on this enchantment. Then destroy this enchantment if it has five or more hunger counters on it.",
             phase: "UPKEEP",
             scope: "your",
-            // NOT DSL-migratable (ADR 0045): Fasting adds/reads hunger counters
-            // (counters Op, still `planned`) and destroys itself on a counter
-            // threshold; its clauses are factory-built triggers with no
-            // `effects[]` site. Stays resolve().
+            // NOT DSL-migratable (ADR 0045): the `counters` add is expressible,
+            // but the "then destroy this if it has five or more hunger counters"
+            // clause is gated on a counter-COUNT threshold (`getCounterCount`
+            // >= 5) — the `if` predicate grammar reads only a bound `$paid`
+            // outcome, not a counter tally. Stays resolve() until a counter-count
+            // predicate exists.
             resolve: (ctx) => {
                 const self = {
                     type: "permanent" as const,

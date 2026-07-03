@@ -1198,6 +1198,12 @@ export const scavengingGhoul: CardDefinition = {
                 "At the beginning of each end step, put a corpse counter on this creature for each creature that died this turn.",
             phase: "END_STEP",
             scope: "each",
+            // NOT DSL-migratable (ADR 0045): planned-migratable, blocked on a
+            // value construct. The counter count is "for each creature that
+            // died this turn" (`getDeathsThisTurn`), a running game tally the
+            // `count` grammar (battlefield/graveyard card sets only) cannot
+            // express. Stays resolve() until a deaths-this-turn value member
+            // exists.
             resolve: (ctx) => {
                 const n = ctx.getDeathsThisTurn();
                 if (n <= 0) return;
@@ -1249,6 +1255,11 @@ export const sengirVampire: CardDefinition = {
             scope: "any-other",
             condition: (event, self) =>
                 event.damagedBySources.includes(self.id),
+            // NOT DSL-migratable (ADR 0045): built via the `diedTrigger`
+            // factory, which owns the `resolve` closure and exposes no
+            // `effects[]` site. The body is a clean `counters` add on
+            // `$source`, but the factory wrapper blocks it. Stays resolve()
+            // until the trigger factories accept effects.
             resolve: (ctx) => {
                 ctx.addCounter(
                     { type: "permanent", id: ctx.sourceInstanceId },

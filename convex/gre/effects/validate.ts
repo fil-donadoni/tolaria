@@ -184,6 +184,12 @@ function isNonEmptyString(value: unknown): boolean {
     return typeof value === "string" && value.length > 0;
 }
 
+/** The direction of a `counters` Op (issue #841, CR 122) — put counters on
+ *  (`add`) or take them off (`remove`) a permanent. */
+function isCounterAction(value: unknown): boolean {
+    return value === "add" || value === "remove";
+}
+
 /** The destination zones a `moveZone` Op may name (issue #839, EffectMoveZone).
  *  The five zones a one-shot effect addresses (CR 400.7). */
 function isMoveZone(value: unknown): boolean {
@@ -482,6 +488,19 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             power: isSignedEffectValue,
             toughness: isSignedEffectValue,
             duration: isDurationSpec,
+        },
+    },
+    // CR 122 (issue #841) — put/remove counters on a permanent. `action`
+    // selects the direction; `counter` is the free-form counter type; `target`
+    // is an object selector (announced slot, `$source`, or a forEach `$each`);
+    // `count` is the number of counters (a positive literal, a `ref`, or a
+    // `count`).
+    counters: {
+        required: {
+            action: isCounterAction,
+            counter: isNonEmptyString,
+            target: isObjectSelector,
+            count: isEffectValue,
         },
     },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution choice through the

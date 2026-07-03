@@ -1117,6 +1117,11 @@ export const rasputinDreamweaver: CardDefinition = {
             scope: "your",
             // CR 603.4d — only if it started the turn untapped.
             interveningIf: (_event, self) => self.startedTurnUntapped === true,
+            // NOT DSL-migratable (ADR 0045): the `counters` add is gated on a
+            // counter-COUNT cap ("no-op once it has seven dream counters",
+            // `getCounterCount` >= 7) — the `if` predicate grammar reads only a
+            // bound `$paid` outcome, not a counter tally. Stays resolve() until a
+            // counter-count predicate exists.
             resolve: (ctx) => {
                 const self: TargetSelection = {
                     type: "permanent",

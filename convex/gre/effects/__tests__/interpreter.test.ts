@@ -779,6 +779,207 @@ describe("Effect Script Op: pump (CR 613.4c, layer 7c, issue #840)", () => {
     });
 });
 
+describe("Effect Script Op: counters (CR 122, issue #841)", () => {
+    // Adding +1/+1 counters to an announced creature target: the counters
+    // persist and feed layer 7d, so the effective P/T rises. Wire-format
+    // assertion — the counter-driven P/T must survive the projection (the
+    // layer pipeline runs on the slimmed state the client reads).
+    it("adds +1/+1 counters to an announced target and survives the projection (wire format)", () => {
+        const id = registerScript("test-op-counters-add", [
+            {
+                op: "counters",
+                action: "add",
+                counter: "+1/+1",
+                target: { target: 0 },
+                count: 2,
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearCtr",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearCtr" }]);
+        resolveTopOfStack(state);
+        const buffed = state.players[1].battlefield.find(
+            (c) => c.id === "bearCtr"
+        )!;
+        expect(buffed.counters?.["+1/+1"]).toBe(2);
+        // BEAR_ID is a 2/5 → two +1/+1 counters = 4/7.
+        expect(getEffectivePower(state, buffed)).toBe(4);
+        expect(getEffectiveToughness(state, buffed)).toBe(7);
+        // Same assertion after the projection (the wire-format bug class — a
+        // layer read over stripped state).
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bearCtr"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(4);
+        expect(getEffectiveToughness(projected, slim)).toBe(7);
+    });
+
+    // Removing counters clamps to the counters present (CR 122.6) — a -1/-1
+    // counter shed via the `remove` action.
+    it("removes counters, clamped to those present (CR 122.6)", () => {
+        const id = registerScript("test-op-counters-remove", [
+            {
+                op: "counters",
+                action: "remove",
+                counter: "-1/-1",
+                target: { target: 0 },
+                count: 5,
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearRem",
+        });
+        // Seed two -1/-1 counters; removing 5 clamps to 2 (all gone).
+        bear.counters = { "-1/-1": 2 };
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearRem" }]);
+        resolveTopOfStack(state);
+        const cleared = state.players[1].battlefield.find(
+            (c) => c.id === "bearRem"
+        )!;
+        expect(cleared.counters?.["-1/-1"] ?? 0).toBe(0);
+    });
+
+    // A self-counter via the implicit `$source` binding (a permanent putting a
+    // counter on itself — a charge-counter accrual on an activated ability).
+    it("adds a counter to the source permanent via the implicit $source binding", () => {
+        const ACC_ID = "test-op-counters-source";
+        registerTokenDefinition({
+            id: ACC_ID,
+            name: ACC_ID,
+            rarity: "common",
+            manaCost: { generic: 1 },
+            types: ["Artifact"],
+            activatedAbilities: [
+                {
+                    id: "acc-charge",
+                    oracleText: "{1}: Put a charge counter on this artifact.",
+                    cost: { mana: { generic: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "charge",
+                            target: { ref: "$source" },
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+        });
+        const acc = makeInstance(ACC_ID, {
+            id: "acc1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [acc] }),
+                makePlayer("p2"),
+            ],
+        });
+        const src = state.players[0].battlefield[0];
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "acc-charge",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        const self = state.players[0].battlefield.find((c) => c.id === "acc1")!;
+        expect(self.counters?.["charge"]).toBe(1);
+    });
+
+    // A mass counter placement: forEach over the controller's creatures, each
+    // counter-ed via the per-iteration `{ ref: "$each" }` object binding.
+    it("adds a counter to every member of a forEach set via { ref: $each }", () => {
+        const id = registerScript("test-op-counters-foreach", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    controller: "controller",
+                    filter: { type: "Creature" },
+                },
+                effects: [
+                    {
+                        op: "counters",
+                        action: "add",
+                        counter: "+1/+1",
+                        target: { ref: "$each" },
+                        count: 1,
+                    },
+                ],
+            },
+        ]);
+        const mine = ["mA", "mB"].map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        const theirs = makeInstance(BEAR_ID, {
+            id: "tA",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: mine }),
+                makePlayer("p2", { battlefield: [theirs] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        for (const cid of ["mA", "mB"]) {
+            const c = state.players[0].battlefield.find((x) => x.id === cid)!;
+            expect(c.counters?.["+1/+1"]).toBe(1);
+            expect(getEffectivePower(state, c)).toBe(3); // 2/5 → 3/6
+            expect(getEffectiveToughness(state, c)).toBe(6);
+        }
+        // The opponent's creature is outside the controller-scoped set.
+        const other = state.players[1].battlefield.find((x) => x.id === "tA")!;
+        expect(other.counters?.["+1/+1"] ?? 0).toBe(0);
+    });
+
+    it("is a no-op when the announced target is missing (CR 608.2b)", () => {
+        const id = registerScript("test-op-counters-missing", [
+            {
+                op: "counters",
+                action: "add",
+                counter: "+1/+1",
+                target: { target: 0 },
+                count: 1,
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+});
+
 describe("Effect Script construct: bind + ref (ADR 0045, CR 608.2h)", () => {
     // The Swords to Plowshares shape: bind the exiled creature, then read its
     // snapshotted power/controller after it has changed zone. The snapshot is

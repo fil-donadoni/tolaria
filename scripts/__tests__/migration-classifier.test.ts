@@ -76,22 +76,36 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // first pass missed were migrated (Mishra's Factory, Krovikan Elementalist,
     // Minion of Tevesh Szat, Electric Eel) — 4 more FREE/AFK-ready closures
     // migrated away (total 783→779, FREE 270→266, AFK-ready 245→241).
+    // #841 (counters Op): addCounter / removeCounter are now COVERED Ops — the
+    // counter cluster's closures moved from Op-blocked to FREE, and the ~31
+    // cleanly-expressible ones (fixed-count adds/removes on an announced slot or
+    // `$source`, choice→discard→counter) were migrated away (total 779→748;
+    // Op-blocked 497→431; FREE 266→299 as the residual counter closures surface
+    // as FREE). The remaining FREE counter closures are NOT cleanly expressible
+    // by the current DSL and stay resolve() with a recorded NOT-migratable
+    // reason: factory-built triggers (died/entered/left/tapped/spellCast — no
+    // `effects[]` site), Aura attached-object targets (`getAttachedTo`),
+    // counter-count / deaths-this-turn / mana-value amounts and counter-count
+    // predicates (value/predicate grammar gaps), and event-field capture
+    // targets. Two closures moved Op-blocked→X-only (Clockwork Beast / Clockwork
+    // Avian recharge: {X}-cost counter adds), so X-only 16→18.
     it("reports the committed baseline bucket totals", () => {
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(779);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(266);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(241);
-        expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(16);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(497);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(748);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(299);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(273);
+        expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(18);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(431);
     });
 
-    it("surfaces the demonstrated new-Op backlog (top blocker is the counters primitive)", () => {
-        // pump SHIPPED (issue #840): addTemporaryPTBuff is now a COVERED Op
-        // (it appears in the "Covered Ops" line, no longer in the backlog). The
-        // most-blocking remaining primitive is addCounter (the `counters` Op) —
-        // a stable, high-frequency signal that the Op backlog is being read.
+    it("surfaces the demonstrated new-Op backlog (top blocker is grantStaticAbility)", () => {
+        // pump SHIPPED (#840) and counters SHIPPED (#841): addTemporaryPTBuff
+        // and addCounter / removeCounter are now COVERED Ops (they appear in the
+        // "Covered Ops" line, no longer in the backlog). The most-blocking
+        // remaining primitive is grantStaticAbility — a stable, high-frequency
+        // signal that the Op backlog is being read.
         expect(summary).toMatch(/New-Op backlog/);
-        expect(summary).toMatch(/addCounter/);
-        expect(summary).toMatch(/Covered Ops[^\n]*addTemporaryPTBuff/);
+        expect(summary).toMatch(/grantStaticAbility/);
+        expect(summary).toMatch(/Covered Ops[^\n]*addCounter/);
     });
 });
 
@@ -107,11 +121,13 @@ describe("migration classifier — known-card routing (PRD #826)", () => {
         expect(free).toMatch(/Night's Whisper/);
     });
 
-    it("does NOT route an Op-blocked card (Sengir Vampire) to the FREE tranche", () => {
-        // Sengir Vampire calls ctx.addCounter — blocked on the unshipped
-        // `counters` Op, so it belongs to that Op's cluster issue, not the free
-        // tranche. (Canary swapped from Giant Growth, which migrated once the
-        // `pump` Op shipped — issue #840.)
-        expect(free).not.toMatch(/Sengir Vampire/);
+    it("does NOT route an Op-blocked card (Icy Manipulator) to the FREE tranche", () => {
+        // Icy Manipulator calls ctx.tap — blocked on the unshipped `tapUntap`
+        // Op, so it belongs to that Op's cluster issue, not the free tranche.
+        // (Canary swapped from Sengir Vampire, whose `counters` Op shipped —
+        // issue #841 — so the classifier now counts it FREE; it stays resolve()
+        // only because its `diedTrigger` factory exposes no `effects[]` site,
+        // which the classifier does not model.)
+        expect(free).not.toMatch(/Icy Manipulator/);
     });
 });

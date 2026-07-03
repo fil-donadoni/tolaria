@@ -515,6 +515,10 @@ export const infiniteAuthority: CardDefinition = {
             id: INFINITE_AUTHORITY_COUNTER_TRIGGER,
             oracleText: "Put a +1/+1 counter on the first creature.",
             timing: "next-end-step",
+            // NOT DSL-migratable (ADR 0045): a delayed-trigger body whose counter
+            // target is a captured `payload.hostId` (an event-field capture from
+            // the combat-kill scheduling) — not a covered `EffectObjectSelector`
+            // (announced slot / `$source` / `$each`). Stays resolve().
             resolve: (ctx: SpellContext, payload: Record<string, string>) => {
                 if (!payload.hostId) return;
                 // CR 122 — +1/+1 counter on the enchanted creature (the "first
@@ -1008,13 +1012,18 @@ export const osaiVultures: CardDefinition = {
             // per-creature count like Khabál Ghoul / Scavenging Ghoul).
             interveningIf: (_event, _self, state) =>
                 (state?.deathsThisTurn ?? 0) > 0,
-            resolve: (ctx) => {
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "carrion",
-                    1
-                );
-            },
+            // CR 122 (issue #841) — put one carrion counter on the source. The
+            // "a creature died this turn" gate is the trigger's interveningIf
+            // (CR 603.4d); the effect itself is a fixed single-counter add.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "carrion",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         }),
     ],
     activatedAbilities: [

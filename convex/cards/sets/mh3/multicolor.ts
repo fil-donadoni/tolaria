@@ -52,26 +52,32 @@ export const psychicFrog: CardDefinition = {
             oracleText: "Discard a card: Put a +1/+1 counter on this creature.",
             cost: {},
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                const handIds = ctx.getHandIds(ctx.controller);
-                if (handIds.length === 0) return;
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `psychic-frog-discard-${ctx.sourceInstanceId}`,
+            // CR 122 / 601 (issue #841) — choose a card in hand, discard it,
+            // then put a +1/+1 counter on the source. Mirrors the established
+            // choice → discard pattern (Jalum Tome).
+            effects: [
+                {
+                    op: "choice",
                     kind: "choose-hand-card",
+                    player: "controller",
                     zone: "hand",
                     count: 1,
                     prompt: "Discard a card to put a +1/+1 counter on Psychic Frog.",
-                });
-                if (picks === undefined) return; // suspended on the discard choice
-                if (picks.length === 0) return;
-                ctx.discardCard(ctx.controller, picks[0]);
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "+1/+1",
-                    1
-                );
-            },
+                    bind: "$discard",
+                },
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$discard" },
+                },
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         },
         {
             id: "psychic-frog-exile-flying",

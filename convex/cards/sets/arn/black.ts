@@ -183,6 +183,12 @@ export const khabalGhoul: CardDefinition = {
                 "At the beginning of each end step, put a +1/+1 counter on Khabál Ghoul for each creature that died this turn.",
             phase: "END_STEP",
             scope: "each",
+            // NOT DSL-migratable (ADR 0045): planned-migratable, blocked on a
+            // value construct. The counter count is "for each creature that
+            // died this turn" (`getDeathsThisTurn`), a running game tally the
+            // `count` grammar (battlefield/graveyard card sets only) cannot
+            // express. Stays resolve() until a deaths-this-turn value member
+            // exists.
             resolve: (ctx) => {
                 const deaths = ctx.getDeathsThisTurn();
                 if (deaths > 0) {

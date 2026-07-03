@@ -110,13 +110,16 @@ function makeStorageLand(config: {
                     "At the beginning of your upkeep, if this land is tapped, put a storage counter on it.",
                 // CR 603.4 intervening-if: only banks while the land is tapped.
                 condition: (_event, self) => self.isTapped === true,
-                resolve: (ctx) => {
-                    ctx.addCounter(
-                        { type: "permanent", id: ctx.sourceInstanceId },
-                        "storage",
-                        1
-                    );
-                },
+                // CR 122 (issue #841) — put one storage counter on the source.
+                effects: [
+                    {
+                        op: "counters",
+                        action: "add",
+                        counter: "storage",
+                        target: { ref: "$source" },
+                        count: 1,
+                    },
+                ],
             }),
         ],
         activatedAbilities: [

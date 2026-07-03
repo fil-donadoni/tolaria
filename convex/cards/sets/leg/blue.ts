@@ -827,6 +827,12 @@ export const venarianGold: CardDefinition = {
             // CR 603.6a — fires at the upkeep of the enchanted creature's
             // controller, looked up at resolve time (host-controller scope).
             scope: "host-controller",
+            // NOT DSL-migratable (ADR 0045): the counter target is the ENCHANTED
+            // creature (`getAttachedToId`), and no `EffectObjectSelector` names
+            // an Aura's attached object (only announced slots, `$source`,
+            // `$each`). The phaseTrigger `effects[]` site is also restricted to
+            // `scope: "your"`; this is `host-controller`. Stays resolve() until
+            // an attached-object selector exists.
             resolve: (ctx) => {
                 const hostId = ctx.getAttachedToId();
                 if (!hostId) return;

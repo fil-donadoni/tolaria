@@ -977,13 +977,16 @@ export const rockHydra: CardDefinition = {
             useStack: true,
             activationPhaseRestriction: ["UPKEEP"],
             controllerTurnOnly: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "+1/+1",
-                    1
-                );
-            },
+            // CR 122 (issue #841) — put one +1/+1 counter on Rock Hydra.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         },
     ],
 };

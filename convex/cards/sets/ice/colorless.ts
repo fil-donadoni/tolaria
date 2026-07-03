@@ -756,13 +756,16 @@ export const infiniteHourglass: CardDefinition = {
                 "At the beginning of your upkeep, put a time counter on this artifact.",
             phase: "UPKEEP",
             scope: "your",
-            resolve: (ctx) => {
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "time",
-                    1
-                );
-            },
+            // CR 122 (issue #841) — put one time counter on the source.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "time",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         }),
     ],
     activatedAbilities: [
@@ -775,13 +778,16 @@ export const infiniteHourglass: CardDefinition = {
             activatableByAnyPlayer: true,
             activationPhaseRestriction: ["UPKEEP"] as Phase[],
             canActivate: (source) => (source.counters?.time ?? 0) > 0,
-            resolve: (ctx: SpellContext) => {
-                ctx.removeCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "time",
-                    1
-                );
-            },
+            // CR 122 (issue #841) — remove one time counter from the source.
+            effects: [
+                {
+                    op: "counters",
+                    action: "remove",
+                    counter: "time",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         },
     ],
 };
@@ -1432,13 +1438,16 @@ export const timeBomb: CardDefinition = {
                 "At the beginning of your upkeep, put a time counter on this artifact.",
             phase: "UPKEEP",
             scope: "your",
-            resolve: (ctx) => {
-                ctx.addCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "time",
-                    1
-                );
-            },
+            // CR 122 (issue #841) — put one time counter on the source.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "time",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         }),
     ],
     activatedAbilities: [
@@ -1861,13 +1870,17 @@ function depletionDual(args: {
                     "At the beginning of your upkeep, remove a depletion counter from this land.",
                 phase: "UPKEEP",
                 scope: "your",
-                resolve: (ctx) => {
-                    ctx.removeCounter(
-                        { type: "permanent", id: ctx.sourceInstanceId },
-                        "depletion",
-                        1
-                    );
-                },
+                // CR 122 (issue #841) — remove one depletion counter from the
+                // source.
+                effects: [
+                    {
+                        op: "counters",
+                        action: "remove",
+                        counter: "depletion",
+                        target: { ref: "$source" },
+                        count: 1,
+                    },
+                ],
             }),
         ],
     };

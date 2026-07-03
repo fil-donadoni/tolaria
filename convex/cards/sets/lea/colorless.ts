@@ -209,13 +209,16 @@ export const clockworkBeast: CardDefinition = {
             interveningIf: (_event, self) =>
                 self.hasAttackedThisTurn === true ||
                 self.hasBlockedThisTurn === true,
-            resolve: (ctx) => {
-                ctx.removeCounter(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "+1/+0",
-                    1
-                );
-            },
+            // CR 122 (issue #841) — shed one +1/+0 counter from the source.
+            effects: [
+                {
+                    op: "counters",
+                    action: "remove",
+                    counter: "+1/+0",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
         }),
     ],
     activatedAbilities: [
@@ -371,10 +374,16 @@ export const cyclopeanTomb: CardDefinition = {
                 count: 1,
                 excludeSubtypes: ["Swamp"],
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent") ctx.addCounter(t, "mire", 1);
-            },
+            // CR 122 (issue #841) — put a mire counter on the targeted land.
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "mire",
+                    target: { target: 0 },
+                    count: 1,
+                },
+            ],
         },
     ],
     staticEffects: [

@@ -313,6 +313,13 @@ export const cyclone: CardDefinition = {
                 "At the beginning of your upkeep, put a wind counter on this enchantment, then sacrifice this enchantment unless you pay {G} for each wind counter on it. If you pay, this enchantment deals damage equal to the number of wind counters on it to each creature and each player.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): planned-migratable, blocked on
+            // value constructs. The `mayPay` cost is dynamic ({G} PER wind
+            // counter, `getCounterCount` + arithmetic) and the damage amount is
+            // the wind-counter tally — neither expressible by the `count`
+            // grammar (battlefield/graveyard card sets only, no counter counts,
+            // no arithmetic). Stays resolve() until a counter-count value member
+            // exists.
             resolve: (ctx, _event, scopedPlayerId) => {
                 const self = {
                     type: "permanent" as const,
