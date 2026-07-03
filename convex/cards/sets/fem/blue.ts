@@ -484,19 +484,22 @@ export const vodalianMage: CardDefinition = {
             cost: { mana: { U: 1 }, tap: true },
             useStack: true,
             targetRequirement: { type: "spell", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (!target || target.type !== "spell") return;
-                const spellController = ctx.getController(target);
-                const accept = ctx.requestMayPay({
-                    playerId: spellController,
-                    choiceId: `vodalian-mage-${ctx.sourceInstanceId}`,
+            // CR 117.3a / 701.5a — "counter unless its controller pays": the
+            // spell's controller may pay {1}; if they don't, counter it.
+            effects: [
+                {
+                    op: "mayPay",
+                    player: { controllerOf: { target: 0 } },
                     cost: { X: 1 },
                     prompt: "Pay {1} or your spell is countered (Vodalian Mage)?",
-                });
-                if (accept === undefined) return; // suspended
-                if (!accept) ctx.counter(target);
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [{ op: "counter", target: { target: 0 } }],
+                },
+            ],
         },
     ],
 };

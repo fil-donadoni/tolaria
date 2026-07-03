@@ -269,11 +269,7 @@ export const handOfJustice: CardDefinition = {
             },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (!target) return;
-                ctx.destroy(target);
-            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };
@@ -418,11 +414,7 @@ export const icatianJavelineers: CardDefinition = {
             },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (!target) return;
-                ctx.dealDamage(target, 1);
-            },
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
 };
