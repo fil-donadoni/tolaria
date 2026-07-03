@@ -13,6 +13,9 @@ import { getAllCards } from "../index";
 import {
     MECHANICS_REGISTRY,
     ENGINE_INTERNAL_MARKERS,
+    EFFECT_OP_REGISTRY,
+    EFFECT_OP_BACKLOG,
+    isRegisteredEffectOp,
     isNamedMechanic,
     type MechanicRow,
 } from "../mechanicsRegistry";
@@ -191,5 +194,81 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
             "staticAbilities strings not covered by the Mechanics Registry — " +
                 "either a typo, or a genuinely new mechanic that needs a registry row first"
         ).toEqual([]);
+    });
+});
+
+// -----------------------------------------------------------------------
+// Effect Script Op census — status field + demand-driven backlog (PRD #826).
+// The Op vocabulary is the demand-driven analogue of the CR-total keyword
+// census above: EFFECT_OP_REGISTRY is the live/usable vocabulary
+// (status "implemented"), EFFECT_OP_BACKLOG is the machine-visible IOU list
+// (status "planned"), and a planned Op is NEVER usable by a card.
+// -----------------------------------------------------------------------
+describe("Effect Script Op census (ADR 0045/0046, PRD #826)", () => {
+    it("every EFFECT_OP_REGISTRY row is implemented with a SpellContext or interpreter binding", () => {
+        for (const row of EFFECT_OP_REGISTRY) {
+            expect(row.status, row.op).toBe("implemented");
+            // implemented rows always carry a binding (guarded 1:1 with the
+            // interpreter/validator elsewhere); the two structural constructs
+            // bind to interpreter control flow rather than a primitive.
+            expect(row.binding, row.op).toBeTruthy();
+        }
+    });
+
+    it("every EFFECT_OP_BACKLOG row is a planned reservation with no interpreter binding", () => {
+        expect(EFFECT_OP_BACKLOG.length).toBeGreaterThan(0);
+        for (const row of EFFECT_OP_BACKLOG) {
+            expect(row.status, row.op).toBe("planned");
+            // A planned Op has no interpreter binding yet — that is the point.
+            expect(row.binding, row.op).toBeUndefined();
+        }
+    });
+
+    it("backlog Op names are disjoint from the live registry and internally unique", () => {
+        const live = new Set(EFFECT_OP_REGISTRY.map((r) => r.op));
+        const backlog = EFFECT_OP_BACKLOG.map((r) => r.op);
+        expect(new Set(backlog).size, "duplicate backlog Op names").toBe(
+            backlog.length
+        );
+        const collisions = backlog.filter((op) => live.has(op));
+        expect(collisions, "backlog Op already implemented").toEqual([]);
+    });
+
+    it("the demonstrated wave-1 Op backlog (14 named Ops) is present as planned stubs", () => {
+        // The demand-driven backlog surfaced by the migration classifier
+        // (scripts/migration-classifier.mjs). `X` is intentionally excluded —
+        // it is an EffectValue grammar member, not an Op (PRD #826).
+        const named = [
+            "delayedTrigger",
+            "moveZone",
+            "pump",
+            "counters",
+            "tapUntap",
+            "grantAbility",
+            "libraryLook",
+            "preventDamage",
+            "regenerate",
+            "createToken",
+            "gainControl",
+            "optionChoice",
+            "addMana",
+            "coinFlip",
+        ];
+        const backlog = new Set(EFFECT_OP_BACKLOG.map((r) => r.op));
+        for (const op of named) expect(backlog.has(op), op).toBe(true);
+        // …plus low-frequency long-tail reservations beyond the 14.
+        expect(EFFECT_OP_BACKLOG.length).toBeGreaterThan(named.length);
+    });
+
+    it("isRegisteredEffectOp accepts implemented Ops but rejects planned backlog Ops", () => {
+        // A card may reference a live Op…
+        expect(isRegisteredEffectOp("dealDamage")).toBe(true);
+        expect(isRegisteredEffectOp("destroy")).toBe(true);
+        // …but never a planned reservation (validateEffectScript would reject
+        // a card that tried), nor an invented name.
+        for (const row of EFFECT_OP_BACKLOG) {
+            expect(isRegisteredEffectOp(row.op), row.op).toBe(false);
+        }
+        expect(isRegisteredEffectOp("notARealOp")).toBe(false);
     });
 });
