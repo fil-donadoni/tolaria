@@ -819,9 +819,7 @@ export const jayemdaeTome: CardDefinition = {
             oracleText: "{4}, {T}: Draw a card.",
             cost: { tap: true, mana: { X: 4 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.drawCards(ctx.caster, 1);
-            },
+            effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
 };
@@ -1163,9 +1161,38 @@ export const nevinyrralsDisk: CardDefinition = {
                 "{1}, {T}: Destroy all artifacts, creatures, and enchantments.",
             cost: { tap: true, mana: { X: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.destroyAll(["Artifact", "Creature", "Enchantment"]);
-            },
+            // destroyAll → forEach-per-type (CR 701.7). A permanent matching
+            // more than one type (e.g. an artifact creature) is destroyed on
+            // its first pass and skipped on later passes (CR 608.2b).
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Artifact" },
+                    },
+                    effects: [{ op: "destroy", target: { ref: "$each" } }],
+                },
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [{ op: "destroy", target: { ref: "$each" } }],
+                },
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Enchantment" },
+                    },
+                    effects: [{ op: "destroy", target: { ref: "$each" } }],
+                },
+            ],
         },
     ],
 };
@@ -1198,10 +1225,7 @@ export const rodOfRuin: CardDefinition = {
             cost: { mana: { X: 3 }, tap: true },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target) ctx.dealDamage(target, 1);
-            },
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
 };
@@ -1505,20 +1529,22 @@ export const disruptingScepter: CardDefinition = {
             useStack: true,
             controllerTurnOnly: true,
             targetRequirement: { type: "player", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const targetPlayerId = ctx.targets[0].id;
-                if (ctx.getHandSize(targetPlayerId) === 0) return;
-                const picks = ctx.requestChoice({
-                    playerId: targetPlayerId,
-                    choiceId: targetPlayerId,
+            effects: [
+                {
+                    op: "choice",
                     kind: "discard-hand",
+                    player: { target: 0 },
                     zone: "hand",
                     count: 1,
                     prompt: "Choose a card to discard",
-                });
-                if (!picks) return;
-                ctx.discardCard(targetPlayerId, picks[0]);
-            },
+                    bind: "$discard",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$discard" },
+                },
+            ],
         },
     ],
 };

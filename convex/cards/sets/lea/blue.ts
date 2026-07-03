@@ -46,10 +46,7 @@ export const ancestralRecall: CardDefinition = {
     manaCost: { U: 1 },
     types: ["Instant"],
     targetRequirement: { type: "player", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type === "player") ctx.drawCards(target.id, 3);
-    },
+    effects: [{ op: "draw", player: { target: 0 }, count: 3 }],
 };
 
 // Animate Artifact — "Enchant artifact. As long as enchanted artifact
@@ -292,10 +289,7 @@ export const counterspell: CardDefinition = {
     manaCost: { U: 2 },
     types: ["Instant"],
     targetRequirement: { type: "spell", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type === "spell") ctx.counter(target);
-    },
+    effects: [{ op: "counter", target: { target: 0 } }],
 };
 
 // Creature Bond — "Enchant creature. When enchanted creature dies, this Aura
@@ -714,10 +708,7 @@ export const pirateShip: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target) ctx.dealDamage(target, 1);
-            },
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
 };
@@ -808,10 +799,7 @@ export const prodigalSorcerer: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target) ctx.dealDamage(target, 1);
-            },
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
 };
@@ -829,10 +817,10 @@ export const psionicBlast: CardDefinition = {
     manaCost: { X: 2, U: 1 },
     types: ["Instant"],
     targetRequirement: { type: "any", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        ctx.dealDamage(ctx.targets[0], 4);
-        ctx.dealDamage({ type: "player", id: ctx.caster }, 2);
-    },
+    effects: [
+        { op: "dealDamage", amount: 4, to: { target: 0 } },
+        { op: "dealDamage", amount: 2, to: { player: "controller" } },
+    ],
 };
 
 // Psychic Venom — "Enchant land. Whenever enchanted land becomes tapped,
