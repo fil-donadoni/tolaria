@@ -972,11 +972,10 @@ export const resurrection: CardDefinition = {
         zone: "graveyard",
         controller: "you",
     },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (!t || t.type !== "graveyard-card" || !t.playerId) return;
-        ctx.returnToBattlefield(t.playerId, t.id, "graveyard");
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #839): return the targeted
+    // graveyard creature card to the battlefield under its owner's control
+    // (CR 400.7 reanimation).
+    effects: [{ op: "moveZone", target: { target: 0 }, to: "battlefield" }],
 };
 
 // Reverse Damage — "The next time a source of your choice would deal damage

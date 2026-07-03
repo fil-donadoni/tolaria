@@ -388,6 +388,188 @@ describe("Effect Script Op: exile (CR 701.13)", () => {
     });
 });
 
+describe("Effect Script Op: moveZone (CR 400.7, issue #839)", () => {
+    // A permanent target → hand: the bounce half (returnToHand, CR 701.10).
+    it("returns an announced battlefield permanent to its owner's hand", () => {
+        const id = registerScript("test-op-movezone-bounce", [
+            { op: "moveZone", target: { target: 0 }, to: "hand" },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearMZ",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearMZ" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].hand.map((c) => c.id)).toContain("bearMZ");
+    });
+
+    // A graveyard-card target → hand: the regrowth half (moveCardById,
+    // Raise Dead / Regrowth).
+    it("returns an announced graveyard card to its owner's hand", () => {
+        const id = registerScript("test-op-movezone-regrowth", [
+            { op: "moveZone", target: { target: 0 }, to: "hand" },
+        ]);
+        const dead = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "deadMZ",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "deadMZ", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        // (The resolved sorcery itself lands in p1's graveyard — CR 608.2m —
+        // so assert on the moved card by id, not on the graveyard's length.)
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "deadMZ"
+        );
+        expect(state.players[0].hand.map((c) => c.id)).toContain("deadMZ");
+    });
+
+    // A graveyard-card target → exile (moveCardById to exile, Grave Robbers).
+    it("moves an announced graveyard card to exile", () => {
+        const id = registerScript("test-op-movezone-exile", [
+            { op: "moveZone", target: { target: 0 }, to: "exile" },
+        ]);
+        const dead = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "deadEX",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { graveyard: [dead] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "deadEX", playerId: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].graveyard).toHaveLength(0);
+        expect(state.players[1].exile.map((c) => c.id)).toContain("deadEX");
+    });
+
+    // A graveyard-card target → battlefield: the reanimation half
+    // (returnToBattlefield, Resurrection). Wire-format assertion: both zones
+    // are public, so the outcome survives the projection.
+    it("reanimates an announced graveyard card to the battlefield (wire format)", () => {
+        const id = registerScript("test-op-movezone-reanimate", [
+            { op: "moveZone", target: { target: 0 }, to: "battlefield" },
+        ]);
+        const dead = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "deadRA",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "deadRA", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        // (The resolved sorcery itself lands in p1's graveyard — CR 608.2m —
+        // so assert on the reanimated card by id, not on graveyard length.)
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "deadRA"
+        );
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "deadRA"
+        );
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "deadRA"
+        );
+        expect(projected.players[0].battlefield.map((c) => c.id)).toContain(
+            "deadRA"
+        );
+    });
+
+    // A self-bounce at an ability site: `{ ref: "$source" }` (Blinking Spirit).
+    it("returns the source permanent to hand via the implicit $source binding", () => {
+        const BLINKER_ID = "test-op-movezone-source";
+        registerTokenDefinition({
+            id: BLINKER_ID,
+            name: BLINKER_ID,
+            rarity: "common",
+            manaCost: { W: 1 },
+            types: ["Creature"],
+            subtypes: ["Spirit"],
+            power: 2,
+            toughness: 2,
+            activatedAbilities: [
+                {
+                    id: "blinker-bounce",
+                    oracleText:
+                        "{0}: Return this creature to its owner's hand.",
+                    cost: { mana: { generic: 0 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+        });
+        const blinker = makeInstance(BLINKER_ID, {
+            id: "blinker1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [blinker] }),
+                makePlayer("p2"),
+            ],
+        });
+        const src = state.players[0].battlefield[0];
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "blinker-bounce",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("blinker1");
+    });
+
+    it("is a no-op when the announced target is missing (CR 608.2b)", () => {
+        const id = registerScript("test-op-movezone-missing", [
+            { op: "moveZone", target: { target: 0 }, to: "hand" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+});
+
 describe("Effect Script construct: bind + ref (ADR 0045, CR 608.2h)", () => {
     // The Swords to Plowshares shape: bind the exiled creature, then read its
     // snapshotted power/controller after it has changed zone. The snapshot is

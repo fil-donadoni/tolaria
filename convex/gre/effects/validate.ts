@@ -184,6 +184,18 @@ function isNonEmptyString(value: unknown): boolean {
     return typeof value === "string" && value.length > 0;
 }
 
+/** The destination zones a `moveZone` Op may name (issue #839, EffectMoveZone).
+ *  The five zones a one-shot effect addresses (CR 400.7). */
+function isMoveZone(value: unknown): boolean {
+    return (
+        value === "hand" ||
+        value === "library" ||
+        value === "graveyard" ||
+        value === "exile" ||
+        value === "battlefield"
+    );
+}
+
 /** `{ ref: "$name" }` — a BARE ref: a single `ref` key holding a binding name
  *  with NO property path. Three positions use the bare shape, each
  *  family-checked by the ordered ref pass: a picks ref (issue #805 — the
@@ -412,6 +424,13 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     exile: {
         required: { target: isObjectSelector },
         optional: { bind: isBindingName },
+    },
+    // CR 400.7 (issue #839) — a plain zone change. `target` is an object
+    // selector (announced slot or a bare snapshot ref like `$source`); `to` is
+    // the destination zone. The source zone is inferred from the object's kind,
+    // so there is no `from` field.
+    moveZone: {
+        required: { target: isObjectSelector, to: isMoveZone },
     },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution choice through the
     // existing Pending Choice pipeline. `bind` is REQUIRED: a choice whose

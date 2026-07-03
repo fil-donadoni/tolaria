@@ -288,12 +288,9 @@ export const obeliskOfUndoing: CardDefinition = {
                 count: 1,
                 controller: "you",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.returnToHand(target);
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #839): return the
+            // targeted permanent to its owner's hand (CR 701.10 / 400.7).
+            effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
 };

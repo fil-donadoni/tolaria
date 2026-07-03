@@ -33,7 +33,8 @@
  * (matched by trigger id: string literal or same-file const). Two tracked
  * grammar gaps are marked with pseudo-blockers so they never surface as FREE:
  *   $eventFieldCapture  the payload is built from trigger-event fields
- *                       (Venom, Battering Ram, Nafs Asp — needs $event.<field>)
+ *                       (Venom, Battering Ram, Nafs Asp, Seraph, Krovikan
+ *                       Vampire — needs $event.<field>)
  *   $listCapture        a list-valued capture (Venomous Breath — the Op's
  *                       capture map is single-value only)
  *   $unresolvedDelayedBody  the scheduled trigger id could not be matched to
@@ -48,10 +49,13 @@ const SETS_ROOT = "convex/cards/sets";
 
 // Covered primitives = the SpellContext binding of every registered Op (live,
 // so adding an Op to EFFECT_OP_REGISTRY expands the free-tranche automatically).
+// An Op that folds SEVERAL primitives lists them " / "-separated in its binding
+// ("SpellContext.moveCardById / returnToHand / returnToBattlefield", issue
+// #839); split so every folded primitive is recognized as covered.
 const COVERED = new Set(
     EFFECT_OP_REGISTRY.map((r) => r.binding)
         .filter((b) => b.startsWith("SpellContext."))
-        .map((b) => b.slice("SpellContext.".length))
+        .flatMap((b) => b.slice("SpellContext.".length).split(" / "))
 );
 
 // Composition: primitive → base Op (must be covered) + a structural construct.
@@ -226,8 +230,11 @@ function collect() {
                     if (bodyBlockers) blockers.push(...bodyBlockers);
                     else blockers.push("$unresolvedDelayedBody");
                 }
-                // Tracked grammar gaps (ADR 0048) — never FREE.
-                if (/\bevent\.[A-Za-z]/.test(body)) {
+                // Tracked grammar gaps (ADR 0048) — never FREE. The capture
+                // is built from trigger-EVENT data: either the `event` param
+                // itself or the diedTrigger convention's third param (the
+                // dead creature — Seraph, Krovikan Vampire).
+                if (/\b(?:event|deadCreature)\.[A-Za-z]/.test(body)) {
                     blockers.push("$eventFieldCapture");
                 }
                 if (/\.join\(/.test(body)) blockers.push("$listCapture");

@@ -319,16 +319,12 @@ export const hellsCaretaker: CardDefinition = {
                 zone: "graveyard",
                 controller: "you",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "graveyard-card") {
-                    ctx.returnToBattlefield(
-                        ctx.controller,
-                        target.id,
-                        "graveyard"
-                    );
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #839): return the
+            // targeted graveyard creature card to the battlefield under its
+            // owner's control (CR 400.7 reanimation).
+            effects: [
+                { op: "moveZone", target: { target: 0 }, to: "battlefield" },
+            ],
         },
     ],
 };
@@ -534,6 +530,12 @@ export const cyclopeanMummy: CardDefinition = {
             id: "cyclopean-mummy-exile",
             oracleText: "When this creature dies, exile it.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045, #839): the moveZone Op acts on an
+            // announced target or the `$source` snapshot (a permanent on the
+            // battlefield). This trigger acts on the DIES event's dead-creature
+            // payload — a card already in the graveyard — which no Op selector
+            // references. Blocked on: a moveZone selector for a leaves-the-
+            // battlefield / dies-trigger object. Stays resolve().
             resolve: (ctx, _event, deadCreature) => {
                 // The card is in its owner's graveyard by the time the trigger
                 // resolves (CR 603.10); move that exact object to exile

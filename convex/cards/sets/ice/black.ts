@@ -556,12 +556,12 @@ export const foulFamiliar: CardDefinition = {
                 "{B}, Pay 1 life: Return this creature to its owner's hand.",
             cost: { mana: { B: 1 }, life: 1 },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.returnToHand({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #839): return the source
+            // permanent to its owner's hand via the implicit $source binding
+            // (CR 701.10 / 400.7).
+            effects: [
+                { op: "moveZone", target: { ref: "$source" }, to: "hand" },
+            ],
         },
     ],
 };
@@ -1193,6 +1193,9 @@ export const krovikanVampire: CardDefinition = {
             scope: "any-other",
             condition: (event, self) =>
                 event.damagedBySources.includes(self.id),
+            // NOT DSL-migratable yet (ADR 0048): the delayed capture is the
+            // trigger-EVENT's dead creature (deadCreature.id) — the tracked
+            // $event.<field> grammar gap. Stays resolve().
             resolve: (ctx, _event, deadCreature) => {
                 ctx.scheduleDelayedTrigger(
                     KROVIKAN_VAMPIRE_ID,
@@ -1313,12 +1316,12 @@ export const leshracsSigil: CardDefinition = {
             oracleText: "{B}{B}: Return this enchantment to its owner's hand.",
             cost: { mana: { B: 2 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.returnToHand({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #839): return the source
+            // permanent to its owner's hand via the implicit $source binding
+            // (CR 701.10 / 400.7).
+            effects: [
+                { op: "moveZone", target: { ref: "$source" }, to: "hand" },
+            ],
         },
     ],
 };

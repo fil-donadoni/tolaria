@@ -2353,6 +2353,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: "The `forEach` structural construct (ADR 0045, issue #807) — the FOURTH and final frozen construct, closing the grammar. NOT an Op verb; registered here so the Op-vocabulary coverage guard (registry ⇄ interpreter ⇄ validator ⇄ scenario-assertor, 1:1) counts it. Iterates the body over a declaratively-selected set (players in APNAP order CR 101.4, or battlefield permanents by controller/filter), determined ONCE at construct entry (CR 608.2i) and frozen. `$each` is bound per iteration; a `choice` Op inside the body suspends/resumes per iteration through the same Pending Choice pipeline as a top-level choice.",
     },
     {
+        op: "moveZone",
+        status: "implemented",
+        cr: "400.7",
+        binding:
+            "SpellContext.moveCardById / returnToHand / returnToBattlefield",
+        note: "General zone movement (CR 400.7, issue #839). A thin declarative skin over three SpellContext primitives, one execution path (ADR 0045): the object's CURRENT zone is inferred from its kind (a permanent → returnToHand from the battlefield; a graveyard-card → returnToBattlefield when `to` is the battlefield, else moveCardById from the graveyard). `target` is an announced slot (Unsummon, Raise Dead, Resurrection) or a bare `$source` snapshot (self-bounce — Blinking Spirit); `to` is the destination zone; there is no `from` (it is inferred). Subsumes the returnToHand / moveCardById / returnToBattlefield closures the migration classifier folds here (~35 blocked closures at ship time).",
+    },
+    {
         op: "delayedTrigger",
         status: "implemented",
         cr: "603.7",
@@ -2389,14 +2397,8 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  `EffectValue` grammar member, not an Op (PRD #826). */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
-    // delayedTrigger SHIPPED (issue #838, ADR 0048) — moved to
-    // EFFECT_OP_REGISTRY above.
-    {
-        op: "moveZone",
-        status: "planned",
-        cr: "400.7",
-        note: "General zone movement (CR 400.7). Foundational: subsumes SpellContext.moveCardById / returnToHand / returnToBattlefield / moveZone / returnExiledForSource (~62 blocked closures). Dependency of many multi-Op cards.",
-    },
+    // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED
+    // (issue #839) — both moved to EFFECT_OP_REGISTRY above.
     // --- High-frequency skins (by blocked-closure count) ---
     {
         op: "pump",
