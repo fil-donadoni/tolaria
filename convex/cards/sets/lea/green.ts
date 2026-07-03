@@ -554,6 +554,11 @@ export const instillEnergy: CardDefinition = {
             useStack: true,
             controllerTurnOnly: true,
             oncePerTurn: true,
+            // NOT DSL-migratable (ADR 0045): untaps the ENCHANTED creature —
+            // the Aura's attached host, read via `getAttachedTo`. The
+            // EffectObjectSelector grammar has no "$host"/attached-object
+            // member (only announced slots, `$source`, and forEach `$each`).
+            // Blocked on: an attached-object EffectObjectSelector.
             resolve: (ctx: SpellContext) => {
                 const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
                 if (!hostId) return;
@@ -653,10 +658,11 @@ export const leyDruid: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Land", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") ctx.untap(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #842): untap the
+            // announced land target (CR 701.26b).
+            effects: [
+                { op: "tapUntap", action: "untap", target: { target: 0 } },
+            ],
         },
     ],
 };

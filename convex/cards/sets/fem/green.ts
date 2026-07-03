@@ -682,6 +682,13 @@ export const thelonsCurse: CardDefinition = {
                 "At the beginning of each player's upkeep, that player may choose any number of tapped blue creatures they control and pay {U} for each creature chosen this way. If the player does, untap those creatures.",
             phase: "UPKEEP",
             scope: "each",
+            // NOT DSL-migratable (ADR 0045): an `each`-scoped phaseTrigger
+            // (scoped player ≠ controller, so `effects` is disallowed) that
+            // selects tapped BLUE creatures (no colour/tap-state filter on the
+            // forEach selector) and runs a per-creature mayPay→untap loop over a
+            // runtime candidate set.
+            // Blocked on: non-"your" trigger effects + colour/tap filters + a
+            // per-member mayPay iteration.
             resolve: (ctx, _event, scopedPlayerId) => {
                 const player = scopedPlayerId;
                 // Tapped blue creatures the active player controls.

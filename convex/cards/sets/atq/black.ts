@@ -42,6 +42,12 @@ export const yawgmothDemon: CardDefinition = {
                 "At the beginning of your upkeep, you may sacrifice an artifact. If you don't, tap this creature and it deals 2 damage to you.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): "you may sacrifice an artifact; if
+            // you don't, tap this + 2 damage" is a sacrifice-as-alternative-cost
+            // (a mayPay whose cost is sacrificing a chosen artifact, not mana —
+            // the `mayPay` Op only pays a ManaCost) with a conditional else that
+            // taps the source. Same class as Mishra's War Machine.
+            // Blocked on: a sacrifice-cost mayPay + declined-branch predicate.
             resolve: (ctx, _event, playerId) => {
                 const self: TargetSelection = {
                     type: "permanent",

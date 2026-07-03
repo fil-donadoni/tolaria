@@ -275,10 +275,9 @@ export const homaridShaman: CardDefinition = {
             cost: { mana: { U: 1 } },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1, colorFilter: "G" },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") ctx.tap(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #842): tap the announced
+            // green-creature target (CR 701.26a).
+            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
         },
     ],
 };

@@ -851,6 +851,11 @@ export const tourachsGate: CardDefinition = {
                 }
                 return false;
             },
+            // NOT DSL-migratable (ADR 0045): taps the ENCHANTED host
+            // (`getAttachedToId` — no attached-object selector) and pumps only
+            // the controller's ATTACKING creatures (`getIsAttacking` — the
+            // forEach `permanents` filter has no attacking/combat predicate).
+            // Blocked on: attached-object selector + an attacking-creature filter.
             resolve: (ctx: SpellContext) => {
                 // Pay the "tap enchanted land" cost (CR 602.1).
                 const hostId = ctx.getAttachedToId();

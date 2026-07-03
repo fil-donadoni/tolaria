@@ -190,6 +190,12 @@ function isCounterAction(value: unknown): boolean {
     return value === "add" || value === "remove";
 }
 
+/** The direction of a `tapUntap` Op (issue #842, CR 701.26) — tap or untap a
+ *  permanent. */
+function isTapUntapAction(value: unknown): boolean {
+    return value === "tap" || value === "untap";
+}
+
 /** The destination zones a `moveZone` Op may name (issue #839, EffectMoveZone).
  *  The five zones a one-shot effect addresses (CR 400.7). */
 function isMoveZone(value: unknown): boolean {
@@ -501,6 +507,15 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             counter: isNonEmptyString,
             target: isObjectSelector,
             count: isEffectValue,
+        },
+    },
+    // CR 701.26 (issue #842) — tap/untap a permanent. `action` selects the
+    // direction; `target` is an object selector (announced slot, `$source`, or
+    // a forEach `$each`). No amount — a permanent is tapped or it isn't.
+    tapUntap: {
+        required: {
+            action: isTapUntapAction,
+            target: isObjectSelector,
         },
     },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution choice through the

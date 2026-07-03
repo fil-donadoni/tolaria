@@ -215,15 +215,14 @@ export const eaterOfTheDead: CardDefinition = {
                 zone: "graveyard",
                 controller: "any",
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (!t || t.type !== "graveyard-card" || !t.playerId) return;
-                ctx.moveCardById(t.playerId, t.id, "graveyard", "exile");
-                ctx.untap({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #842): exile the announced
+            // graveyard creature-card target (moveZone graveyard→exile, CR
+            // 701.13), then untap the source (CR 701.26b). The "if tapped" gate
+            // is enforced by `canActivate` above.
+            effects: [
+                { op: "moveZone", target: { target: 0 }, to: "exile" },
+                { op: "tapUntap", action: "untap", target: { ref: "$source" } },
+            ],
         },
     ],
 };
@@ -667,6 +666,11 @@ export const wordOfBinding: CardDefinition = {
     // CR 601.2c — "X target creatures": the number of targets equals X. The
     // engine resolves the count from `chosenX` at announcement.
     targetRequirement: { type: "Creature", count: "X" },
+    // NOT DSL-migratable (ADR 0045): taps a VARIABLE number (X) of announced
+    // creature targets by iterating `ctx.targets`. The DSL acts on fixed
+    // positional slots (`{ target: 0 }`) or a declarative forEach set — there
+    // is no forEach-over-announced-target-slots construct for an X-count list.
+    // Blocked on: an announced-targets iteration construct (X-count).
     resolve: (ctx: SpellContext) => {
         for (const target of ctx.targets) {
             if (target.type === "permanent") ctx.tap(target);

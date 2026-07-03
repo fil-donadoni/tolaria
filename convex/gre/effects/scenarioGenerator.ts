@@ -366,6 +366,24 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSlot(req, op.target.target, "permanent");
             return;
+        case "tapUntap":
+            // `tapUntap` (issue #842) taps/untaps a permanent (CR 701.26). The
+            // generator can assert a TAP on an announced permanent slot (it
+            // seeds a filler permanent there — untapped by default — and reads
+            // its tap state after resolution). An untap (the canned generator
+            // seeds untapped permanents, so there is nothing to observe) or a
+            // `$source` / `$each` target is not modelled — skip and let the
+            // card's own per-card test cover it.
+            if (op.action !== "tap") {
+                req.skip ??= `Op "tapUntap" untaps a permanent the canned generator already seeds untapped — covered by the card's own per-card test`;
+                return;
+            }
+            if (!("target" in op.target)) {
+                req.skip ??= `Op "tapUntap" targets $source/$each — covered by the card's own per-card test`;
+                return;
+            }
+            recordSlot(req, op.target.target, "permanent");
+            return;
         case "forEach":
             // The forEach construct (issue #807) iterates a runtime-selected
             // set; the generator cannot predict per-member outcomes (and a
@@ -766,6 +784,32 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 return {
                     ok: actual === expected,
                     detail: `${op.counter} counters ${actual}, expected ${expected}`,
+                };
+            },
+        };
+    },
+    // `tapUntap` (issue #842, CR 701.26) — a TAP on an announced permanent slot
+    // is observable as `isTapped` flipping false→true on the seeded (untapped)
+    // filler permanent. `untap` (the filler starts untapped, nothing to
+    // observe) and `$source`/`$each` targets are skipped upstream in
+    // `analyseOp` (returns null defensively here).
+    tapUntap(rawOp, scenario) {
+        const op = rawOp as Extract<EffectOp, { op: "tapUntap" }>;
+        if (op.action !== "tap") return null;
+        if (!("target" in op.target)) return null;
+        const permId = scenario.targetPermanentIds[op.target.target];
+        return {
+            label: `tap permanent ${permId} (isTapped false→true)`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                return {
+                    ok: perm.isTapped === true,
+                    detail: `isTapped ${perm.isTapped}, expected true`,
                 };
             },
         };

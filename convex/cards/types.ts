@@ -4590,6 +4590,22 @@ export type EffectOp =
           target: EffectObjectSelector;
           count: EffectValue;
       }
+    /** CR 701.26 (issue #842) — tap or untap a permanent. A thin declarative
+     *  skin over the SpellContext primitives `tap` / `untap`, one execution
+     *  path (ADR 0045). `action` selects the direction (`"tap"` — Icy
+     *  Manipulator's "tap target artifact, creature, or land"; `"untap"` —
+     *  Twiddle's untap mode, a "untap target permanent" effect). `target`
+     *  names the permanent: an announced target slot, the resolving source
+     *  (`$source` — a permanent tapping itself), or the current member of a
+     *  `forEach` set (`{ ref: "$each" }`). Skipped when the referenced
+     *  permanent is gone (CR 608.2b — the spell does as much as it can); the
+     *  primitives themselves no-op when the permanent is already in the
+     *  requested state (CR 701.26a/b). */
+    | {
+          op: "tapUntap";
+          action: "tap" | "untap";
+          target: EffectObjectSelector;
+      }
     /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a
      *  Pending Choice of the given `kind` and SUSPENDS the script (the stack

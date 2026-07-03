@@ -75,9 +75,11 @@ export const basaltMonolith: CardDefinition = {
             oracleText: "{3}: Untap this artifact.",
             cost: { mana: { X: 3 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.untap({ type: "permanent", id: ctx.sourceInstanceId });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #842): untap the source
+            // artifact (CR 701.26b). `$source` is the resolving permanent.
+            effects: [
+                { op: "tapUntap", action: "untap", target: { ref: "$source" } },
+            ],
         },
     ],
 };
@@ -623,11 +625,9 @@ export const icyManipulator: CardDefinition = {
             cost: { tap: true, mana: { X: 1 } },
             useStack: true,
             targetRequirement: TARGET_ACL_PERMANENT,
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (!target) return;
-                ctx.tap(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #842): tap the announced
+            // artifact/creature/land target (CR 701.26a).
+            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
         },
     ],
 };
@@ -1008,21 +1008,29 @@ export const manaVault: CardDefinition = {
                 "At the beginning of your upkeep, you may pay {4}. If you do, untap this artifact.",
             phase: "UPKEEP",
             scope: "your",
-            resolve: (ctx) => {
-                const accept = ctx.requestMayPay({
-                    playerId: ctx.controller,
-                    choiceId: ctx.controller,
+            // Migrated resolve()→effects[] (ADR 0045, #842): may pay {4}; if
+            // paid, untap the source (CR 117.3a optional cost, 701.26b). A
+            // `your`-scoped phaseTrigger so the scoped player == controller.
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
                     cost: { X: 4 },
                     prompt: "Pay {4} to untap Mana Vault?",
-                });
-                if (accept === undefined) return;
-                if (accept) {
-                    ctx.untap({
-                        type: "permanent",
-                        id: ctx.sourceInstanceId,
-                    });
-                }
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [
+                        {
+                            op: "tapUntap",
+                            action: "untap",
+                            target: { ref: "$source" },
+                        },
+                    ],
+                },
+            ],
         }),
         phaseTrigger({
             id: "mana-vault-draw-damage",

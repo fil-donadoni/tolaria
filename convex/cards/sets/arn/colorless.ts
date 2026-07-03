@@ -36,10 +36,11 @@ export const jandorsSaddlebags: CardDefinition = {
             cost: { mana: { X: 3 }, tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") ctx.untap(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #842): untap the
+            // announced creature target (CR 701.26b).
+            effects: [
+                { op: "tapUntap", action: "untap", target: { target: 0 } },
+            ],
         },
     ],
 };
@@ -135,18 +136,29 @@ export const brassMan: CardDefinition = {
                 "At the beginning of your upkeep, you may pay {1}. If you do, untap Brass Man.",
             phase: "UPKEEP",
             scope: "your",
-            resolve: (ctx, _event, scopedPlayerId) => {
-                const paid = ctx.requestMayPay({
-                    playerId: scopedPlayerId,
-                    choiceId: `brass-man-${ctx.sourceInstanceId}`,
+            // Migrated resolve()→effects[] (ADR 0045, #842): may pay {1}; if
+            // paid, untap the source (CR 117.3a, 701.26b). A `your`-scoped
+            // phaseTrigger so the scoped player == controller.
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
                     cost: { X: 1 },
                     prompt: "Pay {1} to untap Brass Man?",
-                });
-                if (paid === undefined) return; // suspended
-                if (paid) {
-                    ctx.untap({ type: "permanent", id: ctx.sourceInstanceId });
-                }
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [
+                        {
+                            op: "tapUntap",
+                            action: "untap",
+                            target: { ref: "$source" },
+                        },
+                    ],
+                },
+            ],
         }),
     ],
 };

@@ -218,10 +218,9 @@ export const flood: CardDefinition = {
                 count: 1,
                 excludeAbility: "flying",
             },
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (target?.type === "permanent") ctx.tap(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #842): tap the announced
+            // creature-without-flying target (CR 701.26a).
+            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
         },
     ],
 };
@@ -634,6 +633,10 @@ export const riptide: CardDefinition = {
     oracleText: "Tap all blue creatures.",
     manaCost: { U: 1 },
     types: ["Instant"],
+    // NOT DSL-migratable (ADR 0045): a mass tap of all BLUE creatures. The
+    // forEach `permanents` selector filters only by type/subtype
+    // (`EffectCardFilter`), not colour, so "blue creatures" cannot be selected.
+    // Blocked on: a colour member on EffectCardFilter.
     resolve: (ctx: SpellContext) => {
         for (const pid of ctx.allPlayerIds) {
             for (const id of ctx.getBattlefieldIds(pid, {
