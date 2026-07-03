@@ -661,19 +661,22 @@ export const thrullWizard: CardDefinition = {
                 count: 1,
                 colorFilter: "B",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (!target || target.type !== "spell") return;
-                const spellController = ctx.getController(target);
-                const accept = ctx.requestMayPay({
-                    playerId: spellController,
-                    choiceId: `thrull-wizard-${ctx.sourceInstanceId}`,
+            // CR 117.3a / 701.5a — "counter unless that spell's controller pays":
+            // the spell's controller may pay {B}; if they don't, counter it.
+            effects: [
+                {
+                    op: "mayPay",
+                    player: { controllerOf: { target: 0 } },
                     cost: { B: 1 },
                     prompt: "Pay {B} or your spell is countered (Thrull Wizard)?",
-                });
-                if (accept === undefined) return; // suspended
-                if (!accept) ctx.counter(target);
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [{ op: "counter", target: { target: 0 } }],
+                },
+            ],
         },
     ],
 };

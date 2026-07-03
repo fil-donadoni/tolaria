@@ -154,12 +154,7 @@ export const thornThallid: CardDefinition = {
             cost: { removeCounter: { type: "spore", count: 3 } },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent" || target?.type === "player") {
-                    ctx.dealDamage(target, 1);
-                }
-            },
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
 };
@@ -296,9 +291,7 @@ export const elvishFarmer: CardDefinition = {
             oracleText: "Sacrifice a Saproling: You gain 2 life.",
             cost: { sacrificeFilter: { subtypes: ["Saproling"] } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.gainLife(ctx.controller, 2);
-            },
+            effects: [{ op: "gainLife", player: "controller", amount: 2 }],
         },
     ],
 };

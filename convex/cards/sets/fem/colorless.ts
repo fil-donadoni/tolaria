@@ -311,10 +311,7 @@ export const aeolipile: CardDefinition = {
             cost: { mana: { X: 1 }, tap: true, sacrifice: true },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target) ctx.dealDamage(target, 2);
-            },
+            effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
     ],
 };
@@ -333,9 +330,7 @@ export const balmOfRestoration: CardDefinition = {
             oracleText: "{1}, {T}, Sacrifice this artifact: You gain 2 life.",
             cost: { mana: { X: 1 }, tap: true, sacrifice: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.gainLife(ctx.controller, 2);
-            },
+            effects: [{ op: "gainLife", player: "controller", amount: 2 }],
         },
         {
             id: "balm-prevent",
@@ -466,9 +461,7 @@ export const ringOfRenewal: CardDefinition = {
                 "{5}, {T}: Discard a card at random, then draw two cards.",
             cost: { mana: { X: 5 }, tap: true, discardAtRandom: 1 },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.drawCards(ctx.controller, 2);
-            },
+            effects: [{ op: "draw", player: "controller", count: 2 }],
         },
     ],
 };
