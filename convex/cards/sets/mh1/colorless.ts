@@ -3,7 +3,7 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004). Lands and colourless
 // artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import type { CardDefinition } from "../../types";
 
 // The Modern Horizons "Horizon land" cycle — a painland mana ability
 // ({T}, Pay 1 life: Add one of two colours) plus a cantrip-sacrifice ability
@@ -34,9 +34,9 @@ export const waterloggedGrove: CardDefinition = {
             oracleText: "{1}, {T}, Sacrifice this land: Draw a card.",
             cost: { mana: { X: 1 }, tap: true, sacrifice: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.drawCards(ctx.controller, 1);
-            },
+            // CR 602 sacrifice ability, CR 121.1 draw — the controller draws
+            // one card on resolution.
+            effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
 };
@@ -63,9 +63,9 @@ export const sunbakedCanyon: CardDefinition = {
             oracleText: "{1}, {T}, Sacrifice this land: Draw a card.",
             cost: { mana: { X: 1 }, tap: true, sacrifice: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.drawCards(ctx.controller, 1);
-            },
+            // CR 602 sacrifice ability, CR 121.1 draw — the controller draws
+            // one card on resolution.
+            effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
 };
