@@ -2224,17 +2224,30 @@ export const ENGINE_INTERNAL_MARKERS: EngineInternalMarker[] = [
  *  listed here, and the interpreter-coverage guard test fails CI when this
  *  table and the interpreter's executor table drift apart — a row without an
  *  executor (or vice versa) is a registry bug. */
+export type EffectOpStatus = "implemented" | "planned";
+
 export interface EffectOpRow {
     /** Op name exactly as written in `effects[]` (camelCase verb). */
     op: string;
+    /** "implemented" — the Op is live in the interpreter/validator/scenario
+     *  vocabulary and usable by cards (all `EFFECT_OP_REGISTRY` rows).
+     *  "planned" — a demand-driven backlog reservation with no interpreter
+     *  binding yet; it lives in `EFFECT_OP_BACKLOG`, NOT in the usable
+     *  vocabulary. `isRegisteredEffectOp` (and therefore `validateEffectScript`)
+     *  never accepts a `planned` Op, so a card cannot reference one — it is a
+     *  machine-visible IOU, the demand-driven analogue of the CR-total
+     *  keyword census (PRD #826, ADR 0046). */
+    status: EffectOpStatus;
     /** CR section for the verb (2025-09-19 numbering). Game actions that are
      *  not CR 701 keyword actions (damage, draw, life change) cite their own
      *  rules section. */
     cr: string;
     /** The SpellContext primitive the interpreter calls — Ops are a thin
      *  declarative skin over the existing primitives, never a parallel
-     *  engine (ADR 0045 "one execution path"). */
-    binding: string;
+     *  engine (ADR 0045 "one execution path"). Required for `implemented`
+     *  rows (enforced by the registry↔interpreter coverage guard); omitted on
+     *  `planned` backlog rows, which have no interpreter binding yet. */
+    binding?: string;
     /** When the Op implements a CR 701 keyword action, the census row id in
      *  `MECHANICS_REGISTRY` it binds (e.g. "destroy"). Undefined for plain
      *  game actions with no keyword. */
@@ -2249,26 +2262,31 @@ export interface EffectOpRow {
 export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
     {
         op: "dealDamage",
+        status: "implemented",
         cr: "120.1",
         binding: "SpellContext.dealDamage",
     },
     {
         op: "draw",
+        status: "implemented",
         cr: "121.1",
         binding: "SpellContext.drawCards",
     },
     {
         op: "gainLife",
+        status: "implemented",
         cr: "119.3a",
         binding: "SpellContext.gainLife",
     },
     {
         op: "loseLife",
+        status: "implemented",
         cr: "119.3b",
         binding: "SpellContext.loseLife",
     },
     {
         op: "destroy",
+        status: "implemented",
         cr: "701.8",
         binding: "SpellContext.destroy",
         mechanicId: "destroy",
@@ -2276,6 +2294,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
     },
     {
         op: "exile",
+        status: "implemented",
         cr: "701.13",
         binding: "SpellContext.exile",
         mechanicId: "exile",
@@ -2283,12 +2302,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
     },
     {
         op: "choice",
+        status: "implemented",
         cr: "608.2",
         binding: "SpellContext.requestChoice",
         note: "Mid-resolution player choice (CR 101.4 / 608.2, issue #805) mapped 1:1 onto the existing Pending Choice zone-pick kinds (EffectChoiceKind ⊂ ZonePickKind) — same enqueue, same generic prompt UI, same submitResolutionChoice mutation. The interpreter SUSPENDS the script at this Op (resolutionStep checkpoints the Op index) and resumes here when the picks are submitted; its required `bind` names the picks for later Ops.",
     },
     {
         op: "discard",
+        status: "implemented",
         cr: "701.9",
         binding: "SpellContext.discardCard",
         mechanicId: "discard",
@@ -2296,6 +2317,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
     },
     {
         op: "counter",
+        status: "implemented",
         cr: "701.5a",
         binding: "SpellContext.counter",
         mechanicId: "counter",
@@ -2303,18 +2325,21 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
     },
     {
         op: "mayPay",
+        status: "implemented",
         cr: "117.3a",
         binding: "SpellContext.requestMayPay",
         note: 'Optional "you may pay {cost}" decision (CR 117.3a / 118.4, issue #806) mapped 1:1 onto the existing `may-pay` Pending Choice pipeline — same enqueue, same generic Pay/Skip prompt UI, same submitMayPay mutation. The interpreter SUSPENDS the script at this Op and resumes here when the player answers; its required `bind` names a BOOLEAN binding (true = paid) read by a later `if` predicate. The counter/punisher primitive: "… unless its controller pays {2}".',
     },
     {
         op: "if",
+        status: "implemented",
         cr: "608.2c",
         binding: "interpreter branch selection (no primitive)",
         note: "The `if` structural construct (ADR 0045, issue #806) — NOT an Op verb but the third frozen construct, registered here so the Op-vocabulary coverage guard (registry ⇄ interpreter ⇄ validator ⇄ scenario-assertor, 1:1) counts it. Branches the script on a PREDEFINED predicate form (a boolean-binding test — e.g. a mayPay outcome — or a numeric comparison), never an arbitrary expression, so the validator and the bot can read the condition. then/else are Op lists; a suspending Op inside a branch suspends/resumes exactly as at the top level.",
     },
     {
         op: "sacrifice",
+        status: "implemented",
         cr: "701.16",
         binding: "SpellContext.sacrifice",
         mechanicId: "sacrifice",
@@ -2322,16 +2347,170 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
     },
     {
         op: "forEach",
+        status: "implemented",
         cr: "608.2i",
         binding: "interpreter set iteration (no primitive)",
         note: "The `forEach` structural construct (ADR 0045, issue #807) — the FOURTH and final frozen construct, closing the grammar. NOT an Op verb; registered here so the Op-vocabulary coverage guard (registry ⇄ interpreter ⇄ validator ⇄ scenario-assertor, 1:1) counts it. Iterates the body over a declaratively-selected set (players in APNAP order CR 101.4, or battlefield permanents by controller/filter), determined ONCE at construct entry (CR 608.2i) and frozen. `$each` is bound per iteration; a `choice` Op inside the body suspends/resumes per iteration through the same Pending Choice pipeline as a top-level choice.",
     },
 ];
 
-/** True if `name` is a registered Effect Script Op (ADR 0045). The single
- *  vocabulary authority consulted by `validateEffectScript`. */
+/** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
+ *  `planned` reservation: an Op the resolve()→effects[] migration classifier
+ *  (`scripts/migration-classifier.mjs`) has demonstrated is blocking real
+ *  cards, but which has no interpreter binding yet. This is the machine-visible
+ *  IOU list — the demand-driven analogue of the CR-total keyword census in
+ *  `MECHANICS_REGISTRY` (Ops are engine primitives with no enumerable CR list,
+ *  so the backlog is populated from measured demand, never speculatively).
+ *
+ *  These rows are deliberately kept OUT of `EFFECT_OP_REGISTRY` so:
+ *    - `isRegisteredEffectOp` never accepts a planned Op — a card cannot
+ *      reference one, and `validateEffectScript` rejects it (a planned Op is a
+ *      reservation, not usable vocabulary);
+ *    - the registry↔interpreter↔validator↔scenario coverage guards, which
+ *      require a live executor/schema/assertor for every `EFFECT_OP_REGISTRY`
+ *      row, are not tripped by an unbuilt stub.
+ *
+ *  When an Op ships, its row moves here → `EFFECT_OP_REGISTRY` with
+ *  `status: "implemented"` and a real `binding` (see the migration playbook's
+ *  architecture-then-frequency Op sequence). The `note` records the
+ *  SpellContext primitive(s) the classifier folds into the Op, so the demand
+ *  link stays legible.
+ *
+ *  Wave-1 Op sequence (architecture-setting first, then by blocked-closure
+ *  frequency; counts are the classifier's measured demand at #826 authoring
+ *  time and drift as Ops ship). `X` is intentionally absent — it is a fifth
+ *  `EffectValue` grammar member, not an Op (PRD #826). */
+export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
+    // --- Architecture-setting foundations (implemented before the skins) ---
+    {
+        op: "delayedTrigger",
+        status: "planned",
+        cr: "603.7a",
+        note: "Grants a delayed triggered ability (CR 603.7). Folds SpellContext.scheduleDelayedTrigger (~28 blocked closures). Flagged needs-design: it schedules a future trigger, not a plain primitive skin.",
+    },
+    {
+        op: "moveZone",
+        status: "planned",
+        cr: "400.7",
+        note: "General zone movement (CR 400.7). Foundational: subsumes SpellContext.moveCardById / returnToHand / returnToBattlefield / moveZone / returnExiledForSource (~62 blocked closures). Dependency of many multi-Op cards.",
+    },
+    // --- High-frequency skins (by blocked-closure count) ---
+    {
+        op: "pump",
+        status: "planned",
+        cr: "613.4c",
+        note: "Temporary P/T boost until end of turn (layer 7c, CR 613.4c). Folds SpellContext.addTemporaryPTBuff / addSourceTappedPTBuff (~99 blocked closures — the largest single Op backlog).",
+    },
+    {
+        op: "counters",
+        status: "planned",
+        cr: "122.1",
+        note: "Add/remove counters on a permanent (CR 122). Folds SpellContext.addCounter / removeCounter (~80 blocked closures).",
+    },
+    {
+        op: "tapUntap",
+        status: "planned",
+        cr: "701.26",
+        mechanicId: "tap-and-untap",
+        note: 'CR 701.26 keyword action "Tap and Untap". Folds SpellContext.tap / untap / tapAllLands (~68 blocked closures).',
+    },
+    {
+        op: "grantAbility",
+        status: "planned",
+        cr: "613.1f",
+        note: "Grant/remove an ability (layer 6, CR 613.1f). Folds SpellContext.grantStaticAbility / removeStaticAbilities (~62 blocked closures).",
+    },
+    {
+        op: "libraryLook",
+        status: "planned",
+        cr: "701.22",
+        note: 'Look at / reorder / shuffle the top of a library (CR 701.22 "Scry" and neighbours). Folds SpellContext.peekLibraryTop / reorderLibraryTop / shuffleLibrary (~40 blocked closures).',
+    },
+    {
+        op: "preventDamage",
+        status: "planned",
+        cr: "615.1",
+        note: "Damage-prevention shield (CR 615). Folds SpellContext.preventNextNDamageToTarget / preventAllCombatDamage / preventAllCombatDamageToAndBy (~34 blocked closures).",
+    },
+    {
+        op: "regenerate",
+        status: "planned",
+        cr: "701.19",
+        mechanicId: "regenerate",
+        note: 'CR 701.19 keyword action "Regenerate". Folds SpellContext.applyRegenerationShield (~30 blocked closures).',
+    },
+    {
+        op: "createToken",
+        status: "planned",
+        cr: "701.7",
+        mechanicId: "create",
+        note: 'CR 701.7 keyword action "Create". Folds SpellContext.createToken / createTokenCopyOf (~15 blocked closures).',
+    },
+    {
+        op: "gainControl",
+        status: "planned",
+        cr: "613.1b",
+        note: "Control-change effect (layer 2, CR 613.1b). Folds SpellContext.gainControl (~14 blocked closures).",
+    },
+    {
+        op: "optionChoice",
+        status: "planned",
+        cr: "608.2",
+        note: 'Mid-resolution "choose one" mode selection (CR 608.2). Folds SpellContext.requestOptionChoice (~16 blocked closures).',
+    },
+    {
+        op: "addMana",
+        status: "planned",
+        cr: "106.1",
+        note: "Add mana to a player's mana pool (CR 106). Folds SpellContext.addManaTo / addMana / addRestrictedMana (~15 blocked closures).",
+    },
+    {
+        op: "coinFlip",
+        status: "planned",
+        cr: "705.2",
+        note: "Flip a coin (CR 705). Folds SpellContext.requestCoinFlip / flipCoin (~9 blocked closures).",
+    },
+    // --- Low-frequency long-tail (surfaced by the classifier, PRD #826 §Out
+    //     of Scope — recorded as reservations, filed as issues only on demand
+    //     past wave-1). ---
+    {
+        op: "reveal",
+        status: "planned",
+        cr: "701.20",
+        mechanicId: "reveal",
+        note: 'CR 701.20 keyword action "Reveal" as an Op. Folds SpellContext.markKnown / markKnownToAll / revealHand (~16 blocked closures). Long-tail: the reveal PRIMITIVE exists (Reveal keyword action) but no Effect Script Op wraps it yet.',
+    },
+    {
+        op: "setColor",
+        status: "planned",
+        cr: "613.1e",
+        note: "Colour-changing effect (layer 5, CR 613.1e). Folds SpellContext.setColorOverride (~7 blocked closures). Long-tail.",
+    },
+    {
+        op: "lockUntap",
+        status: "planned",
+        cr: "502.3",
+        note: 'Untap-step restriction ("doesn\'t untap while …", CR 502.3). Folds SpellContext.lockUntapWhileSourceTapped / skipNextUntap (~9 blocked closures). Long-tail.',
+    },
+    {
+        op: "nameCard",
+        status: "planned",
+        cr: "201.3",
+        note: "Name a card as part of resolution (CR 201.3). Folds SpellContext.requestNameCard (~3 blocked closures). Long-tail.",
+    },
+];
+
+/** True if `name` is a registered, USABLE Effect Script Op (ADR 0045). The
+ *  single vocabulary authority consulted by `validateEffectScript`. Only
+ *  `implemented` Ops count — a `planned` backlog reservation
+ *  (`EFFECT_OP_BACKLOG`) is NOT usable vocabulary, so a card that references
+ *  one fails validation. (Backlog rows live in a separate array, so the
+ *  `status` guard here is belt-and-suspenders against a future refactor that
+ *  merges the two lists.) */
 export function isRegisteredEffectOp(name: string): boolean {
-    return EFFECT_OP_REGISTRY.some((row) => row.op === name);
+    return EFFECT_OP_REGISTRY.some(
+        (row) => row.op === name && row.status === "implemented"
+    );
 }
 
 /** True if `value` (a literal `staticAbilities` string as declared on a
