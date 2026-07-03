@@ -948,6 +948,9 @@ function batteringRamWallTrigger(): TriggeredAbility {
                 event.blockerSubtypes.includes("Wall")
             );
         },
+        // NOT DSL-migratable yet (ADR 0048): the delayed capture is built
+        // from a trigger-EVENT field (event.blockerId) — the tracked
+        // $event.<field> grammar gap. Stays resolve().
         resolve: (ctx, event) => {
             if (event.type !== "BLOCKERS_CONFIRMED") return;
             ctx.scheduleDelayedTrigger(
@@ -1889,30 +1892,21 @@ export const rocketLauncher: CardDefinition = {
             controllerTurnOnly: true,
             canActivate: (source) => source.isSummoningSick !== true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target) ctx.dealDamage(target, 1);
-                // CR 603.7a — schedule the self-destroy for the next end step.
-                ctx.scheduleDelayedTrigger(
-                    "d5bb2093-78a8-4a6c-abe7-9a5afc181ec5",
-                    "rocket-launcher-end-step-destroy",
-                    "next-end-step",
-                    { sourceId: ctx.sourceInstanceId }
-                );
-            },
-        },
-    ],
-    delayedTriggers: [
-        {
-            id: "rocket-launcher-end-step-destroy",
-            oracleText:
-                "Destroy Rocket Launcher at the beginning of the next end step.",
-            timing: "next-end-step",
-            resolve: (ctx, payload) => {
-                if (payload.sourceId) {
-                    ctx.destroy({ type: "permanent", id: payload.sourceId });
-                }
-            },
+            // Effect Script (ADR 0045/0048, migrated in #838): the delayed
+            // self-destroy is a `delayedTrigger` Op with an inline body —
+            // the source is captured through the ability site's implicit
+            // `$source` binding (CR 603.7a).
+            effects: [
+                { op: "dealDamage", amount: 1, to: { target: 0 } },
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-step",
+                    oracleText:
+                        "Destroy Rocket Launcher at the beginning of the next end step.",
+                    capture: { $self: { ref: "$source" } },
+                    effects: [{ op: "destroy", target: { ref: "$self" } }],
+                },
+            ],
         },
     ],
 };

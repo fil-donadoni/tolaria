@@ -2352,6 +2352,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "interpreter set iteration (no primitive)",
         note: "The `forEach` structural construct (ADR 0045, issue #807) — the FOURTH and final frozen construct, closing the grammar. NOT an Op verb; registered here so the Op-vocabulary coverage guard (registry ⇄ interpreter ⇄ validator ⇄ scenario-assertor, 1:1) counts it. Iterates the body over a declaratively-selected set (players in APNAP order CR 101.4, or battlefield permanents by controller/filter), determined ONCE at construct entry (CR 608.2i) and frozen. `$each` is bound per iteration; a `choice` Op inside the body suspends/resumes per iteration through the same Pending Choice pipeline as a top-level choice.",
     },
+    {
+        op: "delayedTrigger",
+        status: "implemented",
+        cr: "603.7",
+        binding: "SpellContext.scheduleDelayedTrigger",
+        note: 'Grants a delayed triggered ability (CR 603.7, ADR 0048, issue #838): "At the beginning of the next <boundary>, <do something>". The delayed body is an INLINE nested Effect Script persisted on the DelayedTriggerInstance (self-contained in game state — no card-def lookup at fire time); everything the body needs from scheduling time crosses via the explicit `capture` map, resolved to serializable ids at scheduling and re-bound as the body\'s initial binding environment when the trigger fires. Two tracked grammar gaps stay OUT of the Op (ADR 0048): event-field captures ($event.<field> — Venom, Battering Ram, Nafs Asp) and list-valued captures (Venomous Breath).',
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
@@ -2382,12 +2389,8 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  `EffectValue` grammar member, not an Op (PRD #826). */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
-    {
-        op: "delayedTrigger",
-        status: "planned",
-        cr: "603.7a",
-        note: "Grants a delayed triggered ability (CR 603.7). Folds SpellContext.scheduleDelayedTrigger (~28 blocked closures). Flagged needs-design: it schedules a future trigger, not a plain primitive skin.",
-    },
+    // delayedTrigger SHIPPED (issue #838, ADR 0048) — moved to
+    // EFFECT_OP_REGISTRY above.
     {
         op: "moveZone",
         status: "planned",

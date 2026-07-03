@@ -979,3 +979,219 @@ describe("validateEffectScript — sacrifice Op (CR 701.16, issue #807)", () => 
         ).toBe(true);
     });
 });
+
+// delayedTrigger Op schema + capture/body scoping (CR 603.7, ADR 0048, issue
+// #838). The body is validated as a FRESH script (its only initial bindings
+// are the capture keys); capture sources resolve in the OUTER scope.
+describe("validateEffectScript — delayedTrigger Op (CR 603.7, ADR 0048)", () => {
+    const wellFormed: EffectOp[] = [
+        { op: "destroy", target: { target: 0 }, bind: "$dead" },
+        {
+            op: "delayedTrigger",
+            timing: "next-end-step",
+            oracleText: "At the beginning of the next end step, do things.",
+            capture: {
+                $it: { target: 0 },
+                $who: { ref: "$dead.controller" },
+                $tag: "a-literal",
+            },
+            effects: [
+                { op: "destroy", target: { ref: "$it" } },
+                { op: "loseLife", player: { ref: "$who" }, amount: 1 },
+            ],
+        },
+    ];
+
+    it("accepts capture from a target slot, a .controller ref and a literal, with a body reading them", () => {
+        expect(validateEffectScript(host({ effects: wellFormed }))).toEqual([]);
+    });
+
+    it("rejects an unknown timing and a missing oracleText", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-eon",
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    } as never,
+                ],
+            })
+        );
+        expect(errors.some((e) => /field "timing"/.test(e))).toBe(true);
+        expect(errors.some((e) => /missing field "oracleText"/.test(e))).toBe(
+            true
+        );
+    });
+
+    it("rejects an empty body", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-step",
+                        oracleText: "x",
+                        effects: [],
+                    } as never,
+                ],
+            })
+        );
+        expect(errors.some((e) => /non-empty Op list/.test(e))).toBe(true);
+    });
+
+    it("requires targetPlayer for the player-scoped timings and rejects it elsewhere (CR 504/505)", () => {
+        const missing = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-main-phase",
+                        oracleText: "x",
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    } as never,
+                ],
+            })
+        );
+        expect(missing.some((e) => /"targetPlayer" is required/.test(e))).toBe(
+            true
+        );
+        const extra = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-step",
+                        oracleText: "x",
+                        targetPlayer: "controller",
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    } as never,
+                ],
+            })
+        );
+        expect(
+            extra.some((e) => /only valid with the player-scoped/.test(e))
+        ).toBe(true);
+    });
+
+    it("rejects a capture ref naming an undefined outer binding", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-step",
+                        oracleText: "x",
+                        capture: { $it: { ref: "$ghost" } },
+                        effects: [{ op: "destroy", target: { ref: "$it" } }],
+                    } as never,
+                ],
+            })
+        );
+        expect(errors.some((e) => /undefined binding "\$ghost"/.test(e))).toBe(
+            true
+        );
+    });
+
+    it("rejects a body ref that reaches for an OUTER binding — the body scope is the capture keys only", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    { op: "destroy", target: { target: 0 }, bind: "$dead" },
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-step",
+                        oracleText: "x",
+                        effects: [
+                            // `$dead` is an outer binding — NOT visible at
+                            // fire time (ADR 0048: captures only).
+                            {
+                                op: "gainLife",
+                                player: { ref: "$dead.controller" },
+                                amount: 1,
+                            },
+                        ],
+                    } as never,
+                ],
+            })
+        );
+        expect(errors.some((e) => /undefined binding "\$dead"/.test(e))).toBe(
+            true
+        );
+    });
+
+    it("rejects a nested delayedTrigger inside a delayedTrigger body (ADR 0048)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-step",
+                        oracleText: "x",
+                        effects: [
+                            {
+                                op: "delayedTrigger",
+                                timing: "next-end-step",
+                                oracleText: "y",
+                                effects: [
+                                    {
+                                        op: "gainLife",
+                                        player: "controller",
+                                        amount: 1,
+                                    },
+                                ],
+                            },
+                        ],
+                    } as never,
+                ],
+            })
+        );
+        expect(
+            errors.some((e) => /must not nest inside a delayedTrigger/.test(e))
+        ).toBe(true);
+    });
+
+    it("rejects reserved capture keys and non-property power captures", () => {
+        const reserved = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-step",
+                        oracleText: "x",
+                        capture: { $each: { target: 0 } },
+                        effects: [{ op: "destroy", target: { ref: "$each" } }],
+                    } as never,
+                ],
+            })
+        );
+        expect(
+            reserved.some((e) => /field "capture" has invalid value/.test(e))
+        ).toBe(true);
+        const power = validateEffectScript(
+            host({
+                effects: [
+                    { op: "destroy", target: { target: 0 }, bind: "$dead" },
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-step",
+                        oracleText: "x",
+                        capture: { $n: { ref: "$dead.power" } },
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    } as never,
+                ],
+            })
+        );
+        expect(
+            power.some((e) => /only ".controller" property captures/.test(e))
+        ).toBe(true);
+    });
+});

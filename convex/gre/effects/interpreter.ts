@@ -65,6 +65,7 @@
 // keeps `OP_EXECUTORS` and that census in exact 1:1 correspondence.
 
 import type {
+    EffectCaptureSource,
     EffectCardFilter,
     EffectComparisonOp,
     EffectCountSpec,
@@ -551,6 +552,40 @@ export const OP_EXECUTORS: {
         if (!ids) return; // binding never captured — CR 608.2b, skip
         for (const id of ids) ctx.sacrifice(id);
     },
+    // CR 603.7 (ADR 0048) — grant a delayed triggered ability. Resolve each
+    // `capture` value to ONE serializable string NOW (scheduling time),
+    // persist it with the inline body on the DelayedTriggerInstance, and let
+    // `runDelayedTriggerBody` re-bind the payload as the body's initial
+    // binding environment when the trigger fires. A thin skin over
+    // `SpellContext.scheduleDelayedTrigger` (one execution path, ADR 0045).
+    delayedTrigger(ctx, op) {
+        const payload: Record<string, string> = {};
+        for (const [name, source] of Object.entries(op.capture ?? {})) {
+            const value = resolveCaptureSource(ctx, source);
+            // An unresolvable capture (target slot gone, binding never made)
+            // stays OUT of the payload: the body binding is uncaptured and
+            // Ops reading it skip at fire time (CR 608.2b).
+            if (value !== undefined) payload[name] = value;
+        }
+        const targetPlayerId =
+            op.targetPlayer !== undefined
+                ? resolvePlayerRef(ctx, op.targetPlayer)
+                : undefined;
+        // A player-scoped timing (next-draw-step / next-main-phase, CR
+        // 504/505) whose player cannot be resolved would never fire correctly
+        // scoped — skip scheduling entirely (CR 608.2b).
+        if (op.targetPlayer !== undefined && targetPlayerId === undefined) {
+            return;
+        }
+        ctx.scheduleDelayedTrigger(
+            ctx.sourceCardId,
+            INLINE_DELAYED_TRIGGER_ID,
+            op.timing,
+            payload,
+            targetPlayerId,
+            { oracleText: op.oracleText, effects: op.effects }
+        );
+    },
     // forEach — the fourth structural construct (ADR 0045, issue #807).
     // Iterates the body over a frozen, declaratively-selected set through
     // `execForEach`, threading the SHARED cursor so each body Op — in each
@@ -811,4 +846,71 @@ export function compileEffectScript(
     effects: readonly EffectOp[]
 ): (ctx: SpellContext) => void {
     return (ctx) => runEffectScript(ctx, effects);
+}
+
+// --- delayedTrigger Op machinery (CR 603.7, ADR 0048) ------------------------
+
+/** The `triggerId` every inline-body DelayedTriggerInstance carries (ADR
+ *  0048). Inline instances never look a template up by id — the body rides on
+ *  the instance — but `triggerId` is required (and marks the fired stack item
+ *  as a delayed ability everywhere `delayedTriggerId` is checked), so a
+ *  reserved sentinel fills it. `$` is illegal in card-def template ids by
+ *  convention, so the sentinel can never collide with a real template. */
+export const INLINE_DELAYED_TRIGGER_ID = "$inline-effects";
+
+/** Resolves one `capture` value of a `delayedTrigger` Op (ADR 0048) to the
+ *  single serializable string persisted in the instance payload:
+ *  - a literal string is stored as-is;
+ *  - `{ target: n }` — the announced slot's object/player id;
+ *  - `{ ref: "$x" }` (bare) — the bound snapshot's instance id, or a player
+ *    binding's player id (the stored arrays are 4-slot snapshots vs
+ *    single-element player bindings — validator-typed families);
+ *  - `{ ref: "$x.controller" }` — the bound snapshot's controller.
+ *  Returns undefined when the slot/binding cannot be resolved — the capture
+ *  is then omitted and body Ops reading it skip at fire time (CR 608.2b). */
+function resolveCaptureSource(
+    ctx: SpellContext,
+    source: EffectCaptureSource
+): string | undefined {
+    if (typeof source === "string") return source;
+    if ("target" in source) return ctx.targets[source.target]?.id;
+    const parsed = parseRef(source.ref);
+    if (parsed) {
+        // Property refs: only `.controller` is capturable (validator-enforced
+        // — power/toughness captures have no fire-time re-binding semantics).
+        if (parsed.property !== "controller") return undefined;
+        return readBinding(ctx, parsed.binding)?.[SNAP_CONTROLLER];
+    }
+    if (!source.ref.startsWith("$")) return undefined;
+    const stored = readBinding(ctx, source.ref);
+    if (!stored) return undefined;
+    return stored.length === 1 ? stored[PLAYER_BINDING_ID] : stored[SNAP_ID];
+}
+
+/** Runs a fired INLINE delayed-trigger body (CR 603.7a, ADR 0048). On a FRESH
+ *  entry (no checkpoint) the persisted payload becomes the body's initial
+ *  binding environment: a captured id that names a player becomes a player
+ *  binding; a live battlefield permanent becomes a FRESH snapshot — the body
+ *  acts on the object's CURRENT state, and destroy/exile-style Ops re-check
+ *  battlefield presence through the snapshot id exactly as `$each` does;
+ *  anything else stays uncaptured, so body Ops reading it skip (CR 608.2b —
+ *  the object left before the trigger fired). On a RESUME (a body choice /
+ *  mayPay suspended) the persisted bindings are authoritative — seeding is
+ *  skipped so last-known information is not re-read (CR 603.10). */
+export function runDelayedTriggerBody(
+    ctx: SpellContext,
+    effects: readonly EffectOp[],
+    payload: Record<string, string>
+): void {
+    if (ctx.getScriptCheckpoint() === undefined) {
+        for (const [name, value] of Object.entries(payload)) {
+            if (!name.startsWith("$")) continue; // not a binding capture
+            if (ctx.allPlayerIds.includes(value)) {
+                ctx.noteChoice(name, [value]);
+            } else if (ctx.getOwnerId(value) !== undefined) {
+                bindSnapshot(ctx, name, { type: "permanent", id: value });
+            }
+        }
+    }
+    runEffectScript(ctx, effects);
 }

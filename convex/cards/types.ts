@@ -474,12 +474,7 @@ export interface ActivatedAbility {
      *  Rainbow Vale (control-change-on-tap). No-op on untap. */
     armsDelayedTriggerOnTap?: {
         triggerId: string;
-        timing:
-            | "next-end-step"
-            | "next-end-of-combat"
-            | "next-draw-step"
-            | "next-main-phase"
-            | "next-upkeep";
+        timing: DelayedTriggerTiming;
     };
     /** Rider on a CHOICE tap mana ability (CR 605.1a, `useStack: false`): when
      *  the source is tapped for mana and the chosen option produces a COLOURED
@@ -818,6 +813,13 @@ export interface SpellContext {
      *  this equals the id of the source permanent on the battlefield — use
      *  it to target self (e.g. Jade Statue's animate-self ability). */
     sourceInstanceId: string;
+    /** The card DEFINITION id of the resolving stack item (CR 108.1 — the
+     *  card the spell/ability is printed on). Read by scheduling primitives
+     *  that stamp their source card on persisted records — a delayed
+     *  trigger's `sourceCardId`, so the fired trigger renders its source
+     *  card on the stack (ADR 0048). Empty string for synthetic items with
+     *  no registry id. */
+    sourceCardId: string;
     /** Chosen targets (validated at cast time). */
     targets: TargetSelection[];
     /** Ids of all players in the game. Used by "each player ~" spells like
@@ -1648,18 +1650,23 @@ export interface SpellContext {
      *  Pass no `targetPlayerId` so it fires at the very next upkeep.
      *
      *  The remaining timings ignore `targetPlayerId` and fire at the next global
-     *  boundary. */
+     *  boundary.
+     *
+     *  `inline` (ADR 0048) — the Effect Script path: instead of a card-def
+     *  template, the delayed BODY is a pure-JSON Op list persisted on the
+     *  `DelayedTriggerInstance` itself (with the oracle text shown when it
+     *  fires). At fire time the payload is re-bound as the body's initial
+     *  binding environment and the interpreter runs the body directly — no
+     *  card-def lookup. Used by the `delayedTrigger` Effect Script Op; the
+     *  template path (`triggerId` lookup) remains the legacy seam for
+     *  `resolve()` cards. */
     scheduleDelayedTrigger: (
         sourceCardId: string,
         triggerId: string,
-        timing:
-            | "next-end-step"
-            | "next-end-of-combat"
-            | "next-draw-step"
-            | "next-main-phase"
-            | "next-upkeep",
+        timing: DelayedTriggerTiming,
         payload: Record<string, string>,
-        targetPlayerId?: string
+        targetPlayerId?: string,
+        inline?: DelayedTriggerInlineBody
     ) => void;
     /** Returns true if the target permanent was declared as an attacker this
      *  turn (CR 506.2). Used by "destroy it if it attacked this turn"-style
@@ -2467,21 +2474,37 @@ export interface SpellContext {
     exileSelf: () => void;
 }
 
+/** When a delayed triggered ability fires (CR 603.7). Shared by the legacy
+ *  `DelayedTriggerDef` template path and the `delayedTrigger` Effect Script
+ *  Op's inline-body path (ADR 0048). */
+export type DelayedTriggerTiming =
+    | "next-end-step"
+    | "next-end-of-combat"
+    | "next-draw-step"
+    | "next-main-phase"
+    | "next-upkeep";
+
+/** ADR 0048 — the inline body of an Effect-Script-scheduled delayed trigger
+ *  (CR 603.7a): a pure-JSON Op list persisted ON the `DelayedTriggerInstance`
+ *  (the fired trigger is self-contained in game state — no card-def lookup at
+ *  fire time), plus the oracle text shown when it fires. */
+export interface DelayedTriggerInlineBody {
+    oracleText: string;
+    effects: EffectOp[];
+}
+
 /** Delayed triggered ability template (CR 603.7a). Declared on the
  *  scheduling card's definition; the engine looks it up by id at fire time
- *  and calls `resolve` with the payload captured at scheduling. */
+ *  and calls `resolve` with the payload captured at scheduling. Legacy seam
+ *  for `resolve()` cards — the DSL path persists an inline body on the
+ *  instance instead (`delayedTrigger` Op, ADR 0048). */
 export interface DelayedTriggerDef {
     /** Local id on `CardDefinition.delayedTriggers`. */
     id: string;
     /** Oracle text shown on the stack when the trigger fires. */
     oracleText: string;
     /** When the trigger should fire. */
-    timing:
-        | "next-end-step"
-        | "next-end-of-combat"
-        | "next-draw-step"
-        | "next-main-phase"
-        | "next-upkeep";
+    timing: DelayedTriggerTiming;
     /** Invoked when the trigger resolves from the stack. `payload` carries
      *  serialized references (ids) chosen at scheduling time. */
     resolve: (ctx: SpellContext, payload: Record<string, string>) => void;
@@ -4381,6 +4404,23 @@ export interface EffectCardFilter {
  *  (the frozen-grammar defence, ADR 0045). */
 export type EffectValue = number | EffectRef | EffectCount;
 
+/** One captured value of a `delayedTrigger` Op (ADR 0048): what crosses the
+ *  scheduling-time → fire-time boundary. Resolved to ONE serializable string
+ *  at scheduling:
+ *  - `{ target: n }` — the announced target slot's object/player id;
+ *  - `{ ref: "$x" }` — a bound snapshot's instance id (or a players-set
+ *    `$each`'s player id);
+ *  - `{ ref: "$x.controller" }` — the bound snapshot's controller player id;
+ *  - a literal string — stored as-is.
+ *  At fire time each captured value is re-bound as the body's initial binding
+ *  environment: a live battlefield permanent id becomes a FRESH snapshot (the
+ *  body acts on the object's current state, CR 603.7a), a player id becomes a
+ *  player binding, and anything else stays uncaptured so body Ops reading it
+ *  skip (CR 608.2b — the object left before the trigger fired). Single-value
+ *  only: list-valued captures are a tracked grammar gap (ADR 0048), not part
+ *  of the Op. */
+export type EffectCaptureSource = EffectTargetRef | EffectRef | string;
+
 // --- Structural construct: forEach (ADR 0045, issue #807) ---
 //
 // The LAST of the four frozen structural constructs (bind/ref/if/forEach):
@@ -4567,6 +4607,35 @@ export type EffectOp =
      *  candidates — CR 608.2b: a player with nothing to sacrifice does
      *  nothing). */
     | { op: "sacrifice"; permanents: EffectRef }
+    /** delayedTrigger — grants a DELAYED triggered ability (CR 603.7, ADR
+     *  0048): "At the beginning of the next <boundary>, <do something>". The
+     *  delayed body is an INLINE nested Effect Script persisted on the
+     *  scheduled `DelayedTriggerInstance` (the fired trigger is
+     *  self-contained in game state — no card-def lookup at fire time);
+     *  everything the body needs from scheduling time crosses via the
+     *  explicit `capture` map, whose keys become the body's ONLY initial
+     *  bindings (outer bindings — `$source` included — are NOT visible
+     *  inside the body). `targetPlayer` scopes the player-gated timings
+     *  (`next-draw-step` / `next-main-phase`, CR 504/505) to one player's
+     *  step; the global-boundary timings reject it (validator-enforced).
+     *  Does not nest inside another delayedTrigger body. Two tracked
+     *  grammar gaps stay OUT of this Op (ADR 0048): event-field captures
+     *  (`$event.<field>`) and list-valued captures. */
+    | {
+          op: "delayedTrigger";
+          timing: DelayedTriggerTiming;
+          /** Oracle text of the granted trigger (shown when it fires). */
+          oracleText: string;
+          /** What crosses from scheduling time to fire time, keyed by the
+           *  binding name the body reads it back under. */
+          capture?: Record<string, EffectCaptureSource>;
+          /** REQUIRED for the player-scoped timings (CR 504/505); rejected
+           *  for the global-boundary timings. Resolved at scheduling time. */
+          targetPlayer?: EffectPlayerRef;
+          /** The delayed body — a nested Effect Script run by the
+           *  interpreter when the trigger fires. */
+          effects: EffectOp[];
+      }
     /** forEach — the fourth and FINAL structural construct (ADR 0045, issue
      *  #807; the grammar is now closed). Executes the `effects` sub-list once
      *  per member of the declaratively-selected set, in selection order

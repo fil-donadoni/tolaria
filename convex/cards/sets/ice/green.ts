@@ -1509,6 +1509,9 @@ export const venomousBreath: CardDefinition = {
     manaCost: { X: 3, G: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
+    // NOT DSL-migratable yet (ADR 0048): the delayed capture is a LIST of
+    // combat-partner ids — the tracked list-valued-capture grammar gap (the
+    // delayedTrigger Op's capture map is single-value). Stays resolve().
     resolve: (ctx: SpellContext) => {
         const t = ctx.targets[0];
         if (t?.type !== "permanent") return;
