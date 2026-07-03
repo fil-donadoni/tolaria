@@ -55,6 +55,9 @@ import * as mh3 from "./sets/mh3";
 // Effect Script tracer bullet (ADR 0045, issue #800) — first DSL-only card
 // (Lava Spike), home set routed to earliest paper printing (ADR 0041).
 import * as chk from "./sets/chk";
+// Effect Script forEach construct (ADR 0045, issue #807) — Innocent Blood,
+// the first choice-inside-forEach DSL card.
+import * as ody from "./sets/ody";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -122,6 +125,8 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "mh3", exports: mh3 },
     // Effect Script tracer bullet (ADR 0045, issue #800).
     { code: "chk", exports: chk },
+    // Effect Script forEach construct (ADR 0045, issue #807).
+    { code: "ody", exports: ody },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>

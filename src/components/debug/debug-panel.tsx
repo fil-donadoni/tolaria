@@ -189,6 +189,52 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Effect Script forEach construct — permanents sweep (ADR 0045,
+        // issue #807): Day of Judgment ("Destroy all creatures") is the
+        // first DSL card iterating a frozen permanent set (CR 608.2i) and
+        // destroying each member via the `$each` object ref. Cast it and
+        // creatures on BOTH sides die — including your own Grizzly Bears —
+        // while lands survive the filter. Four Plains cover the {2}{W}{W}.
+        label: "Day of Judgment — Effect Script forEach sweep (#807)",
+        cards: [
+            { name: "Day of Judgment", owner: "me", zone: "hand" },
+            { name: "Plains", owner: "me", zone: "battlefield", count: 4 },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            { name: "War Mammoth", owner: "opp", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Effect Script forEach + choice composition — APNAP player
+        // iteration (ADR 0045, issue #807): Innocent Blood ("Each player
+        // sacrifices a creature of their choice") is the first DSL card
+        // suspending PER ITERATION: the active player picks a creature to
+        // sacrifice first (CR 101.4), the script resumes, then the opponent
+        // picks. Both seats have two creatures so each pick is a real
+        // decision; one Swamp covers the {B}.
+        label: "Innocent Blood — forEach + APNAP choice (#807)",
+        cards: [
+            { name: "Innocent Blood", owner: "me", zone: "hand" },
+            { name: "Swamp", owner: "me", zone: "battlefield" },
+            {
+                name: "Grizzly Bears",
+                owner: "me",
+                zone: "battlefield",
+                count: 2,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "opp",
+                zone: "battlefield",
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

@@ -1690,3 +1690,597 @@ describe("Effect Script construct: if (ADR 0045, CR 608.2c, issue #806)", () => 
         expect(state.stack).toHaveLength(0);
     });
 });
+
+// --- forEach construct (ADR 0045, issue #807) --------------------------------
+// The FOURTH and final structural construct: the grammar (bind/ref/if/forEach)
+// is now closed. These cover the per-Op-suite treacherous compositions named
+// by the PRD: choice-inside-forEach with suspension per iteration (APNAP,
+// CR 101.4), bindings surviving across iterations and suspensions, and the
+// frozen member set (CR 608.2i) with members leaving mid-iteration
+// (CR 608.2b). forEach composes onto the #806 pre-order cursor: each iteration
+// re-walks the body, so a body choice resumes at its exact (iteration, Op).
+
+describe("Effect Script construct: forEach — permanent sets (ADR 0045 / CR 608.2i, issue #807)", () => {
+    const GOBLIN_ID = "test-foreach-goblin";
+    registerTokenDefinition({
+        id: GOBLIN_ID,
+        name: GOBLIN_ID,
+        rarity: "common",
+        manaCost: { R: 1 },
+        types: ["Creature"],
+        subtypes: ["Goblin"],
+        power: 1,
+        toughness: 1,
+    });
+
+    it("destroys every creature on BOTH battlefields (sweep, no controller scope) — wire format", () => {
+        const id = registerScript("test-foreach-sweep", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature" },
+                },
+                effects: [{ op: "destroy", target: { ref: "$each" } }],
+            },
+        ]);
+        const mine = makeInstance(BEAR_ID, { controllerId: "p1", id: "swpA" });
+        const theirs = ["swpB", "swpC"].map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mine] }),
+                makePlayer("p2", { battlefield: theirs }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("swpA");
+        expect(state.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "swpB",
+            "swpC",
+        ]);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].battlefield).toHaveLength(0);
+        expect(projected.players[1].battlefield).toHaveLength(0);
+    });
+
+    it("honours the subtype filter — only matching members are selected (CR 205)", () => {
+        const id = registerScript("test-foreach-filter", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature", subtype: "Goblin" },
+                },
+                effects: [{ op: "destroy", target: { ref: "$each" } }],
+            },
+        ]);
+        const goblin = makeInstance(GOBLIN_ID, {
+            controllerId: "p2",
+            id: "gobF",
+        });
+        const bear = makeInstance(BEAR_ID, { controllerId: "p2", id: "bearF" });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [goblin, bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            "bearF",
+        ]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["gobF"]);
+    });
+
+    it("honours the controller scope — only that player's permanents iterate (CR 109.5)", () => {
+        const id = registerScript("test-foreach-controller", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    controller: "opponent",
+                    filter: { type: "Creature" },
+                },
+                effects: [{ op: "destroy", target: { ref: "$each" } }],
+            },
+        ]);
+        const mine = makeInstance(BEAR_ID, { controllerId: "p1", id: "ctlA" });
+        const theirs = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "ctlB",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mine] }),
+                makePlayer("p2", { battlefield: [theirs] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual(["ctlA"]);
+        expect(state.players[1].battlefield).toHaveLength(0);
+    });
+
+    it("routes each destroy through the replacement layer — indestructible members survive (CR 702.12)", () => {
+        const id = registerScript("test-foreach-indestructible", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature" },
+                },
+                effects: [{ op: "destroy", target: { ref: "$each" } }],
+            },
+        ]);
+        const tough = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "indF",
+            staticAbilities: ["indestructible"],
+        });
+        const soft = makeInstance(BEAR_ID, { controllerId: "p2", id: "sftF" });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [tough, soft] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual(["indF"]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["sftF"]);
+    });
+
+    it("binds $each per iteration — value refs read the member's snapshot ($each.power / $each.controller, CR 608.2h)", () => {
+        const id = registerScript("test-foreach-each-refs", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature" },
+                },
+                effects: [
+                    {
+                        op: "dealDamage",
+                        amount: { ref: "$each.power" },
+                        to: { player: { ref: "$each.controller" } },
+                    },
+                ],
+            },
+        ]);
+        const mine = makeInstance(BEAR_ID, { controllerId: "p1", id: "refA" });
+        const theirs = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "refB",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mine] }),
+                makePlayer("p2", { battlefield: [theirs] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(18);
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("skips a frozen-set member that left the battlefield before its iteration (CR 608.2b)", () => {
+        const id = registerScript(
+            "test-foreach-member-left",
+            [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        { op: "destroy", target: { target: 0 } },
+                        { op: "destroy", target: { ref: "$each" } },
+                    ],
+                },
+            ],
+            { targetRequirement: { type: "Creature", count: 1 } }
+        );
+        const bears = ["mlA", "mlB"].map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: bears }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "mlB" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "mlA",
+            "mlB",
+        ]);
+    });
+});
+
+describe("Effect Script construct: forEach — player sets, APNAP choice composition (CR 101.4, issue #807)", () => {
+    const SAC_EFFECTS: EffectOp[] = [
+        {
+            op: "forEach",
+            select: { set: "players" },
+            effects: [
+                {
+                    op: "choice",
+                    kind: "sacrifice-permanents",
+                    player: { ref: "$each" },
+                    zone: "battlefield",
+                    filter: { type: "Creature" },
+                    count: 1,
+                    prompt: "Choose a creature to sacrifice.",
+                    bind: "$sac",
+                },
+                { op: "sacrifice", permanents: { ref: "$sac" } },
+            ],
+        },
+    ];
+
+    const bothWithBears = () =>
+        makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: ["sacA1", "sacA2"].map((cid) =>
+                        makeInstance(BEAR_ID, { id: cid, controllerId: "p1" })
+                    ),
+                }),
+                makePlayer("p2", {
+                    battlefield: ["sacB1"].map((cid) =>
+                        makeInstance(BEAR_ID, {
+                            id: cid,
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        })
+                    ),
+                }),
+            ],
+        });
+
+    it("suspends per iteration in APNAP order — active player first, per-iteration apply (CR 101.4)", () => {
+        const id = registerScript("test-foreach-apnap", SAC_EFFECTS);
+        const state = bothWithBears(); // activePlayerId: p1
+        pushSpell(state, id, "p2"); // CONTROLLER is p2 — APNAP ignores it
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on p1's pick
+        expect(state.pendingChoices).toHaveLength(1); // one prompt at a time
+        let head = state.pendingChoices![0];
+        const firstChoiceId = head.choiceId;
+        expect(head.kind).toBe("sacrifice-permanents");
+        expect(head.playerId).toBe("p1"); // ACTIVE player first (CR 101.4)
+        expect(head.count).toBe(1);
+        expect(state.stack).toHaveLength(1); // CR 608.3 — stays on the stack
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["sacA2"],
+        });
+        // p1's sacrifice applied BEFORE p2 is prompted (per-iteration apply).
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "sacA1",
+        ]);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["sacA2"]);
+        expect(state.pendingChoices).toHaveLength(1);
+        head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p2"); // then the non-active player
+        // Distinct iteration-scoped choice ids — iteration 1 never re-reads
+        // iteration 0's persisted picks (the re-prompt treachery).
+        expect(head.choiceId).not.toBe(firstChoiceId);
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["sacB1"],
+        });
+        expect(state.players[1].battlefield).toHaveLength(0);
+        // p2's graveyard: the sacrificed bear + the resolved sorcery (cast by
+        // p2, CR 608.2k).
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("sacB1");
+        expect(state.stack).toHaveLength(0); // resolution completed
+        expect(state.pendingChoices).toBeUndefined();
+    });
+
+    it("APNAP order follows the ACTIVE player, not the controller (CR 101.4)", () => {
+        const id = registerScript("test-foreach-apnap-flip", SAC_EFFECTS);
+        const state = makeState({
+            activePlayerId: "p2",
+            priorityPlayerId: "p2",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            id: "flipA",
+                            controllerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            id: "flipB",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].playerId).toBe("p2");
+    });
+
+    it("skips a player with no legal picks entirely — no prompt, no sacrifice (CR 608.2b)", () => {
+        const id = registerScript("test-foreach-apnap-empty", SAC_EFFECTS);
+        const state = makeState({
+            players: [
+                makePlayer("p1"), // no creatures — never prompted
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            id: "onlyB",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices).toHaveLength(1);
+        const head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p2"); // p1's iteration was skipped
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["onlyB"],
+        });
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("an outer binding stays readable in EVERY iteration, across suspensions (bind across iterations, CR 608.2h)", () => {
+        const id = registerScript(
+            "test-foreach-outer-bind",
+            [
+                { op: "exile", target: { target: 0 }, bind: "$c" },
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "discard-hand",
+                            player: { ref: "$each" },
+                            zone: "hand",
+                            count: 1,
+                            prompt: "Discard a card.",
+                            bind: "$toss",
+                        },
+                        {
+                            op: "discard",
+                            player: { ref: "$each" },
+                            cards: { ref: "$toss" },
+                        },
+                        {
+                            op: "dealDamage",
+                            amount: { ref: "$c.power" },
+                            to: { player: { ref: "$each" } },
+                        },
+                    ],
+                },
+            ],
+            { targetRequirement: { type: "Creature", count: 1 } }
+        );
+        const bear = makeInstance(BEAR_ID, { controllerId: "p2", id: "obB" });
+        const handFor = (owner: "p1" | "p2", cid: string) => [
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "hand",
+            }),
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: handFor("p1", "obH1") }),
+                makePlayer("p2", {
+                    battlefield: [bear],
+                    hand: handFor("p2", "obH2"),
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "obB" }]);
+        resolveTopOfStack(state);
+        let head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p1");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["obH1"],
+        });
+        // $c.power (2) hit p1 after its discard — outer bind read post-resume.
+        expect(state.players[0].life).toBe(18);
+        head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p2");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["obH2"],
+        });
+        expect(state.players[1].life).toBe(18);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("obH1");
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("obH2");
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("the frozen set, cursor and per-iteration bindings survive a DB round-trip mid-construct (compactState/expandState)", () => {
+        const id = registerScript("test-foreach-roundtrip", SAC_EFFECTS);
+        const state = bothWithBears();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head0 = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head0.stackItemId,
+            step: head0.step,
+            choiceId: head0.choiceId,
+            cardInstanceIds: ["sacA1"],
+        });
+        const revived = expandState(
+            JSON.parse(JSON.stringify(compactState(state)))
+        );
+        const head = revived.pendingChoices![0];
+        expect(head.playerId).toBe("p2");
+        applyPendingChoiceSubmit(revived, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["sacB1"],
+        });
+        expect(revived.players[0].graveyard.map((c) => c.id)).toContain(
+            "sacA1"
+        );
+        expect(revived.players[1].graveyard.map((c) => c.id)).toEqual([
+            "sacB1",
+        ]);
+        expect(revived.stack).toHaveLength(0);
+    });
+
+    it("the set is determined ONCE at construct entry — objects arriving mid-construct are not iterated (CR 608.2i)", () => {
+        const id = registerScript("test-foreach-frozen-set", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature" },
+                },
+                effects: [
+                    {
+                        op: "choice",
+                        kind: "discard-hand",
+                        player: "controller",
+                        zone: "hand",
+                        count: 1,
+                        prompt: "Discard a card.",
+                        bind: "$fee",
+                    },
+                    {
+                        op: "discard",
+                        player: "controller",
+                        cards: { ref: "$fee" },
+                    },
+                    { op: "destroy", target: { ref: "$each" } },
+                ],
+            },
+        ]);
+        const members = ["fzA", "fzB"].map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        const hand = ["fzH1", "fzH2"].map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand }),
+                makePlayer("p2", { battlefield: members }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state); // suspended in iteration 0
+        // A latecomer enters while the construct is suspended.
+        state.players[1].battlefield.push(
+            makeInstance(BEAR_ID, {
+                id: "fzLate",
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        for (const pick of ["fzH1", "fzH2"]) {
+            const head = state.pendingChoices![0];
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: [pick],
+            });
+        }
+        // Both frozen members died; the latecomer was never in the set.
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            "fzLate",
+        ]);
+        expect(state.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "fzA",
+            "fzB",
+        ]);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("wire format: the mid-forEach suspended choice and the Expected Input cross the projection", () => {
+        const id = registerScript("test-foreach-wire", SAC_EFFECTS);
+        const state = bothWithBears();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        refreshExpectedInput(state); // ADR 0047 persistence-seam refresh
+        const projected = projectPublicState(state, 1, "p1");
+        const head = projected.pendingChoices![0];
+        expect(head.kind).toBe("sacrifice-permanents");
+        expect(head.playerId).toBe("p1");
+        expect(head.count).toBe(1);
+        expect(projected.expectedInput).toEqual({
+            kind: "choice",
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            choiceId: head.choiceId, // the iteration-scoped binding name
+            choiceKind: "sacrifice-permanents",
+        });
+    });
+});

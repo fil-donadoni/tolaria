@@ -134,14 +134,18 @@ function isControllerOfRef(value: unknown): boolean {
 }
 
 /** `"controller" | "opponent" | { target: n } | { controllerOf } | { ref }`
- *  (EffectPlayerRef). */
+ *  (EffectPlayerRef). The ref may be a property ref (`"$x.controller"`) or —
+ *  inside a players-set forEach body (issue #807) — the bare
+ *  `{ ref: "$each" }`; which of the two is legal WHERE is decided by the
+ *  ordered ref pass. */
 function isPlayerRef(value: unknown): boolean {
     return (
         value === "controller" ||
         value === "opponent" ||
         isTargetRef(value) ||
         isControllerOfRef(value) ||
-        isRefValue(value)
+        isRefValue(value) ||
+        isBareRef(value)
     );
 }
 
@@ -180,11 +184,12 @@ function isNonEmptyString(value: unknown): boolean {
     return typeof value === "string" && value.length > 0;
 }
 
-/** `{ ref: "$picked" }` — a BARE picks ref (issue #805): a single `ref` key
- *  holding a binding name with NO property path. Reads the instance ids a
- *  `choice` Op bound. Whether the binding exists and is picks-typed is
- *  decided by the ordered ref pass. */
-function isBarePicksRef(value: unknown): boolean {
+/** `{ ref: "$name" }` — a BARE ref: a single `ref` key holding a binding name
+ *  with NO property path. Three positions use the bare shape, each
+ *  family-checked by the ordered ref pass: a picks ref (issue #805 — the
+ *  instance ids a `choice` Op bound), a player ref to a players-set `$each`
+ *  (issue #807), and an object ref to a permanents-set `$each` (issue #807). */
+function isBareRef(value: unknown): boolean {
     if (typeof value !== "object" || value === null) return false;
     const keys = Object.keys(value);
     return (
@@ -193,6 +198,18 @@ function isBarePicksRef(value: unknown): boolean {
         typeof (value as { ref: unknown }).ref === "string" &&
         /^\$[A-Za-z][A-Za-z0-9]*$/.test((value as { ref: string }).ref)
     );
+}
+
+/** Alias for readability at picks positions (`discard.cards`,
+ *  `sacrifice.permanents`). */
+const isBarePicksRef = isBareRef;
+
+/** An object-acting Op's selector (destroy/exile `target`, dealDamage `to`):
+ *  an announced target slot, or — inside a permanents-set forEach body
+ *  (issue #807) — the bare `{ ref: "$each" }`. The ordered ref pass enforces
+ *  that an object-position bare ref IS `$each` of a permanents iteration. */
+function isObjectSelector(value: unknown): boolean {
+    return isTargetRef(value) || isBareRef(value);
 }
 
 /** A ManaCost's numeric pips — WUBRGC + generic + xFactor are non-negative
@@ -308,9 +325,10 @@ function isOpList(value: unknown): boolean {
     return Array.isArray(value);
 }
 
-/** dealDamage's `to`: an announced target OR `{ player: <EffectPlayerRef> }`. */
+/** dealDamage's `to`: an announced target, the current forEach member
+ *  (`{ ref: "$each" }`, issue #807), OR `{ player: <EffectPlayerRef> }`. */
 function isDamageRecipient(value: unknown): boolean {
-    if (isTargetRef(value)) return true;
+    if (isObjectSelector(value)) return true;
     if (typeof value !== "object" || value === null) return false;
     const keys = Object.keys(value);
     return (
@@ -318,6 +336,29 @@ function isDamageRecipient(value: unknown): boolean {
         keys[0] === "player" &&
         isPlayerRef((value as { player: unknown }).player)
     );
+}
+
+/** The `forEach` construct's set selector (ADR 0045, issue #807) — exactly
+ *  `{ set: "players" }` or `{ set: "permanents", zone: "battlefield",
+ *  controller?, filter? }`. Unknown keys are rejected (the grammar is frozen;
+ *  selector SHAPES may grow like vocabulary, but only by extending this
+ *  checker). */
+function isForEachSelector(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const s = value as Record<string, unknown>;
+    if (s.set === "players") {
+        return Object.keys(s).length === 1;
+    }
+    if (s.set !== "permanents") return false;
+    const allowed = new Set(["set", "zone", "controller", "filter"]);
+    if (!Object.keys(s).every((k) => allowed.has(k))) return false;
+    // CR 110.1 — permanents only exist on the battlefield.
+    if (s.zone !== "battlefield") return false;
+    if ("controller" in s && !isPlayerRef(s.controller)) return false;
+    if ("filter" in s && !isCardFilter(s.filter)) return false;
+    return true;
 }
 
 /** Per-Op field schemas. Adding an Op = one registry row (mechanicsRegistry),
@@ -330,11 +371,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     gainLife: { required: { player: isPlayerRef, amount: isEffectValue } },
     loseLife: { required: { player: isPlayerRef, amount: isEffectValue } },
     destroy: {
-        required: { target: isTargetRef },
+        required: { target: isObjectSelector },
         optional: { bind: isBindingName },
     },
     exile: {
-        required: { target: isTargetRef },
+        required: { target: isObjectSelector },
         optional: { bind: isBindingName },
     },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution choice through the
@@ -382,6 +423,21 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     if: {
         required: { predicate: isPredicate, then: isOpList },
         optional: { else: isOpList },
+    },
+    // CR 701.16 (issue #807) — sacrifice the permanents a `choice` Op picked.
+    sacrifice: {
+        required: { permanents: isBarePicksRef },
+    },
+    // forEach — the `forEach` structural construct (ADR 0045, issue #807).
+    // The `select` selector shape is checked here; body Op validity, the
+    // nesting ban, and `$each` ref references are checked by the recursive
+    // schema / ordered ref passes.
+    forEach: {
+        required: { select: isForEachSelector, effects: isOpList },
+        check: (entry) =>
+            Array.isArray(entry.effects) && entry.effects.length === 0
+                ? ['field "effects" must be a non-empty Op list']
+                : [],
     },
 };
 
@@ -432,20 +488,22 @@ function findImpurity(value: unknown, path: string): string | null {
 }
 
 /** One recorded `ref` use: the ref string and whether it sits in a numeric, a
- *  player, a picks, or a boolean position (which decides its legal shape, its
- *  legal property paths, and the binding family it may name). */
+ *  player, a picks, a boolean, or an object position (which decides its legal
+ *  shape, its legal property paths, and the binding family it may name). */
 interface RefUse {
     ref: string;
-    kind: "number" | "player" | "picks" | "boolean";
+    kind: "number" | "player" | "picks" | "boolean" | "object";
 }
 
 /** Walks an Op's parameters collecting every `{ ref }` use, tagged by
  *  position. A ref under a `player` / `controller` key is a player ref; a ref
- *  under a `cards` key is a picks ref (issue #805 — reads a choice Op's
- *  picks); any other ref is numeric (amount / count). `count` specs are
- *  traversed so a ref in their `controller` is caught too. `if` predicates and
- *  branch Op lists are NOT walked here — the caller handles them explicitly
- *  (boolean-binding refs and per-branch scoping). */
+ *  under a `cards` / `permanents` key is a picks ref (issues #805/#807 — reads
+ *  a choice Op's picks); a ref under a `target` / `to` key is an object ref
+ *  (issue #807 — acts ON the referenced permanent, `$each`); any other ref is
+ *  numeric (amount / count). `count` specs are traversed so a ref in their
+ *  `controller` is caught too. `if` predicates and branch Op lists are NOT
+ *  walked here — the caller handles them explicitly (boolean-binding refs and
+ *  per-branch scoping). */
 function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
     if (typeof value !== "object" || value === null) return;
     if (Array.isArray(value)) {
@@ -460,9 +518,11 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
             kind:
                 keyHint === "player" || keyHint === "controller"
                     ? "player"
-                    : keyHint === "cards"
+                    : keyHint === "cards" || keyHint === "permanents"
                       ? "picks"
-                      : "number",
+                      : keyHint === "target" || keyHint === "to"
+                        ? "object"
+                        : "number",
         });
         return;
     }
@@ -477,13 +537,16 @@ function parseRef(ref: string): { binding: string; property: string } | null {
 }
 
 /** The binding families. A SNAPSHOT binding (destroy/exile `bind`, the implicit
- *  `$source`) stores the bound object's power/toughness/controller; a PICKS
- *  binding (a `choice` Op's `bind`) stores the chooser's submitted instance
- *  ids; a BOOLEAN binding (a `mayPay` Op's `bind`, issue #806) stores a paid /
- *  declined bit. Ref positions are family-typed — numeric and player refs read
- *  snapshots, picks positions read picks, an `if` binding predicate reads a
- *  boolean — so the interpreter interprets the persisted value unambiguously. */
-type BindingKind = "snapshot" | "picks" | "boolean";
+ *  `$source`, a permanents-set `$each`) stores the bound object's power/
+ *  toughness/controller/id; a PICKS binding (a `choice` Op's `bind`) stores the
+ *  chooser's submitted instance ids; a BOOLEAN binding (a `mayPay` Op's `bind`,
+ *  issue #806) stores a paid/declined bit; a PLAYER binding (a players-set
+ *  `$each`, issue #807) stores the current player id. Ref positions are
+ *  family-typed — value/`.controller` refs read snapshots, picks positions read
+ *  picks, an `if` binding predicate reads a boolean, object positions read a
+ *  snapshot, bare player positions read a player — so the interpreter
+ *  interprets the persisted value unambiguously. */
+type BindingKind = "snapshot" | "picks" | "boolean" | "player";
 
 /** The binding family a `bind`-carrying Op declares. */
 function bindingKindOf(op: unknown): BindingKind {
@@ -552,6 +615,48 @@ function checkRefUse(
         }
         return;
     }
+    // Object position (issue #807): a BARE snapshot ref — in practice the
+    // permanents-set `$each` (the only snapshot whose object is still expected
+    // on the battlefield when acted on).
+    if (use.kind === "object") {
+        if (use.ref.includes(".")) {
+            errors.push(
+                `${at}: object ref "${use.ref}" must be a bare binding name (no property path)`
+            );
+            return;
+        }
+        const family = declared.get(use.ref);
+        if (family === undefined) {
+            errors.push(
+                `${at}: ref "${use.ref}" references undefined binding "${use.ref}" — no earlier Op binds it (bare object refs are the forEach "$each" of a permanents set)`
+            );
+            return;
+        }
+        if (family !== "snapshot") {
+            errors.push(
+                `${at}: ref "${use.ref}" names a ${family} binding in an object position — object refs read a permanents-set "$each" snapshot`
+            );
+        }
+        return;
+    }
+    // Player position, BARE shape (issue #807): the players-set `$each`. A
+    // player ref WITH a property (`$x.controller`) falls through to the
+    // snapshot-property path below.
+    if (use.kind === "player" && !use.ref.includes(".")) {
+        const family = declared.get(use.ref);
+        if (family === undefined) {
+            errors.push(
+                `${at}: ref "${use.ref}" references undefined binding "${use.ref}" — no earlier Op binds it (bare player refs are the forEach "$each" of a players set)`
+            );
+            return;
+        }
+        if (family !== "player") {
+            errors.push(
+                `${at}: ref "${use.ref}" names a ${family} binding in a bare player position — only a players-set forEach "$each" is a player binding`
+            );
+        }
+        return;
+    }
     const parsed = parseRef(use.ref);
     if (!parsed) {
         errors.push(`${at}: malformed ref "${use.ref}"`);
@@ -601,14 +706,19 @@ function checkOpListRefs(
         const at = label(i);
         const uses: RefUse[] = [];
         for (const [k, v] of Object.entries(entry)) {
-            // `predicate`, `then`, `else` are handled explicitly below (branch
-            // scoping / boolean predicate refs); `op` / `bind` never carry refs.
+            // `predicate`, `then`, `else` (if, #806) and `effects` (forEach,
+            // #807 — the body is walked in its own scope below) are handled
+            // explicitly; `select` (forEach) is walked below in the OUTER
+            // scope so its `controller` ref resolves there but `$each` is not
+            // yet visible. `op` / `bind` never carry refs.
             if (
                 k === "op" ||
                 k === "bind" ||
                 k === "predicate" ||
                 k === "then" ||
-                k === "else"
+                k === "else" ||
+                k === "effects" ||
+                k === "select"
             ) {
                 continue;
             }
@@ -618,6 +728,18 @@ function checkOpListRefs(
         // numeric refs, resolved against the bindings declared BEFORE the `if`.
         if (entry.op === "if") {
             collectPredicateRefUses(entry.predicate, uses);
+        }
+        // forEach selector refs (issue #807): its `controller` player ref is
+        // resolved in the OUTER scope — `$each` is not visible in the selector.
+        if (entry.op === "forEach") {
+            const select = entry.select;
+            if (select && typeof select === "object") {
+                collectRefUses(
+                    (select as Record<string, unknown>).controller,
+                    "controller",
+                    uses
+                );
+            }
         }
         for (const use of uses) checkRefUse(use, declared, at, errors);
 
@@ -637,10 +759,37 @@ function checkOpListRefs(
             }
         }
 
+        // Recurse into the forEach body (issue #807) with a CLONED scope that
+        // additionally declares `$each` — its family follows the selector (a
+        // players member is a player id, a permanents member is a snapshot).
+        // Body-local binds live in the clone, so they never leak past the
+        // construct (they are iteration-scoped at runtime); outer bindings
+        // stay readable (the clone carries them).
+        if (entry.op === "forEach" && Array.isArray(entry.effects)) {
+            const bodyScope = new Map(declared);
+            const select = entry.select as Record<string, unknown> | null;
+            bodyScope.set(
+                "$each",
+                select?.set === "players" ? "player" : "snapshot"
+            );
+            checkOpListRefs(
+                entry.effects,
+                (j) => `${at}: effects[${j}]`,
+                errors,
+                bodyScope
+            );
+        }
+
         // A binding becomes visible only AFTER its Op (snapshot ordering) and
         // must be unique within its scope (the persisted store keys by name).
+        // `$each` is reserved for the forEach construct (issue #807) — an Op
+        // may not bind it.
         if (typeof entry.bind === "string") {
-            if (declared.has(entry.bind)) {
+            if (entry.bind === "$each") {
+                errors.push(
+                    `${at}: bind "$each" is reserved — only the forEach construct binds it (issue #807)`
+                );
+            } else if (declared.has(entry.bind)) {
                 errors.push(
                     `${at}: bind "${entry.bind}" re-declares an existing binding — binding names must be unique within a script`
                 );
@@ -671,10 +820,17 @@ function checkRefUses(
 }
 
 /** Validates one Op's shape/vocabulary/schema (steps 1, 2) and RECURSES into an
- *  `if` construct's branches (issue #806) so a malformed branch Op is reported
- *  at its own path. Ref/binding and JSON-purity checks run once over the whole
- *  script in `validateEffectOpList`, not here. */
-function validateOpSchema(raw: unknown, at: string, errors: string[]): void {
+ *  `if` construct's branches (issue #806) and a `forEach` construct's body
+ *  (issue #807) so a malformed nested Op is reported at its own path. Ref/
+ *  binding and JSON-purity checks run once over the whole script in
+ *  `validateEffectOpList`, not here. `inForEach` bans forEach nesting — one
+ *  construct level per script (issue #807). */
+function validateOpSchema(
+    raw: unknown,
+    at: string,
+    errors: string[],
+    inForEach = false
+): void {
     if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
         errors.push(`${at}: each Op must be a plain object`);
         return;
@@ -682,6 +838,12 @@ function validateOpSchema(raw: unknown, at: string, errors: string[]): void {
     const entry = raw as Record<string, unknown>;
     if (typeof entry.op !== "string") {
         errors.push(`${at}: missing string "op" field`);
+        return;
+    }
+    if (entry.op === "forEach" && inForEach) {
+        errors.push(
+            `${at}: forEach must not nest inside a forEach body — one construct level per script (issue #807)`
+        );
         return;
     }
     if (!isRegisteredEffectOp(entry.op)) {
@@ -733,16 +895,29 @@ function validateOpSchema(raw: unknown, at: string, errors: string[]): void {
     }
     // Recurse into `if` branches (issue #806) — each branch Op is validated at
     // its own path. Only when the branch shape passed (`isOpList`); a
-    // non-array branch was already reported above.
+    // non-array branch was already reported above. `inForEach` is threaded so
+    // a forEach nested inside an `if` inside a forEach is still rejected.
     if (entry.op === "if") {
         for (const key of ["then", "else"] as const) {
             const branch = entry[key];
             if (Array.isArray(branch)) {
                 branch.forEach((op, j) => {
-                    validateOpSchema(op, `${at}: ${key}[${j}]`, errors);
+                    validateOpSchema(
+                        op,
+                        `${at}: ${key}[${j}]`,
+                        errors,
+                        inForEach
+                    );
                 });
             }
         }
+    }
+    // Recurse into the `forEach` body (issue #807) — each body Op is validated
+    // at its own path, with `inForEach` set so a nested forEach is rejected.
+    if (entry.op === "forEach" && Array.isArray(entry.effects)) {
+        entry.effects.forEach((op, j) => {
+            validateOpSchema(op, `${at}: effects[${j}]`, errors, true);
+        });
     }
 }
 

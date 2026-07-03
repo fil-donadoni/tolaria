@@ -351,7 +351,7 @@ describe("Op coverage guard — registry ↔ interpreter ↔ validator (1:1)", (
         // are registered for the coverage guard but bind to interpreter control
         // flow, not a SpellContext primitive — they are exempt from the
         // primitive-binding requirement (they have no game-action primitive).
-        const STRUCTURAL_OPS = new Set(["if"]);
+        const STRUCTURAL_OPS = new Set(["if", "forEach"]);
         for (const row of EFFECT_OP_REGISTRY) {
             expect(row.cr, row.op).toMatch(/^\d+\.\d+/);
             if (STRUCTURAL_OPS.has(row.op)) continue;
@@ -692,5 +692,290 @@ describe("validateEffectScript — if construct + mayPay/counter (issue #806)", 
             })
         );
         expect(errors.some((e) => /missing field "bind"/.test(e))).toBe(true);
+    });
+});
+
+// --- forEach construct + sacrifice Op (ADR 0045, issue #807) -----------------
+
+describe("validateEffectScript — forEach construct (ADR 0045, issue #807)", () => {
+    const sweep: EffectOp = {
+        op: "forEach",
+        select: {
+            set: "permanents",
+            zone: "battlefield",
+            filter: { type: "Creature" },
+        },
+        effects: [{ op: "destroy", target: { ref: "$each" } }],
+    };
+    const eachPlayerSac: EffectOp = {
+        op: "forEach",
+        select: { set: "players" },
+        effects: [
+            {
+                op: "choice",
+                kind: "sacrifice-permanents",
+                player: { ref: "$each" },
+                zone: "battlefield",
+                filter: { type: "Creature" },
+                count: 1,
+                prompt: "Choose a creature to sacrifice.",
+                bind: "$sac",
+            },
+            { op: "sacrifice", permanents: { ref: "$sac" } },
+        ],
+    };
+
+    it("accepts the sweep shape (permanents set, $each object ref)", () => {
+        expect(validateEffectScript(host({ effects: [sweep] }))).toEqual([]);
+    });
+
+    it("accepts the each-player shape (players set, choice + sacrifice inside)", () => {
+        expect(
+            validateEffectScript(host({ effects: [eachPlayerSac] }))
+        ).toEqual([]);
+    });
+
+    it("accepts $each value refs (power/toughness/controller) in a permanents body", () => {
+        const script: EffectOp[] = [
+            {
+                op: "forEach",
+                select: { set: "permanents", zone: "battlefield" },
+                effects: [
+                    {
+                        op: "dealDamage",
+                        amount: { ref: "$each.power" },
+                        to: { player: { ref: "$each.controller" } },
+                    },
+                ],
+            },
+        ];
+        expect(validateEffectScript(host({ effects: script }))).toEqual([]);
+    });
+
+    it("rejects an invalid selector (unknown set, wrong zone, unknown key)", () => {
+        for (const select of [
+            { set: "graveyards" },
+            { set: "permanents", zone: "graveyard" },
+            { set: "permanents", zone: "battlefield", colour: "white" },
+            { set: "players", zone: "battlefield" },
+        ]) {
+            const errors = validateEffectScript(
+                host({
+                    effects: [{ ...sweep, select } as never],
+                })
+            );
+            expect(
+                errors.some((e) => /field "select"/.test(e)),
+                JSON.stringify(select)
+            ).toBe(true);
+        }
+    });
+
+    it("rejects a forEach with unknown fields or an empty body (frozen grammar)", () => {
+        const unknownField = validateEffectScript(
+            host({ effects: [{ ...sweep, limit: 3 } as never] })
+        );
+        expect(unknownField.some((e) => /unknown field "limit"/.test(e))).toBe(
+            true
+        );
+        const emptyBody = validateEffectScript(
+            host({ effects: [{ ...sweep, effects: [] } as never] })
+        );
+        expect(emptyBody.length).toBeGreaterThan(0);
+    });
+
+    it("rejects nested forEach — one construct level per script", () => {
+        const nested = validateEffectScript(
+            host({ effects: [{ ...sweep, effects: [sweep] } as never] })
+        );
+        expect(
+            nested.some((e) => /must not nest inside a forEach body/.test(e))
+        ).toBe(true);
+    });
+
+    it("validates body Ops against the same schema/vocabulary rules", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [{ ...sweep, effects: [{ op: "vaporize" }] } as never],
+            })
+        );
+        expect(errors.some((e) => /unknown Op "vaporize"/.test(e))).toBe(true);
+    });
+
+    it("rejects $each outside a forEach body (undefined binding)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [{ op: "destroy", target: { ref: "$each" } } as never],
+            })
+        );
+        expect(errors.some((e) => /undefined binding "\$each"/.test(e))).toBe(
+            true
+        );
+    });
+
+    it("family-checks $each per selector: a players-set $each is NOT an object/value ref, a permanents-set $each is NOT a bare player ref", () => {
+        const objMisuse = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "forEach",
+                        select: { set: "players" },
+                        effects: [{ op: "destroy", target: { ref: "$each" } }],
+                    } as never,
+                ],
+            })
+        );
+        expect(
+            objMisuse.some((e) =>
+                /player binding in an object position/.test(e)
+            )
+        ).toBe(true);
+        const valueMisuse = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "forEach",
+                        select: { set: "players" },
+                        effects: [
+                            {
+                                op: "gainLife",
+                                player: "controller",
+                                amount: { ref: "$each.power" },
+                            },
+                        ],
+                    } as never,
+                ],
+            })
+        );
+        expect(
+            valueMisuse.some((e) =>
+                /player binding in a number position/.test(e)
+            )
+        ).toBe(true);
+        const playerMisuse = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "forEach",
+                        select: { set: "permanents", zone: "battlefield" },
+                        effects: [
+                            {
+                                op: "gainLife",
+                                player: { ref: "$each" },
+                                amount: 1,
+                            },
+                        ],
+                    } as never,
+                ],
+            })
+        );
+        expect(
+            playerMisuse.some((e) =>
+                /snapshot binding in a bare player position/.test(e)
+            )
+        ).toBe(true);
+    });
+
+    it("scopes body bindings to the construct — a later top-level ref to them dangles", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    eachPlayerSac,
+                    {
+                        op: "discard",
+                        player: "controller",
+                        cards: { ref: "$sac" },
+                    },
+                ] as never,
+            })
+        );
+        expect(
+            errors.some((e) => /references undefined binding "\$sac"/.test(e))
+        ).toBe(true);
+    });
+
+    it("keeps OUTER bindings readable inside the body (bind across iterations)", () => {
+        const script: EffectOp[] = [
+            { op: "exile", target: { target: 0 }, bind: "$c" },
+            {
+                op: "forEach",
+                select: { set: "players" },
+                effects: [
+                    {
+                        op: "dealDamage",
+                        amount: { ref: "$c.power" },
+                        to: { player: { ref: "$each" } },
+                    },
+                ],
+            },
+        ];
+        expect(validateEffectScript(host({ effects: script }))).toEqual([]);
+    });
+
+    it('reserves "$each" — an Op bind may not shadow it', () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    { op: "destroy", target: { target: 0 }, bind: "$each" },
+                ] as never,
+            })
+        );
+        expect(errors.some((e) => /"\$each" is reserved/.test(e))).toBe(true);
+    });
+
+    it("rejects re-declaring an OUTER binding inside a forEach body", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    { op: "exile", target: { target: 0 }, bind: "$sac" },
+                    eachPlayerSac, // body binds "$sac" again — collides with outer
+                ] as never,
+            })
+        );
+        expect(
+            errors.some((e) => /re-declares an existing binding/.test(e))
+        ).toBe(true);
+    });
+
+    it("a valid forEach script survives a JSON round-trip unchanged (ADR 0046 purity)", () => {
+        expect(JSON.parse(JSON.stringify([sweep, eachPlayerSac]))).toEqual([
+            sweep,
+            eachPlayerSac,
+        ]);
+    });
+});
+
+describe("validateEffectScript — sacrifice Op (CR 701.16, issue #807)", () => {
+    it("requires a bare picks ref in `permanents`", () => {
+        const missing = validateEffectScript(
+            host({ effects: [{ op: "sacrifice" } as never] })
+        );
+        expect(missing.some((e) => /missing field "permanents"/.test(e))).toBe(
+            true
+        );
+        const propertyRef = validateEffectScript(
+            host({
+                effects: [
+                    { op: "sacrifice", permanents: { ref: "$x.power" } },
+                ] as never,
+            })
+        );
+        expect(propertyRef.some((e) => /field "permanents"/.test(e))).toBe(
+            true
+        );
+    });
+
+    it("rejects a sacrifice consuming a snapshot binding (family mismatch)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    { op: "exile", target: { target: 0 }, bind: "$snap" },
+                    { op: "sacrifice", permanents: { ref: "$snap" } },
+                ] as never,
+            })
+        );
+        expect(
+            errors.some((e) => /snapshot binding in a picks position/.test(e))
+        ).toBe(true);
     });
 });

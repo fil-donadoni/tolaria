@@ -1326,6 +1326,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Day of Judgment",
+        "scryfallId": "03f6b25f-d11c-483a-a3e9-6b801d333482",
+        "oracleId": "d057289d-5e28-43d5-8ff3-4a1bc723477d",
+        "firstSet": "m11"
+    },
+    {
         "name": "Death Ward",
         "scryfallId": "fa5466cc-aa57-4a7f-8b21-d92b2fe02e13",
         "oracleId": "0544b707-ec67-43e3-a25d-fd7005ab673d",
@@ -3166,6 +3172,12 @@
         "scryfallId": "5be87527-3b8f-4529-afdb-a61ad4e787e1",
         "oracleId": "0bf359ef-669f-41dc-8ab5-ba8e58b2f398",
         "firstSet": "fem"
+    },
+    {
+        "name": "Innocent Blood",
+        "scryfallId": "d26af8f6-df64-4027-880c-f2fae2d8103f",
+        "oracleId": "6791ec3c-c397-4087-8c8c-84d3797df415",
+        "firstSet": "ody"
     },
     {
         "name": "Inquisition",
