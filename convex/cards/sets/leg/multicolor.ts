@@ -681,12 +681,7 @@ export const xiraArien: CardDefinition = {
             cost: { mana: { B: 1, R: 1, G: 1 }, tap: true },
             useStack: true,
             targetRequirement: { type: "player", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "player") {
-                    ctx.drawCards(target.id, 1);
-                }
-            },
+            effects: [{ op: "draw", player: { target: 0 }, count: 1 }],
         },
     ],
 };

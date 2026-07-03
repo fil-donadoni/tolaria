@@ -200,11 +200,7 @@ export const davenantArcher: CardDefinition = {
                 count: 1,
                 combatRoleFilter: ["attacking", "blocking"],
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type !== "permanent") return;
-                ctx.dealDamage(target, 1);
-            },
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
 };
@@ -940,10 +936,7 @@ export const equinox: CardDefinition = {
                 count: 1,
                 spellWouldDestroyLandYouControl: true,
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "spell") ctx.counter(target);
-            },
+            effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
 };
