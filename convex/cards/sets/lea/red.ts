@@ -583,6 +583,13 @@ export const keldonWarlord: CardDefinition = {
     ],
 };
 
+// Migrated resolve() → effects[] pilot (ADR 0045, issue #809; playbook in
+// docs/agents/effect-script-migration.md). The entire effect is a single
+// `dealDamage` Op on the announced target (CR 120.1) — the same Op already
+// proven by Lava Spike (chk/red) and Prodigal Pyromancer (m11/red). The
+// pre-existing per-card behaviour test (lea/__tests__/red.test.ts, "Lightning
+// Bolt … CR 608.3") is the migration harness: green before, green after, with
+// the assertions untouched, proves the DSL script preserves behaviour.
 export const lightningBolt: CardDefinition = {
     id: "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
     rarity: "common",
@@ -595,9 +602,7 @@ export const lightningBolt: CardDefinition = {
     // bot models while held — a defender holding it can remove a blocker (or an
     // attacker) in combat, so over-committing into it is discounted.
     aiCombatHint: { removal: true },
-    resolve: (ctx: SpellContext) => {
-        ctx.dealDamage(ctx.targets[0], 3);
-    },
+    effects: [{ op: "dealDamage", amount: 3, to: { target: 0 } }],
 };
 
 // Mana Flare — "Whenever a player taps a land for mana, that player adds one
