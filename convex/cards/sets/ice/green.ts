@@ -1385,11 +1385,9 @@ export const thermokarst: CardDefinition = {
     manaCost: { X: 1, G: 2 },
     types: ["Sorcery"],
     targetRequirement: { type: "Land", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type === "permanent") ctx.destroy(t);
-        // Snow-land lifegain rider: no-op in the current pool (no snow lands).
-    },
+    // Snow-land lifegain rider is a no-op in the current pool (no snow lands),
+    // so the whole effect is a single destroy of the announced target land.
+    effects: [{ op: "destroy", target: { target: 0 } }],
 };
 // Thoughtleech — {G}{G} Enchantment. "Whenever an Island an opponent controls
 // becomes tapped, you may gain 1 life." (CR 603.2 becomes-tapped trigger via
@@ -1452,10 +1450,7 @@ export const tinderWall: CardDefinition = {
             cost: { mana: { R: 1 }, sacrifice: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent") ctx.dealDamage(t, 2);
-            },
+            effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
     ],
 };

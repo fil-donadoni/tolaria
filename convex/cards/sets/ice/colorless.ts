@@ -1176,10 +1176,7 @@ export const skullCatapult: CardDefinition = {
             },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t) ctx.dealDamage(t, 2);
-            },
+            effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
     ],
 };
@@ -1245,10 +1242,7 @@ export const snowFortress: CardDefinition = {
                 combatRoleFilter: "attacking",
                 excludeAbility: "flying",
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent") ctx.dealDamage(t, 1);
-            },
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
 };
@@ -1675,9 +1669,7 @@ export const zuranOrb: CardDefinition = {
                 sacrificeFilter: { types: "Land", controllerRelation: "you" },
             },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.gainLife(ctx.controller, 2);
-            },
+            effects: [{ op: "gainLife", player: "controller", amount: 2 }],
         },
     ],
 };
