@@ -71,10 +71,7 @@ export const artifactBlast: CardDefinition = {
         count: 1,
         spellTypeFilter: "Artifact",
     },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type === "spell") ctx.counter(target);
-    },
+    effects: [{ op: "counter", target: { target: 0 } }],
 };
 
 // Goblin Artisans — {R} Creature — Goblin Artificer, 1/1. "{T}: Flip a coin.
@@ -196,10 +193,7 @@ export const orcishMechanics: CardDefinition = {
             cost: { tap: true, sacrificeFilter: { types: "Artifact" } },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target) ctx.dealDamage(target, 2);
-            },
+            effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
     ],
 };

@@ -132,10 +132,7 @@ export const gateToPhyrexia: CardDefinition = {
             controllerTurnOnly: true,
             oncePerTurn: true,
             targetRequirement: { type: "Artifact", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") ctx.destroy(target);
-            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };

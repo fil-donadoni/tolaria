@@ -164,9 +164,7 @@ export const sageOfLatNam: CardDefinition = {
             oracleText: "{T}, Sacrifice an artifact: Draw a card.",
             cost: { tap: true, sacrificeFilter: { types: "Artifact" } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.drawCards(ctx.controller, 1);
-            },
+            effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
 };

@@ -175,12 +175,7 @@ export const grapeshotCatapult: CardDefinition = {
                 count: 1,
                 requireAbility: "flying",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.dealDamage(target, 1);
-                }
-            },
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
 };
@@ -252,12 +247,7 @@ export const stripMine: CardDefinition = {
             cost: { tap: true, sacrifice: true },
             useStack: true,
             targetRequirement: { type: "Land", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.destroy(target);
-                }
-            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };
@@ -405,21 +395,23 @@ export const jalumTome: CardDefinition = {
             oracleText: "{2}, {T}: Draw a card, then discard a card.",
             cost: { tap: true, mana: { X: 2 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.drawCards(ctx.controller, 1);
-                const handIds = ctx.getHandIds(ctx.controller);
-                if (handIds.length === 0) return;
-                const picked = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: "jalum-discard",
+            effects: [
+                { op: "draw", player: "controller", count: 1 },
+                {
+                    op: "choice",
                     kind: "choose-hand-card",
+                    player: "controller",
                     zone: "hand",
                     count: 1,
                     prompt: "Discard a card.",
-                });
-                if (!picked || picked.length === 0) return;
-                ctx.discardCard(ctx.controller, picked[0]);
-            },
+                    bind: "$discard",
+                },
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$discard" },
+                },
+            ],
         },
     ],
 };
@@ -695,12 +687,7 @@ export const triskelion: CardDefinition = {
             cost: { removeCounter: { type: "+1/+1", count: 1 } },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent" || target?.type === "player") {
-                    ctx.dealDamage(target, 1);
-                }
-            },
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
 };
