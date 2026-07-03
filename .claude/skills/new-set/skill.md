@@ -55,6 +55,13 @@ exceptions. They drive every recommendation you make during the grill.
    structurally-equivalent later cases yourself (state the shape briefly, decide
    it, log it in the recap). Escalate only on genuine divergence / a new axis /
    a broken invariant. (`feedback_autonomous_when_consistent`)
+8. **DSL-first authoring is the default (ADR 0045).** Every free and capability
+   card is written as an Effect Script (`effects: EffectOp[]`) by default;
+   `resolve()` is the escape hatch for genuinely protocol-like cards and needs
+   an explicit justification (`.claude/rules/gre-development.md` § DSL-first
+   authoring). Every keyword/Op used must be `status: "implemented"` in the
+   Mechanics Registry (`convex/cards/mechanicsRegistry.ts`) — an uncensused
+   mechanic is a stop-and-flag case in Phase 0 triage, never an invented name.
 
 ## Phase 0 — Scope the set (before grilling)
 
@@ -107,6 +114,15 @@ the blob`, with the buckets **disjoint**. If the sum is short, a card is
 5. **Cross-check** each capability candidate against the engine — many
    mechanics already shipped (layers, replacements, complex triggers, APNAP).
    Flag a real gap explicitly; never assume "deferred". (`project_lost_cards_audit`)
+6. **Mechanics Registry closure check (ADR 0045/0046).** Cross-reference every
+   keyword ability and keyword action the set's cards use against
+   `convex/cards/mechanicsRegistry.ts` (`status: "implemented"` rows +
+   `EFFECT_OP_REGISTRY`). This IS part of the capability triage: a mechanic
+   that's `planned`/absent from the registry is a capability candidate (or an
+   out-of-scope call) exactly like an unshipped engine feature — never
+   authored by inventing a keyword string or an Op name. Any gap surfaced here
+   gets its own registry row (`planned` costs nothing) before the set's issues
+   are cut, so `/new-card` runs during rollout never hit a stop-and-issue mid-cluster.
 
 ## Phase 1 — Grill the design (`grill-with-docs`)
 
@@ -133,6 +149,16 @@ turn, recommended answer stated each time):
   (`<code>.test.ts`, `gameProjections` wire-format, game.ts integration,
   `card-utils`/board, `serialize` round-trip). Enumerate any new `GameState`
   surface and register it in `PERSISTED_OPTIONAL_KEYS` / `TRANSIENT_KEYS`.
+- **Escape-hatch budget per cluster (DSL-first, ADR 0045)** — for each
+  cluster (free tranche included), estimate and state the expected count of
+  `resolve()` cards vs Effect Script cards up front. A cluster where more than
+  a small minority of cards need `resolve()` is a signal to look harder for a
+  missing, reusable Op before accepting the budget — the ~80–85% DSL-coverage
+  design point (ADR 0045) is a catalogue-wide expectation, not a per-cluster
+  cap, but a cluster that's mostly `resolve()` deserves a second look in the
+  grill, not a rubber stamp. Record the accepted budget in the PRD so
+  `to-issues` / the cluster PR can point back to it instead of re-litigating
+  each `resolve()` justification from scratch.
 
 `grill-with-docs` updates `CONTEXT.md` inline as terms resolve and may create
 an ADR under `docs/adr/` for a hard-to-reverse mechanic.
@@ -164,6 +190,10 @@ data/json/<CODE_UPPER>.json` → the colour-split `convex/cards/sets/<code>/`
   `project_card_index_lockfile`)
 - Multi-art note (ADR 0014): one `CardDefinition` per card + one `CardPrint`
   per artwork.
+- **DSL-first authoring (ADR 0045)**: free and capability cards are written as
+  Effect Scripts by default; state the per-cluster escape-hatch budget agreed
+  in the grill (see Phase 1) and note any Mechanics Registry gaps surfaced
+  during Phase 0 triage that need a `planned` row added before rollout.
 - **The Phase 0 scope manifest** (per-card bucket partition + the
   `done+staged+free+capability+OOS == total` tally) goes in the PRD body as the
   tracked rollout contract — `to-issues` reconciles against it, Phase 4 closes
@@ -193,6 +223,13 @@ Conventions to hold it to:
   registries the cluster touches; coarse ok, `- *` if it touches everything).
 - A card may ship (as a body/stub) before its cluster's mechanic and be
   corrected by the cluster PR — keep the build green throughout.
+- **DSL-first per cluster.** Every cluster-issue's `## Acceptance criteria`
+  includes: cards are written as Effect Scripts by default; any `resolve()`
+  usage carries its justification in the PR; any mechanic the cluster needs
+  that isn't yet `implemented` in the Mechanics Registry is either added as
+  part of the cluster's engine work (registry row flips to `implemented` with
+  a real binding) or flagged and deferred — never authored via an invented
+  name (`.claude/rules/gre-development.md` § DSL-first authoring).
 - **Every staged/capability card is named in exactly one cut issue.** Reconcile
   the published issues against the Phase 0 scope manifest: the cards listed
   across all issues must equal `staged ∪ free ∪ capability` exactly — no card in
@@ -241,6 +278,14 @@ issue), or explicitly out-of-scope.
 
 Per `.claude/rules/gre-development.md`:
 
+- **Per-Op regime for DSL cards (ADR 0045).** A card whose `effects[]` only
+  reuses already-exercised Ops needs NO hand-written per-card test — the
+  catalogue-wide static sweep (`convex/cards/__tests__/effectScripts.test.ts`)
+  plus the auto-generated canned-scenario smoke test
+  (`convex/cards/__tests__/effectScriptSmoke.test.ts`) cover it for free. A
+  card introducing a new Op earns that Op its permanent interpreter + wire-
+  format test, inherited by every later card that reuses it. `resolve()`
+  cards, and DSL cards hitting a new Op, keep the full per-card regime below.
 - Per-card GRE tests in the parallel per-colour test file
   `convex/cards/sets/<code>/__tests__/<colour>.test.ts` (matching the colour
   module the card lives in), one `describe` per non-trivial card, each citing
