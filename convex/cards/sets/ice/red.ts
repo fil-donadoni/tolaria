@@ -1548,11 +1548,13 @@ export const orcishCannoneers: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target) ctx.dealDamage(target, 2);
-                ctx.dealDamage({ type: "player", id: ctx.controller }, 3);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): 2 damage to the
+            // announced target, 3 to the controller (CR 120.1). Untouched
+            // per-card test is the equivalence harness.
+            effects: [
+                { op: "dealDamage", amount: 2, to: { target: 0 } },
+                { op: "dealDamage", amount: 3, to: { player: "controller" } },
+            ],
         },
     ],
 };
@@ -1883,9 +1885,20 @@ export const pyroclasm: CardDefinition = {
     oracleText: "Pyroclasm deals 2 damage to each creature.",
     manaCost: { X: 1, R: 1 },
     types: ["Sorcery"],
-    resolve: (ctx: SpellContext) => {
-        ctx.dealDamageToEach(2, { creatures: true });
-    },
+    // Migrated resolve()→effects[] (ADR 0045): a symmetric creature sweep is a
+    // forEach over battlefield creatures dealing 2 to each (CR 120.3). The
+    // untouched per-card test is the equivalence harness.
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature" },
+            },
+            effects: [{ op: "dealDamage", amount: 2, to: { ref: "$each" } }],
+        },
+    ],
 };
 // Sabretooth Tiger — 2/1 with first strike (CR 702.7).
 export const sabretoothTiger: CardDefinition = {

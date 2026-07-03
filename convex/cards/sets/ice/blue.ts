@@ -1941,21 +1941,27 @@ export const zuranEnchanter: CardDefinition = {
             useStack: true,
             controllerTurnOnly: true,
             targetRequirement: { type: "player", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type !== "player") return;
-                if (ctx.getHandSize(target.id) === 0) return;
-                const picks = ctx.requestChoice({
-                    playerId: target.id,
-                    choiceId: `zuran-enchanter-${ctx.sourceInstanceId}-${target.id}`,
+            // Migrated resolve()→effects[] (ADR 0045): the targeted player
+            // chooses and discards one card (CR 701.8) — the Mind Rot choice +
+            // discard pair. The choice Op clamps to hand availability
+            // (CR 608.2b), subsuming the empty-hand guard. Untouched per-card
+            // test is the equivalence harness.
+            effects: [
+                {
+                    op: "choice",
                     kind: "discard-hand",
+                    player: { target: 0 },
                     zone: "hand",
                     count: 1,
                     prompt: "Zuran Enchanter: discard a card.",
-                });
-                if (picks === undefined) return;
-                for (const id of picks) ctx.discardCard(target.id, id);
-            },
+                    bind: "$discards",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$discards" },
+                },
+            ],
         },
     ],
 };
@@ -1978,10 +1984,10 @@ export const zuranSpellcaster: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target) ctx.dealDamage(target, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045): 1 damage to the
+            // announced target (CR 120.1). Untouched per-card test is the
+            // equivalence harness.
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
 };
