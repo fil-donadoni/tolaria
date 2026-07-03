@@ -588,9 +588,7 @@ export const caribouRange: CardDefinition = {
             oracleText: "Sacrifice a Caribou token: You gain 1 life.",
             cost: { sacrificeFilter: { subtypes: "Caribou", isToken: true } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.gainLife(ctx.controller, 1);
-            },
+            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
         },
     ],
 };
@@ -1321,10 +1319,7 @@ export const orderOfTheSacredTorch: CardDefinition = {
                 count: 1,
                 colorFilter: "B",
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "spell") ctx.counter(t);
-            },
+            effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
 };

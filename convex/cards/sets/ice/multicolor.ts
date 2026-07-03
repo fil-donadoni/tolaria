@@ -156,10 +156,7 @@ export const centaurArcher: CardDefinition = {
                 count: 1,
                 requireAbility: "flying",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") ctx.dealDamage(target, 1);
-            },
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
 };
@@ -912,10 +909,7 @@ export const stormSpirit: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent") ctx.dealDamage(t, 2);
-            },
+            effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
     ],
 };
@@ -939,10 +933,7 @@ export const stormbind: CardDefinition = {
             cost: { mana: { X: 2 }, discardAtRandom: 1 },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target) ctx.dealDamage(target, 2);
-            },
+            effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
     ],
 };
