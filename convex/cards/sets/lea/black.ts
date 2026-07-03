@@ -210,10 +210,7 @@ export const deathgrip: CardDefinition = {
                 count: 1,
                 colorFilter: "G",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "spell") ctx.counter(target);
-            },
+            effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
 };
@@ -263,11 +260,7 @@ export const demonicHordes: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Land", count: 1 },
-            resolve: (ctx) => {
-                const t = ctx.targets[0];
-                if (!t || t.type !== "permanent") return;
-                ctx.destroy(t);
-            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
     triggeredAbilities: [
@@ -1020,9 +1013,32 @@ export const pestilence: CardDefinition = {
                         if (c.types.includes("Creature")) return true;
                 return false;
             },
-            resolve: (ctx: SpellContext) => {
-                ctx.dealDamageToEach(1, { creatures: true, players: true });
-            },
+            // dealDamageToEach(1, creatures+players) → forEach-per-set
+            // (CR 120.3). Deal 1 to each creature, then 1 to each player.
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        { op: "dealDamage", amount: 1, to: { ref: "$each" } },
+                    ],
+                },
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: 1,
+                            to: { player: { ref: "$each" } },
+                        },
+                    ],
+                },
+            ],
         },
     ],
 };
@@ -1111,6 +1127,10 @@ export const royalAssassin: CardDefinition = {
                 count: 1,
                 tappedFilter: "tapped",
             },
+            // NOT DSL-migratable (ADR 0045): the resolution-time re-check that
+            // the target is still tapped (CR 608.2b — an in-response untap
+            // fizzles this) is load-bearing and has no `destroy`-Op predicate
+            // form. Blocked on: an `if` predicate over a target's tap state.
             resolve: (ctx: SpellContext) => {
                 const [target] = ctx.targets;
                 if (!target) return;
@@ -1260,6 +1280,9 @@ export const simulacrum: CardDefinition = {
     manaCost: { X: 1, B: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1, controller: "you" },
+    // NOT DSL-migratable (ADR 0045): both amounts are "damage dealt to you
+    // this turn", a runtime read the EffectValue grammar (literal|ref|count)
+    // cannot express. Blocked on: a per-turn-damage-tally value construct.
     resolve: (ctx: SpellContext) => {
         const t = ctx.targets[0];
         if (!t || t.type !== "permanent") return;
@@ -1729,6 +1752,9 @@ export const terror: CardDefinition = {
         excludeTypes: "Artifact",
         excludeColors: "B",
     },
+    // NOT DSL-migratable (ADR 0045): the "can't be regenerated" rider is a
+    // destroy option the `destroy` Op does not expose.
+    // Blocked on: destroy Op `cantBeRegenerated` parameter (planned-migratable).
     resolve: (ctx: SpellContext) => {
         ctx.destroy(ctx.targets[0], { cantBeRegenerated: true });
     },
