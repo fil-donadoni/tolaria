@@ -106,6 +106,7 @@ export const aurochs: CardDefinition = {
             matches: (event, self) =>
                 event.type === "ATTACKERS_DECLARED" &&
                 event.attackerIds.includes(self.id),
+            // NOT DSL-migratable (ADR 0045, issue #840): buff amount scales by a runtime count (other attacking Aurochs, excluding self, any controller). Blocked on: a count-valued pump amount / a forEach select expressing "attacking, excluding self", not pump.
             resolve: (ctx) => {
                 let others = 0;
                 for (const pid of ctx.allPlayerIds) {
@@ -219,15 +220,17 @@ export const chubToad: CardDefinition = {
                 }
                 return true;
             },
-            resolve: (ctx: SpellContext, event) => {
-                if (event.type !== "BLOCKERS_CONFIRMED") return;
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    2,
-                    2,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +2/+2 EOT
+            // on this creature (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 2,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -296,11 +299,17 @@ export const earthlore: CardDefinition = {
                 count: 1,
                 combatRoleFilter: "blocking",
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent")
-                    ctx.addTemporaryPTBuff(t, 1, 2, { phase: "end-of-turn" });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+2 EOT
+            // on the announced target (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 1,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -436,14 +445,17 @@ export const folkOfThePines: CardDefinition = {
             oracleText: "{1}{G}: This creature gets +1/+0 until end of turn.",
             cost: { mana: { X: 1, G: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
+            // on this creature (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -475,11 +487,17 @@ export const forbiddenLore: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent")
-                    ctx.addTemporaryPTBuff(t, 2, 1, { phase: "end-of-turn" });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +2/+1 EOT
+            // on the announced target (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 2,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -976,6 +994,7 @@ export const johtullWurm: CardDefinition = {
                 }
                 return true;
             },
+            // NOT DSL-migratable (ADR 0045, issue #840): buff amount scales by a runtime count (blockers beyond the first). Blocked on: a count-valued pump amount, not pump.
             resolve: (ctx: SpellContext, event) => {
                 if (event.type !== "BLOCKERS_CONFIRMED") return;
                 const attackerId = ctx.sourceInstanceId;
@@ -1208,14 +1227,17 @@ export const shamblingStrider: CardDefinition = {
             oracleText: "{R}{G}: This creature gets +1/-1 until end of turn.",
             cost: { mana: { R: 1, G: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    -1,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/-1 EOT
+            // on this creature (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: -1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1753,6 +1775,7 @@ export const woollySpider: CardDefinition = {
                 if (event.type !== "BLOCKERS_CONFIRMED") return false;
                 return event.blockerId === self.id;
             },
+            // NOT DSL-migratable (ADR 0045, issue #840): the pump is gated on the blocked attacker having flying (hasStaticAbility on event.attackerId). Blocked on: an if-condition construct reading the triggering event's attacker keywords, not pump.
             resolve: (ctx: SpellContext, event) => {
                 if (event.type !== "BLOCKERS_CONFIRMED") return;
                 // "a creature with flying" — the blocked attacker must have

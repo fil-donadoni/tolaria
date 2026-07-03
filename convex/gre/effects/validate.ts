@@ -196,6 +196,46 @@ function isMoveZone(value: unknown): boolean {
     );
 }
 
+/** A SIGNED effect value, for a `pump` Op's P/T amounts (issue #840). Unlike
+ *  `isEffectValue` (whose literal branch is a positive count, CR 107.1), a
+ *  pump amount is a signed integer literal — a negative is a shrink (Weakness),
+ *  a zero is a one-sided pump (+1/+0) — or a `ref` / `count` (both non-negative
+ *  by nature). */
+function isSignedEffectValue(value: unknown): boolean {
+    if (typeof value === "number") return Number.isInteger(value);
+    return isRefValue(value) || isCountValue(value);
+}
+
+/** A `DurationSpec` (issue #840, CR 611.2) — the phase boundary at which a
+ *  temporary effect expires, with optional `skip` / `player` qualifiers. */
+function isDurationSpec(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const spec = value as Record<string, unknown>;
+    const phaseOk =
+        spec.phase === "end-of-turn" ||
+        spec.phase === "end-of-combat" ||
+        spec.phase === "upkeep" ||
+        spec.phase === "untap";
+    if (!phaseOk) return false;
+    if (
+        "skip" in spec &&
+        !(typeof spec.skip === "number" && Number.isInteger(spec.skip))
+    ) {
+        return false;
+    }
+    if (
+        "player" in spec &&
+        spec.player !== "controller" &&
+        spec.player !== "opponent"
+    ) {
+        return false;
+    }
+    // Only phase / skip / player are permitted (JSON-pure, ADR 0046).
+    return Object.keys(spec).every(
+        (k) => k === "phase" || k === "skip" || k === "player"
+    );
+}
+
 /** `{ ref: "$name" }` — a BARE ref: a single `ref` key holding a binding name
  *  with NO property path. Three positions use the bare shape, each
  *  family-checked by the ordered ref pass: a picks ref (issue #805 — the
@@ -431,6 +471,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // so there is no `from` field.
     moveZone: {
         required: { target: isObjectSelector, to: isMoveZone },
+    },
+    // CR 613.4c (issue #840) — a temporary P/T buff (layer 7c). `target` is an
+    // object selector (announced slot, `$source`, or a forEach `$each`);
+    // `power`/`toughness` are SIGNED values (a negative shrinks); `duration` is
+    // the phase boundary at which the buff expires (CR 611.2).
+    pump: {
+        required: {
+            target: isObjectSelector,
+            power: isSignedEffectValue,
+            toughness: isSignedEffectValue,
+            duration: isDurationSpec,
+        },
     },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution choice through the
     // existing Pending Choice pipeline. `bind` is REQUIRED: a choice whose

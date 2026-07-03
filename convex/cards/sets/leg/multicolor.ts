@@ -575,14 +575,17 @@ export const pavelMaliki: CardDefinition = {
             oracleText: "{B}{R}: Pavel Maliki gets +1/+0 until end of turn.",
             cost: { mana: { B: 1, R: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #840): self-pump +1/+0
+            // until end of turn (CR 611.1) via the `pump` Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -640,14 +643,17 @@ export const tuknirDeathlock: CardDefinition = {
             cost: { mana: { R: 1, G: 1 }, tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.addTemporaryPTBuff(target, 2, 2, {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #840): +2/+2 to the
+            // targeted creature until end of turn (CR 611.1) via `pump`.
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 2,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

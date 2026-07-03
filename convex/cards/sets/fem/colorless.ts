@@ -435,14 +435,15 @@ export const elvenLyre: CardDefinition = {
             cost: { mana: { X: 1 }, tap: true, sacrifice: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.addTemporaryPTBuff(target, 2, 2, {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 2,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

@@ -65,19 +65,29 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // pseudo-blockers keep the remaining scheduling closures truthfully
     // Op-blocked ($eventFieldCapture: Venom, Battering Ram, Nafs Asp,
     // Seraph, Krovikan Vampire; $listCapture: Venomous Breath).
+    // #840 (pump Op): addTemporaryPTBuff is now a COVERED Op — the pump
+    // cluster's closures moved from Op-blocked to FREE, and the ~59
+    // cleanly-expressible ones were migrated away (total closures 842→783;
+    // Op-blocked 583→497). The remaining FREE pump closures are the
+    // aura-pumps (getAttachedTo — blocked on an attached-object selector, a
+    // classifier read the tool counts as harmless) and count/colour/combat-
+    // role-scaled pumps not expressible by the current value grammar.
     it("reports the committed baseline bucket totals", () => {
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(842);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(244);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(222);
-        expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(583);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(783);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(270);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(245);
+        expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(16);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(497);
     });
 
-    it("surfaces the demonstrated new-Op backlog (top blocker is the pump primitive)", () => {
-        // The most-blocking primitive is addTemporaryPTBuff (the `pump` Op) —
+    it("surfaces the demonstrated new-Op backlog (top blocker is the counters primitive)", () => {
+        // pump SHIPPED (issue #840): addTemporaryPTBuff is now a COVERED Op
+        // (it appears in the "Covered Ops" line, no longer in the backlog). The
+        // most-blocking remaining primitive is addCounter (the `counters` Op) —
         // a stable, high-frequency signal that the Op backlog is being read.
         expect(summary).toMatch(/New-Op backlog/);
-        expect(summary).toMatch(/addTemporaryPTBuff/);
+        expect(summary).toMatch(/addCounter/);
+        expect(summary).toMatch(/Covered Ops[^\n]*addTemporaryPTBuff/);
     });
 });
 
@@ -93,10 +103,11 @@ describe("migration classifier — known-card routing (PRD #826)", () => {
         expect(free).toMatch(/Night's Whisper/);
     });
 
-    it("does NOT route an Op-blocked card (Giant Growth) to the FREE tranche", () => {
-        // Giant Growth calls ctx.addTemporaryPTBuff — blocked on the unshipped
-        // `pump` Op, so it belongs to that Op's cluster issue, not the free
-        // tranche.
-        expect(free).not.toMatch(/Giant Growth/);
+    it("does NOT route an Op-blocked card (Sengir Vampire) to the FREE tranche", () => {
+        // Sengir Vampire calls ctx.addCounter — blocked on the unshipped
+        // `counters` Op, so it belongs to that Op's cluster issue, not the free
+        // tranche. (Canary swapped from Giant Growth, which migrated once the
+        // `pump` Op shipped — issue #840.)
+        expect(free).not.toMatch(/Sengir Vampire/);
     });
 });

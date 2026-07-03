@@ -494,6 +494,22 @@ export const OP_EXECUTORS: {
             ctx.moveCardById(owner, target.id, "graveyard", op.to);
         }
     },
+    // CR 613.4c (issue #840) — a temporary P/T modification expiring at a phase
+    // boundary (layer 7c). A thin declarative skin over `addTemporaryPTBuff`,
+    // ONE execution path (ADR 0045). `power`/`toughness` are SIGNED (a negative
+    // is a shrink — Weakness; a zero is a one-sided pump — +1/+0), so unlike
+    // the damage/draw amounts this executor does NOT skip on a non-positive
+    // value. Skipped only when the target is gone (CR 608.2b — the target left
+    // the battlefield; `resolveObjectRef` returns undefined) or a `ref`/`count`
+    // value cannot be resolved (its binding was never captured).
+    pump(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        const power = resolveValue(ctx, op.power);
+        const toughness = resolveValue(ctx, op.toughness);
+        if (power === undefined || toughness === undefined) return;
+        ctx.addTemporaryPTBuff(target, power, toughness, op.duration);
+    },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution player choice through
     // the existing Pending Choice pipeline. First execution enqueues the
     // choice and SUSPENDS the script; the resumed execution (after the

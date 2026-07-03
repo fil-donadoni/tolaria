@@ -538,14 +538,15 @@ export const dwarvenLieutenant: CardDefinition = {
                 count: 1,
                 subtypeFilter: "Dwarf",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.addTemporaryPTBuff(target, 1, 0, {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

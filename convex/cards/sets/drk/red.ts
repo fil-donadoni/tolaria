@@ -235,14 +235,17 @@ export const cavePeople: CardDefinition = {
             matches: (event, self) =>
                 event.type === "ATTACKERS_DECLARED" &&
                 event.attackerIds.includes(self.id),
-            resolve: (ctx) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    -2,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #840): self-pump +1/-2
+            // until end of turn (CR 611.2).
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: -2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
     activatedAbilities: [
@@ -332,14 +335,17 @@ export const fireDrake: CardDefinition = {
             cost: { mana: { R: 1 } },
             useStack: true,
             oncePerTurn: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #840): self-pump +1/0
+            // until end of turn (CR 611.2).
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -740,6 +746,10 @@ export const orcGeneral: CardDefinition = {
                 },
             },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045, issue #840): pumps OTHER Orc
+            // creatures (excludes the source itself). Blocked on: the forEach
+            // permanents filter can't express "other" (no exclude-source), and
+            // Orc General is itself an Orc — a subtype:Orc sweep would pump it.
             resolve: (ctx: SpellContext) => {
                 // CR 611.1 — +1/+1 EOT to OTHER Orc creatures the controller
                 // controls (excluding Orc General itself).

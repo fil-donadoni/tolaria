@@ -122,14 +122,15 @@ export const thallidDevourer: CardDefinition = {
                 "Sacrifice a Saproling: This creature gets +1/+2 until end of turn.",
             cost: { sacrificeFilter: { subtypes: ["Saproling"] } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    2,
-                    { phase: "end-of-turn" }
-                );
-            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -316,14 +317,15 @@ export const elvenFortress: CardDefinition = {
                 count: 1,
                 combatRoleFilter: "blocking",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.addTemporaryPTBuff(target, 0, 1, {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 0,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

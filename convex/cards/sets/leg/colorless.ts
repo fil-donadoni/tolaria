@@ -325,11 +325,17 @@ export const pendelhaven: CardDefinition = {
                 powerFilter: { min: 1, max: 1 },
                 toughnessFilter: { min: 1, max: 1 },
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type !== "permanent") return;
-                ctx.addTemporaryPTBuff(target, 1, 2, { phase: "end-of-turn" });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #840): +1/+2 to the
+            // targeted 1/1 creature until end of turn (CR 611.1) via `pump`.
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 1,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

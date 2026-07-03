@@ -4549,6 +4549,26 @@ export type EffectOp =
      *  battlefield permanent to exile, which needs LTB semantics — use
      *  `exile`). */
     | { op: "moveZone"; target: EffectObjectSelector; to: EffectMoveZone }
+    /** CR 613.4c (layer 7c, issue #840) — a temporary P/T modification that
+     *  expires at a phase boundary. A thin declarative skin over the
+     *  SpellContext primitive `addTemporaryPTBuff`, one execution path
+     *  (ADR 0045). `target` names the permanent to pump: an announced target
+     *  slot (Giant Growth), the resolving source (`$source` — a self-pump
+     *  activated ability, "~ gets +1/+0 until end of turn"), or the current
+     *  member of a `forEach` set (`{ ref: "$each" }` — a mass pump). `power`
+     *  and `toughness` are signed amounts (each may be negative — a shrink,
+     *  Weakness — or zero — a one-sided pump, +1/+0); each is a literal, a
+     *  bound object's power/toughness (`ref`), or a `count`. `duration` is the
+     *  phase boundary at which the buff expires (CR 514.2 end-of-turn cleanup /
+     *  CR 511.3 end-of-combat). Skipped when the referenced permanent is gone
+     *  (CR 608.2b — the spell does as much as it can). */
+    | {
+          op: "pump";
+          target: EffectObjectSelector;
+          power: EffectValue;
+          toughness: EffectValue;
+          duration: DurationSpec;
+      }
     /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a
      *  Pending Choice of the given `kind` and SUSPENDS the script (the stack

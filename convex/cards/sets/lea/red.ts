@@ -342,6 +342,9 @@ export const firebreathing: CardDefinition = {
             oracleText: "{R}: Enchanted creature gets +1/+0 until end of turn.",
             cost: { mana: { R: 1 } },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045, issue #840): pumps the enchanted
+            // creature (getAttachedTo). Blocked on: an attached-object
+            // EffectObjectSelector, not pump.
             resolve: (ctx: SpellContext) => {
                 const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
                 if (!hostId) return;
@@ -494,14 +497,15 @@ export const graniteGargoyle: CardDefinition = {
             oracleText: "{R}: This creature gets +0/+1 until end of turn.",
             cost: { mana: { R: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    0,
-                    1,
-                    { phase: "end-of-turn" }
-                );
-            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 0,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1062,14 +1066,15 @@ export const shivanDragon: CardDefinition = {
             oracleText: "{R}: This creature gets +1/+0 until end of turn.",
             cost: { mana: { R: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1267,14 +1272,15 @@ export const wallOfFire: CardDefinition = {
             oracleText: "{R}: This creature gets +1/+0 until end of turn.",
             cost: { mana: { R: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

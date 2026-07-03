@@ -64,14 +64,17 @@ export const adarkarSentinel: CardDefinition = {
             oracleText: "{1}: This creature gets +0/+1 until end of turn.",
             cost: { mana: { X: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    0,
-                    1,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +0/+1 EOT
+            // on this creature (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 0,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -99,12 +102,17 @@ export const aegisOfTheMeek: CardDefinition = {
                 powerFilter: { min: 1, max: 1 },
                 toughnessFilter: { min: 1, max: 1 },
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent") {
-                    ctx.addTemporaryPTBuff(t, 1, 2, { phase: "end-of-turn" });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+2 EOT
+            // on the announced target (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 1,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1207,28 +1215,34 @@ export const snowFortress: CardDefinition = {
             oracleText: "{1}: This creature gets +1/+0 until end of turn.",
             cost: { mana: { X: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
+            // on this creature (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
         {
             id: "snow-fortress-pump-toughness",
             oracleText: "{1}: This creature gets +0/+1 until end of turn.",
             cost: { mana: { X: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    0,
-                    1,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +0/+1 EOT
+            // on this creature (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 0,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
         {
             id: "snow-fortress-ping",

@@ -280,6 +280,9 @@ export const blessing: CardDefinition = {
             oracleText: "{W}: Enchanted creature gets +1/+1 until end of turn.",
             cost: { mana: { W: 1 } },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045, issue #840): pumps the enchanted
+            // creature (getAttachedTo). Blocked on: an attached-object
+            // EffectObjectSelector, not pump.
             resolve: (ctx: SpellContext) => {
                 const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
                 if (!hostId) return;
@@ -616,6 +619,9 @@ export const holyArmor: CardDefinition = {
                 "{1}{W}: Enchanted creature gets +0/+3 until end of turn.",
             cost: { mana: { X: 1, W: 1 } },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045, issue #840): pumps the enchanted
+            // creature (getAttachedTo). Blocked on: an attached-object
+            // EffectObjectSelector, not pump.
             resolve: (ctx: SpellContext) => {
                 const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
                 if (!hostId) return;
@@ -1024,11 +1030,15 @@ export const righteousness: CardDefinition = {
         count: 1,
         combatRoleFilter: "blocking",
     },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (!target) return;
-        ctx.addTemporaryPTBuff(target, 7, 7, { phase: "end-of-turn" });
-    },
+    effects: [
+        {
+            op: "pump",
+            target: { target: 0 },
+            power: 7,
+            toughness: 7,
+            duration: { phase: "end-of-turn" },
+        },
+    ],
 };
 
 // Samite Healer — "{T}: Prevent the next 1 damage that would be dealt to

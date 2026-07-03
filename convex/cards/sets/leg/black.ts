@@ -185,14 +185,17 @@ export const carrionAnts: CardDefinition = {
             oracleText: "{1}: This creature gets +1/+1 until end of turn.",
             cost: { mana: { X: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    1,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #840): self-pump +1/+1
+            // until end of turn (CR 611.1) via the `pump` Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -244,14 +247,17 @@ export const ghostsOfTheDamned: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.addTemporaryPTBuff(target, -1, 0, {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #840): -1/-0 to the
+            // targeted creature until end of turn (CR 611.1) via `pump`.
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: -1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -278,14 +284,17 @@ export const fallenAngel: CardDefinition = {
                 "Sacrifice a creature: This creature gets +2/+1 until end of turn.",
             cost: { sacrificeFilter: { types: "Creature" } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    2,
-                    1,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #840): self-pump +2/+1
+            // until end of turn (CR 611.1) via the `pump` Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 2,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -368,17 +377,28 @@ export const hellSwarm: CardDefinition = {
     oracleText: "All creatures get -1/-0 until end of turn.",
     manaCost: { B: 1 },
     types: ["Instant"],
-    resolve: (ctx: SpellContext) => {
-        for (const pid of ctx.allPlayerIds) {
-            for (const id of ctx.getBattlefieldIds(pid, {
-                types: "Creature",
-            })) {
-                ctx.addTemporaryPTBuff({ type: "permanent", id }, -1, 0, {
-                    phase: "end-of-turn",
-                });
-            }
-        }
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #840): `forEach` over every
+    // player's battlefield creatures (CR 110/205) → `pump` each -1/-0 until
+    // end of turn (CR 611.1).
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature" },
+            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$each" },
+                    power: -1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
 };
 
 // Hellfire — "Destroy all nonblack creatures. Hellfire deals X plus 3 damage to

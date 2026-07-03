@@ -439,9 +439,15 @@ export const giantGrowth: CardDefinition = {
     // must expire at the cleanup step — NOT a permanent base-stat mutation.
     // `addTemporaryPTBuff` records it in `temporaryPTMods` with an end-of-turn
     // duration, which the cleanup duration tick purges.
-    resolve: (ctx: SpellContext) => {
-        ctx.addTemporaryPTBuff(ctx.targets[0], 3, 3, { phase: "end-of-turn" });
-    },
+    effects: [
+        {
+            op: "pump",
+            target: { target: 0 },
+            power: 3,
+            toughness: 3,
+            duration: { phase: "end-of-turn" },
+        },
+    ],
 };
 
 // Giant Spider — vanilla 2/4 with reach. (CR 702.17 reach: a creature with
