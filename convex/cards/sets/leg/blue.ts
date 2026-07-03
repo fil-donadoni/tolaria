@@ -442,10 +442,7 @@ export const flashCounter: CardDefinition = {
         count: 1,
         spellTypeFilter: "Instant",
     },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type === "spell") ctx.counter(target);
-    },
+    effects: [{ op: "counter", target: { target: 0 } }],
 };
 
 // Remove Soul — "Counter target creature spell." (CR 701.5a, CR 114.1.)
@@ -461,10 +458,7 @@ export const removeSoul: CardDefinition = {
         count: 1,
         spellTypeFilter: "Creature",
     },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type === "spell") ctx.counter(target);
-    },
+    effects: [{ op: "counter", target: { target: 0 } }],
 };
 
 // Force Spike — "Counter target spell unless its controller pays {1}."
@@ -530,9 +524,17 @@ export const acidRain: CardDefinition = {
     oracleText: "Destroy all Forests.",
     manaCost: { X: 3, U: 1 },
     types: ["Sorcery"],
-    resolve: (ctx: SpellContext) => {
-        ctx.destroyAll({ subtypes: "Forest" });
-    },
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { subtype: "Forest" },
+            },
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        },
+    ],
 };
 
 // Flash Flood — modal: "Destroy target red permanent." OR "Return target

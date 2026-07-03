@@ -434,15 +434,13 @@ export const syphonSoul: CardDefinition = {
         "Syphon Soul deals 2 damage to each other player. You gain life equal to the damage dealt this way.",
     manaCost: { X: 2, B: 1 },
     types: ["Sorcery"],
-    resolve: (ctx: SpellContext) => {
-        let dealt = 0;
-        for (const pid of ctx.allPlayerIds) {
-            if (pid === ctx.caster) continue;
-            ctx.dealDamage({ type: "player", id: pid }, 2);
-            dealt += 2;
-        }
-        ctx.gainLife(ctx.caster, dealt);
-    },
+    // "each other player" resolves to the single opponent in this engine's
+    // 2-player / solo-2-seat scope (3+ player multiplayer is out of scope):
+    // 2 damage to the opponent, gain 2 life (the damage dealt this way).
+    effects: [
+        { op: "dealDamage", amount: 2, to: { player: "opponent" } },
+        { op: "gainLife", player: "controller", amount: 2 },
+    ],
 };
 
 // Jovial Evil — "Jovial Evil deals X damage to target opponent, where X is twice
@@ -566,9 +564,7 @@ export const greed: CardDefinition = {
             oracleText: "{B}, Pay 2 life: Draw a card.",
             cost: { mana: { B: 1 }, life: 2 },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.drawCards(ctx.controller, 1);
-            },
+            effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
 };

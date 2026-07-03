@@ -363,10 +363,7 @@ export const spinalVillain: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1, colorFilter: "U" },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") ctx.destroy(target);
-            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };
