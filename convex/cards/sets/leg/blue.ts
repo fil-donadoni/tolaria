@@ -509,10 +509,9 @@ export const boomerang: CardDefinition = {
     manaCost: { U: 2 },
     types: ["Instant"],
     targetRequirement: { type: "any", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type === "permanent") ctx.returnToHand(target);
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #839): return the targeted
+    // permanent to its owner's hand (CR 701.10 / 400.7).
+    effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
 };
 
 // Acid Rain — "Destroy all Forests." (CR 701.7 mass destroy filtered on the

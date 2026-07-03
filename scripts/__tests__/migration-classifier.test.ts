@@ -60,11 +60,11 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // Committed baseline snapshot (bun scripts/migration-classifier.mjs at
     // #826 authoring time). Update DOWNWARD as migration proceeds.
     it("reports the committed baseline bucket totals", () => {
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(863);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(228);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(207);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(845);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(245);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(223);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(620);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(585);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is the pump primitive)", () => {

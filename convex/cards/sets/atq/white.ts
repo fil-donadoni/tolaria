@@ -41,11 +41,9 @@ export const argivianArchaeologist: CardDefinition = {
                 zone: "graveyard",
                 controller: "you",
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (!t || t.type !== "graveyard-card" || !t.playerId) return;
-                ctx.moveCardById(t.playerId, t.id, "graveyard", "hand");
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #839): return the
+            // targeted graveyard artifact card to its owner's hand (CR 400.7).
+            effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
 };

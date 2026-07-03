@@ -460,6 +460,39 @@ export const OP_EXECUTORS: {
         if (op.bind) bindSnapshot(ctx, op.bind, target);
         ctx.exile(target);
     },
+    // CR 400.7 (issue #839) — a plain zone change. A thin declarative skin
+    // over the SpellContext zone-movement primitives, ONE execution path
+    // (ADR 0045): the current zone is inferred from the object's kind (a
+    // permanent is on the battlefield; a graveyard-card is in the graveyard),
+    // so the Op carries no `from`. Skipped when the referenced object is gone
+    // (CR 608.2b — the spell does as much as it can), or for a zone pair with
+    // no plain-move primitive (a battlefield permanent to any zone but the
+    // hand needs LTB semantics — that is `destroy`/`exile`, not `moveZone`).
+    moveZone(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        if (target.type === "permanent") {
+            // Battlefield source (CR 110). Only the bounce-to-hand pair has a
+            // plain-move primitive (CR 701.10); other destinations from the
+            // battlefield need leaves-the-battlefield handling and are skipped.
+            if (op.to === "hand") ctx.returnToHand(target);
+            return;
+        }
+        if (target.type === "graveyard-card") {
+            const owner = target.playerId;
+            if (owner === undefined) return; // CR 608.2b — zone owner unknown
+            if (op.to === "battlefield") {
+                // Reanimation (CR 400.7 — graveyard → battlefield under the
+                // owner's control; Resurrection, Hell's Caretaker).
+                ctx.returnToBattlefield(owner, target.id, "graveyard");
+                return;
+            }
+            // A plain graveyard → hand/library/exile/graveyard move by id
+            // (Raise Dead, Grave Robbers). `battlefield` was handled above, so
+            // the destination here is a MovableZone.
+            ctx.moveCardById(owner, target.id, "graveyard", op.to);
+        }
+    },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution player choice through
     // the existing Pending Choice pipeline. First execution enqueues the
     // choice and SUSPENDS the script; the resumed execution (after the

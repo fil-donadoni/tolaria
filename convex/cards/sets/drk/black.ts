@@ -269,12 +269,12 @@ export const graveRobbers: CardDefinition = {
                 zone: "graveyard",
                 controller: "any",
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (!t || t.type !== "graveyard-card" || !t.playerId) return;
-                ctx.moveCardById(t.playerId, t.id, "graveyard", "exile");
-                ctx.gainLife(ctx.controller, 2);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #839): exile the targeted
+            // graveyard artifact card (CR 400.7), then gain 2 life (CR 119.3a).
+            effects: [
+                { op: "moveZone", target: { target: 0 }, to: "exile" },
+                { op: "gainLife", player: "controller", amount: 2 },
+            ],
         },
     ],
 };
