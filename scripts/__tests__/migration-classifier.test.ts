@@ -89,10 +89,18 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // predicates (value/predicate grammar gaps), and event-field capture
     // targets. Two closures moved Op-blocked→X-only (Clockwork Beast / Clockwork
     // Avian recharge: {X}-cost counter adds), so X-only 16→18.
+    // #841 fixup: Psychic Frog's discard-pump was reverted from the migrated
+    // choice→discard→counters chain back to resolve() — the chain fired
+    // `counters add` unconditionally on an empty hand, granting a free counter
+    // without paying the discard COST (CR 118.3), and the cost-gating is not
+    // expressible by the current DSL (no discard-chosen activation cost; the
+    // `if` predicate cannot test a choice binding's cardinality). That restores
+    // one FREE/AFK-ready closure (total 748→749, FREE 299→300, AFK-ready
+    // 273→274; Op-blocked/X-only unchanged).
     it("reports the committed baseline bucket totals", () => {
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(748);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(299);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(273);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(749);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(300);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(274);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(18);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(431);
     });
