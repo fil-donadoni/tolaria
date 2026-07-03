@@ -7,7 +7,7 @@
 // classified by the colour identity of their mana cost (CR 202.2); lands and
 // artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import type { CardDefinition } from "../../types";
 
 export const scarwoodGoblins: CardDefinition = {
     id: "5542d236-af43-43b8-b30f-8980d74bbdd0",
@@ -53,9 +53,9 @@ export const darkHeartOfTheWood: CardDefinition = {
             oracleText: "Sacrifice a Forest: You gain 3 life.",
             cost: { sacrificeFilter: { subtypes: "Forest" } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.gainLife(ctx.controller, 3);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #832): controller gains
+            // 3 life (CR 119.3a). The Forest sacrifice is an activation cost.
+            effects: [{ op: "gainLife", player: "controller", amount: 3 }],
         },
     ],
 };

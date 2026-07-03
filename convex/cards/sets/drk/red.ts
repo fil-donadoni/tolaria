@@ -169,6 +169,9 @@ export const ballLightning: CardDefinition = {
                 "At the beginning of the end step, sacrifice this creature.",
             phase: "END_STEP",
             scope: "each",
+            // NOT DSL-migratable (ADR 0045): sacrifices the source itself; the
+            // sacrifice Op only sacrifices a choice-picked set, and this is a
+            // factory-built trigger with no `effects[]` site. Stays resolve().
             resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
     ],
@@ -196,12 +199,13 @@ export const brothersOfFire: CardDefinition = {
             cost: { mana: { X: 1, R: 2 } },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target) ctx.dealDamage(target, 1);
-                // CR 120.3 — the rider always damages the controller.
-                ctx.dealDamage({ type: "player", id: ctx.controller }, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #832): 1 damage to the
+            // announced any-target, then the CR 120.3 rider — 1 to the
+            // controller.
+            effects: [
+                { op: "dealDamage", amount: 1, to: { target: 0 } },
+                { op: "dealDamage", amount: 1, to: { player: "controller" } },
+            ],
         },
     ],
 };
@@ -284,6 +288,9 @@ export const eternalFlame: CardDefinition = {
         count: 1,
         controller: "opponent",
     },
+    // NOT DSL-migratable (ADR 0045): the "half X, rounded up" rider is
+    // arithmetic (Math.ceil(X/2)) — the value grammar is literal/ref/count with
+    // no arithmetic. Stays resolve().
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (!target) return;
@@ -348,6 +355,8 @@ export const fissure: CardDefinition = {
     manaCost: { X: 3, R: 2 },
     types: ["Instant"],
     targetRequirement: { type: ["Creature", "Land"], count: 1 },
+    // NOT DSL-migratable (ADR 0045): the "can't be regenerated" rider is a
+    // destroy option the `destroy` Op does not carry. Stays resolve().
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target) ctx.destroy(target, { cantBeRegenerated: true });
@@ -407,10 +416,10 @@ export const goblinDiggingTeam: CardDefinition = {
                 count: 1,
                 subtypeFilter: "Wall",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target) ctx.destroy(target);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #832): destroy the
+            // announced target Wall (CR 701.8). The self-sacrifice is an
+            // activation cost.
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };
@@ -499,6 +508,11 @@ export const goblinShrine: CardDefinition = {
             oracleText:
                 "When this Aura leaves the battlefield, it deals 1 damage to each Goblin creature.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): built via the `leftTrigger`
+            // factory, which owns the `resolve` closure and exposes no
+            // `effects[]` site. The body itself is a clean forEach + dealDamage,
+            // but the factory wrapper blocks it. Stays resolve() until the
+            // trigger factories accept effects.
             resolve: (ctx: SpellContext) => {
                 // CR 120.3 — 1 damage to every Goblin creature on the
                 // battlefield (any controller).
@@ -614,6 +628,9 @@ export const goblinsOfTheFlarg: CardDefinition = {
                     ) ?? false
                 );
             },
+            // NOT DSL-migratable (ADR 0045): sacrifices the source itself; the
+            // sacrifice Op only sacrifices a choice-picked set, and this is a
+            // factory-built trigger with no `effects[]` site. Stays resolve().
             resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
     ],
@@ -629,9 +646,31 @@ export const inferno: CardDefinition = {
     oracleText: "Inferno deals 6 damage to each creature and each player.",
     manaCost: { X: 5, R: 2 },
     types: ["Instant"],
-    resolve: (ctx: SpellContext) => {
-        ctx.dealDamageToEach(6, { creatures: true, players: true });
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #832): dealDamageToEach(6,
+    // creatures+players) → forEach-per-set (CR 120.3). 6 to each creature,
+    // then 6 to each player.
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature" },
+            },
+            effects: [{ op: "dealDamage", amount: 6, to: { ref: "$each" } }],
+        },
+        {
+            op: "forEach",
+            select: { set: "players" },
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: 6,
+                    to: { player: { ref: "$each" } },
+                },
+            ],
+        },
+    ],
 };
 
 // Mana Clash — "You and target opponent each flip a coin. Mana Clash deals 1

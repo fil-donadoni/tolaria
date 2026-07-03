@@ -40,12 +40,13 @@ export const ashesToAshes: CardDefinition = {
         count: 2,
         excludeTypes: "Artifact",
     },
-    resolve: (ctx: SpellContext) => {
-        for (const target of ctx.targets) {
-            if (target.type === "permanent") ctx.exile(target);
-        }
-        ctx.dealDamage({ type: "player", id: ctx.controller }, 5);
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #832): exile both announced
+    // targets (CR 701.13), then 5 damage to the controller (CR 120).
+    effects: [
+        { op: "exile", target: { target: 0 } },
+        { op: "exile", target: { target: 1 } },
+        { op: "dealDamage", amount: 5, to: { player: "controller" } },
+    ],
 };
 
 // Banshee — "{X}, {T}: This creature deals half X damage, rounded down, to any
@@ -156,6 +157,10 @@ export const curseArtifact: CardDefinition = {
                 "At the beginning of the upkeep of enchanted artifact's controller, this Aura deals 2 damage to that player unless they sacrifice that artifact.",
             phase: "UPKEEP",
             scope: "host-controller",
+            // NOT DSL-migratable (ADR 0045): sacrifices the SPECIFIC enchanted
+            // artifact (getAttachedToId) — the sacrifice Op only sacrifices a
+            // choice-picked set — and the payer is a host-controller scoped
+            // player, not expressible as controller/opponent. Stays resolve().
             resolve: (ctx, _event, scopedPlayerId) => {
                 const hostId = ctx.getAttachedToId();
                 if (hostId === undefined) return; // host gone — nothing to do
@@ -481,6 +486,9 @@ export const seasonOfTheWitch: CardDefinition = {
                 "At the beginning of your upkeep, sacrifice this enchantment unless you pay 2 life.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): sacrifices this enchantment itself
+            // (sourceInstanceId) — the sacrifice Op only sacrifices a
+            // choice-picked set — gated on a getLife read. Stays resolve().
             resolve: (ctx) => {
                 const controller = ctx.controller;
                 // CR 118.4 — can't pay 2 life you don't have: forced sacrifice.
@@ -507,6 +515,10 @@ export const seasonOfTheWitch: CardDefinition = {
                 "At the beginning of the end step, destroy all untapped creatures that didn't attack this turn, except for creatures that couldn't attack.",
             phase: "END_STEP",
             scope: "each",
+            // NOT DSL-migratable (ADR 0045): the destroy set is filtered by
+            // runtime predicates (hasAttackedThisTurn / isSummoningSick /
+            // defender) the forEach `permanents` selector can't express (it
+            // filters only by type/subtype). Stays resolve().
             resolve: (ctx) => {
                 // CR 603.6a — every untapped creature that didn't attack this
                 // turn and could have attacked is destroyed. "Couldn't attack"
@@ -572,6 +584,9 @@ export const theFallen: CardDefinition = {
                 "At the beginning of your upkeep, this creature deals 1 damage to each opponent and planeswalker it has dealt damage to this game.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): gated on reading a "fallen-marked"
+            // counter on the source (getCounterCount) — the `count` construct
+            // counts cards in a zone, not counters on a permanent. Stays resolve().
             resolve: (ctx) => {
                 // The flag is a non-zero "fallen-marked" counter (set on first
                 // damage). One opponent in a 2-player game.

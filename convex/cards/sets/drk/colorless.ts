@@ -108,9 +108,9 @@ export const bookOfRass: CardDefinition = {
             oracleText: "{2}, Pay 2 life: Draw a card.",
             cost: { mana: { X: 2 }, life: 2 },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.drawCards(ctx.controller, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #832): controller draws
+            // one card (CR 121.1).
+            effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
 };
@@ -202,9 +202,9 @@ export const fountainOfYouth: CardDefinition = {
             oracleText: "{2}, {T}: You gain 1 life.",
             cost: { mana: { X: 2 }, tap: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.gainLife(ctx.controller, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #832): controller gains
+            // 1 life (CR 119.3a).
+            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
         },
     ],
 };
@@ -894,6 +894,11 @@ export const sorrowsPath: CardDefinition = {
             // CR 701.20a — fires when THIS permanent becomes tapped (including
             // when its own {T} cost taps it).
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): built via the `tappedTrigger`
+            // factory, which owns the `resolve` closure and exposes no
+            // `effects[]` site. The body itself is a clean forEach + dealDamage,
+            // but the factory wrapper blocks it. Stays resolve() until the
+            // trigger factories accept effects.
             resolve: (ctx) => {
                 // CR 120 — "you" = the controller; then each creature the
                 // controller controls. Both go through the normal damage path.
