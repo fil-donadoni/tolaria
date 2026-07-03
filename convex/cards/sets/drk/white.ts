@@ -362,6 +362,9 @@ export const holyLight: CardDefinition = {
     oracleText: "Nonwhite creatures get -1/-1 until end of turn.",
     manaCost: { X: 2, W: 1 },
     types: ["Instant"],
+    // NOT DSL-migratable (ADR 0045, issue #840): pumps NONWHITE creatures
+    // (all-minus-white set difference). Blocked on: the forEach permanents
+    // filter has no colour selector (positive or negative), not pump.
     resolve: (ctx: SpellContext) => {
         for (const pid of ctx.allPlayerIds) {
             const allCreatures = new Set(

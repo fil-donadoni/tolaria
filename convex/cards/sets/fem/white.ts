@@ -455,11 +455,15 @@ export const icatianLieutenant: CardDefinition = {
                 count: 1,
                 subtypeFilter: "Soldier",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (!target) return;
-                ctx.addTemporaryPTBuff(target, 1, 0, { phase: "end-of-turn" });
-            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -571,11 +575,15 @@ export const icatianPriest: CardDefinition = {
             cost: { mana: { X: 1, W: 2 } },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (!target) return;
-                ctx.addTemporaryPTBuff(target, 1, 1, { phase: "end-of-turn" });
-            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 1,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -700,14 +708,15 @@ export const orderOfLeitbur: CardDefinition = {
             oracleText: "{W}{W}: This creature gets +1/+0 until end of turn.",
             cost: { mana: { W: 2 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

@@ -160,14 +160,15 @@ export const atog: CardDefinition = {
                 "Sacrifice an artifact: This creature gets +2/+2 until end of turn.",
             cost: { sacrificeFilter: { types: "Artifact" } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    2,
-                    2,
-                    { phase: "end-of-turn" }
-                );
-            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 2,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

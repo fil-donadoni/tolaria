@@ -38,6 +38,7 @@ import type {
 } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
 import { EFFECT_OP_REGISTRY } from "../../cards/mechanicsRegistry";
+import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { registerTokenDefinition } from "../../cards";
 import {
     makeInstance,
@@ -322,6 +323,26 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // execution coverage is the card's own per-card test (the migrated
             // resolve()-cards keep their full behavioural tests).
             req.skip ??= `Op "moveZone" changes zones on an object whose source zone the canned generator does not model — covered by the card's own per-card test`;
+            return;
+        case "pump":
+            // `pump` (issue #840) adds a temporary P/T buff (CR 613.4c). The
+            // generator can assert a FIXED-amount pump on an announced
+            // permanent slot (it seeds a filler creature there and reads the
+            // effective P/T delta after resolution). A `$source` / `$each`
+            // target or a `ref`/`count` amount is not modelled — skip and let
+            // the card's own per-card test cover it.
+            if (!("target" in op.target)) {
+                req.skip ??= `Op "pump" targets $source/$each — covered by the card's own per-card test`;
+                return;
+            }
+            if (
+                typeof op.power !== "number" ||
+                typeof op.toughness !== "number"
+            ) {
+                req.skip ??= `Op "pump" uses a ref/count P/T amount the canned generator does not model — covered by the card's own per-card test`;
+                return;
+            }
+            recordSlot(req, op.target.target, "permanent");
             return;
         case "forEach":
             // The forEach construct (issue #807) iterates a runtime-selected
@@ -653,6 +674,44 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // is the card's own per-card test.
     moveZone() {
         return null;
+    },
+    // `pump` (issue #840, CR 613.4c) — a fixed-amount pump on an announced
+    // permanent slot is observable as an effective-P/T delta (the temporary
+    // buff is active for the rest of the turn, so it reads immediately after
+    // resolution). `$source`/`$each` targets and `ref`/`count` amounts are
+    // skipped upstream in `analyseOp` (returns null defensively here).
+    pump(rawOp, scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "pump" }>;
+        if (!("target" in op.target)) return null;
+        if (typeof op.power !== "number" || typeof op.toughness !== "number") {
+            return null;
+        }
+        const permId = scenario.targetPermanentIds[op.target.target];
+        const permBefore = pre.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === permId);
+        if (!permBefore) return null;
+        const beforeP = getEffectivePower(pre, permBefore);
+        const beforeT = getEffectiveToughness(pre, permBefore);
+        const expP = beforeP + op.power;
+        const expT = beforeT + op.toughness;
+        return {
+            label: `pump ${op.power}/${op.toughness} on permanent ${permId} (P/T ${beforeP}/${beforeT}→${expP}/${expT})`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                const ap = getEffectivePower(post, perm);
+                const at = getEffectiveToughness(post, perm);
+                return {
+                    ok: ap === expP && at === expT,
+                    detail: `P/T ${ap}/${at}, expected ${expP}/${expT}`,
+                };
+            },
+        };
     },
     // `delayedTrigger` (CR 603.7, ADR 0048) — never reached: `analyseOp`
     // skips every script with a delayedTrigger Op (the body fires at a

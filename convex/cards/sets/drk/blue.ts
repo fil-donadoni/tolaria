@@ -946,15 +946,19 @@ export const electricEel: CardDefinition = {
                 "{R}{R}: This creature gets +2/+0 until end of turn and deals 1 damage to you.",
             cost: { mana: { R: 2 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    2,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-                ctx.dealDamage({ type: "player", id: ctx.controller }, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +2/+0 EOT on
+            // the resolving source (CR 613.4c) via the pump Op, then 1 damage to
+            // the controller (CR 119.3). Both clauses resolve together (CR 608).
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 2,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+                { op: "dealDamage", amount: 1, to: { player: "controller" } },
+            ],
         },
     ],
 };

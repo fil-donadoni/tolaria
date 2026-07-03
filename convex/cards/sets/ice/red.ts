@@ -378,6 +378,7 @@ export const battleFrenzy: CardDefinition = {
         "Green creatures you control get +1/+1 until end of turn.\nNongreen creatures you control get +1/+0 until end of turn.",
     manaCost: { X: 2, R: 1 },
     types: ["Instant"],
+    // NOT DSL-migratable (ADR 0045, issue #840): the toughness bonus is conditional per-creature on colour (green +1/+1, nongreen +1/+0). Blocked on: a colour predicate in the forEach select / an if-condition on $each's colour, not pump.
     resolve: (ctx: SpellContext) => {
         for (const id of ctx.getBattlefieldIds(ctx.controller, {
             types: "Creature",
@@ -742,14 +743,17 @@ export const flameSpirit: CardDefinition = {
             oracleText: "{R}: This creature gets +1/+0 until end of turn.",
             cost: { mana: { R: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
+            // on this creature (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1165,14 +1169,17 @@ export const grizzledWolverine: CardDefinition = {
                     atks.includes(source.id)
                 );
             },
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    2,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +2/+0 EOT
+            // on this creature (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 2,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1264,6 +1271,13 @@ export const karplusanGiant: CardDefinition = {
                 },
             },
             useStack: true,
+            // AFK-migration skip (ADR 0045, issue #840), NOT a capability gap:
+            // this is a plain +1/+1 EOT self-pump ({ ref: "$source" }) the pump
+            // Op covers. It stays resolve() because the migration classifier
+            // flags it ✗no-test — its per-card test lives in the snow cluster
+            // (ice/__tests__/colorless.test.ts), not the parallel red.test.ts,
+            // so the sweep can't confirm the green-before equivalence harness in
+            // the expected location. Migrate when that test moves/parallels.
             resolve: (ctx: SpellContext) => {
                 ctx.addTemporaryPTBuff(
                     { type: "permanent", id: ctx.sourceInstanceId },
@@ -1357,6 +1371,7 @@ export const mRtonStromgald: CardDefinition = {
             matches: (event, self) =>
                 event.type === "ATTACKERS_DECLARED" &&
                 event.attackerIds.includes(self.id),
+            // NOT DSL-migratable (ADR 0045, issue #840): buff amount scales by a runtime count (+N/+N where N = other attacking creatures) applied across that self-excluded attacking set. Blocked on: a count-valued pump amount + a forEach select expressing "attacking, excluding self", not pump.
             resolve: (ctx) => {
                 // All attacking creatures other than Márton (CR 508.1).
                 const others: string[] = [];
@@ -1385,6 +1400,7 @@ export const mRtonStromgald: CardDefinition = {
             matches: (event, self) =>
                 event.type === "BLOCKERS_CONFIRMED" &&
                 event.blockerId === self.id,
+            // NOT DSL-migratable (ADR 0045, issue #840): buff amount scales by a runtime count (+N/+N where N = other blocking creatures) applied across that self-excluded blocking set. Blocked on: a count-valued pump amount + a forEach select expressing "blocking, excluding self", not pump.
             resolve: (ctx) => {
                 // All blocking creatures other than Márton, deduped across the
                 // block graph (a blocker may block multiple attackers, CR 509.2).
@@ -1982,6 +1998,7 @@ export const stonehands: CardDefinition = {
             oracleText: "{R}: Enchanted creature gets +1/+0 until end of turn.",
             cost: { mana: { R: 1 } },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045, issue #840): pumps the enchanted creature (getAttachedTo). Blocked on: an attached-object EffectObjectSelector, not pump.
             resolve: (ctx: SpellContext) => {
                 const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
                 if (!hostId) return;
@@ -2100,14 +2117,17 @@ export const wallOfLava: CardDefinition = {
             oracleText: "{R}: This creature gets +1/+1 until end of turn.",
             cost: { mana: { R: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    1,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+1 EOT
+            // on this creature (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

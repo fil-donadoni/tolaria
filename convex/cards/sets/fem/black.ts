@@ -504,14 +504,15 @@ export const orderOfTheEbonHand: CardDefinition = {
             oracleText: "{B}{B}: This creature gets +1/+0 until end of turn.",
             cost: { mana: { B: 2 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

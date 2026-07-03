@@ -678,6 +678,9 @@ export const greatDefender: CardDefinition = {
     manaCost: { W: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
+    // NOT DSL-migratable (ADR 0045, issue #840): the toughness delta is a
+    // non-literal amount derived from the target's mana value (getManaValue).
+    // Blocked on: an X-value / mana-value construct, not pump.
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "permanent") return;
@@ -695,15 +698,29 @@ export const shieldWall: CardDefinition = {
     oracleText: "Creatures you control get +0/+2 until end of turn.",
     manaCost: { X: 1, W: 1 },
     types: ["Instant"],
-    resolve: (ctx: SpellContext) => {
-        for (const id of ctx.getBattlefieldIds(ctx.caster, {
-            types: "Creature",
-        })) {
-            ctx.addTemporaryPTBuff({ type: "permanent", id }, 0, 2, {
-                phase: "end-of-turn",
-            });
-        }
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #840): `forEach` over the
+    // caster's battlefield creatures (CR 110/205) → `pump` each +0/+2 until
+    // end of turn (CR 611.1).
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                controller: "controller",
+                filter: { type: "Creature" },
+            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$each" },
+                    power: 0,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
 };
 
 // --- Damage prevention (CR 615) --------------------------------------------
@@ -1009,14 +1026,18 @@ export const osaiVultures: CardDefinition = {
             // ability is only legal while the source has >= 2 carrion counters.
             cost: { removeCounter: { type: "carrion", count: 2 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    1,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #840): self-pump +1/+1
+            // until end of turn (CR 611.1) via the `pump` Op. Counter removal
+            // stays as the activation cost.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

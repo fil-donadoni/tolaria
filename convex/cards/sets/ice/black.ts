@@ -209,14 +209,17 @@ export const brineShaman: CardDefinition = {
             cost: { tap: true, sacrificeFilter: { types: "Creature" } },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.addTemporaryPTBuff(target, 2, 2, {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +2/+2 EOT
+            // on the announced target (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 2,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
         {
             id: "brine-shaman-counter",
@@ -233,9 +236,9 @@ export const brineShaman: CardDefinition = {
                 spellTypeFilter: "Creature",
             },
             // Migrated resolve()→effects[] (ADR 0045): counter the announced
-            // target creature spell (CR 701.5a). The other ability (pump) stays
-            // resolve() pending an addTemporaryPTBuff Op. Untouched per-card
-            // test is the equivalence harness.
+            // target creature spell (CR 701.5a). The other ability (pump) is
+            // also migrated (brine-shaman-pump, pump Op, issue #840). Untouched
+            // per-card test is the equivalence harness.
             effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
@@ -754,14 +757,17 @@ export const hoarShade: CardDefinition = {
             oracleText: "{B}: This creature gets +1/+1 until end of turn.",
             cost: { mana: { B: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    1,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+1 EOT
+            // on this creature (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1045,14 +1051,17 @@ export const knightOfStromgald: CardDefinition = {
             oracleText: "{B}{B}: This creature gets +1/+0 until end of turn.",
             cost: { mana: { B: 2 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
+            // on this creature (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1081,14 +1090,17 @@ export const krovikanElementalist: CardDefinition = {
             cost: { mana: { X: 2, R: 1 } },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.addTemporaryPTBuff(target, 1, 0, {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
+            // on the announced target (CR 613.4c) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
         {
             id: "krovikan-elementalist-fly",
@@ -1650,14 +1662,18 @@ export const minionOfTeveshSzat: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.addTemporaryPTBuff(target, 3, -2, {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +3/-2 EOT
+            // on the announced target (CR 613.4c; toughness is a signed value,
+            // -2 is a shrink) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 3,
+                    toughness: -2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -2285,6 +2301,7 @@ export const soulKiss: CardDefinition = {
             // recorded before resolve runs, so checking `< 3` here caps it at 3.
             canActivate: (source) =>
                 (source.activationsThisTurn?.["soul-kiss-pump"] ?? 0) < 3,
+            // NOT DSL-migratable (ADR 0045, issue #840): pumps the enchanted creature (getAttachedTo). Blocked on: an attached-object EffectObjectSelector, not pump.
             resolve: (ctx: SpellContext) => {
                 const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
                 if (!hostId) return;

@@ -73,20 +73,28 @@ export const boneFlute: CardDefinition = {
             oracleText: "{2}, {T}: All creatures get -1/-0 until end of turn.",
             cost: { mana: { X: 2 }, tap: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                for (const pid of ctx.allPlayerIds) {
-                    for (const id of ctx.getBattlefieldIds(pid, {
-                        types: "Creature",
-                    })) {
-                        ctx.addTemporaryPTBuff(
-                            { type: "permanent", id },
-                            -1,
-                            0,
-                            { phase: "end-of-turn" }
-                        );
-                    }
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #840): all-creatures pump
+            // → forEach over every battlefield's creatures, pump each -1/0 EOT
+            // (CR 611.2).
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$each" },
+                            power: -1,
+                            toughness: 0,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
         },
     ],
 };

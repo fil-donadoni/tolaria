@@ -2367,6 +2367,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.scheduleDelayedTrigger",
         note: 'Grants a delayed triggered ability (CR 603.7, ADR 0048, issue #838): "At the beginning of the next <boundary>, <do something>". The delayed body is an INLINE nested Effect Script persisted on the DelayedTriggerInstance (self-contained in game state — no card-def lookup at fire time); everything the body needs from scheduling time crosses via the explicit `capture` map, resolved to serializable ids at scheduling and re-bound as the body\'s initial binding environment when the trigger fires. Two tracked grammar gaps stay OUT of the Op (ADR 0048): event-field captures ($event.<field> — Venom, Battering Ram, Nafs Asp) and list-valued captures (Venomous Breath).',
     },
+    {
+        op: "pump",
+        status: "implemented",
+        cr: "613.4c",
+        binding: "SpellContext.addTemporaryPTBuff",
+        note: 'Temporary P/T boost until a phase boundary (layer 7c, CR 613.4c, issue #840). A thin declarative skin over SpellContext.addTemporaryPTBuff, one execution path (ADR 0045). `target` is an announced slot (Giant Growth), the resolving source (`$source` — a self-pump activated ability, "~ gets +1/+0 until end of turn"), or a forEach `$each` (a mass pump); `power`/`toughness` are SIGNED values (a negative is a shrink — Weakness; a zero is a one-sided pump); `duration` is the expiry phase boundary (CR 514.2 / 511.3). The source-tapped variant (addSourceTappedPTBuff — Ashnod\'s Battle Gear, "for as long as this remains tapped") uses a state-tied duration outside the DurationSpec grammar and stays resolve() by design. Subsumes the addTemporaryPTBuff closures the migration classifier folds here (~99 blocked closures at ship time).',
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
@@ -2400,12 +2407,8 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED
     // (issue #839) — both moved to EFFECT_OP_REGISTRY above.
     // --- High-frequency skins (by blocked-closure count) ---
-    {
-        op: "pump",
-        status: "planned",
-        cr: "613.4c",
-        note: "Temporary P/T boost until end of turn (layer 7c, CR 613.4c). Folds SpellContext.addTemporaryPTBuff / addSourceTappedPTBuff (~99 blocked closures — the largest single Op backlog).",
-    },
+    // pump SHIPPED (issue #840) — addTemporaryPTBuff is now COVERED live via
+    // EFFECT_OP_REGISTRY; row moved there with status "implemented".
     {
         op: "counters",
         status: "planned",

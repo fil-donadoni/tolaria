@@ -622,14 +622,15 @@ export const vodalianWarMachine: CardDefinition = {
                 },
             },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    2,
-                    1,
-                    { phase: "end-of-turn" }
-                );
-            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 2,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
     // NOTE (faithful-text deferral): the printed death rider — "When this

@@ -26,6 +26,7 @@ import { refreshExpectedInput } from "../../expectedInput";
 import { projectPublicState } from "../../../gameProjections";
 import { fireDelayedTriggers } from "../../phases";
 import { INLINE_DELAYED_TRIGGER_ID } from "../interpreter";
+import { getEffectivePower, getEffectiveToughness } from "../../layers";
 
 /** Registers a synthetic DSL-only sorcery under a stable test id. Uses the
  *  registry's injection seam (`registerTokenDefinition` — idempotent
@@ -563,6 +564,214 @@ describe("Effect Script Op: moveZone (CR 400.7, issue #839)", () => {
     it("is a no-op when the announced target is missing (CR 608.2b)", () => {
         const id = registerScript("test-op-movezone-missing", [
             { op: "moveZone", target: { target: 0 }, to: "hand" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+});
+
+describe("Effect Script Op: pump (CR 613.4c, layer 7c, issue #840)", () => {
+    // A one-shot pump spell targeting a creature: Giant Growth (+3/+3).
+    // Wire-format assertion — the buffed P/T must survive the projection
+    // (the layer pipeline runs on the slimmed state the client reads).
+    it("pumps an announced creature target and survives the projection (wire format)", () => {
+        const id = registerScript("test-op-pump-target", [
+            {
+                op: "pump",
+                target: { target: 0 },
+                power: 3,
+                toughness: 3,
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearPump",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearPump" }]);
+        resolveTopOfStack(state);
+        const buffed = state.players[1].battlefield.find(
+            (c) => c.id === "bearPump"
+        )!;
+        // BEAR_ID is a 2/5 → +3/+3 = 5/8.
+        expect(getEffectivePower(state, buffed)).toBe(5);
+        expect(getEffectiveToughness(state, buffed)).toBe(8);
+        // Same assertion after the projection (the class of bug wire-format
+        // tests exist to catch — a layer read over stripped state).
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bearPump"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(5);
+        expect(getEffectiveToughness(projected, slim)).toBe(8);
+    });
+
+    // A negative (shrink) pump — the executor does NOT skip a non-positive
+    // value, unlike dealDamage/draw (Weakness, -2/-1).
+    it("applies a negative P/T modification (a shrink)", () => {
+        const id = registerScript("test-op-pump-shrink", [
+            {
+                op: "pump",
+                target: { target: 0 },
+                power: -2,
+                toughness: -1,
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearShrink",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearShrink" }]);
+        resolveTopOfStack(state);
+        const shrunk = state.players[1].battlefield.find(
+            (c) => c.id === "bearShrink"
+        )!;
+        // 2/5 → -2/-1 = 0/4.
+        expect(getEffectivePower(state, shrunk)).toBe(0);
+        expect(getEffectiveToughness(state, shrunk)).toBe(4);
+    });
+
+    // A one-sided pump (+0/+2 — a defensive boost) at an activated-ability
+    // site via the implicit `$source` binding (Granite Gargoyle shape).
+    it("pumps the source permanent via the implicit $source binding", () => {
+        const PUMPER_ID = "test-op-pump-source";
+        registerTokenDefinition({
+            id: PUMPER_ID,
+            name: PUMPER_ID,
+            rarity: "common",
+            manaCost: { R: 1 },
+            types: ["Creature"],
+            subtypes: ["Gargoyle"],
+            power: 2,
+            toughness: 2,
+            activatedAbilities: [
+                {
+                    id: "gargoyle-pump",
+                    oracleText:
+                        "{R}: This creature gets +0/+2 until end of turn.",
+                    cost: { mana: { R: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$source" },
+                            power: 0,
+                            toughness: 2,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        });
+        const pumper = makeInstance(PUMPER_ID, {
+            id: "gargoyle1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [pumper] }),
+                makePlayer("p2"),
+            ],
+        });
+        const src = state.players[0].battlefield[0];
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "gargoyle-pump",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        const self = state.players[0].battlefield.find(
+            (c) => c.id === "gargoyle1"
+        )!;
+        // 2/2 → +0/+2 = 2/4.
+        expect(getEffectivePower(state, self)).toBe(2);
+        expect(getEffectiveToughness(state, self)).toBe(4);
+    });
+
+    // A mass pump: forEach over the controller's creatures, each pumped via
+    // the per-iteration `{ ref: "$each" }` object binding (Rally / anthem-shot
+    // shape).
+    it("pumps every member of a forEach set via { ref: $each }", () => {
+        const id = registerScript("test-op-pump-foreach", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    controller: "controller",
+                    filter: { type: "Creature" },
+                },
+                effects: [
+                    {
+                        op: "pump",
+                        target: { ref: "$each" },
+                        power: 1,
+                        toughness: 1,
+                        duration: { phase: "end-of-turn" },
+                    },
+                ],
+            },
+        ]);
+        const mine = ["mA", "mB"].map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        const theirs = makeInstance(BEAR_ID, {
+            id: "tA",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: mine }),
+                makePlayer("p2", { battlefield: [theirs] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        for (const cid of ["mA", "mB"]) {
+            const c = state.players[0].battlefield.find((x) => x.id === cid)!;
+            expect(getEffectivePower(state, c)).toBe(3); // 2/5 → 3/6
+            expect(getEffectiveToughness(state, c)).toBe(6);
+        }
+        // The opponent's creature is outside the controller-scoped set.
+        const other = state.players[1].battlefield.find((x) => x.id === "tA")!;
+        expect(getEffectivePower(state, other)).toBe(2);
+        expect(getEffectiveToughness(state, other)).toBe(5);
+    });
+
+    it("is a no-op when the announced target is missing (CR 608.2b)", () => {
+        const id = registerScript("test-op-pump-missing", [
+            {
+                op: "pump",
+                target: { target: 0 },
+                power: 2,
+                toughness: 2,
+                duration: { phase: "end-of-turn" },
+            },
         ]);
         const state = makeState();
         pushSpell(state, id, "p1", []);

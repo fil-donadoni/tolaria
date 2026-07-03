@@ -437,14 +437,17 @@ export const wallOfOpposition: CardDefinition = {
             oracleText: "{1}: This creature gets +1/+0 until end of turn.",
             cost: { mana: { X: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #840): self-pump +1/+0
+            // until end of turn (CR 611.1) via the `pump` Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -586,6 +589,10 @@ export const bloodLust: CardDefinition = {
     manaCost: { X: 1, R: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
+    // NOT DSL-migratable (ADR 0045, issue #840): the toughness delta is a
+    // non-literal amount derived from the target's toughness (getToughness)
+    // with arithmetic (-(T-1)). Blocked on: an X-value / arithmetic construct,
+    // not pump.
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "permanent") return;

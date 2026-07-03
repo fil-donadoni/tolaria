@@ -313,17 +313,27 @@ export const marshGas: CardDefinition = {
     oracleText: "All creatures get -2/-0 until end of turn.",
     manaCost: { B: 1 },
     types: ["Instant"],
-    resolve: (ctx: SpellContext) => {
-        for (const pid of ctx.allPlayerIds) {
-            for (const id of ctx.getBattlefieldIds(pid, {
-                types: "Creature",
-            })) {
-                ctx.addTemporaryPTBuff({ type: "permanent", id }, -2, 0, {
-                    phase: "end-of-turn",
-                });
-            }
-        }
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #840): all-creatures pump →
+    // forEach over every battlefield's creatures, pump each -2/0 EOT (CR 611.2).
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature" },
+            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$each" },
+                    power: -2,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
 };
 
 // Murk Dwellers — "Whenever this creature attacks and isn't blocked, it gets
@@ -350,14 +360,17 @@ export const murkDwellers: CardDefinition = {
             matches: (event, self) =>
                 event.type === "ATTACKER_UNBLOCKED" &&
                 event.attackerId === self.id,
-            resolve: (ctx) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    2,
-                    0,
-                    { phase: "end-of-combat" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #840): self-pump +2/0
+            // until end of combat (CR 611.2).
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 2,
+                    toughness: 0,
+                    duration: { phase: "end-of-combat" },
+                },
+            ],
         },
     ],
 };

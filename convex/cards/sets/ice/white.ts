@@ -348,6 +348,7 @@ export const armorOfFaith: CardDefinition = {
             oracleText: "{W}: Enchanted creature gets +0/+1 until end of turn.",
             cost: { mana: { W: 1 } },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045, issue #840): pumps the enchanted creature (getAttachedTo). Blocked on: an attached-object EffectObjectSelector, not pump.
             resolve: (ctx: SpellContext) => {
                 const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
                 if (!hostId) return;
@@ -1083,28 +1084,34 @@ export const kjeldoranKnight: CardDefinition = {
             oracleText: "{1}{W}: This creature gets +1/+0 until end of turn.",
             cost: { mana: { X: 1, W: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
+            // on this creature (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
         {
             id: "kjeldoran-knight-pump-toughness",
             oracleText: "{W}{W}: This creature gets +0/+2 until end of turn.",
             cost: { mana: { W: 2 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    0,
-                    2,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +0/+2 EOT
+            // on this creature (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 0,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1357,14 +1364,17 @@ export const orderOfTheWhiteShield: CardDefinition = {
             oracleText: "{W}{W}: This creature gets +1/+0 until end of turn.",
             cost: { mana: { W: 2 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
+            // on this creature (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1391,6 +1401,7 @@ export const rally: CardDefinition = {
     oracleText: "Blocking creatures get +1/+1 until end of turn.",
     manaCost: { W: 2 },
     types: ["Instant"],
+    // NOT DSL-migratable (ADR 0045, issue #840): the set is "blocking creatures" (a combat role). Blocked on: the forEach select filter supports only type/subtype, not a combat-role predicate — not pump.
     resolve: (ctx: SpellContext) => {
         const blockersByAttacker = ctx.getBlockersByAttacker();
         const blockerIds = new Set<string>();

@@ -1244,11 +1244,17 @@ export const mysticMight: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent")
-                    ctx.addTemporaryPTBuff(t, 2, 2, { phase: "end-of-turn" });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +2/+2 EOT
+            // on the announced target (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 2,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
     triggeredAbilities: [
@@ -1484,14 +1490,17 @@ export const seaSpirit: CardDefinition = {
             oracleText: "{U}: This creature gets +1/+0 until end of turn.",
             cost: { mana: { U: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    0,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
+            // on this creature (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1771,14 +1780,17 @@ export const thunderWall: CardDefinition = {
             oracleText: "{U}: This creature gets +1/+1 until end of turn.",
             cost: { mana: { U: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addTemporaryPTBuff(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    1,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+1 EOT
+            // on this creature (CR 611.1b) via the pump Op.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
