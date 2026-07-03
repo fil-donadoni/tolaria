@@ -7,7 +7,7 @@
 // classified by the colour identity of their mana cost (CR 202.2); lands and
 // artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import type { CardDefinition } from "../../types";
 
 export const scarwoodGoblins: CardDefinition = {
     id: "5542d236-af43-43b8-b30f-8980d74bbdd0",
