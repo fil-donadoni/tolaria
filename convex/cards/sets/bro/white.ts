@@ -33,6 +33,12 @@ export const loranOfTheThirdPath: CardDefinition = {
             oracleText:
                 "When Loran enters, destroy up to one target artifact or enchantment.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045): "up to one target artifact or
+            // enchantment" picks across BOTH battlefields (allControllers),
+            // but the `choice` Op's battlefield candidates are limited to the
+            // chooser's own permanents (interpreter `choiceCandidates`).
+            // Planned-migratable: blocked on a cross-controller candidate set
+            // for the `choice` Op's battlefield zone.
             resolve: (ctx: SpellContext) => {
                 const picks = ctx.requestChoice({
                     playerId: ctx.controller,
@@ -62,11 +68,14 @@ export const loranOfTheThirdPath: CardDefinition = {
                 count: 1,
                 controller: "opponent",
             },
-            resolve: (ctx: SpellContext) => {
-                ctx.drawCards(ctx.controller, 1);
-                const t = ctx.targets[0];
-                if (t?.type === "player") ctx.drawCards(t.id, 1);
-            },
+            // CR 605 activated ability, CR 121.1 draw. Two `draw` Ops: the
+            // controller and the announced opponent slot each draw one. A
+            // non-player slot resolves to undefined and its Op skips
+            // (CR 608.2b) — mirrors the old `t?.type === "player"` guard.
+            effects: [
+                { op: "draw", player: "controller", count: 1 },
+                { op: "draw", player: { target: 0 }, count: 1 },
+            ],
         },
     ],
 };
