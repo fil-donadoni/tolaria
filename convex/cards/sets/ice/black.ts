@@ -1193,6 +1193,9 @@ export const krovikanVampire: CardDefinition = {
             scope: "any-other",
             condition: (event, self) =>
                 event.damagedBySources.includes(self.id),
+            // NOT DSL-migratable yet (ADR 0048): the delayed capture is the
+            // trigger-EVENT's dead creature (deadCreature.id) — the tracked
+            // $event.<field> grammar gap. Stays resolve().
             resolve: (ctx, _event, deadCreature) => {
                 ctx.scheduleDelayedTrigger(
                     KROVIKAN_VAMPIRE_ID,

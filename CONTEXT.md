@@ -121,6 +121,10 @@ _Avoid_: Action, skill
 An ability that fires automatically when a condition is met ("when/whenever/at"). Uses the **Stack**.
 _Avoid_: Event handler, listener
 
+**Delayed Triggered Ability**:
+A one-shot **Triggered Ability** created during the resolution of a spell or ability rather than printed on a permanent — "at the beginning of the next end step, destroy it" (CR 603.7). It waits for its timing condition, fires exactly once, then ceases to exist. In an **Effect Script** it is written inline: the scheduling **Op** carries the delayed body (itself an Effect Script) and its **Captures**, so the whole card reads like its oracle text.
+_Avoid_: Scheduled effect, deferred callback, timer
+
 **Static Ability**:
 An ability that applies continuously while the **Permanent** is in the appropriate **Zone**. Does not use the **Stack**.
 _Avoid_: Passive ability, aura effect
@@ -325,6 +329,10 @@ _Avoid_: DSL script, effect JSON, card script
 **Op**:
 A single vocabulary entry of an **Effect Script** (dealDamage, draw, destroy, choice, …). Each Op maps to an engine primitive; new Ops may be added freely, new structural constructs may not.
 _Avoid_: Instruction, command, opcode
+
+**Capture**:
+The named values a **Delayed Triggered Ability**'s body carries across time. Each capture is declared explicitly on the scheduling **Op** and resolved to a plain identity or amount at scheduling; when the trigger fires, the body reads it back as a ref. Nothing crosses the schedule→fire boundary implicitly — the card's script states exactly what the future ability remembers.
+_Avoid_: Closure, snapshot (that term is reserved for last-known-information binds)
 
 **Mechanics Registry**:
 The machine-readable census of every CR keyword ability (702) and keyword action (701), each with an implementation status and its engine binding (**Op** name or static ability). The single authority on mechanic names: cards and **Effect Scripts** may only reference mechanics it lists. Census is total; implementation is demand-driven.

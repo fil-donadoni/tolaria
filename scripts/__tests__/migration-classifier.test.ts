@@ -59,12 +59,18 @@ describe("migration classifier — census buckets (PRD #826)", () => {
 
     // Committed baseline snapshot (bun scripts/migration-classifier.mjs at
     // #826 authoring time). Update DOWNWARD as migration proceeds.
+    // #838 (delayedTrigger Op + ADR 0048, on top of #839's moveZone): Rocket
+    // Launcher + Urza's Bauble migrated (−3 closures: 2 scheduling + 1
+    // template body), and the delayed-body union + grammar-gap
+    // pseudo-blockers keep the remaining scheduling closures truthfully
+    // Op-blocked ($eventFieldCapture: Venom, Battering Ram, Nafs Asp,
+    // Seraph, Krovikan Vampire; $listCapture: Venomous Breath).
     it("reports the committed baseline bucket totals", () => {
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(845);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(245);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(223);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(842);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(244);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(222);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(585);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(583);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is the pump primitive)", () => {

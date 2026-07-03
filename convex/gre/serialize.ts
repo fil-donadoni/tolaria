@@ -634,6 +634,9 @@ function compactStackItem(item: StackItem): CompactCard {
     if (item.triggerEvent) base.triggerEvent = item.triggerEvent;
     if (item.delayedTriggerId) base.delayedTriggerId = item.delayedTriggerId;
     if (item.delayedPayload) base.delayedPayload = item.delayedPayload;
+    // ADR 0048 — an inline delayed-trigger body (pure JSON) must survive a
+    // save while the fired trigger sits on the stack awaiting priority.
+    if (item.delayedEffects) base.delayedEffects = item.delayedEffects;
     if (item.resolutionStep !== undefined) {
         base.resolutionStep = item.resolutionStep;
     }
@@ -690,6 +693,11 @@ function expandStackItem(compact: CompactCard): StackItem {
     }
     if (compact.delayedPayload) {
         item.delayedPayload = compact.delayedPayload as Record<string, string>;
+    }
+    // ADR 0048 — rehydrate the inline delayed-trigger body.
+    if (compact.delayedEffects) {
+        item.delayedEffects =
+            compact.delayedEffects as StackItem["delayedEffects"];
     }
     if (compact.resolutionStep !== undefined) {
         item.resolutionStep = compact.resolutionStep as number;

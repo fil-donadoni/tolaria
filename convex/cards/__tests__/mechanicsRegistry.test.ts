@@ -238,10 +238,10 @@ describe("Effect Script Op census (ADR 0045/0046, PRD #826)", () => {
         // The demand-driven backlog surfaced by the migration classifier
         // (scripts/migration-classifier.mjs). `X` is intentionally excluded —
         // it is an EffectValue grammar member, not an Op (PRD #826). `moveZone`
-        // was a wave-1 stub but SHIPPED (issue #839) — it now lives in
-        // EFFECT_OP_REGISTRY, not the backlog.
+        // (issue #839) and `delayedTrigger` (issue #838, ADR 0048) were wave-1
+        // stubs but SHIPPED — they now live in EFFECT_OP_REGISTRY, not the
+        // backlog.
         const named = [
-            "delayedTrigger",
             "pump",
             "counters",
             "tapUntap",
@@ -257,7 +257,7 @@ describe("Effect Script Op census (ADR 0045/0046, PRD #826)", () => {
         ];
         const backlog = new Set(EFFECT_OP_BACKLOG.map((r) => r.op));
         for (const op of named) expect(backlog.has(op), op).toBe(true);
-        // …plus low-frequency long-tail reservations beyond the 14.
+        // …plus low-frequency long-tail reservations beyond the named set.
         expect(EFFECT_OP_BACKLOG.length).toBeGreaterThan(named.length);
     });
 

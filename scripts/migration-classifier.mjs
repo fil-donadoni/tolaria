@@ -26,6 +26,19 @@
  * Heuristic caveat: reads (ctx.get.../is.../has... getters) are assumed
  * declaratively expressible via ref/if/forEach, so FREE is an UPPER bound — a
  * complex selection may kick back to manual review at transcription time.
+ *
+ * Delayed-trigger body union (ADR 0048): the `delayedTrigger` Op persists its
+ * body INLINE, so a scheduling closure's effect includes its delayed BODY —
+ * the body template's primitives are unioned into the scheduling closure
+ * (matched by trigger id: string literal or same-file const). Two tracked
+ * grammar gaps are marked with pseudo-blockers so they never surface as FREE:
+ *   $eventFieldCapture  the payload is built from trigger-event fields
+ *                       (Venom, Battering Ram, Nafs Asp, Seraph, Krovikan
+ *                       Vampire — needs $event.<field>)
+ *   $listCapture        a list-valued capture (Venomous Breath — the Op's
+ *                       capture map is single-value only)
+ *   $unresolvedDelayedBody  the scheduled trigger id could not be matched to
+ *                       a same-file template (conservative: stays blocked)
  */
 
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
@@ -58,7 +71,8 @@ const isRead = (n) => /^(get|is|has)/.test(n) && n !== X_PRIMITIVE;
 // the simulated wave plan. Primitives absent here stay residual (protocol or
 // below-the-line long-tail).
 const OP_SEQUENCE = [
-    ["delayedTrigger", ["scheduleDelayedTrigger"]],
+    // delayedTrigger SHIPPED (issue #838, ADR 0048) — scheduleDelayedTrigger
+    // is now COVERED live via EFFECT_OP_REGISTRY; row removed from the plan.
     ["moveZone", ["moveCardById", "returnToHand", "returnToBattlefield"]],
     ["pump", ["addTemporaryPTBuff"]],
     ["counters", ["addCounter", "removeCounter"]],
@@ -142,12 +156,58 @@ function hasPerCardTest(setFile, name) {
     return testCache[tf] ? testCache[tf].includes(name) : false;
 }
 
+/** Primitives called by a closure body that no registered Op covers. */
+function blockersOf(body) {
+    const called = [
+        ...new Set(
+            [...body.matchAll(/ctx\.([a-zA-Z]+)\s*\(/g)].map((x) => x[1])
+        ),
+    ];
+    return called.filter(
+        (c) =>
+            !COVERED.has(c) &&
+            !isRead(c) &&
+            !COMPOSITION[c] &&
+            c !== X_PRIMITIVE
+    );
+}
+
 function collect() {
     const items = [];
     for (const f of walk(SETS_ROOT)) {
         const src = readFileSync(f, "utf8");
         const mod = f.replace(SETS_ROOT + "/", "");
-        for (const { body, start } of closures(src)) {
+        const cls = closures(src);
+        // --- Delayed-trigger body union (ADR 0048) ------------------------
+        // Same-file string consts, to resolve identifier trigger ids
+        // (e.g. NEXT_UPKEEP_DRAW_TRIGGER_ID = "next-upkeep-cantrip").
+        const constTable = {};
+        for (const m of src.matchAll(
+            /const\s+([A-Za-z_$][\w$]*)\s*=\s*"([^"]+)"/g
+        )) {
+            constTable[m[1]] = m[2];
+        }
+        const resolveIdToken = (tok) =>
+            tok.startsWith('"') ? tok.slice(1, -1) : constTable[tok];
+        // A DelayedTriggerDef body is the `resolve:` closure whose preceding
+        // window carries `timing: "next-…"` (the field unique to the template
+        // shape); its trigger id is the last `id:` in that window. The window
+        // spans back to the previous closure's end so no earlier closure's
+        // fields leak in (comments between the fields are fine).
+        const templateBlockers = {};
+        let prevEnd = 0;
+        for (const { body, start } of cls) {
+            const window = src.slice(Math.max(prevEnd, start - 800), start);
+            prevEnd = start + body.length;
+            if (!/timing:\s*"next-/.test(window)) continue;
+            const idMatch = [
+                ...window.matchAll(/\bid:\s*("[^"]+"|[A-Za-z_$][\w$]*)/g),
+            ].pop();
+            if (!idMatch) continue;
+            const id = resolveIdToken(idMatch[1]);
+            if (id !== undefined) templateBlockers[id] = blockersOf(body);
+        }
+        for (const { body, start } of cls) {
             const called = [
                 ...new Set(
                     [...body.matchAll(/ctx\.([a-zA-Z]+)\s*\(/g)].map(
@@ -155,13 +215,30 @@ function collect() {
                     )
                 ),
             ];
-            const blockers = called.filter(
-                (c) =>
-                    !COVERED.has(c) &&
-                    !isRead(c) &&
-                    !COMPOSITION[c] &&
-                    c !== X_PRIMITIVE
-            );
+            const blockers = blockersOf(body);
+            if (body.includes("scheduleDelayedTrigger(")) {
+                // Union the scheduled body's primitives into the scheduling
+                // closure — the `delayedTrigger` Op must express the body
+                // inline (ADR 0048), so the closure unblocks only when the
+                // body's primitives are covered too.
+                for (const m of body.matchAll(
+                    /scheduleDelayedTrigger\(\s*[^,]+,\s*("[^"]+"|[A-Za-z_$][\w$]*)/g
+                )) {
+                    const id = resolveIdToken(m[1]);
+                    const bodyBlockers =
+                        id !== undefined ? templateBlockers[id] : undefined;
+                    if (bodyBlockers) blockers.push(...bodyBlockers);
+                    else blockers.push("$unresolvedDelayedBody");
+                }
+                // Tracked grammar gaps (ADR 0048) — never FREE. The capture
+                // is built from trigger-EVENT data: either the `event` param
+                // itself or the diedTrigger convention's third param (the
+                // dead creature — Seraph, Krovikan Vampire).
+                if (/\b(?:event|deadCreature)\.[A-Za-z]/.test(body)) {
+                    blockers.push("$eventFieldCapture");
+                }
+                if (/\.join\(/.test(body)) blockers.push("$listCapture");
+            }
             const name = cardNameBefore(src, start);
             items.push({
                 mod,

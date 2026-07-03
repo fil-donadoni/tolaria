@@ -24,6 +24,8 @@ import {
 import { compactState, expandState } from "../../serialize";
 import { refreshExpectedInput } from "../../expectedInput";
 import { projectPublicState } from "../../../gameProjections";
+import { fireDelayedTriggers } from "../../phases";
+import { INLINE_DELAYED_TRIGGER_ID } from "../interpreter";
 
 /** Registers a synthetic DSL-only sorcery under a stable test id. Uses the
  *  registry's injection seam (`registerTokenDefinition` — idempotent
@@ -2464,5 +2466,304 @@ describe("Effect Script construct: forEach — player sets, APNAP choice composi
             choiceId: head.choiceId, // the iteration-scoped binding name
             choiceKind: "sacrifice-permanents",
         });
+    });
+});
+
+// The delayedTrigger Op (CR 603.7, ADR 0048, issue #838) grants a delayed
+// triggered ability with an INLINE body: the Op resolves each `capture`
+// value to a serializable id at SCHEDULING time (persisted in the instance
+// payload), the body Op list rides on the instance, and at FIRE time the
+// payload is re-bound as the body's initial binding environment before the
+// interpreter runs the body directly — no card-def lookup. These tests drive
+// the REAL path end to end: schedule via `resolveTopOfStack`, fire via
+// `fireDelayedTriggers` (the same phase-boundary function the engine calls),
+// resolve the fired trigger via `resolveTopOfStack` again.
+describe("Effect Script Op: delayedTrigger (CR 603.7)", () => {
+    it("captures a target slot at scheduling and destroys it when the trigger fires at the next end step", () => {
+        const id = registerScript("test-op-delayed-target", [
+            {
+                op: "delayedTrigger",
+                timing: "next-end-step",
+                oracleText:
+                    "At the beginning of the next end step, destroy it.",
+                capture: { $it: { target: 0 } },
+                effects: [{ op: "destroy", target: { ref: "$it" } }],
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, { controllerId: "p2", id: "dtb1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "dtb1" }]);
+        resolveTopOfStack(state);
+        // CR 603.7a — the instance is queued, self-contained (inline body +
+        // captured payload), controlled by the scheduler (CR 113.7).
+        expect(state.delayedTriggers).toHaveLength(1);
+        const inst = state.delayedTriggers![0];
+        expect(inst.timing).toBe("next-end-step");
+        expect(inst.controller).toBe("p1");
+        expect(inst.triggerId).toBe(INLINE_DELAYED_TRIGGER_ID);
+        expect(inst.payload).toEqual({ $it: "dtb1" });
+        expect(inst.effects).toEqual([
+            { op: "destroy", target: { ref: "$it" } },
+        ]);
+        expect(inst.oracleText).toBe(
+            "At the beginning of the next end step, destroy it."
+        );
+        // Nothing happens before the boundary — and a non-matching boundary
+        // does not consume the instance (CR 603.7d fires exactly once, at ITS
+        // boundary).
+        fireDelayedTriggers(state, "next-upkeep");
+        expect(state.stack).toHaveLength(0);
+        expect(state.delayedTriggers).toHaveLength(1);
+        // The matching boundary fires it onto the stack; resolving it runs
+        // the inline body through the interpreter (no card-def lookup).
+        fireDelayedTriggers(state, "next-end-step");
+        expect(state.delayedTriggers).toBeUndefined();
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].delayedEffects).toEqual(inst.effects);
+        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["dtb1"]);
+    });
+
+    it("skips the body Op when the captured permanent left before the trigger fired (CR 608.2b)", () => {
+        const id = registerScript("test-op-delayed-gone", [
+            {
+                op: "delayedTrigger",
+                timing: "next-end-step",
+                oracleText:
+                    "At the beginning of the next end step, destroy it.",
+                capture: { $it: { target: 0 } },
+                effects: [{ op: "destroy", target: { ref: "$it" } }],
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, { controllerId: "p2", id: "dtg1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "dtg1" }]);
+        resolveTopOfStack(state);
+        // The captured creature leaves before the boundary.
+        state.players[1].battlefield = [];
+        state.players[1].graveyard.push({ ...bear, zone: "graveyard" });
+        fireDelayedTriggers(state, "next-end-step");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        // Exactly the one death that already happened — the body's destroy
+        // skipped (uncaptured binding, CR 608.2b), no double-destroy.
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["dtg1"]);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("captures a binding ref ($source) at an ability site — the Rocket Launcher shape", () => {
+        // "{2}: ... deals 1 damage to any target. Destroy ~ at the beginning
+        // of the next end step." — capture the ability's own source through
+        // the implicit $source snapshot binding.
+        const LAUNCHER_ID = "test-delayed-launcher";
+        registerTokenDefinition({
+            id: LAUNCHER_ID,
+            name: LAUNCHER_ID,
+            rarity: "common",
+            manaCost: { X: 4 },
+            types: ["Artifact"],
+            activatedAbilities: [
+                {
+                    id: "launcher-ping",
+                    oracleText:
+                        "{2}: Deal 1 damage to any target. Destroy this at the beginning of the next end step.",
+                    cost: { mana: { X: 2 } },
+                    useStack: true,
+                    targetRequirement: { type: "any", count: 1 },
+                    effects: [
+                        { op: "dealDamage", amount: 1, to: { target: 0 } },
+                        {
+                            op: "delayedTrigger",
+                            timing: "next-end-step",
+                            oracleText:
+                                "Destroy this artifact at the beginning of the next end step.",
+                            capture: { $self: { ref: "$source" } },
+                            effects: [
+                                { op: "destroy", target: { ref: "$self" } },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        });
+        const launcher = makeInstance(LAUNCHER_ID, {
+            id: "launcher1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [launcher] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...state.players[0].battlefield[0],
+            zone: "stack",
+            castById: "p1",
+            abilityId: "launcher-ping",
+            targets: [{ type: "player", id: "p2" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(19);
+        expect(state.delayedTriggers).toHaveLength(1);
+        // $source's snapshot id — the source permanent's instance id.
+        expect(state.delayedTriggers![0].payload).toEqual({
+            $self: "launcher1",
+        });
+        // The fired trigger destroys the source itself.
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual([
+            "launcher1",
+        ]);
+    });
+
+    it("re-binds a player capture (.controller ref) as a player binding at fire time", () => {
+        // "Exile target creature. At the beginning of the next end step, its
+        // controller loses 2 life." — the controller crosses the boundary as
+        // a `.controller` property capture (CR 608.2h LKI at scheduling).
+        const id = registerScript("test-op-delayed-player", [
+            { op: "exile", target: { target: 0 }, bind: "$c" },
+            {
+                op: "delayedTrigger",
+                timing: "next-end-step",
+                oracleText:
+                    "At the beginning of the next end step, its controller loses 2 life.",
+                capture: { $p: { ref: "$c.controller" } },
+                effects: [{ op: "loseLife", player: { ref: "$p" }, amount: 2 }],
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, { controllerId: "p2", id: "dtp1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "dtp1" }]);
+        resolveTopOfStack(state);
+        expect(state.delayedTriggers![0].payload).toEqual({ $p: "p2" });
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("fires a next-upkeep cantrip body for the scheduling controller — the Urza's Bauble shape (CR 603.7d)", () => {
+        const id = registerScript("test-op-delayed-upkeep", [
+            {
+                op: "delayedTrigger",
+                timing: "next-upkeep",
+                oracleText:
+                    "At the beginning of the next turn's upkeep, draw a card.",
+                effects: [{ op: "draw", player: "controller", count: 1 }],
+            },
+        ]);
+        const library = [
+            makeInstance(BEAR_ID, {
+                id: "dtl1",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            }),
+        ];
+        const state = makeState({
+            players: [makePlayer("p1", { library }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.delayedTriggers![0].timing).toBe("next-upkeep");
+        // No targetPlayerId — the very next upkeep fires it, whoever's turn.
+        expect(state.delayedTriggers![0].targetPlayerId).toBeUndefined();
+        fireDelayedTriggers(state, "next-upkeep");
+        resolveTopOfStack(state);
+        // "controller" resolves to the delayed trigger's controller — the
+        // scheduling spell's caster (CR 113.7).
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["dtl1"]);
+    });
+
+    it("scopes a player-gated timing to the resolved targetPlayer (CR 505)", () => {
+        const id = registerScript("test-op-delayed-mainphase", [
+            {
+                op: "delayedTrigger",
+                timing: "next-main-phase",
+                oracleText:
+                    "At the beginning of your next main phase, lose 1 life.",
+                targetPlayer: "controller",
+                effects: [{ op: "loseLife", player: "controller", amount: 1 }],
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.delayedTriggers![0].targetPlayerId).toBe("p1");
+        // The other player's main phase does not consume it (CR 505 — the
+        // scheduling player's own main phase only).
+        state.activePlayerId = "p2";
+        fireDelayedTriggers(state, "next-main-phase");
+        expect(state.delayedTriggers).toHaveLength(1);
+        state.activePlayerId = "p1";
+        fireDelayedTriggers(state, "next-main-phase");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(19);
+    });
+
+    it("wire format: the queued instance and the fired stack item survive projection and the DB round-trip", () => {
+        const id = registerScript("test-op-delayed-wire", [
+            {
+                op: "delayedTrigger",
+                timing: "next-end-step",
+                oracleText:
+                    "At the beginning of the next end step, destroy it.",
+                capture: { $it: { target: 0 } },
+                effects: [{ op: "destroy", target: { ref: "$it" } }],
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, { controllerId: "p2", id: "dtw1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "dtw1" }]);
+        resolveTopOfStack(state);
+        // Projection: PublicGameState passes `delayedTriggers` through whole
+        // — the inline body and payload must reach the client untouched.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.delayedTriggers).toEqual(state.delayedTriggers);
+        // DB round-trip while queued (the instance rides the persisted
+        // `delayedTriggers` GameState key — drift guard covered).
+        const reloaded = expandState(compactState(state));
+        expect(reloaded.delayedTriggers).toEqual(state.delayedTriggers);
+        // Fire, then round-trip + project the fired stack item: the inline
+        // body must survive a save while awaiting priority (serialize.ts
+        // compact/expand) and reach the client on the wire.
+        fireDelayedTriggers(state, "next-end-step");
+        const reloadedFired = expandState(compactState(state));
+        expect(reloadedFired.stack[0].delayedEffects).toEqual(
+            state.stack[0].delayedEffects
+        );
+        const projectedFired = projectPublicState(state, 2, "p1");
+        expect(projectedFired.stack[0].delayedEffects).toEqual(
+            state.stack[0].delayedEffects
+        );
+        // The reloaded state resolves identically (replay determinism).
+        resolveTopOfStack(reloadedFired);
+        expect(reloadedFired.players[1].graveyard.map((c) => c.id)).toEqual([
+            "dtw1",
+        ]);
     });
 });

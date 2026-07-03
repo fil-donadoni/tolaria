@@ -252,6 +252,10 @@ export const nafsAsp: CardDefinition = {
                 "Whenever this creature deals damage to a player, that player loses 1 life at the beginning of their next draw step unless they pay {1} before that draw step.",
             source: "self",
             target: { kind: "player", player: { relation: "any" } },
+            // NOT DSL-migratable yet (ADR 0048): the delayed capture (and
+            // the timing's target player) is a trigger-EVENT field
+            // (event.target.id) — the tracked $event.<field> grammar gap.
+            // Stays resolve().
             resolve: (ctx, event) => {
                 if (event.target.type !== "player") return;
                 ctx.scheduleDelayedTrigger(
@@ -270,10 +274,9 @@ export const nafsAsp: CardDefinition = {
             oracleText:
                 "That player loses 1 life unless they paid {1} before this draw step.",
             timing: "next-draw-step",
-            // NOT DSL-migratable (ADR 0045): a delayedTrigger body whose payer is
-            // read from the delayed-trigger payload (payload.playerId), not a
-            // relative player ref; delayedTriggers also have no effects[]
-            // passthrough. Stays resolve().
+            // Legacy template body (ADR 0048): expressible as an inline
+            // mayPay/if body once the scheduling site's $event.<field>
+            // capture gap closes — the card migrates as a whole then.
             resolve: (ctx, payload) => {
                 const pid = payload.playerId;
                 if (!pid) return;

@@ -3349,7 +3349,14 @@ describe("Urza's Bauble (next-upkeep cantrip, CR 603.7d)", () => {
             type: "player",
             count: 1,
         });
-        expect(urzasBauble.delayedTriggers?.[0]?.timing).toBe("next-upkeep");
+        // Post-#838 the cantrip is a delayedTrigger Op on the ability's
+        // Effect Script (ADR 0048) — the old assertion pinned the legacy
+        // `delayedTriggers[]` template field.
+        expect(
+            ability.effects?.some(
+                (e) => e.op === "delayedTrigger" && e.timing === "next-upkeep"
+            )
+        ).toBe(true);
     });
 
     it("schedules a draw that fires at the next upkeep", () => {

@@ -330,6 +330,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // forEach cards keep their own full per-card tests.
             req.skip ??= `construct "forEach" iterates a runtime-selected set — covered by the card's own tests`;
             return;
+        case "delayedTrigger":
+            // CR 603.7 (ADR 0048) — the Op schedules a FUTURE trigger whose
+            // body fires at a phase boundary the canned scenario never
+            // reaches; the only same-resolution outcome is the queued
+            // instance. Explicit skip — scheduling, payload capture and
+            // fire-time body execution are covered by the Op's own
+            // interpreter tests (per-Op regime, issue #838).
+            req.skip ??= `Op "delayedTrigger" fires at a future phase boundary — covered by the Op's interpreter tests`;
+            return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.
@@ -643,6 +652,14 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // canned generator). Kept for the 1:1 coverage guard; zone-move coverage
     // is the card's own per-card test.
     moveZone() {
+        return null;
+    },
+    // `delayedTrigger` (CR 603.7, ADR 0048) — never reached: `analyseOp`
+    // skips every script with a delayedTrigger Op (the body fires at a
+    // future phase boundary the canned scenario never reaches). Kept for the
+    // 1:1 coverage guard; scheduling + fire-time coverage is the Op's own
+    // interpreter tests (issue #838).
+    delayedTrigger() {
         return null;
     },
     // Zone change: exile moves the target to its owner's exile zone (CR 701.13).

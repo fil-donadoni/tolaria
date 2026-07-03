@@ -305,6 +305,27 @@ describe("game_state serialize round-trip", () => {
         expect(normal.stack[0].actingPlayerId).toBeUndefined();
     });
 
+    it("preserves a fired inline delayed trigger's body on the stack item (ADR 0048, CR 603.7a)", () => {
+        const state = freshState();
+        const spell = state.players[0].hand[0];
+        state.stack = [
+            {
+                ...spell,
+                zone: "stack",
+                castById: "p1",
+                delayedTriggerId: "$inline-effects",
+                delayedPayload: { $it: "target-7" },
+                delayedEffects: [{ op: "destroy", target: { ref: "$it" } }],
+            },
+        ];
+        const expanded = expandState(compactState(state));
+        expect(expanded.stack[0].delayedTriggerId).toBe("$inline-effects");
+        expect(expanded.stack[0].delayedPayload).toEqual({ $it: "target-7" });
+        expect(expanded.stack[0].delayedEffects).toEqual([
+            { op: "destroy", target: { ref: "$it" } },
+        ]);
+    });
+
     it("preserves a stack item's exileOnResolve flag (Recall, CR 608.2)", () => {
         const state = freshState();
         const recall = state.players[0].hand[0];
@@ -1263,6 +1284,24 @@ describe("optional field round-trip smoke tests", () => {
                 controller: "p1",
                 timing: "next-upkeep",
                 payload: {},
+            },
+        ];
+        expect(roundTrip(state).delayedTriggers).toEqual(state.delayedTriggers);
+    });
+
+    it("delayedTriggers — inline Effect Script body + oracle text (ADR 0048, CR 603.7a)", () => {
+        const state = freshState();
+        state.delayedTriggers = [
+            {
+                id: "dt-inline-1",
+                sourceCardId: "rocket-launcher",
+                triggerId: "$inline-effects",
+                controller: "p1",
+                timing: "next-end-step",
+                payload: { $self: "launcher-3" },
+                effects: [{ op: "destroy", target: { ref: "$self" } }],
+                oracleText:
+                    "Destroy Rocket Launcher at the beginning of the next end step.",
             },
         ];
         expect(roundTrip(state).delayedTriggers).toEqual(state.delayedTriggers);

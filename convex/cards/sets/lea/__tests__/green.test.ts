@@ -2958,9 +2958,7 @@ describe("Lifeforce ({G}, Sacrifice — counter target black spell, CR 701.5a)",
             targets: [{ type: "spell", id: blackSpell.id }],
         });
         resolveTopOfStack(state);
-        expect(
-            state.stack.find((s) => s.id === blackSpell.id)
-        ).toBeUndefined();
+        expect(state.stack.find((s) => s.id === blackSpell.id)).toBeUndefined();
         // The countered spell goes to its owner's graveyard (CR 701.5a).
         expect(state.players[1].graveyard.map((c) => c.id)).toContain(
             blackSpell.id

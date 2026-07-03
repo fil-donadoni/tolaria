@@ -5,7 +5,10 @@ import type {
     CardType,
     Color,
     ControlChangeCondition,
+    DelayedTriggerInlineBody,
+    DelayedTriggerTiming,
     DurationSpec,
+    EffectOp,
     GameEvent,
     ManaCost as CardManaCost,
     MayPayCost,
@@ -36,6 +39,7 @@ import { applyPlayLand } from "./playLand";
 import { getExtraLandDrops, getLegalTargets } from "./rules";
 import { entersTappedByReplacement } from "../cards/entersTapped";
 import { getAbilityEffectFn, getResolveFn } from "../cards/effectRegistry";
+import { runDelayedTriggerBody } from "./effects/interpreter";
 import { matchesPermanentFilter } from "../cards/filters";
 import type { Phase, Zone, PhaseReturnCondition } from "./types";
 import {
@@ -906,12 +910,20 @@ export type StackItem = CardInstanceState & {
     triggerEvent?: GameEvent;
     /** If set, this stack item is a delayed triggered ability (CR 603.7a)
      *  queued by an earlier spell's resolution. The resolve function lives on
-     *  `cardDef.delayedTriggers[triggerId]` and receives `delayedPayload`. */
+     *  `cardDef.delayedTriggers[triggerId]` and receives `delayedPayload` —
+     *  unless `delayedEffects` is set (the inline-body path, ADR 0048). */
     delayedTriggerId?: string;
     /** Serializable payload captured when the delayed trigger was scheduled.
      *  Holds instance / player ids so the trigger can look up live targets at
-     *  fire time (CR 603.7a). */
+     *  fire time (CR 603.7a). On the inline-body path (ADR 0048) it is
+     *  re-bound as the body's initial binding environment. */
     delayedPayload?: Record<string, string>;
+    /** ADR 0048 — the INLINE Effect Script body of a fired delayed trigger
+     *  (CR 603.7a). When set, `resolveTopOfStack` seeds the binding
+     *  environment from `delayedPayload` and runs this Op list through the
+     *  interpreter directly — no card-def lookup. Pure JSON (ADR 0046), so
+     *  it survives the DB round-trip on a mid-suspension save. */
+    delayedEffects?: EffectOp[];
     /** Resume checkpoint for a multi-step resolve (CR 608.3). Index into
      *  `CardDefinition.resolveSteps`. Advanced by the engine after a step
      *  completes without enqueueing pending choices. Undefined = start from
@@ -982,14 +994,17 @@ export type DelayedTriggerInstance = {
     /** Controller of the delayed trigger (CR 113.7). */
     controller: string;
     /** When the trigger should fire. */
-    timing:
-        | "next-end-step"
-        | "next-end-of-combat"
-        | "next-draw-step"
-        | "next-main-phase"
-        | "next-upkeep";
+    timing: DelayedTriggerTiming;
     /** Payload carried over from the scheduling spell's resolution. */
     payload: Record<string, string>;
+    /** ADR 0048 — INLINE body of an Effect-Script-scheduled trigger (CR
+     *  603.7a): the pure-JSON Op list the interpreter runs directly at fire
+     *  time, with `payload` re-bound as the body's initial binding
+     *  environment. Undefined for template-path triggers (which look up
+     *  `cardDef.delayedTriggers[triggerId]` instead). */
+    effects?: EffectOp[];
+    /** Oracle text shown when an inline trigger fires (ADR 0048). */
+    oracleText?: string;
     /** For `next-draw-step` and `next-main-phase`: the player whose
      *  draw/main phase fires this trigger (CR 504 / CR 505). Undefined for the
      *  global-boundary timings. */
@@ -2330,6 +2345,25 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     // `selectResolutionChoice`) can locate it via `stackItemId` and write
     // back `collectedChoices`. The next `resolveTopOfStack` call replays
     // the resolve which now reads the stored answer and runs to completion.
+
+    // Inline delayed triggered ability resolution (CR 603.7a, ADR 0048) —
+    // the Effect Script path: the body Op list rides ON the stack item (no
+    // card-def lookup), and the captured payload is re-bound as the body's
+    // initial binding environment before the interpreter runs it. Checked
+    // BEFORE the template path so an inline trigger never falls into the
+    // def-lookup branch.
+    if (top.delayedTriggerId && top.delayedEffects) {
+        const ctx = buildSpellContext(state, top);
+        runDelayedTriggerBody(
+            ctx,
+            top.delayedEffects,
+            top.delayedPayload ?? {}
+        );
+        if ((state.pendingChoices?.length ?? 0) > 0) return null;
+        delete top.collectedChoices;
+        state.stack.pop();
+        return top;
+    }
 
     // Delayed triggered ability resolution (CR 603.7a). Resolver is looked
     // up on the scheduling card's def; payload carries ids captured at
@@ -4828,6 +4862,10 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         // intervening-if re-check at CR 603.4). `triggerSourceId` is captured
         // in `buildTriggerItem` for exactly this purpose.
         sourceInstanceId: item.triggerSourceId ?? item.id,
+        // CR 108.1 — the resolving item's card definition id (ADR 0048:
+        // stamped on scheduled delayed triggers so the fired trigger renders
+        // its source card). Empty for synthetic items with no registry id.
+        sourceCardId: (item.card as { id?: string }).id ?? "",
         targets: item.targets ?? [],
         allPlayerIds: state.players.map((p) => p.id),
 
@@ -6450,20 +6488,19 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             card.power = spec.power;
             card.toughness = spec.toughness;
         },
-        // CR 603.7a: queues a delayed triggered ability. The template lives
-        // on the scheduling card's def and is looked up by id when the
-        // firing condition (e.g. END_STEP) is reached.
+        // CR 603.7a: queues a delayed triggered ability. On the template
+        // path the resolve body lives on the scheduling card's def and is
+        // looked up by id when the firing condition (e.g. END_STEP) is
+        // reached; on the inline path (ADR 0048) the body Op list is
+        // persisted on the instance itself and the interpreter runs it
+        // directly at fire time — no card-def lookup.
         scheduleDelayedTrigger(
             sourceCardId: string,
             triggerId: string,
-            timing:
-                | "next-end-step"
-                | "next-end-of-combat"
-                | "next-draw-step"
-                | "next-main-phase"
-                | "next-upkeep",
+            timing: DelayedTriggerTiming,
             payload: Record<string, string>,
-            targetPlayerId?: string
+            targetPlayerId?: string,
+            inline?: DelayedTriggerInlineBody
         ): void {
             state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;
             const instance: DelayedTriggerInstance = {
@@ -6474,6 +6511,12 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 timing,
                 payload,
                 ...(targetPlayerId ? { targetPlayerId } : {}),
+                ...(inline
+                    ? {
+                          effects: inline.effects,
+                          oracleText: inline.oracleText,
+                      }
+                    : {}),
             };
             state.delayedTriggers = [
                 ...(state.delayedTriggers ?? []),

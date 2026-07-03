@@ -2043,18 +2043,20 @@ export const urzasBauble: CardDefinition = {
             cost: { tap: true, sacrifice: true },
             useStack: true,
             targetRequirement: { type: "player", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                // CR 603.7d — arm the next-upkeep draw for the activator. The
-                // private look at a random hand card is not modelled (no game
-                // state change).
-                ctx.scheduleDelayedTrigger(
-                    "58c9e9a7-e170-4361-b7d5-22fc0771c489",
-                    NEXT_UPKEEP_DRAW_TRIGGER_ID,
-                    "next-upkeep",
-                    {}
-                );
-            },
+            // Effect Script (ADR 0045/0048, migrated in #838): the
+            // next-upkeep cantrip is a `delayedTrigger` Op with an inline
+            // body (CR 603.7d) — the private look at a random hand card is
+            // not modelled (no game state change). "controller" resolves to
+            // the delayed trigger's controller (the activator, CR 113.7).
+            effects: [
+                {
+                    op: "delayedTrigger",
+                    timing: "next-upkeep",
+                    oracleText:
+                        "At the beginning of the next turn's upkeep, draw a card.",
+                    effects: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
         },
     ],
-    delayedTriggers: [nextUpkeepDrawTrigger()],
 };

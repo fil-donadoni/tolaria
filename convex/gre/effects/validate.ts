@@ -373,6 +373,41 @@ function isForEachSelector(value: unknown): boolean {
     return true;
 }
 
+/** The timings a `delayedTrigger` Op may fire at (CR 603.7, ADR 0048) —
+ *  exactly the `DelayedTriggerTiming` union the engine's fire path handles. */
+const DELAYED_TIMINGS = new Set([
+    "next-end-step",
+    "next-end-of-combat",
+    "next-draw-step",
+    "next-main-phase",
+    "next-upkeep",
+]);
+
+function isDelayedTiming(value: unknown): boolean {
+    return typeof value === "string" && DELAYED_TIMINGS.has(value);
+}
+
+/** SHAPE of a `delayedTrigger` Op's `capture` map (ADR 0048): binding-name
+ *  keys (the reserved `$each` / `$source` names are rejected), each value a
+ *  literal string, an announced target slot, a bare binding ref, or a
+ *  `$x.controller` property ref. Binding existence / family / property
+ *  legality are checked by the ordered ref pass. */
+function isCaptureMap(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    return Object.entries(value).every(
+        ([k, v]) =>
+            isBindingName(k) &&
+            k !== "$each" &&
+            k !== "$source" &&
+            (isNonEmptyString(v) ||
+                isTargetRef(v) ||
+                isBareRef(v) ||
+                isRefValue(v))
+    );
+}
+
 /** Per-Op field schemas. Adding an Op = one registry row (mechanicsRegistry),
  *  one executor (interpreter) and one schema row here; the coverage guard
  *  test fails CI when the three drift apart. `bind` (ADR 0045) is an optional
@@ -457,6 +492,40 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             Array.isArray(entry.effects) && entry.effects.length === 0
                 ? ['field "effects" must be a non-empty Op list']
                 : [],
+    },
+    // CR 603.7 (ADR 0048) — grant a delayed triggered ability with an INLINE
+    // nested body. The capture map / body scoping / nesting ban are checked
+    // by the recursive schema and ordered ref passes.
+    delayedTrigger: {
+        required: {
+            timing: isDelayedTiming,
+            oracleText: isNonEmptyString,
+            effects: isOpList,
+        },
+        optional: { capture: isCaptureMap, targetPlayer: isPlayerRef },
+        check: (entry) => {
+            const errors: string[] = [];
+            if (Array.isArray(entry.effects) && entry.effects.length === 0) {
+                errors.push('field "effects" must be a non-empty Op list');
+            }
+            // CR 504 / 505 — the player-scoped timings fire on ONE player's
+            // step, so they demand a target player; the global-boundary
+            // timings ignore one, so declaring it is a definition bug.
+            const playerScoped =
+                entry.timing === "next-draw-step" ||
+                entry.timing === "next-main-phase";
+            if (playerScoped && !("targetPlayer" in entry)) {
+                errors.push(
+                    `timing "${String(entry.timing)}" is player-scoped (CR 504/505) — field "targetPlayer" is required`
+                );
+            }
+            if (!playerScoped && "targetPlayer" in entry) {
+                errors.push(
+                    `field "targetPlayer" is only valid with the player-scoped timings "next-draw-step" / "next-main-phase"`
+                );
+            }
+            return errors;
+        },
     },
 };
 
@@ -703,6 +772,76 @@ function checkRefUse(
     }
 }
 
+/** Checks one `delayedTrigger` capture source (ADR 0048) against the bindings
+ *  declared BEFORE the Op (captures resolve at scheduling time, in the outer
+ *  scope). A bare ref must name a snapshot or player binding (single-value —
+ *  picks/boolean bindings cannot cross the boundary; list captures are a
+ *  tracked grammar gap). A property ref must be `.controller` on a snapshot. */
+function checkCaptureSource(
+    name: string,
+    source: unknown,
+    declared: ReadonlyMap<string, BindingKind>,
+    at: string,
+    errors: string[]
+): void {
+    if (typeof source !== "object" || source === null) return; // literal
+    const obj = source as Record<string, unknown>;
+    if (typeof obj.ref !== "string") return; // target slot — nothing to check
+    const ref = obj.ref;
+    if (!ref.includes(".")) {
+        const family = declared.get(ref);
+        if (family === undefined) {
+            errors.push(
+                `${at}: capture "${name}" ref "${ref}" references undefined binding "${ref}" — no earlier Op binds it`
+            );
+            return;
+        }
+        if (family !== "snapshot" && family !== "player") {
+            errors.push(
+                `${at}: capture "${name}" ref "${ref}" names a ${family} binding — only single-value snapshot/player bindings can cross to fire time (list captures are a tracked grammar gap, ADR 0048)`
+            );
+        }
+        return;
+    }
+    const parsed = parseRef(ref);
+    if (!parsed || parsed.property !== "controller") {
+        errors.push(
+            `${at}: capture "${name}" ref "${ref}" — only ".controller" property captures are supported (a power/toughness capture has no fire-time re-binding, ADR 0048)`
+        );
+        return;
+    }
+    const family = declared.get(parsed.binding);
+    if (family === undefined) {
+        errors.push(
+            `${at}: capture "${name}" ref "${ref}" references undefined binding "${parsed.binding}" — no earlier Op binds it`
+        );
+    } else if (family !== "snapshot") {
+        errors.push(
+            `${at}: capture "${name}" ref "${ref}" — ".controller" reads a snapshot binding, not a ${family} binding`
+        );
+    }
+}
+
+/** The binding family a `delayedTrigger` capture key declares INSIDE the body
+ *  scope (ADR 0048). A `.controller` capture carries a player id → player
+ *  binding at fire time; a bare ref inherits its outer family; a target slot
+ *  or a literal re-binds as a snapshot when the captured id is a live
+ *  permanent (the fire-time seeding rule) — snapshot is the static family. */
+function captureBindingKind(
+    source: unknown,
+    declared: ReadonlyMap<string, BindingKind>
+): BindingKind {
+    if (typeof source === "object" && source !== null) {
+        const ref = (source as Record<string, unknown>).ref;
+        if (typeof ref === "string") {
+            if (ref.includes(".")) return "player"; // `.controller` capture
+            const outer = declared.get(ref);
+            if (outer === "player") return "player";
+        }
+    }
+    return "snapshot";
+}
+
 /** Ordered ref pass (#802, extended #805 picks / #806 boolean + `if`): walks
  *  Ops top to bottom so a `ref` may only name a binding a PRECEDING Op
  *  declared. Reports dangling bindings, unknown property paths, family
@@ -725,11 +864,13 @@ function checkOpListRefs(
         const at = label(i);
         const uses: RefUse[] = [];
         for (const [k, v] of Object.entries(entry)) {
-            // `predicate`, `then`, `else` (if, #806) and `effects` (forEach,
-            // #807 — the body is walked in its own scope below) are handled
-            // explicitly; `select` (forEach) is walked below in the OUTER
-            // scope so its `controller` ref resolves there but `$each` is not
-            // yet visible. `op` / `bind` never carry refs.
+            // `predicate`, `then`, `else` (if, #806) and `effects` (forEach /
+            // delayedTrigger — the body is walked in its own scope below) are
+            // handled explicitly; `select` (forEach) is walked below in the
+            // OUTER scope so its `controller` ref resolves there but `$each`
+            // is not yet visible; `capture` / `targetPlayer` (delayedTrigger,
+            // ADR 0048) are checked explicitly below in the OUTER scope.
+            // `op` / `bind` never carry refs.
             if (
                 k === "op" ||
                 k === "bind" ||
@@ -737,7 +878,9 @@ function checkOpListRefs(
                 k === "then" ||
                 k === "else" ||
                 k === "effects" ||
-                k === "select"
+                k === "select" ||
+                k === "capture" ||
+                k === "targetPlayer"
             ) {
                 continue;
             }
@@ -759,6 +902,18 @@ function checkOpListRefs(
                     uses
                 );
             }
+        }
+        // delayedTrigger (CR 603.7, ADR 0048): capture sources and the
+        // `targetPlayer` selector resolve at SCHEDULING time, in the OUTER
+        // scope (the body's own fire-time scope is walked below).
+        if (entry.op === "delayedTrigger") {
+            const capture = entry.capture;
+            if (capture && typeof capture === "object") {
+                for (const [name, src] of Object.entries(capture)) {
+                    checkCaptureSource(name, src, declared, at, errors);
+                }
+            }
+            collectRefUses(entry.targetPlayer, "player", uses);
         }
         for (const use of uses) checkRefUse(use, declared, at, errors);
 
@@ -791,6 +946,27 @@ function checkOpListRefs(
                 "$each",
                 select?.set === "players" ? "player" : "snapshot"
             );
+            checkOpListRefs(
+                entry.effects,
+                (j) => `${at}: effects[${j}]`,
+                errors,
+                bodyScope
+            );
+        }
+
+        // Recurse into the delayedTrigger body (ADR 0048) with a FRESH scope:
+        // the body runs at FIRE time in a new environment whose ONLY initial
+        // bindings are the capture keys — outer bindings ($source included)
+        // are NOT visible. Family follows the fire-time re-binding rule
+        // (`captureBindingKind`).
+        if (entry.op === "delayedTrigger" && Array.isArray(entry.effects)) {
+            const bodyScope = new Map<string, BindingKind>();
+            const capture = entry.capture;
+            if (capture && typeof capture === "object") {
+                for (const [name, src] of Object.entries(capture)) {
+                    bodyScope.set(name, captureBindingKind(src, declared));
+                }
+            }
             checkOpListRefs(
                 entry.effects,
                 (j) => `${at}: effects[${j}]`,
@@ -848,7 +1024,8 @@ function validateOpSchema(
     raw: unknown,
     at: string,
     errors: string[],
-    inForEach = false
+    inForEach = false,
+    inDelayed = false
 ): void {
     if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
         errors.push(`${at}: each Op must be a plain object`);
@@ -862,6 +1039,12 @@ function validateOpSchema(
     if (entry.op === "forEach" && inForEach) {
         errors.push(
             `${at}: forEach must not nest inside a forEach body — one construct level per script (issue #807)`
+        );
+        return;
+    }
+    if (entry.op === "delayedTrigger" && inDelayed) {
+        errors.push(
+            `${at}: delayedTrigger must not nest inside a delayedTrigger body — one scheduling level per script (ADR 0048)`
         );
         return;
     }
@@ -925,7 +1108,8 @@ function validateOpSchema(
                         op,
                         `${at}: ${key}[${j}]`,
                         errors,
-                        inForEach
+                        inForEach,
+                        inDelayed
                     );
                 });
             }
@@ -935,7 +1119,22 @@ function validateOpSchema(
     // at its own path, with `inForEach` set so a nested forEach is rejected.
     if (entry.op === "forEach" && Array.isArray(entry.effects)) {
         entry.effects.forEach((op, j) => {
-            validateOpSchema(op, `${at}: effects[${j}]`, errors, true);
+            validateOpSchema(
+                op,
+                `${at}: effects[${j}]`,
+                errors,
+                true,
+                inDelayed
+            );
+        });
+    }
+    // Recurse into a `delayedTrigger` body (CR 603.7, ADR 0048) — a FRESH
+    // script executed at fire time: `inForEach` resets (a body forEach is a
+    // new script's single construct level) and `inDelayed` is set so a nested
+    // delayedTrigger is rejected.
+    if (entry.op === "delayedTrigger" && Array.isArray(entry.effects)) {
+        entry.effects.forEach((op, j) => {
+            validateOpSchema(op, `${at}: effects[${j}]`, errors, false, true);
         });
     }
 }

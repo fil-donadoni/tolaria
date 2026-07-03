@@ -1280,6 +1280,9 @@ export function fireDelayedTriggers(
             castById: t.controller,
             delayedTriggerId: t.triggerId,
             delayedPayload: t.payload,
+            // ADR 0048 — an inline-body instance carries its Effect Script
+            // onto the stack item, so resolution needs no card-def lookup.
+            ...(t.effects ? { delayedEffects: t.effects } : {}),
         };
         state.stack.push(stackItem);
     }

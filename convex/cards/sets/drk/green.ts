@@ -683,6 +683,9 @@ export const venom: CardDefinition = {
                     : event.attackerSubtypes;
                 return !otherSubtypes.includes("Wall");
             },
+            // NOT DSL-migratable yet (ADR 0048): the delayed capture is built
+            // from trigger-EVENT fields (event.attackerId / event.blockerId) —
+            // the tracked $event.<field> grammar gap. Stays resolve().
             resolve: (ctx, event) => {
                 if (event.type !== "BLOCKERS_CONFIRMED") return;
                 const hostId = ctx.getAttachedToId();

@@ -3522,10 +3522,15 @@ describe("Rocket Launcher ({2}: 1 damage any target; destroy at end step)", () =
             { type: "player", id: "p2" },
         ]);
         expect(state.players[1].life).toBe(19);
-        // A delayed trigger to destroy the launcher is queued for the end step.
+        // A delayed trigger to destroy the launcher is queued for the end step
+        // (post-#838 the instance carries an inline destroy body, ADR 0048 —
+        // the old template-id assertion pinned the legacy authoring internals).
         expect(
             state.delayedTriggers?.some(
-                (d) => d.triggerId === "rocket-launcher-end-step-destroy"
+                (d) =>
+                    d.timing === "next-end-step" &&
+                    d.effects?.some((e) => e.op === "destroy") &&
+                    d.payload.$self === "launcher"
             )
         ).toBe(true);
     });
