@@ -11,9 +11,8 @@
 // interveningIf wiring. The only differences are the event kind and the
 // payload field naming exposed to `resolve`.
 
-import type { CardType } from "../../types";
+import type { CardType, EffectOp } from "../../types";
 import type {
-    EffectOp,
     GameEvent,
     PermanentEnteredEvent,
     PermanentView,
@@ -68,21 +67,26 @@ export interface EnteredTriggerArgs {
     /** Effect run when the trigger resolves from the stack. Receives the
      *  full event plus a flattened `EnteredPermanentInfo` view so card bodies
      *  don't have to know the event's field naming. Mutually exclusive with
-     *  `effects` — use exactly one. */
+     *  `effects` (the DSL-first alternative below) — use exactly one. */
     resolve?: (
         ctx: SpellContext,
         event: PermanentEnteredEvent,
         entered: EnteredPermanentInfo
     ) => void;
-    /** Effect Script (ADR 0045, issue #803) — declarative alternative to
-     *  `resolve`. Unlike `phaseTrigger` / `drawTrigger`, an ETB trigger's
-     *  ability always belongs to the SOURCE permanent (the thing that has
-     *  the "when this enters" ability) — the entering permanent is a
-     *  separate payload, never the acting player — so `ctx.controller`
-     *  inside the script is always the source's controller regardless of
-     *  `scope`. That means `effects` is safe for every scope value (no
-     *  `scope: "your"`-only restriction like `phaseTrigger`/`drawTrigger`).
-     *  Mutually exclusive with `resolve`. */
+    /** Effect Script (ADR 0045, issues #803/#727) — declarative alternative
+     *  to `resolve`. It rides straight to the interpreter with the trigger's
+     *  controller and `$source` bound (the firing event is NOT threaded in —
+     *  a self-ETB effect that must inspect the entering permanent's
+     *  characteristics stays imperative via `resolve`). Unlike
+     *  `phaseTrigger` / `drawTrigger`, an ETB trigger's ability always
+     *  belongs to the SOURCE permanent (the thing that has the "when this
+     *  enters" ability) — the entering permanent is a separate payload, never
+     *  the acting player — so `ctx.controller` inside the script is always the
+     *  source's controller regardless of `scope`. That means `effects` is safe
+     *  for every scope value (no `scope: "your"`-only restriction like
+     *  `phaseTrigger`/`drawTrigger`); Glacial Chasm — "when this enters,
+     *  sacrifice a land" — is the canonical example. Mutually exclusive with
+     *  `resolve`. */
     effects?: EffectOp[];
 }
 
@@ -128,6 +132,12 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
             }
             return true;
         },
+        // ADR 0045 (issues #803/#727) — a declarative Effect Script bypasses
+        // the event-narrowing `resolve` wrapper entirely: it rides straight to
+        // the interpreter, which binds the controller and `$source` from the
+        // resolution context. Because an ETB ability belongs to its source,
+        // `ctx.controller` is the source's controller for every scope.
+        // Mutually exclusive with `resolve`.
         ...(args.effects
             ? { effects: args.effects }
             : {

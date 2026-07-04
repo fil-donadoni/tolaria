@@ -53,9 +53,11 @@ import {
     hipparion,
     prismaticWard,
     sacredBoon,
+    energyStorm,
 } from "../../ice";
 import { plains } from "../../lea";
 import { getDefinition } from "../../../index";
+import { applyDamageReplacements } from "../../../../gre/replacements";
 import {
     resolveTopOfStack,
     getManaSubstitutions,
@@ -1680,5 +1682,86 @@ describe("Sacred Boon (prevented-amount readback → counters, CR 615.1)", () =>
             (c) => c.id === "c"
         )!;
         expect(getEffectiveToughness(projected, slim)).toBe(5);
+    });
+});
+
+// ===========================================================================
+// Energy Storm (#727) — cumulative upkeep {1}, "prevent all damage dealt by
+// instant and sorcery spells" (continuous damage-prevention replacement keyed
+// on source card type), and "creatures with flying don't untap" (untap-lock
+// static, the Mudslide shape with the polarity flipped).
+// ===========================================================================
+describe("Energy Storm (CR 702.24 / 615.1 / 502.1)", () => {
+    it("definition shape: {1}{W} enchantment with all three clauses wired", () => {
+        expect(energyStorm.manaCost).toEqual({ X: 1, W: 1 });
+        expect(energyStorm.types).toEqual(["Enchantment"]);
+        expect(
+            (energyStorm.triggeredAbilities ?? []).some(
+                (t) => t.id === "energy-storm-cumulative-upkeep"
+            )
+        ).toBe(true);
+        expect(energyStorm.replacementEffects?.[0]?.eventKind).toBe("damage");
+    });
+
+    it("declares a flyers-don't-untap restriction with maxUntap 0 (CR 502.1)", () => {
+        const restriction = (energyStorm.staticEffects ?? []).find(
+            (e) => e.kind === "untap-restriction"
+        );
+        expect(restriction).toBeDefined();
+        expect(
+            (restriction as { filter: { requireAbility?: string } }).filter
+                .requireAbility
+        ).toBe("flying");
+        expect((restriction as { maxUntap: number }).maxUntap).toBe(0);
+    });
+
+    it("prevents damage dealt by an instant or sorcery spell (CR 615.1)", () => {
+        const storm = makeInstance(energyStorm.id, {
+            id: "storm",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [storm] }),
+                makePlayer("p2"),
+            ],
+        });
+        const bySorcery = applyDamageReplacements(state, {
+            kind: "damage",
+            sourceInstanceId: "bolt",
+            sourceControllerId: "p2",
+            sourceColors: ["R"],
+            sourceTypes: ["Instant"],
+            sourceStaticAbilities: [],
+            target: { type: "player", id: "p1" },
+            amount: 3,
+            isCombat: false,
+        });
+        expect(bySorcery).toBeNull();
+    });
+
+    it("does NOT prevent damage dealt by a creature source", () => {
+        const storm = makeInstance(energyStorm.id, {
+            id: "storm",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [storm] }),
+                makePlayer("p2"),
+            ],
+        });
+        const byCreature = applyDamageReplacements(state, {
+            kind: "damage",
+            sourceInstanceId: "beast",
+            sourceControllerId: "p2",
+            sourceColors: ["G"],
+            sourceTypes: ["Creature"],
+            sourceStaticAbilities: [],
+            target: { type: "player", id: "p1" },
+            amount: 3,
+            isCombat: true,
+        });
+        expect(byCreature).not.toBeNull();
     });
 });

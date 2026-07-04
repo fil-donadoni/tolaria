@@ -82,6 +82,24 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Cumulative-upkeep global-lock permanents (issue #727): Glacial Chasm
+        // and Halls of Mist enter the battlefield, Energy Storm sits in hand.
+        // Glacial Chasm's ETB asks you to sacrifice a land; on the battlefield
+        // it locks your creatures out of combat and prevents all damage to you.
+        // Halls of Mist forbids a creature that attacked last turn from
+        // attacking. Cast Energy Storm to prevent instant/sorcery damage and
+        // keep flyers tapped. Extra lands so the ETB sacrifice has a target.
+        label: "ICE global-lock permanents (Glacial Chasm / Halls of Mist / Energy Storm) (#727)",
+        cards: [
+            { name: "Glacial Chasm", owner: "me", zone: "battlefield" },
+            { name: "Halls of Mist", owner: "me", zone: "battlefield" },
+            { name: "Energy Storm", owner: "me", zone: "hand" },
+            { name: "Balduvian Bears", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
+    {
         // Effect Script tracer bullet (ADR 0045, issue #800): Lava Spike is
         // the first DSL-only card — cast it at a player to exercise the
         // effects[] interpreter end-to-end. Two copies in hand + one for the
