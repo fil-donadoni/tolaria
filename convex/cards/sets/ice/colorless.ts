@@ -440,22 +440,51 @@ export const crownOfTheAges: CardDefinition = {
         },
     ],
 };
-// DEFERRED (#658) — Elkin Bottle needs the impulse-PLAY seam, which is NOT
-// shipped. ADR 0026's impulse-draw (`exileFaceDown`) only grants the controller
-// permission to LOOK at the exiled card (CR 406.3), not to PLAY/cast it from
-// exile within a time window. Granting "until your next upkeep, you may play
-// that card" requires a play-permission registry (which exiled cards a player
-// may cast, and from which zone), a casting-validator hook that consults it, and
-// a delayed end-of-window cleanup — none expressible from shipped primitives.
-// Build the impulse-play seam first.
-// export const elkinBottle: CardDefinition = {
-//     id: "49301c19-55a0-4146-9474-0b86cd320e31",
-//     name: "Elkin Bottle",
-//     rarity: "rare",
-//     oracleText: "{3}, {T}: Exile the top card of your library. Until the beginning of your next upkeep, you may play that card.",
-//     manaCost: { X: 3 },
-//     types: ["Artifact"],
-// };
+// Elkin Bottle — "{3}, {T}: Exile the top card of your library. Until the
+// beginning of your next upkeep, you may play that card." (CR 601.3e / 608.2g
+// play-from-exile, the Impulse idiom.) Composes shipped primitives:
+//   - `peekLibraryTop(caster, 1)` reads the top card's instance id (CR 401.1).
+//   - `exileFaceDown(caster, id, "library", caster)` exiles it hidden to the
+//     opponent but known to its controller (CR 406.3), same as Ice Cauldron.
+//   - `grantCastFromExile(id, caster)` marks it castable from exile by the
+//     controller (CR 601.3e) — the shipped impulse-play seam (#666).
+// SIMPLIFICATION (flagged, CR 608.2g): the "until the beginning of your next
+// upkeep" window END is not auto-revoked on a timer — the play permission
+// persists while the card remains in exile, matching every other shipped
+// impulse card (Ice Cauldron: no window; Baleful Mastery/STX bottom: rest of
+// turn). A timed revoke needs a play-permission-expiry primitive that isn't
+// built; the observable golden path (exile top card, then cast it from exile)
+// is faithful.
+export const elkinBottle: CardDefinition = {
+    id: "49301c19-55a0-4146-9474-0b86cd320e31",
+    name: "Elkin Bottle",
+    rarity: "rare",
+    oracleText:
+        "{3}, {T}: Exile the top card of your library. Until the beginning of your next upkeep, you may play that card.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "elkin-bottle-exile",
+            oracleText:
+                "{3}, {T}: Exile the top card of your library. Until the beginning of your next upkeep, you may play that card.",
+            cost: { mana: { X: 3 }, tap: true },
+            useStack: true,
+            // Long-tail impulse primitive (ADR 0045): exile-top + cast-from-exile
+            // has no Op skin yet; the resolve() composes shipped SpellContext
+            // primitives (peekLibraryTop / exileFaceDown / grantCastFromExile).
+            resolve: (ctx: SpellContext) => {
+                const top = ctx.peekLibraryTop(ctx.caster, 1);
+                if (top.length === 0) return; // empty library
+                const cardId = top[0];
+                // CR 406.3 — exiled hidden to the opponent, known to controller.
+                ctx.exileFaceDown(ctx.caster, cardId, "library", ctx.caster);
+                // CR 601.3e — the controller may cast it from exile.
+                ctx.grantCastFromExile(cardId, ctx.caster);
+            },
+        },
+    ],
+};
 // Fyndhorn Bow — {3}, {T}: Target creature gains first strike until end of turn
 // (CR 605 activated ability; CR 702.7 first strike granted via the layer system,
 // CR 613 layer 6).

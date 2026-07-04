@@ -9,6 +9,7 @@ import {
     brainstorm,
     essenceFlare,
     iceCauldron,
+    elkinBottle,
     jeweledAmulet,
     adarkarSentinel,
     aegisOfTheMeek,
@@ -3385,5 +3386,87 @@ describe("Urza's Bauble (next-upkeep cantrip, CR 603.7d)", () => {
         enterUpkeepAndFire(state, "p1");
         resolveTopOfStack(state);
         expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+});
+
+describe("Elkin Bottle ({3},{T}: exile top card, play it — CR 601.3e impulse)", () => {
+    it("exiles the top card of the library, granting cast-from-exile to the controller", () => {
+        const bottle = makeInstance(elkinBottle.id, {
+            id: "bottle",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const top = makeInstance(balduvianBears.id, {
+            id: "top",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const under = makeInstance(balduvianBears.id, {
+            id: "under",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [bottle],
+                    library: [top, under],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, bottle, "elkin-bottle-exile");
+        const p1 = state.players[0];
+        // Top card left the library for exile, castable by its controller.
+        expect(p1.library.find((c) => c.id === "top")).toBeUndefined();
+        const exiled = p1.exile.find((c) => c.id === "top")!;
+        expect(exiled.castableFromExileBy).toBe("p1");
+        // Face down: hidden to the opponent, known to the controller.
+        expect(exiled.knownTo).toEqual(["p1"]);
+        // The next card is now on top and untouched.
+        expect(p1.library[0]?.id).toBe("under");
+    });
+
+    it("is a no-op with an empty library", () => {
+        const bottle = makeInstance(elkinBottle.id, {
+            id: "bottle",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bottle], library: [] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, bottle, "elkin-bottle-exile");
+        expect(state.players[0].exile).toHaveLength(0);
+    });
+
+    it("wire format: the exiled card is visible in the owner's projected exile", () => {
+        const bottle = makeInstance(elkinBottle.id, {
+            id: "bottle",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const top = makeInstance(balduvianBears.id, {
+            id: "top",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bottle], library: [top] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, bottle, "elkin-bottle-exile");
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].exile.find((c) => c.id === "top")!;
+        expect(slim).toBeDefined();
+        expect(slim.castableFromExileBy).toBe("p1");
     });
 });

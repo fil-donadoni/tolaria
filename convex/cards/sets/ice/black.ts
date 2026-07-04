@@ -243,15 +243,54 @@ export const brineShaman: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const burntOffering: CardDefinition = {
-//     id: "1dae52a2-3af7-4b97-9d2e-2448b7c413fb",
-//     name: "Burnt Offering",
-//     rarity: "common",
-//     oracleText: "As an additional cost to cast this spell, sacrifice a creature.\nAdd X mana in any combination of {B} and/or {R}, where X is the sacrificed creature's mana value.",
-//     manaCost: { B: 1 },
-//     types: ["Instant"],
-// };
+// Burnt Offering — "As an additional cost to cast this spell, sacrifice a
+// creature. Add X mana in any combination of {B} and/or {R}, where X is the
+// sacrificed creature's mana value." (CR 118.3 additional cost, CR 202.3 mana
+// value, CR 106.1 mana.) The sacrifice is an `additionalCosts.sacrificeFilter`
+// paid at cast; the sacrificed creature's mana value is snapshotted on the
+// stack item and read at resolution via `getAdditionalSacrificeMv()` (as with
+// Sacrifice / Metamorphosis).
+export const burntOffering: CardDefinition = {
+    id: "1dae52a2-3af7-4b97-9d2e-2448b7c413fb",
+    name: "Burnt Offering",
+    rarity: "common",
+    oracleText:
+        "As an additional cost to cast this spell, sacrifice a creature.\nAdd X mana in any combination of {B} and/or {R}, where X is the sacrificed creature's mana value.",
+    manaCost: { B: 1 },
+    types: ["Instant"],
+    additionalCosts: {
+        sacrificeFilter: { types: "Creature" },
+    },
+    // NOT DSL-migratable (ADR 0045): the produced AMOUNT (= sacrificed creature's
+    // mana value, a runtime read with no EffectValue member) AND the COLOUR split
+    // ("any combination of {B}/{R}", a free per-resolution choice) are both
+    // outside the `addMana` Op's fixed produced-mana grammar. Mirrors the
+    // Sacrifice / Metamorphosis sac-MV rituals. Blocked on: a variable-amount +
+    // runtime-colour-split mana EffectValue construct.
+    resolve: (ctx: SpellContext) => {
+        const mv = ctx.getAdditionalSacrificeMv();
+        if (mv === undefined || mv <= 0) return;
+        // CR 202.3 — X = sacrificed creature's mana value. The controller
+        // chooses how to split the X mana between {B} and {R} ("any
+        // combination"): one option per possible black count 0..X.
+        const options = [];
+        for (let black = mv; black >= 0; black--) {
+            options.push({
+                id: `split-${black}`,
+                label: `${black} {B}, ${mv - black} {R}`,
+            });
+        }
+        const choice = ctx.requestOptionChoice({
+            playerId: ctx.controller,
+            choiceId: "burnt-offering-split",
+            options,
+            prompt: "Burnt Offering: split the mana between black and red.",
+        });
+        if (choice === undefined) return; // suspended — resume after the pick
+        const black = Number(choice.slice("split-".length));
+        ctx.addMana({ B: black, R: mv - black });
+    },
+};
 // TODO(#628): implement.
 // export const cloakOfConfusion: CardDefinition = {
 //     id: "dc45d103-0fca-4431-a5c0-869f0f9be93e",
@@ -434,16 +473,19 @@ export const demonicConsultation: CardDefinition = {
         }
     },
 };
-// DEFERRED (#655) — Dread Wight needs the paralyzation-counter machinery, which
-// is NOT shipped. The card requires three coupled pieces the engine lacks: (1) a
-// per-permanent untap lock CONDITIONED on a counter ("doesn't untap … for as
-// long as it has a paralyzation counter on it") — the shipped `does-not-untap`
-// keyword is unconditional and not counter-gated; (2) a granted activated
-// ability "{4}: Remove a paralyzation counter from this creature" placed on
-// OTHER creatures (ability-grant of an activated ability that mutates the
-// grantee's own counters); (3) the end-of-combat application to every creature
-// blocking/blocked-by it. None of (1)-(3) is expressible from shipped primitives
-// without new engine support. Defer until counter-gated untap locks land.
+// DEFERRED (#655) — re-verified against the current engine (2026-07). The
+// end-of-combat trigger BODY is clean DSL (forEach blocking/blocked-by →
+// counters "paralyzation" + tapUntap tap), but two coupled pieces remain
+// unbuilt: (1) a per-permanent untap lock GATED on a specific counter ("doesn't
+// untap for as long as it has a paralyzation counter"). The untap step models
+// several counter-gated locks (`does-not-untap-with-depletion-counter`, the
+// `wind`-counter Freyalise's Winds replacement) but there is no paralyzation
+// variant, and the plain `does-not-untap` keyword is unconditional, not
+// counter-gated. (2) The granted "{4}: Remove a paralyzation counter from this
+// creature" on OTHER creatures is a grant of an ACTIVATED ability — `grantAbility`
+// grants KEYWORDS only (CR 702), not activated abilities that mutate the
+// grantee's counters. Both are new seams; stop-and-issue, not invented. Blocked
+// on: a paralyzation-counter untap lock + granting an activated ability.
 // export const dreadWight: CardDefinition = {
 //     id: "65d332e2-4b2d-4131-84f7-862cb138c477",
 //     name: "Dread Wight",

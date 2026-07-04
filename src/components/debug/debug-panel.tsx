@@ -235,6 +235,24 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // ICE buildable-now utilities (#728): Elkin Bottle exiles the top card
+        // of your library and lets you play it from exile ({3},{T}); Burnt
+        // Offering sacrifices a creature and adds mana in any {B}/{R}
+        // combination equal to its mana value. Elkin Bottle is on the
+        // battlefield (untapped) with a stocked library; Burnt Offering sits in
+        // hand with a Grizzly Bears to sacrifice. 4 lands cover the {3} activation
+        // and the {B} cast.
+        label: "Elkin Bottle + Burnt Offering — ICE utilities (#728)",
+        cards: [
+            { name: "Elkin Bottle", owner: "me", zone: "battlefield" },
+            { name: "Burnt Offering", owner: "me", zone: "hand" },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+        libraryCount: 6,
+    },
 ];
 
 type DebugPanelProps = {

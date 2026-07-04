@@ -1796,12 +1796,14 @@ export const orcishHealer: CardDefinition = {
         },
     ],
 };
-// Orcish Librarian — DEFERRED (#656). `peekLibraryTop(8)` + `reorderLibraryTop`
-// cover the "look at top eight / put the rest on top in any order" legs, but
-// "exile four of them AT RANDOM" has no SpellContext primitive: the seeded PRNG
-// is engine-internal and only `discardAtRandom` is exposed (no random-select /
-// random-exile from a library set). Flagged for a random-select primitive.
-// TODO(#628): implement.
+// Orcish Librarian — DEFERRED (#656/#628), re-verified against the current
+// engine (2026-07). `peekLibraryTop(8)` + `reorderLibraryTop` cover the "look at
+// top eight / put the rest on top in any order" legs (the `scryReorder` Op skin
+// is still `planned`, so the closure composes those raw primitives), but "exile
+// four of them AT RANDOM" has no SpellContext primitive: the seeded PRNG is
+// engine-internal and only `discardAtRandom` is exposed — there is no
+// random-select / random-exile over an arbitrary library subset. Stop-and-issue,
+// not invented. Blocked on: a random-select primitive over a card set.
 // export const orcishLibrarian: CardDefinition = {
 //     id: "8ed908d6-6d06-4ccb-9577-37ef2d01c1a5",
 //     name: "Orcish Librarian",
