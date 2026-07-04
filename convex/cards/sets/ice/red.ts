@@ -830,6 +830,18 @@ export const gameOfChaos: CardDefinition = {
     manaCost: { R: 3 },
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1, controller: "opponent" },
+    // NOT DSL-migratable (ADR 0045, assessed #851): although the coinFlip Op
+    // shipped, Game of Chaos is a repeat-until-stop DOUBLING loop — each round
+    // the stake DOUBLES (`stake *= 2`, arithmetic the frozen value grammar
+    // literal|ref|count cannot carry) and the flip repeats an unbounded number
+    // of rounds with the decider alternating between the two players. Neither an
+    // unbounded loop nor an arithmetic value construct exists (reopening ADR 0045
+    // for a fifth structural construct is out of scope). The classifier reports
+    // it FREE because every PRIMITIVE it calls (requestCoinFlip / gainLife /
+    // loseLife / requestOptionChoice) is covered, but the loop + doubling make
+    // it un-transcribable — a classifier over-count (PRD #826 FREE is an upper
+    // bound). Stays resolve(). Blocked on: an unbounded-loop construct + an
+    // arithmetic (doubling) value construct.
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "player") return;

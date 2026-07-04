@@ -515,38 +515,43 @@ export const bottleOfSuleiman: CardDefinition = {
             // creates the token and the lose branch deals 5 to its controller.
             cost: { mana: { X: 1 }, sacrifice: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                // CR 705.2 / ADR 0023 — flip a coin and PAUSE to reveal the
-                // outcome before applying it. `requestCoinFlip` draws the bit
-                // once, suspends the resolve step (returns undefined), and on
-                // resume returns the boolean from the persisted outcome (no
-                // re-roll). The caller MUST return early while suspended so the
-                // consequence (token / damage) lands only after the reveal.
-                const won = ctx.requestCoinFlip({
-                    playerId: ctx.controller,
-                    choiceId: "bottle-of-suleiman-flip",
-                    heads: { consequence: "Create a 5/5 flying Djinn" },
-                    tails: {
-                        consequence: "Bottle of Suleiman deals 5 damage to you",
+            // Migrated resolve()→effects[] (ADR 0045, #851): a `coinFlip` Op —
+            // the win branch creates the Djinn token, the loss branch deals 5 to
+            // the controller (CR 705.2 / ADR 0023, the suspending reveal flip).
+            // Self-sacrifice paid at activation commit (CR 117.9), so the source
+            // is already gone by resolution; both branches act on the caster.
+            effects: [
+                {
+                    op: "coinFlip",
+                    win: {
+                        consequence: "Create a 5/5 flying Djinn",
+                        effects: [
+                            {
+                                op: "createToken",
+                                token: {
+                                    name: "Djinn",
+                                    types: ["Artifact", "Creature"],
+                                    subtypes: ["Djinn"],
+                                    power: 5,
+                                    toughness: 5,
+                                    staticAbilities: ["flying"],
+                                },
+                                controller: "controller",
+                            },
+                        ],
                     },
-                });
-                if (won === undefined) return; // suspended after the flip
-                if (won) {
-                    ctx.createToken(
-                        {
-                            name: "Djinn",
-                            types: ["Artifact", "Creature"],
-                            subtypes: ["Djinn"],
-                            power: 5,
-                            toughness: 5,
-                            staticAbilities: ["flying"],
-                        },
-                        ctx.controller
-                    );
-                } else {
-                    ctx.dealDamage({ type: "player", id: ctx.controller }, 5);
-                }
-            },
+                    loss: {
+                        consequence: "Bottle of Suleiman deals 5 damage to you",
+                        effects: [
+                            {
+                                op: "dealDamage",
+                                amount: 5,
+                                to: { player: "controller" },
+                            },
+                        ],
+                    },
+                },
+            ],
         },
     ],
 };
