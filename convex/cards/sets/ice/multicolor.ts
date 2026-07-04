@@ -685,12 +685,16 @@ export const meriekeRiBerit: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            // NOT DSL-migratable (ADR 0045): gains control of the target for a
-            // "for as long as" duration (`gainControl` — a planned Op, not yet
-            // shipped). The classifier's tap/untap hit here is a false positive
-            // (a neighbouring brace-less trigger body over-captured); this
-            // ability uses no tap/untap. Migrates in the gainControl Op's issue.
-            // Blocked on: the gainControl Op.
+            // NOT DSL-migratable (ADR 0045): the gainControl Op (#848) is now
+            // COVERED and the "for as long as you control this" control change
+            // alone WOULD migrate, but the ability ALSO stamps a per-source
+            // marker COUNTER (a runtime-computed counter name,
+            // `meriekeMarker(ctx.sourceInstanceId)`) so the linked leave/untap
+            // triggered ability can find "that creature" (CR 603.10) and destroy
+            // it can't-be-regenerated. That marker (a dynamic counter-type name)
+            // plus the linked-destroy rider is not JSON-expressible. Blocked on:
+            // a runtime-named marker counter + a linked leaves/untap destroy
+            // rider — stays resolve().
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "permanent") return;

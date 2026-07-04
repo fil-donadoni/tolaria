@@ -249,10 +249,12 @@ describe("Effect Script Op census (ADR 0045/0046, PRD #826)", () => {
         // `createToken` (issue #847) SHIPPED — its plain spec-driven form moved
         // to EFFECT_OP_REGISTRY; the copy form (createTokenCopyOf) split out as
         // the new `createTokenCopy` backlog stub.
+        // `gainControl` (issue #848) SHIPPED — moved to EFFECT_OP_REGISTRY (the
+        // full ControlChangeCondition duration grammar folded; the EOT+tap-rider
+        // form Ray of Command / Magus of the Unseen stays resolve(), issue #730).
         const named = [
             "scryReorder",
             "createTokenCopy",
-            "gainControl",
             "optionChoice",
             "addMana",
             "coinFlip",

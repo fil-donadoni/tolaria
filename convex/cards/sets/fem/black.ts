@@ -624,14 +624,17 @@ export const thrullChampion: CardDefinition = {
                 count: 1,
                 subtypeFilter: "Thrull",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type !== "permanent") return;
-                ctx.gainControl(target, ctx.controller, {
-                    kind: "controller-controls-source",
-                    controllerId: ctx.controller,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #848): gain control of the
+            // targeted Thrull "for as long as you control this creature"
+            // (CR 613.1b layer-2 control change; CR 611.2b conditional revert).
+            effects: [
+                {
+                    op: "gainControl",
+                    target: { target: 0 },
+                    controller: "controller",
+                    duration: "while-you-control-source",
+                },
+            ],
         },
     ],
 };

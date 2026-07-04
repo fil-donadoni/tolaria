@@ -6,11 +6,7 @@
 // identity of their mana cost (CR 202.2); lands and artifacts (no coloured
 // cost) live in colorless.ts.
 
-import type {
-    CardDefinition,
-    SpellContext,
-    TargetSelection,
-} from "../../types";
+import type { CardDefinition, TargetSelection } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
@@ -216,14 +212,17 @@ export const aladdin: CardDefinition = {
             cost: { mana: { X: 1, R: 2 }, tap: true },
             useStack: true,
             targetRequirement: { type: "Artifact", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (!target || target.type !== "permanent") return;
-                ctx.gainControl(target, ctx.controller, {
-                    kind: "controller-controls-source",
-                    controllerId: ctx.controller,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #848): gain control of the
+            // targeted artifact "for as long as you control Aladdin" (CR 613.1b
+            // layer-2 control change; CR 611.2b conditional-control revert).
+            effects: [
+                {
+                    op: "gainControl",
+                    target: { target: 0 },
+                    controller: "controller",
+                    duration: "while-you-control-source",
+                },
+            ],
         },
     ],
 };

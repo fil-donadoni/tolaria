@@ -567,26 +567,32 @@ export const scarwoodBandits: CardDefinition = {
             cost: { mana: { X: 2, G: 1 }, tap: true },
             useStack: true,
             targetRequirement: { type: "Artifact", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (!target || target.type !== "permanent") return;
-                const opponentId = ctx.allPlayerIds.find(
-                    (p) => p !== ctx.controller
-                );
-                if (!opponentId) return;
-                const paid = ctx.requestMayPay({
-                    playerId: opponentId,
-                    choiceId: `scarwood-bandits-${ctx.sourceInstanceId}`,
+            // Migrated resolve()→effects[] (ADR 0045, #848): the opponent may pay
+            // {2} (CR 118.3 optional payment); if they don't, gain control of the
+            // targeted artifact "for as long as this creature remains on the
+            // battlefield" (CR 613.1b layer-2 control change; CR 611.2b revert).
+            // The Force Spike mayPay + `if !$paid` shape (leg/blue.ts).
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "opponent",
                     cost: { X: 2 },
                     prompt: "Pay {2} or Scarwood Bandits' controller gains control of the artifact?",
-                });
-                if (paid === undefined) return; // suspended for the choice
-                if (paid) return; // opponent paid → no control change
-                ctx.gainControl(target, ctx.controller, {
-                    kind: "controller-controls-source",
-                    controllerId: ctx.controller,
-                });
-            },
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [
+                        {
+                            op: "gainControl",
+                            target: { target: 0 },
+                            controller: "controller",
+                            duration: "while-you-control-source",
+                        },
+                    ],
+                },
+            ],
         },
     ],
 };

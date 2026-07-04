@@ -25,6 +25,7 @@ import { compactState, expandState } from "../../serialize";
 import { refreshExpectedInput } from "../../expectedInput";
 import { projectPublicState } from "../../../gameProjections";
 import { fireDelayedTriggers, finalizeCleanup } from "../../phases";
+import { checkConditionalControlChanges } from "../../sba";
 import { INLINE_DELAYED_TRIGGER_ID } from "../interpreter";
 import { getEffectivePower, getEffectiveToughness } from "../../layers";
 
@@ -1996,6 +1997,240 @@ describe("Effect Script Op: createToken (CR 111 / 701.7, issue #847)", () => {
         expect(slim.toughness).toBe(1);
         expect(slim.types).toEqual(["Artifact", "Creature"]);
         expect(slim.staticAbilities).toContain("flying");
+    });
+});
+
+describe("Effect Script Op: gainControl (CR 613.1b, layer 2, issue #848)", () => {
+    // Indefinite reassignment (Ghazbán Ogre / Chaos Lord shape): no `duration`
+    // → no condition, control never reverts on its own (CR 613.1b).
+    it("changes control of the announced target to the controller (indefinite)", () => {
+        const id = registerScript("test-op-gaincontrol-indef", [
+            {
+                op: "gainControl",
+                target: { target: 0 },
+                controller: "controller",
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bear1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bear1" }]);
+        resolveTopOfStack(state);
+        // The stolen permanent moved to p1's battlefield array (CR 613.1b).
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear1")
+        ).toBeUndefined();
+        const stolen = state.players[0].battlefield.find(
+            (c) => c.id === "bear1"
+        )!;
+        expect(stolen).toBeDefined();
+        expect(stolen.controllerId).toBe("p1");
+        // CR 702.10c — a creature that changes control has summoning sickness.
+        expect(stolen.isSummoningSick).toBe(true);
+        // Indefinite: the entry records no condition, so the SBA never reverts it.
+        expect(stolen.controlChanges?.[0].condition).toBeUndefined();
+        checkConditionalControlChanges(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "bear1")
+        ).toBeDefined();
+    });
+
+    // "for as long as you control this creature" (Aladdin / Thrull Champion):
+    // the conditional-control SBA reverts control the moment the source leaves.
+    it("while-you-control-source installs a condition the SBA reverts when the source leaves", () => {
+        const STEALER_ID = "test-op-gaincontrol-controls-src";
+        registerTokenDefinition({
+            id: STEALER_ID,
+            name: STEALER_ID,
+            rarity: "rare",
+            manaCost: { R: 1 },
+            types: ["Creature"],
+            activatedAbilities: [
+                {
+                    id: "steal",
+                    oracleText:
+                        "{T}: Gain control of target creature for as long as you control this.",
+                    cost: { tap: true },
+                    useStack: true,
+                    targetRequirement: { type: "Creature", count: 1 },
+                    effects: [
+                        {
+                            op: "gainControl",
+                            target: { target: 0 },
+                            controller: "controller",
+                            duration: "while-you-control-source",
+                        },
+                    ],
+                },
+            ],
+        });
+        const stealer = makeInstance(STEALER_ID, {
+            id: "stealer1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bear1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [stealer] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        state.stack.push({
+            ...state.players[0].battlefield[0],
+            zone: "stack",
+            castById: "p1",
+            abilityId: "steal",
+            targets: [{ type: "permanent", id: "bear1" }],
+        });
+        resolveTopOfStack(state);
+        const stolen = state.players[0].battlefield.find(
+            (c) => c.id === "bear1"
+        )!;
+        expect(stolen.controllerId).toBe("p1");
+        expect(stolen.controlChanges?.[0].condition).toEqual({
+            kind: "controller-controls-source",
+            controllerId: "p1",
+        });
+        // Source leaves the battlefield → the condition lapses → the SBA hands
+        // the creature back to its prior controller (CR 611.2b).
+        const src = state.players[0].battlefield.findIndex(
+            (c) => c.id === "stealer1"
+        );
+        state.players[0].battlefield.splice(src, 1);
+        checkConditionalControlChanges(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "bear1")
+        ).toBeUndefined();
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear1")
+                ?.controllerId
+        ).toBe("p2");
+    });
+
+    // "for as long as this creature remains tapped" (Preacher / Seasinger): the
+    // SBA reverts control the moment the source untaps (CR 611.2b).
+    it("while-source-tapped installs a condition the SBA reverts on untap", () => {
+        const id = registerScript("test-op-gaincontrol-tapped", [
+            {
+                op: "gainControl",
+                target: { target: 0 },
+                controller: "controller",
+                duration: "while-source-tapped",
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bear1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        const item = pushSpell(state, id, "p1", [
+            { type: "permanent", id: "bear1" },
+        ]);
+        // Put the resolving source on p1's battlefield, TAPPED, so the condition
+        // can hold after resolution (the primitive keys the entry to item.id).
+        state.players[0].battlefield.push({
+            ...makeInstance(id, {
+                id: item.id,
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            isTapped: true,
+        });
+        resolveTopOfStack(state);
+        const stolen = state.players[0].battlefield.find(
+            (c) => c.id === "bear1"
+        )!;
+        expect(stolen.controlChanges?.[0].condition).toEqual({
+            kind: "source-tapped",
+        });
+        // Holds while tapped.
+        checkConditionalControlChanges(state);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "bear1")
+        ).toBeDefined();
+        // Untap the source → condition lapses → control reverts.
+        const source = state.players[0].battlefield.find(
+            (c) => c.id === item.id
+        )!;
+        source.isTapped = false;
+        checkConditionalControlChanges(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bear1")
+                ?.controllerId
+        ).toBe("p2");
+    });
+
+    // CR 608.2b — an announced target gone at resolution makes the Op a no-op.
+    it("skips when the target has left the battlefield (CR 608.2b)", () => {
+        const id = registerScript("test-op-gaincontrol-gone", [
+            {
+                op: "gainControl",
+                target: { target: 0 },
+                controller: "controller",
+            },
+        ]);
+        const state = makeState();
+        // Target a permanent that isn't on any battlefield.
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ghost" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].battlefield).toHaveLength(0);
+    });
+
+    // Wire format (GRE testing convention): the stolen permanent must project
+    // onto the NEW controller's battlefield in PublicGameState so the client
+    // renders control correctly across the network boundary.
+    it("the stolen permanent projects under the new controller (wire format)", () => {
+        const id = registerScript("test-op-gaincontrol-wire", [
+            {
+                op: "gainControl",
+                target: { target: 0 },
+                controller: "controller",
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bear1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bear1" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[0].battlefield.find((c) => c.id === "bear1")
+        ).toBeDefined();
+        expect(
+            projected.players[1].battlefield.find((c) => c.id === "bear1")
+        ).toBeUndefined();
+        expect(
+            projected.players[0].battlefield.find((c) => c.id === "bear1")
+                ?.controllerId
+        ).toBe("p1");
     });
 });
 

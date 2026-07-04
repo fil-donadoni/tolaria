@@ -460,6 +460,18 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 return;
             }
             return;
+        case "gainControl":
+            // CR 613.1b (issue #848) — a control change flips a permanent to a
+            // new controller and (for a "for as long as" duration) installs a
+            // conditional-control SBA. The canned generator seeds no permanent
+            // under another player to steal, and the conditional durations only
+            // hold while the SOURCE is tapped / controlled — state the generator
+            // does not construct — so there is no same-resolution outcome it can
+            // faithfully assert. Explicit skip — the control change and its
+            // conditional revert are covered by the Op's own interpreter tests
+            // (per-Op regime).
+            req.skip ??= `Op "gainControl" changes control of a permanent (and installs a conditional-control SBA) — covered by the Op's interpreter tests`;
+            return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.
@@ -933,6 +945,16 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // assert). Kept for the 1:1 coverage guard; shield registration and
     // consumption are covered by the Op's own interpreter tests.
     regenerate() {
+        return null;
+    },
+    // `gainControl` (CR 613.1b, issue #848) — never reached: `analyseOp` skips
+    // every script with a gainControl Op (the canned scenario seeds no permanent
+    // under another player to steal, and the conditional durations only hold
+    // while the source is tapped/controlled — state the generator does not
+    // construct — so there is no same-resolution outcome it can assert). Kept
+    // for the 1:1 coverage guard; the control change and its conditional revert
+    // are covered by the Op's own interpreter tests.
+    gainControl() {
         return null;
     },
     // `createToken` (CR 111 / 701.7, issue #847) — a deterministic
