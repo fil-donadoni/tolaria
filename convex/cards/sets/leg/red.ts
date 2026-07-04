@@ -541,6 +541,12 @@ export const theBrute: CardDefinition = {
             oracleText: "{R}{R}{R}: Regenerate enchanted creature.",
             cost: { mana: { R: 3 } },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045): regenerates the Aura's enchanted
+            // host, read via getAttachedToId — the object-selector grammar has
+            // no attached-host ("enchanted permanent") ref (same block as
+            // Fylgja #845 / Regeneration / Thrull Retainer). The `regenerate`
+            // Op itself is available; only the target selector is missing.
+            // Blocked on: an attached-host object selector (planned-migratable).
             resolve: (ctx: SpellContext) => {
                 const host = ctx.getAttachedToId();
                 if (host)

@@ -613,12 +613,9 @@ export const ragnar: CardDefinition = {
             cost: { mana: { G: 1, W: 1, U: 1 }, tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.applyRegenerationShield(target);
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
+            // announced creature target (CR 701.15a).
+            effects: [{ op: "regenerate", target: { target: 0 } }],
         },
     ],
 };

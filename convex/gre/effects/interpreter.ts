@@ -595,6 +595,17 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.preventNextNDamageToTarget(target, amount, op.duration);
     },
+    // CR 701.15 (issue #846) — stack a regeneration shield on a permanent. A
+    // thin declarative skin over the single SpellContext primitive
+    // `applyRegenerationShield`, ONE execution path (ADR 0045). Skipped when the
+    // referenced permanent is gone (CR 608.2b — `resolveObjectRef` returns
+    // undefined); the primitive itself also no-ops on a non-permanent selection
+    // and off the battlefield.
+    regenerate(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.applyRegenerationShield(target);
+    },
     tapUntap(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;

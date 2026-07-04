@@ -245,12 +245,9 @@ export const ghostShip: CardDefinition = {
             oracleText: "{U}{U}{U}: Regenerate this creature.",
             cost: { mana: { U: 3 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.applyRegenerationShield({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
+            // shield on the source (CR 701.15a) via the implicit $source.
+            effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
 };
@@ -909,12 +906,9 @@ export const drowned: CardDefinition = {
             oracleText: "{B}: Regenerate this creature.",
             cost: { mana: { B: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.applyRegenerationShield({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
+            // shield on the source (CR 701.15a) via the implicit $source.
+            effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
 };

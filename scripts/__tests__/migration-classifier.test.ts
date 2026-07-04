@@ -171,24 +171,36 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // Snowman's ping), and a no-per-card-test Fog (Glacial Crevasses — no
     // green-before harness). X-only rose 19→21 as two residual {X}-cost closures
     // surface once their prevention half stops blocking.
+    // #846 (regenerate Op): applyRegenerationShield is now a COVERED Op — the
+    // regeneration cluster's 30 closures moved Op-blocked→FREE, and the 27
+    // cleanly-expressible ones (self-$source regens Drudge Skeletons / Sedge
+    // Troll / Clay Statue / Kjeldoran Dead / Zombie Master grantTemplate / …
+    // and announced-target regens Death Ward / Niall Silvain / Ragnar / Horror
+    // of Horrors / Orcish Healer×2 / …) were migrated away (total 659→632;
+    // Op-blocked 295→265; FREE 343→346 net; AFK-ready 313→316 — all 27 migrated
+    // were AFK-ready). The remaining 3 FREE regen closures stay resolve() with a
+    // recorded NOT-migratable reason: Aura attached-host targets read via
+    // getAttachedTo / getAttachedToId — no attached-host object selector
+    // (Regeneration, Thrull Retainer, The Brute — same block as Fylgja #845).
     it("reports the committed baseline bucket totals", () => {
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(659);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(343);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(313);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(632);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(346);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(316);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(21);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(295);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(265);
     });
 
-    it("surfaces the demonstrated new-Op backlog (top blocker is applyRegenerationShield)", () => {
-        // pump (#840), counters (#841), tapUntap (#842) and grantAbility (#843)
-        // SHIPPED: addTemporaryPTBuff, addCounter / removeCounter, tap / untap
-        // and grantStaticAbility are now COVERED Ops (they appear in the
+    it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {
+        // pump (#840), counters (#841), tapUntap (#842), grantAbility (#843)
+        // and now regenerate (#846) SHIPPED: addTemporaryPTBuff, addCounter /
+        // removeCounter, tap / untap, grantStaticAbility and
+        // applyRegenerationShield are now COVERED Ops (they appear in the
         // "Covered Ops" line, no longer in the backlog). The most-blocking
-        // remaining primitive is applyRegenerationShield — a stable signal that
-        // the Op backlog is being read.
+        // remaining primitive is peekLibraryTop (the scryReorder backlog Op) —
+        // a stable signal that the Op backlog is being read.
         expect(summary).toMatch(/New-Op backlog/);
-        expect(summary).toMatch(/applyRegenerationShield/);
-        expect(summary).toMatch(/Covered Ops[^\n]*grantStaticAbility/);
+        expect(summary).toMatch(/peekLibraryTop/);
+        expect(summary).toMatch(/Covered Ops[^\n]*applyRegenerationShield/);
     });
 });
 

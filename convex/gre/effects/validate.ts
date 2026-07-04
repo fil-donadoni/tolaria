@@ -534,6 +534,15 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             target: isObjectSelector,
         },
     },
+    // CR 701.15 (issue #846) — stack a regeneration shield on a permanent.
+    // `target` is an object selector (announced slot, `$source`, or a forEach
+    // `$each`). No amount / duration — one shield per Op, consumed by the next
+    // destroy event and expiring at CLEANUP (CR 514.2 / 614.5).
+    regenerate: {
+        required: {
+            target: isObjectSelector,
+        },
+    },
     // CR 611.1b / 613.1f (issue #843) — grant a keyword static ability to a
     // permanent for a limited duration (layer 6). `ability` is the free-form
     // keyword granted; `target` is an object selector (announced slot,

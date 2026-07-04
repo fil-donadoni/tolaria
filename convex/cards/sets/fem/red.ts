@@ -180,12 +180,9 @@ export const goblinChirurgeon: CardDefinition = {
             cost: { sacrificeFilter: { subtypes: ["Goblin"] } },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.applyRegenerationShield(target);
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
+            // announced creature target (CR 701.15a).
+            effects: [{ op: "regenerate", target: { target: 0 } }],
         },
     ],
 };

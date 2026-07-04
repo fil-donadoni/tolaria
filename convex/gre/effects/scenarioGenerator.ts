@@ -431,6 +431,16 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // by the Op's own interpreter tests (per-Op regime).
             req.skip ??= `Op "preventDamage" registers a dormant shield (no same-resolution damage event) — covered by the Op's interpreter tests`;
             return;
+        case "regenerate":
+            // CR 701.15 (issue #846) — a regeneration shield sits DORMANT until
+            // a later destroy event on the permanent consumes it; the canned
+            // scenario only resolves the spell (it never subsequently destroys
+            // the target), so the shield has no same-resolution outcome the
+            // generator can assert. Explicit skip — shield registration and
+            // consumption are covered by the Op's own interpreter tests (per-Op
+            // regime).
+            req.skip ??= `Op "regenerate" registers a dormant regeneration shield (no same-resolution destroy event) — covered by the Op's interpreter tests`;
+            return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.
@@ -896,6 +906,14 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // assert). Kept for the 1:1 coverage guard; shield registration and
     // consumption are covered by the Op's own interpreter tests.
     preventDamage() {
+        return null;
+    },
+    // `regenerate` (CR 701.15, issue #846) — never reached: `analyseOp` skips
+    // every script with a regenerate Op (a shield sits dormant until a later
+    // destroy event, with no same-resolution outcome the canned scenario can
+    // assert). Kept for the 1:1 coverage guard; shield registration and
+    // consumption are covered by the Op's own interpreter tests.
+    regenerate() {
         return null;
     },
     // Zone change: exile moves the target to its owner's exile zone (CR 701.13).

@@ -395,12 +395,9 @@ export const drudgeSkeletons: CardDefinition = {
             oracleText: "{B}: Regenerate Drudge Skeletons.",
             cost: { mana: { B: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.applyRegenerationShield({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
+            // shield on the source (CR 701.15a) via the implicit $source.
+            effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
 };
@@ -1239,12 +1236,9 @@ export const scavengingGhoul: CardDefinition = {
                 "Remove a corpse counter from this creature: Regenerate this creature.",
             cost: { removeCounter: { type: "corpse", count: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.applyRegenerationShield({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
+            // shield on the source (CR 701.15a) via the implicit $source.
+            effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
 };
@@ -1372,12 +1366,9 @@ export const wallOfBone: CardDefinition = {
             oracleText: "{B}: Regenerate Wall of Bone.",
             cost: { mana: { B: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.applyRegenerationShield({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
+            // shield on the source (CR 701.15a) via the implicit $source.
+            effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
 };
@@ -1451,12 +1442,9 @@ export const willOTheWisp: CardDefinition = {
             oracleText: "{B}: Regenerate Will-o'-the-Wisp.",
             cost: { mana: { B: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.applyRegenerationShield({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
+            // shield on the source (CR 701.15a) via the implicit $source.
+            effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
 };
@@ -1752,12 +1740,9 @@ export const zombieMaster: CardDefinition = {
             oracleText: "{B}: Regenerate this creature.",
             cost: { mana: { B: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.applyRegenerationShield({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #846): the granted
+            // self-regenerate shield on the bearer (CR 701.15a) via $source.
+            effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
 };

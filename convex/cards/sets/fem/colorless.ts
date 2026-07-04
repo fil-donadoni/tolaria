@@ -416,12 +416,9 @@ export const draconianCylix: CardDefinition = {
             cost: { mana: { X: 2 }, tap: true, discardAtRandom: 1 },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.applyRegenerationShield(target);
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
+            // announced creature target (CR 701.15a).
+            effects: [{ op: "regenerate", target: { target: 0 } }],
         },
     ],
 };
@@ -524,12 +521,9 @@ export const delifsCube: CardDefinition = {
             cost: { mana: { X: 2 }, removeCounter: { type: "cube", count: 1 } },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.applyRegenerationShield(target);
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
+            // announced creature target (CR 701.15a).
+            effects: [{ op: "regenerate", target: { target: 0 } }],
         },
     ],
 };

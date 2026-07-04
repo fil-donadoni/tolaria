@@ -203,12 +203,9 @@ export const feralThallid: CardDefinition = {
                 "Remove three spore counters from this creature: Regenerate this creature.",
             cost: { removeCounter: { type: "spore", count: 3 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.applyRegenerationShield({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
+            // shield on the source (CR 701.15a) via the implicit $source.
+            effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
 };
