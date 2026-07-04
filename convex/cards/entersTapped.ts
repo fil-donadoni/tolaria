@@ -12,7 +12,11 @@
 
 import { tryGetDefinition } from ".";
 import { ATTACK_RESTRICTION_CTX } from "./attackRestrictions";
-import type { PermanentView, StaticEffectStateView } from "./types";
+import type {
+    LandEntryStateView,
+    PermanentView,
+    StaticEffectStateView,
+} from "./types";
 
 /** Scans EVERY permanent on the battlefield for `enters-tapped-restriction`
  *  static effects (CR 614) and returns `true` when a source forces the
@@ -49,4 +53,38 @@ export function entersTappedByReplacement(
         }
     }
     return false;
+}
+
+/** Single oracle for "does this permanent enter the battlefield tapped?"
+ *  (CR 614.1c), folding together every source of tapped-entry so every ETB
+ *  site (played land, resolved spell, reanimation, token creation) asks the
+ *  SAME question the SAME way:
+ *   1. the card's own unconditional `entersTapped: true` (Nevinyrral's Disk);
+ *   2. the card's own conditional `entersTappedUnless` predicate (fast lands,
+ *      Arena of Glory, Starting Town) — taps unless the predicate holds;
+ *   3. a battlefield-scanned opponent-forced replacement (Kismet).
+ *  `def` is looked up by the caller (from `entering`'s card id) so this stays
+ *  usable both where a full `CardDefinition` is already in hand and where only
+ *  the bare `entering` view is. Frontend-safe: no GameState-only fields read. */
+export function resolveEntersTapped(
+    def:
+        | {
+              entersTapped?: boolean;
+              entersTappedUnless?: (
+                  view: LandEntryStateView,
+                  controllerId: string
+              ) => boolean;
+          }
+        | undefined,
+    entering: PermanentView,
+    state: StaticEffectStateView & LandEntryStateView
+): boolean {
+    if (def?.entersTapped === true) return true;
+    if (
+        def?.entersTappedUnless &&
+        !def.entersTappedUnless(state, entering.controllerId)
+    ) {
+        return true;
+    }
+    return entersTappedByReplacement(entering, state);
 }

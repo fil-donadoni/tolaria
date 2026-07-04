@@ -514,6 +514,17 @@ export interface ActivatedAbility {
      *  — CR 614 replacement → CR 615 prevention), not the stack: a mana ability
      *  never uses the stack (CR 605.3a). No-op on untap and on the {C} choice. */
     dealsDamageToControllerOnColoredTap?: number;
+    /** Rider on a TAP mana ability (CR 605.1a, `useStack: false`): the source
+     *  deals N damage to its controller EVERY time it's tapped for mana,
+     *  regardless of the mana produced or chosen (Ancient Tomb — "{T}: Add
+     *  {C}{C}. This land deals 2 damage to you."). Unlike
+     *  `dealsDamageToControllerOnColoredTap` (gated on a coloured `manaChoices`
+     *  pick, painlands), this fires unconditionally — the fixed-output
+     *  analogue of `putDepletionCounterOnTap`'s "every tap" shape. Routed
+     *  through the same permanent-source player-damage pipeline (CR 614
+     *  replacement → CR 615 prevention), never the stack (CR 605.3a). No-op
+     *  when the source was sacrificed paying the cost. */
+    dealsDamageToControllerOnTap?: number;
     /** Rider on a TAP mana ability (CR 605.1a, CR 122.1, `useStack: false`):
      *  when the source is tapped for mana, the engine also puts one depletion
      *  counter on the source as part of the same mana ability resolving — the
@@ -2744,6 +2755,22 @@ export interface StaticEffectStateView {
     activePlayerId?: string;
 }
 
+/** Read-only board snapshot for a `CardDefinition.entersTappedUnless`
+ *  predicate (CR 614.1c) — deliberately narrower than `GameState`, mirroring
+ *  `StaticEffectStateView` / `TriggerStateView`, so the same predicate stays
+ *  frontend-safe (a client-side "will this enter tapped?" hint reads the
+ *  identical shape the server evaluates). `turn` is `GameState.turn`, the
+ *  global per-player-turn counter (turn 1 = player one's first turn, turn 2 =
+ *  player two's first turn, …) — Starting Town's "first, second, or third
+ *  turn of the game" reads it directly. */
+export interface LandEntryStateView {
+    players: ReadonlyArray<{
+        id: string;
+        battlefield: ReadonlyArray<PermanentView>;
+    }>;
+    turn: number;
+}
+
 export interface StaticEffectContext {
     /** Colors of a card derived from its mana cost (CR 202.2). Returns W/U/B/R/G subset. */
     getColors: (card: PermanentView) => Color[];
@@ -3276,6 +3303,26 @@ export interface StaticSubtypeSet {
     subtypes: string[];
 }
 
+/** Layer 4 subtype ADDITION (CR 305.7, 611 — "each land is a Swamp IN ADDITION
+ *  TO its other land types"). The additive sibling of `StaticTypeAdd` (which
+ *  adds card TYPES): pushes subtypes onto the target's existing `subtypes[]`
+ *  instead of replacing them like `StaticSubtypeSet` does — Urborg, Tomb of
+ *  Yawgmoth turns Tropical Island into "Island Forest Swamp", not just
+ *  "Swamp". Tracked per-`(auraId, subtype)` pair on the target's
+ *  `grantedSubtypesAdd` so multiple concurrent sources don't double-add and
+ *  removing one source only strips a subtype when no other source still
+ *  grants it AND it wasn't printed — the exact `grantedTypes` bookkeeping
+ *  shape, mirrored for subtypes. */
+export interface StaticSubtypeAdd {
+    kind: "subtype-add";
+    applies: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    subtypes: string[];
+}
+
 /** Continuous supertype-mutation static effect (CR 205.4a, 611 — a layer-4-
  *  adjacent supertype-setting effect). Adds and/or removes supertypes on every
  *  permanent for which `applies` returns true while the source stays in play.
@@ -3537,6 +3584,7 @@ export type StaticEffect =
     | StaticTriggeredGrant
     | StaticTypeAdd
     | StaticSubtypeSet
+    | StaticSubtypeAdd
     | StaticSupertypeSet
     | StaticColorGrant
     | StaticUntapRestriction
@@ -5268,6 +5316,22 @@ export interface CardDefinition {
     resolveSteps?: ((ctx: SpellContext) => void)[];
     /** Permanent enters the battlefield tapped (e.g. Nevinyrral's Disk). */
     entersTapped?: boolean;
+    /** CR 614.1c self-conditional replacement: this permanent enters the
+     *  battlefield tapped UNLESS the predicate returns true — the fast-land /
+     *  check-land / "unless it's your Nth turn" shape (Botanical Sanctum
+     *  "unless you control two or fewer other lands", Arena of Glory "unless
+     *  you control a Mountain", Starting Town "unless it's your first, second,
+     *  or third turn of the game"). Evaluated once, at the moment of entry,
+     *  against the entering permanent's controller's board state — the
+     *  predicate does NOT see the entering permanent itself (CR 614.1c: the
+     *  replacement is chosen and applied as the object is about to enter, not
+     *  after). Mutually exclusive in effect with `entersTapped: true` (that
+     *  flag wins unconditionally when both are set — no card needs both). A
+     *  land declaring neither field enters untapped as normal. */
+    entersTappedUnless?: (
+        view: LandEntryStateView,
+        controllerId: string
+    ) => boolean;
     /** Tracks continuity of control like summoning sickness, even for
      *  noncreature permanents (CR 302.6 generalised). When set, the permanent
      *  enters with `isSummoningSick` and clears it at its controller's untap

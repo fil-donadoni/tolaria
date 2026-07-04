@@ -37,7 +37,7 @@ import {
 } from "./autoTap";
 import { applyPlayLand } from "./playLand";
 import { getExtraLandDrops, getLegalTargets } from "./rules";
-import { entersTappedByReplacement } from "../cards/entersTapped";
+import { resolveEntersTapped } from "../cards/entersTapped";
 import { getAbilityEffectFn, getResolveFn } from "../cards/effectRegistry";
 import { runDelayedTriggerBody } from "./effects/interpreter";
 import { matchesPermanentFilter } from "../cards/filters";
@@ -502,6 +502,15 @@ export type CardInstanceState = {
      *  the first replacement so unapply can restore them. When multiple
      *  sources overlap, the last entry's subtypes are the active ones. */
     grantedSubtypes?: { subtypes: string[]; sourceId: string }[];
+    /** Tracks subtypes ADDED by `StaticSubtypeAdd` effects (layer 4 additive
+     *  surrogate — see `cards/types.ts` for the model's limits), mirroring
+     *  `grantedTypes` one-for-one: one entry per `(auraId, subtype)` pair so
+     *  concurrent sources don't double-add and unapplying one source only
+     *  removes the subtype when no other source still grants it. The
+     *  `subtype` itself is also pushed into `subtypes[]` at apply time.
+     *  Unlike `grantedSubtypes` (subtype-SET, a destructive replace), this
+     *  never touches `printedSubtypes` — nothing is ever hidden. */
+    grantedSubtypesAdd?: { subtype: string; auraId: string }[];
     /** Layer 5 color grants (CR 305.7). Each entry records one source's
      *  granted colors. Used by Kormus Bell ("black creatures"). */
     grantedColors?: { color: string; sourceId: string }[];
@@ -2608,17 +2617,24 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     return top;
 }
 
-/** CR 614.1c + 110.5b — returns true when a battlefield-scanned, player-scoped
- *  enters-tapped replacement (Kismet) forces `entering` to enter tapped. The
- *  permanent's `controllerId` must already be set to its prospective controller.
- *  Card-agnostic: the source's `forcesTapped` predicate owns the opponent +
- *  type filter, so no card is hardcoded here. Called at every ETB site that
- *  places a permanent onto the battlefield. */
-function shouldEnterTapped(
+/** CR 614.1c + 110.5b — returns true when `entering` enters the battlefield
+ *  tapped, folding together every source: the card's own `entersTapped: true`
+ *  / `entersTappedUnless` predicate, AND a battlefield-scanned player-scoped
+ *  opponent-forced replacement (Kismet). The permanent's `controllerId` must
+ *  already be set to its prospective controller. Card-agnostic beyond the
+ *  card's own declared fields — Kismet's `forcesTapped` predicate owns the
+ *  opponent + type filter, so no card is hardcoded here. Called at every ETB
+ *  site that places a permanent onto the battlefield (played land, resolved
+ *  spell, reanimation, token creation) via the shared `resolveEntersTapped`
+ *  oracle, so the four sites can never drift out of sync again. */
+export function shouldEnterTapped(
     state: GameState,
     entering: CardInstanceState
 ): boolean {
-    return entersTappedByReplacement(
+    const cardId = (entering.card as { id?: string } | undefined)?.id;
+    const def = cardId ? (tryGetDefinition(cardId) ?? undefined) : undefined;
+    return resolveEntersTapped(
+        def,
         entering as unknown as PermanentView,
         state as never
     );
@@ -3044,6 +3060,24 @@ export function applySourceStaticEffects(
                     target.grantedSubtypes =
                         grants.length > 0 ? grants : undefined;
                     target.subtypes = [...effect.subtypes];
+                } else if (effect.kind === "subtype-add") {
+                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                        continue;
+                    }
+                    const origins = target.grantedSubtypesAdd ?? [];
+                    for (const subtype of effect.subtypes) {
+                        const already = origins.some(
+                            (o) =>
+                                o.auraId === source.id && o.subtype === subtype
+                        );
+                        if (already) continue;
+                        origins.push({ subtype, auraId: source.id });
+                        if (!target.subtypes.includes(subtype)) {
+                            target.subtypes = [...target.subtypes, subtype];
+                        }
+                    }
+                    target.grantedSubtypesAdd =
+                        origins.length > 0 ? origins : undefined;
                 } else if (effect.kind === "supertype-set") {
                     // CR 205.4a — continuous supertype mutation (Melting).
                     if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
@@ -3177,6 +3211,37 @@ export function unapplySourceStaticEffects(
                         ...(target.printedSubtypes ?? target.subtypes),
                     ];
                     target.printedSubtypes = undefined;
+                }
+            }
+            const subtypeAddGrants = target.grantedSubtypesAdd;
+            if (subtypeAddGrants && subtypeAddGrants.length > 0) {
+                const removed = subtypeAddGrants.filter(
+                    (g) => g.auraId === source.id
+                );
+                const kept = subtypeAddGrants.filter(
+                    (g) => g.auraId !== source.id
+                );
+                target.grantedSubtypesAdd = kept.length > 0 ? kept : undefined;
+                if (removed.length > 0) {
+                    // Strip each removed subtype from `subtypes[]` only if no
+                    // remaining origin still grants it AND it wasn't printed —
+                    // the `grantedTypes` unapply shape, mirrored for subtypes
+                    // (CR 305.7 — Urborg/Yavimaya leaving play).
+                    const targetCardId = (target.card as { id?: string }).id;
+                    const def = targetCardId
+                        ? tryGetDefinition(targetCardId)
+                        : undefined;
+                    const printedSubtypes = def?.subtypes ?? [];
+                    for (const r of removed) {
+                        const stillGranted = kept.some(
+                            (g) => g.subtype === r.subtype
+                        );
+                        if (stillGranted) continue;
+                        if (printedSubtypes.includes(r.subtype)) continue;
+                        target.subtypes = target.subtypes.filter(
+                            (s) => s !== r.subtype
+                        );
+                    }
                 }
             }
             const colorGrants = target.grantedColors;
@@ -3346,6 +3411,32 @@ export function applyExistingGrantsTo(
                     newPermanent.grantedSubtypes =
                         grants.length > 0 ? grants : undefined;
                     newPermanent.subtypes = [...effect.subtypes];
+                } else if (effect.kind === "subtype-add") {
+                    // CR 305.7 — a land entering while Urborg / Yavimaya-style
+                    // "each land is a [type] in addition" is in play gains the
+                    // added subtype immediately, same as a pre-existing land.
+                    if (
+                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
+                    ) {
+                        continue;
+                    }
+                    const origins = newPermanent.grantedSubtypesAdd ?? [];
+                    for (const subtype of effect.subtypes) {
+                        const already = origins.some(
+                            (o) =>
+                                o.auraId === source.id && o.subtype === subtype
+                        );
+                        if (already) continue;
+                        origins.push({ subtype, auraId: source.id });
+                        if (!newPermanent.subtypes.includes(subtype)) {
+                            newPermanent.subtypes = [
+                                ...newPermanent.subtypes,
+                                subtype,
+                            ];
+                        }
+                    }
+                    newPermanent.grantedSubtypesAdd =
+                        origins.length > 0 ? origins : undefined;
                 } else if (effect.kind === "supertype-set") {
                     // CR 205.4a — a snow land entering while Melting is in
                     // play immediately loses its Snow supertype.

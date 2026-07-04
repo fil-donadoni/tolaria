@@ -51,6 +51,7 @@ import {
     tapPermanent,
     exileFaceDownCard,
     dealDamageFromPermanentToPlayer,
+    loseLifeEmitting,
 } from "./gre/state";
 import {
     buildAutoTapSources,
@@ -503,6 +504,68 @@ export function applyColoredTapSelfDamage(
     );
 }
 
+/** CR 605.1a / 120 — unconditional fixed-mana self-damage rider (Ancient
+ *  Tomb — "{T}: Add {C}{C}. This land deals 2 damage to you."). Unlike
+ *  `applyColoredTapSelfDamage` (gated on a coloured `manaChoices` pick), this
+ *  fires on EVERY tap-for-mana regardless of the mana produced — the "every
+ *  tap" shape shared with `applyDepletionCounterOnTap`. No-op when the
+ *  ability lacks the rider or the source was sacrificed paying the cost.
+ *  Shared by both tap-for-mana paths (`tapUntap` priority tap +
+ *  `tapSourceIntoPayment` payment tap). */
+export function applyUnconditionalTapSelfDamage(
+    state: GameState,
+    ability: ActivatedAbility | undefined | null,
+    card: CardInstanceState,
+    activatorId: string
+): void {
+    const painPerTap = ability?.dealsDamageToControllerOnTap;
+    if (!painPerTap || painPerTap <= 0) return;
+    if (ability?.cost.sacrifice === true) return;
+    dealDamageFromPermanentToPlayer(
+        state,
+        card,
+        activatorId,
+        activatorId,
+        painPerTap
+    );
+}
+
+/** CR 605.1a / 118.4 — tap mana ability life-payment cost (Mana Confluence,
+ *  Horizon Canopy, the MH1 Horizon-land cycle: "{T}, Pay 1 life: Add …").
+ *  Pays `ability.cost.life` through the shared life-loss choke point
+ *  (`loseLifeEmitting`) so it runs the CR 614 lifeloss replacement chain
+ *  (Lich) and emits LIFE_LOST (CR 119.3) like every other life-loss path.
+ *  No-op when the ability declares no life cost. Shared by both tap-for-mana
+ *  paths (`tapUntap` priority tap + `tapSourceIntoPayment` payment tap) — the
+ *  same pairing every other tap-mana rider in this file uses. */
+export function applyManaAbilityLifeCost(
+    state: GameState,
+    ability: ActivatedAbility | undefined | null,
+    activatorId: string
+): void {
+    const lifeCost = ability?.cost.life;
+    if (!lifeCost || lifeCost <= 0) return;
+    loseLifeEmitting(state, activatorId, lifeCost);
+}
+
+/** CR 605.1a / 118.3 — tap mana ability discard-at-random cost (Lion's Eye
+ *  Diamond: "Discard your hand, Sacrifice this artifact: Add three mana of
+ *  any one color."). Pays `ability.cost.discardAtRandom` through the shared
+ *  `payDiscardAtRandomCost` primitive, which clamps to the actual hand size —
+ *  so a count comfortably above any reachable hand (LED declares 99) always
+ *  discards exactly the whole hand regardless of its size. No-op when the
+ *  ability declares no discard cost. Shared by both tap-for-mana paths
+ *  (`tapUntap` priority tap + `tapSourceIntoPayment` payment tap). */
+export function applyManaAbilityDiscardCost(
+    state: GameState,
+    ability: ActivatedAbility | undefined | null,
+    activatorId: string
+): void {
+    const count = ability?.cost.discardAtRandom;
+    if (!count || count <= 0) return;
+    payDiscardAtRandomCost(state, activatorId, count);
+}
+
 /** CR 605.1a / 122.1 — depletion-dual tap-for-mana rider. When a tap mana
  *  ability declares `putDepletionCounterOnTap`, the source puts one depletion
  *  counter on itself as part of resolving the mana ability (Land Cap, Lava
@@ -637,6 +700,16 @@ export function tapSourceIntoPayment(
         // Fires in the payment-tap path too, so the land depletes whether
         // tapped via priority or while paying a spell/ability cost.
         applyDepletionCounterOnTap(ability, card);
+        // CR 605.1a / 118.4 — tap mana ability life-payment cost (Mana
+        // Confluence et al.): fires in the payment-tap path too, so the life
+        // is paid whether the land is tapped for mana via priority
+        // (`tapUntap`) or while paying a spell/ability cost (here).
+        applyManaAbilityLifeCost(state, ability, player.id);
+        // CR 605.1a / 118.3 — tap mana ability discard-at-random cost (Lion's
+        // Eye Diamond): fires in the payment-tap path too, so the discard
+        // applies whether the source is tapped via priority (`tapUntap`) or
+        // while paying a spell/ability cost (here).
+        applyManaAbilityDiscardCost(state, ability, player.id);
         tappedLandIds.push(card.id);
         return;
     }
@@ -683,6 +756,20 @@ export function tapSourceIntoPayment(
         armDelayedTriggerOnTap(state, ability, card, player.id);
         tappedLandIds.push(card.id);
     }
+    // CR 605.1a / 120 — unconditional fixed-mana self-damage rider (Ancient
+    // Tomb): a FIXED (non-choice) tap mana ability pings the controller on
+    // every tap regardless of the mana produced. Fires in the payment-tap
+    // path too, so the ping applies whether tapped via priority (`tapUntap`)
+    // or while paying a spell/ability cost (here).
+    applyUnconditionalTapSelfDamage(state, ability, card, player.id);
+    // CR 605.1a / 118.4 — tap mana ability life-payment cost. Fires in the
+    // payment-tap path too, so the life is paid whether tapped via priority
+    // (`tapUntap`) or while paying a spell/ability cost (here).
+    applyManaAbilityLifeCost(state, ability, player.id);
+    // CR 605.1a / 118.3 — tap mana ability discard-at-random cost. Fires in
+    // the payment-tap path too, so the discard applies whether tapped via
+    // priority (`tapUntap`) or while paying a spell/ability cost (here).
+    applyManaAbilityDiscardCost(state, ability, player.id);
 }
 
 /** Reverses a single tap recorded in `tappedLandIds` — refunds the mana and
@@ -6875,6 +6962,35 @@ export const tapUntap = mutation({
         // effect that needs the delayed-trigger machinery.
         if (producedThisActivation) {
             armDelayedTriggerOnTap(state, ability, card, args.playerId);
+        }
+
+        // CR 605.1a / 120 — unconditional fixed-mana self-damage rider
+        // (Ancient Tomb): every tap for mana pings the controller regardless
+        // of the mana produced. `producedThisActivation` is set on both the
+        // manaChoices and the fixed-output branches above, so this single
+        // site covers whichever branch this ability took — this was a tap,
+        // not an untap (no ping on untap/refund).
+        if (producedThisActivation) {
+            applyUnconditionalTapSelfDamage(
+                state,
+                ability,
+                card,
+                args.playerId
+            );
+        }
+
+        // CR 605.1a / 118.4 — tap mana ability life-payment cost (Mana
+        // Confluence, Horizon Canopy, the MH1 Horizon-land cycle). Same
+        // `producedThisActivation` gate as the rider above — paid on tap,
+        // never refunded on untap.
+        if (producedThisActivation) {
+            applyManaAbilityLifeCost(state, ability, args.playerId);
+        }
+
+        // CR 605.1a / 118.3 — tap mana ability discard-at-random cost
+        // (Lion's Eye Diamond). Same `producedThisActivation` gate as above.
+        if (producedThisActivation) {
+            applyManaAbilityDiscardCost(state, ability, args.playerId);
         }
 
         // CR 603.2 — flush the PERMANENT_TAPPED event into a trigger pass so

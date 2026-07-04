@@ -168,6 +168,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Ancient Tomb",
+        "scryfallId": "30e401e3-282b-4524-87e1-c6cd50cd6d00",
+        "oracleId": "23467047-6dba-4498-b783-1ebc4f74b8c2",
+        "firstSet": "tmp"
+    },
+    {
         "name": "Angelic Voices",
         "scryfallId": "8068c263-e5fa-4449-8887-418e9d0a4da4",
         "oracleId": "3485109b-251f-4bef-a069-308031f47912",
@@ -376,6 +382,12 @@
         "scryfallId": "7e973a84-7f7d-4524-9f2f-ec9a014d52ee",
         "oracleId": "3961ef7c-4eb4-482e-9cda-d49d6a29c5a9",
         "firstSet": "ice"
+    },
+    {
+        "name": "Avacyn's Pilgrim",
+        "scryfallId": "7eb39e97-53c2-4df0-9fb3-a3d6a24ec41f",
+        "oracleId": "069f6530-e65c-4d52-85f3-e0a2acd148c5",
+        "firstSet": "isd"
     },
     {
         "name": "Avalanche",
@@ -624,10 +636,28 @@
         "firstSet": "lea"
     },
     {
+        "name": "Blackcleave Cliffs",
+        "scryfallId": "3d71be5f-0fd7-4a88-8041-f4d6bc4cc9ac",
+        "oracleId": "5ad94412-6f79-4c5d-bbd4-4ef5779a7b6d",
+        "firstSet": "som"
+    },
+    {
         "name": "Blaze of Glory",
         "scryfallId": "98fba951-c5bb-497c-9292-ce1b2a1e1247",
         "oracleId": "b330ac89-790e-4cc9-96a5-532c48252088",
         "firstSet": "lea"
+    },
+    {
+        "name": "Blazemire Verge",
+        "scryfallId": "d151c8e2-d715-470d-868a-f45191db9fa0",
+        "oracleId": "977c2f33-b622-4172-9efb-7f523becd32b",
+        "firstSet": "dsk"
+    },
+    {
+        "name": "Bleachbone Verge",
+        "scryfallId": "52dcdabd-a186-45fe-9fee-6c0f1afeaf16",
+        "oracleId": "2b8144a0-08d2-4c28-9fd7-5d90f90105e4",
+        "firstSet": "dft"
     },
     {
         "name": "Blessed Wine",
@@ -670,6 +700,12 @@
         "scryfallId": "78373616-e2d6-4ccf-998f-09f02bea45b4",
         "oracleId": "94fac5fe-97d5-4c12-a80c-8efff9d853ae",
         "firstSet": "drk"
+    },
+    {
+        "name": "Blooming Marsh",
+        "scryfallId": "90da33d4-fe9c-42fe-b326-2fe337dc3ecd",
+        "oracleId": "66fa2326-1b5d-41fb-b919-83bf9f383577",
+        "firstSet": "kld"
     },
     {
         "name": "Blue Elemental Blast",
@@ -742,6 +778,12 @@
         "scryfallId": "82ae30e8-2dcd-46b8-925b-cc24e11fb95d",
         "oracleId": "913aed6d-60c3-4d08-baf8-359e2c41a797",
         "firstSet": "leg"
+    },
+    {
+        "name": "Botanical Sanctum",
+        "scryfallId": "8744471b-a528-47d9-84d0-4526273f55e9",
+        "oracleId": "88f8f683-738e-48f3-afff-c8f73f1033a2",
+        "firstSet": "kld"
     },
     {
         "name": "Bottle of Suleiman",
@@ -900,6 +942,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Celestial Colonnade",
+        "scryfallId": "f6929259-2903-4f6f-9b06-42048fd55c6a",
+        "oracleId": "876ac6f6-74de-4666-84c6-83d81f054723",
+        "firstSet": "wwk"
+    },
+    {
         "name": "Celestial Prism",
         "scryfallId": "a47417cb-1ea7-4f65-ba06-e27a99373114",
         "oracleId": "eb228a6c-bceb-45c3-a258-3f209682e1c6",
@@ -1020,6 +1068,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "City of Traitors",
+        "scryfallId": "a7a8b6b8-b95f-4014-b17a-a6d44d965995",
+        "oracleId": "f161111d-9747-47b3-bb10-3c8bded32e21",
+        "firstSet": "exo"
+    },
+    {
         "name": "Clairvoyance",
         "scryfallId": "46740353-e2ba-4d80-a97d-1368bc67bf30",
         "oracleId": "851333be-d7d5-472a-95cb-0a28da09ce24",
@@ -1098,6 +1152,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Concealed Courtyard",
+        "scryfallId": "c8769e97-aee8-4466-a9d7-0f4245ae4a97",
+        "oracleId": "2d899466-b1eb-4901-b626-1f2fb09b786d",
+        "firstSet": "kld"
+    },
+    {
         "name": "Conch Horn",
         "scryfallId": "860a9ba3-e4c4-4af9-bdfe-1ada39289fd5",
         "oracleId": "b019cc20-d32d-4cdf-80cc-eafb3f78db88",
@@ -1152,6 +1212,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Copperline Gorge",
+        "scryfallId": "28f1d784-f286-418d-a712-bc07ad10d4a2",
+        "oracleId": "a05f641c-15c9-43dc-ae0d-1ea372fd33d5",
+        "firstSet": "som"
+    },
+    {
         "name": "Copy Artifact",
         "scryfallId": "fd5ed955-1193-4e6a-a3e2-f54c1f9bf063",
         "oracleId": "80bc56a9-40e0-48da-ae86-190e39c8a4a3",
@@ -1192,6 +1258,12 @@
         "scryfallId": "ee4bd7d1-77e5-46e5-a594-c24469e88c4c",
         "oracleId": "70492e32-ba4d-4314-b016-892fb15f7a23",
         "firstSet": "lea"
+    },
+    {
+        "name": "Creeping Tar Pit",
+        "scryfallId": "0f427f0b-034c-4821-8758-e395c0042d8a",
+        "oracleId": "250cb58b-2924-4dff-92fe-ac0ebbbeb218",
+        "firstSet": "wwk"
     },
     {
         "name": "Crimson Kobolds",
@@ -1342,6 +1414,12 @@
         "scryfallId": "53b04dab-45b7-418b-a0f0-bcf35145fc53",
         "oracleId": "932708ae-9d5c-4561-aa8b-0d2222d37fdc",
         "firstSet": "leg"
+    },
+    {
+        "name": "Darkslick Shores",
+        "scryfallId": "e530388b-eb19-4211-abd8-8a4c3c38c3af",
+        "oracleId": "a2b48695-f7d7-42ce-a8a0-2a723428542a",
+        "firstSet": "som"
     },
     {
         "name": "Day of Judgment",
@@ -1798,6 +1876,12 @@
         "scryfallId": "e00455ac-c7ce-4916-98ed-cca9354e3f22",
         "oracleId": "49b351d8-8b63-4f9e-a323-344ed35fdfff",
         "firstSet": "fem"
+    },
+    {
+        "name": "Elvish Mystic",
+        "scryfallId": "60d0e6a6-629a-45a7-bfcb-25ba7156788b",
+        "oracleId": "3f3b2c10-21f8-4e13-be83-4ef3fa36e123",
+        "firstSet": "m14"
     },
     {
         "name": "Elvish Scout",
@@ -2316,6 +2400,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Gaea's Cradle",
+        "scryfallId": "25b0b816-0583-44aa-9dc5-f3ff48993a51",
+        "oracleId": "7c427c3d-ecd8-45ef-bebd-8f10f4a311db",
+        "firstSet": "usg"
+    },
+    {
         "name": "Gaea's Liege",
         "scryfallId": "e2b15221-c8b0-4861-9f8b-8a65834ad499",
         "oracleId": "8d134a60-e1e5-4163-8bdc-36af91567185",
@@ -2680,6 +2770,12 @@
         "scryfallId": "1f6118b2-fe01-425a-a2ed-6d7c42286c8e",
         "oracleId": "727ab7f2-741e-4442-b5cb-e3032549fa87",
         "firstSet": "lea"
+    },
+    {
+        "name": "Grim Monolith",
+        "scryfallId": "9ddc9fe1-17c8-4e1d-aeb8-c4214e881280",
+        "oracleId": "229d6627-1292-4ae1-8849-b0f956fa6540",
+        "firstSet": "ulg"
     },
     {
         "name": "Griselbrand",
@@ -3240,6 +3336,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Inspiring Vantage",
+        "scryfallId": "160ac412-005f-48ca-a204-10207307c6c2",
+        "oracleId": "3f17c60e-923a-4392-9da8-87d9ded009b7",
+        "firstSet": "kld"
+    },
+    {
         "name": "Instill Energy",
         "scryfallId": "5bd38716-874c-4e3c-a315-837839a6258c",
         "oracleId": "8695c3c1-fb4b-4429-ae33-ec186f68796b",
@@ -3792,6 +3894,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Lion's Eye Diamond",
+        "scryfallId": "63bacc32-d6ba-420c-9b49-299c08e5fb39",
+        "oracleId": "ee6099b0-fb1f-42f1-b862-7708c6e36d05",
+        "firstSet": "mir"
+    },
+    {
         "name": "Living Armor",
         "scryfallId": "3c31a957-ad1e-40cc-b3c4-2f4caa492b77",
         "oracleId": "7a32b0d1-d9dc-4d24-ae60-3f3a0e18ec03",
@@ -3858,6 +3966,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Lotus Petal",
+        "scryfallId": "6c877da3-68fa-41d0-8a24-8c79fcd8ecc1",
+        "oracleId": "32e5339e-9e4f-46f8-b305-f9d6d3ba8bb5",
+        "firstSet": "tmp"
+    },
+    {
         "name": "Lure",
         "scryfallId": "2a87b26e-0431-42e9-b44f-94ba8546111a",
         "oracleId": "7a7425ba-4478-4bc4-855f-abf947ea4fa2",
@@ -3904,6 +4018,12 @@
         "scryfallId": "72955141-d990-459f-adbe-7d3d0f5f6c95",
         "oracleId": "a2f5a5fd-14dc-48e8-bdb0-984a83288023",
         "firstSet": "drk"
+    },
+    {
+        "name": "Mana Confluence",
+        "scryfallId": "504a69eb-3c2d-4bb1-b117-252b15acf0c2",
+        "oracleId": "d0ee5bdc-2b69-4b73-9a20-ffcc18783b29",
+        "firstSet": "jou"
     },
     {
         "name": "Mana Drain",
@@ -5058,6 +5178,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Razorverge Thicket",
+        "scryfallId": "345e053a-3178-485c-8602-1624bbf2f064",
+        "oracleId": "94f6c407-e665-4032-be13-a01e40c1f306",
+        "firstSet": "som"
+    },
+    {
         "name": "Reality Twist",
         "scryfallId": "1b7e955c-3de2-430c-93b9-0b39ccea5420",
         "oracleId": "2c6f9fdb-ee27-4cd8-9d4d-1ea8b2830f73",
@@ -5224,6 +5350,12 @@
         "scryfallId": "27d7fa54-4b89-4a9a-b088-4b89c525c1ea",
         "oracleId": "2f503ee5-9180-438e-8af5-2af7f8f08a3a",
         "firstSet": "fem"
+    },
+    {
+        "name": "Riverpyre Verge",
+        "scryfallId": "57a93a71-d77c-417f-85d0-cd420f573331",
+        "oracleId": "510a6ac5-f098-4145-ac07-771b1b6f7cdf",
+        "firstSet": "dft"
     },
     {
         "name": "Roc of Kher Ridges",
@@ -5416,6 +5548,12 @@
         "scryfallId": "f2d93d05-98bc-4504-9045-dedb925895ae",
         "oracleId": "0ebd8ab3-d4b7-480e-b7b1-267078edddf2",
         "firstSet": "ice"
+    },
+    {
+        "name": "Seachrome Coast",
+        "scryfallId": "99939b90-e88c-4c2f-ba78-56d455611703",
+        "oracleId": "9e7a240d-dc33-47ac-9f17-77fab4c1c340",
+        "firstSet": "som"
     },
     {
         "name": "Seafarer's Quay",
@@ -5808,6 +5946,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Spirebluff Canal",
+        "scryfallId": "4e587ea7-0632-4789-ba75-3c410da2bb96",
+        "oracleId": "eb0d8093-5f93-4b25-9384-08f9731bfb28",
+        "firstSet": "kld"
+    },
+    {
         "name": "Spirit Link",
         "scryfallId": "5e2d35f8-3cf6-4843-9030-0e9a885d836c",
         "oracleId": "c77ff526-c0a8-45c7-9730-2e306a0d01b8",
@@ -6060,6 +6204,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Sylvan Caryatid",
+        "scryfallId": "d40b65c1-b24d-492d-81b9-d8474ebdc08c",
+        "oracleId": "13d4c46b-c2d6-44cc-a252-4a991d471854",
+        "firstSet": "ths"
+    },
+    {
         "name": "Sylvan Library",
         "scryfallId": "f486df00-7c4a-4ff0-bb0b-c8b5432ac742",
         "oracleId": "92eed395-62ca-4293-882b-8565c40daab5",
@@ -6088,6 +6238,36 @@
         "scryfallId": "60df6592-0b3b-4b87-aeb2-8fa94b4fb7be",
         "oracleId": "22e3cf1d-3559-4ce1-954c-8dc815342979",
         "firstSet": "lea"
+    },
+    {
+        "name": "Talisman of Conviction",
+        "scryfallId": "71148fd3-0c2c-459e-b8f5-735a0a8dd87f",
+        "oracleId": "6c326439-5620-4ec6-a56a-fe9c3d5d2a46",
+        "firstSet": "mh1"
+    },
+    {
+        "name": "Talisman of Creativity",
+        "scryfallId": "4d9dbadd-c1b6-44fe-92ac-6f69d7178342",
+        "oracleId": "14d2979d-5728-42d7-a027-0eb1f754655d",
+        "firstSet": "mh1"
+    },
+    {
+        "name": "Talisman of Curiosity",
+        "scryfallId": "fd52688a-39fd-430f-b950-cb56e0004396",
+        "oracleId": "8c34b089-aad1-476e-958a-3077bf1bbb51",
+        "firstSet": "mh1"
+    },
+    {
+        "name": "Talisman of Dominance",
+        "scryfallId": "991037a2-fea2-49f5-8ace-ebbf9f678cff",
+        "oracleId": "4c0a0448-b9d6-43a0-8549-64066dac63f0",
+        "firstSet": "mrd"
+    },
+    {
+        "name": "Talisman of Progress",
+        "scryfallId": "41ff849e-2439-4690-8aa4-769039b6da4c",
+        "oracleId": "00e35322-1a9a-41e3-9ce1-359c8eaa3bc7",
+        "firstSet": "mrd"
     },
     {
         "name": "Tarpan",
@@ -6228,6 +6408,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Thornspire Verge",
+        "scryfallId": "7e1cdc03-6faa-4138-9a52-caafbe34fb59",
+        "oracleId": "e861bc08-4f0b-4d22-9b85-9d20227fd5b4",
+        "firstSet": "dsk"
+    },
+    {
         "name": "Thought Scour",
         "scryfallId": "88bf1ebb-9d85-4b9b-a614-c7f965c0893d",
         "oracleId": "83101ba8-a569-4827-8c53-9ca0dfcd59a7",
@@ -6358,6 +6544,12 @@
         "scryfallId": "d43c01b7-443d-4061-a934-6863d230c9b8",
         "oracleId": "9879a4f3-3b9c-45cf-af03-7f2ae4c689b4",
         "firstSet": "leg"
+    },
+    {
+        "name": "Tolarian Academy",
+        "scryfallId": "ad7ac9a5-340f-4509-826c-7b9416d47887",
+        "oracleId": "dba4fd31-8931-42dd-bd86-45479c2abf74",
+        "firstSet": "usg"
     },
     {
         "name": "Tor Giant",
@@ -6556,6 +6748,12 @@
         "scryfallId": "d1bd4e16-27fe-4c7b-ae25-78ed77d8e8e7",
         "oracleId": "ff0d5cbe-99d3-4d3b-9a5b-80223fc18869",
         "firstSet": "ice"
+    },
+    {
+        "name": "Urborg, Tomb of Yawgmoth",
+        "scryfallId": "19e1224f-82cb-4f41-8739-f880cba61bbb",
+        "oracleId": "db6174d7-211d-4817-b8e4-8384594c83f9",
+        "firstSet": "plc"
     },
     {
         "name": "Urza's Avenger",
@@ -6888,6 +7086,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Wastewood Verge",
+        "scryfallId": "5ceacc7d-d407-4f82-af58-9bdf8426924e",
+        "oracleId": "c6e0574c-3e2b-4c40-b17a-05bce3d49309",
+        "firstSet": "dft"
+    },
+    {
         "name": "Water Elemental",
         "scryfallId": "8de940d6-98c0-46a9-b5fd-e2b0899ea19e",
         "oracleId": "c470fbe1-0538-46ec-8741-3143f5e78af8",
@@ -7132,6 +7336,12 @@
         "scryfallId": "9d8b7020-ca8f-4867-bc51-13d824daf154",
         "oracleId": "828c1a94-36e1-484b-afc8-87f85956d60d",
         "firstSet": "ice"
+    },
+    {
+        "name": "Yavimaya, Cradle of Growth",
+        "scryfallId": "4e4b6e22-93b2-4896-bba5-0ceaa5d8ea3c",
+        "oracleId": "8dd5f5af-d2d8-4356-8617-8381081b930c",
+        "firstSet": "mh2"
     },
     {
         "name": "Yawgmoth Demon",

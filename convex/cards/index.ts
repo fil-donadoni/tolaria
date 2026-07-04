@@ -58,6 +58,31 @@ import * as chk from "./sets/chk";
 // Effect Script forEach construct (ADR 0045, issue #807) — Innocent Blood,
 // the first choice-inside-forEach DSL card.
 import * as ody from "./sets/ody";
+// Vintage Cube mana ramp / rocks / dorks / fixing tranche (issue #675,
+// ADR 0041) — new cross-set home sets routed to earliest paper printing.
+import * as ema from "./sets/ema";
+import * as usg from "./sets/usg";
+import * as plc from "./sets/plc";
+import * as fin from "./sets/fin";
+import * as mrd from "./sets/mrd";
+import * as som from "./sets/som";
+import * as m14 from "./sets/m14";
+import * as exo from "./sets/exo";
+import * as kld from "./sets/kld";
+import * as wwk from "./sets/wwk";
+import * as tmp from "./sets/tmp";
+import * as mir from "./sets/mir";
+import * as ths from "./sets/ths";
+import * as isd from "./sets/isd";
+import * as dsk from "./sets/dsk";
+// Stub-only home sets for this tranche's stop-and-issue cards (issue #675) —
+// no active CardDefinition yet, wired anyway per ADR 0043 (every set
+// directory is registered, even one whose only content is tracked stubs).
+import * as sth from "./sets/sth";
+import * as big from "./sets/big";
+import * as gpt from "./sets/gpt";
+import * as dis from "./sets/dis";
+import * as rav from "./sets/rav";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -127,6 +152,27 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "chk", exports: chk },
     // Effect Script forEach construct (ADR 0045, issue #807).
     { code: "ody", exports: ody },
+    // Vintage Cube mana ramp / rocks / dorks / fixing tranche (issue #675).
+    { code: "ema", exports: ema },
+    { code: "usg", exports: usg },
+    { code: "plc", exports: plc },
+    { code: "fin", exports: fin },
+    { code: "mrd", exports: mrd },
+    { code: "som", exports: som },
+    { code: "m14", exports: m14 },
+    { code: "exo", exports: exo },
+    { code: "kld", exports: kld },
+    { code: "wwk", exports: wwk },
+    { code: "tmp", exports: tmp },
+    { code: "mir", exports: mir },
+    { code: "ths", exports: ths },
+    { code: "isd", exports: isd },
+    { code: "dsk", exports: dsk },
+    { code: "sth", exports: sth },
+    { code: "big", exports: big },
+    { code: "gpt", exports: gpt },
+    { code: "dis", exports: dis },
+    { code: "rav", exports: rav },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>

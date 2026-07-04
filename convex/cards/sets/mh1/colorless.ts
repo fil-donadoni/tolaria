@@ -4,6 +4,7 @@
 // artifacts (no coloured cost) live in colorless.ts.
 
 import type { CardDefinition } from "../../types";
+import { makeTalisman } from "../../abilities";
 
 // The Modern Horizons "Horizon land" cycle — a painland mana ability
 // ({T}, Pay 1 life: Add one of two colours) plus a cantrip-sacrifice ability
@@ -69,3 +70,27 @@ export const sunbakedCanyon: CardDefinition = {
         },
     ],
 };
+
+// Talisman of Creativity / Conviction / Curiosity — {2} artifact mana rocks
+// (Vintage Cube free tranche, issue #675, ADR 0041). See `makeTalisman` in
+// `convex/cards/abilities/index.ts` for the shared painland-shaped ability.
+export const talismanOfCreativity: CardDefinition = makeTalisman({
+    id: "4d9dbadd-c1b6-44fe-92ac-6f69d7178342",
+    name: "Talisman of Creativity",
+    rarity: "uncommon",
+    colors: ["U", "R"],
+});
+
+export const talismanOfConviction: CardDefinition = makeTalisman({
+    id: "71148fd3-0c2c-459e-b8f5-735a0a8dd87f",
+    name: "Talisman of Conviction",
+    rarity: "uncommon",
+    colors: ["R", "W"],
+});
+
+export const talismanOfCuriosity: CardDefinition = makeTalisman({
+    id: "fd52688a-39fd-430f-b950-cb56e0004396",
+    name: "Talisman of Curiosity",
+    rarity: "uncommon",
+    colors: ["G", "U"],
+});
