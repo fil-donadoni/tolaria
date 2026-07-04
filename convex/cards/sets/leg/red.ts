@@ -394,23 +394,41 @@ export const hyperionBlacksmith: CardDefinition = {
                 count: 1,
                 controller: "opponent",
             },
-            resolveSteps: [
-                (ctx: SpellContext) => {
-                    const target = ctx.targets[0];
-                    if (target?.type !== "permanent") return;
-                    const pick = ctx.requestOptionChoice({
-                        playerId: ctx.controller,
-                        choiceId: "hyperion-tap-untap",
-                        prompt: "Tap or untap the target artifact?",
-                        options: [
-                            { id: "tap", label: "Tap" },
-                            { id: "untap", label: "Untap" },
-                            { id: "decline", label: "Do nothing" },
-                        ],
-                    });
-                    if (pick === undefined) return; // suspended
-                    if (pick === "tap") ctx.tap(target);
-                    else if (pick === "untap") ctx.untap(target);
+            // Migrated resolve()→effects[] (ADR 0045, issue #849): the "tap or
+            // untap" pick is the `optionChoice` Op — two modes over the
+            // announced target artifact (CR 701.20), preserving the "tap" /
+            // "untap" option ids. The printed "you may" (decline) auto-resolves
+            // to the no-op direction (tap an already-tapped / untap an untapped
+            // artifact is a no-op), so two modes suffice — same treatment as
+            // Elder Druid.
+            effects: [
+                {
+                    op: "optionChoice",
+                    prompt: "Tap or untap the target artifact?",
+                    modes: [
+                        {
+                            id: "tap",
+                            label: "Tap",
+                            effects: [
+                                {
+                                    op: "tapUntap",
+                                    action: "tap",
+                                    target: { target: 0 },
+                                },
+                            ],
+                        },
+                        {
+                            id: "untap",
+                            label: "Untap",
+                            effects: [
+                                {
+                                    op: "tapUntap",
+                                    action: "untap",
+                                    target: { target: 0 },
+                                },
+                            ],
+                        },
+                    ],
                 },
             ],
         },

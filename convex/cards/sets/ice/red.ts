@@ -324,6 +324,14 @@ export const barbarianGuides: CardDefinition = {
                 count: 1,
                 controller: "you",
             },
+            // NOT DSL-migratable (ADR 0045, issue #849): although the land-type
+            // pick is expressible as the `optionChoice` Op, the unconditional
+            // rider schedules a `next-end-step` delayed trigger whose body is a
+            // TEMPLATE in `delayedTriggers[]` (id "barbarian-guides-bounce") —
+            // there is no effects[] site for a template body, so the delayedTrigger
+            // Op (inline-body only, issue #838) can't express it (same class as
+            // Rainbow Vale). Planned-migratable once a schedule-existing-template
+            // capability exists. Stays resolve().
             resolve: (ctx: SpellContext) => {
                 const t = ctx.targets[0];
                 if (t?.type !== "permanent") return;

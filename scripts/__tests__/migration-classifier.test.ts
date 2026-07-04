@@ -218,12 +218,26 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // (ice/black). "Until end of turn" control (Ray of Command / Magus of the
     // Unseen) was never in the free list — no ControlChangeCondition EOT variant
     // (issue #730). The gainControl backlog stub is retired.
+    // #849 (optionChoice Op): SpellContext.requestOptionChoice is now a COVERED
+    // Op — the "choose one" modal cluster's 7 closures moved Op-blocked→FREE
+    // (+7: Op-blocked 238→231), and the 3 cleanly-expressible ones were migrated
+    // away (total 617→614; FREE 358→362 net; AFK-ready 328→331): Elder Druid
+    // (ice/green) and Hyperion Blacksmith (leg/red) — tap-or-untap target modes;
+    // Illusionary Presence (ice/blue) — five land-type → landwalk grant modes.
+    // The remaining 4 FREE optionChoice closures stay resolve() with a recorded
+    // NOT-migratable reason: `requestOptionChoice` used as a dynamic COUNT picker
+    // + createdBy provenance (Tetravus counters-to-tokens; atq/colorless), a
+    // dynamically-conditional option set on a `scope: "each"` per-player trigger
+    // (Worms of the Earth; drk/black), a template `delayedTriggers[]` bounce
+    // rider with no effects[] site (Barbarian Guides; ice/red, same class as
+    // Rainbow Vale), and a no-test ranged-topdeck + pay-life composition (Sylvan
+    // Library; leg/green). The optionChoice backlog stub is retired.
     it("reports the committed baseline bucket totals", () => {
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(617);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(358);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(328);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(614);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(362);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(331);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(21);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(238);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(231);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {

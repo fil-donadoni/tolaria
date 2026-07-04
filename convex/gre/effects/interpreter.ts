@@ -69,6 +69,7 @@ import type {
     EffectCaptureSource,
     EffectCardFilter,
     EffectComparisonOp,
+    EffectMode,
     EffectCountSpec,
     EffectForEachSelector,
     EffectObjectSelector,
@@ -135,6 +136,15 @@ function parseRef(ref: string): { binding: string; property: string } | null {
 function readBinding(ctx: SpellContext, name: string): string[] | undefined {
     return ctx.recallChoice(name);
 }
+
+/** The fixed `choiceId` an `optionChoice` Op (issue #849) hands to
+ *  `requestOptionChoice`. It need not be author-supplied nor unique across Ops:
+ *  `requestOptionChoice` folds the Op's checkpointed pre-order position
+ *  (`resolutionStep`) into the stored key, so two `optionChoice` Ops in one
+ *  script key their picks distinctly. Not a `$`-binding (the mode index is
+ *  consumed inline, never read by a later `ref`), so it never collides with an
+ *  author binding name. */
+const OPTION_CHOICE_ID = "optionChoiceMode";
 
 /** Boolean payload stored by a `mayPay` Op (issue #806): the single-element
  *  `["yes"]` / `["no"]` array `requestMayPay` persists (mirroring the may-pay
@@ -761,6 +771,56 @@ export const OP_EXECUTORS: {
         if (!branch) return; // predicate false, no else — nothing to do
         return runOpList(ctx, branch, cursor);
     },
+    // optionChoice — the modal "choose one" Op (CR 700.2 / 601.2b, issue #849).
+    // A thin declarative skin over the single SpellContext primitive
+    // `requestOptionChoice`, ONE execution path (ADR 0045). Like `if`/`forEach`
+    // it is a structural construct that always re-descends on a re-walk (it is
+    // in the `runOpList` skip-exception), because a suspending Op INSIDE the
+    // chosen mode must resume through it. Two phases:
+    //   1. no mode recorded yet → enqueue the `option-pick` Pending Choice and
+    //      SUSPEND (the chooser picks a mode index);
+    //   2. mode recorded → read the picked index back and run that mode's body
+    //      through the SAME `runOpList` path an `if` branch uses (with the shared
+    //      cursor, so a nested `choice`/`mayPay` suspension resumes at its exact
+    //      position — CR 608.3).
+    // The choice is keyed under this Op's pre-order position (the checkpoint set
+    // by `runOpList` right before dispatch IS `resolutionStep`, which
+    // `requestOptionChoice` folds into its key), so a constant `choiceId` is
+    // unique per Op and stable across replays. A SINGLE-mode Op auto-resolves —
+    // it runs the one mode with no prompt (no real choice, Arena-style; CR
+    // 700.2 requires at least one mode). Skipped when the chooser is gone (CR
+    // 608.2b — `resolvePlayerRef` returns undefined).
+    optionChoice(ctx, op, cursor) {
+        const playerId = resolvePlayerRef(ctx, op.player ?? "controller");
+        if (playerId === undefined) return; // CR 608.2b — chooser gone, skip
+        // Each mode's option id is its explicit `id` (a semantic id like "tap")
+        // or, when omitted, its position as a string. The chosen id is matched
+        // back to the mode by the SAME rule, so a migrated card can preserve
+        // the exact option ids its (untouched) per-card test submits.
+        const optionId = (mode: EffectMode, i: number): string =>
+            mode.id ?? String(i);
+        // Auto-resolve the degenerate one-mode case (CR 700.2): a "choose one"
+        // with a single option is no decision at all — run it directly.
+        const chosen =
+            op.modes.length <= 1
+                ? optionId(op.modes[0], 0)
+                : ctx.requestOptionChoice({
+                      playerId,
+                      // Fixed choiceId — `requestOptionChoice` folds this Op's
+                      // checkpointed position (resolutionStep) into the stored
+                      // key, so it is unique per optionChoice Op.
+                      choiceId: OPTION_CHOICE_ID,
+                      options: op.modes.map((mode, i) => ({
+                          id: optionId(mode, i),
+                          label: mode.label,
+                      })),
+                      prompt: op.prompt,
+                  });
+        if (chosen === undefined) return "suspend"; // enqueued — wait
+        const mode = op.modes.find((m, i) => optionId(m, i) === chosen);
+        if (!mode) return; // defensive — a stored id matching no mode
+        return runOpList(ctx, mode.effects, cursor);
+    },
     // CR 701.16 (issue #807) — sacrifice the permanents a `choice` Op picked.
     // Routes through `SpellContext.sacrifice`: the controller puts each pick
     // into its owner's graveyard; indestructible does not prevent sacrifice
@@ -849,7 +909,12 @@ function runOpList(
         // run so they re-descend / re-iterate the same nested Ops, keeping the
         // pre-order positions aligned across the re-walk (their own leaf Ops
         // are then skipped individually by this same position check).
-        if (myPos < cursor.resume && op.op !== "if" && op.op !== "forEach") {
+        if (
+            myPos < cursor.resume &&
+            op.op !== "if" &&
+            op.op !== "forEach" &&
+            op.op !== "optionChoice"
+        ) {
             continue;
         }
         // Checkpoint BEFORE executing (mirrors the engine's stepped-resolve

@@ -810,15 +810,8 @@ export const illusionaryForces: CardDefinition = {
 // five basic types (same single-pick primitive Barbarian Guides uses for its
 // snow-landwalk grant); the matching `<type>walk` keyword is granted until end
 // of turn via `grantStaticAbility`, so a fresh choice is made each upkeep. The
-// grant is self-scoped (`ctx.sourceInstanceId`), and the prior turn's keyword
-// has already expired at the CLEANUP boundary by the time this re-fires.
-const ILLUSIONARY_PRESENCE_LANDWALK_BY_TYPE: Record<string, string> = {
-    Plains: "plainswalk",
-    Island: "islandwalk",
-    Swamp: "swampwalk",
-    Mountain: "mountainwalk",
-    Forest: "forestwalk",
-};
+// grant is self-scoped (`$source`), and the prior turn's keyword has already
+// expired at the CLEANUP boundary by the time this re-fires.
 export const illusionaryPresence: CardDefinition = {
     id: "aa31efed-4a11-4f59-a623-bac45d20091d",
     name: "Illusionary Presence",
@@ -842,31 +835,79 @@ export const illusionaryPresence: CardDefinition = {
                 "At the beginning of your upkeep, choose a land type. This creature gains landwalk of the chosen type until end of turn.",
             phase: "UPKEEP",
             scope: "your",
-            resolve: (ctx) => {
-                // CR 702.13 — pick one of the five basic land types; the
-                // matching landwalk keyword is granted until end of turn.
-                const chosen = ctx.requestOptionChoice({
-                    playerId: ctx.controller,
-                    choiceId: "illusionary-presence-land-type",
+            // Migrated resolve()→effects[] (ADR 0045, issue #849): the "choose a
+            // land type" pick is the `optionChoice` Op — five modes over the
+            // basic types (CR 702.13), each granting the matching landwalk
+            // keyword to this creature (`$source`) until end of turn via
+            // grantAbility (CR 611.1b). The land-type option ids are preserved.
+            effects: [
+                {
+                    op: "optionChoice",
                     prompt: "Choose a land type for landwalk.",
-                    options: [
-                        { id: "Plains", label: "Plains" },
-                        { id: "Island", label: "Island" },
-                        { id: "Swamp", label: "Swamp" },
-                        { id: "Mountain", label: "Mountain" },
-                        { id: "Forest", label: "Forest" },
+                    modes: [
+                        {
+                            id: "Plains",
+                            label: "Plains",
+                            effects: [
+                                {
+                                    op: "grantAbility",
+                                    ability: "plainswalk",
+                                    target: { ref: "$source" },
+                                    duration: { phase: "end-of-turn" },
+                                },
+                            ],
+                        },
+                        {
+                            id: "Island",
+                            label: "Island",
+                            effects: [
+                                {
+                                    op: "grantAbility",
+                                    ability: "islandwalk",
+                                    target: { ref: "$source" },
+                                    duration: { phase: "end-of-turn" },
+                                },
+                            ],
+                        },
+                        {
+                            id: "Swamp",
+                            label: "Swamp",
+                            effects: [
+                                {
+                                    op: "grantAbility",
+                                    ability: "swampwalk",
+                                    target: { ref: "$source" },
+                                    duration: { phase: "end-of-turn" },
+                                },
+                            ],
+                        },
+                        {
+                            id: "Mountain",
+                            label: "Mountain",
+                            effects: [
+                                {
+                                    op: "grantAbility",
+                                    ability: "mountainwalk",
+                                    target: { ref: "$source" },
+                                    duration: { phase: "end-of-turn" },
+                                },
+                            ],
+                        },
+                        {
+                            id: "Forest",
+                            label: "Forest",
+                            effects: [
+                                {
+                                    op: "grantAbility",
+                                    ability: "forestwalk",
+                                    target: { ref: "$source" },
+                                    duration: { phase: "end-of-turn" },
+                                },
+                            ],
+                        },
                     ],
-                });
-                if (chosen === undefined) return; // suspended on the choice
-                const keyword = ILLUSIONARY_PRESENCE_LANDWALK_BY_TYPE[chosen];
-                if (keyword) {
-                    ctx.grantStaticAbility(
-                        { type: "permanent", id: ctx.sourceInstanceId },
-                        keyword,
-                        { phase: "end-of-turn" }
-                    );
-                }
-            },
+                },
+            ],
         }),
     ],
 };

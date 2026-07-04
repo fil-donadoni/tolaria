@@ -342,22 +342,41 @@ export const elderDruid: CardDefinition = {
                 type: ["Artifact", "Creature", "Land"],
                 count: 1,
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type !== "permanent") return;
-                const choice = ctx.requestOptionChoice({
-                    playerId: ctx.controller,
-                    choiceId: "elder-druid-tap-untap-mode",
-                    options: [
-                        { id: "tap", label: "Tap it" },
-                        { id: "untap", label: "Untap it" },
-                    ],
+            // Migrated resolve()→effects[] (ADR 0045, issue #849): the "tap or
+            // untap" pick is the `optionChoice` Op — two modes over the
+            // announced target (CR 701.20a), preserving the "tap" / "untap"
+            // option ids. The "you may" auto-resolves to a real pick (declining
+            // is equivalent to the no-op direction), so two modes suffice.
+            effects: [
+                {
+                    op: "optionChoice",
                     prompt: "Tap or untap the target?",
-                });
-                if (choice === undefined) return; // suspended for the choice
-                if (choice === "tap") ctx.tap(t);
-                else ctx.untap(t);
-            },
+                    modes: [
+                        {
+                            id: "tap",
+                            label: "Tap it",
+                            effects: [
+                                {
+                                    op: "tapUntap",
+                                    action: "tap",
+                                    target: { target: 0 },
+                                },
+                            ],
+                        },
+                        {
+                            id: "untap",
+                            label: "Untap it",
+                            effects: [
+                                {
+                                    op: "tapUntap",
+                                    action: "untap",
+                                    target: { target: 0 },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
         },
     ],
 };

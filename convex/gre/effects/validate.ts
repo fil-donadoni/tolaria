@@ -506,6 +506,34 @@ function isOpList(value: unknown): boolean {
     return Array.isArray(value);
 }
 
+/** An `optionChoice` Op's `modes` (issue #849) — SHAPE only: a non-empty array
+ *  of `{ label: <non-empty string>, effects: <non-empty Op list> }`. Each
+ *  mode's Op-list deep validity (schema, refs, nesting) is checked by the
+ *  recursive branch pass, exactly like an `if` branch. CR 700.2 requires at
+ *  least one mode. */
+function isModeList(value: unknown): boolean {
+    if (!Array.isArray(value) || value.length === 0) return false;
+    return value.every((mode) => {
+        if (typeof mode !== "object" || mode === null || Array.isArray(mode)) {
+            return false;
+        }
+        const m = mode as { label?: unknown; effects?: unknown; id?: unknown };
+        // Only `label`, `effects` and the optional `id` are permitted (grammar
+        // frozen, ADR 0045).
+        for (const key of Object.keys(mode)) {
+            if (key !== "label" && key !== "effects" && key !== "id") {
+                return false;
+            }
+        }
+        return (
+            isNonEmptyString(m.label) &&
+            Array.isArray(m.effects) &&
+            m.effects.length > 0 &&
+            (m.id === undefined || isNonEmptyString(m.id))
+        );
+    });
+}
+
 /** dealDamage's `to`: an announced target, the current forEach member
  *  (`{ ref: "$each" }`, issue #807), OR `{ player: <EffectPlayerRef> }`. */
 function isDamageRecipient(value: unknown): boolean {
@@ -668,6 +696,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             controller: isPlayerRef,
         },
         optional: { duration: isGainControlDuration },
+    },
+    // CR 700.2 / 601.2b (issue #849) — modal "choose one". `modes` is a
+    // non-empty list of `{ label, effects }` (SHAPE checked here; each mode's
+    // Op-list validity is checked by the recursive branch pass, like an `if`
+    // branch); `prompt` is the choice header; `player` (optional) names the
+    // chooser (default the resolving controller).
+    optionChoice: {
+        required: {
+            modes: isModeList,
+            prompt: isNonEmptyString,
+        },
+        optional: { player: isPlayerRef },
     },
     // CR 611.1b / 613.1f (issue #843) — grant a keyword static ability to a
     // permanent for a limited duration (layer 6). `ability` is the free-form
@@ -1180,6 +1220,7 @@ function checkOpListRefs(
                 k === "then" ||
                 k === "else" ||
                 k === "effects" ||
+                k === "modes" ||
                 k === "select" ||
                 k === "capture" ||
                 k === "targetPlayer"
@@ -1233,6 +1274,24 @@ function checkOpListRefs(
                     );
                 }
             }
+        }
+
+        // Recurse into each `optionChoice` mode with a CLONED scope (issue
+        // #849): a mode sees the bindings declared BEFORE the optionChoice, but
+        // a mode-local `bind` does not leak past it (only one mode runs — like
+        // an `if` branch, CR 700.2).
+        if (entry.op === "optionChoice" && Array.isArray(entry.modes)) {
+            entry.modes.forEach((mode, m) => {
+                const effects = (mode as { effects?: unknown })?.effects;
+                if (Array.isArray(effects)) {
+                    checkOpListRefs(
+                        effects,
+                        (j) => `${at}: modes[${m}].effects[${j}]`,
+                        errors,
+                        new Map(declared)
+                    );
+                }
+            });
         }
 
         // Recurse into the forEach body (issue #807) with a CLONED scope that
@@ -1416,6 +1475,25 @@ function validateOpSchema(
                 });
             }
         }
+    }
+    // Recurse into each `optionChoice` mode's body (issue #849) — each mode is a
+    // nested Op list validated at its own path, exactly like an `if` branch.
+    // `inForEach` / `inDelayed` thread through so nesting bans still apply.
+    if (entry.op === "optionChoice" && Array.isArray(entry.modes)) {
+        entry.modes.forEach((mode, m) => {
+            const effects = (mode as { effects?: unknown })?.effects;
+            if (Array.isArray(effects)) {
+                effects.forEach((op, j) => {
+                    validateOpSchema(
+                        op,
+                        `${at}: modes[${m}].effects[${j}]`,
+                        errors,
+                        inForEach,
+                        inDelayed
+                    );
+                });
+            }
+        });
     }
     // Recurse into the `forEach` body (issue #807) — each body Op is validated
     // at its own path, with `inForEach` set so a nested forEach is rejected.

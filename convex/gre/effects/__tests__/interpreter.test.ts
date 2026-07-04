@@ -4431,3 +4431,276 @@ describe("Effect Script Op: delayedTrigger (CR 603.7)", () => {
         ]);
     });
 });
+
+// --- optionChoice Op: modal "choose one" (CR 700.2 / 601.2b, issue #849) ------
+// The interpreter presents the ordered modes as an `option-pick` Pending Choice
+// and SUSPENDS; on the pick it runs the chosen mode's `effects` through the same
+// `runOpList` path an `if` branch uses. Like `if`/`forEach` it is a structural
+// construct that always re-descends on a re-walk, so a suspending Op nested
+// inside the chosen mode resumes correctly (CR 608.3). A single-mode Op
+// auto-resolves; author-supplied mode `id`s are preserved so a migrated card's
+// (untouched) per-card test can submit the same semantic option ids.
+
+/** Submits an option-pick answer (the chosen mode's option id) through the same
+ *  seam the generic `submitResolutionChoice` mutation drives. */
+function submitOptionPick(
+    state: ReturnType<typeof makeState>,
+    optionId: string
+): void {
+    const head = state.pendingChoices![0];
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds: [optionId],
+    });
+}
+
+describe("Effect Script Op: optionChoice (CR 700.2 / 601.2b, issue #849)", () => {
+    const TWO_MODES: EffectOp[] = [
+        {
+            op: "optionChoice",
+            prompt: "Choose one.",
+            modes: [
+                {
+                    label: "Gain 3 life",
+                    effects: [
+                        { op: "gainLife", player: "controller", amount: 3 },
+                    ],
+                },
+                {
+                    label: "Target opponent loses 3 life",
+                    effects: [
+                        { op: "loseLife", player: "opponent", amount: 3 },
+                    ],
+                },
+            ],
+        },
+    ];
+
+    it("suspends with an option-pick choice, then runs the FIRST chosen mode", () => {
+        const id = registerScript("test-op-optionchoice-first", TWO_MODES);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the pick
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        expect(head.playerId).toBe("p1"); // the resolving controller chooses
+        expect(head.options?.map((o) => o.id)).toEqual(["0", "1"]);
+        // CR 608.3 — the spell stays on the stack while suspended.
+        expect(state.stack).toHaveLength(1);
+
+        submitOptionPick(state, "0");
+        expect(state.players[0].life).toBe(23); // gained 3
+        expect(state.players[1].life).toBe(20); // the other mode did NOT run
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices).toBeUndefined();
+    });
+
+    it("runs the SECOND chosen mode (only the picked branch executes)", () => {
+        const id = registerScript("test-op-optionchoice-second", TWO_MODES);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        submitOptionPick(state, "1");
+        expect(state.players[1].life).toBe(17); // opponent lost 3
+        expect(state.players[0].life).toBe(20); // gain-life mode did NOT run
+    });
+
+    it("executes a MULTI-OP mode body top to bottom (CR 608.2c)", () => {
+        const id = registerScript("test-op-optionchoice-multiop", [
+            {
+                op: "optionChoice",
+                prompt: "Choose one.",
+                modes: [
+                    {
+                        label: "Gain 2 and drain 2",
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 2 },
+                            { op: "loseLife", player: "opponent", amount: 2 },
+                        ],
+                    },
+                    {
+                        label: "Gain 5",
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 5 },
+                        ],
+                    },
+                ],
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        submitOptionPick(state, "0");
+        expect(state.players[0].life).toBe(22); // +2
+        expect(state.players[1].life).toBe(18); // -2
+    });
+
+    it("auto-resolves a SINGLE-mode optionChoice with no prompt", () => {
+        const id = registerScript("test-op-optionchoice-single", [
+            {
+                op: "optionChoice",
+                prompt: "Choose one.",
+                modes: [
+                    {
+                        label: "Gain 5 life",
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 5 },
+                        ],
+                    },
+                ],
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // No decision was raised (one mode = no real choice, Arena-style).
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].life).toBe(25);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("preserves author-supplied semantic option ids (tap / untap) and taps the target — wire format", () => {
+        const id = registerScript(
+            "test-op-optionchoice-semantic",
+            [
+                {
+                    op: "optionChoice",
+                    prompt: "Tap or untap the target?",
+                    modes: [
+                        {
+                            id: "tap",
+                            label: "Tap it",
+                            effects: [
+                                {
+                                    op: "tapUntap",
+                                    action: "tap",
+                                    target: { target: 0 },
+                                },
+                            ],
+                        },
+                        {
+                            id: "untap",
+                            label: "Untap it",
+                            effects: [
+                                {
+                                    op: "tapUntap",
+                                    action: "untap",
+                                    target: { target: 0 },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            { targetRequirement: { type: "Creature", count: 1 } }
+        );
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearOC",
+            isTapped: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearOC" }]);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        // The semantic ids the author supplied are what the pipeline offers.
+        expect(head.options?.map((o) => o.id)).toEqual(["tap", "untap"]);
+        submitOptionPick(state, "tap");
+        const tapped = state.players[1].battlefield.find(
+            (c) => c.id === "bearOC"
+        )!;
+        expect(tapped.isTapped).toBe(true);
+        // Tap state is board-visible — it must survive the projection.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bearOC"
+        )!;
+        expect(slim.isTapped).toBe(true);
+    });
+
+    it("resumes a SUSPENDING op nested inside the chosen mode (re-descends through the construct, CR 608.3)", () => {
+        const id = registerScript("test-op-optionchoice-nested-suspend", [
+            {
+                op: "optionChoice",
+                prompt: "Choose one.",
+                modes: [
+                    {
+                        id: "discard",
+                        label: "Discard two cards",
+                        effects: [
+                            {
+                                op: "choice",
+                                kind: "discard-hand",
+                                player: "controller",
+                                zone: "hand",
+                                count: 2,
+                                prompt: "Discard two cards.",
+                                bind: "$picked",
+                            },
+                            {
+                                op: "discard",
+                                player: "controller",
+                                cards: { ref: "$picked" },
+                            },
+                        ],
+                    },
+                    {
+                        id: "gain",
+                        label: "Gain 1 life",
+                        effects: [
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    },
+                ],
+            },
+        ]);
+        const hand = ["h1", "h2", "h3"].map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            })
+        );
+        const state = makeState({
+            players: [makePlayer("p1", { hand }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        // Phase 1 — suspends on the mode pick.
+        expect(resolveTopOfStack(state)).toBeNull();
+        expect(state.pendingChoices![0].kind).toBe("option-pick");
+        // Pick the discard mode — the interpreter descends and its nested choice
+        // SUSPENDS again (a second Pending Choice).
+        submitOptionPick(state, "discard");
+        const nested = state.pendingChoices![0];
+        expect(nested.kind).toBe("discard-hand");
+        expect(nested.count).toBe(2);
+        // Submitting the discard picks resumes the script — it re-walks the tree,
+        // re-descends through the optionChoice (skip-exception), and completes
+        // the discard Op that consumes the picks.
+        applyPendingChoiceSubmit(state, {
+            playerId: nested.playerId,
+            stackItemId: nested.stackItemId,
+            step: nested.step,
+            choiceId: nested.choiceId,
+            cardInstanceIds: ["h1", "h3"],
+        });
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["h2"]);
+        // The two picked cards were discarded (the resolved sorcery also lands
+        // in this same graveyard, CR 608.2k — assert the discards are present).
+        const grave = state.players[0].graveyard.map((c) => c.id);
+        expect(grave).toContain("h1");
+        expect(grave).toContain("h3");
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices).toBeUndefined();
+    });
+});

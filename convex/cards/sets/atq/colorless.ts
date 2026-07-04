@@ -2051,6 +2051,16 @@ export const tetravus: CardDefinition = {
                 'At the beginning of your upkeep, you may remove any number of +1/+1 counters from this creature. If you do, create that many 1/1 colorless Tetravite artifact creature tokens. They each have flying and "This token can\'t be enchanted."',
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045, issue #849): `requestOptionChoice`
+            // is used here as a dynamic COUNT picker (0..available counters),
+            // not the `optionChoice` Op's static "choose one of several effect
+            // branches" — the option count depends on the live counter total and
+            // the chosen number feeds a runtime `removeCounter` / `createToken`
+            // amount, which the JSON value grammar (literal / ref / count) can't
+            // express. The token creation also needs the `createdBy` provenance
+            // link the createToken Op does not stamp (issue #847). Planned-
+            // migratable once a chosen-number value construct + provenance-token
+            // Op exist. Stays resolve().
             resolve: (ctx) => {
                 const self = {
                     type: "permanent" as const,

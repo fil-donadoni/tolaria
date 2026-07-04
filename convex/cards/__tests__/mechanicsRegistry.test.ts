@@ -252,13 +252,10 @@ describe("Effect Script Op census (ADR 0045/0046, PRD #826)", () => {
         // `gainControl` (issue #848) SHIPPED — moved to EFFECT_OP_REGISTRY (the
         // full ControlChangeCondition duration grammar folded; the EOT+tap-rider
         // form Ray of Command / Magus of the Unseen stays resolve(), issue #730).
-        const named = [
-            "scryReorder",
-            "createTokenCopy",
-            "optionChoice",
-            "addMana",
-            "coinFlip",
-        ];
+        // `optionChoice` (issue #849) SHIPPED — moved to EFFECT_OP_REGISTRY (the
+        // "choose one" modal form folded; "choose one or more" / entwine /
+        // escalate cardinality grammars stay a later Op on demand).
+        const named = ["scryReorder", "createTokenCopy", "addMana", "coinFlip"];
         const backlog = new Set(EFFECT_OP_BACKLOG.map((r) => r.op));
         for (const op of named) expect(backlog.has(op), op).toBe(true);
         // …plus low-frequency long-tail reservations beyond the named set.

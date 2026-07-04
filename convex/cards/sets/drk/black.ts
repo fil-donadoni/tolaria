@@ -716,6 +716,14 @@ export const wormsOfTheEarth: CardDefinition = {
                 "At the beginning of each upkeep, any player may sacrifice two lands of their choice or have this enchantment deal 5 damage to that player. If a player does either, destroy this enchantment.",
             phase: "UPKEEP",
             scope: "each",
+            // NOT DSL-migratable (ADR 0045, issue #849): the modal pick's option
+            // SET is dynamic — "sacrifice two lands" is offered only when the
+            // upkeep player controls at least two lands — which the
+            // `optionChoice` Op's STATIC modes can't express (always offering it
+            // would let a pick-sacrifice-with-fewer-than-two clamp and still
+            // destroy Worms, a behaviour change). It is also a `scope: "each"`
+            // per-player trigger whose chooser is the iterated `playerId`, not a
+            // fixed EffectPlayerRef. Stays resolve().
             resolveSteps: [
                 (ctx, playerId) => {
                     const self: TargetSelection = {
