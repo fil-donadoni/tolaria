@@ -16,6 +16,7 @@
 
 import type {
     CardDrawnEvent,
+    EffectOp,
     GameEvent,
     PermanentView,
     SpellContext,
@@ -46,12 +47,21 @@ export interface DrawTriggerArgs {
         state?: TriggerStateView
     ) => boolean;
     /** Resolution effect. Receives the typed event and the id of the player
-     *  who drew (resolved from scope). */
-    resolve: (
+     *  who drew (resolved from scope). Mutually exclusive with `effects`. */
+    resolve?: (
         ctx: SpellContext,
         event: CardDrawnEvent,
         drawingPlayerId: string
     ) => void;
+    /** Effect Script (ADR 0045, issue #803) — declarative alternative to
+     *  `resolve`, mirroring `phaseTrigger`'s `effects` opt-in. The script
+     *  reads `ctx.controller`, which is the SOURCE's controller — valid only
+     *  when `scope: "your"` (the drawing player IS the source controller).
+     *  `each` / `opponents` triggers act on a drawing player who can differ
+     *  from the source's controller (Sheoldred's "an opponent draws, they
+     *  lose 2 life"); those stay imperative via `resolve`. Mutually
+     *  exclusive with `resolve`. */
+    effects?: EffectOp[];
 }
 
 /** True iff `drawerId` satisfies `scope` relative to the source's controller. */
@@ -92,10 +102,14 @@ export function drawTrigger(args: DrawTriggerArgs): TriggeredAbility {
             }
             return true;
         },
-        resolve: (ctx, event) => {
-            if (event.type !== "CARD_DRAWN") return;
-            args.resolve(ctx, event, event.playerId);
-        },
+        ...(args.effects
+            ? { effects: args.effects }
+            : {
+                  resolve: (ctx: SpellContext, event: GameEvent) => {
+                      if (event.type !== "CARD_DRAWN") return;
+                      args.resolve!(ctx, event, event.playerId);
+                  },
+              }),
     };
 
     if (args.interveningIf) {

@@ -279,6 +279,34 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // #674 card-draw / card-advantage FREE tranche golden path: Sheoldred,
+        // the Apocalypse is already on the battlefield watching every draw
+        // (CR 121.1 draw-triggered life swing via `drawTrigger`). Cast Baleful
+        // Strix (Island + Swamp cover {U}{B}) — its ETB `draw` Op fires
+        // Sheoldred's "you draw" clause for +2 life. Then activate
+        // Griselbrand's "Pay 7 life: Draw seven cards" — the same clause
+        // fires again for +14 life, exercising a stacked/repeated trigger on
+        // one draw-Op source. Passing to the opponent's draw step shows the
+        // "an opponent draws a card" clause (-2 life) on the other side. A
+        // stocked library (15) covers Griselbrand's 7-card draw plus normal
+        // draw steps for both players.
+        label: "Sheoldred + Baleful Strix + Griselbrand — draw triggers (#674)",
+        cards: [
+            {
+                name: "Sheoldred, the Apocalypse",
+                owner: "me",
+                zone: "battlefield",
+            },
+            { name: "Griselbrand", owner: "me", zone: "battlefield" },
+            { name: "Baleful Strix", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield" },
+            { name: "Swamp", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 15,
+    },
 ];
 
 type DebugPanelProps = {

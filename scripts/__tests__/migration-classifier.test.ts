@@ -283,16 +283,38 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // (Alabaster Potion), and a choice-count + distinct-types tally (Occult
     // Epiphany). This is the LAST wave-1 issue — X was the final value-grammar
     // gap; the residual X-only closures are Op/grammar-blocked, not X-blocked.
+    // #674 (Cube FREE card-draw slice): Sheoldred, the Apocalypse
+    // (dmu/black.ts) adds ONE new resolve() closure — its "whenever an
+    // opponent draws a card" trigger uses `drawTrigger({ scope: "opponents",
+    // resolve: ... })` because `drawTrigger`'s `effects` opt-in (mirroring
+    // `phaseTrigger`) only binds `ctx.controller`, valid for `scope: "your"`;
+    // an opponents-scoped effect needs to act on the DRAWING player, who
+    // differs from the source's controller (documented on the card). The
+    // classifier's static heuristic buckets it FREE/need-test (it can't see
+    // the scope-mismatch reason) — 602→603 total, 378→379 FREE, need-test
+    // 31→32; AFK-ready/X-only/Op-blocked unchanged.
+    // #888 (PR review fixup): Sheoldred's "opponents"-scope drawTrigger
+    // resolve() closure now has a dedicated GRE test
+    // (dmu/__tests__/black.test.ts, CR 121.1) covering both draw-scope
+    // clauses and no-cross-fire. The classifier's hasTest heuristic now sees
+    // it, flipping it from need-test → AFK-ready — 380 FREE unchanged,
+    // need-test 32→31, AFK-ready 348→349 (relative to the post-rebase
+    // combined baseline below, which already folds in #886/#734/#674).
     it("reports the committed baseline bucket totals", () => {
-        // Combined post-#886 + #734 truth. #886 landed ICE utility cards; #734
-        // added Sacred Boon (a card-level resolve() seam + its next-end-step
-        // delayed-trigger resolve, both Op-blocked — the
+        // Combined post-#886 + #734 + #674 + #888 truth. #886 landed ICE
+        // utility cards; #734 added Sacred Boon (a card-level resolve() seam
+        // + its next-end-step delayed-trigger resolve, both Op-blocked — the
         // +0/+1-per-1-damage-prevented follow-up reads back a prevented amount
-        // that no Op surfaces). Pins below are the classifier's actual reported
-        // values after both waves land (606 = 379 FREE ⊎ 14 X-only ⊎ 213 Op-blocked).
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(606);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(379);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(348);
+        // that no Op surfaces); #674 added Sheoldred, the Apocalypse's
+        // opponents-scoped drawTrigger resolve() closure (see the #674 note
+        // above); #888's fixup gave it a dedicated GRE test, flipping it
+        // need-test → AFK-ready (see the #888 note above). Pins below are the
+        // classifier's actual reported values with all waves landed (computed
+        // via `bun scripts/migration-classifier.mjs` post-rebase, not
+        // hand-picked).
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(607);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(380);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(349);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(213);
     });

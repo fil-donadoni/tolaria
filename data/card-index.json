@@ -438,6 +438,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Baleful Strix",
+        "scryfallId": "62090c97-7e3e-4854-bc44-c4a900133ec5",
+        "oracleId": "37688720-03de-4eca-a82d-a0afe8d58adc",
+        "firstSet": "pc2"
+    },
+    {
         "name": "Ball Lightning",
         "scryfallId": "c1ba83ab-83f5-421d-bba1-0f925870b5c8",
         "oracleId": "7485cf25-eb41-4397-be13-7f0b8c10c70a",
@@ -2650,6 +2656,12 @@
         "scryfallId": "1f6118b2-fe01-425a-a2ed-6d7c42286c8e",
         "oracleId": "727ab7f2-741e-4442-b5cb-e3032549fa87",
         "firstSet": "lea"
+    },
+    {
+        "name": "Griselbrand",
+        "scryfallId": "b51666ae-2aef-4cb1-9cd4-44aec81530f8",
+        "oracleId": "f759d112-76db-4091-a22b-b9f19ab6fa5f",
+        "firstSet": "avr"
     },
     {
         "name": "Grizzled Wolverine",
@@ -5482,6 +5494,12 @@
         "scryfallId": "fddcc557-871d-425b-b4ee-bc0c9bc717aa",
         "oracleId": "507ce455-bd02-49f9-bf64-4b2d21ffe0ea",
         "firstSet": "leg"
+    },
+    {
+        "name": "Sheoldred, the Apocalypse",
+        "scryfallId": "d67be074-cdd4-41d9-ac89-0a0456c4e4b2",
+        "oracleId": "34f34409-326d-4994-a0ea-1a69aa278f03",
+        "firstSet": "dmu"
     },
     {
         "name": "Shield Bearer",
