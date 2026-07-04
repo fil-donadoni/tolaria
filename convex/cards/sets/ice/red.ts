@@ -531,6 +531,13 @@ export const chaosLord: CardDefinition = {
                 "At the beginning of your upkeep, target opponent gains control of this creature if the number of permanents is even.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): the control hand-off is gated on a
+            // RUNTIME parity read — "if the number of [all] permanents is even"
+            // (a count of every permanent on the battlefield, CR 700). The
+            // gainControl Op (#848) is COVERED, but no `if` predicate can express
+            // "the total permanent count is even" (a count-of-all-permanents
+            // parity test — a value/predicate grammar gap). Blocked on: a
+            // board-wide permanent-count parity predicate — stays resolve().
             resolve: (ctx) => {
                 // CR 700 — count every permanent on the battlefield.
                 let total = 0;

@@ -6,7 +6,7 @@
 // identity of their mana cost (CR 202.2); lands and artifacts (no coloured
 // cost) live in colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import type { CardDefinition } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 
@@ -347,13 +347,18 @@ export const oldManOfTheSea: CardDefinition = {
                 count: 1,
                 powerFilter: { max: source.power ?? 0 },
             }),
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (!target || target.type !== "permanent") return;
-                ctx.gainControl(target, ctx.controller, {
-                    kind: "source-tapped-and-power-ge",
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #848): gain control of the
+            // targeted creature "for as long as this creature remains tapped and
+            // that creature's power remains ≤ this creature's power" (CR 613.1b
+            // layer-2 control change; CR 611.2b conditional-control revert).
+            effects: [
+                {
+                    op: "gainControl",
+                    target: { target: 0 },
+                    controller: "controller",
+                    duration: "while-source-tapped-and-power-ge",
+                },
+            ],
         },
     ],
 };

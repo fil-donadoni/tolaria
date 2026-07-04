@@ -917,6 +917,14 @@ export const infernalDenizen: CardDefinition = {
                 "At the beginning of your upkeep, sacrifice two Swamps. If you can't, tap this creature, and an opponent may gain control of a creature you control of their choice for as long as this creature remains on the battlefield.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): although the gainControl Op (#848)
+            // is COVERED (the card's ACTIVATED ability migrated), this UPKEEP
+            // trigger also reads APNAP order (`ctx.apNapOrder()`) to pick the
+            // opponent who chooses, then drives an opponent choose-permanents +
+            // a per-pick gainControl. `apNapOrder` is an unimplemented backlog
+            // Op and the choice-picked gainControl target is not expressible.
+            // Blocked on: the apNapOrder Op + a choice-picked object selector —
+            // stays resolve().
             resolve: (ctx) => {
                 const accept = ctx.requestMayPay({
                     playerId: ctx.controller,
@@ -973,14 +981,21 @@ export const infernalDenizen: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type !== "permanent") return;
-                ctx.gainControl(target, ctx.controller, {
-                    kind: "controller-controls-source",
-                    controllerId: ctx.controller,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #848): gain control of the
+            // targeted creature "for as long as this creature remains on the
+            // battlefield" — the controller-controls-source condition, which the
+            // conditional-control SBA reverts the instant Infernal Denizen leaves
+            // (CR 613.1b layer-2 control change; CR 611.2b). The card's upkeep
+            // TRIGGERED ability (the sacrifice-two-Swamps-or-be-stolen clause)
+            // stays resolve() — it is blocked on apNapOrder (a backlog Op).
+            effects: [
+                {
+                    op: "gainControl",
+                    target: { target: 0 },
+                    controller: "controller",
+                    duration: "while-you-control-source",
+                },
+            ],
         },
     ],
 };

@@ -274,6 +274,14 @@ export const preacher: CardDefinition = {
                 controller: "opponent",
                 count: 1,
             },
+            // NOT DSL-migratable (ADR 0045): the OPPONENT chooses which of their
+            // creatures the controller gains control of (a choose-permanents
+            // choice on the opponent), then gainControl acts on that CHOSEN id.
+            // The gainControl Op (#848) is COVERED, but its object selector reads
+            // an announced target slot / a snapshot binding / a forEach `$each` —
+            // NOT a `choice` picks list, so a choice-picked single-object target
+            // cannot feed it. Blocked on: a choice-picked object selector for
+            // gainControl — stays resolve().
             resolve: (ctx: SpellContext) => {
                 const [target] = ctx.targets;
                 if (!target || target.type !== "player") return;

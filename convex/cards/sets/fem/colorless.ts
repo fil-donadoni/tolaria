@@ -209,6 +209,13 @@ export const rainbowVale: CardDefinition = {
             oracleText:
                 "An opponent gains control of this land at the beginning of the next end step.",
             timing: "next-end-step",
+            // NOT DSL-migratable (ADR 0045): the gainControl call lives in a
+            // `delayedTriggers[]` body, and `DelayedTriggerDef` exposes only a
+            // `resolve` closure — there is no `effects[]` site on the old-style
+            // delayed-trigger definition to convert (the arming is already
+            // declarative via `armsDelayedTriggerOnTap`). The gainControl Op
+            // (#848) is COVERED, but it needs an effects[] site. Blocked on: an
+            // effects[] site on DelayedTriggerDef — stays resolve().
             resolve: (ctx, payload) => {
                 const sourceId = payload.sourceId;
                 if (!sourceId) return;

@@ -711,6 +711,13 @@ export const seasinger: CardDefinition = {
             // is over any creature; the resolve guard fizzles non-Island
             // controllers. (Faithful-text simplification flagged in #571.)
             targetRequirement: { type: "Creature", count: 1 },
+            // NOT DSL-migratable (ADR 0045): the ability is guarded by a RUNTIME
+            // READ — the target's controller must control an Island (CR 115.4),
+            // enforced at resolution because the engine has no "controller
+            // controls subtype X" target filter. The gainControl Op (#848) is
+            // COVERED, but no `if` predicate can express "the target's
+            // controller controls an Island". Blocked on: a controller-controls-
+            // subtype predicate — stays resolve().
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "permanent") return;

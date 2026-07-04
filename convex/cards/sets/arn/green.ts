@@ -220,6 +220,13 @@ export const ghazbanOgre: CardDefinition = {
                 uniqueMostLife(
                     state.players.map((p) => ({ id: p.id, life: p.life }))
                 ) !== null,
+            // NOT DSL-migratable (ADR 0045): the recipient is a RUNTIME-computed
+            // player — the unique player with the most life (uniqueMostLife over
+            // live life totals), not a declarative player ref (controller /
+            // opponent / target slot). The gainControl Op (#848) is COVERED, but
+            // no player-ref selector can name "the player with the most life".
+            // Blocked on: a computed-player selector (a value-grammar gap, not an
+            // Op) — stays resolve().
             resolve: (ctx) => {
                 const leader = uniqueMostLife(
                     ctx.allPlayerIds.map((id) => ({

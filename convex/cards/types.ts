@@ -312,6 +312,29 @@ export type ControlChangeCondition =
     | { kind: "source-tapped-and-power-ge" }
     | { kind: "source-tapped" };
 
+/** JSON-pure "for as long as" duration discriminator for the `gainControl`
+ *  Effect Script Op (ADR 0045, issue #848). Each member maps 1:1 onto a
+ *  `ControlChangeCondition` kind that the conditional-control SBA re-evaluates
+ *  (CR 611.2b); the Op interpreter builds the runtime condition (filling in the
+ *  new controller id where the kind needs it). Omitting `duration` on the Op is
+ *  the INDEFINITE reassignment (no condition — the Ghazbán Ogre shape). The
+ *  member set mirrors `ControlChangeCondition` exactly (minus the "for as long
+ *  as you control the source" controllerId, which the interpreter fills from
+ *  the resolved new controller):
+ *  - `while-you-control-source` → `controller-controls-source` (Aladdin,
+ *    Thrull Champion — "for as long as you control this creature").
+ *  - `while-source-tapped` → `source-tapped` (Preacher, Seasinger — "for as
+ *    long as this creature remains tapped").
+ *  - `while-source-tapped-and-power-ge` → `source-tapped-and-power-ge` (Old Man
+ *    of the Sea — tapped AND the target's power ≤ the source's power).
+ *  There is deliberately NO "until end of turn" member: `ControlChangeCondition`
+ *  has no EOT variant (Ray of Command / Magus of the Unseen stay `resolve()`,
+ *  issue #730). */
+export type GainControlDuration =
+    | "while-you-control-source"
+    | "while-source-tapped"
+    | "while-source-tapped-and-power-ge";
+
 export interface TargetSelection {
     /** "permanent" = battlefield card, "player" = player, "spell" = stack
      *  item, "graveyard-card" = card in a player's graveyard (CR 400.7). */
@@ -4753,6 +4776,30 @@ export type EffectOp =
           token: EffectTokenSpec;
           controller: EffectPlayerRef;
           count?: EffectValue;
+      }
+    /** CR 613.1b (issue #848) — change control of a permanent (layer 2). A thin
+     *  declarative skin over the single SpellContext primitive `gainControl`,
+     *  one execution path (ADR 0045). `target` names the permanent whose
+     *  control changes — an announced target slot (`{ target: N }` — Aladdin /
+     *  Old Man of the Sea / Thrull Champion "gain control of target …"), the
+     *  resolving source (`$source` — a self-control-change), or a forEach
+     *  `$each`. `controller` names the player who gains control (the resolving
+     *  `"controller"`; an announced target-slot player; or a relative player).
+     *  `duration` is the JSON-pure discriminator for the "for as long as"
+     *  condition (CR 611.2b), mapped 1:1 onto `ControlChangeCondition`:
+     *  omitted = an INDEFINITE reassignment (no condition, the Ghazbán Ogre
+     *  shape — control never reverts on its own); the three named durations
+     *  install a conditional-control SBA that reverts the change the moment the
+     *  condition lapses. SCOPE (issue #848): only the durations the primitive's
+     *  `ControlChangeCondition` supports are expressible — an "until end of
+     *  turn" control change (Ray of Command / Magus of the Unseen) has NO
+     *  `ControlChangeCondition` variant and additionally wants an EOT tap
+     *  rider, so it stays `resolve()` (a distinct capability, issue #730). */
+    | {
+          op: "gainControl";
+          target: EffectObjectSelector;
+          controller: EffectPlayerRef;
+          duration?: GainControlDuration;
       }
     /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a

@@ -279,6 +279,18 @@ function isCounterAction(value: unknown): boolean {
     return value === "add" || value === "remove";
 }
 
+/** The JSON-pure `duration` discriminator of a `gainControl` Op (issue #848,
+ *  `GainControlDuration`) — one of the three "for as long as" conditions the
+ *  `ControlChangeCondition` grammar supports. Absent = an indefinite
+ *  reassignment; there is deliberately no "until end of turn" member. */
+function isGainControlDuration(value: unknown): boolean {
+    return (
+        value === "while-you-control-source" ||
+        value === "while-source-tapped" ||
+        value === "while-source-tapped-and-power-ge"
+    );
+}
+
 /** The direction of a `tapUntap` Op (issue #842, CR 701.26) — tap or untap a
  *  permanent. */
 function isTapUntapAction(value: unknown): boolean {
@@ -644,6 +656,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             controller: isPlayerRef,
         },
         optional: { count: isEffectValue },
+    },
+    // CR 613.1b (issue #848) — change control of a permanent (layer 2).
+    // `target` is the permanent whose control changes (announced slot,
+    // `$source`, or a forEach `$each`); `controller` names who gains control
+    // (controller / announced slot / relative player); `duration` is the
+    // optional JSON-pure "for as long as" discriminator (absent = indefinite).
+    gainControl: {
+        required: {
+            target: isObjectSelector,
+            controller: isPlayerRef,
+        },
+        optional: { duration: isGainControlDuration },
     },
     // CR 611.1b / 613.1f (issue #843) — grant a keyword static ability to a
     // permanent for a limited duration (layer 6). `ability` is the free-form

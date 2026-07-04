@@ -199,12 +199,31 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // resolve and exposes no effects[] site, blocking the inline delayedTrigger
     // conversion). The copy form (createTokenCopyOf, Dance of Many) is split
     // out as the new `createTokenCopy` backlog Op.
+    // #848 (gainControl Op): SpellContext.gainControl is now a COVERED Op — the
+    // control-change cluster's 13 closures moved Op-blocked→FREE (+13), and the
+    // 5 cleanly-expressible ones were migrated away (total 622→617; FREE 350→358
+    // net; AFK-ready 320→328; Op-blocked 251→238): the announced-target control
+    // grabs Old Man of the Sea (arn/blue, source-tapped-and-power-ge), Aladdin
+    // (arn/red) / Thrull Champion (fem/black) / Infernal Denizen's ACTIVATED
+    // ability (ice/black) (all controller-controls-source), and the Force-Spike-
+    // shaped mayPay-or-steal Scarwood Bandits (drk/green). The remaining 8 FREE
+    // gainControl closures stay resolve() with a recorded NOT-migratable reason:
+    // a runtime-computed recipient (Ghazbán Ogre — uniqueMostLife; arn/green),
+    // a controller-controls-Island runtime guard (Seasinger; fem/blue), a
+    // delayedTriggers[] body with no effects[] site (Rainbow Vale; fem/colorless),
+    // a runtime marker-counter + linked leave/untap destroy rider (Merieke Ri
+    // Berit; ice/multicolor), a board-wide permanent-count parity predicate
+    // (Chaos Lord; ice/red), a choice-picked single-object target (Preacher;
+    // drk/white), and Infernal Denizen's apNapOrder-blocked UPKEEP trigger
+    // (ice/black). "Until end of turn" control (Ray of Command / Magus of the
+    // Unseen) was never in the free list — no ControlChangeCondition EOT variant
+    // (issue #730). The gainControl backlog stub is retired.
     it("reports the committed baseline bucket totals", () => {
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(622);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(350);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(320);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(617);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(358);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(328);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(21);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(251);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(238);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {

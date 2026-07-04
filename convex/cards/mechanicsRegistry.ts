@@ -2427,6 +2427,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.createToken",
         note: "Create token permanents (CR 111 / 701.7 keyword action \"Create\", issue #847). A thin declarative skin over the single SpellContext primitive `createToken`, one execution path (ADR 0045): `token` is the JSON-pure token spec (EffectTokenSpec — name + card types required; subtypes, supertypes, P/T, colors, keyword static abilities and token art optional), `controller` names who gets the tokens (the resolving controller — The Hive's Wasp, Master of the Hunt's Wolves, the Saproling / Thrull / Goblin token engines; an announced target-slot player; or a forEach `$each` for a per-player creation), and `count` is an optional EffectValue (default 1; a literal / ref / count for a count-scaled creation, e.g. Goblin Warrens' three Goblins). A non-positive count creates nothing (CR 707.1). SCOPE (issue #847): only the plain spec-driven `createToken` primitive is folded — the JSON-pure spec that carries no closure. `createTokenCopyOf` (create a token that's a COPY of a target creature — Dance of Many) reads a runtime source creature and drives the copy machinery, so it is NOT a pure declarative skin; it stays a `planned` backlog Op (`createTokenCopy` below). A token needing continuous `staticEffects` (Tetravite's \"can't be enchanted\", a predicate closure) is likewise not JSON-expressible — `EffectTokenSpec` omits `staticEffects`, so such a token stays resolve(). No `createdBy` provenance is stamped — provenance-linked token engines (Tetravus, Tawnos's Wand) are multi-Op choice-scoped cards that stay resolve() this wave.",
     },
+    {
+        op: "gainControl",
+        status: "implemented",
+        cr: "613.1b",
+        mechanicId: "control-change",
+        binding: "SpellContext.gainControl",
+        note: 'Change control of a permanent (CR 613.1b layer-2 control change, issue #848). A thin declarative skin over the single SpellContext primitive `gainControl`, one execution path (ADR 0045): `target` names the permanent whose control changes — an announced target slot (`{ target: N }` — Aladdin / Old Man of the Sea / Thrull Champion / Infernal Denizen\'s activated "gain control of target …"), the resolving source (`$source`), or a forEach `$each`. `controller` names who gains control (the resolving controller / an announced target-slot player / a relative player). `duration` is the JSON-pure GainControlDuration discriminator, mapped 1:1 onto ControlChangeCondition (CR 611.2b): omitted = an INDEFINITE reassignment (no condition, the Ghazbán Ogre shape — never reverts on its own); `while-you-control-source` → controller-controls-source (Aladdin, Thrull Champion); `while-source-tapped` → source-tapped (Preacher, Seasinger); `while-source-tapped-and-power-ge` → source-tapped-and-power-ge (Old Man of the Sea). The conditional durations install the conditional-control SBA that reverts the change when the condition lapses. Skipped when the target is gone / not a permanent or the controller cannot be resolved (CR 608.2b). SCOPE (issue #848): only the durations ControlChangeCondition supports are expressible. An "until end of turn" control change (Ray of Command / Magus of the Unseen) has NO ControlChangeCondition variant AND additionally wants an EOT tap rider, so it stays resolve() (a distinct capability, issue #730). The "and destroy on untap/leave" rider (Merieke Ri Berit) and runtime-computed recipients / parity guards (Ghazbán Ogre, Chaos Lord) also stay resolve() — see per-card NOT-migratable notes.',
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
@@ -2498,12 +2506,12 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
         mechanicId: "create",
         note: "Create a token that is a COPY of a target creature (CR 707.2 + 111.1, Dance of Many). Folds SpellContext.createTokenCopyOf (~1 blocked closure). Split out of `createToken` (issue #847): unlike the spec-driven `createToken` Op — a JSON-pure token spec passed verbatim — the copy form reads a RUNTIME source creature (an announced target) and drives the copy machinery (`applyCopy`, the same path Clone uses), copying the source's printed characteristics onto a fresh token. That runtime object read is not expressible as a pure declarative token spec, so it is a distinct Op, not part of createToken.",
     },
-    {
-        op: "gainControl",
-        status: "planned",
-        cr: "613.1b",
-        note: "Control-change effect (layer 2, CR 613.1b). Folds SpellContext.gainControl (~14 blocked closures).",
-    },
+    // gainControl SHIPPED (issue #848) — SpellContext.gainControl is now COVERED
+    // live via EFFECT_OP_REGISTRY with status "implemented". The full duration
+    // grammar the primitive's ControlChangeCondition supports (indefinite + the
+    // three "for as long as" conditions) is folded; an "until end of turn"
+    // control change with a tap rider (Ray of Command / Magus of the Unseen)
+    // has no ControlChangeCondition variant and stays resolve() (issue #730).
     {
         op: "optionChoice",
         status: "planned",

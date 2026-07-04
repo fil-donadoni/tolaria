@@ -65,6 +65,7 @@
 // keeps `OP_EXECUTORS` and that census in exact 1:1 correspondence.
 
 import type {
+    ControlChangeCondition,
     EffectCaptureSource,
     EffectCardFilter,
     EffectComparisonOp,
@@ -76,6 +77,7 @@ import type {
     EffectPredicate,
     EffectTargetRef,
     EffectValue,
+    GainControlDuration,
     PermanentFilter,
     SpellContext,
     TargetSelection,
@@ -328,6 +330,32 @@ function resolveObjectRef(
     // `getOwnerId` is battlefield-scoped, so undefined means it left.
     if (ctx.getOwnerId(id) === undefined) return undefined;
     return { type: "permanent", id };
+}
+
+/** Maps a `gainControl` Op's JSON-pure `duration` discriminator onto the
+ *  runtime `ControlChangeCondition` the conditional-control SBA re-evaluates
+ *  (CR 611.2b, issue #848). An omitted duration is the INDEFINITE reassignment
+ *  (no condition — control never reverts on its own, the Ghazbán Ogre shape).
+ *  The `controller-controls-source` kind carries the new controller's id (it
+ *  holds "for as long as YOU control the source", where YOU is who just gained
+ *  control). */
+function gainControlCondition(
+    duration: GainControlDuration | undefined,
+    newControllerId: string
+): ControlChangeCondition | undefined {
+    switch (duration) {
+        case undefined:
+            return undefined;
+        case "while-you-control-source":
+            return {
+                kind: "controller-controls-source",
+                controllerId: newControllerId,
+            };
+        case "while-source-tapped":
+            return { kind: "source-tapped" };
+        case "while-source-tapped-and-power-ge":
+            return { kind: "source-tapped-and-power-ge" };
+    }
 }
 
 /** Resolves a bare picks ref (`{ ref: "$picked" }`) to the instance ids a
@@ -622,6 +650,26 @@ export const OP_EXECUTORS: {
         const count = op.count === undefined ? 1 : resolveValue(ctx, op.count);
         if (count === undefined || count <= 0) return;
         ctx.createToken(op.token, controllerId, count);
+    },
+    // CR 613.1b (issue #848) — change control of a permanent (layer 2). A thin
+    // declarative skin over the single SpellContext primitive `gainControl`,
+    // ONE execution path (ADR 0045): the resolved `target` permanent moves to
+    // the resolved new `controller`; `duration` maps to the `ControlChangeCondition`
+    // the conditional-control SBA reverts (omitted = an indefinite reassignment).
+    // Skipped when the target is gone / not a permanent (CR 608.2b —
+    // `resolveObjectRef` returns undefined) or the controller cannot be resolved
+    // (`resolvePlayerRef` returns undefined); the primitive itself also no-ops
+    // when the target left the battlefield or is already under that controller.
+    gainControl(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        const controllerId = resolvePlayerRef(ctx, op.controller);
+        if (controllerId === undefined) return;
+        ctx.gainControl(
+            target,
+            controllerId,
+            gainControlCondition(op.duration, controllerId)
+        );
     },
     tapUntap(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
