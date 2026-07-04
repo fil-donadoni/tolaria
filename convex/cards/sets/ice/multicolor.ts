@@ -170,14 +170,17 @@ export const centaurArcher: CardDefinition = {
         },
     ],
 };
-// DEFERRED (#659): needs a CONTINUOUS all-damage-prevention shield keyed to a
-// STORED colour choice that protects an Aura's HOST — the same capability that
-// keeps Prismatic Ward deferred (#653). The shipped `combat-damage-prevention`
-// static is self-only and combat-only; Chromatic Armor prevents ALL damage from
-// sources of the chosen colour. Choose-colour-on-ETB is expressible via
-// `modes`/`getChosenModeId`, but the `{X}: re-choose colour` clause also needs a
-// way to MUTATE the stored colour post-ETB (no such primitive). Flagged for the
-// colour-prevention capability cluster alongside Prismatic Ward.
+// DEFERRED (#734): the colour-keyed all-damage prevention shield itself now
+// ships (Prismatic Ward — a `replacementEffects[]` damage shield reading the
+// stored `chosenModeId` colour). What still blocks Chromatic Armor is its
+// SECOND clause: "{X}: Put a sleight counter on this Aura and choose a color. X
+// is the number of sleight counters on this Aura." That needs two primitives
+// that don't exist: (a) a variable generic activation cost equal to a permanent's
+// counter count, and (b) a way to RE-CHOOSE and MUTATE the stored colour
+// (`chosenModeId`) post-ETB via an activated ability (with the attendant colour
+// picker). Shipping the shield without the re-choose would be a knowingly
+// different card, so the whole definition stays a tracked stub — stop-and-issue
+// on the uncensused re-choose primitive rather than invent it.
 // export const chromaticArmor: CardDefinition = {
 //     id: "2657e85b-8f77-41fa-9df2-233443efef43",
 //     name: "Chromatic Armor",

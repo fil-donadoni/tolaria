@@ -253,6 +253,32 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 4,
         libraryCount: 6,
     },
+    {
+        // Colour / amount damage-prevention shields (ICE, #734). Prismatic Ward
+        // (choose a colour on entry, prevent ALL damage to the enchanted
+        // creature from that colour) and Sacred Boon (prevent the next 3 damage
+        // to a creature, then a +0/+1 counter per point actually prevented at
+        // the next end step). Enchant your Grizzly Bears with Prismatic Ward and
+        // pick red, then let the opponent's Prodigal Pyromancer ping it —
+        // prevented. Or cast Sacred Boon on the Bears, take some damage, and
+        // watch the +0/+1 counters land at end of turn. Three Plains cover the
+        // {1}{W} each.
+        label: "Prismatic Ward + Sacred Boon — damage-prevention shields (#734)",
+        cards: [
+            { name: "Prismatic Ward", owner: "me", zone: "hand" },
+            { name: "Sacred Boon", owner: "me", zone: "hand" },
+            { name: "Plains", owner: "me", zone: "battlefield", count: 3 },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            {
+                name: "Prodigal Pyromancer",
+                owner: "opp",
+                zone: "battlefield",
+                summoningSick: false,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

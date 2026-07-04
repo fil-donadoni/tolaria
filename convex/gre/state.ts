@@ -727,6 +727,11 @@ export type TargetPreventionShield = {
     targetId: string;
     remaining: number;
     duration: Duration;
+    /** Optional readback tag (CR 615.1). When set, every point this shield
+     *  actually absorbs is accumulated into `state.preventionTallies[tallyId]`
+     *  so a follow-up effect can read "the amount of damage prevented this way"
+     *  (Sacred Boon — put a +0/+1 counter per 1 damage prevented). */
+    tallyId?: string;
 };
 
 /** A per-player damage-prevention shield with a source match and a reduction
@@ -1644,6 +1649,12 @@ export type GameState = {
      *  these; consumed/reduced by `applyPlayerDamagePrevention` on every
      *  player-damage event. Cleared at CLEANUP for end-of-turn shields. */
     playerDamagePrevention?: PlayerDamagePreventionShield[];
+    /** Running tallies of damage actually prevented by tagged
+     *  `targetPreventionShields` (CR 615.1), keyed by the shield's `tallyId`.
+     *  A follow-up effect reads "the amount of damage prevented this way"
+     *  here (Sacred Boon's next-end-step +0/+1 counters) and clears the entry
+     *  via `consumePreventionTally`. Cleared at CLEANUP with its shield. */
+    preventionTallies?: Record<string, number>;
     /** Delayed triggered abilities awaiting their firing condition (CR 603.7a).
      *  Scanned at phase entry for matching `timing`. Each instance fires once
      *  then is spliced out. */
@@ -2113,6 +2124,14 @@ export function applyTargetPrevention(
         const absorbed = Math.min(s.remaining, remaining);
         s.remaining -= absorbed;
         remaining -= absorbed;
+        // CR 615.1 readback — record how much this tagged shield prevented so
+        // a follow-up effect ("+0/+1 counter per 1 damage prevented this way",
+        // Sacred Boon) can read the total even after the shield is spent.
+        if (s.tallyId !== undefined && absorbed > 0) {
+            const tallies = state.preventionTallies ?? {};
+            tallies[s.tallyId] = (tallies[s.tallyId] ?? 0) + absorbed;
+            state.preventionTallies = tallies;
+        }
     }
     state.targetPreventionShields = shields.filter((s) => s.remaining > 0);
     if (state.targetPreventionShields.length === 0) {
@@ -5259,11 +5278,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         preventNextNDamageToTarget(
             target: TargetSelection,
             amount: number,
-            duration: DurationSpec
+            duration: DurationSpec,
+            tallyId?: string
         ): void {
             // CR 615.1: damage absorption shield on the target. Decremented
             // per damage event regardless of source. Permanent target must
             // still be on the battlefield; a stale id silently no-ops.
+            // `tallyId` (Sacred Boon) tags the shield so the amount it actually
+            // prevents is accumulated in `state.preventionTallies` for readback.
             if (amount <= 0) return;
             if (target.type === "permanent") {
                 if (!findOnBattlefield(state, target.id)) return;
@@ -5279,8 +5301,22 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     targetId: target.id,
                     remaining: amount,
                     duration: resolveDuration(duration, item.castById, state),
+                    ...(tallyId !== undefined ? { tallyId } : {}),
                 },
             ];
+        },
+        consumePreventionTally(tallyId: string): number {
+            // CR 615.1 readback — returns the total damage a tagged prevention
+            // shield has absorbed so far and clears the tally so it is read
+            // once (Sacred Boon's next-end-step +0/+1 counters).
+            const tallies = state.preventionTallies;
+            if (!tallies) return 0;
+            const total = tallies[tallyId] ?? 0;
+            delete tallies[tallyId];
+            if (Object.keys(tallies).length === 0) {
+                state.preventionTallies = undefined;
+            }
+            return total;
         },
         gainLife(playerId: string, amount: number) {
             if (amount <= 0) return;

@@ -1492,12 +1492,21 @@ export interface SpellContext {
      *  ("prevent the next 1 damage to any target this turn"), Conservator
      *  ("prevent the next 2 damage to you this turn"), and similar
      *  prevent-N-to-target effects. No-op if target has left play / amount
-     *  ≤ 0. */
+     *  ≤ 0. `tallyId` (optional) tags the shield so the total damage it
+     *  actually prevents accumulates in `state.preventionTallies`, readable
+     *  later via `consumePreventionTally` (Sacred Boon's +0/+1-per-1-prevented
+     *  follow-up). */
     preventNextNDamageToTarget: (
         target: TargetSelection,
         amount: number,
-        duration: DurationSpec
+        duration: DurationSpec,
+        tallyId?: string
     ) => void;
+    /** Returns and clears the running total of damage a tagged prevention
+     *  shield has absorbed (CR 615.1 readback). Zero if nothing was prevented
+     *  under `tallyId`. Consumed once — Sacred Boon reads it at the next end
+     *  step to size its +0/+1 counter grant. */
+    consumePreventionTally: (tallyId: string) => number;
     /** Registers a per-player damage-prevention shield with a source match and
      *  a reduction mode (CR 615.1). `match.sourceInstanceId` scopes it to one
      *  source; otherwise `match.sourceStaticAbility` scopes it to sources whose

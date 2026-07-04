@@ -51,6 +51,8 @@ import {
     snowCoveredForest,
     arcticFoxes,
     hipparion,
+    prismaticWard,
+    sacredBoon,
 } from "../../ice";
 import { plains } from "../../lea";
 import { getDefinition } from "../../../index";
@@ -60,6 +62,8 @@ import {
     payManaCost,
     commitLandsForCost,
     normalizeManaCost,
+    runDamageReplacement,
+    applyTargetPrevention,
 } from "../../../../gre/state";
 import {
     buildAutoTapSources,
@@ -71,6 +75,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
+import { advancePhase } from "../../../../gre/phases";
 import {
     validateBlockerEligibility,
     collectBlockBypassCharges,
@@ -85,6 +90,7 @@ import {
 import type { CardInstanceState } from "../../../../gre/state";
 import type { StackItem } from "../../../../gre/state";
 import type { CardType } from "../../../types";
+import type { Phase } from "../../../../gre/types";
 import {
     resolveActivated,
     resolveTrigger,
@@ -1436,5 +1442,243 @@ describe("Hipparion (can't block power 3+ unless you pay {1}, CR 509.1b)", () =>
         const reason = payBypassSeam(state);
         expect(reason).not.toBeNull();
         expect(reason).toMatch(/pay \{1\}/i);
+    });
+});
+
+// Prismatic Ward (#734) — colour-keyed ALL-damage prevention on the Aura host.
+describe("Prismatic Ward (colour-filtered damage prevention, CR 615)", () => {
+    function setup() {
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Warded colour = black, stored as the modal pick `chosenModeId`.
+        const aura = makeInstance(prismaticWard.id, {
+            id: "ward",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+            chosenModeId: "B",
+        });
+        // A black source and a blue source to fire damage from (CR 202.2 —
+        // colours are read off the source's mana cost via the registry).
+        const blackSrc = makeInstance(knightOfStromgald.id, {
+            id: "black-src",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const blueSrc = makeInstance(seaSpirit.id, {
+            id: "blue-src",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2", { battlefield: [blackSrc, blueSrc] }),
+            ],
+        });
+        return { state };
+    }
+
+    it("has an Enchant creature target requirement and five colour modes", () => {
+        expect(prismaticWard.targetRequirement?.type).toBe("Creature");
+        expect((prismaticWard.modes ?? []).map((m) => m.id)).toEqual([
+            "W",
+            "U",
+            "B",
+            "R",
+            "G",
+        ]);
+    });
+
+    it("prevents all damage to the host from a source of the chosen colour", () => {
+        const { state } = setup();
+        const result = runDamageReplacement(
+            state,
+            "black-src",
+            "p2",
+            { type: "permanent", id: "host" },
+            3,
+            false
+        );
+        // Fully prevented — the replacement consumes the event.
+        expect(result).toBeNull();
+    });
+
+    it("does NOT prevent damage from a source of another colour", () => {
+        const { state } = setup();
+        const result = runDamageReplacement(
+            state,
+            "blue-src",
+            "p2",
+            { type: "permanent", id: "host" },
+            3,
+            false
+        );
+        expect(result).not.toBeNull();
+        expect(result?.amount).toBe(3);
+    });
+
+    it("prevents combat damage too, not just spell/ability damage", () => {
+        const { state } = setup();
+        const result = runDamageReplacement(
+            state,
+            "black-src",
+            "p2",
+            { type: "permanent", id: "host" },
+            2,
+            true
+        );
+        expect(result).toBeNull();
+    });
+
+    it("wire format: the colour shield survives projectPublicState", () => {
+        const { state } = setup();
+        const projected = projectPublicState(
+            state,
+            1,
+            "p1"
+        ) as unknown as GameState;
+        // Black source still prevented after the projection strips card.card.
+        expect(
+            runDamageReplacement(
+                projected,
+                "black-src",
+                "p2",
+                { type: "permanent", id: "host" },
+                3,
+                false
+            )
+        ).toBeNull();
+        // Blue source still lands.
+        const fresh = projectPublicState(
+            setup().state,
+            1,
+            "p1"
+        ) as unknown as GameState;
+        expect(
+            runDamageReplacement(
+                fresh,
+                "blue-src",
+                "p2",
+                { type: "permanent", id: "host" },
+                3,
+                false
+            )?.amount
+        ).toBe(3);
+    });
+});
+
+// Sacred Boon (#734) — prevent-next-3 shield whose prevented total drives a
+// next-end-step +0/+1 counter grant (CR 615.1 readback seam).
+describe("Sacred Boon (prevented-amount readback → counters, CR 615.1)", () => {
+    /** Drive the REAL phase machinery from the combat-damage step through
+     *  END_OF_COMBAT into the end step, then resolve whatever the end step put
+     *  on the stack. This is the whole point of the test: `tickAllDurations`
+     *  runs as END_OF_COMBAT ends (CR 511.3, via `endCombatStep`), and the
+     *  prevention tally MUST survive that boundary so the next-end-step delayed
+     *  trigger can still read it. The former test hand-pushed the delayed
+     *  trigger and resolved it in place — it never crossed END_OF_COMBAT, so it
+     *  masked the unconditional-purge bug (issue #734). */
+    function advanceToEndStepAndResolve(state: GameState) {
+        // Enter the regular combat-damage step (where a shield would absorb
+        // combat damage) before advancing out through END_OF_COMBAT.
+        state.phase = "COMBAT_DAMAGE" as Phase;
+        state.activePlayerId = "p1";
+        let guard = 0;
+        while (state.phase !== "END_STEP" && guard++ < 20) {
+            advancePhase(state);
+        }
+        expect(state.phase).toBe("END_STEP");
+        // The end step's `fireDelayedTriggers("next-end-step")` put Sacred
+        // Boon's follow-up on the stack via the real path — resolve it.
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+    }
+
+    function setup() {
+        const creature = vanilla("c", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [creature] }),
+                makePlayer("p2"),
+            ],
+        });
+        castCantrip(state, sacredBoon.id, "p1", [
+            { type: "permanent", id: "c" },
+        ]);
+        return { state };
+    }
+
+    it("registers a tagged prevent-next-3 shield and a next-end-step trigger", () => {
+        const { state } = setup();
+        const shield = state.targetPreventionShields?.[0];
+        expect(shield?.targetId).toBe("c");
+        expect(shield?.remaining).toBe(3);
+        expect(shield?.tallyId).toBeDefined();
+        const dt = state.delayedTriggers?.[0];
+        expect(dt?.timing).toBe("next-end-step");
+        expect(dt?.payload.creatureId).toBe("c");
+    });
+
+    it("counts combat damage prevented in the combat-damage step and grants counters at the real end step (crosses END_OF_COMBAT)", () => {
+        const { state } = setup();
+        // In the combat-damage step the shield absorbs a 2-point combat hit
+        // (2 of 3 prevented); the tally records exactly 2.
+        state.phase = "COMBAT_DAMAGE";
+        expect(applyTargetPrevention(state, "permanent", "c", 2)).toBe(0);
+        expect(state.targetPreventionShields?.[0]?.remaining).toBe(1);
+        expect(Object.values(state.preventionTallies ?? {})).toEqual([2]);
+        // Advance END_OF_COMBAT → END_STEP through the real phase-advance path.
+        // Against the unconditional purge the tally was wiped at END_OF_COMBAT,
+        // yielding 0 counters here; scoping the purge to CLEANUP keeps it alive.
+        advanceToEndStepAndResolve(state);
+        const live = state.players[0].battlefield.find((c) => c.id === "c")!;
+        expect(live.counters?.["+0/+1"]).toBe(2);
+        // The +0/+1 counters raise toughness by 2 (layer 7d, CR 613.4d).
+        expect(getEffectiveToughness(state, live)).toBe(4);
+        expect(getEffectivePower(state, live)).toBe(2);
+        // The tally is consumed once — cleared after the follow-up reads it.
+        expect(state.preventionTallies).toBeUndefined();
+    });
+
+    it("the unconsumed end-of-turn shield still expires at CLEANUP (fix keeps duration semantics)", () => {
+        const { state } = setup();
+        state.phase = "COMBAT_DAMAGE" as Phase;
+        applyTargetPrevention(state, "permanent", "c", 2);
+        // Shield keeps its last point after absorbing 2.
+        expect(state.targetPreventionShields?.[0]?.remaining).toBe(1);
+        advanceToEndStepAndResolve(state);
+        // Advance out of the end step through CLEANUP (auto-phase → next turn's
+        // UNTAP). The {phase:"end-of-turn"} shield's remainder wears off at
+        // CLEANUP (CR 514.2) via `tickDuration`.
+        let guard = 0;
+        while (state.phase !== "UNTAP" && guard++ < 20) {
+            advancePhase(state);
+        }
+        expect(state.targetPreventionShields).toBeUndefined();
+    });
+
+    it("grants no counters when no damage was prevented", () => {
+        const { state } = setup();
+        advanceToEndStepAndResolve(state);
+        const live = state.players[0].battlefield.find((c) => c.id === "c")!;
+        expect(live.counters?.["+0/+1"]).toBeUndefined();
+    });
+
+    it("wire format: the +0/+1 counters survive projectPublicState", () => {
+        const { state } = setup();
+        state.phase = "COMBAT_DAMAGE";
+        applyTargetPrevention(state, "permanent", "c", 3);
+        advanceToEndStepAndResolve(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "c"
+        )!;
+        expect(getEffectiveToughness(projected, slim)).toBe(5);
     });
 });
