@@ -734,6 +734,15 @@ export const elvishHealer: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
+            // NOT DSL-migratable (ADR 0045, issue #845): the prevention amount
+            // is COLOR-CONDITIONAL on the chosen target (1, or 2 if the target
+            // is a green creature). `preventDamage` "next-n" is now covered, but
+            // the amount is a runtime color read (`ctx.getColors`) with no
+            // JSON-expressible value: the DSL `if` predicate only compares
+            // numeric EffectValues — there is no "target is a green creature"
+            // predicate. The classifier over-counts this site (it ignores the
+            // `getColors` read). Blocked on: a colour/type predicate for the
+            // value grammar.
             resolve: (ctx: SpellContext) => {
                 const t = ctx.targets[0];
                 if (!t) return;
@@ -821,6 +830,13 @@ export const fylgja: CardDefinition = {
                 "Remove a healing counter from this Aura: Prevent the next 1 damage that would be dealt to enchanted creature this turn.",
             cost: { removeCounter: { type: "healing", count: 1 } },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045, issue #845): the shield targets the
+            // Aura's ENCHANTED CREATURE (host), read via `ctx.getAttachedTo`.
+            // `preventDamage` "next-n" is now covered, but there is no DSL
+            // object selector for "the enchanted host" — `to` names an announced
+            // slot, `$source` (the Aura itself, wrong here), or a forEach
+            // `$each`. The classifier over-counts this site (the `getAttachedTo`
+            // read is ignored). Blocked on: an attached-host object selector.
             resolve: (ctx: SpellContext) => {
                 const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
                 if (!hostId) return;
@@ -915,14 +931,28 @@ export const heal: CardDefinition = {
     manaCost: { W: 1 },
     types: ["Instant"],
     targetRequirement: { type: "any", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t) {
-            ctx.preventNextNDamageToTarget(t, 1, { phase: "end-of-turn" });
-        }
-        scheduleNextUpkeepDraw(ctx, heal.id);
-    },
-    delayedTriggers: [nextUpkeepDrawTrigger()],
+    // Migrated resolve()→effects[] (ADR 0045, #845 + #838): a prevent-the-next-1
+    // shield on the announced "any" target (CR 615.1), then the next-upkeep
+    // cantrip as a `delayedTrigger` Op with an inline draw body (CR 603.7d — the
+    // Urza's Bauble shape; fires at the very next upkeep, drawing for the
+    // scheduling controller). Replaces the shared `scheduleNextUpkeepDraw`
+    // helper.
+    effects: [
+        {
+            op: "preventDamage",
+            mode: "next-n",
+            to: { target: 0 },
+            amount: 1,
+            duration: { phase: "end-of-turn" },
+        },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText:
+                "At the beginning of the next turn's upkeep, draw a card.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
 };
 // Hipparion — "This creature can't block creatures with power 3 or greater
 // unless you pay {1}." (CR 509.1b — a pay-to-bypass block restriction.) Modelled

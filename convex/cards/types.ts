@@ -4646,6 +4646,41 @@ export type EffectOp =
           action: "shuffle";
           player: EffectPlayerRef;
       }
+    /** CR 615 (issue #845) — establish a damage-prevention shield. A thin
+     *  declarative skin over three SpellContext prevention primitives, one
+     *  execution path per mode (ADR 0045). `mode` selects the shield shape:
+     *
+     *  - `"next-n"` → `preventNextNDamageToTarget`: a shield on `to` (an
+     *    announced target slot, `$source`, a forEach `$each`, or a relative
+     *    player via `{ player: … }`) that absorbs up to `amount` total damage
+     *    from any source (CR 615.1/615.6) until `duration` expires. Samite
+     *    Healer ("prevent the next 1 damage to any target"), Amulet of Kroog,
+     *    Conservator.
+     *  - `"all-combat"` → `preventAllCombatDamage`: prevents ALL combat damage
+     *    for the remainder of the turn (CR 615, Fog). No target, no duration —
+     *    it is a turn-scoped global effect cleared at CLEANUP; non-combat
+     *    damage is unaffected.
+     *  - `"combat-to-and-by"` → `preventAllCombatDamageToAndBy`: a per-instance
+     *    two-way shield preventing all combat damage dealt TO and BY `target`
+     *    until `duration` expires (CR 615, Maze of Ith / Ebony Horse).
+     *
+     *  Skipped when the referenced permanent/player is gone (CR 608.2b — the
+     *  spell does as much as it can); the `next-n` primitive additionally
+     *  no-ops on a non-positive amount. */
+    | {
+          op: "preventDamage";
+          mode: "next-n";
+          to: EffectObjectSelector | { player: EffectPlayerRef };
+          amount: EffectValue;
+          duration: DurationSpec;
+      }
+    | { op: "preventDamage"; mode: "all-combat" }
+    | {
+          op: "preventDamage";
+          mode: "combat-to-and-by";
+          target: EffectObjectSelector;
+          duration: DurationSpec;
+      }
     /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a
      *  Pending Choice of the given `kind` and SUSPENDS the script (the stack

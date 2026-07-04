@@ -623,31 +623,34 @@ export const glyphOfDestruction: CardDefinition = {
         subtypeFilter: "Wall",
         combatRoleFilter: "blocking",
     },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type !== "permanent") return;
-        ctx.addTemporaryPTBuff(target, 10, 0, { phase: "end-of-combat" });
-        // "Prevent all damage to it this turn" — a shield large enough to
-        // absorb any realistic turn's damage (CR 615, purged at end of turn).
-        ctx.preventNextNDamageToTarget(target, 9999, { phase: "end-of-turn" });
-        // "Destroy it at the beginning of the next end step" (CR 603.7a).
-        ctx.scheduleDelayedTrigger(
-            glyphOfDestruction.id,
-            "glyph-of-destruction-destroy",
-            "next-end-step",
-            { permanentId: target.id }
-        );
-    },
-    delayedTriggers: [
+    // Migrated resolve()→effects[] (ADR 0045, #845 + #840 + #838): +10/+0 until
+    // end of combat (pump, CR 611.1), a prevent-all-damage shield on the target
+    // (preventDamage "next-n" with a very large amount modeling "prevent all
+    // damage to it this turn", CR 615), then the delayed destroy as a
+    // `delayedTrigger` Op capturing the target slot and destroying it at the
+    // next end step (CR 603.7a). Replaces the old `delayedTriggers[]` template.
+    effects: [
         {
-            id: "glyph-of-destruction-destroy",
+            op: "pump",
+            target: { target: 0 },
+            power: 10,
+            toughness: 0,
+            duration: { phase: "end-of-combat" },
+        },
+        {
+            op: "preventDamage",
+            mode: "next-n",
+            to: { target: 0 },
+            amount: 9999,
+            duration: { phase: "end-of-turn" },
+        },
+        {
+            op: "delayedTrigger",
+            timing: "next-end-step",
             oracleText:
                 "At the beginning of the next end step, destroy the enchanted Wall.",
-            timing: "next-end-step",
-            resolve: (ctx, payload) => {
-                if (payload.permanentId)
-                    ctx.destroy({ type: "permanent", id: payload.permanentId });
-            },
+            capture: { $it: { target: 0 } },
+            effects: [{ op: "destroy", target: { ref: "$it" } }],
         },
     ],
 };

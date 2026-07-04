@@ -202,6 +202,16 @@ function isLibraryLookAction(value: unknown): boolean {
     return value === "shuffle";
 }
 
+/** The `mode` discriminator of a `preventDamage` Op (issue #845, CR 615): the
+ *  three prevention-shield shapes folded here. */
+function isPreventDamageMode(value: unknown): boolean {
+    return (
+        value === "next-n" ||
+        value === "all-combat" ||
+        value === "combat-to-and-by"
+    );
+}
+
 /** The destination zones a `moveZone` Op may name (issue #839, EffectMoveZone).
  *  The five zones a one-shot effect addresses (CR 400.7). */
 function isMoveZone(value: unknown): boolean {
@@ -543,6 +553,50 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         required: {
             action: isLibraryLookAction,
             player: isPlayerRef,
+        },
+    },
+    // CR 615 (issue #845) — establish a damage-prevention shield. `mode`
+    // discriminates the three folded prevention primitives, each with its own
+    // required fields (enforced by `check`): `"next-n"` needs `to` (a damage
+    // recipient — permanent/player) + `amount` + `duration`; `"all-combat"` is
+    // field-free (a turn-scoped global Fog); `"combat-to-and-by"` needs
+    // `target` (a permanent) + `duration`. Fields belonging to another mode are
+    // rejected (the grammar is frozen, ADR 0045).
+    preventDamage: {
+        required: { mode: isPreventDamageMode },
+        optional: {
+            to: isDamageRecipient,
+            amount: isEffectValue,
+            target: isObjectSelector,
+            duration: isDurationSpec,
+        },
+        check: (entry) => {
+            const errors: string[] = [];
+            const has = (k: string) => k in entry;
+            const requireFields = (fields: string[]) => {
+                for (const f of fields) {
+                    if (!has(f)) {
+                        errors.push(
+                            `mode "${String(entry.mode)}" requires field "${f}"`
+                        );
+                    }
+                }
+                for (const f of ["to", "amount", "target", "duration"]) {
+                    if (!fields.includes(f) && has(f)) {
+                        errors.push(
+                            `field "${f}" is not valid with mode "${String(entry.mode)}"`
+                        );
+                    }
+                }
+            };
+            if (entry.mode === "next-n") {
+                requireFields(["to", "amount", "duration"]);
+            } else if (entry.mode === "all-combat") {
+                requireFields([]);
+            } else if (entry.mode === "combat-to-and-by") {
+                requireFields(["target", "duration"]);
+            }
+            return errors;
         },
     },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution choice through the

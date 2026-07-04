@@ -232,9 +232,9 @@ export const sporeFlower: CardDefinition = {
                 "Remove three spore counters from this creature: Prevent all combat damage that would be dealt this turn.",
             cost: { removeCounter: { type: "spore", count: 3 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.preventAllCombatDamage();
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): the "all-combat"
+            // mode of preventDamage is a turn-scoped global Fog (CR 615).
+            effects: [{ op: "preventDamage", mode: "all-combat" }],
         },
     ],
 };
@@ -425,15 +425,18 @@ export const elvishScout: CardDefinition = {
                 controller: "you",
                 combatRoleFilter: "attacking",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.untap(target);
-                    ctx.preventAllCombatDamageToAndBy(target, {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): untap the target
+            // (tapUntap) then arm the two-way combat-damage prevention shield
+            // (preventDamage "combat-to-and-by", CR 615). Two Ops, same order.
+            effects: [
+                { op: "tapUntap", action: "untap", target: { target: 0 } },
+                {
+                    op: "preventDamage",
+                    mode: "combat-to-and-by",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

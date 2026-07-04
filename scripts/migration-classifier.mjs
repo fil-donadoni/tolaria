@@ -85,14 +85,10 @@ const OP_SEQUENCE = [
     // (every caller reads a choice result back into reorderLibraryTop or drives
     // a mill loop off the live top id — not a pure declarative skin yet).
     ["scryReorder", ["peekLibraryTop", "reorderLibraryTop"]],
-    [
-        "preventDamage",
-        [
-            "preventNextNDamageToTarget",
-            "preventAllCombatDamage",
-            "preventAllCombatDamageToAndBy",
-        ],
-    ],
+    // preventDamage SHIPPED (issue #845) — preventNextNDamageToTarget /
+    // preventAllCombatDamage / preventAllCombatDamageToAndBy are now COVERED
+    // live via EFFECT_OP_REGISTRY, so this row is dropped from the future-plan
+    // sequence.
     ["regenerate", ["applyRegenerationShield"]],
     ["createToken", ["createToken"]],
     ["gainControl", ["gainControl"]],

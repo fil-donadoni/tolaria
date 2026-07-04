@@ -244,9 +244,9 @@ describe("Effect Script Op census (ADR 0045/0046, PRD #826)", () => {
         // live in EFFECT_OP_REGISTRY, not the backlog. `libraryLook` (issue
         // #844) SHIPPED too, but only its `shuffle` primitive folded; its
         // peek/reorder half is deferred to the new `scryReorder` backlog stub.
+        // `preventDamage` (issue #845) SHIPPED — moved to EFFECT_OP_REGISTRY.
         const named = [
             "scryReorder",
-            "preventDamage",
             "regenerate",
             "createToken",
             "gainControl",

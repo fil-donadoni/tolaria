@@ -737,9 +737,9 @@ export const holyDay: CardDefinition = {
     oracleText: "Prevent all combat damage that would be dealt this turn.",
     manaCost: { W: 1 },
     types: ["Instant"],
-    resolve: (ctx: SpellContext) => {
-        ctx.preventAllCombatDamage();
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #845): the "all-combat" mode of
+    // preventDamage is a turn-scoped global Fog (CR 615).
+    effects: [{ op: "preventDamage", mode: "all-combat" }],
 };
 
 // Indestructible Aura — "Prevent all damage that would be dealt to target
@@ -754,14 +754,18 @@ export const indestructibleAura: CardDefinition = {
     manaCost: { W: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type !== "permanent") return;
-        // No "prevent all damage to target" primitive exists; a shield large
-        // enough to absorb any realistic turn's damage gives the same outcome
-        // (CR 615.1, consumed per damage event, purged at end of turn).
-        ctx.preventNextNDamageToTarget(target, 9999, { phase: "end-of-turn" });
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #845): a per-target prevention
+    // shield (CR 615.1). "All damage" is modeled as a very large prevention
+    // amount consumed across the turn — the exact shape the closure used.
+    effects: [
+        {
+            op: "preventDamage",
+            mode: "next-n",
+            to: { target: 0 },
+            amount: 9999,
+            duration: { phase: "end-of-turn" },
+        },
+    ],
 };
 
 // Alabaster Potion — modal: "Target player gains X life" OR "Prevent the next X

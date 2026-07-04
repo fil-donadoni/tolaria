@@ -252,13 +252,17 @@ export const balduvianHydra: CardDefinition = {
                 "Remove a +1/+0 counter from this creature: Prevent the next 1 damage that would be dealt to it this turn.",
             cost: { removeCounter: { type: "+1/+0", count: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.preventNextNDamageToTarget(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): a prevent-the-next-1
+            // shield on the source itself (`$source`, CR 615.1).
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { ref: "$source" },
+                    amount: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
         {
             id: "balduvian-hydra-grow",
@@ -881,6 +885,13 @@ export const glacialCrevasses: CardDefinition = {
                 },
             },
             useStack: true,
+            // NOT AFK-migratable this wave (ADR 0045, issue #845): the Op is
+            // covered (this is the trivial "all-combat" Fog, identical to Fog /
+            // Darkness / Holy Day migrated in #845), but Glacial Crevasses has
+            // NO pre-existing per-card test — the green-before harness that
+            // proves migration equivalence (playbook Step 1). Left resolve()
+            // until a behavioural test is authored first. Blocked on: missing
+            // per-card test, not the Op vocabulary.
             resolve: (ctx: SpellContext) => {
                 ctx.preventAllCombatDamage();
             },
@@ -1126,12 +1137,17 @@ export const goblinSnowman: CardDefinition = {
             matches: (event, self) =>
                 event.type === "BLOCKERS_CONFIRMED" &&
                 event.blockerId === self.id,
-            resolve: (ctx) => {
-                ctx.preventAllCombatDamageToAndBy(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): the block trigger
+            // arms the two-way combat-damage prevention shield on the source
+            // itself (`$source`, preventDamage "combat-to-and-by", CR 615).
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "combat-to-and-by",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
     activatedAbilities: [
@@ -1142,6 +1158,13 @@ export const goblinSnowman: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
+            // NOT DSL-migratable (ADR 0045, issue #845): the ping deals damage
+            // only if this creature is CURRENTLY BLOCKING the targeted attacker
+            // — a runtime read of the live block graph (`getBlockersByAttacker`)
+            // gating the deal. `dealDamage` is covered, but there is no
+            // "is blocking target" predicate for the DSL `if`. The classifier
+            // over-counts this site (the block-graph read is ignored). Blocked
+            // on: a combat-relationship predicate.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "permanent") return;

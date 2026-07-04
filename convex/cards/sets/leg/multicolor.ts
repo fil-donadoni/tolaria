@@ -544,14 +544,17 @@ export const keiTakahashi: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.preventNextNDamageToTarget(target, 2, {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): a prevent-the-next-2
+            // shield on the announced target creature (CR 615.1).
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { target: 0 },
+                    amount: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1097,15 +1100,18 @@ export const rasputinDreamweaver: CardDefinition = {
             oracleText:
                 "Remove a dream counter from Rasputin Dreamweaver: Prevent the next 1 damage that would be dealt to Rasputin Dreamweaver this turn.",
             useStack: true,
-            resolve: (ctx) => {
-                // CR 615.1 — a one-shot target-keyed prevention shield of 1 on
-                // Rasputin for the rest of the turn.
-                ctx.preventNextNDamageToTarget(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): a one-shot
+            // prevent-the-next-1 shield on the source itself (`$source`,
+            // CR 615.1) for the rest of the turn.
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { ref: "$source" },
+                    amount: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
     triggeredAbilities: [

@@ -1502,6 +1502,203 @@ describe("Effect Script Op: libraryLook (CR 701.20, issue #844)", () => {
     });
 });
 
+describe("Effect Script Op: preventDamage (CR 615, issue #845)", () => {
+    // "next-n" on an announced creature target, exercised end-to-end: the Op
+    // registers a shield of 3, then a same-resolution dealDamage of 5 to the
+    // same creature is absorbed down to 2 marked (CR 615.1, consumed per event).
+    it("next-n: shields the announced creature so incoming damage is absorbed", () => {
+        const id = registerScript("test-op-prevent-creature", [
+            {
+                op: "preventDamage",
+                mode: "next-n",
+                to: { target: 0 },
+                amount: 3,
+                duration: { phase: "end-of-turn" },
+            },
+            { op: "dealDamage", amount: 5, to: { target: 0 } },
+        ]);
+        const bear = makeInstance(BEAR_ID, { controllerId: "p2", id: "pdb1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "pdb1" }]);
+        resolveTopOfStack(state);
+        // 5 damage − 3 prevented = 2 marked (CR 615.1); the shield is spent.
+        expect(state.players[1].battlefield[0].damageMarked).toBe(2);
+        expect(state.targetPreventionShields ?? []).toEqual([]);
+    });
+
+    // "next-n" on a relative player (`{ player: … }`), end-to-end: the shield on
+    // the opponent absorbs 2 of an incoming 3, so they lose only 1 life.
+    it("next-n: shields a relative player so incoming damage is reduced", () => {
+        const id = registerScript("test-op-prevent-player", [
+            {
+                op: "preventDamage",
+                mode: "next-n",
+                to: { player: "opponent" },
+                amount: 2,
+                duration: { phase: "end-of-turn" },
+            },
+            { op: "dealDamage", amount: 3, to: { player: "opponent" } },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // 3 damage − 2 prevented = 1 lost → 20 − 1 = 19.
+        expect(state.players[1].life).toBe(19);
+    });
+
+    // "next-n" via the implicit `$source` binding — a permanent shielding itself
+    // from its activated ability (Rock Hydra / Balduvian Hydra / Rasputin).
+    it("next-n: shields the source permanent via the implicit $source binding", () => {
+        const SHIELDER_ID = "test-op-prevent-source";
+        registerTokenDefinition({
+            id: SHIELDER_ID,
+            name: SHIELDER_ID,
+            rarity: "common",
+            manaCost: { generic: 1 },
+            types: ["Artifact"],
+            activatedAbilities: [
+                {
+                    id: "self-shield",
+                    oracleText: "{1}: Prevent the next 1 damage to this.",
+                    cost: { mana: { generic: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "preventDamage",
+                            mode: "next-n",
+                            to: { ref: "$source" },
+                            amount: 1,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        });
+        const src = makeInstance(SHIELDER_ID, {
+            id: "shielder1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [src] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...state.players[0].battlefield[0],
+            zone: "stack",
+            castById: "p1",
+            abilityId: "self-shield",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        // A one-charge shield on the source is registered (CR 615.1).
+        expect(state.targetPreventionShields).toEqual([
+            {
+                targetType: "permanent",
+                targetId: "shielder1",
+                remaining: 1,
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+    });
+
+    // "all-combat" — the turn-scoped global Fog flag (CR 615, Fog / Darkness /
+    // Holy Day). No target, no duration; cleared at CLEANUP.
+    it("all-combat: sets the turn-scoped combat-damage prevention flag", () => {
+        const id = registerScript("test-op-prevent-allcombat", [
+            { op: "preventDamage", mode: "all-combat" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.preventAllCombatDamageThisTurn).toBe(true);
+    });
+
+    // "combat-to-and-by" — a per-instance two-way combat shield on the announced
+    // target (CR 615, Maze of Ith / Ebony Horse / Elvish Scout / Goblin Snowman).
+    it("combat-to-and-by: registers a two-way combat shield on the target", () => {
+        const id = registerScript("test-op-prevent-toandby", [
+            {
+                op: "preventDamage",
+                mode: "combat-to-and-by",
+                target: { target: 0 },
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, { controllerId: "p2", id: "pdc1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "pdc1" }]);
+        resolveTopOfStack(state);
+        expect(state.combatDamageImmunity).toEqual([
+            { instanceId: "pdc1", duration: { phase: "end-of-turn" } },
+        ]);
+    });
+
+    // CR 608.2b — an announced target that is missing at resolution resolves to
+    // no object, so the Op is skipped without throwing and no shield is armed.
+    it("next-n is skipped when the announced target is missing (CR 608.2b)", () => {
+        const id = registerScript("test-op-prevent-missing", [
+            {
+                op: "preventDamage",
+                mode: "next-n",
+                to: { target: 0 },
+                amount: 1,
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.targetPreventionShields).toBeUndefined();
+    });
+
+    // Wire format (GRE testing convention): the shield's observable outcome —
+    // the reduced damage marked on the creature — must survive the projection to
+    // PublicGameState (the projection strips fat fields; the marked-damage read
+    // must still hold on the slim card the client sees).
+    it("the absorbed damage marked on the creature survives projection (wire format)", () => {
+        const id = registerScript("test-op-prevent-wire", [
+            {
+                op: "preventDamage",
+                mode: "next-n",
+                to: { target: 0 },
+                amount: 3,
+                duration: { phase: "end-of-turn" },
+            },
+            { op: "dealDamage", amount: 5, to: { target: 0 } },
+        ]);
+        const bear = makeInstance(BEAR_ID, { controllerId: "p2", id: "pdw1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "pdw1" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield[0].damageMarked).toBe(2);
+        // Same value on the projected (slim) card the client receives.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "pdw1"
+        )!;
+        expect(slim.damageMarked).toBe(2);
+    });
+});
+
 describe("Effect Script construct: bind + ref (ADR 0045, CR 608.2h)", () => {
     // The Swords to Plowshares shape: bind the exiled creature, then read its
     // snapshotted power/controller after it has changed zone. The snapshot is
