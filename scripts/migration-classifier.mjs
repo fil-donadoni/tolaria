@@ -90,7 +90,12 @@ const OP_SEQUENCE = [
     // live via EFFECT_OP_REGISTRY, so this row is dropped from the future-plan
     // sequence.
     ["regenerate", ["applyRegenerationShield"]],
-    ["createToken", ["createToken"]],
+    // createToken SHIPPED (issue #847) — the plain spec-driven `createToken`
+    // primitive is now COVERED live via EFFECT_OP_REGISTRY. Only that form was
+    // folded; the copy form (`createTokenCopyOf`) is a distinct capability
+    // (reads a runtime source creature + drives the copy machinery), split out
+    // as the `createTokenCopy` backlog Op below.
+    ["createTokenCopy", ["createTokenCopyOf"]],
     ["gainControl", ["gainControl"]],
     ["optionChoice", ["requestOptionChoice"]],
     ["addMana", ["addManaTo"]],

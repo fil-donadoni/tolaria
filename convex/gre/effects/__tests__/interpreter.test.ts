@@ -1840,6 +1840,165 @@ describe("Effect Script Op: regenerate (CR 701.15, issue #846)", () => {
     });
 });
 
+describe("Effect Script Op: createToken (CR 111 / 701.7, issue #847)", () => {
+    const waspSpec = (): EffectOp => ({
+        op: "createToken",
+        token: {
+            name: "Wasp",
+            types: ["Artifact", "Creature"],
+            subtypes: ["Insect"],
+            power: 1,
+            toughness: 1,
+            staticAbilities: ["flying"],
+        },
+        controller: "controller",
+    });
+
+    // The Hive / Master of the Hunt shape: a spec-driven token creation puts a
+    // brand-new permanent on the controller's battlefield (CR 111 / 707.1).
+    it("creates one token on the controller's battlefield (default count 1)", () => {
+        const id = registerScript("test-op-token-one", [waspSpec()]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        const tokens = state.players[0].battlefield.filter((c) => c.isToken);
+        expect(tokens).toHaveLength(1);
+        const wasp = tokens[0];
+        expect(wasp.power).toBe(1);
+        expect(wasp.toughness).toBe(1);
+        expect(wasp.types).toEqual(["Artifact", "Creature"]);
+        expect(wasp.subtypes).toContain("Insect");
+        expect(wasp.staticAbilities).toContain("flying");
+        // CR 111.5 — a freshly created creature token has summoning sickness.
+        expect(wasp.isSummoningSick).toBe(true);
+    });
+
+    // Icatian Town / Goblin Warrens shape: a literal `count` creates that many
+    // identical tokens in one Op (CR 707.1 — "create N tokens").
+    it("creates `count` tokens when a literal count is given", () => {
+        const id = registerScript("test-op-token-count", [
+            {
+                op: "createToken",
+                token: {
+                    name: "Citizen",
+                    types: ["Creature"],
+                    subtypes: ["Citizen"],
+                    power: 1,
+                    toughness: 1,
+                    colors: ["W"],
+                },
+                controller: "controller",
+                count: 4,
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.filter((c) => c.isToken)
+        ).toHaveLength(4);
+    });
+
+    // The `controller` player ref routes the tokens: "opponent" hands them to
+    // the other seat (CR 111.2 — the token's controller is who the effect says).
+    it("routes tokens to a relative player (opponent)", () => {
+        const id = registerScript("test-op-token-opponent", [
+            {
+                op: "createToken",
+                token: {
+                    name: "Goblin",
+                    types: ["Creature"],
+                    subtypes: ["Goblin"],
+                    power: 1,
+                    toughness: 1,
+                    colors: ["R"],
+                },
+                controller: "opponent",
+                count: 2,
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.filter((c) => c.isToken)
+        ).toHaveLength(0);
+        expect(
+            state.players[1].battlefield.filter((c) => c.isToken)
+        ).toHaveLength(2);
+    });
+
+    // Ability site (Boris Devilboon / The Hive): the Op works identically when
+    // driven from an activated ability's `effects[]` — same interpreter path.
+    it("creates a token from an activated ability's effects[]", () => {
+        const MAKER_ID = "test-op-token-maker";
+        registerTokenDefinition({
+            id: MAKER_ID,
+            name: MAKER_ID,
+            rarity: "common",
+            manaCost: { X: 1 },
+            types: ["Artifact"],
+            activatedAbilities: [
+                {
+                    id: "make-wasp",
+                    oracleText: "{T}: Create a Wasp.",
+                    cost: { tap: true },
+                    useStack: true,
+                    effects: [waspSpec()],
+                },
+            ],
+        });
+        const src = makeInstance(MAKER_ID, {
+            id: "maker1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [src] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...state.players[0].battlefield[0],
+            zone: "stack",
+            castById: "p1",
+            abilityId: "make-wasp",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.filter((c) => c.isToken)
+        ).toHaveLength(1);
+    });
+
+    // Wire format (GRE testing convention): the created token — its identity is
+    // a synthesized definition, its characteristics live on the instance — must
+    // survive projection to PublicGameState so the client renders it (the
+    // projection strips card.card to { id } but keeps instance P/T, types and
+    // keyword abilities).
+    it("the created token projects correctly to the client view (wire format)", () => {
+        const id = registerScript("test-op-token-wire", [waspSpec()]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        resolveTopOfStack(state);
+        const token = state.players[0].battlefield.find((c) => c.isToken)!;
+        expect(token).toBeDefined();
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === token.id
+        )!;
+        expect(slim).toBeDefined();
+        expect(slim.isToken).toBe(true);
+        expect(slim.power).toBe(1);
+        expect(slim.toughness).toBe(1);
+        expect(slim.types).toEqual(["Artifact", "Creature"]);
+        expect(slim.staticAbilities).toContain("flying");
+    });
+});
+
 describe("Effect Script construct: bind + ref (ADR 0045, CR 608.2h)", () => {
     // The Swords to Plowshares shape: bind the exiled creature, then read its
     // snapshotted power/controller after it has changed zone. The snapshot is

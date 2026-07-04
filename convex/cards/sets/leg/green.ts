@@ -697,9 +697,14 @@ export const masterOfTheHunt: CardDefinition = {
                 '{2}{G}{G}: Create a 1/1 green Wolf creature token named Wolves of the Hunt. It has "bands with other creatures named Wolves of the Hunt."',
             cost: { mana: { X: 2, G: 2 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.createToken(
-                    {
+            // Migrated resolve()→effects[] (ADR 0045, #847): create one 1/1
+            // green Wolf token named Wolves of the Hunt with "bands with other
+            // creatures named Wolves of the Hunt" on the controller's
+            // battlefield (CR 111 / 707.1).
+            effects: [
+                {
+                    op: "createToken",
+                    token: {
                         name: "Wolves of the Hunt",
                         types: ["Creature"],
                         subtypes: ["Wolf"],
@@ -710,9 +715,9 @@ export const masterOfTheHunt: CardDefinition = {
                             "bands with other:name=Wolves of the Hunt",
                         ],
                     },
-                    ctx.controller
-                );
-            },
+                    controller: "controller",
+                },
+            ],
         },
     ],
 };

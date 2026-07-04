@@ -606,6 +606,23 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.applyRegenerationShield(target);
     },
+    // CR 111 / 701.7 (issue #847) — create token permanents. A thin declarative
+    // skin over the single SpellContext primitive `createToken`, ONE execution
+    // path (ADR 0045): the JSON-pure `token` spec is passed verbatim, the tokens
+    // enter under the resolved `controller`. Skipped when the controller cannot
+    // be resolved (CR 608.2b — `resolvePlayerRef` returns undefined) or the
+    // count is a `ref`/`count` whose binding was never captured; a non-positive
+    // count creates nothing (CR 707.1 — "create N tokens" with N ≤ 0 is a
+    // no-op). No `createdBy` provenance is stamped — provenance links
+    // (Tetravus / Tawnos's Wand) are multi-Op choice-scoped cards that stay
+    // resolve() this wave.
+    createToken(ctx, op) {
+        const controllerId = resolvePlayerRef(ctx, op.controller);
+        if (controllerId === undefined) return;
+        const count = op.count === undefined ? 1 : resolveValue(ctx, op.count);
+        if (count === undefined || count <= 0) return;
+        ctx.createToken(op.token, controllerId, count);
+    },
     tapUntap(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;

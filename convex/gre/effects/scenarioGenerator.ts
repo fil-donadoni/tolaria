@@ -441,6 +441,25 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // regime).
             req.skip ??= `Op "regenerate" registers a dormant regeneration shield (no same-resolution destroy event) — covered by the Op's interpreter tests`;
             return;
+        case "createToken":
+            // createToken (issue #847) creates token permanents on the
+            // controller's battlefield — a deterministic same-resolution
+            // outcome the generator asserts directly (it seeds no tokens, so
+            // the post-run token count IS the created count). A ref/count
+            // `count` (runtime value) or a targeted / ref controller is not
+            // modelled — skip and let the card's own per-card test cover it.
+            if (op.count !== undefined && typeof op.count !== "number") {
+                req.skip ??= `Op "createToken" uses a ref/count token count the canned generator does not model — covered by the card's own per-card test`;
+                return;
+            }
+            if (
+                op.controller !== "controller" &&
+                op.controller !== "opponent"
+            ) {
+                req.skip ??= `Op "createToken" controller is a targeted/ref player the canned generator does not model — covered by the card's own per-card test`;
+                return;
+            }
+            return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.
@@ -915,6 +934,36 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // consumption are covered by the Op's own interpreter tests.
     regenerate() {
         return null;
+    },
+    // `createToken` (CR 111 / 701.7, issue #847) — a deterministic
+    // same-resolution outcome: `count` token permanents matching the spec's
+    // types + P/T appear on the controller's battlefield (the canned scenario
+    // seeds no tokens). Asserted directly rather than skipped.
+    createToken(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "createToken" }>;
+        if (op.count !== undefined && typeof op.count !== "number") return null;
+        const count = op.count ?? 1;
+        const pid = assertionPlayerId(op.controller);
+        const matches = (c: CardInstanceState) =>
+            c.isToken === true &&
+            c.power === op.token.power &&
+            c.toughness === op.token.toughness &&
+            c.types.length === op.token.types.length &&
+            c.types.every((t) => op.token.types.includes(t));
+        const before = findPlayer(pre, pid).battlefield.filter(matches).length;
+        const expected = before + count;
+        return {
+            label: `createToken ${count}× ${op.token.types.join("/")} ${op.token.power ?? "-"}/${op.token.toughness ?? "-"} for player ${pid} (${before}→${expected})`,
+            check: (post) => {
+                const now = findPlayer(post, pid).battlefield.filter(
+                    matches
+                ).length;
+                return {
+                    ok: now === expected,
+                    detail: `matching tokens ${now}, expected ${expected}`,
+                };
+            },
+        };
     },
     // Zone change: exile moves the target to its owner's exile zone (CR 701.13).
     exile(rawOp, scenario) {

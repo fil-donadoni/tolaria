@@ -300,6 +300,14 @@ export const homaridSpawningBed: CardDefinition = {
                 sacrificeFilter: { types: "Creature", colors: ["U"] },
             },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045): the token COUNT is X = the
+            // sacrificed creature's mana value, read at resolve time via
+            // `getAdditionalSacrificeMv()`. The `createToken` Op (#847) covers
+            // the token creation, but the `EffectValue` grammar
+            // (literal | ref | count) has no chosen-cost / paid-cost value
+            // member, so "create X tokens where X is the sacrifice's mana value"
+            // is not expressible. Planned-migratable once an X value construct
+            // exists (PRD #826 Xvalue). Stays resolve().
             resolve: (ctx: SpellContext) => {
                 // CR 202.3 — the sacrificed creature's pre-sacrifice mana value
                 // was snapshotted onto the stack item when the sacrifice cost

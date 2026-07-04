@@ -68,9 +68,17 @@ export const thallid: CardDefinition = {
                 "Remove three spore counters from this creature: Create a 1/1 green Saproling creature token.",
             cost: { removeCounter: { type: "spore", count: 3 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.createToken(SAPROLING_TOKEN, ctx.controller, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #847): create one 1/1
+            // green Saproling token on the controller's battlefield (CR 111 /
+            // 707.1).
+            effects: [
+                {
+                    op: "createToken",
+                    token: SAPROLING_TOKEN,
+                    controller: "controller",
+                    count: 1,
+                },
+            ],
         },
     ],
 };
@@ -115,9 +123,17 @@ export const thallidDevourer: CardDefinition = {
                 "Remove three spore counters from this creature: Create a 1/1 green Saproling creature token.",
             cost: { removeCounter: { type: "spore", count: 3 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.createToken(SAPROLING_TOKEN, ctx.controller, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #847): create one 1/1
+            // green Saproling token on the controller's battlefield (CR 111 /
+            // 707.1).
+            effects: [
+                {
+                    op: "createToken",
+                    token: SAPROLING_TOKEN,
+                    controller: "controller",
+                    count: 1,
+                },
+            ],
         },
         {
             id: "thallid-devourer-devour",
@@ -287,9 +303,17 @@ export const elvishFarmer: CardDefinition = {
                 "Remove three spore counters from this creature: Create a 1/1 green Saproling creature token.",
             cost: { removeCounter: { type: "spore", count: 3 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.createToken(SAPROLING_TOKEN, ctx.controller, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #847): create one 1/1
+            // green Saproling token on the controller's battlefield (CR 111 /
+            // 707.1).
+            effects: [
+                {
+                    op: "createToken",
+                    token: SAPROLING_TOKEN,
+                    controller: "controller",
+                    count: 1,
+                },
+            ],
         },
         {
             id: "elvish-farmer-gain-life",
@@ -734,9 +758,17 @@ export const nightSoil: CardDefinition = {
                 exileFromGraveyard: { count: 2, cardType: "Creature" },
             },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.createToken(SAPROLING_TOKEN, ctx.controller, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #847): create one 1/1
+            // green Saproling token on the controller's battlefield (CR 111 /
+            // 707.1).
+            effects: [
+                {
+                    op: "createToken",
+                    token: SAPROLING_TOKEN,
+                    controller: "controller",
+                    count: 1,
+                },
+            ],
         },
     ],
 };

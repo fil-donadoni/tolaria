@@ -568,9 +568,13 @@ export const caribouRange: CardDefinition = {
                 "{W}{W}, {T}: Create a 0/1 white Caribou creature token.",
             cost: { mana: { W: 2 }, tap: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.createToken(
-                    {
+            // Migrated resolve()→effects[] (ADR 0045, #847): create one 0/1
+            // white Caribou token on the controller's battlefield (CR 111 /
+            // 707.1).
+            effects: [
+                {
+                    op: "createToken",
+                    token: {
                         name: "Caribou",
                         types: ["Creature"],
                         subtypes: ["Caribou"],
@@ -578,9 +582,9 @@ export const caribouRange: CardDefinition = {
                         toughness: 1,
                         colors: ["W"],
                     },
-                    ctx.controller
-                );
-            },
+                    controller: "controller",
+                },
+            ],
         },
     ],
     activatedAbilities: [

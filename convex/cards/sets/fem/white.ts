@@ -676,9 +676,12 @@ export const icatianTown: CardDefinition = {
     oracleText: "Create four 1/1 white Citizen creature tokens.",
     manaCost: { X: 5, W: 1 },
     types: ["Sorcery"],
-    resolve: (ctx: SpellContext) => {
-        ctx.createToken(
-            {
+    // Migrated resolve()→effects[] (ADR 0045, #847): create four 1/1 white
+    // Citizen tokens on the controller's battlefield (CR 111 / 707.1).
+    effects: [
+        {
+            op: "createToken",
+            token: {
                 name: "Citizen",
                 types: ["Creature"],
                 subtypes: ["Citizen"],
@@ -686,10 +689,10 @@ export const icatianTown: CardDefinition = {
                 toughness: 1,
                 colors: ["W"],
             },
-            ctx.controller,
-            4
-        );
-    },
+            controller: "controller",
+            count: 4,
+        },
+    ],
 };
 
 export const orderOfLeitbur: CardDefinition = {

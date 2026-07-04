@@ -67,6 +67,13 @@ export const rukhEgg: CardDefinition = {
     subtypes: ["Bird", "Egg"],
     power: 0,
     toughness: 3,
+    // NOT DSL-migratable (ADR 0045): the createToken Op (#847) covers the Bird
+    // token, and the delayedTrigger Op (#838) covers the scheduling — but the
+    // scheduling lives inside a `diedTrigger` FACTORY, which owns its `resolve`
+    // closure and exposes no `effects[]` site (same block as the enteredTrigger
+    // factory, #843). Converting to an inline `delayedTrigger` Op would require
+    // a hand-rolled death-trigger (bypassing the factory). Stays resolve() until
+    // the trigger factories accept an `effects[]` body.
     triggeredAbilities: [
         diedTrigger({
             id: "rukh-egg-death",
