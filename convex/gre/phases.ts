@@ -1896,11 +1896,16 @@ function tickAllDurations(state: GameState): void {
         state.targetPreventionShields = kept.length > 0 ? kept : undefined;
     }
 
-    // Prevention readback tallies (Sacred Boon). The card's next-end-step
-    // delayed trigger reads and clears its tally before CLEANUP; anything left
-    // (no follow-up ever fired) is discarded here so it can't leak into a
-    // later turn (CR 514.2).
-    if (state.preventionTallies) state.preventionTallies = undefined;
+    // Prevention readback tallies (Sacred Boon). The tally accumulates through
+    // the combat-damage step and is read + cleared by the card's next-end-step
+    // delayed trigger at END_STEP. It must therefore SURVIVE every earlier
+    // phase boundary this function also runs at (END_OF_COMBAT via
+    // `endCombatStep`, UNTAP, UPKEEP) — purging it there would wipe the tally
+    // before END_STEP ever reads it. Only discard at CLEANUP (CR 514.2), so any
+    // leftover (no follow-up ever fired) can't leak into a later turn.
+    if (view.phase === "CLEANUP" && state.preventionTallies) {
+        state.preventionTallies = undefined;
+    }
 
     // Per-player source-matched prevention shields (Dark Sphere, Scarecrow).
     // Unconsumed remainder wears off at the same boundary (CR 514.2).

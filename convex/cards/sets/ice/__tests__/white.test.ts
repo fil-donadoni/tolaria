@@ -75,6 +75,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
+import { advancePhase } from "../../../../gre/phases";
 import {
     validateBlockerEligibility,
     collectBlockBypassCharges,
@@ -89,6 +90,7 @@ import {
 import type { CardInstanceState } from "../../../../gre/state";
 import type { StackItem } from "../../../../gre/state";
 import type { CardType } from "../../../types";
+import type { Phase } from "../../../../gre/types";
 import {
     resolveActivated,
     resolveTrigger,
@@ -1571,19 +1573,27 @@ describe("Prismatic Ward (colour-filtered damage prevention, CR 615)", () => {
 // Sacred Boon (#734) — prevent-next-3 shield whose prevented total drives a
 // next-end-step +0/+1 counter grant (CR 615.1 readback seam).
 describe("Sacred Boon (prevented-amount readback → counters, CR 615.1)", () => {
-    function fireDelayed(state: GameState) {
-        const inst = state.delayedTriggers![0];
-        state.stack.push({
-            ...makeInstance(sacredBoon.id, {
-                id: "sb-dt",
-                controllerId: "p1",
-                ownerId: "p1",
-                zone: "stack",
-            }),
-            castById: "p1",
-            delayedTriggerId: inst.triggerId,
-            delayedPayload: inst.payload,
-        } as unknown as StackItem);
+    /** Drive the REAL phase machinery from the combat-damage step through
+     *  END_OF_COMBAT into the end step, then resolve whatever the end step put
+     *  on the stack. This is the whole point of the test: `tickAllDurations`
+     *  runs as END_OF_COMBAT ends (CR 511.3, via `endCombatStep`), and the
+     *  prevention tally MUST survive that boundary so the next-end-step delayed
+     *  trigger can still read it. The former test hand-pushed the delayed
+     *  trigger and resolved it in place — it never crossed END_OF_COMBAT, so it
+     *  masked the unconditional-purge bug (issue #734). */
+    function advanceToEndStepAndResolve(state: GameState) {
+        // Enter the regular combat-damage step (where a shield would absorb
+        // combat damage) before advancing out through END_OF_COMBAT.
+        state.phase = "COMBAT_DAMAGE" as Phase;
+        state.activePlayerId = "p1";
+        let guard = 0;
+        while (state.phase !== "END_STEP" && guard++ < 20) {
+            advancePhase(state);
+        }
+        expect(state.phase).toBe("END_STEP");
+        // The end step's `fireDelayedTriggers("next-end-step")` put Sacred
+        // Boon's follow-up on the stack via the real path — resolve it.
+        expect(state.stack).toHaveLength(1);
         resolveTopOfStack(state);
     }
 
@@ -1615,13 +1625,18 @@ describe("Sacred Boon (prevented-amount readback → counters, CR 615.1)", () =>
         expect(dt?.payload.creatureId).toBe("c");
     });
 
-    it("puts a +0/+1 counter per 1 damage ACTUALLY prevented this way", () => {
+    it("counts combat damage prevented in the combat-damage step and grants counters at the real end step (crosses END_OF_COMBAT)", () => {
         const { state } = setup();
-        // A 2-damage event is absorbed by the shield (2 of 3 prevented).
+        // In the combat-damage step the shield absorbs a 2-point combat hit
+        // (2 of 3 prevented); the tally records exactly 2.
+        state.phase = "COMBAT_DAMAGE";
         expect(applyTargetPrevention(state, "permanent", "c", 2)).toBe(0);
-        // Shield keeps its last point; the tally records exactly 2 prevented.
         expect(state.targetPreventionShields?.[0]?.remaining).toBe(1);
-        fireDelayed(state);
+        expect(Object.values(state.preventionTallies ?? {})).toEqual([2]);
+        // Advance END_OF_COMBAT → END_STEP through the real phase-advance path.
+        // Against the unconditional purge the tally was wiped at END_OF_COMBAT,
+        // yielding 0 counters here; scoping the purge to CLEANUP keeps it alive.
+        advanceToEndStepAndResolve(state);
         const live = state.players[0].battlefield.find((c) => c.id === "c")!;
         expect(live.counters?.["+0/+1"]).toBe(2);
         // The +0/+1 counters raise toughness by 2 (layer 7d, CR 613.4d).
@@ -1631,17 +1646,35 @@ describe("Sacred Boon (prevented-amount readback → counters, CR 615.1)", () =>
         expect(state.preventionTallies).toBeUndefined();
     });
 
+    it("the unconsumed end-of-turn shield still expires at CLEANUP (fix keeps duration semantics)", () => {
+        const { state } = setup();
+        state.phase = "COMBAT_DAMAGE" as Phase;
+        applyTargetPrevention(state, "permanent", "c", 2);
+        // Shield keeps its last point after absorbing 2.
+        expect(state.targetPreventionShields?.[0]?.remaining).toBe(1);
+        advanceToEndStepAndResolve(state);
+        // Advance out of the end step through CLEANUP (auto-phase → next turn's
+        // UNTAP). The {phase:"end-of-turn"} shield's remainder wears off at
+        // CLEANUP (CR 514.2) via `tickDuration`.
+        let guard = 0;
+        while (state.phase !== "UNTAP" && guard++ < 20) {
+            advancePhase(state);
+        }
+        expect(state.targetPreventionShields).toBeUndefined();
+    });
+
     it("grants no counters when no damage was prevented", () => {
         const { state } = setup();
-        fireDelayed(state);
+        advanceToEndStepAndResolve(state);
         const live = state.players[0].battlefield.find((c) => c.id === "c")!;
         expect(live.counters?.["+0/+1"]).toBeUndefined();
     });
 
     it("wire format: the +0/+1 counters survive projectPublicState", () => {
         const { state } = setup();
+        state.phase = "COMBAT_DAMAGE";
         applyTargetPrevention(state, "permanent", "c", 3);
-        fireDelayed(state);
+        advanceToEndStepAndResolve(state);
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(
             (c) => c.id === "c"
