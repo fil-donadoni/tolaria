@@ -456,6 +456,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Baleful Strix",
+        "scryfallId": "62090c97-7e3e-4854-bc44-c4a900133ec5",
+        "oracleId": "37688720-03de-4eca-a82d-a0afe8d58adc",
+        "firstSet": "pc2"
+    },
+    {
         "name": "Ball Lightning",
         "scryfallId": "c1ba83ab-83f5-421d-bba1-0f925870b5c8",
         "oracleId": "7485cf25-eb41-4397-be13-7f0b8c10c70a",
@@ -849,6 +855,12 @@
         "name": "Brushland",
         "scryfallId": "170e5ccd-54bf-4c6d-86b4-0359ca8f36e8",
         "oracleId": "5eb8b497-ec9a-4a89-ad29-1ec3ca82da7c",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Burnt Offering",
+        "scryfallId": "1dae52a2-3af7-4b97-9d2e-2448b7c413fb",
+        "oracleId": "86eb30a0-0beb-42db-9ddf-cf8be6c99dd3",
         "firstSet": "ice"
     },
     {
@@ -1812,6 +1824,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Elkin Bottle",
+        "scryfallId": "49301c19-55a0-4146-9474-0b86cd320e31",
+        "oracleId": "1e381361-7404-4654-bfb4-5ea65f6e4dce",
+        "firstSet": "ice"
+    },
+    {
         "name": "Elven Fortress",
         "scryfallId": "9387105d-46d0-4db0-8980-dd0fded15eef",
         "oracleId": "29f34e18-2102-4ded-912f-4ac3e9e6744c",
@@ -1888,6 +1906,12 @@
         "scryfallId": "bd1f624b-e8f2-462f-838a-7cb9e8fda988",
         "oracleId": "7a756cd1-29a8-4edf-bb74-fbb5b4020022",
         "firstSet": "atq"
+    },
+    {
+        "name": "Energy Storm",
+        "scryfallId": "3955e358-4285-44e2-9e24-9804346a6e58",
+        "oracleId": "567d3de7-8d56-4b6d-a59a-f8674172f595",
+        "firstSet": "ice"
     },
     {
         "name": "Energy Tap",
@@ -2484,6 +2508,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Glacial Chasm",
+        "scryfallId": "3d23f800-7a6f-40e3-b242-9f5955e47a75",
+        "oracleId": "73e7a2ad-d11c-4867-b97d-f971809da778",
+        "firstSet": "ice"
+    },
+    {
         "name": "Glacial Crevasses",
         "scryfallId": "2726b192-f239-470b-8ad6-69887405e7f9",
         "oracleId": "88e0551a-ada0-41d9-b5c3-39257ce56c3e",
@@ -2748,6 +2778,12 @@
         "firstSet": "ulg"
     },
     {
+        "name": "Griselbrand",
+        "scryfallId": "b51666ae-2aef-4cb1-9cd4-44aec81530f8",
+        "oracleId": "f759d112-76db-4091-a22b-b9f19ab6fa5f",
+        "firstSet": "avr"
+    },
+    {
         "name": "Grizzled Wolverine",
         "scryfallId": "95bb17b9-55c4-4cc1-83f6-75490b9a97d0",
         "oracleId": "da4ed552-a85a-47e1-ab67-5c93a9a20048",
@@ -2787,6 +2823,12 @@
         "name": "Hallowed Ground",
         "scryfallId": "4b35c0f4-5633-4ea9-9bda-daaf787aebdd",
         "oracleId": "ee8fd844-4551-4e44-9740-00d2e76eb337",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Halls of Mist",
+        "scryfallId": "b926a189-90b6-47bb-b5d6-b033e57007b4",
+        "oracleId": "57d7deaf-ee08-49ab-b239-1c77a1f65225",
         "firstSet": "ice"
     },
     {
@@ -3984,12 +4026,6 @@
         "firstSet": "jou"
     },
     {
-        "name": "Mana Crypt",
-        "scryfallId": "0cb33b46-4d1b-4f97-bfdc-d815aee111da",
-        "oracleId": "2c63e4e1-89d2-4bc6-a232-94e75c4b1c8a",
-        "firstSet": "ema"
-    },
-    {
         "name": "Mana Drain",
         "scryfallId": "e691adef-3027-4e6a-889f-9f4e2df36a7c",
         "oracleId": "74d3277a-38e5-4732-afed-084a56148f20",
@@ -4974,6 +5010,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Prismatic Ward",
+        "scryfallId": "6f8b50fd-3d1d-4ea8-a3c7-98ca7a8a455e",
+        "oracleId": "ad5e2cb0-00d7-4dad-b20e-23bd41ada398",
+        "firstSet": "ice"
+    },
+    {
         "name": "Prodigal Pyromancer",
         "scryfallId": "081dba98-2092-4225-8e9e-214fb9263b1c",
         "oracleId": "29b3cb3e-aeb1-43eb-8095-9f7881aa34bd",
@@ -5370,6 +5412,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Sacred Boon",
+        "scryfallId": "d721569d-9cf2-4c3c-b11c-4c46c258a0d2",
+        "oracleId": "32a8d49b-cdfb-4944-bfb5-afd704cc3658",
+        "firstSet": "ice"
+    },
+    {
         "name": "Sacrifice",
         "scryfallId": "12164aee-6a27-4246-8d15-2d6dd20d92e9",
         "oracleId": "068b3692-411b-44d4-a7e9-005262760cfc",
@@ -5614,6 +5662,12 @@
         "scryfallId": "fddcc557-871d-425b-b4ee-bc0c9bc717aa",
         "oracleId": "507ce455-bd02-49f9-bf64-4b2d21ffe0ea",
         "firstSet": "leg"
+    },
+    {
+        "name": "Sheoldred, the Apocalypse",
+        "scryfallId": "d67be074-cdd4-41d9-ac89-0a0456c4e4b2",
+        "oracleId": "34f34409-326d-4994-a0ea-1a69aa278f03",
+        "firstSet": "dmu"
     },
     {
         "name": "Shield Bearer",
