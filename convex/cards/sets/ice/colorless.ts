@@ -824,6 +824,15 @@ export const jestersCap: CardDefinition = {
             cost: { mana: { X: 2 }, tap: true, sacrifice: true },
             useStack: true,
             targetRequirement: { type: "player", count: 1 },
+            // NOT DSL-migratable (ADR 0045): the "then that player shuffles"
+            // tail is now a libraryLook Op (issue #844), but the search half
+            // moves CHOICE-PICKED LIBRARY cards to exile — the `moveZone` Op
+            // only sources the battlefield / graveyard, and no selector
+            // references a library card a `choice` bound. The classifier
+            // over-counts this FREE because `moveCardById` reads as a covered
+            // `moveZone` primitive; it is not covered for a library source.
+            // Blocked on: a library-sourced move of a choice-picked card
+            // (planned — a `moveZone` extension for library sources).
             resolve: (ctx: SpellContext) => {
                 const t = ctx.targets[0];
                 if (t?.type !== "player") return;

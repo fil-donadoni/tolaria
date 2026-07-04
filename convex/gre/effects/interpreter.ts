@@ -545,6 +545,18 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.grantStaticAbility(target, op.ability, op.duration);
     },
+    // CR 701.20 (issue #844) — shuffle a player's library. A thin declarative
+    // skin over `shuffleLibrary`, ONE execution path (ADR 0045): the seeded
+    // PRNG reorder that also clears persistent knowledge (ADR 0026). Skipped
+    // when the referenced player is gone (CR 608.2b — `resolvePlayerRef`
+    // returns undefined).
+    libraryLook(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        // `action` is "shuffle" — the only folded library primitive (issue
+        // #844; peek/reorder deferred to the `scryReorder` backlog Op).
+        ctx.shuffleLibrary(playerId);
+    },
     tapUntap(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;

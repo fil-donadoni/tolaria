@@ -413,6 +413,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // interpreter tests (per-Op regime, issue #838).
             req.skip ??= `Op "delayedTrigger" fires at a future phase boundary — covered by the Op's interpreter tests`;
             return;
+        case "libraryLook":
+            // CR 701.20 (issue #844) — a shuffle is a seeded-PRNG
+            // RANDOMIZATION with no deterministic same-resolution outcome the
+            // canned generator can assert (the multiset is preserved but the
+            // order is unwitnessed, and knowledge-clearing is not projected).
+            // Explicit skip — the shuffle primitive is covered by the Op's own
+            // interpreter tests (per-Op regime).
+            req.skip ??= `Op "libraryLook" shuffles a library (seeded-PRNG randomization) — covered by the Op's interpreter tests`;
+            return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.
@@ -862,6 +871,14 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // 1:1 coverage guard; scheduling + fire-time coverage is the Op's own
     // interpreter tests (issue #838).
     delayedTrigger() {
+        return null;
+    },
+    // `libraryLook` (CR 701.20, issue #844) — never reached: `analyseOp` skips
+    // every script with a libraryLook Op (a shuffle is a seeded-PRNG
+    // randomization with no deterministic same-resolution outcome the canned
+    // scenario can assert). Kept for the 1:1 coverage guard; the shuffle
+    // primitive is covered by the Op's own interpreter tests.
+    libraryLook() {
         return null;
     },
     // Zone change: exile moves the target to its owner's exile zone (CR 701.13).

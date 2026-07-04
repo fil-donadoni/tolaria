@@ -1353,6 +1353,155 @@ describe("Effect Script Op: grantAbility (CR 611.1b / 613.1f, layer 6, issue #84
     });
 });
 
+describe("Effect Script Op: libraryLook (CR 701.20, issue #844)", () => {
+    // A library of N distinct-id cards, each carrying persistent knowledge so a
+    // shuffle's knowledge-clearing (ADR 0026) is observable — that clearing is
+    // the deterministic proof the shuffle primitive ran (a no-op would leave it).
+    const withKnownLibrary = (owner: "p1" | "p2", n: number) =>
+        Array.from({ length: n }, (_, i) =>
+            makeInstance(BEAR_ID, {
+                id: `lib-${owner}-${i}`,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+                knownTo: [owner],
+            })
+        );
+
+    // The controller's library is shuffled: the multiset of cards is preserved
+    // (CR 701.20 randomizes order, never adds/removes), the order is permuted
+    // (rngSeed is fixed at 0, so the permutation is deterministic), and every
+    // card's persistent knowledge is cleared (ADR 0026 — an unwitnessed reorder).
+    it("shuffles the controller's library — multiset preserved, order permuted, knowledge cleared", () => {
+        const id = registerScript("test-op-librarylook-controller", [
+            { op: "libraryLook", action: "shuffle", player: "controller" },
+        ]);
+        const lib = withKnownLibrary("p1", 8);
+        const before = lib.map((c) => c.id);
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const after = state.players[0].library.map((c) => c.id);
+        // Same cards (multiset), none lost or gained.
+        expect([...after].sort()).toEqual([...before].sort());
+        // Reordered (deterministic under the fixed rngSeed).
+        expect(after).not.toEqual(before);
+        // Knowledge cleared — the proof the shuffle actually ran (CR 701.20 /
+        // ADR 0026).
+        for (const c of state.players[0].library) {
+            expect(c.knownTo ?? []).toEqual([]);
+        }
+    });
+
+    // The player is an announced target slot ("target player shuffles their
+    // library"): the referenced player's library is the one randomized.
+    it("shuffles an announced target player's library", () => {
+        const id = registerScript(
+            "test-op-librarylook-target",
+            [{ op: "libraryLook", action: "shuffle", player: { target: 0 } }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const lib = withKnownLibrary("p2", 8);
+        const before = lib.map((c) => c.id);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2", { library: lib })],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const after = state.players[1].library.map((c) => c.id);
+        expect([...after].sort()).toEqual([...before].sort());
+        expect(after).not.toEqual(before);
+    });
+
+    // forEach over players → per-player shuffle (`{ ref: "$each" }` player ref):
+    // BOTH libraries are randomized in one script (Timetwister's "each player
+    // shuffles their library" shape).
+    it("shuffles every player's library via a forEach $each player ref", () => {
+        const id = registerScript("test-op-librarylook-foreach", [
+            {
+                op: "forEach",
+                select: { set: "players" },
+                effects: [
+                    {
+                        op: "libraryLook",
+                        action: "shuffle",
+                        player: { ref: "$each" },
+                    },
+                ],
+            },
+        ]);
+        const lib1 = withKnownLibrary("p1", 8);
+        const lib2 = withKnownLibrary("p2", 8);
+        const before1 = lib1.map((c) => c.id);
+        const before2 = lib2.map((c) => c.id);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: lib1 }),
+                makePlayer("p2", { library: lib2 }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const after1 = state.players[0].library.map((c) => c.id);
+        const after2 = state.players[1].library.map((c) => c.id);
+        expect([...after1].sort()).toEqual([...before1].sort());
+        expect([...after2].sort()).toEqual([...before2].sort());
+        expect(after1).not.toEqual(before1);
+        expect(after2).not.toEqual(before2);
+    });
+
+    // CR 608.2b — a non-player announced target (a permanent) resolves to no
+    // player, so the Op is skipped without throwing and no library changes.
+    it("is skipped when the announced target is not a player (CR 608.2b)", () => {
+        const id = registerScript("test-op-librarylook-nonplayer", [
+            { op: "libraryLook", action: "shuffle", player: { target: 0 } },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearLL",
+        });
+        const lib = withKnownLibrary("p1", 4);
+        const before = lib.map((c) => c.id);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: lib }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearLL" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        // Nothing shuffled — order and knowledge untouched.
+        expect(state.players[0].library.map((c) => c.id)).toEqual(before);
+    });
+
+    // Wire format (GRE testing convention): the library is projected to the
+    // controller as a full ordered list and to the opponent as `{ count }`
+    // (hidden). A shuffle preserves the count on both sides — it never leaks the
+    // opponent's order and never changes the card total.
+    it("the shuffled library survives projection with its count intact (wire format)", () => {
+        const id = registerScript("test-op-librarylook-wire", [
+            { op: "libraryLook", action: "shuffle", player: "controller" },
+        ]);
+        const lib = withKnownLibrary("p1", 8);
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // Owner's view: full library, count preserved.
+        const own = projectPublicState(state, 1, "p1");
+        const ownLib = own.players[0].library as unknown as { count: number };
+        expect(ownLib.count).toBe(8);
+        // Opponent's view: the same library is a hidden `{ count }`, still 8.
+        const opp = projectPublicState(state, 1, "p2");
+        const oppLib = opp.players[0].library as unknown as { count: number };
+        expect(oppLib.count).toBe(8);
+    });
+});
+
 describe("Effect Script construct: bind + ref (ADR 0045, CR 608.2h)", () => {
     // The Swords to Plowshares shape: bind the exiled creature, then read its
     // snapshotted power/controller after it has changed zone. The snapshot is
