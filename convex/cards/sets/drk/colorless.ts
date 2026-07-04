@@ -619,12 +619,18 @@ export const mazeOfIth: CardDefinition = {
                 count: 1,
                 combatRoleFilter: "attacking",
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type !== "permanent") return;
-                ctx.untap(t);
-                ctx.preventAllCombatDamageToAndBy(t, { phase: "end-of-turn" });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): untap the target
+            // (tapUntap) then arm the two-way combat-damage prevention shield
+            // (preventDamage "combat-to-and-by", CR 615). Two Ops, same order.
+            effects: [
+                { op: "tapUntap", action: "untap", target: { target: 0 } },
+                {
+                    op: "preventDamage",
+                    mode: "combat-to-and-by",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

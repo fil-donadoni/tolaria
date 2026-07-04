@@ -77,14 +77,17 @@ export const argivianBlacksmith: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.preventNextNDamageToTarget(target, 2, {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): a prevent-the-next-2
+            // shield on the announced target creature (CR 615.1).
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { target: 0 },
+                    amount: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

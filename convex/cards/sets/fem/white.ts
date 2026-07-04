@@ -32,13 +32,17 @@ export const combatMedic: CardDefinition = {
             cost: { mana: { X: 1, W: 1 } },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (!target) return;
-                ctx.preventNextNDamageToTarget(target, 1, {
-                    phase: "end-of-turn",
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): a prevent-the-next-1
+            // shield on the announced "any" target (CR 615.1).
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { target: 0 },
+                    amount: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

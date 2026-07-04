@@ -1175,13 +1175,17 @@ export const shieldOfTheAges: CardDefinition = {
                 "{2}: Prevent the next 1 damage that would be dealt to you this turn.",
             cost: { mana: { X: 2 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.preventNextNDamageToTarget(
-                    { type: "player", id: ctx.controller },
-                    1,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): a prevent-the-next-1
+            // shield on the activating controller (CR 615.1).
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { player: "controller" },
+                    amount: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1438,9 +1442,9 @@ export const sunstone: CardDefinition = {
                 sacrificeFilter: { types: "Land", supertypes: ["Snow"] },
             },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.preventAllCombatDamage();
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): the "all-combat"
+            // mode of preventDamage is a turn-scoped global Fog (CR 615).
+            effects: [{ op: "preventDamage", mode: "all-combat" }],
         },
     ],
 };

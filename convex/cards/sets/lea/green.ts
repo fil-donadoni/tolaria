@@ -1270,9 +1270,9 @@ export const fog: CardDefinition = {
     oracleText: "Prevent all combat damage that would be dealt this turn.",
     manaCost: { G: 1 },
     types: ["Instant"],
-    resolve: (ctx: SpellContext) => {
-        ctx.preventAllCombatDamage();
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #845): the "all-combat" mode of
+    // preventDamage is a turn-scoped global Fog (CR 615).
+    effects: [{ op: "preventDamage", mode: "all-combat" }],
 };
 
 // Fastbond — {G} Enchantment. "You may play any number of lands on each of

@@ -2146,8 +2146,13 @@ describe("Rakalite (prevent next 1, return self next end step, CR 615.1)", () =>
             targetId: "p1",
             remaining: 1,
         });
+        // Migrated to the `delayedTrigger` Op (ADR 0048, #845): the scheduled
+        // self-bounce now carries its captured source under the inline-body
+        // capture key `$self` (the Rocket Launcher shape) instead of the old
+        // template `payload.instanceId`. Same behaviour (a next-end-step return
+        // trigger scheduled for "rk"), new payload representation.
         expect(
-            state.delayedTriggers?.some((d) => d.payload.instanceId === "rk")
+            state.delayedTriggers?.some((d) => d.payload.$self === "rk")
         ).toBe(true);
     });
 });

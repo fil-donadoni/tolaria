@@ -2403,6 +2403,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.shuffleLibrary",
         note: 'Shuffle a player\'s library (CR 701.20, issue #844). A thin declarative skin over the SpellContext primitive `shuffleLibrary`, one execution path (ADR 0045): `action: "shuffle"` → shuffleLibrary (the seeded PRNG reorder that also clears every card\'s persistent knowledge, ADR 0026 — the "then shuffle" tail of a tutor, Winds of Change / Timetwister-style whole-deck randomization). `player` names whose library: the resolving controller (`"controller"`), an announced target-slot player (`{ target: N }`), or a forEach `$each` (a per-player shuffle). SCOPE (issue #844): only the `shuffle` primitive is folded — it is the one CR 401 / 701.20 library primitive expressible as a pure declarative Op (no runtime value read back into the effect). The classifier proposed folding `peekLibraryTop` / `reorderLibraryTop` too, but every closure that calls them either reads an opaque `choice` result back into `reorderLibraryTop` (Ponder, Preordain, Portent, Drafna\'s Restoration — a reorder-FROM-choice the DSL can\'t yet express) or drives a mill loop off the live top id (Millstone, Thought Scour, Ray of Erasure, Deep Spawn — needs a `mill` Op). Those two primitives stay a `planned` backlog Op (`scryReorder`) until a choice-driven reorder / mill construct exists. See `scripts/migration-classifier.mjs` OP_SEQUENCE.',
     },
+    {
+        op: "preventDamage",
+        status: "implemented",
+        cr: "615.1",
+        binding:
+            "SpellContext.preventNextNDamageToTarget / preventAllCombatDamage / preventAllCombatDamageToAndBy",
+        note: 'Establish a damage-prevention shield (CR 615, issue #845). A thin declarative skin over three SpellContext prevention primitives, one execution path per `mode` (ADR 0045): `"next-n"` → preventNextNDamageToTarget (a shield on `to` — a permanent, `$source`, a forEach `$each`, or a relative player via `{ player: … }` — absorbing up to `amount` total damage from any source until `duration`, CR 615.1/615.6: Samite Healer, Amulet of Kroog, Conservator, Warding Shard); `"all-combat"` → preventAllCombatDamage (turn-scoped global Fog, cleared at CLEANUP, no target/duration: Fog, Tangle Wire-style combat wipes); `"combat-to-and-by"` → preventAllCombatDamageToAndBy (a per-instance two-way shield preventing all combat damage dealt TO and BY `target` until `duration`, CR 615: Maze of Ith, Ebony Horse, Foxfire). Subsumes the prevention closures the migration classifier folds here (~34 blocked closures at ship time). Source-matched / half-down player shields (`addPlayerDamagePreventionShield`, Dark Sphere / Scarecrow), damage REDIRECTIONS (`addDamageRedirectionShield`, Reverse Damage / Eye for an Eye — a replacement, not a prevention), and `markAssignsNoCombatDamage` (source-only, Farrel\'s Mantle) are distinct primitives NOT folded here.',
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
@@ -2458,12 +2466,9 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
         cr: "701.22",
         note: "Look at / reorder the top of a library (CR 401.4 look, CR 701.22 Scry, mill). Folds SpellContext.peekLibraryTop / reorderLibraryTop (~20 blocked closures). Deferred out of libraryLook (issue #844): every current caller reads an opaque `choice` result back into `reorderLibraryTop` (a reorder-FROM-choice — Ponder, Preordain, Portent, Drafna's Restoration) or drives a mill loop off the live top id (Millstone, Thought Scour, Ray of Erasure, Deep Spawn). Needs a choice-driven reorder construct and/or a `mill` Op before it is a pure declarative skin.",
     },
-    {
-        op: "preventDamage",
-        status: "planned",
-        cr: "615.1",
-        note: "Damage-prevention shield (CR 615). Folds SpellContext.preventNextNDamageToTarget / preventAllCombatDamage / preventAllCombatDamageToAndBy (~34 blocked closures).",
-    },
+    // preventDamage SHIPPED (issue #845) — preventNextNDamageToTarget /
+    // preventAllCombatDamage / preventAllCombatDamageToAndBy are now COVERED
+    // live via EFFECT_OP_REGISTRY; row moved there with status "implemented".
     {
         op: "regenerate",
         status: "planned",

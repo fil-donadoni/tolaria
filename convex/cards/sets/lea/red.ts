@@ -967,13 +967,17 @@ export const rockHydra: CardDefinition = {
                 "{R}: Prevent the next 1 damage that would be dealt to Rock Hydra this turn.",
             cost: { mana: { R: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.preventNextNDamageToTarget(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    1,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): a prevent-the-next-1
+            // shield on the source itself (`$source`, CR 615.1).
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { ref: "$source" },
+                    amount: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
         {
             id: "rock-hydra-grow",

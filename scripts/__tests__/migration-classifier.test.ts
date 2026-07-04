@@ -150,12 +150,33 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // library source), so they stay resolve() with a recorded NOT-migratable
     // reason. The Op earns its permanent per-Op test through the interpreter
     // suite (shuffle skin) rather than a migrated card this wave.
+    // #845 (preventDamage Op): preventNextNDamageToTarget /
+    // preventAllCombatDamage / preventAllCombatDamageToAndBy are now COVERED —
+    // the prevention cluster's closures moved Op-blocked→FREE, and the 27
+    // cleanly-expressible cards were migrated away (total 688→659; Op-blocked
+    // 328→295 as the residual prevention closures surface as FREE; FREE 341→343
+    // net; AFK-ready unchanged at 313 — the 29 migrated closures were all
+    // AFK-ready). The migrations span all three modes: "all-combat" Fog (Fog /
+    // Darkness / Holy Day / Sunstone / Spore Flower), "combat-to-and-by" two-way
+    // shields (Maze of Ith / Ebony Horse / Elvish Scout / Foxfire / Goblin
+    // Snowman), and "next-n" prevent-N shields (Samite Healer / Amulet of Kroog
+    // / Conservator / Kei Takahashi / Rock Hydra / Balduvian Hydra / Rasputin /
+    // Indestructible Aura / Glyph of Destruction / … — including $source and
+    // relative-player recipients, and inline delayedTrigger riders on Rakalite /
+    // Foxfire / Heal / Glyph). The remaining FREE prevention closures stay
+    // resolve() with a recorded NOT-migratable reason: colour-conditional
+    // prevention amount (Elvish Healer — no colour predicate), Aura attached-host
+    // targets (Fylgja — `getAttachedTo`), a modal "choose one" wrapper (Healing
+    // Salve — needs the optionChoice Op), a block-graph conditional deal (Goblin
+    // Snowman's ping), and a no-per-card-test Fog (Glacial Crevasses — no
+    // green-before harness). X-only rose 19→21 as two residual {X}-cost closures
+    // surface once their prevention half stops blocking.
     it("reports the committed baseline bucket totals", () => {
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(688);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(341);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(659);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(343);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(313);
-        expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(19);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(328);
+        expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(21);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(295);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is applyRegenerationShield)", () => {

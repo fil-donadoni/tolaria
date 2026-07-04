@@ -558,9 +558,13 @@ export const healingSalve: CardDefinition = {
         "Choose one —\n• Target player gains 3 life.\n• Prevent the next 3 damage that would be dealt to any target this turn.",
     manaCost: { W: 1 },
     types: ["Instant"],
-    // NOT DSL-migratable (ADR 0045, issue #831): the "prevent next 3 damage"
-    // mode needs a damage-prevention Op that is `planned`, not implemented; a
-    // modal card can't be half-migrated. Blocked on: `preventDamage` Op.
+    // NOT DSL-migratable (ADR 0045, issue #845): a MODAL "choose one" card.
+    // `effects[]` is mutually exclusive with `modes`, and there is no
+    // mode-level Effect Script yet — the "choose one" mode selection needs the
+    // `optionChoice` Op, still `planned`. The classifier over-counts this site
+    // (both mode closures now use only covered Ops — gainLife and preventDamage
+    // "next-n"), but the modal WRAPPER is the blocker, not the mode bodies.
+    // Blocked on: modal-card support (`optionChoice` Op).
     modes: [
         {
             id: "gain-life",
@@ -1063,13 +1067,18 @@ export const samiteHealer: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (!target) return;
-                ctx.preventNextNDamageToTarget(target, 1, {
-                    phase: "end-of-turn",
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): a prevent-the-next-1
+            // shield on the announced "any" target — a creature or a player;
+            // `{ target: 0 }` resolves either (CR 615.1).
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { target: 0 },
+                    amount: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

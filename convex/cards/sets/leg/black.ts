@@ -600,9 +600,9 @@ export const darkness: CardDefinition = {
     oracleText: "Prevent all combat damage that would be dealt this turn.",
     manaCost: { B: 1 },
     types: ["Instant"],
-    resolve: (ctx: SpellContext) => {
-        ctx.preventAllCombatDamage();
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #845): the "all-combat" mode of
+    // preventDamage is a turn-scoped global Fog (CR 615).
+    effects: [{ op: "preventDamage", mode: "all-combat" }],
 };
 
 // Cosmic Horror — {3}{B}{B}{B} 7/7 Horror, First strike. Destroy-variant of the

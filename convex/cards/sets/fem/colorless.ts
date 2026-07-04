@@ -342,13 +342,17 @@ export const balmOfRestoration: CardDefinition = {
             cost: { mana: { X: 1 }, tap: true, sacrifice: true },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (!target) return;
-                ctx.preventNextNDamageToTarget(target, 2, {
-                    phase: "end-of-turn",
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): a prevent-the-next-2
+            // shield on the announced "any" target (CR 615.1).
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { target: 0 },
+                    amount: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

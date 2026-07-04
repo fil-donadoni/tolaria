@@ -335,13 +335,17 @@ export const oasis: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (!target) return;
-                ctx.preventNextNDamageToTarget(target, 1, {
-                    phase: "end-of-turn",
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): a prevent-the-next-N
+            // shield on the announced target (CR 615.1).
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { target: 0 },
+                    amount: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -369,14 +373,18 @@ export const ebonyHorse: CardDefinition = {
                 controller: "you",
                 combatRoleFilter: "attacking",
             },
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (!target) return;
-                ctx.untap(target);
-                ctx.preventAllCombatDamageToAndBy(target, {
-                    phase: "end-of-turn",
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): untap the target
+            // (tapUntap) then arm the two-way combat-damage prevention shield
+            // (preventDamage "combat-to-and-by", CR 615). Two Ops, same order.
+            effects: [
+                { op: "tapUntap", action: "untap", target: { target: 0 } },
+                {
+                    op: "preventDamage",
+                    mode: "combat-to-and-by",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

@@ -1106,14 +1106,18 @@ export const amuletOfKroog: CardDefinition = {
             cost: { tap: true, mana: { X: 2 } },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent" || target?.type === "player") {
-                    ctx.preventNextNDamageToTarget(target, 1, {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): a prevent-the-next-1
+            // shield on the announced "any" target — a creature or a player
+            // (CR 615.1).
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { target: 0 },
+                    amount: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1141,32 +1145,35 @@ export const rakalite: CardDefinition = {
             cost: { mana: { X: 2 } },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent" || target?.type === "player") {
-                    ctx.preventNextNDamageToTarget(target, 1, {
-                        phase: "end-of-turn",
-                    });
-                }
-                ctx.scheduleDelayedTrigger(
-                    RAKALITE_ID,
-                    "rakalite-return",
-                    "next-end-step",
-                    { instanceId: ctx.sourceInstanceId }
-                );
-            },
-        },
-    ],
-    delayedTriggers: [
-        {
-            id: "rakalite-return",
-            oracleText:
-                "Return this artifact to its owner's hand at the beginning of the next end step.",
-            timing: "next-end-step",
-            resolve: (ctx, payload) => {
-                if (!payload.instanceId) return;
-                ctx.returnToHand({ type: "permanent", id: payload.instanceId });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845 + #838): the
+            // prevent-the-next-1 shield (preventDamage "next-n", CR 615.1) then
+            // the self-bounce as a `delayedTrigger` Op with an inline body — the
+            // artifact is captured through the ability site's implicit `$source`
+            // binding and returned to hand at the next end step (moveZone → hand,
+            // CR 603.7a). Replaces the old `delayedTriggers[]` template.
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { target: 0 },
+                    amount: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-step",
+                    oracleText:
+                        "Return this artifact to its owner's hand at the beginning of the next end step.",
+                    capture: { $self: { ref: "$source" } },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$self" },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
         },
     ],
 };

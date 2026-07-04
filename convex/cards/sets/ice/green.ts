@@ -608,15 +608,28 @@ export const foxfire: CardDefinition = {
         count: 1,
         combatRoleFilter: "attacking",
     },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type === "permanent") {
-            ctx.untap(t);
-            ctx.preventAllCombatDamageToAndBy(t, { phase: "end-of-turn" });
-        }
-        scheduleNextUpkeepDraw(ctx, foxfire.id);
-    },
-    delayedTriggers: [nextUpkeepDrawTrigger()],
+    // Migrated resolve()→effects[] (ADR 0045, #845 + #838): untap the target
+    // (tapUntap), arm the two-way combat-damage prevention shield (preventDamage
+    // "combat-to-and-by", CR 615), then the next-upkeep cantrip as a
+    // `delayedTrigger` Op with an inline draw body (CR 603.7d — the Urza's
+    // Bauble shape; fires at the very next upkeep, drawing for the scheduling
+    // controller). Replaces the shared `scheduleNextUpkeepDraw` helper.
+    effects: [
+        { op: "tapUntap", action: "untap", target: { target: 0 } },
+        {
+            op: "preventDamage",
+            mode: "combat-to-and-by",
+            target: { target: 0 },
+            duration: { phase: "end-of-turn" },
+        },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText:
+                "At the beginning of the next turn's upkeep, draw a card.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
 };
 // Freyalise Supplicant — "{T}, Sacrifice a red or white creature: This creature
 // deals damage to any target equal to half the sacrificed creature's power,
@@ -951,13 +964,18 @@ export const hotSprings: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t)
-                    ctx.preventNextNDamageToTarget(t, 1, {
-                        phase: "end-of-turn",
-                    });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): the granted
+            // ability arms a prevent-the-next-1 shield on the announced "any"
+            // target (CR 615.1). Resolves through the shared ability seam.
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { target: 0 },
+                    amount: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

@@ -557,6 +557,44 @@ export const OP_EXECUTORS: {
         // #844; peek/reorder deferred to the `scryReorder` backlog Op).
         ctx.shuffleLibrary(playerId);
     },
+    // CR 615 (issue #845) — establish a damage-prevention shield. A thin
+    // declarative skin over three SpellContext prevention primitives, ONE
+    // execution path per mode (ADR 0045). Each mode is skipped when its
+    // referenced permanent / player is gone (CR 608.2b — the resolver returns
+    // undefined); the `next-n` primitive additionally no-ops on amount ≤ 0.
+    preventDamage(ctx, op) {
+        if (op.mode === "all-combat") {
+            // CR 615, Fog — prevent all combat damage for the rest of the turn
+            // (global, cleared at CLEANUP; no target, no duration).
+            ctx.preventAllCombatDamage();
+            return;
+        }
+        if (op.mode === "combat-to-and-by") {
+            // CR 615, Maze of Ith / Ebony Horse — per-instance two-way combat
+            // prevention shield.
+            const target = resolveObjectRef(ctx, op.target);
+            if (!target) return;
+            ctx.preventAllCombatDamageToAndBy(target, op.duration);
+            return;
+        }
+        // "next-n" (CR 615.1) — a prevent-the-next-N shield on a permanent or a
+        // relative player. `to` mirrors dealDamage's recipient union.
+        const amount = resolveValue(ctx, op.amount);
+        if (amount === undefined) return;
+        if ("player" in op.to) {
+            const playerId = resolvePlayerRef(ctx, op.to.player);
+            if (playerId === undefined) return;
+            ctx.preventNextNDamageToTarget(
+                { type: "player", id: playerId },
+                amount,
+                op.duration
+            );
+            return;
+        }
+        const target = resolveObjectRef(ctx, op.to);
+        if (!target) return;
+        ctx.preventNextNDamageToTarget(target, amount, op.duration);
+    },
     tapUntap(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;

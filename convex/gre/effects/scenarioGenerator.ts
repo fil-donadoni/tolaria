@@ -422,6 +422,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // interpreter tests (per-Op regime).
             req.skip ??= `Op "libraryLook" shuffles a library (seeded-PRNG randomization) — covered by the Op's interpreter tests`;
             return;
+        case "preventDamage":
+            // CR 615 (issue #845) — a prevention shield sits DORMANT until a
+            // later damage event tests it; the canned scenario only resolves
+            // the spell (it never subsequently deals damage), so the shield's
+            // effect has no same-resolution outcome the generator can assert.
+            // Explicit skip — shield registration and consumption are covered
+            // by the Op's own interpreter tests (per-Op regime).
+            req.skip ??= `Op "preventDamage" registers a dormant shield (no same-resolution damage event) — covered by the Op's interpreter tests`;
+            return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.
@@ -879,6 +888,14 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // scenario can assert). Kept for the 1:1 coverage guard; the shuffle
     // primitive is covered by the Op's own interpreter tests.
     libraryLook() {
+        return null;
+    },
+    // `preventDamage` (CR 615, issue #845) — never reached: `analyseOp` skips
+    // every script with a preventDamage Op (a shield sits dormant until a later
+    // damage event, with no same-resolution outcome the canned scenario can
+    // assert). Kept for the 1:1 coverage guard; shield registration and
+    // consumption are covered by the Op's own interpreter tests.
+    preventDamage() {
         return null;
     },
     // Zone change: exile moves the target to its owner's exile zone (CR 701.13).

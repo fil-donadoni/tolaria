@@ -261,13 +261,17 @@ export const conservator: CardDefinition = {
                 "{3}, {T}: Prevent the next 2 damage that would be dealt to you this turn.",
             cost: { mana: { X: 3 }, tap: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.preventNextNDamageToTarget(
-                    { type: "player", id: ctx.controller },
-                    2,
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #845): a prevent-the-next-N
+            // shield on the activating controller (CR 615.1).
+            effects: [
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { player: "controller" },
+                    amount: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
