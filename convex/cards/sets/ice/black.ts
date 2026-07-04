@@ -14,6 +14,7 @@ import type {
     SpellContext,
 } from "../../types";
 import { controlsSnowSubtype } from "../../snowReads";
+import { creatureCardsAboveInGraveyard } from "../../graveyardOrder";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
 import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -164,27 +165,51 @@ export const abyssalSpecter: CardDefinition = {
         }),
     ],
 };
-// DEFERRED (#655) — Ashen Ghoul's "{B}: Return this card from your graveyard to
-// the battlefield" is an ACTIVATED ability whose SOURCE is in the graveyard. The
-// "three or more creature cards above it" test is already shipped (the
-// `creatureCardsAboveInGraveyard` graveyard-order helper, used by Nether Shadow),
-// but the activation entry point (`activateAbility` in convex/game.ts) only
-// resolves a source on the BATTLEFIELD — there is no activate-from-graveyard
-// machinery for activated abilities. Nether Shadow gets the same recursion via a
-// graveyard-zone *triggered* ability (phaseTrigger `zone: "graveyard"`); Ashen
-// Ghoul is a player-chosen *activated* ability and cannot be expressed as a
-// trigger faithfully. Defer until graveyard-source activation lands.
-// export const ashenGhoul: CardDefinition = {
-//     id: "6bb83301-5662-4628-b536-6a3ee0296f2e",
-//     name: "Ashen Ghoul",
-//     rarity: "uncommon",
-//     oracleText: "Haste\n{B}: Return this card from your graveyard to the battlefield. Activate only during your upkeep and only if three or more creature cards are above this card.",
-//     manaCost: { X: 3, B: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Zombie"],
-//     power: 3,
-//     toughness: 1,
-// };
+// Ashen Ghoul — {3}{B} 3/1 Zombie. "Haste\n{B}: Return this card from your
+// graveyard to the battlefield. Activate only during your upkeep and only if
+// three or more creature cards are above this card." (CR 702.10 haste; CR 113.6
+// / 602.5b graveyard-source activated ability; CR 603.6e graveyard order.)
+// The `activateFromGraveyard` seam (issue #737) lets `activateAbility` locate
+// the source in its owner's graveyard; `controllerTurnOnly` + the UPKEEP phase
+// restriction enforce "only during your upkeep"; `canActivate` gates on three
+// or more creature cards stacked above it via the shared
+// `creatureCardsAboveInGraveyard` helper (the same predicate Nether Shadow
+// uses). The effect is the censused `moveZone` Op reanimating the DSL `$source`
+// (graveyard → battlefield).
+export const ashenGhoul: CardDefinition = {
+    id: "6bb83301-5662-4628-b536-6a3ee0296f2e",
+    name: "Ashen Ghoul",
+    rarity: "uncommon",
+    oracleText:
+        "Haste\n{B}: Return this card from your graveyard to the battlefield. Activate only during your upkeep and only if three or more creature cards are above this card.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 3,
+    toughness: 1,
+    staticAbilities: ["haste"],
+    activatedAbilities: [
+        {
+            id: "ashen-ghoul-reanimate",
+            oracleText:
+                "{B}: Return this card from your graveyard to the battlefield. Activate only during your upkeep and only if three or more creature cards are above this card.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            activateFromGraveyard: true,
+            controllerTurnOnly: true,
+            activationPhaseRestriction: ["UPKEEP"],
+            canActivate: (source, state) =>
+                creatureCardsAboveInGraveyard(state, source) >= 3,
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { ref: "$source" },
+                    to: "battlefield",
+                },
+            ],
+        },
+    ],
+};
 // Brine Shaman — sacrifice-a-creature engine (CR 602.1 / 118.5 sacrifice cost).
 // "{T}, Sacrifice a creature: Target creature gets +2/+2 until end of turn."
 // and "{1}{U}{U}, Sacrifice a creature: Counter target creature spell."

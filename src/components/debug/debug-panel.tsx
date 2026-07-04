@@ -325,6 +325,46 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
         libraryCount: 15,
     },
+    {
+        // Ashen Ghoul — graveyard-source activated ability (#737, CR 113.6 /
+        // 602.5b / 603.6e). The Ghoul sits at the BOTTOM of your graveyard with
+        // three Balduvian Bears stacked above it (three creature cards above =
+        // the activation gate). It's your UPKEEP and a Swamp covers the {B}, so
+        // "{B}: Return this card from your graveyard to the battlefield" is
+        // legal — activate it to reanimate the Ghoul. Remove a Bears (or move
+        // to a later phase) to watch the gate lock the ability out.
+        label: "Ashen Ghoul — graveyard-activated reanimation (#737)",
+        cards: [
+            { name: "Ashen Ghoul", owner: "me", zone: "graveyard" },
+            {
+                name: "Balduvian Bears",
+                owner: "me",
+                zone: "graveyard",
+                count: 3,
+            },
+            { name: "Swamp", owner: "me", zone: "battlefield" },
+        ],
+        phase: "UPKEEP",
+        landCount: 0,
+    },
+    {
+        // Fumarole — dual-target destroy + fixed pay-life (#737, CR 601.2b /
+        // 601.2c / 701.7). "As an additional cost to cast this spell, pay 3
+        // life. Destroy target creature and target land." Cast it from hand:
+        // the engine walks TWO independent target groups — first pick the
+        // opponent's Balduvian Bears (creature), then a Plains (land, from
+        // landCount) — pays 3 life on commit, and destroys both. Swamp +
+        // Mountain + three Plains cover the {3}{B}{R}.
+        label: "Fumarole — dual-target destroy + pay 3 life (#737)",
+        cards: [
+            { name: "Fumarole", owner: "me", zone: "hand" },
+            { name: "Swamp", owner: "me", zone: "battlefield" },
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+    },
 ];
 
 type DebugPanelProps = {

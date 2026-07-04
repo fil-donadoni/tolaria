@@ -445,24 +445,29 @@ export const fireCovenant: CardDefinition = {
 //     manaCost: { X: 2, U: 1, B: 1 },
 //     types: ["Enchantment"],
 // };
-// DEFERRED (#659): "Destroy target creature AND target land" needs TWO distinct
-// typed targets on one spell (CR 601.2c). The engine models only a SINGLE
-// `targetRequirement` per spell — there is no multi-distinct-requirement
-// targeting (a `["Creature","Land"]` type list picks ONE object of EITHER type,
-// not one of each). That is a targeting-pipeline addition crossing
-// GRE → game.ts selectTarget → frontend, out of scope for the gold/misc
-// completion slice. (The "pay 3 life" additional cast cost is separately
-// unbuilt — `additionalCosts` models only sacrifice/exile — but the dual-target
-// requirement is the gating capability.) Flagged for a dedicated targeting
-// cluster.
-// export const fumarole: CardDefinition = {
-//     id: "efa53e9a-0d7c-4d17-b2be-56930edfa2c2",
-//     name: "Fumarole",
-//     rarity: "uncommon",
-//     oracleText: "As an additional cost to cast this spell, pay 3 life.\nDestroy target creature and target land.",
-//     manaCost: { X: 3, B: 1, R: 1 },
-//     types: ["Sorcery"],
-// };
+// Fumarole — {3}{B}{R} Sorcery. "As an additional cost to cast this spell, pay
+// 3 life.\nDestroy target creature and target land." (CR 601.2b fixed pay-life
+// additional cost; CR 601.2c two INDEPENDENT typed target groups; CR 701.7
+// destroy.) The dual-target seam (issue #737): `targetRequirement` names the
+// creature (target 0) and `additionalTargetRequirements` the land (target 1);
+// the Effect Script destroys each positionally. The fixed 3-life cost rides
+// `additionalCosts.payLife`.
+export const fumarole: CardDefinition = {
+    id: "efa53e9a-0d7c-4d17-b2be-56930edfa2c2",
+    name: "Fumarole",
+    rarity: "uncommon",
+    oracleText:
+        "As an additional cost to cast this spell, pay 3 life.\nDestroy target creature and target land.",
+    manaCost: { X: 3, B: 1, R: 1 },
+    types: ["Sorcery"],
+    additionalCosts: { payLife: 3 },
+    targetRequirement: { type: "Creature", count: 1 },
+    additionalTargetRequirements: [{ type: "Land", count: 1 }],
+    effects: [
+        { op: "destroy", target: { target: 0 } },
+        { op: "destroy", target: { target: 1 } },
+    ],
+};
 // Ghostly Flame (#668) — demonstrates the damage-source colour-override seam.
 //   "Black and/or red permanents and spells are colorless sources of damage."
 // CR 119.4 / 614 — while this enchantment is on the battlefield, any black

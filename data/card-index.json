@@ -330,6 +330,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Ashen Ghoul",
+        "scryfallId": "6bb83301-5662-4628-b536-6a3ee0296f2e",
+        "oracleId": "46fbcbdf-73d0-4fa2-8db7-3b19bfc7ac22",
+        "firstSet": "ice"
+    },
+    {
         "name": "Ashes to Ashes",
         "scryfallId": "825496e5-19c7-4f50-8070-0265a58608dc",
         "oracleId": "944a52d9-bb14-43c5-8d05-2afaf023dc9f",
@@ -2248,6 +2254,12 @@
         "scryfallId": "d0bd76c8-4cff-4c15-9686-7a299b589814",
         "oracleId": "f75f9006-217d-4ec8-9c35-ceefe1c5ae4e",
         "firstSet": "lea"
+    },
+    {
+        "name": "Fumarole",
+        "scryfallId": "efa53e9a-0d7c-4d17-b2be-56930edfa2c2",
+        "oracleId": "a9e33138-e1c0-4b69-b868-1ce8493c073d",
+        "firstSet": "ice"
     },
     {
         "name": "Fungal Bloom",

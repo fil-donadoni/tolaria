@@ -1068,8 +1068,13 @@ export type PendingCast = {
  *  the ability on the stack (or resolves it for useStack: false). */
 export type PendingActivation = {
     playerId: string;
-    /** Source permanent on the battlefield. */
+    /** Source permanent on the battlefield (or, when `fromGraveyard`, the
+     *  source card in a graveyard). */
     cardInstanceId: string;
+    /** CR 113.6 / 602.5b — the source is in a graveyard, not on the
+     *  battlefield (Ashen Ghoul's `activateFromGraveyard` ability). Gates the
+     *  deferred-commit source lookup to also search graveyards. */
+    fromGraveyard?: boolean;
     /** Ability id on the source's card definition. */
     abilityId: string;
     manaCost: Record<string, number>;
@@ -1507,6 +1512,23 @@ export type PendingTarget = {
      *  split off from the controller (`playerId`) for a controlled cast.
      *  Defaults to `playerId` when absent — read via `getActingPlayer`. */
     actingPlayerId?: string;
+    /** Additional INDEPENDENT target groups still to be chosen after the
+     *  current one (CR 601.2c — Fumarole's "target creature and target land").
+     *  A FIFO queue of `TargetRequirement`s from the card's
+     *  `additionalTargetRequirements`; when the current group's selection
+     *  completes and this queue is non-empty, the engine loads the next
+     *  requirement into this same `pendingTarget` (moving the current group's
+     *  picks into `priorSelected`) instead of finalizing. Undefined/empty for
+     *  single-group spells. */
+    remainingRequirements?: TargetRequirement[];
+    /** Targets already locked in from EARLIER target groups of a multi-group
+     *  spell (CR 601.2c), in declaration order. `selected` tracks only the
+     *  CURRENT group; on group completion its picks are appended here and
+     *  `selected` is reset for the next group. Finalization writes
+     *  `[...priorSelected, ...selected]` onto the stack item, so an Effect
+     *  Script indexes the groups positionally (`{ target: 0 }`, `{ target: 1 }`,
+     *  …). Undefined for single-group spells. */
+    priorSelected?: TargetSelection[];
 };
 
 /** Pre-game mulligan tracking (CR 103.5, London mulligan). Present only while
@@ -7731,6 +7753,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     colors: getColorsFromCost(def?.manaCost),
                 };
             });
+        },
+        // CR 404 / 400.7 — which graveyard holds `id` (owner playerId), or
+        // undefined. Powers the interpreter's graveyard-source `$source`
+        // resolution (Ashen Ghoul self-reanimation).
+        getGraveyardCardOwner(id: string): string | undefined {
+            for (const p of state.players) {
+                if (p.graveyard.some((c) => c.id === id)) return p.id;
+            }
+            return undefined;
         },
         // CR 708.2 / 707 — Illusionary Mask. Move the chosen card hand → stack,
         // turn it face down (real id retained in `faceDownOf`), and push it as

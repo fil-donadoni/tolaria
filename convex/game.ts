@@ -72,6 +72,7 @@ import type {
     ManaCost,
     PermanentFilter,
     SpellMode,
+    TargetRequirement,
     TargetSelection,
 } from "./cards/types";
 import {
@@ -874,11 +875,13 @@ export function buildPendingActivation(opts: {
     chosenX?: number;
     keepPriority?: boolean;
     grantedSourceCardId?: string;
+    fromGraveyard?: boolean;
 }): PendingActivation {
     const { ability } = opts;
     return {
         playerId: opts.playerId,
         cardInstanceId: opts.cardInstanceId,
+        ...(opts.fromGraveyard ? { fromGraveyard: true } : {}),
         abilityId: opts.abilityId,
         manaCost: opts.manaCost ?? {},
         tappedLandIds: [],
@@ -989,6 +992,19 @@ export function tryAutoCommitPendingActivation(
     if (!card) {
         for (const p of state.players) {
             const found = p.battlefield.find((c) => c.id === pa.cardInstanceId);
+            if (found) {
+                card = found;
+                break;
+            }
+        }
+    }
+    // CR 113.6 — a graveyard-source activation (Ashen Ghoul): the source is not
+    // on any battlefield. Search graveyards only when the payment was flagged
+    // `fromGraveyard`, so a battlefield source that died mid-payment still
+    // drops silently (below) rather than resurrecting from its graveyard.
+    if (!card && pa.fromGraveyard) {
+        for (const p of state.players) {
+            const found = p.graveyard.find((c) => c.id === pa.cardInstanceId);
             if (found) {
                 card = found;
                 break;
@@ -2294,6 +2310,82 @@ function finalizeDivideAmounts(
     return out;
 }
 
+/** Loads the next INDEPENDENT target group of a multi-group spell (CR 601.2c —
+ *  Fumarole) into `pt` in place: clears every group-specific filter field and
+ *  re-derives them from `req`, resetting `selected` for the fresh group. The
+ *  primary group's build in `announceCast` is the single-group analogue; this
+ *  is its per-group re-application. */
+function applyRequirementToPendingTarget(
+    pt: PendingTarget,
+    req: TargetRequirement,
+    chosenX: number | undefined
+): void {
+    const toArr = (v: string | string[] | undefined): string[] | undefined =>
+        v === undefined ? undefined : Array.isArray(v) ? v : [v];
+    pt.targetType = req.type;
+    pt.count = resolveTargetCount(req.count, chosenX);
+    pt.selected = [];
+    // Clear every optional filter so a prior group's constraint never leaks.
+    pt.colorFilter = undefined;
+    pt.colorFilterAny = undefined;
+    pt.subtypeFilter = undefined;
+    pt.supertypeFilter = undefined;
+    pt.excludeSubtypes = undefined;
+    pt.powerFilter = undefined;
+    pt.toughnessFilter = undefined;
+    pt.mvFilter = undefined;
+    pt.spellTypeFilter = undefined;
+    pt.spellSingleTargetingController = undefined;
+    pt.spellWouldDestroyLandYouControl = undefined;
+    pt.playerAttackedThisTurn = undefined;
+    pt.zone = undefined;
+    pt.controller = undefined;
+    pt.divideTotal = undefined;
+    pt.divideAmounts = undefined;
+    if (req.colorFilter !== undefined) pt.colorFilter = req.colorFilter;
+    if (req.colorFilterAny) pt.colorFilterAny = req.colorFilterAny;
+    const sub = toArr(req.subtypeFilter);
+    if (sub) pt.subtypeFilter = sub;
+    const sup = toArr(req.supertypeFilter);
+    if (sup) pt.supertypeFilter = sup;
+    const exSub = toArr(req.excludeSubtypes);
+    if (exSub) pt.excludeSubtypes = exSub;
+    if (req.powerFilter) pt.powerFilter = req.powerFilter;
+    if (req.toughnessFilter) pt.toughnessFilter = req.toughnessFilter;
+    const mv = resolveMvFilter(req.mvFilter, chosenX);
+    if (mv) pt.mvFilter = mv;
+    const spellType = toArr(req.spellTypeFilter);
+    if (spellType) pt.spellTypeFilter = spellType as CardType[];
+    if (req.spellSingleTargetingController)
+        pt.spellSingleTargetingController = true;
+    if (req.spellWouldDestroyLandYouControl)
+        pt.spellWouldDestroyLandYouControl = true;
+    if (req.playerAttackedThisTurn) pt.playerAttackedThisTurn = true;
+    if (req.zone) pt.zone = req.zone;
+    if (req.controller) pt.controller = req.controller;
+}
+
+/** After a target group's selection completes (CR 601.2c): if the spell has
+ *  further INDEPENDENT groups queued (Fumarole), lock the current group's picks
+ *  into `priorSelected` and load the next requirement; otherwise finalize the
+ *  whole selection. Exported for integration tests that exercise the multi-group
+ *  target walk (Fumarole's creature-then-land selection). */
+export function advanceTargetGroupOrFinalize(
+    state: GameState,
+    pt: PendingTarget,
+    playerId: string
+): void {
+    const remaining = pt.remainingRequirements;
+    if (remaining && remaining.length > 0) {
+        const [next, ...rest] = remaining;
+        pt.priorSelected = [...(pt.priorSelected ?? []), ...pt.selected];
+        pt.remainingRequirements = rest.length > 0 ? rest : undefined;
+        applyRequirementToPendingTarget(pt, next, pt.chosenX);
+        return;
+    }
+    finalizeTargetSelection(state, pt, playerId);
+}
+
 /** Finalizes target selection and either places the spell on the stack (if
  *  the caster can already pay) or transitions into the payment phase.
  *  Mutates `state` in place. Handles chosenX propagation and the per-target
@@ -2305,7 +2397,10 @@ export function finalizeTargetSelection(
     pt: PendingTarget,
     playerId: string
 ): void {
-    const targets = [...pt.selected];
+    // CR 601.2c — a multi-group spell (Fumarole) locked earlier groups' picks
+    // into `priorSelected`; concatenate in declaration order so the stack
+    // item's `targets` are positionally indexable by the Effect Script.
+    const targets = [...(pt.priorSelected ?? []), ...pt.selected];
     const cardInstanceId = pt.cardInstanceId;
     const keepPriority = pt.keepPriority;
     const chosenX = pt.chosenX;
@@ -2625,7 +2720,9 @@ export function finalizeTargetSelection(
     // chosen at announcement and rides on `pt.chosenX`; the life is paid the
     // instant the spell hits the stack (immediate or deferred commit below).
     const payLife =
-        cardDef.additionalCosts?.payXLife === true ? (chosenX ?? 0) : 0;
+        (cardDef.additionalCosts?.payXLife === true ? (chosenX ?? 0) : 0) +
+        // CR 601.2b — a FIXED "pay N life" additional cost (Fumarole).
+        (cardDef.additionalCosts?.payLife ?? 0);
 
     // CR 601.2c → 601.2f — targets have just been chosen; now the additional
     // cost is paid. A spell with both a target and an additional cost (FEM Soul
@@ -2864,6 +2961,12 @@ export const announceCast = mutation({
                 throw new Error("Cannot pay more life than you have");
             }
         }
+        // CR 601.2b / 118.4 — a FIXED "pay N life" additional cost (Fumarole):
+        // the cast is illegal if the caster's life is below N.
+        const fixedPayLife = cardDef.additionalCosts?.payLife ?? 0;
+        if (fixedPayLife > 0 && player.life < fixedPayLife) {
+            throw new Error("Cannot pay more life than you have");
+        }
         // CR 107.3 / 608.2g — X derived from an opponent's graveyard at cast
         // time (Spoils of War). Computed by the engine, not chosen / paid.
         const gyDeriv = cardDef.additionalCosts?.xFromOpponentGraveyard;
@@ -2967,6 +3070,32 @@ export const announceCast = mutation({
             if (legalTargets.length < required) {
                 throw new Error("Not enough legal targets");
             }
+            // CR 601.2c — a spell with additional INDEPENDENT target groups
+            // (Fumarole's "target creature AND target land") is legal only if
+            // EVERY group has enough legal candidates at announcement. Validate
+            // each additional requirement up front so a half-chosen cast can't
+            // strand on an unfillable second group. The groups are chosen in
+            // order after the primary one; `remainingRequirements` queues them.
+            const additionalRequirements =
+                cardDef.additionalTargetRequirements ?? [];
+            for (const extra of additionalRequirements) {
+                const extraLegal = getLegalTargets(
+                    state,
+                    extra,
+                    sourceColors,
+                    args.playerId,
+                    chosenX,
+                    cardInHand.types,
+                    cardInHand.subtypes,
+                    true
+                );
+                if (
+                    extraLegal.length <
+                    minTargetCount(resolveTargetCount(extra.count, chosenX))
+                ) {
+                    throw new Error("Not enough legal targets");
+                }
+            }
             const subtypeFilter = activeTargetRequirement.subtypeFilter
                 ? Array.isArray(activeTargetRequirement.subtypeFilter)
                     ? activeTargetRequirement.subtypeFilter
@@ -3029,6 +3158,12 @@ export const announceCast = mutation({
                     : {}),
                 ...(activeTargetRequirement.playerAttackedThisTurn
                     ? { playerAttackedThisTurn: true }
+                    : {}),
+                // CR 601.2c — queue the additional independent target groups
+                // (Fumarole). selectTarget loads the next one when the current
+                // group completes instead of finalizing.
+                ...(additionalRequirements.length > 0
+                    ? { remainingRequirements: additionalRequirements }
                     : {}),
             };
 
@@ -4355,7 +4490,9 @@ export const selectTarget = mutation({
             isTargetCountMaxReached(pt.count, pt.selected.length) ||
             divideBudgetSpent;
         if (maxReached) {
-            finalizeTargetSelection(state, pt, args.playerId);
+            // CR 601.2c — advance to the next independent target group
+            // (Fumarole) when one is queued; otherwise finalize.
+            advanceTargetGroupOrFinalize(state, pt, args.playerId);
         }
 
         await saveGameState(
@@ -4399,7 +4536,9 @@ export const confirmTargets = mutation({
                 `At least ${minTargetCount(pt.count)} target(s) required`
             );
         }
-        finalizeTargetSelection(state, pt, args.playerId);
+        // CR 601.2c — a variable-count group in a multi-group spell advances to
+        // the next group here; a single-group spell finalizes.
+        advanceTargetGroupOrFinalize(state, pt, args.playerId);
 
         await saveGameState(
             ctx,
@@ -5839,6 +5978,23 @@ export const activateAbility = mutation({
                 }
             }
         }
+        // CR 113.6 / 602.5b — a graveyard-source activated ability (Ashen
+        // Ghoul's `activateFromGraveyard`). When the source is on no
+        // battlefield, look for it in a graveyard; the `activateFromGraveyard`
+        // flag on the resolved ability gates whether it may be activated there.
+        let fromGraveyard = false;
+        if (!card) {
+            for (const p of state.players) {
+                const found = p.graveyard.find(
+                    (c) => c.id === args.cardInstanceId
+                );
+                if (found) {
+                    card = found;
+                    fromGraveyard = true;
+                    break;
+                }
+            }
+        }
         if (!card) throw new Error("Card not on battlefield");
 
         const cardId = (card.card as { id?: string }).id;
@@ -5847,10 +6003,20 @@ export const activateAbility = mutation({
         const resolved = resolveActivatedAbility(card, args.abilityId);
         if (!resolved) throw new Error("Ability not found");
         const ability = resolved.ability;
-        // CR 602.1 — "only your opponents may activate this ability" (Clergy of
-        // the Holy Nimbus): the source's controller may NOT activate it; any
-        // other player may. Checked before the controller-only default below.
-        if (ability.activatableByEnchantedController) {
+        // CR 113.6 — the source is in a graveyard: legal only for an ability
+        // that opts in via `activateFromGraveyard`, and only its owner may
+        // activate it (CR 602.1 — "from YOUR graveyard"). The battlefield
+        // controller-only checks below are skipped for this branch.
+        if (fromGraveyard) {
+            if (!ability.activateFromGraveyard) {
+                throw new Error(
+                    "This ability can't be activated from the graveyard"
+                );
+            }
+            if (card.ownerId !== args.playerId) {
+                throw new Error("You do not own this card");
+            }
+        } else if (ability.activatableByEnchantedController) {
             // CR 602.1 — "Only the controller of the enchanted creature may
             // activate this ability" (FEM Merseine). The Aura's host decides
             // who may activate, regardless of who controls the Aura.
@@ -6199,6 +6365,7 @@ export const activateAbility = mutation({
                 chosenX,
                 keepPriority: args.keepPriority,
                 grantedSourceCardId,
+                fromGraveyard,
             });
             state.pendingActivation = pending;
             // CR 302.1 — a {T}-cost ability still needs the source untapped at
