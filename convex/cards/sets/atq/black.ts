@@ -108,6 +108,12 @@ export const priestOfYawgmoth: CardDefinition = {
                 "{T}, Sacrifice an artifact: Add an amount of {B} equal to the sacrificed artifact's mana value.",
             cost: { tap: true, sacrificeFilter: { types: "Artifact" } },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045): the produced {B} amount equals the
+            // sacrificed artifact's mana value (a runtime read,
+            // getAdditionalSacrificeMv). The EffectValue grammar has no
+            // sacrificed-cost / mana-value member, so the amount is not
+            // statically expressible. Planned-migratable. Blocked on: a
+            // mana-value / sacrificed-cost EffectValue construct.
             resolve: (ctx: SpellContext) => {
                 const mv = ctx.getAdditionalSacrificeMv() ?? 0;
                 if (mv > 0) ctx.addManaTo(ctx.controller, { B: mv });

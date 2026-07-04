@@ -176,9 +176,7 @@ export const darkRitual: CardDefinition = {
     oracleText: "Add {B}{B}{B}.",
     manaCost: { B: 1 },
     types: ["Instant"],
-    resolve: (ctx: SpellContext) => {
-        ctx.addMana({ B: 3 });
-    },
+    effects: [{ op: "addMana", mana: { B: 3 } }],
 };
 
 // Out of scope — see ADR 0010
@@ -1171,6 +1169,11 @@ export const sacrifice: CardDefinition = {
     additionalCosts: {
         sacrificeFilter: { types: "Creature" },
     },
+    // NOT DSL-migratable (ADR 0045): the produced {B} amount equals the
+    // sacrificed creature's mana value (a runtime read, getAdditionalSacrificeMv).
+    // The EffectValue grammar has no sacrificed-cost / mana-value member, so the
+    // amount is not statically expressible. Planned-migratable. Blocked on: a
+    // mana-value / sacrificed-cost EffectValue construct.
     resolve: (ctx: SpellContext) => {
         const mv = ctx.getAdditionalSacrificeMv();
         if (mv === undefined || mv <= 0) return;

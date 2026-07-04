@@ -269,6 +269,86 @@ describe("Effect Script Op: loseLife (CR 119.3b)", () => {
     });
 });
 
+describe("Effect Script Op: addMana (CR 106.1, issue #850)", () => {
+    it("adds fixed mana to the controller's pool by default (a ritual — Dark Ritual)", () => {
+        const id = registerScript("test-op-addmana-ritual", [
+            { op: "addMana", mana: { B: 3 } },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool.B).toBe(3);
+        // The opponent's pool is untouched.
+        expect(state.players[1].manaPool.B ?? 0).toBe(0);
+    });
+
+    it("accumulates onto mana already floating in the pool (CR 106.4)", () => {
+        const id = registerScript("test-op-addmana-accumulate", [
+            { op: "addMana", mana: { R: 1 } },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { manaPool: { R: 2, G: 1 } }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool.R).toBe(3);
+        expect(state.players[0].manaPool.G).toBe(1);
+    });
+
+    it("adds a multi-colour amount in one Op", () => {
+        const id = registerScript("test-op-addmana-multi", [
+            { op: "addMana", mana: { W: 1, U: 2, C: 1 } },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].manaPool).toMatchObject({ W: 1, U: 2, C: 1 });
+    });
+
+    it("adds to an announced player target's pool", () => {
+        const id = registerScript(
+            "test-op-addmana-target",
+            [{ op: "addMana", mana: { C: 2 }, player: { target: 0 } }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].manaPool.C).toBe(2);
+        expect(state.players[0].manaPool.C ?? 0).toBe(0);
+    });
+
+    it("skips the Op when the announced recipient is missing and still runs the rest (CR 608.2b)", () => {
+        const id = registerScript(
+            "test-op-addmana-missing",
+            [
+                { op: "addMana", mana: { B: 2 }, player: { target: 0 } },
+                { op: "gainLife", player: "controller", amount: 1 },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState();
+        pushSpell(state, id, "p1", []); // no target survives to resolution
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[0].manaPool.B ?? 0).toBe(0);
+        expect(state.players[0].life).toBe(21);
+    });
+
+    it("the added mana survives projection (wire format)", () => {
+        const id = registerScript("test-op-addmana-wire", [
+            { op: "addMana", mana: { B: 3 } },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].manaPool.B).toBe(3);
+    });
+});
+
 describe("Effect Script Op: destroy (CR 701.8)", () => {
     it("destroys the announced creature target (moves it to its owner's graveyard)", () => {
         const id = registerScript("test-op-destroy", [

@@ -98,7 +98,10 @@ const OP_SEQUENCE = [
     ["createTokenCopy", ["createTokenCopyOf"]],
     ["gainControl", ["gainControl"]],
     ["optionChoice", ["requestOptionChoice"]],
-    ["addMana", ["addManaTo"]],
+    // addMana SHIPPED (issue #850) — addManaTo / addMana are now COVERED live
+    // via EFFECT_OP_REGISTRY; row dropped from the future-plan sequence. Only
+    // the fixed-produced-mana forms were folded (addRestrictedMana / "any
+    // colour" stay resolve()).
     ["coinFlip", ["requestCoinFlip"]],
     ["Xvalue", [X_PRIMITIVE]], // value-grammar extension, not an Op
 ];

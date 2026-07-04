@@ -399,6 +399,14 @@ export const manaDrain: CardDefinition = {
     manaCost: { U: 2 },
     types: ["Instant"],
     targetRequirement: { type: "spell", count: 1 },
+    // NOT DSL-migratable (ADR 0045), both this resolve and the delayedTriggers[]
+    // body below: the countered spell's mana value (getManaValue) must be
+    // captured at counter time and read back as the {C} amount when the delayed
+    // trigger fires. The delayedTrigger Op captures only object/player ids, not
+    // a computed numeric value (ADR 0048 excludes numeric-value captures), and
+    // the addMana amount grammar has no mana-value member. Planned-migratable.
+    // Blocked on: a numeric-value delayed-trigger capture + a mana-value
+    // EffectValue construct.
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "spell") return;
@@ -670,6 +678,12 @@ export const energyTap: CardDefinition = {
         controller: "you",
         tappedFilter: "untapped",
     },
+    // NOT DSL-migratable (ADR 0045): the produced {C} amount equals the tapped
+    // creature's mana value (a runtime read, getManaValue). The EffectValue
+    // grammar has no mana-value member, so the amount is not statically
+    // expressible (the tap half maps cleanly to tapUntap + addMana, but the
+    // count does not). Planned-migratable. Blocked on: a mana-value EffectValue
+    // construct.
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "permanent") return;

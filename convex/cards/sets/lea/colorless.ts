@@ -494,6 +494,11 @@ export const gauntletOfMight: CardDefinition = {
         },
     ],
     triggeredAbilities: [
+        // NOT DSL-migratable (ADR 0045): a `tappedTrigger` FACTORY hardcodes its
+        // `resolve` and exposes no `effects[]` site, and the recipient is read
+        // from the trigger event (the tapped Mountain's controller —
+        // tapped.controllerId, an event field). Blocked on: factory-trigger
+        // effects[] site + an event-field player ref.
         tappedTrigger({
             id: "gauntlet-mana-bonus",
             oracleText:

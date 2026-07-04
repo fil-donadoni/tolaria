@@ -482,6 +482,19 @@ export const OP_EXECUTORS: {
         if (amount === undefined || amount <= 0) return;
         ctx.loseLife(playerId, amount);
     },
+    // CR 106.1 (issue #850) — add mana to a player's mana pool. A thin
+    // declarative skin over the SpellContext primitive `addManaTo`, ONE
+    // execution path (ADR 0045): the JSON-pure `mana` map is passed straight
+    // through as a CardManaCost (the primitive ignores non-positive amounts and
+    // the X/generic slots, CR 106.1). `player` defaults to the resolving
+    // controller — a ritual adds to its caster's pool (CR 106.4); an
+    // announced-slot or relative player otherwise. Skipped when the player
+    // cannot be resolved (CR 608.2b).
+    addMana(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player ?? "controller");
+        if (playerId === undefined) return;
+        ctx.addManaTo(playerId, op.mana);
+    },
     // CR 701.8 — destroy, through the replacement layer (regeneration /
     // indestructible / destroy replacements, ADR 0020).
     destroy(ctx, op) {

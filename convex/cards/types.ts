@@ -4469,6 +4469,20 @@ export interface EffectCardFilter {
  *  (the frozen-grammar defence, ADR 0045). */
 export type EffectValue = number | EffectRef | EffectCount;
 
+/** JSON-pure mana specification for the `addMana` Op (CR 106.1, issue #850) —
+ *  a per-colour amount map. Only fixed coloured / colorless pips: no variable
+ *  `{X}`, generic, or "mana of any colour" (a runtime colour choice, not a
+ *  static amount). At least one positive entry is expected; non-positive
+ *  amounts are ignored by the mana-add primitives (CR 106.1). */
+export interface EffectManaPool {
+    W?: number;
+    U?: number;
+    B?: number;
+    R?: number;
+    G?: number;
+    C?: number;
+}
+
 /** One captured value of a `delayedTrigger` Op (ADR 0048): what crosses the
  *  scheduling-time → fire-time boundary. Resolved to ONE serializable string
  *  at scheduling:
@@ -4587,6 +4601,16 @@ export type EffectOp =
     /** CR 119.3b — `player` loses `amount` life (not damage — no
      *  damage-replacement interaction). */
     | { op: "loseLife"; player: EffectPlayerRef; amount: EffectValue }
+    /** CR 106.1 (issue #850) — add mana to a player's mana pool (a one-shot
+     *  effect that produces mana: a ritual like Dark Ritual "Add {B}{B}{B}").
+     *  A thin declarative skin over the SpellContext mana-add primitives
+     *  (`addManaTo` / `addMana`), one execution path (ADR 0045). `mana` is a
+     *  JSON-pure per-colour amount map (fixed coloured/colorless pips only — no
+     *  X, generic, or "any colour"; those are not statically expressible).
+     *  `player` names whose pool receives it — the resolving `"controller"` by
+     *  default (a ritual adds to its caster's pool, CR 106.4). Skipped when the
+     *  player cannot be resolved (CR 608.2b). */
+    | { op: "addMana"; mana: EffectManaPool; player?: EffectPlayerRef }
     /** CR 701.8 — destroy the announced target permanent, or the current
      *  `forEach` member (`{ ref: "$each" }`, issue #807). Routes through
      *  `SpellContext.destroy`, so regeneration / indestructible / destroy

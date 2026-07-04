@@ -427,6 +427,26 @@ function isManaCost(value: unknown): boolean {
     return true;
 }
 
+/** The `mana` field of an `addMana` Op (CR 106.1, issue #850): a JSON-pure
+ *  per-colour amount map — only the five colours + colorless (WUBRGC), each a
+ *  POSITIVE integer, and at least one entry (a mana-add producing nothing is
+ *  meaningless). No generic / X / xFactor: those are not fixed produced mana. */
+const MANA_POOL_KEYS = new Set(["W", "U", "B", "R", "G", "C"]);
+function isManaPool(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const entries = Object.entries(value);
+    if (entries.length === 0) return false;
+    for (const [k, v] of entries) {
+        if (!MANA_POOL_KEYS.has(k)) return false;
+        if (!(typeof v === "number" && Number.isInteger(v) && v > 0)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /** A `mayPay` cost (CR 117.3a / 118.4 / 702.24): a bare `ManaCost`, or the
  *  `{ mana?, life?, sacrifice? }` union. At least one leg must be present. */
 function isMayPayCost(value: unknown): boolean {
@@ -614,6 +634,13 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     draw: { required: { player: isPlayerRef, count: isEffectValue } },
     gainLife: { required: { player: isPlayerRef, amount: isEffectValue } },
     loseLife: { required: { player: isPlayerRef, amount: isEffectValue } },
+    // CR 106.1 (issue #850) — add mana to a player's mana pool. `mana` is the
+    // JSON-pure per-colour amount map (WUBRGC, positive integers); `player`
+    // (optional) names whose pool (default the resolving controller).
+    addMana: {
+        required: { mana: isManaPool },
+        optional: { player: isPlayerRef },
+    },
     destroy: {
         required: { target: isObjectSelector },
         optional: { bind: isBindingName },
