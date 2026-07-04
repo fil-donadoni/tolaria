@@ -91,6 +91,14 @@ export const sylvanLibrary: CardDefinition = {
                 event.type === "PHASE_BEGIN" &&
                 event.phase === "DRAW" &&
                 event.activePlayerId === self.controllerId,
+            // NOT DSL-migratable (ADR 0045, issue #849): has NO per-card test, so
+            // it is not AFK-eligible (green-before is the migration's whole
+            // safety mechanism). Independently blocked beyond `optionChoice`: the
+            // step-1 body is a ranged topdeck selection (choose 0..N drawn-this-
+            // turn cards) whose per-card life cost is "4 for each NOT selected"
+            // — a choice-result-cardinality + pay-life composition the current
+            // Op vocabulary can't express (the `optionChoice` here is only the
+            // step-0 may-draw). Stays resolve().
             resolveSteps: [
                 // Step 0 — "you may draw two additional cards" (CR 121.1).
                 // Isolated so the draw never re-runs on a later suspension.

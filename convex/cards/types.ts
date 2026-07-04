@@ -4547,6 +4547,22 @@ export type EffectChoiceKind =
     | "choose-hand-card"
     | "choose-graveyard-card";
 
+/** One mode of an `optionChoice` Op (ADR 0045, issue #849) — a labelled
+ *  sub-effect-list. The chooser picks one mode; the interpreter then runs that
+ *  mode's `effects` as a nested Op list (the same `runOpList` path an `if`
+ *  branch uses, so nested binds / refs / suspensions compose). `label` is the
+ *  human-readable mode text shown in the choice UI ("Prevent the next 3 damage
+ *  …", "Gain 3 life"). A modal spell's modes are the bullet clauses of its
+ *  "Choose one —" text (CR 700.2 / 601.2b). `id` (optional) is the stable
+ *  option identifier the choice pipeline stores and the UI submits — supply it
+ *  to give a mode a semantic id ("tap" / "untap" / "Swamp"); when omitted the
+ *  interpreter derives it from the mode's position (`String(index)`). */
+export interface EffectMode {
+    label: string;
+    effects: EffectOp[];
+    id?: string;
+}
+
 /** One step of an Effect Script. Ops are small, orthogonal and composable
  *  (target scale ~80k cards) — each maps 1:1 onto a SpellContext primitive.
  *  The Op vocabulary grows freely; the grammar never does (ADR 0045). Op
@@ -4800,6 +4816,28 @@ export type EffectOp =
           target: EffectObjectSelector;
           controller: EffectPlayerRef;
           duration?: GainControlDuration;
+      }
+    /** CR 700.2 / 601.2b (issue #849) — a modal "choose one" effect. A thin
+     *  declarative skin over the single SpellContext primitive
+     *  `requestOptionChoice`, one execution path (ADR 0045): the chooser picks
+     *  exactly one of the ordered `modes` (each a labelled nested `EffectOp[]`),
+     *  and the interpreter runs the chosen mode's `effects` through the SAME
+     *  `runOpList` path an `if` branch uses — so a mode body composes bind / ref
+     *  / if / forEach and even a further suspending Op (a nested `choice` /
+     *  `mayPay`) exactly like a top-level list. `player` names the chooser (the
+     *  resolving `"controller"` by default — the caster of a modal spell chooses
+     *  its mode, CR 601.2b; an announced target-slot player or a relative player
+     *  otherwise); `prompt` is the choice header. First execution enqueues the
+     *  `option-pick` Pending Choice and SUSPENDS; the resumed execution reads
+     *  the picked mode index back and descends into it. A single-mode
+     *  `optionChoice` auto-resolves (no real choice, Arena-style) — it runs the
+     *  one mode without prompting (CR 700.2 requires ≥1 mode). Skipped when the
+     *  chooser cannot be resolved (CR 608.2b). */
+    | {
+          op: "optionChoice";
+          modes: EffectMode[];
+          player?: EffectPlayerRef;
+          prompt: string;
       }
     /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a

@@ -472,6 +472,16 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // (per-Op regime).
             req.skip ??= `Op "gainControl" changes control of a permanent (and installs a conditional-control SBA) — covered by the Op's interpreter tests`;
             return;
+        case "optionChoice":
+            // CR 700.2 / 601.2b (issue #849) — a modal "choose one" enqueues an
+            // `option-pick` Pending Choice and SUSPENDS; which mode runs (and so
+            // what outcome to assert) depends on a LIVE player pick the canned
+            // generator cannot make. Explicit skip — the mode selection and each
+            // branch's execution are covered by the Op's own interpreter tests
+            // (per-Op regime). (Mirrors the `choice` / `mayPay` suspending-Op
+            // skip.)
+            req.skip ??= `Op "optionChoice" suspends on a live mode pick (CR 700.2) — covered by the Op's interpreter tests`;
+            return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.
@@ -955,6 +965,14 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // for the 1:1 coverage guard; the control change and its conditional revert
     // are covered by the Op's own interpreter tests.
     gainControl() {
+        return null;
+    },
+    // `optionChoice` (CR 700.2 / 601.2b, issue #849) — never reached: `analyseOp`
+    // skips every script with an optionChoice Op (it suspends on a live mode
+    // pick, so there is no same-resolution outcome the canned scenario can
+    // assert). Kept for the 1:1 coverage guard; mode selection and each branch's
+    // execution are covered by the Op's own interpreter tests.
+    optionChoice() {
         return null;
     },
     // `createToken` (CR 111 / 701.7, issue #847) — a deterministic

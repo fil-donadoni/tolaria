@@ -2435,6 +2435,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.gainControl",
         note: 'Change control of a permanent (CR 613.1b layer-2 control change, issue #848). A thin declarative skin over the single SpellContext primitive `gainControl`, one execution path (ADR 0045): `target` names the permanent whose control changes — an announced target slot (`{ target: N }` — Aladdin / Old Man of the Sea / Thrull Champion / Infernal Denizen\'s activated "gain control of target …"), the resolving source (`$source`), or a forEach `$each`. `controller` names who gains control (the resolving controller / an announced target-slot player / a relative player). `duration` is the JSON-pure GainControlDuration discriminator, mapped 1:1 onto ControlChangeCondition (CR 611.2b): omitted = an INDEFINITE reassignment (no condition, the Ghazbán Ogre shape — never reverts on its own); `while-you-control-source` → controller-controls-source (Aladdin, Thrull Champion); `while-source-tapped` → source-tapped (Preacher, Seasinger); `while-source-tapped-and-power-ge` → source-tapped-and-power-ge (Old Man of the Sea). The conditional durations install the conditional-control SBA that reverts the change when the condition lapses. Skipped when the target is gone / not a permanent or the controller cannot be resolved (CR 608.2b). SCOPE (issue #848): only the durations ControlChangeCondition supports are expressible. An "until end of turn" control change (Ray of Command / Magus of the Unseen) has NO ControlChangeCondition variant AND additionally wants an EOT tap rider, so it stays resolve() (a distinct capability, issue #730). The "and destroy on untap/leave" rider (Merieke Ri Berit) and runtime-computed recipients / parity guards (Ghazbán Ogre, Chaos Lord) also stay resolve() — see per-card NOT-migratable notes.',
     },
+    {
+        op: "optionChoice",
+        status: "implemented",
+        cr: "700.2",
+        binding: "SpellContext.requestOptionChoice",
+        note: 'Modal "choose one" effect (CR 700.2 / 601.2b, issue #849). A thin declarative skin over the single SpellContext primitive `requestOptionChoice`, one execution path (ADR 0045): `modes` is a non-empty ordered list of `{ label, effects }` — each mode a labelled nested `EffectOp[]` (the bullet clauses of a "Choose one —" spell). The chooser picks exactly one mode; the interpreter runs that mode\'s `effects` through the SAME `runOpList` path an `if` branch uses, so a mode body composes bind / ref / if / forEach and even a further suspending Op (a nested `choice` / `mayPay`). `player` (optional) names the chooser — the resolving `"controller"` by default (the caster of a modal spell chooses its mode, CR 601.2b); an announced target-slot / relative player otherwise. `prompt` is the choice header. Like `if` / `forEach` it is a structural construct that always re-descends on a re-walk (in the interpreter\'s runOpList skip-exception), so a suspension inside the chosen mode resumes correctly (CR 608.3). A SINGLE-mode Op auto-resolves — runs the one mode with no prompt (no real choice, Arena-style). Skipped when the chooser is gone (CR 608.2b). SCOPE (issue #849): the "choose one" form only. "Choose one or more" / "choose two" / "choose one. You may choose the same mode…" (Fork-style repetition, entwine, escalate) are distinct cardinality grammars a later Op adds on demand.',
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
@@ -2512,12 +2519,12 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // three "for as long as" conditions) is folded; an "until end of turn"
     // control change with a tap rider (Ray of Command / Magus of the Unseen)
     // has no ControlChangeCondition variant and stays resolve() (issue #730).
-    {
-        op: "optionChoice",
-        status: "planned",
-        cr: "608.2",
-        note: 'Mid-resolution "choose one" mode selection (CR 608.2). Folds SpellContext.requestOptionChoice (~16 blocked closures).',
-    },
+    // optionChoice SHIPPED (issue #849) — SpellContext.requestOptionChoice is
+    // now COVERED live via EFFECT_OP_REGISTRY with status "implemented". The
+    // "choose one" modal form is folded (each mode a nested EffectOp[] run
+    // through the same runOpList path an `if` branch uses). "Choose one or
+    // more" / "choose two" / entwine / escalate / Fork-style repetition are
+    // distinct cardinality grammars a later Op adds on demand.
     {
         op: "addMana",
         status: "planned",
