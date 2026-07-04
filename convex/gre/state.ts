@@ -345,6 +345,18 @@ export type CardInstanceState = {
          *  indefinite control change that only reverts when its source leaves
          *  or is explicitly undone. */
         condition?: ControlChangeCondition;
+        /** Optional "until end of turn" duration (CR 611.2b, issue #730 —
+         *  Ray of Command / Magus of the Unseen). When present, the phase-
+         *  boundary purge (`tickAllDurations`) reverts this entry at its
+         *  boundary — a distinct mechanism from the `condition`-based
+         *  conditional-control SBA. Mutually exclusive with `condition` in
+         *  practice (a gain-control effect is either "for as long as" or
+         *  "until end of turn", never both). */
+        duration?: Duration;
+        /** "When you lose control of the permanent, tap it" rider (CR 701.20a —
+         *  Ray of Command / Magus of the Unseen). When true, the permanent is
+         *  tapped the instant this duration-scoped control change reverts. */
+        tapOnLoss?: boolean;
     }>;
     /** Temporary "becomes a creature" animation (CR 208.2, 611.1). Set by
      *  `animateAsCreature`; on expiry the engine restores the saved P/T
@@ -3564,7 +3576,12 @@ export function applyControlChange(
     hostId: string,
     newControllerId: string,
     sourceId: string,
-    condition?: ControlChangeCondition
+    condition?: ControlChangeCondition,
+    /** "Until end of turn" duration + tap-on-loss rider (CR 611.2b / 701.20a,
+     *  issue #730 — Ray of Command / Magus of the Unseen). The duration is
+     *  ticked out by `tickAllDurations`, which reverts the entry and taps the
+     *  permanent when `tapOnLoss` is set. */
+    opts?: { duration?: Duration; tapOnLoss?: boolean }
 ): void {
     // Collapse a prior change from the same source before re-applying.
     revertControlChange(state, hostId, sourceId);
@@ -3582,6 +3599,8 @@ export function applyControlChange(
             auraId: sourceId,
             previousControllerId: found.card.controllerId,
             ...(condition ? { condition } : {}),
+            ...(opts?.duration ? { duration: opts.duration } : {}),
+            ...(opts?.tapOnLoss ? { tapOnLoss: true } : {}),
         },
     ];
     found.card.controllerId = newControllerId;
@@ -5895,6 +5914,32 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 newControllerId,
                 item.id,
                 condition
+            );
+        },
+        // CR 611.2b / 613.1b (layer 2) — "gain control of a permanent until end
+        // of turn" (Ray of Command, Magus of the Unseen, issue #730). Unlike the
+        // `condition`-based `gainControl` (reverted by the conditional-control
+        // SBA), this installs a phase-boundary `duration` that `tickAllDurations`
+        // reverts at CLEANUP (CR 514.2). `tapOnLoss` carries the "when you lose
+        // control of it, tap it" rider (CR 701.20a) — the permanent taps the
+        // instant control reverts.
+        gainControlUntilEndOfTurn(
+            target: TargetSelection,
+            newControllerId: string,
+            opts?: { tapOnLoss?: boolean }
+        ): void {
+            if (target.type !== "permanent") return;
+            if (!findOnBattlefield(state, target.id)) return;
+            applyControlChange(
+                state,
+                target.id,
+                newControllerId,
+                item.id,
+                undefined,
+                {
+                    duration: { phase: "end-of-turn" },
+                    tapOnLoss: opts?.tapOnLoss,
+                }
             );
         },
         destroyAll(

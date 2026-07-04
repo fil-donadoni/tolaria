@@ -178,7 +178,12 @@ export function validateAttackerEligibility(
     if (card.isTapped) {
         return { eligible: false, reason: "Tapped creatures cannot attack" };
     }
-    if (card.isSummoningSick) {
+    // CR 702.10b — haste lets a creature attack ignoring summoning sickness.
+    // Reads `staticAbilities` directly, which carries both natively-declared
+    // haste and haste granted by `grantAbility` (the Op appends to the array;
+    // issue #730 — Ray of Command / Magus of the Unseen grant haste to a
+    // freshly-stolen permanent so it can attack the turn control is gained).
+    if (card.isSummoningSick && !card.staticAbilities.includes("haste")) {
         return { eligible: false, reason: "Creature has summoning sickness" };
     }
     // CR 508.1c — card-level attack restrictions from staticEffects[].

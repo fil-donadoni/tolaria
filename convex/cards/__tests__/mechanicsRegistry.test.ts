@@ -97,6 +97,7 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
         ["indestructible", "702.12", "indestructible"],
         ["banding", "702.22", "banding"],
         ["cumulative-upkeep", "702.24", "cumulative-upkeep"],
+        ["haste", "702.10", "haste"],
         ["unblockable", undefined, "unblockable"],
     ] as const)(
         "%s is implemented with binding %s",
@@ -122,7 +123,9 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
     // Known gaps (see module header): declared on cards, not actually
     // enforced anywhere in the engine. Documented as a fact, not silently
     // marked implemented.
-    it.each(["haste", "hexproof", "shroud", "ward"] as const)(
+    // Haste graduated to `implemented` in issue #730 (combat honours it for
+    // attack eligibility). The remaining rows are still declared-but-unenforced.
+    it.each(["hexproof", "shroud", "ward"] as const)(
         "%s is honestly marked planned (declared-but-unenforced gap)",
         (id) => {
             const row = MECHANICS_REGISTRY.find((r) => r.id === id);

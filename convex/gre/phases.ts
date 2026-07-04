@@ -32,6 +32,7 @@ import {
     matchesPermanentFilter,
     discardToGraveyard,
     resolveTopOfStack,
+    revertControlChange,
     runDamageReplacement,
     tapPermanent,
     untapPermanent,
@@ -1808,6 +1809,51 @@ export function finalizeCleanup(state: GameState): void {
  *  scoped to a different boundary are left untouched. */
 function tickAllDurations(state: GameState): void {
     const view = { phase: state.phase, activePlayerId: state.activePlayerId };
+
+    // CR 611.2b / 613.1b (layer 2) — "gain control until end of turn" control
+    // changes (Ray of Command, Magus of the Unseen, issue #730). A duration-
+    // scoped `controlChanges` entry reverts at its boundary (CLEANUP, CR 514.2),
+    // distinct from the `condition`-based conditional-control SBA. The revert
+    // is deferred to a snapshot list because `revertControlChange` moves the
+    // host between battlefield arrays — mutating them mid-iteration would
+    // perturb the scan. If the entry carries a `tapOnLoss` rider, the permanent
+    // is tapped the instant control is lost (CR 701.20a).
+    const controlReverts: Array<{
+        hostId: string;
+        auraId: string;
+        tapOnLoss: boolean;
+    }> = [];
+    for (const p of state.players) {
+        for (const card of p.battlefield) {
+            if (!card.controlChanges?.length) continue;
+            for (const entry of card.controlChanges) {
+                if (!entry.duration) continue;
+                const next = tickDuration(entry.duration, view);
+                if (next === null) {
+                    controlReverts.push({
+                        hostId: card.id,
+                        auraId: entry.auraId,
+                        tapOnLoss: entry.tapOnLoss ?? false,
+                    });
+                } else {
+                    entry.duration = next;
+                }
+            }
+        }
+    }
+    for (const r of controlReverts) {
+        revertControlChange(state, r.hostId, r.auraId);
+        if (!r.tapOnLoss) continue;
+        // CR 701.20a — tap the permanent now that control has reverted. It has
+        // moved back into its owner's battlefield array; find it by id.
+        for (const p of state.players) {
+            const host = p.battlefield.find((c) => c.id === r.hostId);
+            if (host) {
+                tapPermanent(state, host);
+                break;
+            }
+        }
+    }
 
     // Player-granted activated abilities (e.g. Channel).
     for (const p of state.players) {

@@ -1218,6 +1218,19 @@ export interface SpellContext {
         newControllerId: string,
         condition?: ControlChangeCondition
     ) => void;
+    /** Gains control of a target permanent until end of turn (CR 611.2b /
+     *  613.1b, layer 2 — Ray of Command, Magus of the Unseen, issue #730).
+     *  Unlike `gainControl` (whose optional `condition` is reverted by the
+     *  conditional-control SBA), this installs an "until end of turn" duration
+     *  that the phase-boundary purge reverts at the cleanup step (CR 514.2).
+     *  Pass `opts.tapOnLoss` for the "when you lose control of it, tap it"
+     *  rider (CR 701.20a): the permanent taps the instant control reverts.
+     *  No-op if the target has left the battlefield. */
+    gainControlUntilEndOfTurn: (
+        target: TargetSelection,
+        newControllerId: string,
+        opts?: { tapOnLoss?: boolean }
+    ) => void;
     /** Destroys every permanent on the battlefield matching the filter
      *  (CR 701.7). Shorthand `CardType | CardType[]` is equivalent to
      *  `{ types }`. The object form supports compounding types, subtypes, and

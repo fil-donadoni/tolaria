@@ -123,8 +123,11 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 //     — Clairvoyance, Enervate, Force Void, Infuse, Portent, Ray of Erasure,
 //     Updraft: ACTIVE (#660 — the `next-upkeep` delayed-trigger timing shipped;
 //     the cantrips schedule it via `scheduleNextUpkeepDraw`).
-//   • Until-end-of-turn control gain + "tap it when you lose control" — Ray of
-//     Command, Magus of the Unseen (ControlChangeCondition has no EOT variant).
+//   • ACTIVE (#730) — until-end-of-turn control gain + "tap it when you lose
+//     control": Ray of Command, Magus of the Unseen. Uses the new
+//     `gainControlUntilEndOfTurn` primitive (duration-scoped control change +
+//     tap-on-loss rider, reverted at cleanup by `tickAllDurations`); haste is
+//     now honoured by combat.
 //   • Specialized primitives still missing — Mistfolk (counter a spell that
 //     targets this creature — no "spell targeting source" target filter),
 //     Phantasmal Mount (linked leaves-the-battlefield sacrifices — no delayed
@@ -1142,18 +1145,55 @@ export const krovikanSorcerer: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const magusOfTheUnseen: CardDefinition = {
-//     id: "86da04e9-b94d-42af-add3-02baf772bd33",
-//     name: "Magus of the Unseen",
-//     rarity: "rare",
-//     oracleText: "{1}{U}, {T}: Untap target artifact an opponent controls and gain control of it until end of turn. It gains haste until end of turn. When you lose control of the artifact, tap it.",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Wizard"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Shared "gain control until end of turn" body for Ray of Command (steals a
+// creature) and Magus of the Unseen (steals an artifact), issue #730. The three
+// clauses — untap (CR 701.20a), gain control until end of turn (CR 611.2b /
+// 613.1b layer 2, reverted at cleanup CR 514.2 by `tickAllDurations`), and
+// grant haste until end of turn (CR 702.10b / 611.1b, so a stolen creature can
+// attack the turn control is gained) — are all resolve()-time primitives.
+//
+// protocol: EOT control change + tap-on-loss rider — no ControlChangeCondition
+// variant (gainControl Op note, #848). The `tapUntap` / `grantAbility` clauses
+// ARE expressible Ops, but `effects[]` and `resolve()` are mutually exclusive
+// per effect site (ADR 0045 validate.ts), so the whole effect stays resolve().
+// The "when you lose control of it, tap it" rider (CR 701.20a) is carried by the
+// `tapOnLoss` flag on the duration-scoped control change.
+function gainControlUntilEndOfTurnBody(ctx: SpellContext): void {
+    const target = ctx.targets[0];
+    if (target?.type !== "permanent") return;
+    ctx.untap(target);
+    ctx.gainControlUntilEndOfTurn(target, ctx.controller, { tapOnLoss: true });
+    ctx.grantStaticAbility(target, "haste", { phase: "end-of-turn" });
+}
+export const magusOfTheUnseen: CardDefinition = {
+    id: "86da04e9-b94d-42af-add3-02baf772bd33",
+    name: "Magus of the Unseen",
+    rarity: "rare",
+    oracleText:
+        "{1}{U}, {T}: Untap target artifact an opponent controls and gain control of it until end of turn. It gains haste until end of turn. When you lose control of the artifact, tap it.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "magus-of-the-unseen-steal",
+            oracleText:
+                "{1}{U}, {T}: Untap target artifact an opponent controls and gain control of it until end of turn. It gains haste until end of turn. When you lose control of the artifact, tap it.",
+            cost: { mana: { X: 1, U: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Artifact",
+                count: 1,
+                controller: "opponent",
+            },
+            // protocol: see gainControlUntilEndOfTurnBody — EOT control change +
+            // tap-on-loss rider has no ControlChangeCondition variant (#848).
+            resolve: gainControlUntilEndOfTurnBody,
+        },
+    ],
+};
 // Mesmeric Trance — {1}{U}{U} Enchantment with cumulative upkeep {1}
 // (CR 702.24) and "{U}, Discard a card: Draw a card." The chosen-discard cost
 // is paid in-resolve (CR 601.2h convention, Dwarven Armorer pattern): step 0
@@ -1502,15 +1542,19 @@ export const powerSinkIce: CardPrint = {
     setCode: "ice",
     rarity: "common",
 };
-// TODO(#628): implement.
-// export const rayOfCommand: CardDefinition = {
-//     id: "638abe5f-2a8a-42ca-bcdf-a52a3df66946",
-//     name: "Ray of Command",
-//     rarity: "common",
-//     oracleText: "Untap target creature an opponent controls and gain control of it until end of turn. That creature gains haste until end of turn. When you lose control of the creature, tap it.",
-//     manaCost: { X: 3, U: 1 },
-//     types: ["Instant"],
-// };
+export const rayOfCommand: CardDefinition = {
+    id: "638abe5f-2a8a-42ca-bcdf-a52a3df66946",
+    name: "Ray of Command",
+    rarity: "common",
+    oracleText:
+        "Untap target creature an opponent controls and gain control of it until end of turn. That creature gains haste until end of turn. When you lose control of the creature, tap it.",
+    manaCost: { X: 3, U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1, controller: "opponent" },
+    // protocol: see gainControlUntilEndOfTurnBody — EOT control change +
+    // tap-on-loss rider has no ControlChangeCondition variant (#848).
+    resolve: gainControlUntilEndOfTurnBody,
+};
 // Ray of Erasure — {U} Instant. "Target player mills a card" (CR 701.13a mill —
 // move the top library card to its owner's graveyard, via `moveCardById` on the
 // live top id; Millstone pattern) plus the next-upkeep cantrip rider.

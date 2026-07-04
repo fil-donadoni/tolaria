@@ -125,6 +125,22 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 5,
     },
     {
+        // Gain-control-until-EOT rider (issue #730): Ray of Command steals an
+        // opponent's creature until end of turn (it untaps, gains haste so it
+        // can attack this turn, and taps when control reverts at cleanup).
+        // Magus of the Unseen does the same for an opponent's artifact via a
+        // repeatable {1}{U},{T} ability. Islands cover the {U}/{3}{U} costs.
+        label: "ICE steal-until-EOT (Ray of Command / Magus of the Unseen) (#730)",
+        cards: [
+            { name: "Ray of Command", owner: "me", zone: "hand" },
+            { name: "Magus of the Unseen", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            { name: "Icy Manipulator", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
+    {
         // Effect Script tracer bullet (ADR 0045, issue #800): Lava Spike is
         // the first DSL-only card — cast it at a player to exercise the
         // effects[] interpreter end-to-end. Two copies in hand + one for the
