@@ -300,23 +300,32 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // it, flipping it from need-test → AFK-ready — 380 FREE unchanged,
     // need-test 32→31, AFK-ready 348→349 (relative to the post-rebase
     // combined baseline below, which already folds in #886/#734/#674).
+    // Vintage Cube mana ramp/rocks/dorks/fixing tranche (issue #675) adds 3
+    // resolve() closures: City of Traitors' sacrifice trigger
+    // (`ctx.sacrifice(ctx.sourceInstanceId)` — FREE/AFK-ready, since
+    // `sacrifice` is a covered Op even though this specific self-sacrifice
+    // shape doesn't route through the Op's picks-list wrapper) and the two
+    // manlands' animate abilities, Creeping Tar Pit + Celestial Colonnade
+    // (both Op-blocked on `animateAsCreature`, not yet Op-wrapped — same as
+    // every other manland already in the catalog, e.g. Mishra's Factory).
     it("reports the committed baseline bucket totals", () => {
-        // Combined post-#886 + #734 + #674 + #888 truth. #886 landed ICE
-        // utility cards; #734 added Sacred Boon (a card-level resolve() seam
-        // + its next-end-step delayed-trigger resolve, both Op-blocked — the
-        // +0/+1-per-1-damage-prevented follow-up reads back a prevented amount
-        // that no Op surfaces); #674 added Sheoldred, the Apocalypse's
+        // Combined post-#886 + #734 + #674 + #888 + #675 truth. #886 landed
+        // ICE utility cards; #734 added Sacred Boon (a card-level resolve()
+        // seam + its next-end-step delayed-trigger resolve, both Op-blocked —
+        // the +0/+1-per-1-damage-prevented follow-up reads back a prevented
+        // amount that no Op surfaces); #674 added Sheoldred, the Apocalypse's
         // opponents-scoped drawTrigger resolve() closure (see the #674 note
         // above); #888's fixup gave it a dedicated GRE test, flipping it
-        // need-test → AFK-ready (see the #888 note above). Pins below are the
-        // classifier's actual reported values with all waves landed (computed
-        // via `bun scripts/migration-classifier.mjs` post-rebase, not
-        // hand-picked).
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(607);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(380);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(349);
+        // need-test → AFK-ready (see the #888 note above); #675 added City of
+        // Traitors + the two manlands (see the #675 note above). Pins below
+        // are the classifier's actual reported values with all waves landed
+        // (computed via `bun scripts/migration-classifier.mjs` post-rebase,
+        // not hand-picked).
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(610);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(381);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(350);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(213);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(215);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {

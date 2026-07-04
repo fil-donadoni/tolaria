@@ -365,6 +365,38 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 3,
     },
+    {
+        // Vintage Cube mana ramp / rocks / dorks / fixing tranche (issue
+        // #675, ADR 0041). Gaea's Cradle scales with the 2 Elvish Mystics on
+        // the battlefield (manaAmount — {G} for each creature you control);
+        // Urborg, Tomb of Yawgmoth turns every land into a Swamp too (layer-4
+        // subtype-add), so Copperline Gorge — a fast land with no printed
+        // basic land types of its own — gains a free {T}: Add {B} via the
+        // basic-land-type mana inference on top of its printed R/G choice.
+        // Talisman of Progress is in hand-adjacent reach (already in play)
+        // to exercise the painland-shaped choice mana ability. No `landCount`
+        // padding: every land here is a named ramp/fixing piece.
+        label: "Vintage Cube ramp & fixing — Cradle/Urborg/fast land (#675)",
+        cards: [
+            { name: "Gaea's Cradle", owner: "me", zone: "battlefield" },
+            {
+                name: "Urborg, Tomb of Yawgmoth",
+                owner: "me",
+                zone: "battlefield",
+            },
+            { name: "Copperline Gorge", owner: "me", zone: "battlefield" },
+            { name: "Talisman of Progress", owner: "me", zone: "battlefield" },
+            {
+                name: "Elvish Mystic",
+                owner: "me",
+                zone: "battlefield",
+                count: 2,
+                summoningSick: false,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

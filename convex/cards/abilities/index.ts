@@ -34,6 +34,108 @@ export function makeTapForMana(args: {
     };
 }
 
+/** Builds a "Talisman of <X><Y>"-cycle artifact (CR 605.1a — two mana
+ *  abilities, both `useStack: false`): a painless `{T}: Add {C}.` plus a
+ *  `{T}: Add <c1> or <c2>. This artifact deals 1 damage to you.` Modelled as
+ *  ONE choice mana ability whose first option is the painless {C} and whose
+ *  two coloured options carry the `dealsDamageToControllerOnColoredTap: 1`
+ *  rider — the exact painland shape ICE's Adarkar Wastes cycle already
+ *  established (`convex/cards/sets/ice/colorless.ts`), reused here for an
+ *  artifact instead of a land. Used by the MRD/MH1 Talisman cycle
+ *  (issue #675, ADR 0041). */
+export function makeTalisman(args: {
+    id: string;
+    name: string;
+    rarity: Rarity;
+    colors: [Color, Color];
+}): CardDefinition {
+    const [c1, c2] = args.colors;
+    const slug = args.name.toLowerCase().replaceAll(/\s+/g, "-");
+    return {
+        id: args.id,
+        name: args.name,
+        rarity: args.rarity,
+        oracleText: `{T}: Add {C}.\n{T}: Add {${c1}} or {${c2}}. This artifact deals 1 damage to you.`,
+        manaCost: { X: 2 },
+        types: ["Artifact"],
+        activatedAbilities: [
+            {
+                id: `${slug}-mana`,
+                oracleText: `{T}: Add {C}.\n{T}: Add {${c1}} or {${c2}}. This artifact deals 1 damage to you.`,
+                cost: { tap: true },
+                useStack: false,
+                manaChoices: [{ C: 1 }, { [c1]: 1 }, { [c2]: 1 }],
+                dealsDamageToControllerOnColoredTap: 1,
+            },
+        ],
+    };
+}
+
+/** Builds a DSK "Verge" cycle land (CR 605.1a — two `{T}` mana abilities on
+ *  the printed Oracle text, e.g. "{T}: Add {R}. {T}: Add {U}. Activate only
+ *  if you control an Island or a Mountain."). A card cannot carry two
+ *  independently-activatable `{T}` mana abilities in this engine (the
+ *  tap-mana fast path resolves a permanent's mana ability via
+ *  `getActivatedManaAbility`'s single `.find()`), so this is modelled as ONE
+ *  choice mana ability whose second option is gated by a board-conditional
+ *  `getManaChoices` hook — the same primitive Fellwar Stone uses
+ *  (`convex/cards/sets/drk/colorless.ts`), here checking the ACTIVATING
+ *  PLAYER's own battlefield for either of two named basic land subtypes
+ *  instead of an opponent's producible colours. The static `manaChoices`
+ *  (both options) is the representative / fallback list for best-effort
+ *  callers without a board snapshot. Used by the DSK/DFT Verge cycle
+ *  (issue #675, ADR 0041). */
+export function makeVergeLand(args: {
+    id: string;
+    name: string;
+    rarity: Rarity;
+    /** The land's own always-available colour. */
+    primary: Color;
+    /** The gated colour, unlocked once the controller has either
+     *  `unlockedBy` subtype in play. */
+    secondary: Color;
+    unlockedBy: [string, string];
+}): CardDefinition {
+    const { primary, secondary, unlockedBy } = args;
+    const slug = args.name.toLowerCase().replaceAll(/\s+/g, "-");
+    const oracleText = `{T}: Add {${primary}}.\n{T}: Add {${secondary}}. Activate only if you control a${
+        /^[aeiou]/i.test(unlockedBy[0]) ? "n" : ""
+    } ${unlockedBy[0]} or a ${unlockedBy[1]}.`;
+    return {
+        id: args.id,
+        name: args.name,
+        rarity: args.rarity,
+        oracleText,
+        manaCost: {},
+        types: ["Land"],
+        activatedAbilities: [
+            {
+                id: `${slug}-mana`,
+                oracleText,
+                cost: { tap: true },
+                useStack: false,
+                effect: (ctx) => ctx.addMana({ [primary]: 1 }),
+                manaChoices: [{ [primary]: 1 }, { [secondary]: 1 }],
+                getManaChoices: (_source, controllerId, battlefields) => {
+                    const own = battlefields.find(
+                        (b) => b.playerId === controllerId
+                    );
+                    const unlocked =
+                        own?.permanents.some(
+                            ({ permanent }) =>
+                                permanent.types.includes("Land") &&
+                                (permanent.subtypes.includes(unlockedBy[0]) ||
+                                    permanent.subtypes.includes(unlockedBy[1]))
+                        ) ?? false;
+                    return unlocked
+                        ? [{ [primary]: 1 }, { [secondary]: 1 }]
+                        : [{ [primary]: 1 }];
+                },
+            },
+        ],
+    };
+}
+
 /** Color words used by the protection-from-X keyword (CR 702.16). Keep this
  *  in lowercase and aligned with the Oracle text — the engine's protection
  *  parser splits on the literal `protection from <color>` substring. */
@@ -62,7 +164,17 @@ const COLOR_TO_LAND_SUBTYPE: Record<Color, string> = {
  *  mana-ability shape and the rules-relevant land subtypes (landwalk,
  *  Armageddon, etc.). The mana ability follows the dual pattern from
  *  Birds of Paradise: `effect` produces the first color by default, and the
- *  `manaChoices` array exposes both options to the picker. */
+ *  `manaChoices` array exposes both options to the picker.
+ *
+ *  `fastLand: true` (issue #675, ADR 0041) turns it into the SOM/KLD "fast
+ *  land" cycle instead of a plain ABUR-style dual: "This land enters tapped
+ *  unless you control two or fewer other lands." — the `entersTappedUnless`
+ *  CR 614.1c self-conditional replacement, counting the controller's OTHER
+ *  lands on the board snapshot taken at entry (the entering land itself is
+ *  not yet on the battlefield when the predicate runs, so a plain count of
+ *  `view.players[controller].battlefield` lands already excludes it). No
+ *  basic land subtypes on a fast land (unlike the ABUR duals), matching the
+ *  printed cycle. */
 export function makeDualLand(args: {
     id: string;
     name: string;
@@ -73,16 +185,31 @@ export function makeDualLand(args: {
      *  are rare; pass through so the factory output is a complete definition. */
     rarity: Rarity;
     colors: [Color, Color];
+    fastLand?: boolean;
 }): CardDefinition {
     const [c1, c2] = args.colors;
     const slug = args.name.toLowerCase().replaceAll(/\s+/g, "-");
+    const fastLandOracle =
+        "This land enters tapped unless you control two or fewer other lands.\n" +
+        `{T}: Add {${c1}} or {${c2}}.`;
     return {
         id: args.id,
         name: args.name,
         rarity: args.rarity,
-        oracleText: args.oracleText,
+        oracleText: args.fastLand ? fastLandOracle : args.oracleText,
         types: ["Land"],
-        subtypes: [COLOR_TO_LAND_SUBTYPE[c1], COLOR_TO_LAND_SUBTYPE[c2]],
+        subtypes: args.fastLand
+            ? undefined
+            : [COLOR_TO_LAND_SUBTYPE[c1], COLOR_TO_LAND_SUBTYPE[c2]],
+        entersTappedUnless: args.fastLand
+            ? (view, controllerId) => {
+                  const own = view.players.find((p) => p.id === controllerId);
+                  const otherLands =
+                      own?.battlefield.filter((p) => p.types.includes("Land"))
+                          .length ?? 0;
+                  return otherLands <= 2;
+              }
+            : undefined,
         activatedAbilities: [
             {
                 id: `${slug}-mana`,
