@@ -2006,19 +2006,22 @@ export const windSpirit: CardDefinition = {
     toughness: 2,
     staticAbilities: ["flying", "menace"],
 };
-// DEFERRED (non-snow primitives). The snow read ("X can't be greater than the
-// number of snow lands you control") is now available via `countSnowLands`, but
-// Winter's Chill still needs two engine primitives outside the snow scope:
-//   (1) a chosen-X UPPER-BOUND validator keyed to a board count (CR 107.3) —
-//       the engine resolves X-target counts but has no "X ≤ snow lands you
-//       control" cap hook at cast announcement; and
-//   (2) a per-target THREE-WAY may-pay ({1} / {2} / decline) whose outcomes are
-//       a delayed "destroy at end of combat" (decline) and a per-creature
-//       "prevent all combat damage to AND by that creature this combat" (pay
-//       {1}) — `requestMayPay` offers a single cost, not a {1}-or-{2} fork with
-//       distinct delayed effects per branch.
-// Both are general primitives unrelated to Snow; flagged for a follow-up.
-// tracked-by: #738
+// DEFERRED (#738). The novel payloads all ship: X attacking targets
+// (`count:"X"` + `combatRoleFilter:"attacking"`), delayed "destroy at end of
+// combat" (`delayedTrigger` timing "next-end-of-combat"), and per-creature
+// "prevent all combat damage to AND by it" (`preventDamage` mode
+// "combat-to-and-by" / `preventAllCombatDamageToAndBy`). Two seams remain
+// genuinely absent (do NOT paper with resolve(), per ADR 0045):
+//   (1) a chosen-X UPPER-BOUND cap keyed to a board count (CR 107.3) — "X can't
+//       be greater than the number of snow lands you control." `countSnowLands`
+//       reads the count, but there is no `maxX`/cast-announcement cap hook on a
+//       CardDefinition (moves.ts bounds X only by mana + legal-target count).
+//   (2) a per-target THREE-WAY may-pay ({1} / {2} / decline) with a distinct
+//       delayed effect per branch — `requestMayPay` is strictly BINARY (one
+//       `MayPayCost`, pay/skip). A true simultaneous "{1} or {2}" prompt needs
+//       a multi-option pay primitive (or a documented sequential-mayPay
+//       approximation, deferred here for fidelity).
+// Stop-and-issue: stub kept, tracked by #738.
 // export const wintersChill: CardDefinition = {
 //     id: "a779aca7-ff2c-48d8-9484-6ad04b2c6bcb",
 //     name: "Winter's Chill",

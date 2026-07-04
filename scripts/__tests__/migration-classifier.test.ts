@@ -329,14 +329,20 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // closures (gain-control-until-EOT rider) that both carry per-card
         // tests, so each lands FREE + AFK-ready (+2 closures, +2 FREE,
         // +2 AFK-ready).
+        // #738 added Arcum's Whistle: two resolve() closures (the activated
+        // pay-{X}-gated forced-attack rider + its next-end-step delayed
+        // destroy). The activated closure is Op-blocked (no Op wraps
+        // setMustAttackThisTurn / the may-pay-gated branch); the delayed-trigger
+        // closure is FREE and carries the per-card test → AFK-ready
+        // (+2 closures, +1 FREE, +1 AFK-ready, +1 Op-blocked).
         // Pins below are the classifier's actual reported values with all waves
-        // (#886 + #734 + #674 + #888 + #675 + #732 + #730) landed — computed via
-        // `bun scripts/migration-classifier.mjs` post-rebase, not hand-picked.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(616);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(383);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(352);
+        // (#886 + #734 + #674 + #888 + #675 + #732 + #730 + #738) landed —
+        // computed via `bun scripts/migration-classifier.mjs`, not hand-picked.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(618);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(384);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(353);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(219);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(220);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {

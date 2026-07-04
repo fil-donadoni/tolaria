@@ -103,6 +103,22 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 4,
     },
     {
+        // ICE forced-attack requirement (issue #738): Arcum's Whistle ({3},{T})
+        // targets a non-Wall creature the active player controls. Its
+        // controller may pay {X} (X = the creature's mana value); if they
+        // decline, the creature must attack this turn if able and is destroyed
+        // at the next end step if it didn't. Activate before attackers are
+        // declared. Grizzly Bears is a ready target you control; 4 lands cover
+        // the {3} activation cost. Move to combat and activate the Whistle.
+        label: "ICE forced-attack (Arcum's Whistle) (#738)",
+        cards: [
+            { name: "Arcum's Whistle", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
+    {
         // Cumulative-upkeep global-lock permanents (issue #727): Glacial Chasm
         // and Halls of Mist enter the battlefield, Energy Storm sits in hand.
         // Glacial Chasm's ETB asks you to sacrifice a land; on the battlefield

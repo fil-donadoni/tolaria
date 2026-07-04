@@ -1560,19 +1560,22 @@ export const tinderWall: CardDefinition = {
         },
     ],
 };
-// DEFERRED (#660) — Touch of Vitae. The next-upkeep cantrip and the haste leg
-// are now buildable (the `next-upkeep` delayed-trigger timing shipped with this
-// issue; `grantStaticAbility(t, "haste", …)` covers the keyword). The remaining
-// blocker is the granted ACTIVATED ability: "{0}: Untap this creature. Activate
-// only once." There is a duration-scoped TRIGGERED-ability grant
-// (`grantTriggeredAbility`, looked up via `triggeredGrantTemplates[]`) but NO
-// activated-ability analogue a one-shot spell can grant to a target for a turn,
-// and the "activate only once" cap has no per-grant counter. Faithful modeling
-// needs a new `grantActivatedAbility(target, sourceCardId, abilityId,
-// duration)` primitive (the activated sibling of `grantTriggeredAbility`) plus a
-// once-per-grant guard — explicitly out of #660's "no new primitive beyond the
-// timing union" scope, so flagged for a follow-up cluster. Stub kept verbatim.
-// TODO(#628): implement (needs duration-scoped activated-ability grant + cap).
+// DEFERRED (#738) — Touch of Vitae. Two of three clauses ship today: the haste
+// leg (`grantAbility` Op, layer 6) and the next-upkeep cantrip (`delayedTrigger`
+// timing "next-upkeep"). The blocker is the granted ACTIVATED ability
+// "{0}: Untap this creature. Activate only once." granted to a target UNTIL END
+// OF TURN by a one-shot instant. `CardInstanceState.grantedActivatedAbilities`
+// (gre/state.ts) exists but is keyed ONLY by `auraId` (a lingering source
+// permanent) — the `grantedTriggeredAbilities` sibling carries a `duration?`
+// variant, the activated one does NOT. An instant leaves no source permanent,
+// so there is no seam to attach a duration-scoped granted activated ability.
+// Genuinely-absent seam (do NOT paper with resolve(), per ADR 0045): add a
+// `duration?` variant to `grantedActivatedAbilities`, a
+// `grantActivatedAbility(target, sourceCardId, abilityId, duration)` primitive
+// (activated sibling of `grantStaticAbility`), its phase-boundary purge, a
+// grant-template slot on the source def, and an Op skin. The "activate only
+// once" cap reuses `oncePerTurn` (once per until-EOT grant == once). Stop-and-
+// issue: stub kept, tracked by #738.
 // export const touchOfVitae: CardDefinition = {
 //     id: "48d2cd18-a24d-40e0-a654-777d9e623ae2",
 //     name: "Touch of Vitae",

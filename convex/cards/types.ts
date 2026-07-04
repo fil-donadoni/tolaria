@@ -210,8 +210,13 @@ export interface TargetRequirement {
      *  Default "any". Honored for graveyard targets (Regrowth), for
      *  battlefield-permanent targets (Simulacrum: "target creature you
      *  control"), and for PLAYER targets (CR 115 — "target opponent", Word of
-     *  Command; "you" keeps only the caster). Ignored for spell targets. */
-    controller?: "you" | "opponent" | "any";
+     *  Command; "you" keeps only the caster). Ignored for spell targets.
+     *
+     *  `"active"` restricts to permanents controlled by the ACTIVE player
+     *  (CR 102.1) — independent of who is choosing. Used by "target creature
+     *  the active player controls" abilities that any player may activate
+     *  (Arcum's Whistle). */
+    controller?: "you" | "opponent" | "any" | "active";
     /** Restricts legal permanent targets by live combat role (CR 508.1,
      *  509.1). "attacking" requires `isAttacking === true`; "blocking"
      *  requires `isBlocking === true`. Used by Righteousness ("target

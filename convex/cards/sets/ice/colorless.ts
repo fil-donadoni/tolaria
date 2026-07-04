@@ -228,21 +228,103 @@ export const arcumsWeathervane: CardDefinition = {
         },
     ],
 };
-// DEFERRED (#658) — Arcum's Whistle needs an "attacks this turn if able"
-// requirement plus a delayed end-step "destroy it if it didn't attack"
-// conditional, both keyed on whether the chosen creature actually attacked.
-// The engine has no attack-requirement primitive (`mustAttackThisTurn`) nor a
-// per-creature "did it attack this turn?" flag readable by a delayed trigger,
-// and the "before attackers are declared" activation window isn't expressible
-// via `canActivate`. Build the attack-requirement seam first.
-// export const arcumsWhistle: CardDefinition = {
-//     id: "73c07c87-0e44-4a5a-92b7-728350cd02de",
-//     name: "Arcum's Whistle",
-//     rarity: "uncommon",
-//     oracleText: "{3}, {T}: Choose target non-Wall creature the active player has controlled continuously since the beginning of the turn. That player may pay {X}, where X is that creature's mana value. If they don't pay, the creature attacks this turn if able, and at the beginning of the next end step, destroy it if it didn't attack this turn. Activate only before attackers are declared.",
-//     manaCost: { X: 3 },
-//     types: ["Artifact"],
-// };
+// Arcum's Whistle — {3} Artifact (issue #738). "{3}, {T}: Choose target
+// non-Wall creature the active player has controlled continuously since the
+// beginning of the turn. That player may pay {X}, where X is that creature's
+// mana value. If they don't pay, the creature attacks this turn if able, and
+// at the beginning of the next end step, destroy it if it didn't attack this
+// turn. Activate only before attackers are declared." (CR 508.1d, 603.7a,
+// 601.3e may-pay, 102.1 active player.)
+//
+// The attack-requirement seam shipped (`setMustAttackThisTurn` +
+// `hasAttackedThisTurn` + `next-end-step` delayed destroy — the Nettling Imp
+// pattern, lea/black.ts). The DEFERRED note above is stale: those primitives
+// now exist. The activation window "before attackers are declared" is
+// `activationPhaseRestriction` (all steps up to BEGINNING_OF_COMBAT). The
+// target uses the `controller: "active"` filter (CR 102.1) — the creature the
+// ACTIVE player controls, independent of who activates.
+//
+// protocol: the pay-{X}-then-conditional-must-attack-and-delayed-destroy
+// branch is a stepped resolution (may-pay suspends, then branches on the
+// answer) — the interpreter has no Op that both wraps `setMustAttackThisTurn`
+// and gates it behind a may-pay answer, so this reuses the same SpellContext
+// primitives as the shipped Nettling Imp resolve() rather than the DSL.
+//
+// "Controlled continuously since the beginning of the turn" is approximated by
+// the active-player controller filter (matching Nettling Imp's shipped
+// fidelity): a summoning-sick target forced to attack simply can't, and is
+// destroyed — a minor, defender-favouring deviation not modelled here.
+const ARCUMS_WHISTLE_ID = "73c07c87-0e44-4a5a-92b7-728350cd02de";
+export const arcumsWhistle: CardDefinition = {
+    id: ARCUMS_WHISTLE_ID,
+    name: "Arcum's Whistle",
+    rarity: "uncommon",
+    oracleText:
+        "{3}, {T}: Choose target non-Wall creature the active player has controlled continuously since the beginning of the turn. That player may pay {X}, where X is that creature's mana value. If they don't pay, the creature attacks this turn if able, and at the beginning of the next end step, destroy it if it didn't attack this turn. Activate only before attackers are declared.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "arcums-whistle-force",
+            oracleText:
+                "{3}, {T}: Choose target non-Wall creature the active player has controlled continuously since the beginning of the turn. That player may pay {X}, where X is that creature's mana value. If they don't pay, the creature attacks this turn if able, and at the beginning of the next end step, destroy it if it didn't attack this turn. Activate only before attackers are declared.",
+            cost: { mana: { X: 3 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "active",
+                excludeSubtypes: "Wall",
+            },
+            activationPhaseRestriction: [
+                "UPKEEP",
+                "DRAW",
+                "PRECOMBAT_MAIN",
+                "BEGINNING_OF_COMBAT",
+            ],
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                if (!target || target.type !== "permanent") return;
+                // The creature's controller (the active player) may pay {X},
+                // X = the creature's mana value (CR 601.3e).
+                const payer = ctx.getController(target);
+                const mv = ctx.getManaValue(target);
+                const accept = ctx.requestMayPay({
+                    playerId: payer,
+                    choiceId: "arcums-whistle-pay",
+                    cost: { X: mv },
+                    prompt: `Pay {${mv}} so this creature isn't forced to attack this turn?`,
+                });
+                if (accept === undefined) return; // suspend for the may-pay
+                if (accept) return; // paid — no requirement imposed
+                // Unpaid: the creature must attack this turn if able, and is
+                // destroyed at the next end step if it didn't (Nettling Imp).
+                ctx.setMustAttackThisTurn(target);
+                ctx.scheduleDelayedTrigger(
+                    ARCUMS_WHISTLE_ID,
+                    "arcums-whistle-destroy",
+                    "next-end-step",
+                    { targetId: target.id }
+                );
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: "arcums-whistle-destroy",
+            oracleText:
+                "Destroy that creature at the beginning of the next end step if it didn't attack this turn.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                const targetId = payload.targetId;
+                if (!targetId) return;
+                const target = { type: "permanent" as const, id: targetId };
+                if (ctx.hasAttackedThisTurn(target)) return;
+                ctx.destroy(target);
+            },
+        },
+    ],
+};
 // Barbed Sextant — {1} Artifact. "{1}, {T}, Sacrifice this artifact: Add one
 // mana of any color. Draw a card at the beginning of the next turn's upkeep."
 // The mana add is a mana ability (CR 605.1a — adds mana, doesn't target), so it

@@ -69,6 +69,7 @@ import {
     snowblind,
     arcumsSleigh,
     arcumsWeathervane,
+    arcumsWhistle,
     sunstone,
     adarkarWastes,
     brushland,
@@ -86,9 +87,16 @@ import {
     glacialChasm,
     hallsOfMist,
 } from "../../ice";
-import { plains, island, swamp, mountain, forest } from "../../lea";
+import {
+    plains,
+    island,
+    swamp,
+    mountain,
+    forest,
+    grizzlyBears,
+} from "../../lea";
 import { applyLandManaReplacement } from "../../../../gre/constants";
-import { untapStep } from "../../../../gre/phases";
+import { untapStep, fireDelayedTriggers } from "../../../../gre/phases";
 import { validateAttackerEligibility } from "../../../../gre/combat";
 import { applyDamageReplacements } from "../../../../gre/replacements";
 import {
@@ -168,6 +176,7 @@ import {
     BASIC_MANA,
     resolveActivatedNoting,
     submitPick,
+    answerMayPay,
 } from "./helpers";
 
 // ---------------------------------------------------------------------------
@@ -3754,5 +3763,144 @@ describe("Halls of Mist (CR 702.24 / 508.1)", () => {
         expect(validateAttackerEligibility(slim, [], projected).eligible).toBe(
             false
         );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Arcum's Whistle (#738) — CR 508.1d forced attack, 603.7a delayed destroy,
+// 601.3e may-pay gate, 102.1 active-player target filter.
+// ---------------------------------------------------------------------------
+describe("Arcum's Whistle (forced attack with pay-{X} gate + delayed destroy)", () => {
+    const ABILITY_ID = "arcums-whistle-force";
+
+    // p1 controls the Whistle (activator); p2 is the ACTIVE player and controls
+    // the target creature (grizzly bears, mana value 2).
+    function setup(payerMana = 0) {
+        const whistle = makeInstance(arcumsWhistle.id, {
+            id: "whistle",
+            controllerId: "p1",
+        });
+        const victim = makeInstance(grizzlyBears.id, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [whistle] }),
+                makePlayer("p2", {
+                    battlefield: [victim],
+                    manaPool: {
+                        W: 0,
+                        U: 0,
+                        B: 0,
+                        R: 0,
+                        G: 0,
+                        C: payerMana,
+                    },
+                }),
+            ],
+            activePlayerId: "p2",
+            priorityPlayerId: "p1",
+            phase: "BEGINNING_OF_COMBAT",
+        });
+        return { state, whistle, victim };
+    }
+
+    it("declares an active-player non-Wall creature target, activatable before attackers", () => {
+        const ability = arcumsWhistle.activatedAbilities?.[0];
+        expect(ability?.id).toBe(ABILITY_ID);
+        expect(ability?.cost).toEqual({ mana: { X: 3 }, tap: true });
+        expect(ability?.useStack).toBe(true);
+        expect(ability?.targetRequirement?.controller).toBe("active");
+        expect(ability?.targetRequirement?.excludeSubtypes).toBe("Wall");
+        expect(ability?.activationPhaseRestriction).toEqual([
+            "UPKEEP",
+            "DRAW",
+            "PRECOMBAT_MAIN",
+            "BEGINNING_OF_COMBAT",
+        ]);
+    });
+
+    it('controller:"active" restricts legal targets to the active player\'s creatures', () => {
+        const { state } = setup();
+        // Add a creature controlled by the NON-active player (p1).
+        state.players[0].battlefield.push(
+            makeInstance(grizzlyBears.id, { id: "mine", controllerId: "p1" })
+        );
+        const req = arcumsWhistle.activatedAbilities![0].targetRequirement!;
+        const legal = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        expect(legal).toContain("victim"); // active player's creature
+        expect(legal).not.toContain("mine"); // non-active player's creature
+    });
+
+    it("paying {X} (X = mana value) imposes no attack requirement", () => {
+        const { state, whistle, victim } = setup(2); // p2 has 2 generic mana
+        resolveActivated(state, whistle, ABILITY_ID, [
+            { type: "permanent", id: "victim" },
+        ]);
+        expect(state.pendingChoices).toHaveLength(1); // suspended at may-pay
+        answerMayPay(state, true); // p2 pays {2}
+        expect(victim.mustAttackThisTurn).toBeFalsy();
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
+        expect(state.players[1].manaPool.C).toBe(0); // mana spent
+    });
+
+    it("declining the payment forces the creature to attack and schedules the destroy", () => {
+        const { state, whistle, victim } = setup();
+        resolveActivated(state, whistle, ABILITY_ID, [
+            { type: "permanent", id: "victim" },
+        ]);
+        answerMayPay(state, false); // p2 declines
+        expect(victim.mustAttackThisTurn).toBe(true);
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers![0].triggerId).toBe(
+            "arcums-whistle-destroy"
+        );
+    });
+
+    it("delayed trigger destroys the creature at end step if it didn't attack", () => {
+        const { state, whistle } = setup();
+        resolveActivated(state, whistle, ABILITY_ID, [
+            { type: "permanent", id: "victim" },
+        ]);
+        answerMayPay(state, false);
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "victim")
+        ).toBeUndefined();
+        expect(
+            state.players[1].graveyard.find((c) => c.id === "victim")
+        ).toBeDefined();
+    });
+
+    it("delayed trigger does NOT destroy the creature if it attacked", () => {
+        const { state, whistle, victim } = setup();
+        resolveActivated(state, whistle, ABILITY_ID, [
+            { type: "permanent", id: "victim" },
+        ]);
+        answerMayPay(state, false);
+        victim.hasAttackedThisTurn = true;
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "victim")
+        ).toBeDefined();
+    });
+
+    it("excludes Walls from legal targets", () => {
+        const { state } = setup();
+        state.players[1].battlefield.push(
+            makeInstance(wallOfShields.id, {
+                id: "wall",
+                controllerId: "p2",
+            })
+        );
+        const req = arcumsWhistle.activatedAbilities![0].targetRequirement!;
+        const legal = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        expect(legal).toContain("victim");
+        expect(legal).not.toContain("wall");
     });
 });
