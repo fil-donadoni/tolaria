@@ -83,6 +83,30 @@ import * as big from "./sets/big";
 import * as gpt from "./sets/gpt";
 import * as dis from "./sets/dis";
 import * as rav from "./sets/rav";
+// Vintage Cube FREE targeted-removal tranche (issue #676) — additional
+// cross-set home sets routed to earliest paper printing (ADR 0041).
+import * as mid from "./sets/mid";
+import * as apc from "./sets/apc";
+import * as neo from "./sets/neo";
+import * as bok from "./sets/bok";
+import * as roe from "./sets/roe";
+import * as lci from "./sets/lci";
+import * as akh from "./sets/akh";
+import * as aer from "./sets/aer";
+import * as rtr from "./sets/rtr";
+import * as c15 from "./sets/c15";
+import * as afr from "./sets/afr";
+import * as hou from "./sets/hou";
+import * as ecl from "./sets/ecl";
+import * as c17 from "./sets/c17";
+import * as pip from "./sets/pip";
+import * as emn from "./sets/emn";
+import * as nem from "./sets/nem";
+import * as fic from "./sets/fic";
+import * as lcc from "./sets/lcc";
+import * as m3c from "./sets/m3c";
+import * as con from "./sets/con";
+import * as shm from "./sets/shm";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -173,6 +197,29 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "gpt", exports: gpt },
     { code: "dis", exports: dis },
     { code: "rav", exports: rav },
+    // Vintage Cube FREE targeted-removal tranche (issue #676).
+    { code: "mid", exports: mid },
+    { code: "apc", exports: apc },
+    { code: "neo", exports: neo },
+    { code: "bok", exports: bok },
+    { code: "roe", exports: roe },
+    { code: "lci", exports: lci },
+    { code: "akh", exports: akh },
+    { code: "aer", exports: aer },
+    { code: "rtr", exports: rtr },
+    { code: "c15", exports: c15 },
+    { code: "afr", exports: afr },
+    { code: "hou", exports: hou },
+    { code: "ecl", exports: ecl },
+    { code: "c17", exports: c17 },
+    { code: "pip", exports: pip },
+    { code: "emn", exports: emn },
+    { code: "nem", exports: nem },
+    { code: "fic", exports: fic },
+    { code: "lcc", exports: lcc },
+    { code: "m3c", exports: m3c },
+    { code: "con", exports: con },
+    { code: "shm", exports: shm },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>

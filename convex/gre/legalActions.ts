@@ -379,6 +379,8 @@ function requirementFromPendingTarget(pt: PendingTarget): TargetRequirement {
         powerFilter: pt.powerFilter,
         toughnessFilter: pt.toughnessFilter,
         excludeSubtypes: pt.excludeSubtypes,
+        excludeSupertypes:
+            pt.excludeSupertypes as TargetRequirement["excludeSupertypes"],
         mvFilter: pt.mvFilter,
         spellTypeFilter: pt.spellTypeFilter,
         spellSingleTargetingController: pt.spellSingleTargetingController,

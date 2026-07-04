@@ -2420,6 +2420,7 @@ function applyRequirementToPendingTarget(
     pt.subtypeFilter = undefined;
     pt.supertypeFilter = undefined;
     pt.excludeSubtypes = undefined;
+    pt.excludeSupertypes = undefined;
     pt.powerFilter = undefined;
     pt.toughnessFilter = undefined;
     pt.mvFilter = undefined;
@@ -2442,6 +2443,8 @@ function applyRequirementToPendingTarget(
     if (sup) pt.supertypeFilter = sup;
     const exSub = toArr(req.excludeSubtypes);
     if (exSub) pt.excludeSubtypes = exSub;
+    const exSup = toArr(req.excludeSupertypes);
+    if (exSup) pt.excludeSupertypes = exSup;
     if (req.powerFilter) pt.powerFilter = req.powerFilter;
     if (req.toughnessFilter) pt.toughnessFilter = req.toughnessFilter;
     const mv = resolveMvFilter(req.mvFilter, chosenX);
@@ -3208,6 +3211,11 @@ export const announceCast = mutation({
                     ? activeTargetRequirement.excludeSubtypes
                     : [activeTargetRequirement.excludeSubtypes]
                 : undefined;
+            const excludeSupertypes = activeTargetRequirement.excludeSupertypes
+                ? Array.isArray(activeTargetRequirement.excludeSupertypes)
+                    ? activeTargetRequirement.excludeSupertypes
+                    : [activeTargetRequirement.excludeSupertypes]
+                : undefined;
             const resolvedMvFilter = resolveMvFilter(
                 activeTargetRequirement.mvFilter,
                 chosenX
@@ -3243,6 +3251,7 @@ export const announceCast = mutation({
                       }
                     : {}),
                 ...(excludeSubtypes ? { excludeSubtypes } : {}),
+                ...(excludeSupertypes ? { excludeSupertypes } : {}),
                 ...(resolvedMvFilter ? { mvFilter: resolvedMvFilter } : {}),
                 ...(activeTargetRequirement.spellTypeFilter
                     ? {
@@ -4373,6 +4382,19 @@ export const selectTarget = mutation({
                 ) {
                     throw new Error(
                         `Target must not be ${pt.excludeSubtypes.join(" or ")}`
+                    );
+                }
+            }
+            // CR 205.4a: negative live supertype filter (Wasteland — "target
+            // nonbasic land"). Mirror of the positive supertypeFilter check.
+            if (pt.excludeSupertypes && pt.excludeSupertypes.length > 0) {
+                if (
+                    pt.excludeSupertypes.some((s) =>
+                        hasSupertypeLive(matchedCard!, s)
+                    )
+                ) {
+                    throw new Error(
+                        `Target must not be ${pt.excludeSupertypes.join(" or ")}`
                     );
                 }
             }
@@ -6324,6 +6346,12 @@ export const activateAbility = mutation({
                     ? effectiveTargetReq.supertypeFilter
                     : [effectiveTargetReq.supertypeFilter]
                 : undefined;
+            const abilityExcludeSupertypes =
+                effectiveTargetReq.excludeSupertypes
+                    ? Array.isArray(effectiveTargetReq.excludeSupertypes)
+                        ? effectiveTargetReq.excludeSupertypes
+                        : [effectiveTargetReq.excludeSupertypes]
+                    : undefined;
             state.pendingTarget = {
                 playerId: args.playerId,
                 cardInstanceId: card.id,
@@ -6355,6 +6383,9 @@ export const activateAbility = mutation({
                     : {}),
                 ...(abilitySupertypeFilter
                     ? { supertypeFilter: abilitySupertypeFilter }
+                    : {}),
+                ...(abilityExcludeSupertypes
+                    ? { excludeSupertypes: abilityExcludeSupertypes }
                     : {}),
                 ...(effectiveTargetReq.powerFilter
                     ? { powerFilter: effectiveTargetReq.powerFilter }

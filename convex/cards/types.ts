@@ -181,6 +181,13 @@ export interface TargetRequirement {
      *  ("X target snow lands"). Single string is shorthand for one supertype.
      *  Ignored for player / spell / graveyard targets. */
     supertypeFilter?: CardSupertype | CardSupertype[];
+    /** Excludes legal permanent targets that have ANY of these supertypes
+     *  (CR 205.4a — the negative of `supertypeFilter`). Read against the LIVE
+     *  supertype status, same as `supertypeFilter`. Used by "target nonbasic
+     *  land" (Wasteland) — `excludeSupertypes: "Basic"`. Single string is
+     *  shorthand for one supertype. Ignored for player / spell / graveyard
+     *  targets. */
+    excludeSupertypes?: CardSupertype | CardSupertype[];
     /** Restricts legal permanent targets by tap state (CR 701.20). Used by
      *  "target tapped creature" (Royal Assassin) and "target untapped
      *  creature" style filters. Ignored for player / spell targets. */

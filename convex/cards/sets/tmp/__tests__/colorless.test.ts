@@ -1,13 +1,17 @@
-// Tempest (TMP) — colorless behavior tests (ADR 0043 colour split).
+// TMP (Tempest) — colorless card behavior tests (ADR 0043 colour split).
+// Each card's describe block cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import { ancientTomb, lotusPetal } from "../colorless";
+import { ancientTomb, lotusPetal, wasteland } from "../colorless";
+import { plains, badlands } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     applyUnconditionalTapSelfDamage,
     tapSourceIntoPayment,
 } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
+import { getLegalTargets } from "../../../../gre/rules";
+import { resolveTopOfStack } from "../../../../gre/state";
 
 // Ancient Tomb — "{T}: Add {C}{C}. This land deals 2 damage to you." The
 // self-damage rides the NEW `dealsDamageToControllerOnTap` rider (issue
@@ -159,5 +163,149 @@ describe("Lotus Petal ({T}, Sacrifice: any color, CR 605.1a / 701.16)", () => {
             player.battlefield.find((c) => c.id === "petal")
         ).toBeUndefined();
         expect(player.graveyard.find((c) => c.id === "petal")).toBeDefined();
+    });
+});
+
+describe("Wasteland (CR 701.26 mana ability / CR 701.7 destroy nonbasic land)", () => {
+    it("is a Land with a mana ability and a sacrifice-to-destroy ability", () => {
+        expect(wasteland.types).toEqual(["Land"]);
+        expect(wasteland.activatedAbilities).toHaveLength(2);
+        const destroyAbility = wasteland.activatedAbilities!.find(
+            (a) => a.id === "wasteland-destroy"
+        )!;
+        expect(destroyAbility.targetRequirement).toMatchObject({
+            type: "Land",
+            excludeSupertypes: "Basic",
+        });
+    });
+
+    it("{T}: Add {C} (CR 106.1)", () => {
+        const w = makeInstance(wasteland.id, {
+            id: "w",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { battlefield: [w] })],
+        });
+        const manaAbility = wasteland.activatedAbilities!.find(
+            (a) => a.id === "wasteland-mana"
+        )!;
+        manaAbility.effect!({
+            addMana: (amount) => {
+                for (const [color, count] of Object.entries(amount)) {
+                    if (color === "X" || typeof count !== "number") continue;
+                    state.players[0].manaPool[color] =
+                        (state.players[0].manaPool[color] ?? 0) + count;
+                }
+            },
+        });
+        expect(state.players[0].manaPool.C).toBe(1);
+    });
+
+    it("getLegalTargets excludes a basic land and includes a nonbasic land (CR 205.4a)", () => {
+        const basic = makeInstance(plains.id, {
+            id: "basic",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const nonbasic = makeInstance(badlands.id, {
+            id: "nonbasic",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [basic] }),
+                makePlayer("p2", { battlefield: [nonbasic] }),
+            ],
+        });
+        const legal = getLegalTargets(state, {
+            type: "Land",
+            count: 1,
+            excludeSupertypes: "Basic",
+        });
+        const legalIds = legal.map((t) => ("id" in t ? t.id : undefined));
+        expect(legalIds).toContain("nonbasic");
+        expect(legalIds).not.toContain("basic");
+    });
+
+    it("destroy ability destroys a targeted nonbasic land (CR 701.7)", () => {
+        const w = makeInstance(wasteland.id, {
+            id: "w",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const nonbasic = makeInstance(badlands.id, {
+            id: "nonbasic",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [w] }),
+                makePlayer("p2", { battlefield: [nonbasic] }),
+            ],
+        });
+        state.stack.push({
+            ...makeInstance(wasteland.id, {
+                id: "w-ability",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "stack",
+            }),
+            castById: "p1",
+            abilityId: "wasteland-destroy",
+            targets: [{ type: "permanent", id: "nonbasic" }],
+        });
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "nonbasic")
+        ).toBe(false);
+    });
+
+    it("wire: the destroyed nonbasic land is gone from both viewers' projected battlefield", () => {
+        // Target legality (excludeSupertypes) is computed server-side only —
+        // getLegalTargets always runs against the fat GameState, never a
+        // projected client view (the frontend has no local re-derivation to
+        // test, confirmed: no src/ file references excludeSupertypes /
+        // supertypeFilter). The wire-relevant fact is the OUTCOME: the
+        // destroyed land disappears from the projected board for both seats.
+        const w = makeInstance(wasteland.id, {
+            id: "w",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const nonbasic = makeInstance(badlands.id, {
+            id: "nonbasic",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [w] }),
+                makePlayer("p2", { battlefield: [nonbasic] }),
+            ],
+        });
+        state.stack.push({
+            ...makeInstance(wasteland.id, {
+                id: "w-ability",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "stack",
+            }),
+            castById: "p1",
+            abilityId: "wasteland-destroy",
+            targets: [{ type: "permanent", id: "nonbasic" }],
+        });
+        resolveTopOfStack(state);
+        for (const viewer of ["p1", "p2"] as const) {
+            const projected = projectPublicState(state, 1, viewer);
+            expect(
+                projected.players[1].battlefield.some(
+                    (c) => c.id === "nonbasic"
+                )
+            ).toBe(false);
+        }
     });
 });

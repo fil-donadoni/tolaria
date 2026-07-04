@@ -308,6 +308,19 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // manlands' animate abilities, Creeping Tar Pit + Celestial Colonnade
     // (both Op-blocked on `animateAsCreature`, not yet Op-wrapped — same as
     // every other manland already in the catalog, e.g. Mishra's Factory).
+    // #676 (Cube FREE targeted-removal slice): adds 14 new resolve()
+    // closures across Portable Hole (afr/white.ts — ETB + LTB, Banishing
+    // Light O-Ring idiom), Wasteland (tmp/colorless.ts — mana `effect:`),
+    // and four modal `modes: SpellMode[]` cards whose bullets target
+    // different permanent types (Abrade hou/red.ts, Suplex fin/red.ts,
+    // Witherbloom Charm + Silverquill Charm sos/multicolor.ts — Healing
+    // Salve precedent, lea/white.ts). Every one of these five cards got a
+    // dedicated GRE test (hou/afr/fin/sos __tests__), so the classifier's
+    // hasTest heuristic counts all of their closures AFK-ready. Landed
+    // together with a separate parallel loop's ICE combat/trigger/control
+    // batch (#730/#732/#733/#736) — the pinned totals below are the real
+    // `bun scripts/migration-classifier.mjs` output computed AFTER the
+    // rebase that combines every one of these waves, not hand-picked.
     it("reports the committed baseline bucket totals", () => {
         // Combined post-#886 + #734 + #674 + #888 + #675 truth. #886 landed
         // ICE utility cards; #734 added Sacred Boon (a card-level resolve()
@@ -317,7 +330,10 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // opponents-scoped drawTrigger resolve() closure (see the #674 note
         // above); #888's fixup gave it a dedicated GRE test, flipping it
         // need-test → AFK-ready (see the #888 note above); #675 added City of
-        // Traitors + the two manlands (see the #675 note above).
+        // Traitors + the two manlands (see the #675 note above); #676 added
+        // Portable Hole, Wasteland and four modal charms (see the #676 note
+        // above), each with a dedicated GRE test so every closure lands
+        // AFK-ready.
         // #732 added the ICE combat-damage redirect / assign-no-damage cluster:
         // Kjeldoran Royal Guard (activated resolve installing the CR 614.6
         // all-unblocked redirect combat seam), Cloak of Confusion (triggered
@@ -335,14 +351,19 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // setMustAttackThisTurn / the may-pay-gated branch); the delayed-trigger
         // closure is FREE and carries the per-card test → AFK-ready
         // (+2 closures, +1 FREE, +1 AFK-ready, +1 Op-blocked).
-        // Pins below are the classifier's actual reported values with all waves
-        // (#886 + #734 + #674 + #888 + #675 + #732 + #730 + #738) landed —
-        // computed via `bun scripts/migration-classifier.mjs`, not hand-picked.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(618);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(384);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(353);
+        // #733 added the ICE attack-sacrifice-tax cluster (Flooded Woodlands,
+        // Reclamation) and #736 added the ICE filtered-counter cluster
+        // (Mistfolk, Brown Ouphe, Arenson's Aura).
+        // Pins below are the classifier's actual reported values with every
+        // wave (#886 + #734 + #674 + #888 + #675 + #732 + #730 + #738 + #733
+        // + #736 + #676) landed together post-rebase — computed via
+        // `bun scripts/migration-classifier.mjs` against the merged tree, not
+        // hand-picked.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(632);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(393);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(362);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(220);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(225);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {

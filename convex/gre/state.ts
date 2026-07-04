@@ -1456,6 +1456,11 @@ export type PendingTarget = {
     /** If set, excludes permanents whose subtypes include any of these
      *  (CR 205.3). Propagated from TargetRequirement.excludeSubtypes. */
     excludeSubtypes?: string[];
+    /** If set, EXCLUDES legal permanent targets that have ANY of these LIVE
+     *  supertypes (CR 205.4a). Propagated from
+     *  TargetRequirement.excludeSupertypes — the negative of supertypeFilter
+     *  above. Used by "target nonbasic land" (Wasteland). */
+    excludeSupertypes?: string[];
     /** Mana value range (CR 202.3). Propagated from TargetRequirement.mvFilter
      *  after resolving any `"X"` placeholders against the announced chosenX.
      *  Used by Spell Blast ("counter target spell with mana value X"). */
@@ -7274,6 +7279,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     ? req.excludeSubtypes
                     : [req.excludeSubtypes]
                 : undefined;
+            const excludeSupertypes = req.excludeSupertypes
+                ? Array.isArray(req.excludeSupertypes)
+                    ? req.excludeSupertypes
+                    : [req.excludeSupertypes]
+                : undefined;
             // Inline mvFilter "X" resolution (mirrors rules.resolveMvFilter;
             // duplicated to avoid a state ↔ rules import cycle).
             const resolveMv = (
@@ -7321,6 +7331,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     ? { toughnessFilter: req.toughnessFilter }
                     : {}),
                 ...(excludeSubtypes ? { excludeSubtypes } : {}),
+                ...(excludeSupertypes ? { excludeSupertypes } : {}),
                 ...(mvFilter ? { mvFilter } : {}),
                 ...(req.spellTypeFilter
                     ? {
@@ -7358,6 +7369,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     ? requirement.excludeSubtypes
                     : [requirement.excludeSubtypes]
                 : undefined;
+            const excludeSupertypes = requirement.excludeSupertypes
+                ? Array.isArray(requirement.excludeSupertypes)
+                    ? requirement.excludeSupertypes
+                    : [requirement.excludeSupertypes]
+                : undefined;
             state.pendingTarget = {
                 // The activating player (controller of THIS resolving ability)
                 // chooses the new target (CR 114.6 / 608.2).
@@ -7386,6 +7402,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     ? { toughnessFilter: requirement.toughnessFilter }
                     : {}),
                 ...(excludeSubtypes ? { excludeSubtypes } : {}),
+                ...(excludeSupertypes ? { excludeSupertypes } : {}),
                 ...(requirement.spellTypeFilter
                     ? {
                           spellTypeFilter: Array.isArray(

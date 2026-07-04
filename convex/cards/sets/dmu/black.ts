@@ -46,3 +46,18 @@ export const sheoldredTheApocalypse: CardDefinition = {
         }),
     ],
 };
+
+// TODO(issue #676 stub — "target creature with total power and toughness 5
+// or less" needs a summed power+toughness target filter; `TargetRequirement`
+// only has separate `powerFilter` / `toughnessFilter` (each independently
+// bounded), which can't express a bound on the SUM. A new filter field is a
+// small, general, orthogonal addition (useful beyond this one card) but is
+// out of scope for a single-card change — flagging for a follow-up rather
+// than widening TargetRequirement here. Tracked stub.
+// export const cutDown: CardDefinition = {
+//     id: "753db072-5d6a-4f37-8f7d-255572ecd3bd",
+//     name: "Cut Down",
+//     rarity: "uncommon",
+//     manaCost: { B: 1 },
+//     types: ["Instant"],
+// };
