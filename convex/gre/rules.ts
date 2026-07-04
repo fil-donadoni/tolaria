@@ -590,6 +590,15 @@ export function getLegalTargets(
             ) {
                 continue;
             }
+            // CR 102.1 — "active" restricts to the active player (exhaustive
+            // handling of the controller union; no current card uses
+            // graveyard + active).
+            if (
+                controllerFilter === "active" &&
+                player.id !== state.activePlayerId
+            ) {
+                continue;
+            }
             for (const card of player.graveyard) {
                 if (
                     !wantsAnyCard &&
@@ -679,6 +688,15 @@ export function getLegalTargets(
             if (
                 battlefieldControllerFilter === "opponent" &&
                 (casterId === undefined || player.id === casterId)
+            ) {
+                continue;
+            }
+            // CR 102.1 — `"active"` restricts to the active player's
+            // permanents regardless of who is choosing (Arcum's Whistle:
+            // "target creature the active player controls").
+            if (
+                battlefieldControllerFilter === "active" &&
+                player.id !== state.activePlayerId
             ) {
                 continue;
             }
@@ -855,6 +873,14 @@ export function getLegalTargets(
             if (
                 playerControllerFilter === "opponent" &&
                 (casterId === undefined || player.id === casterId)
+            ) {
+                continue;
+            }
+            // CR 102.1 — "active" restricts to the active player (exhaustive
+            // handling; no current card uses player + active).
+            if (
+                playerControllerFilter === "active" &&
+                player.id !== state.activePlayerId
             ) {
                 continue;
             }

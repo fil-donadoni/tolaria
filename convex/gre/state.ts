@@ -1497,8 +1497,10 @@ export type PendingTarget = {
      *  from TargetRequirement.zone. */
     zone?: "battlefield" | "graveyard";
     /** Restricts targets by relationship to the chooser. Propagated from
-     *  TargetRequirement.controller. Honored only when zone is non-default. */
-    controller?: "you" | "opponent" | "any";
+     *  TargetRequirement.controller. Honored only when zone is non-default.
+     *  `"active"` restricts to the active player's permanents (Arcum's
+     *  Whistle). */
+    controller?: "you" | "opponent" | "any" | "active";
     /** Targets already selected. */
     selected: TargetSelection[];
     /** Divide-as-you-choose budget (CR 601.2d / 120.4). When set, this spell

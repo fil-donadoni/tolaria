@@ -258,6 +258,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Arcum's Whistle",
+        "scryfallId": "73c07c87-0e44-4a5a-92b7-728350cd02de",
+        "oracleId": "de691eed-d90b-48f9-bae4-f982767f2bfd",
+        "firstSet": "ice"
+    },
+    {
         "name": "Arenson's Aura",
         "scryfallId": "f94f3e87-1b39-49a8-ad0d-f18c854e298a",
         "oracleId": "465843dc-57d0-46fd-ac47-238723034563",
