@@ -679,6 +679,19 @@ export interface ActivatedAbility {
      *  (`source.attachedTo`) may activate it, regardless of who controls the
      *  Aura. Overrides the controller-only default. */
     activatableByEnchantedController?: boolean;
+    /** "Activate this ability while its source is in a GRAVEYARD" (CR 113.6 /
+     *  602.5b). By default an activated ability functions only while its source
+     *  is on the battlefield; this flag lets the engine locate the source in a
+     *  graveyard and activate it from there. Only the graveyard's owner may
+     *  activate (checked in `activateAbility`). Pair with `canActivate` for a
+     *  graveyard-order predicate and `activationPhaseRestriction` /
+     *  `controllerTurnOnly` for timing. The effect references the source via
+     *  the DSL `$source` selector, which `moveZone` resolves to the graveyard
+     *  card (→ battlefield reanimates it). Used by Ashen Ghoul ("{B}: Return
+     *  this card from your graveyard to the battlefield. Activate only during
+     *  your upkeep and only if three or more creature cards are above this
+     *  card."). */
+    activateFromGraveyard?: boolean;
 }
 
 // --- Temporary-effect durations (CR 611.2, 514.2, 511.3) ---
@@ -2409,6 +2422,11 @@ export interface SpellContext {
         manaValue: number;
         colors: Color[];
     }>;
+    /** CR 404 / 400.7 — owner of the graveyard currently holding `id`, or
+     *  undefined when the card isn't in any graveyard. Lets the interpreter
+     *  resolve a graveyard-source `$source` (Ashen Ghoul's self-reanimation)
+     *  to a `graveyard-card` selection without a battlefield presence check. */
+    getGraveyardCardOwner: (id: string) => string | undefined;
 
     /** Casts a card from the caster's hand face down as a 2/2 colourless
      *  creature spell paying no mana cost (CR 708.2 / 707; Illusionary Mask).
@@ -5183,6 +5201,19 @@ export interface CardDefinition {
      *  `targetRequirement` — keep undefined on the card and put the per-mode
      *  requirements inside `modes[i].targetRequirement`. */
     targetRequirement?: TargetRequirement;
+    /** Additional INDEPENDENT target groups beyond the primary
+     *  `targetRequirement` (CR 601.2c — a spell may instruct the player to
+     *  choose several targets of DISTINCT descriptions). Each entry is a fully
+     *  independent `TargetRequirement` chosen in order AFTER the primary one;
+     *  the resulting targets are appended to the stack item's flat `targets`
+     *  list in declaration order (primary first, then each additional), so an
+     *  Effect Script references them positionally — Fumarole ("destroy target
+     *  creature and target land") declares `targetRequirement: { type:
+     *  "Creature", count: 1 }` + `additionalTargetRequirements: [{ type:
+     *  "Land", count: 1 }]` and destroys `{ target: 0 }` (the creature) and
+     *  `{ target: 1 }` (the land). Legality for EVERY group is checked at cast
+     *  announcement (CR 601.2c). Undefined for the common single-group case. */
+    additionalTargetRequirements?: TargetRequirement[];
     /** Imperative resolve function — called when the spell resolves from the
      *  stack. For modal spells, this is bypassed: the chosen mode's
      *  `resolve` runs instead. */
@@ -5321,6 +5352,14 @@ export interface CardDefinition {
          *  targets, and the divided total equals the chosen X. Used by Fire
          *  Covenant. */
         payXLife?: boolean;
+        /** CR 601.2b / 118.4 — "As an additional cost to cast this spell, pay N
+         *  life" for a FIXED N (distinct from the caster-chosen `payXLife`).
+         *  The engine pays exactly N life at cast commit; the cast is illegal if
+         *  the player's life is below N (CR 118.4 — you can't pay more life than
+         *  you have). Composes with `targetRequirement` /
+         *  `additionalTargetRequirements` (targets are chosen first, CR 601.2c).
+         *  Used by Fumarole ("pay 3 life"). */
+        payLife?: number;
         /** CR 107.3 / 608.2g — "X is the number of <cards> in an opponent's
          *  graveyard as you cast this spell." X is COMPUTED by the engine at
          *  announcement from the named card types in the chosen opponent's

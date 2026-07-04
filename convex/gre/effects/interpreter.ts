@@ -534,7 +534,22 @@ export const OP_EXECUTORS: {
     // no plain-move primitive (a battlefield permanent to any zone but the
     // hand needs LTB semantics — that is `destroy`/`exile`, not `moveZone`).
     moveZone(ctx, op) {
-        const target = resolveObjectRef(ctx, op.target);
+        let target = resolveObjectRef(ctx, op.target);
+        // Graveyard-source self-return (Ashen Ghoul, issue #737 / CR 400.7):
+        // `resolveObjectRef` is battlefield-scoped, so a `$source` whose source
+        // sits in a graveyard resolves to undefined. `moveZone` is the only Op
+        // whose graveyard → battlefield branch can act on it, so recover the
+        // graveyard-card selection here (the source reanimates itself).
+        if (!target && "ref" in op.target && op.target.ref === "$source") {
+            const owner = ctx.getGraveyardCardOwner(ctx.sourceInstanceId);
+            if (owner !== undefined) {
+                target = {
+                    type: "graveyard-card",
+                    id: ctx.sourceInstanceId,
+                    playerId: owner,
+                };
+            }
+        }
         if (!target) return;
         if (target.type === "permanent") {
             // Battlefield source (CR 110). Only the bounce-to-hand pair has a

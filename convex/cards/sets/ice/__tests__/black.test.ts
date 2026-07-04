@@ -60,6 +60,7 @@ import {
     seizures,
     hecatomb,
     soulBurn,
+    ashenGhoul,
 } from "../../ice";
 import { plains, island, swamp } from "../../lea";
 import { applyLandManaReplacement, manaValue } from "../../../../gre/constants";
@@ -88,7 +89,10 @@ import {
     applyMayPaySubmit,
 } from "../../../../gre/pendingChoiceSubmit";
 import { validateBlockerEligibility } from "../../../../gre/combat";
-import { tryAutoCommitPendingActivation } from "../../../../game";
+import {
+    tryAutoCommitPendingActivation,
+    buildPendingActivation,
+} from "../../../../game";
 import {
     makeInstance,
     makePlayer,
@@ -2462,5 +2466,116 @@ describe("Burnt Offering ({B} — sac creature, add X {B}/{R}, X = sac MV, CR 20
         expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(state.players[0].manaPool.B).toBe(0);
         expect(state.players[0].manaPool.R).toBe(0);
+    });
+});
+
+describe("Ashen Ghoul (graveyard-source activated ability, CR 113.6 / 602.5b / 603.6e — issue #737)", () => {
+    // p1 graveyard, bottom→top: [Ashen Ghoul, bear, bear, bear] — three
+    // creature cards ABOVE the Ghoul (index 0 = bottom, last = top).
+    function setup(creaturesAbove: number): GameState {
+        const ghoul = makeInstance(ashenGhoul.id, {
+            id: "ag",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const above = Array.from({ length: creaturesAbove }, (_, i) =>
+            makeInstance(balduvianBears.id, {
+                id: `bear-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+            })
+        );
+        return makeState({
+            phase: "UPKEEP",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    graveyard: [ghoul, ...above],
+                    manaPool: { W: 0, U: 0, B: 1, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    const ability = ashenGhoul.activatedAbilities![0];
+
+    it("declares haste and the graveyard-activation seam", () => {
+        expect(ashenGhoul.staticAbilities).toContain("haste");
+        expect(ability.activateFromGraveyard).toBe(true);
+        expect(ability.controllerTurnOnly).toBe(true);
+        expect(ability.activationPhaseRestriction).toEqual(["UPKEEP"]);
+    });
+
+    it("canActivate requires three or more creature cards above it (CR 603.6e)", () => {
+        const state3 = setup(3);
+        const ghoul3 = state3.players[0].graveyard[0];
+        expect(ability.canActivate!(ghoul3, state3)).toBe(true);
+
+        const state2 = setup(2);
+        const ghoul2 = state2.players[0].graveyard[0];
+        expect(ability.canActivate!(ghoul2, state2)).toBe(false);
+    });
+
+    it("reanimates the Ghoul from the graveyard through the real activation commit + resolution", () => {
+        const state = setup(3);
+        // Precondition the predicate would gate on (checked by activateAbility).
+        expect(ability.canActivate!(state.players[0].graveyard[0], state)).toBe(
+            true
+        );
+        // Drive the real deferred-commit path with the graveyard source.
+        const pa = buildPendingActivation({
+            playerId: "p1",
+            cardInstanceId: "ag",
+            abilityId: ability.id,
+            ability,
+            manaCost: { B: 1 },
+            fromGraveyard: true,
+        });
+        state.pendingActivation = pa;
+        state.priorityPlayerId = "p1";
+        const committed = tryAutoCommitPendingActivation(state, "p1");
+        expect(committed).not.toBeNull();
+        // The ability (a clone of the graveyard card) is on the stack; the real
+        // Ghoul is still in the graveyard until the ability resolves.
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].abilityId).toBe(ability.id);
+        expect(state.players[0].graveyard.some((c) => c.id === "ag")).toBe(
+            true
+        );
+        // {B} was paid.
+        expect(state.players[0].manaPool.B).toBe(0);
+
+        resolveTopOfStack(state);
+        // Reanimated: on the battlefield, gone from the graveyard.
+        expect(state.players[0].battlefield.some((c) => c.id === "ag")).toBe(
+            true
+        );
+        expect(state.players[0].graveyard.some((c) => c.id === "ag")).toBe(
+            false
+        );
+    });
+
+    it("wire format: the reanimated Ghoul is visible on the projected battlefield", () => {
+        const state = setup(3);
+        const pa = buildPendingActivation({
+            playerId: "p1",
+            cardInstanceId: "ag",
+            abilityId: ability.id,
+            ability,
+            manaCost: { B: 1 },
+            fromGraveyard: true,
+        });
+        state.pendingActivation = pa;
+        state.priorityPlayerId = "p1";
+        tryAutoCommitPendingActivation(state, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[0].battlefield.some((c) => c.id === "ag")
+        ).toBe(true);
     });
 });

@@ -28,7 +28,9 @@ import {
     monsoon,
     mountainTitan,
     ghostlyFlame,
+    fumarole,
 } from "../../ice";
+import { mountain } from "../../lea";
 import { getDefinition, getCardByName } from "../../../index";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { describeDamageSource } from "../../../../gre/replacements";
@@ -43,7 +45,10 @@ import {
     applyMayPaySubmit,
 } from "../../../../gre/pendingChoiceSubmit";
 import { getLegalTargets } from "../../../../gre/rules";
-import { finalizeTargetSelection } from "../../../../game";
+import {
+    finalizeTargetSelection,
+    advanceTargetGroupOrFinalize,
+} from "../../../../game";
 import {
     makeInstance,
     makePlayer,
@@ -52,6 +57,7 @@ import {
 } from "../../../__tests__/setup";
 import type { GameState } from "../../../../gre/state";
 import type { StackItem } from "../../../../gre/state";
+import type { PendingTarget } from "../../../../gre/state";
 import {
     resolveActivated,
     submitChoice,
@@ -1158,5 +1164,163 @@ describe("Ghostly Flame (damage-source colour override, CR 119.4 / 614)", () => 
         });
         // Balduvian Bears is {1}{G} → green. Not black/red, so unchanged.
         expect(describeDamageSource(state, "grn").colors).toEqual(["G"]);
+    });
+});
+
+// --- Fumarole (dual-target destroy + fixed pay-life, CR 601.2b/601.2c/701.7) --
+
+describe("Fumarole ({3}{B}{R} — destroy target creature AND target land, pay 3 life; CR 601.2b/601.2c/701.7 — issue #737)", () => {
+    it("declares the fixed pay-life cost, two independent target groups, and positional destroys", () => {
+        expect(fumarole.additionalCosts?.payLife).toBe(3);
+        expect(fumarole.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+        });
+        expect(fumarole.additionalTargetRequirements).toEqual([
+            { type: "Land", count: 1 },
+        ]);
+        // Effect Script destroys the creature (target 0) then the land (target 1).
+        expect(fumarole.effects).toEqual([
+            { op: "destroy", target: { target: 0 } },
+            { op: "destroy", target: { target: 1 } },
+        ]);
+    });
+
+    it("keeps the two target groups independent — creatures for group 0, lands for group 1 (CR 601.2c)", () => {
+        const bear = makeInstance(balduvianBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const land = makeInstance(mountain.id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear, land] }),
+            ],
+        });
+        const creatures = getLegalTargets(
+            state,
+            fumarole.targetRequirement!,
+            [],
+            "p1"
+        );
+        const lands = getLegalTargets(
+            state,
+            fumarole.additionalTargetRequirements![0],
+            [],
+            "p1"
+        );
+        const ids = (ts: typeof creatures) =>
+            ts.filter((t) => "id" in t).map((t) => (t as { id: string }).id);
+        expect(ids(creatures)).toContain("bear");
+        expect(ids(creatures)).not.toContain("land");
+        expect(ids(lands)).toContain("land");
+        expect(ids(lands)).not.toContain("bear");
+    });
+
+    it("advances from the creature group to the land group instead of finalizing (CR 601.2c)", () => {
+        const bear = makeInstance(balduvianBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const land = makeInstance(mountain.id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear, land] }),
+            ],
+        });
+        const pt: PendingTarget = {
+            playerId: "p1",
+            cardInstanceId: "fum",
+            targetType: "Creature",
+            count: 1,
+            selected: [{ type: "permanent", id: "bear" }],
+            remainingRequirements: [{ type: "Land", count: 1 }],
+        };
+        advanceTargetGroupOrFinalize(state, pt, "p1");
+        // Group advanced: the creature is locked into priorSelected, the current
+        // group is now the Land, and the queue is drained.
+        expect(pt.targetType).toBe("Land");
+        expect(pt.count).toBe(1);
+        expect(pt.selected).toEqual([]);
+        expect(pt.priorSelected).toEqual([{ type: "permanent", id: "bear" }]);
+        expect(pt.remainingRequirements).toBeUndefined();
+        // The spell is NOT on the stack yet — the second group is still open.
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("full path: pays 3 life at commit and destroys both the creature and the land (finalizeTargetSelection → resolveTopOfStack)", () => {
+        const bear = makeInstance(balduvianBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const land = makeInstance(mountain.id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const fum = makeInstance(fumarole.id, {
+            id: "fum",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [fum],
+                    life: 20,
+                    // {3}{B}{R} — generic 3 paid from colorless.
+                    manaPool: { W: 0, U: 0, B: 1, R: 1, G: 0, C: 3 },
+                }),
+                makePlayer("p2", { battlefield: [bear, land] }),
+            ],
+        });
+        // Both groups already chosen: creature locked in priorSelected, land in
+        // the current selection.
+        state.pendingTarget = {
+            playerId: "p1",
+            cardInstanceId: "fum",
+            targetType: "Land",
+            count: 1,
+            priorSelected: [{ type: "permanent", id: "bear" }],
+            selected: [{ type: "permanent", id: "land" }],
+        };
+        finalizeTargetSelection(state, state.pendingTarget!, "p1");
+        // CR 601.2b — 3 life paid the instant the spell hit the stack.
+        expect(state.players[0].life).toBe(17);
+        expect(state.stack).toHaveLength(1);
+        // Positional targets: [creature, land].
+        expect(state.stack[0].targets).toEqual([
+            { type: "permanent", id: "bear" },
+            { type: "permanent", id: "land" },
+        ]);
+
+        resolveTopOfStack(state);
+        // CR 701.7 — both destroyed.
+        expect(state.players[1].battlefield.some((c) => c.id === "bear")).toBe(
+            false
+        );
+        expect(state.players[1].battlefield.some((c) => c.id === "land")).toBe(
+            false
+        );
+        expect(state.players[1].graveyard.some((c) => c.id === "bear")).toBe(
+            true
+        );
+        expect(state.players[1].graveyard.some((c) => c.id === "land")).toBe(
+            true
+        );
     });
 });

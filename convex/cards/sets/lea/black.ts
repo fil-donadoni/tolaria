@@ -13,10 +13,10 @@ import type {
     SpellContext,
     StaticEffectContext,
     TargetSelection,
-    TriggerStateView,
 } from "../../types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
 import { knightStaticAbilities } from "../../abilities";
+import { creatureCardsAboveInGraveyard } from "../../graveyardOrder";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { damageTakenTrigger } from "../../abilities/triggers/damageTakenTrigger";
@@ -765,25 +765,8 @@ export const mindTwist: CardDefinition = {
 // card onto the battlefield." (CR 603.6e graveyard-zone trigger, 603.4d
 // intervening-if, 603.10.) The trigger opts into `collectTriggers`' graveyard
 // scan via `zone: "graveyard"`; the intervening-if counts creature cards
-// stacked above Nether Shadow in its owner's graveyard (index 0 = bottom,
-// last = top, so "above" = higher index).
-function creatureCardsAboveInGraveyard(
-    state: TriggerStateView | undefined,
-    self: PermanentView
-): number {
-    const graveyard = state?.players.find(
-        (p) => p.id === self.ownerId
-    )?.graveyard;
-    if (!graveyard) return 0;
-    const idx = graveyard.findIndex((c) => c.id === self.id);
-    if (idx === -1) return 0;
-    let count = 0;
-    for (let i = idx + 1; i < graveyard.length; i++) {
-        if (graveyard[i].types.includes("Creature")) count++;
-    }
-    return count;
-}
-
+// stacked above Nether Shadow in its owner's graveyard via the shared
+// `creatureCardsAboveInGraveyard` helper (index 0 = bottom, last = top).
 export const netherShadow: CardDefinition = {
     id: "f13ad58a-6f9b-420a-bac1-40929f5e616a",
     rarity: "rare",
