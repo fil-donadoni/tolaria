@@ -1070,29 +1070,53 @@ export function applyAllCombatDamage(
 
         if (!isBlocked) {
             if (attackerPower > 0) {
-                // CR 615 — Forcefield: cap damage from unblocked creature
-                let damage = attackerPower;
-                const caps = state.damageCapShields;
-                if (caps && caps.length > 0) {
-                    const capIdx = caps.findIndex(
-                        (s) => s.playerId === defenderId
+                // CR 614.6 — Kjeldoran Royal Guard: all combat damage unblocked
+                // attackers would deal to the defending player is redirected
+                // onto a chosen permanent instead. The redirect target must
+                // still be on the battlefield; otherwise the damage hits the
+                // player normally (CR 614.6 — a redirection to a nonexistent
+                // object does nothing).
+                const redirect = state.combatDamageRedirectToPermanent?.find(
+                    (e) =>
+                        e.playerId === defenderId &&
+                        (activePlayer.battlefield.some(
+                            (c) => c.id === e.toPermanentId
+                        ) ||
+                            defender.battlefield.some(
+                                (c) => c.id === e.toPermanentId
+                            ))
+                );
+                if (redirect) {
+                    applyOneCombatDamage(
+                        attacker,
+                        { type: "permanent", id: redirect.toPermanentId },
+                        attackerPower
                     );
-                    if (capIdx !== -1) {
-                        damage = Math.min(damage, caps[capIdx].maxDamage);
-                        state.damageCapShields = [
-                            ...caps.slice(0, capIdx),
-                            ...caps.slice(capIdx + 1),
-                        ];
-                        if (state.damageCapShields.length === 0) {
-                            state.damageCapShields = undefined;
+                } else {
+                    // CR 615 — Forcefield: cap damage from unblocked creature
+                    let damage = attackerPower;
+                    const caps = state.damageCapShields;
+                    if (caps && caps.length > 0) {
+                        const capIdx = caps.findIndex(
+                            (s) => s.playerId === defenderId
+                        );
+                        if (capIdx !== -1) {
+                            damage = Math.min(damage, caps[capIdx].maxDamage);
+                            state.damageCapShields = [
+                                ...caps.slice(0, capIdx),
+                                ...caps.slice(capIdx + 1),
+                            ];
+                            if (state.damageCapShields.length === 0) {
+                                state.damageCapShields = undefined;
+                            }
                         }
                     }
+                    applyOneCombatDamage(
+                        attacker,
+                        { type: "player", id: defenderId },
+                        damage
+                    );
                 }
-                applyOneCombatDamage(
-                    attacker,
-                    { type: "player", id: defenderId },
-                    damage
-                );
             }
         } else if (liveBlockers.length === 0) {
             // CR 510.1c — a blocked creature that lost all its blockers deals
@@ -2042,6 +2066,15 @@ function tickAllDurations(state: GameState): void {
     // Farrel's Zealot) expires at end of turn.
     if (state.assignsNoCombatDamageThisTurn) {
         state.assignsNoCombatDamageThisTurn = undefined;
+    }
+    // CR 614.6 / 514.2 — Kjeldoran Royal Guard's turn-scoped combat-damage
+    // redirect expires at end of turn.
+    if (state.combatDamageRedirectToPermanent) {
+        state.combatDamageRedirectToPermanent = undefined;
+    }
+    // ICE Gaze of Pain — the "until end of turn" floating rider expires.
+    if (state.gazeOfPainActiveThisTurn) {
+        state.gazeOfPainActiveThisTurn = undefined;
     }
     if (state.damageCapShields) {
         state.damageCapShields = undefined;

@@ -5,6 +5,8 @@
 import { describe, it, expect } from "vitest";
 import {
     balduvianBears,
+    cloakOfConfusion,
+    gazeOfPain,
     burntOffering,
     spoilsOfWar,
     kjeldoranWarrior,
@@ -83,7 +85,11 @@ import {
 } from "../../../../gre/layers";
 import { collectTriggers } from "../../../../gre/triggers";
 import { projectPublicState } from "../../../../gameProjections";
-import { fireDelayedTriggers, advancePhase } from "../../../../gre/phases";
+import {
+    fireDelayedTriggers,
+    advancePhase,
+    applyAllCombatDamage,
+} from "../../../../gre/phases";
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
@@ -122,6 +128,7 @@ import {
     BASIC_MANA,
     answerMayPayHead,
     collectAndStack,
+    submitPick,
 } from "./helpers";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2577,5 +2584,262 @@ describe("Ashen Ghoul (graveyard-source activated ability, CR 113.6 / 602.5b / 6
         expect(
             projected.players[0].battlefield.some((c) => c.id === "ag")
         ).toBe(true);
+    });
+});
+
+// ===========================================================================
+// Cloak of Confusion — assign-no-combat-damage + random discard rider
+// (CR 510.1c "assigns no combat damage"; CR 701.8 discard at random)
+// ===========================================================================
+describe("Cloak of Confusion — unblocked-attacker rider (CR 510.1c)", () => {
+    function cloakScenario() {
+        const attacker = makeInstance(balduvianBears.id, {
+            id: "atk",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const cloak = makeInstance(cloakOfConfusion.id, {
+            id: "cloak",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "atk",
+        });
+        // Defending player (p2) has two cards in hand to discard from.
+        const h1 = makeInstance(balduvianBears.id, {
+            id: "h1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const h2 = makeInstance(balduvianBears.id, {
+            id: "h2",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker, cloak] }),
+                makePlayer("p2", { hand: [h1, h2] }),
+            ],
+        });
+        return state;
+    }
+
+    const unblockedEvent = {
+        type: "ATTACKER_UNBLOCKED" as const,
+        attackerId: "atk",
+        attackerControllerId: "p1",
+        attackerTypes: ["Creature" as const],
+        attackerSubtypes: [] as string[],
+    };
+
+    it("choosing 'yes' marks assign-no-damage and defender discards at random", () => {
+        const state = cloakScenario();
+        const cloak = state.players[0].battlefield.find(
+            (c) => c.id === "cloak"
+        )!;
+        resolveTrigger(
+            state,
+            cloak,
+            "cloak-of-confusion-unblocked",
+            unblockedEvent
+        );
+        // Suspends on the yes/no option choice.
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["yes"],
+        });
+        expect(state.assignsNoCombatDamageThisTurn).toContain("atk");
+        // Defending player discarded exactly one card at random.
+        expect(state.players[1].hand.length).toBe(1);
+        expect(state.players[1].graveyard.length).toBe(1);
+    });
+
+    it("choosing 'no' leaves combat damage normal and no discard", () => {
+        const state = cloakScenario();
+        const cloak = state.players[0].battlefield.find(
+            (c) => c.id === "cloak"
+        )!;
+        resolveTrigger(
+            state,
+            cloak,
+            "cloak-of-confusion-unblocked",
+            unblockedEvent
+        );
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["no"],
+        });
+        expect(state.assignsNoCombatDamageThisTurn ?? []).not.toContain("atk");
+        expect(state.players[1].hand.length).toBe(2);
+    });
+
+    it("end-to-end: a marked attacker deals no combat damage, and the discard is wire-visible", () => {
+        const state = cloakScenario();
+        const cloak = state.players[0].battlefield.find(
+            (c) => c.id === "cloak"
+        )!;
+        resolveTrigger(
+            state,
+            cloak,
+            "cloak-of-confusion-unblocked",
+            unblockedEvent
+        );
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["yes"],
+        });
+        // Now run combat: the unblocked 2/2 assigns no combat damage.
+        state.combat = {
+            attackerIds: ["atk"],
+            confirmed: true,
+            blockerAssignments: {},
+            blockersConfirmed: true,
+        };
+        const before = state.players[1].life;
+        applyAllCombatDamage(state, {});
+        expect(state.players[1].life).toBe(before); // no damage dealt
+        // Wire format: the defender's reduced hand survives projection.
+        const projected = projectPublicState(state, 1, "p1");
+        const p2 = projected.players.find((p) => p.id === "p2");
+        expect(p2?.hand.length).toBe(1);
+    });
+});
+
+// ===========================================================================
+// Gaze of Pain — turn-scoped floating "unblocked → deal power, assign none"
+// rider (CR 603.7a turn-scoped trigger; CR 510.1c assigns no combat damage)
+// ===========================================================================
+describe("Gaze of Pain — turn-scoped unblocked rider (CR 603.7a)", () => {
+    it("resolving the sorcery arms the rider for its controller this turn", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, gazeOfPain.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.gazeOfPainActiveThisTurn).toContain("p1");
+        // Sorcery went to the graveyard (source for the graveyard-zone trigger).
+        expect(state.players[0].graveyard.some((c) => c.id !== undefined)).toBe(
+            true
+        );
+    });
+
+    const unblockedEvent = {
+        type: "ATTACKER_UNBLOCKED" as const,
+        attackerId: "atk",
+        attackerControllerId: "p1",
+        attackerTypes: ["Creature" as const],
+        attackerSubtypes: [] as string[],
+    };
+
+    it("fires on an unblocked creature you control while armed; deals power and marks assign-none", () => {
+        const gaze = makeInstance(gazeOfPain.id, {
+            id: "gaze",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const attacker = makeInstance(balduvianBears.id, {
+            id: "atk",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const victim = makeInstance(balduvianBears.id, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [attacker],
+                    graveyard: [gaze],
+                }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+            gazeOfPainActiveThisTurn: ["p1"],
+        });
+        const triggers = collectTriggers(state, [unblockedEvent]);
+        const trig = triggers.find(
+            (t) => t.triggeredAbilityId === "gaze-of-pain-unblocked"
+        );
+        expect(trig).toBeDefined();
+        state.stack.push(trig!);
+        resolveTopOfStack(state);
+        // Suspends on the target-creature choice; pick the victim.
+        submitPick(state, ["victim"]);
+        // 2 damage (attacker power) is lethal to the 2/2 victim (CR 704.5g),
+        // which is destroyed — proving the power-based damage landed.
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "victim")
+        ).toBe(false);
+        expect(state.players[1].graveyard.some((c) => c.id === "victim")).toBe(
+            true
+        );
+        expect(state.assignsNoCombatDamageThisTurn).toContain("atk");
+    });
+
+    it("does NOT fire when the rider is not armed this turn", () => {
+        const gaze = makeInstance(gazeOfPain.id, {
+            id: "gaze",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [gaze] }),
+                makePlayer("p2"),
+            ],
+            // no gazeOfPainActiveThisTurn
+        });
+        const triggers = collectTriggers(state, [unblockedEvent]);
+        expect(
+            triggers.some(
+                (t) => t.triggeredAbilityId === "gaze-of-pain-unblocked"
+            )
+        ).toBe(false);
+    });
+
+    it("does NOT fire for a creature an opponent controls", () => {
+        const gaze = makeInstance(gazeOfPain.id, {
+            id: "gaze",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [gaze] }),
+                makePlayer("p2"),
+            ],
+            gazeOfPainActiveThisTurn: ["p1"],
+        });
+        const opponentAttack = {
+            ...unblockedEvent,
+            attackerControllerId: "p2",
+        };
+        const triggers = collectTriggers(state, [opponentAttack]);
+        expect(
+            triggers.some(
+                (t) => t.triggeredAbilityId === "gaze-of-pain-unblocked"
+            )
+        ).toBe(false);
     });
 });

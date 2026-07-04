@@ -762,6 +762,8 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "landPlayLocked",
     "preventAllCombatDamageThisTurn",
     "assignsNoCombatDamageThisTurn",
+    "combatDamageRedirectToPermanent",
+    "gazeOfPainActiveThisTurn",
     "landManaReplacedToBlueThisTurn",
     "highTideThisTurn",
     "landManaRidersThisTurn",

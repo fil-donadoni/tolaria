@@ -317,15 +317,22 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // opponents-scoped drawTrigger resolve() closure (see the #674 note
         // above); #888's fixup gave it a dedicated GRE test, flipping it
         // need-test → AFK-ready (see the #888 note above); #675 added City of
-        // Traitors + the two manlands (see the #675 note above). Pins below
-        // are the classifier's actual reported values with all waves landed
-        // (computed via `bun scripts/migration-classifier.mjs` post-rebase,
-        // not hand-picked).
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(610);
+        // Traitors + the two manlands (see the #675 note above).
+        // #732 added the ICE combat-damage redirect / assign-no-damage cluster:
+        // Kjeldoran Royal Guard (activated resolve installing the CR 614.6
+        // all-unblocked redirect combat seam), Cloak of Confusion (triggered
+        // resolve) and Gaze of Pain (spell resolve arming the rider + its
+        // graveyard-zone triggered resolve) — 4 new Op-blocked closures (the
+        // combat-rider seams have no Op vocabulary; the triggers also read the
+        // ATTACKER_UNBLOCKED event's attacker, gap #865).
+        // Pins below are the classifier's actual reported values with all waves
+        // (#886 + #734 + #674 + #888 + #675 + #732) landed — computed via
+        // `bun scripts/migration-classifier.mjs` post-rebase, not hand-picked.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(614);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(381);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(350);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(215);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(219);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {

@@ -316,16 +316,65 @@ export const burntOffering: CardDefinition = {
         ctx.addMana({ B: black, R: mv - black });
     },
 };
-// TODO(#628): implement.
-// export const cloakOfConfusion: CardDefinition = {
-//     id: "dc45d103-0fca-4431-a5c0-869f0f9be93e",
-//     name: "Cloak of Confusion",
-//     rarity: "common",
-//     oracleText: "Enchant creature you control\nWhenever enchanted creature attacks and isn't blocked, you may have it assign no combat damage this turn. If you do, defending player discards a card at random.",
-//     manaCost: { X: 1, B: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Cloak of Confusion — {1}{B} Aura, enchant creature you control. "Whenever
+// enchanted creature attacks and isn't blocked, you may have it assign no
+// combat damage this turn. If you do, defending player discards a card at
+// random." protocol card: the trigger reads the ATTACKER_UNBLOCKED event's
+// attacker and installs the "assigns no combat damage" combat seam
+// (`markAssignsNoCombatDamage`, CR 510.1c) — the DSL cannot yet reference the
+// trigger event's attacker (`$event.<field>`, gap #865), the same reason the
+// twin Farrel's Mantle stays a resolve() trigger. Payload = `discardAtRandom`.
+export const cloakOfConfusion: CardDefinition = {
+    id: "dc45d103-0fca-4431-a5c0-869f0f9be93e",
+    name: "Cloak of Confusion",
+    rarity: "common",
+    oracleText:
+        "Enchant creature you control\nWhenever enchanted creature attacks and isn't blocked, you may have it assign no combat damage this turn. If you do, defending player discards a card at random.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1, controller: "you" },
+    triggeredAbilities: [
+        {
+            id: "cloak-of-confusion-unblocked",
+            oracleText:
+                "Whenever enchanted creature attacks and isn't blocked, you may have it assign no combat damage this turn. If you do, defending player discards a card at random.",
+            event: "ATTACKER_UNBLOCKED",
+            matches: (event, self) =>
+                event.type === "ATTACKER_UNBLOCKED" &&
+                self.attachedTo !== undefined &&
+                event.attackerId === self.attachedTo,
+            resolve: (ctx: SpellContext, event) => {
+                if (event?.type !== "ATTACKER_UNBLOCKED") return;
+                const attacker = {
+                    type: "permanent" as const,
+                    id: event.attackerId,
+                };
+                // "you may have it assign no combat damage this turn."
+                const choice = ctx.requestOptionChoice({
+                    playerId: ctx.controller,
+                    choiceId: `cloak-of-confusion-${ctx.sourceInstanceId}`,
+                    options: [
+                        { id: "yes", label: "Assign no combat damage" },
+                        { id: "no", label: "Deal combat damage normally" },
+                    ],
+                    prompt: "Cloak of Confusion: have the attacker assign no combat damage this turn? (defending player then discards at random)",
+                });
+                if (choice === undefined) return; // suspended
+                if (choice !== "yes") return;
+                // CR 510.1c — the attacker assigns no combat damage this turn.
+                ctx.markAssignsNoCombatDamage(attacker);
+                // "defending player discards a card at random." In a 2-player
+                // game the defending player is the opponent of the attacking
+                // creature's controller (= this Aura's controller).
+                const defender = ctx.allPlayerIds.find(
+                    (p) => p !== ctx.controller
+                );
+                if (defender) ctx.discardAtRandom(defender, 1);
+            },
+        },
+    ],
+};
 // Dance of the Dead — graveyard-reanimation Aura (CR 303.4i, the Animate Dead
 // family). Composes shipped primitives:
 //   - targetRequirement zone:"graveyard" → caster picks a Creature card in any
@@ -688,26 +737,77 @@ export const gangrenousZombies: CardDefinition = {
         },
     ],
 };
-// DEFERRED (#664 shipped divide-as-you-choose; Gaze of Pain is a separate
-// combat-redirect capability that does NOT use divided damage). It needs a
-// player-scoped, turn-long, EVENT-WATCHING delayed trigger: "until end of turn,
-// whenever a creature YOU CONTROL attacks and isn't blocked" must hook every
-// `ATTACKER_UNBLOCKED` this turn (CR 509.1h), then offer an optional
-// (`you may`) "deal damage = its power to a target creature; if you do, it
-// assigns no combat damage" choice. The building blocks exist
-// (`ATTACKER_UNBLOCKED` event, `markAssignsNoCombatDamage`, `dealDamage`), but
-// the turn-scoped event-watcher + optional-redirect-with-target orchestration
-// is unbuilt — the engine's `delayedTriggers` are one-shot phase-boundary
-// timings, not event-watching. Flagged for the combat-redirect cluster (twin:
-// Cloak of Confusion's discard rider). Stub kept for the art mapping.
-// export const gazeOfPain: CardDefinition = {
-//     id: "48401643-ec4b-444a-8f9a-1a5ea471ff4a",
-//     name: "Gaze of Pain",
-//     rarity: "common",
-//     oracleText: "Until end of turn, whenever a creature you control attacks and isn't blocked, you may choose to have it deal damage equal to its power to a target creature. If you do, it assigns no combat damage this turn.",
-//     manaCost: { X: 1, B: 1 },
-//     types: ["Sorcery"],
-// };
+// Gaze of Pain — {1}{B} Sorcery. "Until end of turn, whenever a creature you
+// control attacks and isn't blocked, you may choose to have it deal damage
+// equal to its power to a target creature. If you do, it assigns no combat
+// damage this turn." Modelled as a turn-scoped floating trigger (CR 603.7a):
+// the spell records an active rider for its controller
+// (`markGazeOfPainActive`, cleared at CLEANUP so it lasts "until end of turn"),
+// and a GRAVEYARD-zone triggered ability fires on each ATTACKER_UNBLOCKED by a
+// creature that controller controls while the flag is set. protocol card: the
+// trigger reads the event's attacker and installs the "assigns no combat
+// damage" combat seam — the DSL cannot reference the trigger event's attacker
+// (`$event.<field>`, gap #865), the same reason the twin Farrel's Zealot stays
+// a resolve() trigger; the "until end of turn" wrapper is a combat-state seam,
+// not a one-shot Op.
+export const gazeOfPain: CardDefinition = {
+    id: "48401643-ec4b-444a-8f9a-1a5ea471ff4a",
+    name: "Gaze of Pain",
+    rarity: "common",
+    oracleText:
+        "Until end of turn, whenever a creature you control attacks and isn't blocked, you may choose to have it deal damage equal to its power to a target creature. If you do, it assigns no combat damage this turn.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Sorcery"],
+    resolve: (ctx: SpellContext) => {
+        // "Until end of turn, whenever a creature you control attacks and
+        // isn't blocked, …" — arm the rider for this turn.
+        ctx.markGazeOfPainActive(ctx.controller);
+    },
+    triggeredAbilities: [
+        {
+            id: "gaze-of-pain-unblocked",
+            zone: "graveyard",
+            oracleText:
+                "Whenever a creature you control attacks and isn't blocked, you may choose to have it deal damage equal to its power to a target creature. If you do, it assigns no combat damage this turn.",
+            event: "ATTACKER_UNBLOCKED",
+            matches: (event, self, state) =>
+                event.type === "ATTACKER_UNBLOCKED" &&
+                event.attackerControllerId === self.controllerId &&
+                (state?.gazeOfPainActiveThisTurn?.includes(self.controllerId) ??
+                    false),
+            resolve: (ctx: SpellContext, event) => {
+                if (event?.type !== "ATTACKER_UNBLOCKED") return;
+                const attacker = {
+                    type: "permanent" as const,
+                    id: event.attackerId,
+                };
+                const candidates = ctx.allPlayerIds.flatMap((p) =>
+                    ctx.getBattlefieldIds(p, { types: "Creature" })
+                );
+                if (candidates.length === 0) return;
+                const picks = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: `gaze-of-pain-${ctx.sourceInstanceId}-${event.attackerId}`,
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    allControllers: true,
+                    candidateIds: candidates,
+                    count: { min: 0, max: 1 },
+                    prompt: "Gaze of Pain: have the attacker deal damage equal to its power to a target creature? (decline to assign normal combat damage)",
+                });
+                if (picks === undefined) return; // suspended
+                const targetId = picks[0];
+                if (!targetId) return; // declined — combat damage assigned normally
+                const power = ctx.getPower(attacker) ?? 0;
+                if (power > 0) {
+                    ctx.dealDamage({ type: "permanent", id: targetId }, power);
+                }
+                // CR 510.1c — "it assigns no combat damage this turn."
+                ctx.markAssignsNoCombatDamage(attacker);
+            },
+        },
+    ],
+};
 // Gravebind — {B} Instant. "Target creature can't be regenerated this turn"
 // (CR 701.15c regeneration lock, via `setTargetCantBeRegeneratedThisTurn`) plus
 // the next-upkeep cantrip rider.

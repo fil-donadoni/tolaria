@@ -1519,6 +1519,22 @@ describe("optional field round-trip smoke tests", () => {
         ]);
     });
 
+    it("combatDamageRedirectToPermanent (Kjeldoran Royal Guard, CR 614.6)", () => {
+        const state = freshState();
+        state.combatDamageRedirectToPermanent = [
+            { playerId: "p2", toPermanentId: "guard" },
+        ];
+        expect(roundTrip(state).combatDamageRedirectToPermanent).toEqual([
+            { playerId: "p2", toPermanentId: "guard" },
+        ]);
+    });
+
+    it("gazeOfPainActiveThisTurn (Gaze of Pain, CR 603.7a)", () => {
+        const state = freshState();
+        state.gazeOfPainActiveThisTurn = ["p1"];
+        expect(roundTrip(state).gazeOfPainActiveThisTurn).toEqual(["p1"]);
+    });
+
     it("landManaReplacedToBlueThisTurn (Deep Water)", () => {
         const state = freshState();
         state.landManaReplacedToBlueThisTurn = ["p1"];

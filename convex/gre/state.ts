@@ -1863,6 +1863,23 @@ export type GameState = {
      *  assignment is skipped, so it can't be lethal to a blocker either).
      *  Cleared at CLEANUP. */
     assignsNoCombatDamageThisTurn?: string[];
+    /** Turn-scoped all-unblocked combat-damage redirects (CR 614.6 — Kjeldoran
+     *  Royal Guard). Each entry redirects ALL combat damage that unblocked
+     *  attackers would deal to `playerId` onto the permanent `toPermanentId`
+     *  instead, for the rest of the turn. Applied at the unblocked-attacker
+     *  branch of `applyAllCombatDamage` (source is unblocked → hits the
+     *  defending player); trample-through damage from a blocked creature is NOT
+     *  redirected. Cleared at CLEANUP. */
+    combatDamageRedirectToPermanent?: {
+        playerId: string;
+        toPermanentId: string;
+    }[];
+    /** Controllers with an active Gaze of Pain rider this turn (ICE, CR 603.7a
+     *  turn-scoped floating trigger). While a controller id is in this list,
+     *  its Gaze of Pain card's graveyard-zone triggered ability fires on each
+     *  `ATTACKER_UNBLOCKED` by a creature that controller controls. Cleared at
+     *  CLEANUP so the rider expires "until end of turn". */
+    gazeOfPainActiveThisTurn?: string[];
     /** One-shot damage-cap shields (Forcefield, CR 615). When an unblocked
      *  creature would deal combat damage to the shielded player, reduce to
      *  `maxDamage`. Consumed on first use; cleared at CLEANUP. */
@@ -6708,6 +6725,37 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const list = state.assignsNoCombatDamageThisTurn ?? [];
             if (!list.includes(target.id)) list.push(target.id);
             state.assignsNoCombatDamageThisTurn = list;
+        },
+
+        redirectUnblockedCombatDamage(
+            playerId: string,
+            toPermanentId: string
+        ): void {
+            // CR 614.6 — Kjeldoran Royal Guard: all combat damage that unblocked
+            // creatures would deal to `playerId` this turn is dealt to
+            // `toPermanentId` instead. Idempotent per (player, permanent);
+            // cleared at CLEANUP.
+            const list = state.combatDamageRedirectToPermanent ?? [];
+            if (
+                !list.some(
+                    (e) =>
+                        e.playerId === playerId &&
+                        e.toPermanentId === toPermanentId
+                )
+            ) {
+                list.push({ playerId, toPermanentId });
+            }
+            state.combatDamageRedirectToPermanent = list;
+        },
+
+        markGazeOfPainActive(playerId: string): void {
+            // ICE Gaze of Pain — "until end of turn" turn-scoped floating
+            // trigger (CR 603.7a). Records that `playerId` has an active rider;
+            // the card's graveyard-zone trigger reads this flag. Idempotent;
+            // cleared at CLEANUP.
+            const list = state.gazeOfPainActiveThisTurn ?? [];
+            if (!list.includes(playerId)) list.push(playerId);
+            state.gazeOfPainActiveThisTurn = list;
         },
 
         replaceLandManaWithBlue(playerId: string): void {
