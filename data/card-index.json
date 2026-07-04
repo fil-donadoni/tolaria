@@ -1098,6 +1098,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Cloak of Confusion",
+        "scryfallId": "dc45d103-0fca-4431-a5c0-869f0f9be93e",
+        "oracleId": "5d258409-28d3-4eac-9f1a-3e494db818bf",
+        "firstSet": "ice"
+    },
+    {
         "name": "Clockwork Avian",
         "scryfallId": "1dea8c2f-4aea-478d-aee7-cba1f74edd6c",
         "oracleId": "3d5b71d4-ed5e-4c6d-be70-bebbb1475257",
@@ -2442,6 +2448,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Gaze of Pain",
+        "scryfallId": "48401643-ec4b-444a-8f9a-1a5ea471ff4a",
+        "oracleId": "b3a479d4-3e36-496b-abf8-b83231628d76",
+        "firstSet": "ice"
+    },
+    {
         "name": "Ghazbán Ogre",
         "scryfallId": "f9d613d5-36a2-4633-b5af-64511bb29cc2",
         "oracleId": "d361bdd4-afb8-493d-9091-ebe22f215834",
@@ -3657,6 +3669,12 @@
         "name": "Kjeldoran Phalanx",
         "scryfallId": "b6e91ba0-b229-4ab1-84f3-2a490dfa5051",
         "oracleId": "a8563a4f-a23b-4cb5-b6e5-795bf8d74ee6",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Kjeldoran Royal Guard",
+        "scryfallId": "66343008-c38a-48a9-b767-fd2243103690",
+        "oracleId": "8137e765-4df9-469f-a527-dee91d58fb7e",
         "firstSet": "ice"
     },
     {

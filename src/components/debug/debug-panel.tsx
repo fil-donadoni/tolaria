@@ -100,6 +100,31 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 4,
     },
     {
+        // ICE combat-damage redirect / assign-no-damage riders (issue #732):
+        // Kjeldoran Royal Guard ({T}) redirects all combat damage unblocked
+        // attackers would deal to you onto itself (CR 614.6). Cloak of
+        // Confusion (Aura) and Gaze of Pain (Sorcery) let an unblocked
+        // attacker you control assign no combat damage — Cloak makes the
+        // defender discard at random, Gaze deals the attacker's power to a
+        // target creature. The opponent's Balduvian Bears is a ready attacker
+        // to test the Guard's redirect; your own Bears + the riders exercise
+        // the assign-no-damage seam. 5 lands cover {3}{W}{W}.
+        label: "ICE combat-damage redirect / assign-no-damage (Royal Guard / Cloak / Gaze) (#732)",
+        cards: [
+            {
+                name: "Kjeldoran Royal Guard",
+                owner: "me",
+                zone: "battlefield",
+            },
+            { name: "Cloak of Confusion", owner: "me", zone: "hand" },
+            { name: "Gaze of Pain", owner: "me", zone: "hand" },
+            { name: "Balduvian Bears", owner: "me", zone: "battlefield" },
+            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 5,
+    },
+    {
         // Effect Script tracer bullet (ADR 0045, issue #800): Lava Spike is
         // the first DSL-only card — cast it at a player to exercise the
         // effects[] interpreter end-to-end. Two copies in hand + one for the

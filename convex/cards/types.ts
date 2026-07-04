@@ -1621,6 +1621,20 @@ export interface SpellContext {
      *  (which is a two-way prevention shield). Idempotent; cleared at CLEANUP.
      *  No-op for non-permanent targets. */
     markAssignsNoCombatDamage: (target: TargetSelection) => void;
+    /** Redirects all combat damage that unblocked creatures would deal to
+     *  `playerId` this turn onto the permanent `toPermanentId` instead (CR
+     *  614.6 — Kjeldoran Royal Guard). Turn-scoped; idempotent; cleared at
+     *  CLEANUP. Trample-through damage from a blocked creature is not
+     *  redirected. */
+    redirectUnblockedCombatDamage: (
+        playerId: string,
+        toPermanentId: string
+    ) => void;
+    /** Marks `playerId` as having an active Gaze of Pain rider this turn (ICE —
+     *  "until end of turn, whenever a creature you control attacks and isn't
+     *  blocked …"). Turn-scoped floating trigger flag read by Gaze of Pain's
+     *  graveyard-zone triggered ability; idempotent; cleared at CLEANUP. */
+    markGazeOfPainActive: (playerId: string) => void;
     /** Registers a turn-scoped delayed lifegain effect on `target` (CR 603.7 /
      *  119, Glyph of Life). For `duration`, whenever `target` is dealt combat
      *  damage by an attacking creature (CR 506.2 — the source is in
@@ -4122,6 +4136,10 @@ export interface TriggerStateView {
         /** Ids of attackers that became blocked this combat (CR 509.1h). */
         readonly blockedAttackerIds?: ReadonlyArray<string>;
     };
+    /** Controllers with an active Gaze of Pain rider this turn (ICE). Exposed
+     *  so Gaze of Pain's graveyard-zone trigger can gate on "until end of turn"
+     *  membership. Mirrors `GameState.gazeOfPainActiveThisTurn`. */
+    gazeOfPainActiveThisTurn?: ReadonlyArray<string>;
 }
 
 export interface TriggeredAbility {

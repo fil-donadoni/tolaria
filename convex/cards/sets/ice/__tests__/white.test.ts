@@ -54,6 +54,7 @@ import {
     prismaticWard,
     sacredBoon,
     energyStorm,
+    kjeldoranRoyalGuard,
 } from "../../ice";
 import { plains } from "../../lea";
 import { getDefinition } from "../../../index";
@@ -77,7 +78,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { advancePhase } from "../../../../gre/phases";
+import { advancePhase, applyAllCombatDamage } from "../../../../gre/phases";
 import {
     validateBlockerEligibility,
     collectBlockBypassCharges,
@@ -1763,5 +1764,124 @@ describe("Energy Storm (CR 702.24 / 615.1 / 502.1)", () => {
             isCombat: true,
         });
         expect(byCreature).not.toBeNull();
+    });
+});
+
+// ===========================================================================
+// Kjeldoran Royal Guard — all-unblocked combat-damage redirect (CR 614.6)
+// ===========================================================================
+describe("Kjeldoran Royal Guard — combat-damage redirect (CR 614.6)", () => {
+    it("{T} installs a turn-scoped redirect for the controller onto itself", () => {
+        const guard = makeInstance(kjeldoranRoyalGuard.id, {
+            id: "guard",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [guard] }),
+            ],
+        });
+        resolveActivated(state, guard, "kjeldoran-royal-guard-redirect");
+        expect(state.combatDamageRedirectToPermanent).toEqual([
+            { playerId: "p2", toPermanentId: "guard" },
+        ]);
+    });
+
+    it("redirects all combat damage from unblocked attackers onto the guard", () => {
+        // p1 (active) attacks p2 with an unblocked 2/2; p2's Royal Guard has
+        // redirected all unblocked combat damage onto itself.
+        const attacker = makeInstance(balduvianBears.id, {
+            id: "atk",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const guard = makeInstance(kjeldoranRoyalGuard.id, {
+            id: "guard",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: [guard], life: 20 }),
+            ],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+            },
+            combatDamageRedirectToPermanent: [
+                { playerId: "p2", toPermanentId: "guard" },
+            ],
+        });
+        applyAllCombatDamage(state, {});
+        const g = state.players[1].battlefield.find((c) => c.id === "guard");
+        // The 2 combat damage landed on the guard (2/5 → survives), not p2.
+        expect(g?.damageMarked ?? 0).toBe(2);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("without a redirect the same attack hits the player (control)", () => {
+        const attacker = makeInstance(balduvianBears.id, {
+            id: "atk",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { life: 20 }),
+            ],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+            },
+        });
+        applyAllCombatDamage(state, {});
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("wire format — the redirected damage on the guard survives projection", () => {
+        const attacker = makeInstance(balduvianBears.id, {
+            id: "atk",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const guard = makeInstance(kjeldoranRoyalGuard.id, {
+            id: "guard",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: [guard], life: 20 }),
+            ],
+            combat: {
+                attackerIds: ["atk"],
+                confirmed: true,
+                blockerAssignments: {},
+                blockersConfirmed: true,
+            },
+            combatDamageRedirectToPermanent: [
+                { playerId: "p2", toPermanentId: "guard" },
+            ],
+        });
+        applyAllCombatDamage(state, {});
+        const projected = projectPublicState(state, 1, "p2");
+        const slimGuard = projected.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === "guard");
+        expect(slimGuard?.damageMarked ?? 0).toBe(2);
+        const p2 = projected.players.find((p) => p.id === "p2");
+        expect(p2?.life).toBe(20);
     });
 });

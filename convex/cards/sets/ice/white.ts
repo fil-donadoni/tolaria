@@ -1238,21 +1238,43 @@ export const kjeldoranPhalanx: CardDefinition = {
     toughness: 5,
     staticAbilities: ["first strike", "banding"],
 };
-// DEFERRED (#653): "All combat damage that would be dealt to you by unblocked
-// creatures this turn is dealt to this creature instead" needs a global
-// combat-damage redirect shield (every unblocked attacker → this creature).
-// The shipped redirect kinds are per-source, not an all-unblocked redirect.
-// export const kjeldoranRoyalGuard: CardDefinition = {
-//     id: "66343008-c38a-48a9-b767-fd2243103690",
-//     name: "Kjeldoran Royal Guard",
-//     rarity: "rare",
-//     oracleText: "{T}: All combat damage that would be dealt to you by unblocked creatures this turn is dealt to this creature instead.",
-//     manaCost: { X: 3, W: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Soldier"],
-//     power: 2,
-//     toughness: 5,
-// };
+// Kjeldoran Royal Guard — {3}{W}{W} 2/5. "{T}: All combat damage that would be
+// dealt to you by unblocked creatures this turn is dealt to this creature
+// instead." A turn-scoped all-unblocked combat-damage redirect (CR 614.6),
+// installed via the `redirectUnblockedCombatDamage` combat seam. protocol
+// card: the redirect is a combat-rule seam (turn-scoped state consumed at the
+// combat-damage step), not an Effect-Script Op — there is no Op that installs
+// a combat-damage redirect, so the activation body reads/writes combat state
+// directly (same shape as Farrel's Mantle's `markAssignsNoCombatDamage`).
+export const kjeldoranRoyalGuard: CardDefinition = {
+    id: "66343008-c38a-48a9-b767-fd2243103690",
+    name: "Kjeldoran Royal Guard",
+    rarity: "rare",
+    oracleText:
+        "{T}: All combat damage that would be dealt to you by unblocked creatures this turn is dealt to this creature instead.",
+    manaCost: { X: 3, W: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Soldier"],
+    power: 2,
+    toughness: 5,
+    activatedAbilities: [
+        {
+            id: "kjeldoran-royal-guard-redirect",
+            oracleText:
+                "{T}: All combat damage that would be dealt to you by unblocked creatures this turn is dealt to this creature instead.",
+            cost: { tap: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                // CR 614.6 — redirect all combat damage unblocked creatures
+                // would deal to the controller ("you") onto this creature.
+                ctx.redirectUnblockedCombatDamage(
+                    ctx.controller,
+                    ctx.sourceInstanceId
+                );
+            },
+        },
+    ],
+};
 // Kjeldoran Skycaptain — flying + first strike + banding (CR 702.9, 702.7,
 // 702.22).
 export const kjeldoranSkycaptain: CardDefinition = {
