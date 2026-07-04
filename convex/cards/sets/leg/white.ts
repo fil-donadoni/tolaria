@@ -10,7 +10,6 @@ import type {
     SpellContext,
     PermanentView,
     StaticEffectContext,
-    GameEvent,
     TargetSelection,
     TriggerStateView,
 } from "../../types";
@@ -1478,19 +1477,19 @@ export const wallOfCaltrops: CardDefinition = {
                 if (event.type !== "BLOCKERS_CONFIRMED") return false;
                 return caltropsConditionHolds(self, event.attackerId, state);
             },
-            resolve: (ctx: SpellContext, event: GameEvent) => {
-                if (event.type !== "BLOCKERS_CONFIRMED") return;
-                const target: TargetSelection = {
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                };
-                // Plain banding EOT (CR 702.22, 514.2 cleanup expiry). Reuses
-                // the shipped duration-scoped keyword grant; the banding engine
-                // handles combat-damage-assignment from here.
-                ctx.grantStaticAbility(target, "banding", {
-                    phase: "end-of-turn",
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant banding
+            // until end of turn (CR 702.22 / 514.2). The multi-Wall co-block
+            // gate stays in `matches` / `interveningIf`; the effect body needs
+            // no event fields (it grants to $source), so the effects site
+            // applies. The banding engine handles combat-damage assignment.
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "banding",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

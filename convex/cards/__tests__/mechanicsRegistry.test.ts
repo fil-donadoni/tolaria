@@ -239,11 +239,10 @@ describe("Effect Script Op census (ADR 0045/0046, PRD #826)", () => {
         // (scripts/migration-classifier.mjs). `X` is intentionally excluded —
         // it is an EffectValue grammar member, not an Op (PRD #826). `moveZone`
         // (issue #839), `delayedTrigger` (issue #838, ADR 0048), `pump`
-        // (issue #840), `counters` (issue #841) and `tapUntap` (issue #842)
-        // were wave-1 stubs but SHIPPED — they now live in EFFECT_OP_REGISTRY,
-        // not the backlog.
+        // (issue #840), `counters` (issue #841), `tapUntap` (issue #842) and
+        // `grantAbility` (issue #843) were wave-1 stubs but SHIPPED — they now
+        // live in EFFECT_OP_REGISTRY, not the backlog.
         const named = [
-            "grantAbility",
             "libraryLook",
             "preventDamage",
             "regenerate",

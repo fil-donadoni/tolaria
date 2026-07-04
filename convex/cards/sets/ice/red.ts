@@ -1062,6 +1062,13 @@ export const goblinSkiPatrol: CardDefinition = {
                 if (!controller) return false;
                 return controlsSnowSubtype(controller.battlefield, "Mountain");
             },
+            // NOT DSL-migratable (ADR 0045): the self +2/0 pump and flying grant
+            // are covered (pump #840, grantAbility #843), but the delayed
+            // "controller sacrifices it" body cannot be expressed — the
+            // `sacrifice` Op reads a picks-LIST binding, while a delayedTrigger
+            // capture binds the source as a single OBJECT ($self via
+            // bindSnapshot), which `sacrifice` cannot read. Blocked on:
+            // sacrifice-by-object-ref (a single-permanent sacrifice Op).
             resolve: (ctx: SpellContext) => {
                 const self = {
                     type: "permanent" as const,

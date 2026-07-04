@@ -2389,6 +2389,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.tap / untap",
         note: 'Tap or untap a permanent (CR 701.26, issue #842). A thin declarative skin over two SpellContext primitives, one execution path (ADR 0045): `action: "tap"` → tap (Icy Manipulator\'s "tap target artifact, creature, or land"), `action: "untap"` → untap (Twiddle\'s untap mode). `target` is an announced slot, the resolving source (`$source` — a permanent tapping itself), or a forEach `$each` (a mass tap). No amount — a permanent is tapped or it isn\'t; the primitives no-op when the permanent is already in the requested state (CR 701.26a/b) and are skipped when it has left the battlefield (CR 608.2b). Subsumes the tap / untap closures the migration classifier folds here (~68 blocked closures at ship time). `tapAllLands` (Mana Short, Drain Power — a whole-player tap, not a permanent target) stays resolve() by design; it is not a `tap`-on-a-selected-permanent skin.',
     },
+    {
+        op: "grantAbility",
+        status: "implemented",
+        cr: "613.1f",
+        binding: "SpellContext.grantStaticAbility",
+        note: 'Grant a keyword static ability to a permanent for a limited duration (layer 6, CR 611.1b / 613.1f, issue #843). A thin declarative skin over one SpellContext primitive, one execution path (ADR 0045): `ability` is the free-form keyword granted ("flying", "trample", "haste", "banding", …; read at combat / rules-check time), `target` is an announced slot, the resolving source (`$source` — a permanent granting itself), or a forEach `$each` (a mass grant), and `duration` is the phase boundary at which the grant expires (CR 611.2 — the phase-boundary purge splices the keyword back out). The primitive appends to `staticAbilities` and is skipped when the permanent has left the battlefield (CR 608.2b). Subsumes the grantStaticAbility closures the migration classifier folds here (~52 blocked closures at ship time). Ability REMOVAL / loss (`removeStaticAbilities`) takes a predicate closure — not JSON-expressible — and stays resolve() by design; the permanent-grant variant (`grantStaticAbilityPermanent`, no duration, Cocoon-style Aura hatch) is not folded here.',
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
@@ -2429,12 +2436,10 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // "implemented".
     // tapUntap SHIPPED (issue #842) — tap / untap are now COVERED live via
     // EFFECT_OP_REGISTRY; row moved there with status "implemented".
-    {
-        op: "grantAbility",
-        status: "planned",
-        cr: "613.1f",
-        note: "Grant/remove an ability (layer 6, CR 613.1f). Folds SpellContext.grantStaticAbility / removeStaticAbilities (~62 blocked closures).",
-    },
+    // grantAbility SHIPPED (issue #843) — grantStaticAbility is now COVERED
+    // live via EFFECT_OP_REGISTRY; row moved there with status "implemented".
+    // Ability removal / loss (`removeStaticAbilities`, a predicate closure)
+    // stays residual — not JSON-expressible as an Op.
     {
         op: "libraryLook",
         status: "planned",

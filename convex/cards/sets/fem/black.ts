@@ -504,13 +504,16 @@ export const orderOfTheEbonHand: CardDefinition = {
                 "{B}: This creature gains first strike until end of turn.",
             cost: { mana: { B: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.grantStaticAbility(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "first strike",
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant first
+            // strike until end of turn (CR 611.1b).
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "first strike",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
         {
             id: "order-ebon-hand-pump",

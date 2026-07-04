@@ -296,6 +296,13 @@ export const giantShark: CardDefinition = {
                     event.attackerId === self.id || event.blockerId === self.id
                 );
             },
+            // NOT DSL-migratable (ADR 0045): reads trigger-event fields
+            // (event.attackerId / blockerId) to identify the paired combat
+            // creature, then conditions the self-pump + trample grant on that
+            // runtime creature's marked damage — no DSL construct captures
+            // trigger-event data or a computed (non-announced) target.
+            // Blocked on: trigger-event field capture (planned-migratable);
+            // grantStaticAbility itself is covered by grantAbility (#843).
             resolve: (ctx, event) => {
                 if (event.type !== "BLOCKERS_CONFIRMED") return;
                 const isSelfAttacker =

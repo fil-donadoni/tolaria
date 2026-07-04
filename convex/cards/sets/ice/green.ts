@@ -418,12 +418,23 @@ export const fanaticalFever: CardDefinition = {
     manaCost: { X: 2, G: 2 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type !== "permanent") return;
-        ctx.addTemporaryPTBuff(t, 3, 0, { phase: "end-of-turn" });
-        ctx.grantStaticAbility(t, "trample", { phase: "end-of-turn" });
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #843): +3/0 (CR 613.4c) + grant
+    // trample to the announced target creature until end of turn (CR 611.1b).
+    effects: [
+        {
+            op: "pump",
+            target: { target: 0 },
+            power: 3,
+            toughness: 0,
+            duration: { phase: "end-of-turn" },
+        },
+        {
+            op: "grantAbility",
+            ability: "trample",
+            target: { target: 0 },
+            duration: { phase: "end-of-turn" },
+        },
+    ],
 };
 // Folk of the Pines — {4}{G} 2/5 Dryad. "{1}{G}: This creature gets +1/+0 until
 // end of turn." (CR 605 activated ability; CR 514.2 cleanup expiry — the
@@ -1321,6 +1332,11 @@ export const stampede: CardDefinition = {
         "Attacking creatures get +1/+0 and gain trample until end of turn.",
     manaCost: { X: 1, G: 2 },
     types: ["Instant"],
+    // NOT DSL-migratable (ADR 0045): "attacking creatures" needs a forEach over
+    // permanents filtered by combat role, but EffectCardFilter is type/subtype
+    // only — no isAttacking predicate (same gap as Sandstorm). The +1/0 pump
+    // (#840) and trample grant (grantAbility #843) are both covered; only the
+    // attacker selection is blocked. Blocked on: forEach combat-role filter.
     resolve: (ctx: SpellContext) => {
         // "Attacking creatures" = every creature currently attacking, any
         // controller (CR 506.4). Scan all players' battlefields for attackers.

@@ -1012,13 +1012,18 @@ export const batteringRam: CardDefinition = {
                 "At the beginning of combat on your turn, this creature gains banding until end of combat.",
             phase: "BEGINNING_OF_COMBAT",
             scope: "your",
-            resolve: (ctx) => {
-                ctx.grantStaticAbility(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "banding",
-                    { phase: "end-of-combat" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant banding
+            // until end of combat (CR 611.1b). A "your"-scoped phaseTrigger, so
+            // the effects site is available (the scoped player is the
+            // controller / $source).
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "banding",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-combat" },
+                },
+            ],
         }),
         batteringRamWallTrigger(),
     ],
@@ -1060,14 +1065,25 @@ export const urzasAvenger: CardDefinition = {
         oracleText: `{0}: This creature gets -1/-1 and gains ${kw} until end of turn.`,
         cost: {},
         useStack: true,
-        resolve: (ctx: SpellContext) => {
-            const self: TargetSelection = {
-                type: "permanent",
-                id: ctx.sourceInstanceId,
-            };
-            ctx.addTemporaryPTBuff(self, -1, -1, { phase: "end-of-turn" });
-            ctx.grantStaticAbility(self, kw, { phase: "end-of-turn" });
-        },
+        // Migrated resolve()→effects[] (ADR 0045, #843): self -1/-1 + self-grant
+        // the chosen keyword until end of turn (CR 611.1 / 611.1b). `kw` is a
+        // build-time constant from URZAS_AVENGER_KEYWORDS, so it inlines as a
+        // literal ability name per generated ability.
+        effects: [
+            {
+                op: "pump",
+                target: { ref: "$source" },
+                power: -1,
+                toughness: -1,
+                duration: { phase: "end-of-turn" },
+            },
+            {
+                op: "grantAbility",
+                ability: kw,
+                target: { ref: "$source" },
+                duration: { phase: "end-of-turn" },
+            },
+        ],
     })),
 };
 

@@ -67,6 +67,14 @@ export const erhnamDjinn: CardDefinition = {
                 "At the beginning of your upkeep, target non-Wall creature an opponent controls gains forestwalk until your next upkeep.",
             phase: "UPKEEP",
             scope: "your",
+            // NOT DSL-migratable (ADR 0045): the target is chosen from the
+            // OPPONENT's battlefield filtered to non-Wall creatures, then
+            // granted forestwalk. The `choice` Op's filter is inclusion-only
+            // (no subtype EXCLUSION for "non-Wall") and applies to the
+            // chooser's own battlefield picks, not an opponent-owned zone.
+            // Blocked on: choice candidate-filter expressiveness (opponent-zone
+            // pick + subtype exclusion); grantStaticAbility itself is covered
+            // by grantAbility (#843).
             resolve: (ctx, _event, scopedPlayerId) => {
                 const opponentId = ctx.allPlayerIds.find(
                     (p) => p !== scopedPlayerId

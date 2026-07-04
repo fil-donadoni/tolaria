@@ -533,6 +533,18 @@ export const OP_EXECUTORS: {
     // the target is gone (CR 608.2b — the permanent left the battlefield;
     // `resolveObjectRef` returns undefined). The primitives themselves no-op
     // when the permanent is already in the requested state (CR 701.26a/b).
+    // CR 611.1b / 613.1f (issue #843) — grant a keyword static ability to a
+    // permanent for a limited duration (layer 6). A thin declarative skin over
+    // `grantStaticAbility`, ONE execution path (ADR 0045). Skipped when the
+    // target is gone (CR 608.2b — the permanent left the battlefield;
+    // `resolveObjectRef` returns undefined). The primitive appends the keyword
+    // to the target's `staticAbilities` so combat / rules checks see it at read
+    // time; the phase-boundary purge splices it back out on expiry.
+    grantAbility(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.grantStaticAbility(target, op.ability, op.duration);
+    },
     tapUntap(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
