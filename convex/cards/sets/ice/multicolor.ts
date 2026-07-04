@@ -5,12 +5,35 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 import type {
     CardDefinition,
+    Color,
     ManaCost,
     SpellContext,
+    StaticAttackSacrificeTax,
     TargetSelection,
     TriggeredAbility,
 } from "../../types";
 import { AURA_AFFECTS_HOST } from "../../types";
+
+// Per-attacker "sacrifice a land" attack tax (CR 508.1c/1g — Flooded Woodlands,
+// Reclamation, #733). A battlefield-scanned `attack-sacrifice-tax` static whose
+// `taxes` predicate matches attacking creatures of one colour; the engine
+// (`collectAttackSacrificeTax` + `confirmAttackers`) charges one land sacrifice
+// per matching attacker as attackers are declared. Shared factory — both ICE
+// enchantments differ only by taxed colour and oracle text.
+function attackSacrificeTaxForColor(args: {
+    id: string;
+    color: Color;
+    oracleText: string;
+}): StaticAttackSacrificeTax {
+    return {
+        kind: "attack-sacrifice-tax",
+        id: args.id,
+        taxes: (attacker, _source, _state, ctx) =>
+            ctx.isCreature(attacker) &&
+            ctx.getColors(attacker).includes(args.color),
+        oracleText: args.oracleText,
+    };
+}
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
@@ -74,9 +97,6 @@ function makeUpkeepPayOrElse(args: {
 //     cast-time graveyard-derived X all ship.
 //   • Pay-life additional cost — Fumarole ("pay 3 life" as an additional cast
 //     cost; `additionalCosts` only models sacrifice/exile today).
-//   • Colour-creature attack tax — Flooded Woodlands / Reclamation ("X creatures
-//     can't attack unless their controller sacrifices a land per attacker"); a
-//     declare-attackers per-attacker sacrifice restriction is unbuilt.
 //   • Cross-graveyard reanimation under YOUR control — Hymn of Rebirth
 //     (`returnToBattlefield` returns the card under its OWNER's control; putting
 //     an opponent's graveyard creature under the caster's control needs a
@@ -426,25 +446,30 @@ export const fireCovenant: CardDefinition = {
         ctx.dealDamageDividedAsChosen(ctx.targets, ctx.getX());
     },
 };
-// DEFERRED (#659): the attack restriction is a PER-ATTACKER COST ("can't attack
-// unless their controller sacrifices a land ... for each green creature they
-// control that's attacking"), not a binary prohibition. The shipped attack-
-// restriction static (`global-attack-restriction`, CR 509.1) is forbid/allow
-// only — `validateAttackerEligibility` returns eligible/ineligible with no path
-// to charge a scaling sacrifice cost as attackers are declared. Modelling
-// "can't attack unless pay <cost> per matching attacker" needs a declare-
-// attackers cost-payment mechanism (a new combat primitive crossing the declare-
-// attackers validator + UI), out of scope for the gold/misc completion slice.
-// Twin: Reclamation (same mechanic, black creatures). Flagged for a combat-cost
-// capability cluster.
-// export const floodedWoodlands: CardDefinition = {
-//     id: "de89e9e1-485b-42e5-9728-5d6f948999e1",
-//     name: "Flooded Woodlands",
-//     rarity: "rare",
-//     oracleText: "Green creatures can't attack unless their controller sacrifices a land of their choice for each green creature they control that's attacking. (This cost is paid as attackers are declared.)",
-//     manaCost: { X: 2, U: 1, B: 1 },
-//     types: ["Enchantment"],
-// };
+// Flooded Woodlands — {2}{U}{B} enchantment. "Green creatures can't attack
+// unless their controller sacrifices a land of their choice for each green
+// creature they control that's attacking." (CR 508.1c/1g — a per-attacker
+// sacrifice-a-land cost paid as attackers are declared, NOT a binary
+// prohibition. Modelled with the `attack-sacrifice-tax` combat seam: the engine
+// scans this static at declare-attackers confirmation and charges one land
+// sacrifice per attacking green creature — #733. Twin: Reclamation, below.)
+export const floodedWoodlands: CardDefinition = {
+    id: "de89e9e1-485b-42e5-9728-5d6f948999e1",
+    name: "Flooded Woodlands",
+    rarity: "rare",
+    oracleText:
+        "Green creatures can't attack unless their controller sacrifices a land of their choice for each green creature they control that's attacking. (This cost is paid as attackers are declared.)",
+    manaCost: { X: 2, U: 1, B: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        attackSacrificeTaxForColor({
+            id: "flooded-woodlands-green-tax",
+            color: "G",
+            oracleText:
+                "Green creatures can't attack unless their controller sacrifices a land for each attacking green creature they control",
+        }),
+    ],
+};
 // Fumarole — {3}{B}{R} Sorcery. "As an additional cost to cast this spell, pay
 // 3 life.\nDestroy target creature and target land." (CR 601.2b fixed pay-life
 // additional cost; CR 601.2c two INDEPENDENT typed target groups; CR 701.7
@@ -849,18 +874,27 @@ export const mountainTitan: CardDefinition = {
         }),
     ],
 };
-// DEFERRED (#659): twin of Flooded Woodlands (black creatures). Same gating
-// capability — a per-attacker "can't attack unless sacrifice a land" cost that
-// the binary `global-attack-restriction` static cannot express. See the
-// Flooded Woodlands note above; flagged for the same combat-cost cluster.
-// export const reclamation: CardDefinition = {
-//     id: "ca335f4f-d345-4eb9-9bc6-74595c501078",
-//     name: "Reclamation",
-//     rarity: "rare",
-//     oracleText: "Black creatures can't attack unless their controller sacrifices a land of their choice for each black creature they control that's attacking. (This cost is paid as attackers are declared.)",
-//     manaCost: { X: 2, W: 1, G: 1 },
-//     types: ["Enchantment"],
-// };
+// Reclamation — {2}{G}{W} enchantment. Twin of Flooded Woodlands (black
+// creatures). "Black creatures can't attack unless their controller sacrifices
+// a land of their choice for each black creature they control that's attacking."
+// (CR 508.1c/1g — the `attack-sacrifice-tax` combat seam, #733.)
+export const reclamation: CardDefinition = {
+    id: "ca335f4f-d345-4eb9-9bc6-74595c501078",
+    name: "Reclamation",
+    rarity: "rare",
+    oracleText:
+        "Black creatures can't attack unless their controller sacrifices a land of their choice for each black creature they control that's attacking. (This cost is paid as attackers are declared.)",
+    manaCost: { X: 2, W: 1, G: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        attackSacrificeTaxForColor({
+            id: "reclamation-black-tax",
+            color: "B",
+            oracleText:
+                "Black creatures can't attack unless their controller sacrifices a land for each attacking black creature they control",
+        }),
+    ],
+};
 // Skeleton Ship — legendary 0/3 with a state-triggered "no Islands → sacrifice"
 // guard (CR 603.8) and "{T}: Put a -1/-1 counter on target creature" (CR 122,
 // layer 7d). The state trigger fizzles at resolve if an Island reappears.

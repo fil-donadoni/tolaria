@@ -3238,6 +3238,44 @@ export interface StaticGlobalAttackRestriction {
     oracleText: string;
 }
 
+/** Battlefield-scanned per-attacker sacrifice-a-land attack tax (CR 508.1c/1g).
+ *  Unlike `global-attack-restriction` — a binary forbid/allow prohibition — this
+ *  kind expresses a SCALING COST paid as attackers are declared: a taxed
+ *  creature CAN attack, but its controller must sacrifice one land for each such
+ *  attacker. Flooded Woodlands ("Green creatures can't attack unless their
+ *  controller sacrifices a land … for each green creature they control that's
+ *  attacking") and its twin Reclamation (black creatures) are expressed with
+ *  this kind. Scanned across EVERY permanent on the battlefield (the tax source
+ *  is a separate enchantment, not the attacker), mirroring the
+ *  `global-attack-restriction` scan.
+ *
+ *  The engine collects the tax at declare-attackers confirmation
+ *  (`collectAttackSacrificeTax`) and charges it there (`convex/gre/combat.ts`),
+ *  the attack-side analogue of the Hipparion pay-to-block bypass charge.
+ *
+ *  SIMPLIFICATION (documented): the CR grants the controller a choice of WHICH
+ *  lands to sacrifice. The engine auto-selects the lands (mirroring the
+ *  block-bypass mana auto-tap, which likewise does not let the player pick the
+ *  mana sources), rather than opening a mid-declaration interactive choice — the
+ *  pending-choice pipeline is stack-resolution-bound and the issue (#733)
+ *  forbids building a parallel choice mechanism. */
+export interface StaticAttackSacrificeTax {
+    kind: "attack-sacrifice-tax";
+    id: string;
+    /** Returns `true` when `attacker` is subject to this tax (Flooded
+     *  Woodlands: green creatures; Reclamation: black creatures). Each matching
+     *  attacker its controller declares forces one land sacrifice. */
+    taxes: (
+        attacker: PermanentView,
+        source: PermanentView,
+        state: StaticEffectStateView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** Oracle text surfaced as the rejection reason when the controller has
+     *  too few lands to pay the tax for every taxed attacker declared. */
+    oracleText: string;
+}
+
 /** Battlefield-scanned landwalk-negation static (CR 509.1b / 702.13). The
  *  source permanent declares that one or more named landwalk keywords can be
  *  blocked "as though the attacker didn't have it" — i.e. the matching
@@ -3620,6 +3658,7 @@ export type StaticEffect =
     | StaticDeclaredAttackRestriction
     | StaticDeclaredBlockRestriction
     | StaticGlobalAttackRestriction
+    | StaticAttackSacrificeTax
     | StaticLandwalkNegation
     | StaticEntersTappedRestriction
     | StaticAttackRequirement

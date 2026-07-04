@@ -29,8 +29,13 @@ import {
     mountainTitan,
     ghostlyFlame,
     fumarole,
+    floodedWoodlands,
+    reclamation,
 } from "../../ice";
-import { mountain } from "../../lea";
+import { mountain, grizzlyBears, scatheZombies } from "../../lea";
+import { collectAttackSacrificeTax } from "../../../../gre/combat";
+import { removePermanentTo } from "../../../../gre/state";
+import { isLand } from "../../../../gre/constants";
 import { getDefinition, getCardByName } from "../../../index";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { describeDamageSource } from "../../../../gre/replacements";
@@ -1322,5 +1327,201 @@ describe("Fumarole ({3}{B}{R} — destroy target creature AND target land, pay 3
         expect(state.players[1].graveyard.some((c) => c.id === "land")).toBe(
             true
         );
+    });
+});
+
+// ===========================================================================
+// Per-attacker sacrifice-a-land attack tax (CR 508.1c/1g) — Flooded Woodlands
+// (green creatures) & Reclamation (black creatures), #733. The tax is a
+// battlefield-scanned `attack-sacrifice-tax` static charged at declare-attackers
+// confirmation: one land sacrificed per taxed attacker. Coverage below drives
+// both the read-only combat seam (`collectAttackSacrificeTax`) and the exact
+// enforcement loop `confirmAttackers` runs (mirrored here — no convex-test
+// harness, ADR 0001): reject when lands are insufficient, sacrifice N when they
+// suffice, and untaxed attackers pay nothing.
+// ===========================================================================
+
+/** Mirror of the confirmAttackers tax enforcement (game.ts): collect the
+ *  charges, reject if a payer has too few lands, else auto-sacrifice `count`
+ *  lands per charge. Returns nothing; throws the oracle reason on shortfall. */
+function applyAttackSacrificeTax(state: GameState): void {
+    for (const charge of collectAttackSacrificeTax(state)) {
+        const payer = state.players.find((p) => p.id === charge.controllerId)!;
+        const lands = payer.battlefield.filter((c) => isLand(c));
+        if (lands.length < charge.count) throw new Error(charge.reason);
+        for (let i = 0; i < charge.count; i++) {
+            removePermanentTo(state, lands[i].id, "graveyard", "sacrifice");
+        }
+    }
+}
+
+/** Builds a DECLARE_ATTACKERS state: p1 (active) with the given attacking
+ *  creatures + `landCount` untapped lands, and `taxCardId` in play on the
+ *  controller named by `taxController` (default p1). */
+function makeCombatState(args: {
+    attackers: { id: string; cardId: string }[];
+    landCount: number;
+    taxCardId?: string;
+    taxController?: "p1" | "p2";
+}): GameState {
+    const attackerInsts = args.attackers.map((a) =>
+        makeInstance(a.cardId, {
+            id: a.id,
+            controllerId: "p1",
+            isAttacking: true,
+        })
+    );
+    const lands = Array.from({ length: args.landCount }, (_, i) =>
+        makeInstance(mountain.id, { id: `land-${i}`, controllerId: "p1" })
+    );
+    const p1Battlefield = [...attackerInsts, ...lands];
+    const taxOwner = args.taxController ?? "p1";
+    if (args.taxCardId) {
+        const taxInst = makeInstance(args.taxCardId, {
+            id: "tax",
+            controllerId: taxOwner,
+        });
+        if (taxOwner === "p1") p1Battlefield.push(taxInst);
+    }
+    const p1 = makePlayer("p1", { battlefield: p1Battlefield });
+    const p2Battlefield =
+        args.taxCardId && taxOwner === "p2"
+            ? [makeInstance(args.taxCardId, { id: "tax", controllerId: "p2" })]
+            : [];
+    const p2 = makePlayer("p2", { battlefield: p2Battlefield });
+    return makeState({
+        players: [p1, p2],
+        phase: "DECLARE_ATTACKERS",
+        activePlayerId: "p1",
+        priorityPlayerId: "p1",
+        combat: {
+            attackerIds: args.attackers.map((a) => a.id),
+            blockerAssignments: {},
+            confirmed: false,
+            blockersConfirmed: false,
+        },
+    });
+}
+
+describe("Flooded Woodlands (CR 508.1c/1g — green-creature attack tax, #733)", () => {
+    it("has the {2}{U}{B} cost and a green attack-sacrifice-tax static", () => {
+        expect(floodedWoodlands.manaCost).toEqual({ X: 2, U: 1, B: 1 });
+        expect(floodedWoodlands.types).toContain("Enchantment");
+        const tax = floodedWoodlands.staticEffects?.find(
+            (e) => e.kind === "attack-sacrifice-tax"
+        );
+        expect(tax).toBeDefined();
+    });
+
+    it("charges one land per attacking green creature (scales with count)", () => {
+        const one = makeCombatState({
+            attackers: [{ id: "g1", cardId: grizzlyBears.id }],
+            landCount: 3,
+            taxCardId: floodedWoodlands.id,
+        });
+        expect(collectAttackSacrificeTax(one)).toEqual([
+            { controllerId: "p1", count: 1, reason: expect.any(String) },
+        ]);
+
+        const two = makeCombatState({
+            attackers: [
+                { id: "g1", cardId: grizzlyBears.id },
+                { id: "g2", cardId: grizzlyBears.id },
+            ],
+            landCount: 3,
+            taxCardId: floodedWoodlands.id,
+        });
+        expect(collectAttackSacrificeTax(two)[0].count).toBe(2);
+    });
+
+    it("does not tax non-green attackers", () => {
+        const state = makeCombatState({
+            attackers: [{ id: "b1", cardId: scatheZombies.id }],
+            landCount: 3,
+            taxCardId: floodedWoodlands.id,
+        });
+        expect(collectAttackSacrificeTax(state)).toEqual([]);
+    });
+
+    it("blocks the attack when the controller has too few lands to pay", () => {
+        const state = makeCombatState({
+            attackers: [
+                { id: "g1", cardId: grizzlyBears.id },
+                { id: "g2", cardId: grizzlyBears.id },
+            ],
+            landCount: 1,
+            taxCardId: floodedWoodlands.id,
+        });
+        expect(() => applyAttackSacrificeTax(state)).toThrow();
+        // The declaration is rejected before any land is sacrificed.
+        expect(
+            state.players[0].battlefield.filter((c) => isLand(c)).length
+        ).toBe(1);
+    });
+
+    it("sacrifices exactly one land per green attacker when lands suffice", () => {
+        const state = makeCombatState({
+            attackers: [
+                { id: "g1", cardId: grizzlyBears.id },
+                { id: "g2", cardId: grizzlyBears.id },
+            ],
+            landCount: 3,
+            taxCardId: floodedWoodlands.id,
+        });
+        applyAttackSacrificeTax(state);
+        expect(
+            state.players[0].battlefield.filter((c) => isLand(c)).length
+        ).toBe(1);
+        expect(state.players[0].graveyard.filter((c) => isLand(c)).length).toBe(
+            2
+        );
+    });
+
+    it("imposes no tax when the enchantment is not in play", () => {
+        const state = makeCombatState({
+            attackers: [{ id: "g1", cardId: grizzlyBears.id }],
+            landCount: 3,
+        });
+        expect(collectAttackSacrificeTax(state)).toEqual([]);
+    });
+});
+
+describe("Reclamation (CR 508.1c/1g — black-creature attack tax, #733)", () => {
+    it("has the {2}{G}{W} cost and a black attack-sacrifice-tax static", () => {
+        expect(reclamation.manaCost).toEqual({ X: 2, W: 1, G: 1 });
+        expect(reclamation.types).toContain("Enchantment");
+        expect(
+            reclamation.staticEffects?.some(
+                (e) => e.kind === "attack-sacrifice-tax"
+            )
+        ).toBe(true);
+    });
+
+    it("taxes attacking black creatures but not green ones", () => {
+        const black = makeCombatState({
+            attackers: [{ id: "b1", cardId: scatheZombies.id }],
+            landCount: 3,
+            taxCardId: reclamation.id,
+        });
+        expect(collectAttackSacrificeTax(black)[0].count).toBe(1);
+
+        const green = makeCombatState({
+            attackers: [{ id: "g1", cardId: grizzlyBears.id }],
+            landCount: 3,
+            taxCardId: reclamation.id,
+        });
+        expect(collectAttackSacrificeTax(green)).toEqual([]);
+    });
+
+    it("sacrifices one land per black attacker at declaration", () => {
+        const state = makeCombatState({
+            attackers: [{ id: "b1", cardId: scatheZombies.id }],
+            landCount: 2,
+            taxCardId: reclamation.id,
+        });
+        applyAttackSacrificeTax(state);
+        expect(
+            state.players[0].battlefield.filter((c) => isLand(c)).length
+        ).toBe(1);
     });
 });

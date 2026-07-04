@@ -125,6 +125,7 @@ import {
     getEffectiveManaChoices,
     getFixedManaAmount,
     hasManaAbility,
+    isLand,
     isTapLockedBySummoningSickness,
     manaValue,
 } from "./gre/constants";
@@ -141,6 +142,7 @@ import {
     validateDeclaredAttackers,
     validateDeclaredBlockers,
     collectBlockBypassCharges,
+    collectAttackSacrificeTax,
 } from "./gre/combat";
 import {
     getEffectiveBlockGraph,
@@ -4967,6 +4969,28 @@ export const confirmAttackers = mutation({
         const declaredAttackCheck = validateDeclaredAttackers(state);
         if (!declaredAttackCheck.ok) {
             throw new Error(declaredAttackCheck.reason);
+        }
+
+        // CR 508.1c/1g — per-attacker sacrifice-a-land attack tax (Flooded
+        // Woodlands, Reclamation, #733). Each taxed attacker (green/black
+        // creature) forces its controller to sacrifice one land as attackers are
+        // declared; the cost scales with the taxed-attacker count. If the
+        // controller has too few lands to pay for every taxed attacker declared,
+        // the declaration is illegal and rejected — mirroring the Hipparion
+        // pay-to-block bypass, which likewise throws when the combat-declaration
+        // cost can't be met so the player must reassign. The engine auto-selects
+        // which lands to sacrifice (documented simplification — see
+        // StaticAttackSacrificeTax; the interactive land choice would require a
+        // parallel declare-time choice mechanism, which #733 forbids).
+        for (const charge of collectAttackSacrificeTax(state)) {
+            const payer = getPlayer(state, charge.controllerId);
+            const lands = payer.battlefield.filter((c) => isLand(c));
+            if (lands.length < charge.count) {
+                throw new Error(charge.reason);
+            }
+            for (let i = 0; i < charge.count; i++) {
+                removePermanentTo(state, lands[i].id, "graveyard", "sacrifice");
+            }
         }
 
         // Tap and mark each attacker (vigilance creatures don't tap)

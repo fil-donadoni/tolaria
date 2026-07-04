@@ -2202,6 +2202,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Flooded Woodlands",
+        "scryfallId": "de89e9e1-485b-42e5-9728-5d6f948999e1",
+        "oracleId": "413172aa-b508-4e67-b68e-6a749d2e8130",
+        "firstSet": "ice"
+    },
+    {
         "name": "Flow of Maggots",
         "scryfallId": "6880a4d3-5cbc-4a01-9190-3565617efcc9",
         "oracleId": "2d6a387f-7ad4-419e-951a-9dcd4c9ac823",
@@ -5224,6 +5230,12 @@
         "scryfallId": "33296718-0625-4422-a65c-b21cf99c52ec",
         "oracleId": "4158f397-4ee4-4f53-90f2-3b64bfe4f9b8",
         "firstSet": "leg"
+    },
+    {
+        "name": "Reclamation",
+        "scryfallId": "ca335f4f-d345-4eb9-9bc6-74595c501078",
+        "oracleId": "ff942899-a70d-4fca-b125-9712aa635fff",
+        "firstSet": "ice"
     },
     {
         "name": "Reconstruction",
