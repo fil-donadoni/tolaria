@@ -2454,7 +2454,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         status: "implemented",
         cr: "705.2",
         binding: "SpellContext.requestCoinFlip",
-        note: "Flip a coin, then run the win / loss branch (CR 705, issue #851). A thin declarative skin over the single SpellContext primitive `requestCoinFlip` (the suspending reveal flip, ADR 0023), one execution path (ADR 0045): the bit is drawn ONCE from the seeded PRNG, PAUSES resolution to animate the coin landing (WIN/LOSE reveal overlay), and on resume the persisted outcome short-circuits the re-run (no re-roll, CR 608.3). `win` / `loss` are each `{ consequence, effects }` — a labelled nested `EffectOp[]` run through the SAME `runOpList` path an `if` branch / optionChoice mode uses, so a branch composes bind / ref / if / forEach and even a further suspending Op (Goblin Kites' delayed-body sacrifice-on-loss, Orcish Captain's +2/+0-or--0/-2 buff, Bottle of Suleiman's create-token-or-take-5, Goblin Lyre's creature-count damage). `player` (optional) names the flipping player — the resolving `\"controller\"` by default (CR 705.1); an announced target-slot / relative player otherwise. Like `if` / `optionChoice` it is a structural construct that always re-descends on a re-walk (in the interpreter's runOpList skip-exception), so a suspension inside the taken branch resumes correctly. Skipped when the flipper is gone (CR 608.2b). SCOPE (issue #851): the suspending reveal flip only. The synchronous non-suspending `flipCoin` (used mid-combat where resolution cannot pause — Mijae Djinn / Ydwen Efreet attack/block flips) and the repeat-until-lose / doubling-stake loops (Mana Clash, Goblin Artisans, Game of Chaos) are NOT folded — the former needs a non-suspending flip variant, the latter an unbounded loop + arithmetic value the frozen grammar does not carry; both stay resolve() until demanded.",
+        note: "Flip a coin, then run the win / loss branch (CR 705, issue #851). A thin declarative skin over the single SpellContext primitive `requestCoinFlip` (the suspending reveal flip, ADR 0023), one execution path (ADR 0045): the bit is drawn ONCE from the seeded PRNG, PAUSES resolution to animate the coin landing (WIN/LOSE reveal overlay), and on resume the persisted outcome short-circuits the re-run (no re-roll, CR 608.3). `win` / `loss` are each `{ consequence, effects }` — a labelled nested `EffectOp[]` run through the SAME `runOpList` path an `if` branch / optionChoice mode uses, so a branch composes bind / ref / if / forEach and even a further suspending Op (Goblin Kites' delayed-body sacrifice-on-loss, Orcish Captain's +2/+0-or--0/-2 buff, Bottle of Suleiman's create-token-or-take-5, Goblin Lyre's creature-count damage). `player` (optional) names the flipping player — the resolving `\"controller\"` by default (CR 705.1); an announced target-slot / relative player otherwise. Like `if` / `optionChoice` it is a structural construct that always re-descends on a re-walk (in the interpreter's runOpList skip-exception), so a suspension inside the taken branch resumes correctly. Skipped when the flipper is gone (CR 608.2b). SCOPE (issue #851): the suspending reveal flip only. The synchronous non-suspending `flipCoin` loop cards — repeat-until-lose / doubling-stake stakes (Goblin Artisans, Mana Clash, Game of Chaos) — are NOT folded: they need an unbounded loop + arithmetic value the frozen grammar does not carry, so they stay resolve() until demanded. Note Mijae Djinn / Ydwen Efreet use THIS same `requestCoinFlip` primitive (not a separate synchronous flip) yet remain resolve() for an unrelated reason — they are blocked on combat-manipulation Ops (removeFromCombat / unblock), not on the coin flip.",
     },
 ];
 
@@ -2554,10 +2554,12 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // COVERED live via EFFECT_OP_REGISTRY with status "implemented". Only the
     // suspending reveal flip (`requestCoinFlip`) is folded (win / loss each a
     // nested EffectOp[] run through the same runOpList path an `if` branch uses).
-    // The synchronous `flipCoin` (mid-combat, non-suspending — Mijae Djinn /
-    // Ydwen Efreet) and repeat/doubling loops (Mana Clash, Goblin Artisans,
-    // Game of Chaos) stay resolve() — a non-suspending flip variant / unbounded
-    // loop + arithmetic value are distinct capabilities not demanded this wave.
+    // NOT folded: the synchronous `flipCoin` loop cards (Goblin Artisans,
+    // Mana Clash, Game of Chaos) stay resolve() — they need an unbounded
+    // repeat-until / doubling loop + arithmetic value the frozen grammar does
+    // not carry. Mijae Djinn / Ydwen Efreet DO use this same `requestCoinFlip`
+    // primitive but stay resolve() for a different reason: they are blocked on
+    // combat-manipulation Ops (removeFromCombat / unblock), not on the flip.
     // --- Low-frequency long-tail (surfaced by the classifier, PRD #826 §Out
     //     of Scope — recorded as reservations, filed as issues only on demand
     //     past wave-1). ---
