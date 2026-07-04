@@ -8,11 +8,13 @@ import type {
     CardPrint,
     Color,
     DelayedTriggerDef,
+    PermanentView,
     SpellContext,
 } from "../../types";
 import type { Phase } from "../../../gre/types";
 import { countSnowLands } from "../../snowReads";
 import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 
@@ -1821,22 +1823,112 @@ export const brushland: CardDefinition = {
         },
     ],
 };
-// DEFERRED (cumulative upkeep — ADR 0042 capability cluster).
-// export const glacialChasm: CardDefinition = {
-//     id: "3d23f800-7a6f-40e3-b242-9f5955e47a75",
-//     name: "Glacial Chasm",
-//     rarity: "uncommon",
-//     oracleText: "Cumulative upkeep—Pay 2 life. (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nWhen this land enters, sacrifice a land.\nCreatures you control can't attack.\nPrevent all damage that would be dealt to you.",
-//     types: ["Land"],
-// };
-// DEFERRED (cumulative upkeep — ADR 0042 capability cluster).
-// export const hallsOfMist: CardDefinition = {
-//     id: "b926a189-90b6-47bb-b5d6-b033e57007b4",
-//     name: "Halls of Mist",
-//     rarity: "rare",
-//     oracleText: "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nCreatures that attacked during their controller's last turn can't attack.",
-//     types: ["Land"],
-// };
+// Glacial Chasm — Land (issue #727). Four clauses over shipped seams:
+//   • Cumulative upkeep—Pay 2 life — the ADR 0042 template with a life cost
+//     (`cost: { life: 2 }`), the `{ life }` MayPayCost union leg.
+//   • "When this land enters, sacrifice a land" — a self-ETB DSL trigger
+//     (`enteredTrigger` + `effects`): a `sacrifice-permanents` choice over the
+//     controller's lands, then the `sacrifice` Op on the pick (CR 701.16). Any
+//     land qualifies, including Glacial Chasm itself.
+//   • "Creatures you control can't attack" — a battlefield-scanned
+//     `global-attack-restriction` (CR 508.1c) scoped to the SOURCE's controller
+//     (the Akron Legionnaire shape, without the name/artifact exemptions).
+//   • "Prevent all damage that would be dealt to you" — a continuous
+//     `replacementEffects[]` prevention (CR 615.1) on player-targeted damage
+//     aimed at the controller; `replace` consumes the event.
+export const glacialChasm: CardDefinition = {
+    id: "3d23f800-7a6f-40e3-b242-9f5955e47a75",
+    name: "Glacial Chasm",
+    rarity: "uncommon",
+    oracleText:
+        "Cumulative upkeep—Pay 2 life. (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nWhen this land enters, sacrifice a land.\nCreatures you control can't attack.\nPrevent all damage that would be dealt to you.",
+    types: ["Land"],
+    staticEffects: [
+        {
+            kind: "global-attack-restriction",
+            id: "glacial-chasm-controller-cant-attack",
+            // CR 508.1c — lock only the creatures Glacial Chasm's controller
+            // controls (`true` = forbidden).
+            forbids: (attacker: PermanentView, source: PermanentView) =>
+                attacker.controllerId === source.controllerId,
+            oracleText: "Creatures you control can't attack (Glacial Chasm).",
+        },
+    ],
+    replacementEffects: [
+        {
+            id: "glacial-chasm-prevent-damage-to-you",
+            oracleText: "Prevent all damage that would be dealt to you.",
+            eventKind: "damage",
+            // CR 615.1 — prevent damage that would be dealt to the source's
+            // controller (a player-targeted damage event).
+            appliesTo: (event, self) => {
+                if (event.kind !== "damage") return false;
+                if (event.target.type !== "player") return false;
+                return event.target.id === self.controllerId;
+            },
+            replace: () => ({ kind: "consumed" }),
+        },
+    ],
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "glacial-chasm-cumulative-upkeep",
+            cost: { life: 2 },
+            costLabel: "Pay 2 life",
+        }),
+        enteredTrigger({
+            id: "glacial-chasm-etb-sacrifice-land",
+            oracleText: "When this land enters, sacrifice a land.",
+            scope: "self",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "sacrifice-permanents",
+                    player: "controller",
+                    zone: "battlefield",
+                    filter: { type: "Land" },
+                    count: 1,
+                    prompt: "Glacial Chasm: choose a land to sacrifice.",
+                    bind: "$sac",
+                },
+                { op: "sacrifice", permanents: { ref: "$sac" } },
+            ],
+        }),
+    ],
+};
+// Halls of Mist — Land (issue #727). Cumulative upkeep {1} plus a single
+// battlefield-scanned `global-attack-restriction` (CR 508.1c): a creature is
+// forbidden from attacking if it attacked during its controller's most recent
+// prior turn. Reuses the per-instance `attackedDuringLastTurn` flag already
+// snapshotted at each controller's CLEANUP (Giant Turtle, LEG) — so NO new
+// GameState field is needed; the flag is on `CardInstanceState`/`PermanentView`
+// and survives the public projection.
+export const hallsOfMist: CardDefinition = {
+    id: "b926a189-90b6-47bb-b5d6-b033e57007b4",
+    name: "Halls of Mist",
+    rarity: "rare",
+    oracleText:
+        "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nCreatures that attacked during their controller's last turn can't attack.",
+    types: ["Land"],
+    staticEffects: [
+        {
+            kind: "global-attack-restriction",
+            id: "halls-of-mist-no-repeat-attack",
+            // CR 508.1 — forbid (`true`) any creature that attacked during its
+            // controller's last turn.
+            forbids: (attacker: PermanentView) =>
+                attacker.attackedDuringLastTurn === true,
+            oracleText:
+                "Creatures that attacked during their controller's last turn can't attack (Halls of Mist).",
+        },
+    ],
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "halls-of-mist-cumulative-upkeep",
+            cost: { X: 1 },
+            costLabel: "{1}",
+        }),
+    ],
+};
 // Ice Floe — land-flavoured untap-lock twin of Mole Worms (CR 611.2 untap-lock
 // tied to the source's tapped state via `lockUntapWhileSourceTapped`; CR 502.1
 // optional untap via `may-choose-not-to-untap`). Target filter mirrors Giant

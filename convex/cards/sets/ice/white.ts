@@ -17,6 +17,7 @@ import { countSnowLands } from "../../snowReads";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
 import { manaCostForCardId } from "../../manaCostLookup";
 import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
+import { untapRestriction } from "../../abilities/static/untapRestriction";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
@@ -781,15 +782,62 @@ export const elvishHealer: CardDefinition = {
 //     manaCost: { X: 2, W: 2 },
 //     types: ["Enchantment"],
 // };
-// TODO(#628): implement.
-// export const energyStorm: CardDefinition = {
-//     id: "3955e358-4285-44e2-9e24-9804346a6e58",
-//     name: "Energy Storm",
-//     rarity: "rare",
-//     oracleText: "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nPrevent all damage that would be dealt by instant and sorcery spells.\nCreatures with flying don't untap during their controllers' untap steps.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Enchantment"],
-// };
+// Energy Storm — {1}{W} Enchantment. Three data-only clauses over shipped
+// seams (issue #727):
+//   • Cumulative upkeep {1} — the ADR 0042 template (`cumulativeUpkeepTrigger`).
+//   • "Prevent all damage that would be dealt by instant and sorcery spells" —
+//     a continuous `replacementEffects[]` damage prevention (CR 615.1) keyed on
+//     the source's card types (`event.sourceTypes` includes Instant/Sorcery);
+//     `replace` consumes the event so the damage is never dealt.
+//   • "Creatures with flying don't untap during their controllers' untap steps"
+//     — the Mudslide untap-lock static (CR 502.1) with the polarity flipped:
+//     `untapRestriction` over `{ types: "Creature", requireAbility: "flying" }`,
+//     maxUntap 0. Symmetric (each-player scope), matched against the active
+//     player's flyers at untap time.
+export const energyStorm: CardDefinition = {
+    id: "3955e358-4285-44e2-9e24-9804346a6e58",
+    name: "Energy Storm",
+    rarity: "rare",
+    oracleText:
+        "Cumulative upkeep {1} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nPrevent all damage that would be dealt by instant and sorcery spells.\nCreatures with flying don't untap during their controllers' untap steps.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        untapRestriction({
+            id: "energy-storm-flyer-untap-lock",
+            oracleText:
+                "Creatures with flying don't untap during their controllers' untap steps (Energy Storm).",
+            filter: { types: "Creature", requireAbility: "flying" },
+            maxUntap: 0,
+        }),
+    ],
+    replacementEffects: [
+        {
+            id: "energy-storm-prevent-spell-damage",
+            oracleText:
+                "Prevent all damage that would be dealt by instant and sorcery spells.",
+            eventKind: "damage",
+            // CR 615.1 — prevent damage whose source is an instant or sorcery
+            // spell (read from the event's source card types).
+            appliesTo: (event) => {
+                if (event.kind !== "damage") return false;
+                return (
+                    event.sourceTypes.includes("Instant") ||
+                    event.sourceTypes.includes("Sorcery")
+                );
+            },
+            // Consuming the event means the damage is never dealt (CR 615).
+            replace: () => ({ kind: "consumed" }),
+        },
+    ],
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "energy-storm-cumulative-upkeep",
+            cost: { X: 1 },
+            costLabel: "{1}",
+        }),
+    ],
+};
 // Formation — {1}{W} Instant. "Target creature gains banding until end of turn"
 // (CR 702.22 banding granted via layer 6 for the turn) plus the next-upkeep
 // cantrip rider.

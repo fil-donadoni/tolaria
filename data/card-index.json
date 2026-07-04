@@ -1818,6 +1818,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Energy Storm",
+        "scryfallId": "3955e358-4285-44e2-9e24-9804346a6e58",
+        "oracleId": "567d3de7-8d56-4b6d-a59a-f8674172f595",
+        "firstSet": "ice"
+    },
+    {
         "name": "Energy Tap",
         "scryfallId": "37e69940-bdc8-48ff-a296-540343910adf",
         "oracleId": "106ae855-574b-411d-8689-cbb9eeb4f602",
@@ -2400,6 +2406,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Glacial Chasm",
+        "scryfallId": "3d23f800-7a6f-40e3-b242-9f5955e47a75",
+        "oracleId": "73e7a2ad-d11c-4867-b97d-f971809da778",
+        "firstSet": "ice"
+    },
+    {
         "name": "Glacial Crevasses",
         "scryfallId": "2726b192-f239-470b-8ad6-69887405e7f9",
         "oracleId": "88e0551a-ada0-41d9-b5c3-39257ce56c3e",
@@ -2703,6 +2715,12 @@
         "name": "Hallowed Ground",
         "scryfallId": "4b35c0f4-5633-4ea9-9bda-daaf787aebdd",
         "oracleId": "ee8fd844-4551-4e44-9740-00d2e76eb337",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Halls of Mist",
+        "scryfallId": "b926a189-90b6-47bb-b5d6-b033e57007b4",
+        "oracleId": "57d7deaf-ee08-49ab-b239-1c77a1f65225",
         "firstSet": "ice"
     },
     {

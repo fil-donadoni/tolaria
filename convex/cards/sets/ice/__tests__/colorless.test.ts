@@ -83,10 +83,14 @@ import {
     infernalDarkness,
     nakedSingularity,
     pox,
+    glacialChasm,
+    hallsOfMist,
 } from "../../ice";
 import { plains, island, swamp, mountain, forest } from "../../lea";
 import { applyLandManaReplacement } from "../../../../gre/constants";
 import { untapStep } from "../../../../gre/phases";
+import { validateAttackerEligibility } from "../../../../gre/combat";
+import { applyDamageReplacements } from "../../../../gre/replacements";
 import {
     getDefinition,
     getCardByName,
@@ -3468,5 +3472,287 @@ describe("Elkin Bottle ({3},{T}: exile top card, play it — CR 601.3e impulse)"
         const slim = projected.players[0].exile.find((c) => c.id === "top")!;
         expect(slim).toBeDefined();
         expect(slim.castableFromExileBy).toBe("p1");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Glacial Chasm (#727) — cumulative upkeep (pay 2 life), ETB "sacrifice a land"
+// (DSL enteredTrigger effects), "creatures you control can't attack" (global
+// attack restriction), and "prevent all damage that would be dealt to you"
+// (continuous damage-prevention replacement).
+// ---------------------------------------------------------------------------
+describe("Glacial Chasm (CR 702.24 / 508.1c / 615.1 / 701.16)", () => {
+    it("definition shape: Land with all four clauses wired", () => {
+        expect(glacialChasm.types).toEqual(["Land"]);
+        const cu = (glacialChasm.triggeredAbilities ?? []).find(
+            (t) => t.id === "glacial-chasm-cumulative-upkeep"
+        );
+        expect(cu).toBeDefined();
+        const etb = (glacialChasm.triggeredAbilities ?? []).find(
+            (t) => t.id === "glacial-chasm-etb-sacrifice-land"
+        );
+        // DSL-first: the ETB is an Effect Script, not a resolve() closure.
+        expect(etb?.effects).toBeDefined();
+        expect(etb?.resolve).toBeUndefined();
+        expect(glacialChasm.staticEffects?.[0]?.kind).toBe(
+            "global-attack-restriction"
+        );
+        expect(glacialChasm.replacementEffects?.[0]?.eventKind).toBe("damage");
+    });
+
+    it("forbids the controller's creatures from attacking (CR 508.1c)", () => {
+        const chasm = makeInstance(glacialChasm.id, {
+            id: "chasm",
+            controllerId: "p1",
+        });
+        const dude = makeInstance(balduvianBears.id, {
+            id: "dude",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [chasm, dude] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(validateAttackerEligibility(dude, [], state).eligible).toBe(
+            false
+        );
+    });
+
+    it("does NOT forbid the opponent's creatures (controller-scoped)", () => {
+        const chasm = makeInstance(glacialChasm.id, {
+            id: "chasm",
+            controllerId: "p1",
+        });
+        const oppDude = makeInstance(balduvianBears.id, {
+            id: "opp",
+            controllerId: "p2",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [chasm] }),
+                makePlayer("p2", { battlefield: [oppDude] }),
+            ],
+        });
+        expect(validateAttackerEligibility(oppDude, [], state).eligible).toBe(
+            true
+        );
+    });
+
+    it("the attack-lock survives projection (wire format)", () => {
+        const chasm = makeInstance(glacialChasm.id, {
+            id: "chasm",
+            controllerId: "p1",
+        });
+        const dude = makeInstance(balduvianBears.id, {
+            id: "dude",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [chasm, dude] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(
+            state,
+            1,
+            "p1"
+        ) as unknown as typeof state;
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "dude"
+        )!;
+        expect(validateAttackerEligibility(slim, [], projected).eligible).toBe(
+            false
+        );
+    });
+
+    it("prevents all damage that would be dealt to its controller (CR 615.1)", () => {
+        const chasm = makeInstance(glacialChasm.id, {
+            id: "chasm",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [chasm] }),
+                makePlayer("p2"),
+            ],
+        });
+        const toController = applyDamageReplacements(state, {
+            kind: "damage",
+            sourceInstanceId: "src",
+            sourceControllerId: "p2",
+            sourceColors: ["R"],
+            sourceTypes: ["Creature"],
+            sourceStaticAbilities: [],
+            target: { type: "player", id: "p1" },
+            amount: 5,
+            isCombat: false,
+        });
+        expect(toController).toBeNull();
+    });
+
+    it("does NOT prevent damage dealt to the opponent", () => {
+        const chasm = makeInstance(glacialChasm.id, {
+            id: "chasm",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [chasm] }),
+                makePlayer("p2"),
+            ],
+        });
+        const toOpponent = applyDamageReplacements(state, {
+            kind: "damage",
+            sourceInstanceId: "src",
+            sourceControllerId: "p1",
+            sourceColors: ["R"],
+            sourceTypes: ["Creature"],
+            sourceStaticAbilities: [],
+            target: { type: "player", id: "p2" },
+            amount: 5,
+            isCombat: false,
+        });
+        expect(toOpponent).not.toBeNull();
+    });
+
+    it("ETB: the controller sacrifices a chosen land (DSL enteredTrigger effects)", () => {
+        const chasm = makeInstance(glacialChasm.id, {
+            id: "chasm",
+            controllerId: "p1",
+        });
+        const otherLand = makeInstance(plains.id, {
+            id: "pl",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [chasm, otherLand] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, chasm, "glacial-chasm-etb-sacrifice-land", {
+            type: "PERMANENT_ENTERED",
+            instanceId: "chasm",
+            controllerId: "p1",
+            types: ["Land"],
+        } as StackItem["triggerEvent"]);
+        // Two lands, choose one → a real choice suspends on the pick.
+        expect(state.pendingChoices?.[0]?.kind).toBe("sacrifice-permanents");
+        submitChoice(state, ["pl"]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "pl")
+        ).toBeUndefined();
+        expect(state.players[0].graveyard.some((c) => c.id === "pl")).toBe(
+            true
+        );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Halls of Mist (#727) — cumulative upkeep {1} + a global attack restriction:
+// a creature that attacked during its controller's last turn can't attack.
+// Reuses the shipped per-instance `attackedDuringLastTurn` flag — no new
+// GameState field.
+// ---------------------------------------------------------------------------
+describe("Halls of Mist (CR 702.24 / 508.1)", () => {
+    it("definition shape: Land with cumulative upkeep + attack restriction", () => {
+        expect(hallsOfMist.types).toEqual(["Land"]);
+        expect(
+            (hallsOfMist.triggeredAbilities ?? []).some(
+                (t) => t.id === "halls-of-mist-cumulative-upkeep"
+            )
+        ).toBe(true);
+        expect(hallsOfMist.staticEffects?.[0]?.kind).toBe(
+            "global-attack-restriction"
+        );
+    });
+
+    it("forbids a creature that attacked during its controller's last turn", () => {
+        const halls = makeInstance(hallsOfMist.id, {
+            id: "halls",
+            controllerId: "p1",
+        });
+        const repeat = makeInstance(balduvianBears.id, {
+            id: "repeat",
+            controllerId: "p1",
+            isSummoningSick: false,
+            attackedDuringLastTurn: true,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [halls, repeat] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(validateAttackerEligibility(repeat, [], state).eligible).toBe(
+            false
+        );
+    });
+
+    it("allows a creature that did NOT attack last turn", () => {
+        const halls = makeInstance(hallsOfMist.id, {
+            id: "halls",
+            controllerId: "p1",
+        });
+        const fresh = makeInstance(balduvianBears.id, {
+            id: "fresh",
+            controllerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [halls, fresh] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(validateAttackerEligibility(fresh, [], state).eligible).toBe(
+            true
+        );
+    });
+
+    it("the restriction survives projection (wire format)", () => {
+        const halls = makeInstance(hallsOfMist.id, {
+            id: "halls",
+            controllerId: "p1",
+        });
+        const repeat = makeInstance(balduvianBears.id, {
+            id: "repeat",
+            controllerId: "p1",
+            isSummoningSick: false,
+            attackedDuringLastTurn: true,
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [halls, repeat] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(
+            state,
+            1,
+            "p1"
+        ) as unknown as typeof state;
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "repeat"
+        )!;
+        expect(validateAttackerEligibility(slim, [], projected).eligible).toBe(
+            false
+        );
     });
 });

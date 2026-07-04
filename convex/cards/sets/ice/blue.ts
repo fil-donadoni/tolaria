@@ -920,7 +920,24 @@ export const illusionaryPresence: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
+// DEFERRED (issue #727) — needs a genuinely-absent engine seam, so it stays a
+// tracked stub rather than being papered over.
+//   "As this enchantment enters, choose two basic land types. Basic lands of
+//    the first chosen type are the second chosen type."
+// This is a continuous layer-4 subtype-changing static (like Blood Moon) whose
+// OUTPUT subtype is DYNAMIC — the second chosen type, picked on entry — and
+// whose applicability is gated by the FIRST chosen type. The shipped
+// `subtype-set` static (`StaticSubtypeSet`) carries a FIXED `subtypes: string[]`
+// (Blood Moon → always Mountain); there is no way to drive the set value from a
+// pair of on-entry choices. Two missing pieces:
+//   1. On-entry storage of an ORDERED PAIR of basic land types on the instance
+//      (the `chosenModeId` field holds a single string; there is no chosen-
+//      subtype-pair slot readable by a static).
+//   2. A subtype-set variant whose `subtypes` is computed from the source's
+//      stored choice (a `subtypesFor(source, ctx)` form, or the ability for
+//      `applies` to project the target's subtype through the stored map).
+// The cumulative upkeep {2} half is fully expressible (ADR 0042 template); the
+// swap is not. Flagged for a "chosen-subtype-pair driven layer-4 swap" seam.
 // export const illusionaryTerrain: CardDefinition = {
 //     id: "691f4a1b-4706-41aa-82da-ae920739f036",
 //     name: "Illusionary Terrain",
