@@ -11,7 +11,10 @@ import type {
 import { isProtectedFromSource } from "./protection";
 import { getEffectivePower } from "./layers";
 import { tryGetDefinition } from "../cards";
-import { globalAttackProhibitionReason } from "../cards/attackRestrictions";
+import {
+    globalAttackProhibitionReason,
+    ATTACK_RESTRICTION_CTX,
+} from "../cards/attackRestrictions";
 import {
     evaluateBlockerKeywords,
     evaluateAttackerKeywords,
@@ -606,6 +609,76 @@ export function collectBlockBypassCharges(
         }
     }
     return charges;
+}
+
+/** A land-sacrifice cost the attacking player must pay to legalize the declared
+ *  attack (CR 508.1c/1g — Flooded Woodlands, Reclamation). `count` is the number
+ *  of lands to sacrifice: one per taxed attacker per active tax source. */
+export interface AttackSacrificeCharge {
+    controllerId: string;
+    count: number;
+    reason: string;
+}
+
+/** Scans the confirmed declared attackers for the battlefield-scanned
+ *  `attack-sacrifice-tax` static effect (Flooded Woodlands: green creatures;
+ *  Reclamation: black creatures — #733) and returns the per-controller
+ *  land-sacrifice cost. The tax scales with the taxed-attacker count and is
+ *  imposed independently by EACH active tax source (two Flooded Woodlands each
+ *  charge their own land per green attacker — each is a separate CR 508.1c
+ *  restriction). Read-only — the sacrifice itself is executed by the caller at
+ *  declare-attackers confirmation (`confirmAttackers`), the attack-side analogue
+ *  of `collectBlockBypassCharges`. */
+export function collectAttackSacrificeTax(
+    state: GameState
+): AttackSacrificeCharge[] {
+    const combat = state.combat;
+    if (!combat) return [];
+    const activePlayer = state.players.find(
+        (p) => p.id === state.activePlayerId
+    );
+    if (!activePlayer) return [];
+
+    const declared = combat.attackerIds
+        .map((id) => activePlayer.battlefield.find((c) => c.id === id))
+        .filter((c): c is CardInstanceState => c !== undefined);
+    if (declared.length === 0) return [];
+
+    const perController = new Map<string, { count: number; reason: string }>();
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            const cardId = (source.card as { id?: string }).id;
+            if (!cardId) continue;
+            const def = tryGetDefinition(cardId);
+            if (!def?.staticEffects) continue;
+            for (const effect of def.staticEffects) {
+                if (effect.kind !== "attack-sacrifice-tax") continue;
+                for (const attacker of declared) {
+                    if (
+                        !effect.taxes(
+                            attacker as unknown as PermanentView,
+                            source as unknown as PermanentView,
+                            state as never,
+                            ATTACK_RESTRICTION_CTX
+                        )
+                    ) {
+                        continue;
+                    }
+                    const cur = perController.get(attacker.controllerId) ?? {
+                        count: 0,
+                        reason: effect.oracleText,
+                    };
+                    cur.count += 1;
+                    perController.set(attacker.controllerId, cur);
+                }
+            }
+        }
+    }
+    return [...perController.entries()].map(([controllerId, v]) => ({
+        controllerId,
+        count: v.count,
+        reason: v.reason,
+    }));
 }
 
 /** True if `card` carries an `attack-requirement` static effect

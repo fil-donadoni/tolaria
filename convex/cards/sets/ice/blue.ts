@@ -137,8 +137,7 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 //     Berit (conditional control + destroy-on-untap), Winter's Chill (combat-
 //     only X capped by snow lands), Balduvian Conjurer (animate a snow land),
 //     Balduvian Shaman / Sleight-of-Mind-style colour-word text change that
-//     also grants cumulative upkeep, Flooded Woodlands (attack restriction with
-//     per-attacker cost).
+//     also grants cumulative upkeep.
 //
 // COMPLETED (#654) — buildable-now Blue cards using shipped primitives only:
 //   • Krovikan Sorcerer — colour-filtered chosen-discard cost paid in-resolve

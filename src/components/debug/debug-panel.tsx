@@ -82,6 +82,27 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // ICE per-attacker sacrifice-a-land attack tax (issue #733): Flooded
+        // Woodlands taxes GREEN creatures — declaring your Grizzly Bears (green)
+        // as an attacker forces you to sacrifice one land per attacking green
+        // creature as attackers are declared (CR 508.1c/1g). Two green Bears +
+        // extra lands so the tax has targets and scales with attacker count;
+        // move to combat and declare attackers to watch the lands go. (Swap in
+        // Reclamation for the black-creature twin.)
+        label: "ICE attack-sacrifice tax (Flooded Woodlands / green creatures) (#733)",
+        cards: [
+            { name: "Flooded Woodlands", owner: "me", zone: "battlefield" },
+            {
+                name: "Grizzly Bears",
+                owner: "me",
+                zone: "battlefield",
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
+    {
         // Cumulative-upkeep global-lock permanents (issue #727): Glacial Chasm
         // and Halls of Mist enter the battlefield, Energy Storm sits in hand.
         // Glacial Chasm's ETB asks you to sacrifice a land; on the battlefield
