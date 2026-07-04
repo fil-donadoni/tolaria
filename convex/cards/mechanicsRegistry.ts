@@ -2396,6 +2396,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.grantStaticAbility",
         note: 'Grant a keyword static ability to a permanent for a limited duration (layer 6, CR 611.1b / 613.1f, issue #843). A thin declarative skin over one SpellContext primitive, one execution path (ADR 0045): `ability` is the free-form keyword granted ("flying", "trample", "haste", "banding", …; read at combat / rules-check time), `target` is an announced slot, the resolving source (`$source` — a permanent granting itself), or a forEach `$each` (a mass grant), and `duration` is the phase boundary at which the grant expires (CR 611.2 — the phase-boundary purge splices the keyword back out). The primitive appends to `staticAbilities` and is skipped when the permanent has left the battlefield (CR 608.2b). Subsumes the grantStaticAbility closures the migration classifier folds here (~52 blocked closures at ship time). Ability REMOVAL / loss (`removeStaticAbilities`) takes a predicate closure — not JSON-expressible — and stays resolve() by design; the permanent-grant variant (`grantStaticAbilityPermanent`, no duration, Cocoon-style Aura hatch) is not folded here.',
     },
+    {
+        op: "libraryLook",
+        status: "implemented",
+        cr: "701.20",
+        binding: "SpellContext.shuffleLibrary",
+        note: 'Shuffle a player\'s library (CR 701.20, issue #844). A thin declarative skin over the SpellContext primitive `shuffleLibrary`, one execution path (ADR 0045): `action: "shuffle"` → shuffleLibrary (the seeded PRNG reorder that also clears every card\'s persistent knowledge, ADR 0026 — the "then shuffle" tail of a tutor, Winds of Change / Timetwister-style whole-deck randomization). `player` names whose library: the resolving controller (`"controller"`), an announced target-slot player (`{ target: N }`), or a forEach `$each` (a per-player shuffle). SCOPE (issue #844): only the `shuffle` primitive is folded — it is the one CR 401 / 701.20 library primitive expressible as a pure declarative Op (no runtime value read back into the effect). The classifier proposed folding `peekLibraryTop` / `reorderLibraryTop` too, but every closure that calls them either reads an opaque `choice` result back into `reorderLibraryTop` (Ponder, Preordain, Portent, Drafna\'s Restoration — a reorder-FROM-choice the DSL can\'t yet express) or drives a mill loop off the live top id (Millstone, Thought Scour, Ray of Erasure, Deep Spawn — needs a `mill` Op). Those two primitives stay a `planned` backlog Op (`scryReorder`) until a choice-driven reorder / mill construct exists. See `scripts/migration-classifier.mjs` OP_SEQUENCE.',
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
@@ -2440,11 +2447,16 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // live via EFFECT_OP_REGISTRY; row moved there with status "implemented".
     // Ability removal / loss (`removeStaticAbilities`, a predicate closure)
     // stays residual — not JSON-expressible as an Op.
+    // libraryLook SHIPPED (issue #844) — shuffleLibrary is now COVERED live
+    // via EFFECT_OP_REGISTRY; row moved there with status "implemented". Only
+    // the shuffle primitive was folded (the one pure declarative library
+    // primitive); peekLibraryTop / reorderLibraryTop stay backlogged as
+    // scryReorder below.
     {
-        op: "libraryLook",
+        op: "scryReorder",
         status: "planned",
         cr: "701.22",
-        note: 'Look at / reorder / shuffle the top of a library (CR 701.22 "Scry" and neighbours). Folds SpellContext.peekLibraryTop / reorderLibraryTop / shuffleLibrary (~40 blocked closures).',
+        note: "Look at / reorder the top of a library (CR 401.4 look, CR 701.22 Scry, mill). Folds SpellContext.peekLibraryTop / reorderLibraryTop (~20 blocked closures). Deferred out of libraryLook (issue #844): every current caller reads an opaque `choice` result back into `reorderLibraryTop` (a reorder-FROM-choice — Ponder, Preordain, Portent, Drafna's Restoration) or drives a mill loop off the live top id (Millstone, Thought Scour, Ray of Erasure, Deep Spawn). Needs a choice-driven reorder construct and/or a `mill` Op before it is a pure declarative skin.",
     },
     {
         op: "preventDamage",

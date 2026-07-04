@@ -137,12 +137,25 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // delayed trigger's internal id/payload, which the inline delayedTrigger Op
     // changes). Ability removal (removeStaticAbilities, a predicate closure)
     // stays residual — not JSON-expressible.
+    // #844 (libraryLook Op): shuffleLibrary is now a COVERED Op — but ONLY the
+    // shuffle primitive was folded (the one pure declarative library skin;
+    // peek/reorder deferred to the planned scryReorder Op, since every caller
+    // reads a choice result back into reorderLibraryTop or drives a mill loop).
+    // The shuffle-freed closures moved Op-blocked→FREE (FREE 337→341; Op-blocked
+    // 332→328; AFK-ready 309→313; total/X-only unchanged), but ZERO migrated:
+    // all three shuffle-freed sites are SEARCH+SHUFFLE tutors (Demonic Tutor,
+    // Jester's Cap, Altar of Bone) whose search half moves a CHOICE-PICKED
+    // LIBRARY card — the `moveZone` Op only sources the battlefield/graveyard
+    // (classifier over-count: moveCardById reads as covered, but not for a
+    // library source), so they stay resolve() with a recorded NOT-migratable
+    // reason. The Op earns its permanent per-Op test through the interpreter
+    // suite (shuffle skin) rather than a migrated card this wave.
     it("reports the committed baseline bucket totals", () => {
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(688);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(337);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(309);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(341);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(313);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(19);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(332);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(328);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is applyRegenerationShield)", () => {

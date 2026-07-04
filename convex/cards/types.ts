@@ -4627,6 +4627,25 @@ export type EffectOp =
           target: EffectObjectSelector;
           duration: DurationSpec;
       }
+    /** CR 701.20 (issue #844) — shuffle a player's library. A thin declarative
+     *  skin over the SpellContext primitive `shuffleLibrary`, one execution
+     *  path (ADR 0045). `action` is `"shuffle"` — the seeded-PRNG randomization
+     *  that also clears every library card's persistent knowledge (ADR 0026, an
+     *  unwitnessed reorder). `player` names whose library: the resolving
+     *  controller (`"controller"`), an announced target-slot player
+     *  (`{ target: N }`), or the current member of a `forEach` set
+     *  (`{ ref: "$each" }` — a per-player shuffle). SCOPE (issue #844): only
+     *  the `shuffle` primitive is folded — it is the one CR 401 / 701.20 library
+     *  primitive expressible as a pure declarative Op (no runtime value read
+     *  back into the effect). Looking at / reordering the top (peekLibraryTop /
+     *  reorderLibraryTop) stays a `planned` backlog Op (`scryReorder`): every
+     *  current caller reads an opaque `choice` result back into the reorder or
+     *  drives a mill loop off the live top id — not a pure declarative skin yet. */
+    | {
+          op: "libraryLook";
+          action: "shuffle";
+          player: EffectPlayerRef;
+      }
     /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a
      *  Pending Choice of the given `kind` and SUSPENDS the script (the stack

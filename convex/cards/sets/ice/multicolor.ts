@@ -108,6 +108,16 @@ export const altarOfBone: CardDefinition = {
     additionalCosts: {
         sacrificeFilter: { types: "Creature", controllerRelation: "you" },
     },
+    // NOT DSL-migratable (ADR 0045): the "then shuffle" tail is now a
+    // libraryLook Op (issue #844), but the search half both (a) moves a
+    // CHOICE-PICKED LIBRARY card into hand — the `moveZone` Op only sources the
+    // battlefield / graveyard, no selector references a library card a `choice`
+    // bound — and (b) needs a TYPE-FILTERED library search (creatures only),
+    // whereas the `choice` Op's `filter` applies to the battlefield zone only.
+    // The classifier over-counts this FREE because `moveCardById` reads as a
+    // covered `moveZone` primitive; it is not covered for a library source.
+    // Blocked on: a library-sourced move of a choice-picked card + a
+    // type-filtered library `choice` (planned).
     resolve: (ctx: SpellContext) => {
         const creatures = ctx
             .getLibraryCards(ctx.controller)

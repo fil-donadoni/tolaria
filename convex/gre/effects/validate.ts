@@ -196,6 +196,12 @@ function isTapUntapAction(value: unknown): boolean {
     return value === "tap" || value === "untap";
 }
 
+/** The action of a `libraryLook` Op (issue #844, CR 701.20). Only `"shuffle"`
+ *  is folded; peek/reorder are deferred to the `scryReorder` backlog Op. */
+function isLibraryLookAction(value: unknown): boolean {
+    return value === "shuffle";
+}
+
 /** The destination zones a `moveZone` Op may name (issue #839, EffectMoveZone).
  *  The five zones a one-shot effect addresses (CR 400.7). */
 function isMoveZone(value: unknown): boolean {
@@ -528,6 +534,15 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             ability: isNonEmptyString,
             target: isObjectSelector,
             duration: isDurationSpec,
+        },
+    },
+    // CR 701.20 (issue #844) — shuffle a player's library. `action` is
+    // "shuffle" (the only folded library primitive); `player` names whose
+    // library (controller / announced slot / forEach `$each`).
+    libraryLook: {
+        required: {
+            action: isLibraryLookAction,
+            player: isPlayerRef,
         },
     },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution choice through the

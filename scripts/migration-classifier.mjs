@@ -78,7 +78,13 @@ const OP_SEQUENCE = [
     ["counters", ["addCounter", "removeCounter"]],
     ["tapUntap", ["tap", "untap"]],
     ["grantAbility", ["grantStaticAbility"]],
-    ["libraryLook", ["peekLibraryTop", "reorderLibraryTop", "shuffleLibrary"]],
+    // libraryLook SHIPPED (issue #844) — only the shuffle primitive folded
+    // (the one pure declarative library skin); it is COVERED live via
+    // EFFECT_OP_REGISTRY, so its row is dropped from this future-plan sequence.
+    // peekLibraryTop / reorderLibraryTop deferred to a future scryReorder Op
+    // (every caller reads a choice result back into reorderLibraryTop or drives
+    // a mill loop off the live top id — not a pure declarative skin yet).
+    ["scryReorder", ["peekLibraryTop", "reorderLibraryTop"]],
     [
         "preventDamage",
         [

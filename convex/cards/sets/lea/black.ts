@@ -328,6 +328,16 @@ export const demonicTutor: CardDefinition = {
         "Search your library for a card, put that card into your hand, then shuffle.",
     manaCost: { X: 1, B: 1 },
     types: ["Sorcery"],
+    // NOT DSL-migratable (ADR 0045): the "then shuffle" tail is now a
+    // libraryLook Op (issue #844), but the search half moves a CHOICE-PICKED
+    // LIBRARY card into hand — the `moveZone` Op only sources the battlefield /
+    // graveyard (its `resolveObjectRef` is battlefield-scoped and its card-by-id
+    // branch hardcodes the graveyard source), and no selector references a
+    // library card a `choice` bound. The classifier over-counts this FREE
+    // because `moveCardById` reads as a covered `moveZone` primitive; it is not
+    // covered for a library source.
+    // Blocked on: a library-sourced move of a choice-picked card (planned —
+    // a `moveZone` extension for library sources / a search-and-move Op).
     resolveSteps: [
         (ctx: SpellContext) => {
             const picks = ctx.requestChoice({

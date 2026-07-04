@@ -241,9 +241,11 @@ describe("Effect Script Op census (ADR 0045/0046, PRD #826)", () => {
         // (issue #839), `delayedTrigger` (issue #838, ADR 0048), `pump`
         // (issue #840), `counters` (issue #841), `tapUntap` (issue #842) and
         // `grantAbility` (issue #843) were wave-1 stubs but SHIPPED — they now
-        // live in EFFECT_OP_REGISTRY, not the backlog.
+        // live in EFFECT_OP_REGISTRY, not the backlog. `libraryLook` (issue
+        // #844) SHIPPED too, but only its `shuffle` primitive folded; its
+        // peek/reorder half is deferred to the new `scryReorder` backlog stub.
         const named = [
-            "libraryLook",
+            "scryReorder",
             "preventDamage",
             "regenerate",
             "createToken",
