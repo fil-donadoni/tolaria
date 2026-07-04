@@ -143,6 +143,131 @@ describe("Effect Script Op: dealDamage (CR 120.1)", () => {
     });
 });
 
+describe("Effect Script value grammar: X (chosen cost, CR 107.3 / 601.2b, issue #852)", () => {
+    // `{ X: true }` is the fifth EffectValue member — a thin skin over
+    // SpellContext.getX() (the value announced for {X} at cast time,
+    // snapshotted on the stack item as chosenX). It is NOT an Op and NOT a new
+    // structural construct (ADR 0045 stays closed). Exercised here across every
+    // Op that reads an EffectValue and might carry X: dealDamage (Earthquake /
+    // Drain Life), gainLife (Stream of Life), draw (Braingeyser), pump (Howl
+    // from Beyond +X/+0). One resolveValue execution path serves them all.
+
+    const withLibrary = (owner: "p1" | "p2", n: number) =>
+        Array.from({ length: n }, (_, i) =>
+            makeInstance(BEAR_ID, {
+                id: `xlib-${owner}-${i}`,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    it("dealDamage with amount X deals the chosen X to the target (Earthquake-style)", () => {
+        const id = registerScript("test-x-dealdamage", [
+            { op: "dealDamage", amount: { X: true }, to: { target: 0 } },
+        ]);
+        const state = makeState();
+        const item = pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        item.chosenX = 4;
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(16);
+    });
+
+    it("gainLife with amount X gains the chosen X (Stream of Life-style)", () => {
+        const id = registerScript("test-x-gainlife", [
+            { op: "gainLife", player: { target: 0 }, amount: { X: true } },
+        ]);
+        const state = makeState();
+        const item = pushSpell(state, id, "p1", [{ type: "player", id: "p1" }]);
+        item.chosenX = 5;
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(25);
+    });
+
+    it("draw with count X draws the chosen X cards (Braingeyser-style)", () => {
+        const id = registerScript("test-x-draw", [
+            { op: "draw", player: "controller", count: { X: true } },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: withLibrary("p1", 6) }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, id, "p1");
+        item.chosenX = 3;
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.length).toBe(3);
+        expect(state.players[0].library.length).toBe(3);
+    });
+
+    it("X reads back 0 when no X was announced (getX default, CR 107.3)", () => {
+        const id = registerScript("test-x-zero", [
+            { op: "dealDamage", amount: { X: true }, to: { target: 0 } },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]); // no chosenX
+        resolveTopOfStack(state);
+        // getX() → 0, and the damage executor skips a non-positive amount.
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("pump with power X is a +X/+0 buff that survives projection (Howl from Beyond, wire format)", () => {
+        const id = registerScript("test-x-pump", [
+            {
+                op: "pump",
+                target: { target: 0 },
+                power: { X: true },
+                toughness: 0,
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearX",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        const item = pushSpell(state, id, "p1", [
+            { type: "permanent", id: "bearX" },
+        ]);
+        item.chosenX = 3;
+        resolveTopOfStack(state);
+        const buffed = state.players[1].battlefield.find(
+            (c) => c.id === "bearX"
+        )!;
+        // BEAR_ID is a 2/5 → +3/+0 = 5/5.
+        expect(getEffectivePower(state, buffed)).toBe(5);
+        expect(getEffectiveToughness(state, buffed)).toBe(5);
+        // Same assertion after the projection — X folds in at resolution, so
+        // the buff is already baked into the temporary modifier the layer
+        // pipeline reads over the slimmed client state.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bearX"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(5);
+        expect(getEffectiveToughness(projected, slim)).toBe(5);
+    });
+
+    it("dealDamage with X survives projection (wire format)", () => {
+        const id = registerScript("test-x-dmg-wire", [
+            { op: "dealDamage", amount: { X: true }, to: { target: 0 } },
+        ]);
+        const state = makeState();
+        const item = pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        item.chosenX = 6;
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].life).toBe(14);
+    });
+});
+
 describe("Effect Script Op: draw (CR 121.1)", () => {
     const withLibrary = (owner: "p1" | "p2", n: number) =>
         Array.from({ length: n }, (_, i) =>

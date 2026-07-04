@@ -156,10 +156,10 @@ export const braingeyser: CardDefinition = {
     manaCost: { X: "X", U: 2 },
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type === "player") ctx.drawCards(target.id, ctx.getX());
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #852): target player draws X
+    // cards (CR 121.1) via the chosen-cost `{ X: true }` count. A non-player
+    // target is skipped by the executor (CR 608.2b).
+    effects: [{ op: "draw", player: { target: 0 }, count: { X: true } }],
 };
 
 // Clone — "You may have Clone enter the battlefield as a copy of any creature

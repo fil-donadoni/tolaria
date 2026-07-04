@@ -231,6 +231,10 @@ export const clockworkBeast: CardDefinition = {
             cost: { mana: { X: "X" }, tap: true },
             useStack: true,
             canActivate: (source) => (source.counters?.["+1/+0"] ?? 0) < 7,
+            // NOT DSL-migratable (ADR 0045, #852): "up to X counters, capped so
+            // the total never exceeds seven" is min(X, 7 - current) — ARITHMETIC
+            // the value grammar has no construct for. The `{ X: true }` member
+            // supplies X but cannot express the clamp. Classifier over-count.
             resolve: (ctx: SpellContext) => {
                 const self: TargetSelection = {
                     type: "permanent",

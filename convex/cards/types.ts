@@ -4463,11 +4463,22 @@ export interface EffectCardFilter {
     subtype?: string;
 }
 
+/** X — the chosen-cost value (CR 107.3, 601.2b), a thin JSON-pure skin over
+ *  `SpellContext.getX()` (the value announced for {X} in the spell/ability's
+ *  cost at cast/activation time, snapshotted on the stack item as `chosenX`).
+ *  A fifth `EffectValue` grammar member (issue #852, PRD #826), NOT an Op and
+ *  NOT a new structural construct — it does not reopen ADR 0045 (only a fifth
+ *  bind/ref/if/forEach-style construct would). Unblocks Earthquake / Stream of
+ *  Life / Fireball-style scripts whose amount is exactly `ctx.getX()`. There is
+ *  still no arithmetic: `X` reads back the one chosen number, nothing composes
+ *  it (a card like Braingeyser drawing `X` cards, Drain Life dealing `X`). */
+export type EffectXValue = { X: true };
+
 /** A runtime numeric parameter of an Op (ADR 0045): a literal count, a `ref`
- *  reading a bound object's numeric property, or a `count` of a selected set.
- *  The value grammar is capped at these three — no arithmetic, no expressions
- *  (the frozen-grammar defence, ADR 0045). */
-export type EffectValue = number | EffectRef | EffectCount;
+ *  reading a bound object's numeric property, a `count` of a selected set, or
+ *  the chosen-cost `X` (issue #852). The value grammar is capped at these —
+ *  no arithmetic, no expressions (the frozen-grammar defence, ADR 0045). */
+export type EffectValue = number | EffectRef | EffectCount | EffectXValue;
 
 /** JSON-pure mana specification for the `addMana` Op (CR 106.1, issue #850) —
  *  a per-colour amount map. Only fixed coloured / colorless pips: no variable

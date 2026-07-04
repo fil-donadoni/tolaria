@@ -678,6 +678,11 @@ export const dwarvenCatapult: CardDefinition = {
     manaCost: { X: "X", R: 1 },
     types: ["Instant"],
     targetRequirement: { type: "player", count: 1, controller: "opponent" },
+    // NOT DSL-migratable (ADR 0045, #852): "X damage divided evenly, rounded
+    // down, among all creatures" is floor(X / creatureCount) dealt to each —
+    // ARITHMETIC (division by a runtime count) the value grammar has no
+    // construct for. `{ X: true }` supplies X but cannot divide it. Classifier
+    // over-count (folds dealDamageToEach → dealDamage + getX, blind to the math).
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "player") return;

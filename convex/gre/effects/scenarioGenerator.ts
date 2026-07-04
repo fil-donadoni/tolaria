@@ -195,6 +195,15 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `numeric ref "${value.ref}" — amount depends on a runtime snapshot`;
         return;
     }
+    // Chosen-cost X (issue #852): the amount is whatever was announced for {X}
+    // at cast time. The canned scenario pushes the spell directly on the stack
+    // without a cast, so getX() would read 0 — the declared outcome can't be
+    // asserted deterministically. Skip-with-reason (the per-card test remains
+    // the behavioural guarantor for X cards).
+    if ("X" in value) {
+        req.skip ??= `amount is chosen-cost X — depends on the value announced for {X} at cast time`;
+        return;
+    }
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;

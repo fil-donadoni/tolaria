@@ -763,6 +763,11 @@ export const clockworkAvian: CardDefinition = {
             useStack: true,
             activationPhaseRestriction: ["UPKEEP"],
             controllerTurnOnly: true,
+            // NOT DSL-migratable (ADR 0045, #852): "up to X counters, capped so
+            // the total never exceeds four" is min(X, 4 - current) — ARITHMETIC
+            // the value grammar has no construct for. The `{ X: true }` member
+            // supplies X but cannot express the clamp. Classifier over-count
+            // (folds counters + getX, blind to the cap math).
             resolve: (ctx: SpellContext) => {
                 const self: TargetSelection = {
                     type: "permanent",

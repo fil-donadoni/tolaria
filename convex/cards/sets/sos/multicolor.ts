@@ -2,7 +2,7 @@
 // registry's `import * as sos from "./sets/sos"` resolves through sos/index.ts.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 
-import type { CardDefinition, SpellContext } from "../../types";
+import type { CardDefinition } from "../../types";
 
 // Traumatic Critique — {X}{U}{R} Instant. "Traumatic Critique deals X damage to
 // any target. Draw two cards, then discard a card." CR 107.3 X cost (read via
@@ -18,23 +18,24 @@ export const traumaticCritique: CardDefinition = {
     manaCost: { X: "X", U: 1, R: 1 },
     types: ["Instant"],
     targetRequirement: { type: "any", count: 1 },
-    resolveSteps: [
-        (ctx: SpellContext) => {
-            const t = ctx.targets[0];
-            if (t) ctx.dealDamage(t, ctx.getX());
-            ctx.drawCards(ctx.controller, 2);
+    // Migrated resolveSteps()→effects[] (ADR 0045, #852): X damage to any target
+    // (CR 120.1, chosen-cost `{ X: true }`) + draw two, then a `choice`-driven
+    // discard of one (CR 701.8 — Jalum Tome loot shape). The choice Op suspends
+    // resolution and resumes AT the choice (the interpreter's pre-order cursor
+    // guarantees the irreversible damage + draw never re-run — CR 608.3), so the
+    // two resolveSteps collapse into one script.
+    effects: [
+        { op: "dealDamage", amount: { X: true }, to: { target: 0 } },
+        { op: "draw", player: "controller", count: 2 },
+        {
+            op: "choice",
+            kind: "choose-hand-card",
+            player: "controller",
+            zone: "hand",
+            count: 1,
+            prompt: "Discard a card (Traumatic Critique).",
+            bind: "$discard",
         },
-        (ctx: SpellContext) => {
-            const picks = ctx.requestChoice({
-                playerId: ctx.controller,
-                choiceId: `traumatic-critique-discard-${ctx.sourceInstanceId}`,
-                kind: "choose-hand-card",
-                zone: "hand",
-                count: 1,
-                prompt: "Discard a card (Traumatic Critique).",
-            });
-            if (picks === undefined) return; // suspended on the discard choice
-            for (const id of picks) ctx.discardCard(ctx.controller, id);
-        },
+        { op: "discard", player: "controller", cards: { ref: "$discard" } },
     ],
 };

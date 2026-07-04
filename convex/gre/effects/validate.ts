@@ -204,10 +204,29 @@ function isCountValue(value: unknown): boolean {
     return true;
 }
 
+/** `{ X: true }` — SHAPE of the chosen-cost X value construct (issue #852). A
+ *  single `X` key holding the literal `true`; carries no other data (the value
+ *  is read at resolution from `ctx.getX()`). */
+function isXValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    return (
+        keys.length === 1 &&
+        keys[0] === "X" &&
+        (value as { X: unknown }).X === true
+    );
+}
+
 /** A numeric Op parameter (ADR 0045 value grammar): a positive-int literal,
- *  a `ref`, or a `count`. Exactly those three — no expressions. */
+ *  a `ref`, a `count`, or the chosen-cost `X` (issue #852). Exactly those
+ *  four — no arithmetic, no expressions. */
 function isEffectValue(value: unknown): boolean {
-    return isPositiveInt(value) || isRefValue(value) || isCountValue(value);
+    return (
+        isPositiveInt(value) ||
+        isRefValue(value) ||
+        isCountValue(value) ||
+        isXValue(value)
+    );
 }
 
 /** `{ controllerOf: { target: n } }` — the controller of a targeted object
@@ -328,11 +347,11 @@ function isMoveZone(value: unknown): boolean {
 /** A SIGNED effect value, for a `pump` Op's P/T amounts (issue #840). Unlike
  *  `isEffectValue` (whose literal branch is a positive count, CR 107.1), a
  *  pump amount is a signed integer literal — a negative is a shrink (Weakness),
- *  a zero is a one-sided pump (+1/+0) — or a `ref` / `count` (both non-negative
- *  by nature). */
+ *  a zero is a one-sided pump (+1/+0) — or a `ref` / `count` / chosen-cost `X`
+ *  (all non-negative by nature; Howl from Beyond's +X/+0, issue #852). */
 function isSignedEffectValue(value: unknown): boolean {
     if (typeof value === "number") return Number.isInteger(value);
-    return isRefValue(value) || isCountValue(value);
+    return isRefValue(value) || isCountValue(value) || isXValue(value);
 }
 
 /** A `DurationSpec` (issue #840, CR 611.2) — the phase boundary at which a

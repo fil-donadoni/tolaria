@@ -2483,7 +2483,11 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  Wave-1 Op sequence (architecture-setting first, then by blocked-closure
  *  frequency; counts are the classifier's measured demand at #826 authoring
  *  time and drift as Ops ship). `X` is intentionally absent — it is a fifth
- *  `EffectValue` grammar member, not an Op (PRD #826). */
+ *  `EffectValue` grammar member (the chosen-cost value, `{ X: true }`, a thin
+ *  skin over SpellContext.getX()), not an Op. It SHIPPED in issue #852 as a
+ *  value-grammar member (EffectValue = literal | ref | count | X); adding it did
+ *  NOT reopen ADR 0045 (only a fifth STRUCTURAL construct would) and it earns no
+ *  EFFECT_OP_REGISTRY row (PRD #826). */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED

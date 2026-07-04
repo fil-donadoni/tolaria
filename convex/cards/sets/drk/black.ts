@@ -72,6 +72,10 @@ export const banshee: CardDefinition = {
             cost: { tap: true, mana: { X: 1 } },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
+            // NOT DSL-migratable (ADR 0045, #852): "half X rounded down / up" is
+            // floor(X/2) and ceil(X/2) — ARITHMETIC (division) the value grammar
+            // has no construct for. `{ X: true }` supplies X but cannot halve it.
+            // Classifier over-count (folds dealDamage + getX, blind to the math).
             resolve: (ctx: SpellContext) => {
                 const x = ctx.getX();
                 const toTarget = Math.floor(x / 2);

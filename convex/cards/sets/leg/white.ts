@@ -778,6 +778,13 @@ export const alabasterPotion: CardDefinition = {
         "Choose one —\n• Target player gains X life.\n• Prevent the next X damage that would be dealt to any target this turn.",
     manaCost: { X: "X", W: 2 },
     types: ["Instant"],
+    // NOT DSL-migratable (ADR 0045, #852): a MODAL "choose one" card. `effects[]`
+    // is mutually exclusive with `modes`, and there is no mode-level Effect
+    // Script yet (the `optionChoice` Op covers spell-level modal wrappers, not
+    // the per-mode `targetRequirement` split `modes` needs). Both modes' bodies
+    // now use only covered Ops + X (gainLife / preventDamage), so the classifier
+    // over-counts each as X-only. Blocked on mode-level effects[], not on X
+    // (same class as Healing Salve).
     modes: [
         {
             id: "gain-life",
