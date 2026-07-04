@@ -4020,6 +4020,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Magus of the Unseen",
+        "scryfallId": "86da04e9-b94d-42af-add3-02baf772bd33",
+        "oracleId": "d8857977-c8a5-4703-9aaa-331b17c7a713",
+        "firstSet": "ice"
+    },
+    {
         "name": "Mahamoti Djinn",
         "scryfallId": "36204ddd-ddf7-4b44-ae3c-b4a5a41ac9cb",
         "oracleId": "c39ea5f9-6ec0-4697-897b-779e326754a7",
@@ -5188,6 +5194,12 @@
         "scryfallId": "503256f8-3aab-49d0-b78b-6502aa29ce52",
         "oracleId": "fef452ee-9018-4175-bb79-476544e48433",
         "firstSet": "leg"
+    },
+    {
+        "name": "Ray of Command",
+        "scryfallId": "638abe5f-2a8a-42ca-bcdf-a52a3df66946",
+        "oracleId": "adf41d29-403d-4936-9689-3148d103e700",
+        "firstSet": "ice"
     },
     {
         "name": "Ray of Erasure",

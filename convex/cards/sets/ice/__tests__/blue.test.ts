@@ -55,6 +55,8 @@ import {
     mysticMight,
     mysticRemora,
     realityTwist,
+    rayOfCommand,
+    magusOfTheUnseen,
 } from "../../ice";
 import { matchesSpellFilter } from "../../../filters";
 import { getDefinition, getCardByName } from "../../../index";
@@ -74,7 +76,8 @@ import {
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { collectTriggers } from "../../../../gre/triggers";
 import { projectPublicState } from "../../../../gameProjections";
-import { advancePhase } from "../../../../gre/phases";
+import { advancePhase, finalizeCleanup } from "../../../../gre/phases";
+import { validateAttackerEligibility } from "../../../../gre/combat";
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
@@ -2038,5 +2041,173 @@ describe("Musician (music counters + granted upkeep tax, CR 122/701.7)", () => {
                 (a) => a.id === "musician-music-upkeep"
             )
         ).toBe(true);
+    });
+});
+
+// ===========================================================================
+// Gain-control-until-end-of-turn rider (#730) — Ray of Command / Magus of the
+// Unseen. CR 611.2b / 613.1b (layer-2 control change reverted at cleanup,
+// CR 514.2) + 701.20a (tap-on-loss rider) + 702.10b (granted haste honoured).
+// ===========================================================================
+
+describe("Ray of Command — steal a creature until EOT (CR 611.2b / 613.1b / 701.20a)", () => {
+    function setup() {
+        const victim = vanilla("victim", 3, 3, {
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        return { state };
+    }
+
+    it("untaps the creature, gains control, and grants haste", () => {
+        const { state } = setup();
+        pushSpell(state, rayOfCommand.id, "p1", [
+            { type: "permanent", id: "victim" },
+        ]);
+        resolveTopOfStack(state);
+        const stolen = state.players[0].battlefield.find(
+            (c) => c.id === "victim"
+        );
+        expect(stolen?.controllerId).toBe("p1"); // control gained (CR 613.1b)
+        expect(stolen?.isTapped).toBe(false); // untapped (CR 701.20a)
+        expect(stolen?.staticAbilities).toContain("haste"); // CR 702.10b
+    });
+
+    it("reverts control at cleanup and taps the creature (CR 514.2 / 701.20a)", () => {
+        const { state } = setup();
+        pushSpell(state, rayOfCommand.id, "p1", [
+            { type: "permanent", id: "victim" },
+        ]);
+        resolveTopOfStack(state);
+        // CR 514.2 — the "until end of turn" control change ends at cleanup.
+        state.phase = "CLEANUP";
+        state.activePlayerId = "p1";
+        finalizeCleanup(state);
+        const reverted = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        );
+        expect(reverted?.controllerId).toBe("p2"); // control reverted to owner
+        expect(reverted?.isTapped).toBe(true); // tap-on-loss rider fired
+        // Haste grant also expired (CR 611.2).
+        expect(reverted?.staticAbilities).not.toContain("haste");
+        // Nothing lingering under p1.
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "victim")
+        ).toBe(false);
+    });
+
+    it("granted haste lets the stolen (summoning-sick) creature attack (CR 702.10b)", () => {
+        const { state } = setup();
+        pushSpell(state, rayOfCommand.id, "p1", [
+            { type: "permanent", id: "victim" },
+        ]);
+        resolveTopOfStack(state);
+        const stolen = state.players[0].battlefield.find(
+            (c) => c.id === "victim"
+        )!;
+        expect(stolen.isSummoningSick).toBe(true); // control change set it
+        expect(validateAttackerEligibility(stolen).eligible).toBe(true);
+    });
+
+    it("wire format — the control gain survives projection (CR 613.1b)", () => {
+        const { state } = setup();
+        pushSpell(state, rayOfCommand.id, "p1", [
+            { type: "permanent", id: "victim" },
+        ]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "victim"
+        );
+        expect(slim?.controllerId).toBe("p1");
+        expect(slim?.isTapped).toBe(false);
+    });
+
+    it("only opponent-controlled creatures are legal targets", () => {
+        expect(rayOfCommand.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+            controller: "opponent",
+        });
+    });
+});
+
+describe("Magus of the Unseen — steal an artifact until EOT (CR 611.2b / 613.1b / 701.20a)", () => {
+    function artifact(id: string): CardInstanceState {
+        return {
+            id,
+            card: { id: `fake-${id}` },
+            types: ["Artifact"] as CardType[],
+            subtypes: [],
+            staticAbilities: [],
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+            isTapped: true,
+        };
+    }
+
+    function setup() {
+        const magus = makeInstance(magusOfTheUnseen.id, {
+            id: "magus",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [magus] }),
+                makePlayer("p2", { battlefield: [artifact("relic")] }),
+            ],
+        });
+        return { state };
+    }
+
+    it("{1}{U},{T} untaps the artifact and gains control until EOT", () => {
+        const { state } = setup();
+        const magus = state.players[0].battlefield.find(
+            (c) => c.id === "magus"
+        )!;
+        resolveActivated(state, magus, "magus-of-the-unseen-steal", [
+            { type: "permanent", id: "relic" },
+        ]);
+        const stolen = state.players[0].battlefield.find(
+            (c) => c.id === "relic"
+        );
+        expect(stolen?.controllerId).toBe("p1");
+        expect(stolen?.isTapped).toBe(false);
+    });
+
+    it("reverts control at cleanup and taps the artifact (CR 514.2 / 701.20a)", () => {
+        const { state } = setup();
+        const magus = state.players[0].battlefield.find(
+            (c) => c.id === "magus"
+        )!;
+        resolveActivated(state, magus, "magus-of-the-unseen-steal", [
+            { type: "permanent", id: "relic" },
+        ]);
+        state.phase = "CLEANUP";
+        state.activePlayerId = "p1";
+        finalizeCleanup(state);
+        const reverted = state.players[1].battlefield.find(
+            (c) => c.id === "relic"
+        );
+        expect(reverted?.controllerId).toBe("p2");
+        expect(reverted?.isTapped).toBe(true);
+    });
+
+    it("targets opponent artifacts and is a 1/1 Human Wizard", () => {
+        expect(
+            magusOfTheUnseen.activatedAbilities?.[0].targetRequirement
+        ).toEqual({ type: "Artifact", count: 1, controller: "opponent" });
+        expect(magusOfTheUnseen.power).toBe(1);
+        expect(magusOfTheUnseen.toughness).toBe(1);
+        expect(magusOfTheUnseen.subtypes).toEqual(["Human", "Wizard"]);
     });
 });

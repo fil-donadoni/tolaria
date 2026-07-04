@@ -325,12 +325,16 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // graveyard-zone triggered resolve) — 4 new Op-blocked closures (the
         // combat-rider seams have no Op vocabulary; the triggers also read the
         // ATTACKER_UNBLOCKED event's attacker, gap #865).
+        // #730 added Ray of Command + Magus of the Unseen: two resolve()
+        // closures (gain-control-until-EOT rider) that both carry per-card
+        // tests, so each lands FREE + AFK-ready (+2 closures, +2 FREE,
+        // +2 AFK-ready).
         // Pins below are the classifier's actual reported values with all waves
-        // (#886 + #734 + #674 + #888 + #675 + #732) landed — computed via
+        // (#886 + #734 + #674 + #888 + #675 + #732 + #730) landed — computed via
         // `bun scripts/migration-classifier.mjs` post-rebase, not hand-picked.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(614);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(381);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(350);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(616);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(383);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(352);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(219);
     });

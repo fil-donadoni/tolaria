@@ -700,8 +700,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Haste",
         kind: "keyword-ability",
         cr: "702.10",
-        status: "planned",
-        note: 'GAP: cards declare `staticAbilities: ["haste"]` (e.g. Instill Energy aura) but combat.ts:181 checks `card.isSummoningSick` unconditionally with no haste bypass anywhere in the engine — the keyword string is decorative only today. `haste` is also an AI-eval heuristic weight (evaluate.ts) unrelated to rules enforcement.',
+        status: "implemented",
+        binding: "haste",
+        note: 'HONOURED (issue #730): `validateAttackerEligibility` (combat.ts) bypasses the `isSummoningSick` attack restriction when `staticAbilities` includes "haste" — both natively-declared haste and haste granted for a duration (`grantAbility` appends to `staticAbilities`; Ray of Command / Magus of the Unseen grant it to a freshly-stolen permanent). `haste` is also an AI-eval heuristic weight (evaluate.ts). Not yet wired for the "can activate {T} abilities the turn it enters" clause of CR 702.10c — attack-eligibility only.',
     },
     // 702.11 Hexproof
     {
