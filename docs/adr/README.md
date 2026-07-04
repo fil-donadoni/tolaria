@@ -67,3 +67,4 @@ added later (see issue tracker).
 | 0046 | Card registry: repo as source of truth, DB as a rebuildable projection                             | [link](0046-card-registry-repo-source-of-truth-db-projection.md)       |
 | 0047 | Expected Input as the authoritative gate (and why not a full FSM)                                  | [link](0047-expected-input-authoritative-gate.md)                      |
 | 0048 | delayedTrigger Op: inline body with explicit capture                                               | [link](0048-delayed-trigger-op-inline-body.md)                         |
+| 0049 | Trigger-site event refs (`$event.<field>`) and list-valued capture                                | [link](0049-trigger-event-refs-and-list-capture.md)                    |
