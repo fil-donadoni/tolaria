@@ -17,9 +17,11 @@ import {
     pushSpell,
 } from "../../../cards/__tests__/setup";
 import { resolveTopOfStack } from "../../state";
+import type { GameState } from "../../state";
 import {
     applyMayPaySubmit,
     applyPendingChoiceSubmit,
+    applyRandomRevealAck,
 } from "../../pendingChoiceSubmit";
 import { compactState, expandState } from "../../serialize";
 import { refreshExpectedInput } from "../../expectedInput";
@@ -346,6 +348,284 @@ describe("Effect Script Op: addMana (CR 106.1, issue #850)", () => {
         resolveTopOfStack(state);
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[0].manaPool.B).toBe(3);
+    });
+});
+
+describe("Effect Script Op: coinFlip (CR 705, issue #851)", () => {
+    // The first flip drawn from the seeded PRNG (rng.ts): seed 1 lands WIN
+    // (heads — the flipping player wins), seed 7 lands LOSE (tails). Probed from
+    // sample(seed, 1) and matching the Goblin Lyre per-card test.
+    const WIN_SEED = 1;
+    const LOSE_SEED = 7;
+
+    /** Acks the head random-reveal so the engine resumes into the taken branch
+     *  (the chooser's client auto-acks in production). */
+    function ackReveal(state: GameState): void {
+        const head = state.pendingChoices![0];
+        applyRandomRevealAck(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            choiceId: head.choiceId,
+        });
+    }
+
+    const handOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "hand",
+            })
+        );
+
+    const winLossScript: EffectOp[] = [
+        {
+            op: "coinFlip",
+            win: {
+                consequence: "Gain 3 life.",
+                effects: [{ op: "gainLife", player: "controller", amount: 3 }],
+            },
+            loss: {
+                consequence: "Lose 3 life.",
+                effects: [{ op: "loseLife", player: "controller", amount: 3 }],
+            },
+        },
+    ];
+
+    it("suspends for the reveal, then runs the WIN branch on heads (CR 705.2)", () => {
+        const id = registerScript("test-op-coin-win", winLossScript);
+        const state = makeState({ rngSeed: WIN_SEED });
+        pushSpell(state, id, "p1");
+        // CR 705.2 / ADR 0023 — the flip PAUSES to reveal before applying.
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("random-reveal");
+        expect(head.randomKind).toBe("coin");
+        expect(head.realized?.face).toBe("WIN");
+        // CR 608.3 — the spell stays on the stack while suspended.
+        expect(state.stack).toHaveLength(1);
+        ackReveal(state);
+        expect(state.players[0].life).toBe(23);
+    });
+
+    it("runs the LOSS branch on tails", () => {
+        const id = registerScript("test-op-coin-lose", winLossScript);
+        const state = makeState({ rngSeed: LOSE_SEED });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].realized?.face).toBe("LOSE");
+        ackReveal(state);
+        expect(state.players[0].life).toBe(17);
+    });
+
+    it("runs every Op in the taken branch, in order (multi-op nested descent)", () => {
+        const id = registerScript("test-op-coin-multi", [
+            {
+                op: "coinFlip",
+                win: {
+                    consequence: "Gain 2, burn the opponent for 1.",
+                    effects: [
+                        { op: "gainLife", player: "controller", amount: 2 },
+                        {
+                            op: "dealDamage",
+                            amount: 1,
+                            to: { player: "opponent" },
+                        },
+                    ],
+                },
+                loss: {
+                    consequence: "Lose 1 life.",
+                    effects: [
+                        { op: "loseLife", player: "controller", amount: 1 },
+                    ],
+                },
+            },
+        ]);
+        const state = makeState({ rngSeed: WIN_SEED });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        ackReveal(state);
+        expect(state.players[0].life).toBe(22);
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("flips with an announced target player (the flipper acks) and acts on the win branch (CR 705.1)", () => {
+        const id = registerScript(
+            "test-op-coin-target",
+            [
+                {
+                    op: "coinFlip",
+                    player: { target: 0 },
+                    win: {
+                        consequence: "Target player gains 5.",
+                        effects: [
+                            {
+                                op: "gainLife",
+                                player: { target: 0 },
+                                amount: 5,
+                            },
+                        ],
+                    },
+                    loss: {
+                        consequence: "Target player loses 5.",
+                        effects: [
+                            {
+                                op: "loseLife",
+                                player: { target: 0 },
+                                amount: 5,
+                            },
+                        ],
+                    },
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({ rngSeed: WIN_SEED });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        // CR 705.1 — the flipping player (the announced target) reveals/acks.
+        expect(state.pendingChoices![0].playerId).toBe("p2");
+        ackReveal(state);
+        expect(state.players[1].life).toBe(25);
+    });
+
+    it("skips the flip entirely when the flipper is gone, and still runs the rest (CR 608.2b)", () => {
+        const id = registerScript(
+            "test-op-coin-missing",
+            [
+                {
+                    op: "coinFlip",
+                    player: { target: 0 },
+                    win: {
+                        consequence: "Gain 3.",
+                        effects: [
+                            {
+                                op: "gainLife",
+                                player: "controller",
+                                amount: 3,
+                            },
+                        ],
+                    },
+                    loss: {
+                        consequence: "Lose 3.",
+                        effects: [
+                            {
+                                op: "loseLife",
+                                player: "controller",
+                                amount: 3,
+                            },
+                        ],
+                    },
+                },
+                { op: "gainLife", player: "controller", amount: 2 },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({ rngSeed: WIN_SEED });
+        pushSpell(state, id, "p1", []); // no target survives to resolution
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        // No reveal enqueued (the flip never happened)…
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        // …and the following Op still ran (branch skipped, not the whole script).
+        expect(state.players[0].life).toBe(22);
+    });
+
+    it("a suspending Op inside the taken branch resumes through the coinFlip WITHOUT re-rolling (CR 608.3)", () => {
+        const id = registerScript(
+            "test-op-coin-nested-suspend",
+            [
+                {
+                    op: "coinFlip",
+                    win: {
+                        consequence: "Target player discards two.",
+                        effects: [
+                            {
+                                op: "choice",
+                                kind: "discard-hand",
+                                player: { target: 0 },
+                                zone: "hand",
+                                count: 2,
+                                prompt: "Discard two cards.",
+                                bind: "$d",
+                            },
+                            {
+                                op: "discard",
+                                player: { target: 0 },
+                                cards: { ref: "$d" },
+                            },
+                        ],
+                    },
+                    loss: {
+                        consequence: "Gain 1 life.",
+                        effects: [
+                            {
+                                op: "gainLife",
+                                player: "controller",
+                                amount: 1,
+                            },
+                        ],
+                    },
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            rngSeed: WIN_SEED,
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf("p2", ["h1", "h2", "h3"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        // First suspension: the coin reveal.
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].kind).toBe("random-reveal");
+        ackReveal(state);
+        // Resuming runs the win branch, whose nested choice suspends in turn.
+        const choiceHead = state.pendingChoices![0];
+        expect(choiceHead.kind).toBe("discard-hand");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: choiceHead.stackItemId,
+            step: choiceHead.step,
+            choiceId: choiceHead.choiceId,
+            cardInstanceIds: ["h1", "h2"],
+        });
+        // The discard resolved through the branch…
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["h3"]);
+        // …and the re-walk NEVER enqueued a second coin reveal (no re-roll).
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    it("the win-branch outcome survives projection (wire format)", () => {
+        const id = registerScript("test-op-coin-wire", [
+            {
+                op: "coinFlip",
+                win: {
+                    consequence: "Burn the opponent for 2.",
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: 2,
+                            to: { player: "opponent" },
+                        },
+                    ],
+                },
+                loss: {
+                    consequence: "Gain 1 life.",
+                    effects: [
+                        { op: "gainLife", player: "controller", amount: 1 },
+                    ],
+                },
+            },
+        ]);
+        const state = makeState({ rngSeed: WIN_SEED });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        ackReveal(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].life).toBe(18);
     });
 });
 

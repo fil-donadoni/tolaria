@@ -4483,6 +4483,21 @@ export interface EffectManaPool {
     C?: number;
 }
 
+/** One branch of a `coinFlip` Op (CR 705, issue #851): the nested Effect Script
+ *  run for one outcome of the flip, plus the one-liner shown on the reveal
+ *  overlay while the coin lands (ADR 0023 — `requestCoinFlip` pauses resolution
+ *  to animate the outcome). `effects` is a non-empty Op list, run through the
+ *  SAME `runOpList` path an `if` branch / `optionChoice` mode uses, so it
+ *  composes bind / ref / if / forEach and even a further suspending Op. */
+export interface EffectCoinFlipBranch {
+    /** One-liner previewed on the WIN/LOSE reveal overlay ("Create a 5/5
+     *  Djinn"). Required — `requestCoinFlip` shows it as the landed face's
+     *  consequence. */
+    consequence: string;
+    /** Ops run when the flip lands on this branch's outcome. */
+    effects: EffectOp[];
+}
+
 /** One captured value of a `delayedTrigger` Op (ADR 0048): what crosses the
  *  scheduling-time → fire-time boundary. Resolved to ONE serializable string
  *  at scheduling:
@@ -4862,6 +4877,29 @@ export type EffectOp =
           modes: EffectMode[];
           player?: EffectPlayerRef;
           prompt: string;
+      }
+    /** CR 705 (issue #851) — flip a coin, then run one of two nested branches
+     *  depending on the outcome. A thin declarative skin over the single
+     *  SpellContext primitive `requestCoinFlip` (the suspending reveal flip,
+     *  ADR 0023), one execution path (ADR 0045): the flip is drawn once from the
+     *  seeded PRNG, PAUSES resolution to animate the coin landing, and on resume
+     *  the interpreter runs the `win` (heads — the flipping player wins) or
+     *  `loss` (tails) branch's `effects` through the SAME `runOpList` path an
+     *  `if` branch / `optionChoice` mode uses — so a branch composes bind / ref
+     *  / if / forEach and even a further suspending Op. `player` names the
+     *  flipping player (the resolving `"controller"` by default — CR 705.1, the
+     *  player performing the effect flips; an announced target-slot / relative
+     *  player otherwise). Like `if` / `optionChoice` it is a structural
+     *  construct that always re-descends on a re-walk (in the interpreter's
+     *  runOpList skip-exception), so a suspension inside the taken branch resumes
+     *  correctly and the flip is NOT re-rolled (CR 608.3 — the persisted outcome
+     *  short-circuits the re-run). Skipped when the flipper cannot be resolved
+     *  (CR 608.2b). */
+    | {
+          op: "coinFlip";
+          win: EffectCoinFlipBranch;
+          loss: EffectCoinFlipBranch;
+          player?: EffectPlayerRef;
       }
     /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a

@@ -146,6 +146,14 @@ function readBinding(ctx: SpellContext, name: string): string[] | undefined {
  *  author binding name. */
 const OPTION_CHOICE_ID = "optionChoiceMode";
 
+/** The fixed `choiceId` a `coinFlip` Op (issue #851) hands to
+ *  `requestCoinFlip`. Like `OPTION_CHOICE_ID` it need not be unique across Ops:
+ *  `requestCoinFlip` folds the Op's checkpointed pre-order position
+ *  (`resolutionStep`) into the stored key (`${step}:${choiceId}`), so two
+ *  coinFlip Ops in one script persist their drawn bits distinctly and each
+ *  re-reads its own on a re-walk (no re-roll, CR 608.3 / ADR 0023). */
+const COIN_FLIP_ID = "coinFlipOutcome";
+
 /** Boolean payload stored by a `mayPay` Op (issue #806): the single-element
  *  `["yes"]` / `["no"]` array `requestMayPay` persists (mirroring the may-pay
  *  Pending Choice answer). Read by an `if` binding predicate. */
@@ -834,6 +842,40 @@ export const OP_EXECUTORS: {
         if (!mode) return; // defensive — a stored id matching no mode
         return runOpList(ctx, mode.effects, cursor);
     },
+    // coinFlip — flip a coin, then run the win / loss branch (CR 705, issue
+    // #851). A thin declarative skin over the single SpellContext primitive
+    // `requestCoinFlip` (the suspending reveal flip, ADR 0023), ONE execution
+    // path (ADR 0045). Like `optionChoice` it is a structural construct that
+    // always re-descends on a re-walk (it is in the `runOpList` skip-exception),
+    // because a suspending Op INSIDE the taken branch must resume through it.
+    // Two phases:
+    //   1. no bit drawn yet → `requestCoinFlip` draws it ONCE from the seeded
+    //      PRNG, enqueues the `random-reveal` Pending Choice and SUSPENDS (the
+    //      caller returns undefined);
+    //   2. bit persisted → the same call reads it back (no re-roll, CR 608.3)
+    //      and returns the boolean; the interpreter runs the matching branch's
+    //      `effects` through the SAME `runOpList` path an `if` branch uses (with
+    //      the shared cursor, so a nested `choice` / `mayPay` suspension resumes
+    //      at its exact position).
+    // The flip is keyed under this Op's pre-order position (the checkpoint set by
+    // `runOpList` right before dispatch IS `resolutionStep`, which
+    // `requestCoinFlip` folds into its `${step}:${choiceId}` key), so a constant
+    // `choiceId` is unique per coinFlip Op and stable across replays. `player`
+    // defaults to the resolving controller (CR 705.1). Skipped when the flipper
+    // is gone (CR 608.2b — `resolvePlayerRef` returns undefined).
+    coinFlip(ctx, op, cursor) {
+        const playerId = resolvePlayerRef(ctx, op.player ?? "controller");
+        if (playerId === undefined) return; // CR 608.2b — flipper gone, skip
+        const won = ctx.requestCoinFlip({
+            playerId,
+            choiceId: COIN_FLIP_ID,
+            heads: { consequence: op.win.consequence },
+            tails: { consequence: op.loss.consequence },
+        });
+        if (won === undefined) return "suspend"; // enqueued reveal — wait
+        const branch = won ? op.win.effects : op.loss.effects;
+        return runOpList(ctx, branch, cursor);
+    },
     // CR 701.16 (issue #807) — sacrifice the permanents a `choice` Op picked.
     // Routes through `SpellContext.sacrifice`: the controller puts each pick
     // into its owner's graveyard; indestructible does not prevent sacrifice
@@ -918,15 +960,18 @@ function runOpList(
     for (const op of ops) {
         const myPos = cursor.pos++;
         // Already-completed leaf Ops never re-run. The structural constructs
-        // `if` and `forEach` (issue #807) are the exceptions: they must still
-        // run so they re-descend / re-iterate the same nested Ops, keeping the
-        // pre-order positions aligned across the re-walk (their own leaf Ops
-        // are then skipped individually by this same position check).
+        // `if` / `forEach` (issue #807), `optionChoice` (issue #849) and
+        // `coinFlip` (issue #851) are the exceptions: they must still run so
+        // they re-descend / re-iterate / re-branch into the same nested Ops,
+        // keeping the pre-order positions aligned across the re-walk (their own
+        // leaf Ops are then skipped individually by this same position check) —
+        // a suspending Op inside a branch resumes through them.
         if (
             myPos < cursor.resume &&
             op.op !== "if" &&
             op.op !== "forEach" &&
-            op.op !== "optionChoice"
+            op.op !== "optionChoice" &&
+            op.op !== "coinFlip"
         ) {
             continue;
         }

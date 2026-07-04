@@ -2449,6 +2449,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.addManaTo / addMana",
         note: 'Add mana to a player\'s mana pool (CR 106.1, issue #850). A thin declarative skin over the SpellContext mana-add primitives `addManaTo` / `addMana` (the self-caster form `addMana(cost)` is `addManaTo(controllerId, cost)`), one execution path (ADR 0045): `mana` is the JSON-pure per-colour amount map (EffectManaPool — fixed WUBRGC pips, positive integers), passed straight through as a CardManaCost (the primitive ignores the X/generic slots and non-positive amounts, CR 106.1). `player` names whose pool receives it — the resolving `"controller"` by default (a ritual adds to its caster\'s pool, CR 106.4: Dark Ritual "Add {B}{B}{B}"); an announced target-slot / relative player otherwise. Skipped when the player cannot be resolved (CR 608.2b). SCOPE (issue #850): fixed produced mana only. "Add one mana of any colour" (a runtime colour choice) and restriction-riders ("spend only on …", addRestrictedMana) are NOT folded — the former is not a static amount, the latter has no free card demanding it this wave; both stay resolve() until a card needs them. Most `addMana` call sites are activated MANA abilities (`effect:`, useStack:false — Black Lotus, Llanowar Elves), which the migration classifier does not count; the folded closures are the one-shot mana rituals.',
     },
+    {
+        op: "coinFlip",
+        status: "implemented",
+        cr: "705.2",
+        binding: "SpellContext.requestCoinFlip",
+        note: "Flip a coin, then run the win / loss branch (CR 705, issue #851). A thin declarative skin over the single SpellContext primitive `requestCoinFlip` (the suspending reveal flip, ADR 0023), one execution path (ADR 0045): the bit is drawn ONCE from the seeded PRNG, PAUSES resolution to animate the coin landing (WIN/LOSE reveal overlay), and on resume the persisted outcome short-circuits the re-run (no re-roll, CR 608.3). `win` / `loss` are each `{ consequence, effects }` — a labelled nested `EffectOp[]` run through the SAME `runOpList` path an `if` branch / optionChoice mode uses, so a branch composes bind / ref / if / forEach and even a further suspending Op (Goblin Kites' delayed-body sacrifice-on-loss, Orcish Captain's +2/+0-or--0/-2 buff, Bottle of Suleiman's create-token-or-take-5, Goblin Lyre's creature-count damage). `player` (optional) names the flipping player — the resolving `\"controller\"` by default (CR 705.1); an announced target-slot / relative player otherwise. Like `if` / `optionChoice` it is a structural construct that always re-descends on a re-walk (in the interpreter's runOpList skip-exception), so a suspension inside the taken branch resumes correctly. Skipped when the flipper is gone (CR 608.2b). SCOPE (issue #851): the suspending reveal flip only. The synchronous non-suspending `flipCoin` (used mid-combat where resolution cannot pause — Mijae Djinn / Ydwen Efreet attack/block flips) and the repeat-until-lose / doubling-stake loops (Mana Clash, Goblin Artisans, Game of Chaos) are NOT folded — the former needs a non-suspending flip variant, the latter an unbounded loop + arithmetic value the frozen grammar does not carry; both stay resolve() until demanded.",
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
@@ -2539,12 +2546,14 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // spend-restriction rider (addRestrictedMana, "spend only on …") are NOT
     // folded — the former is not a static amount, the latter has no free card
     // demanding it this wave; both stay resolve() until a card needs them.
-    {
-        op: "coinFlip",
-        status: "planned",
-        cr: "705.2",
-        note: "Flip a coin (CR 705). Folds SpellContext.requestCoinFlip / flipCoin (~9 blocked closures).",
-    },
+    // coinFlip SHIPPED (issue #851) — SpellContext.requestCoinFlip is now
+    // COVERED live via EFFECT_OP_REGISTRY with status "implemented". Only the
+    // suspending reveal flip (`requestCoinFlip`) is folded (win / loss each a
+    // nested EffectOp[] run through the same runOpList path an `if` branch uses).
+    // The synchronous `flipCoin` (mid-combat, non-suspending — Mijae Djinn /
+    // Ydwen Efreet) and repeat/doubling loops (Mana Clash, Goblin Artisans,
+    // Game of Chaos) stay resolve() — a non-suspending flip variant / unbounded
+    // loop + arithmetic value are distinct capabilities not demanded this wave.
     // --- Low-frequency long-tail (surfaced by the classifier, PRD #826 §Out
     //     of Scope — recorded as reservations, filed as issues only on demand
     //     past wave-1). ---
@@ -2572,6 +2581,13 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
         status: "planned",
         cr: "201.3",
         note: "Name a card as part of resolution (CR 201.3). Folds SpellContext.requestNameCard (~3 blocked closures). Long-tail.",
+    },
+    {
+        op: "sacrificeObject",
+        status: "planned",
+        cr: "701.16",
+        mechanicId: "sacrifice",
+        note: "Sacrifice a SINGLE bound / announced permanent (CR 701.16). Split out during the coinFlip migration (issue #851): the shipped `sacrifice` Op consumes a `choice` Op's picks binding (an array of player-chosen ids read via recallChoice), so it cannot sacrifice a single captured object (a delayedTrigger capture / `$source` / `{ target }` snapshot). Goblin Kites' delayed body (\"sacrifice that creature\") is blocked on it. Likely a parametrization of the existing `sacrifice` Op with an object-selector form (`target: EffectObjectSelector`), resolved through resolveObjectRef like `destroy` — a design call for its own issue; recorded here so the next agent does not re-derive the gap.",
     },
 ];
 

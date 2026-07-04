@@ -231,6 +231,16 @@ export const goblinKites: CardDefinition = {
                 controller: "you",
                 toughnessFilter: { max: 2 },
             },
+            // NOT DSL-migratable (ADR 0045, assessed #851): the grant-flying +
+            // delayedTrigger halves ARE expressible (grantAbility + a
+            // delayedTrigger Op capturing the creature), but the delayed body
+            // must "sacrifice that creature" — a SINGLE captured object — and
+            // the `sacrifice` Op only consumes a `choice` Op's picks binding (an
+            // array of player-chosen ids read via recallChoice), not a bound
+            // single object (a delayed capture / snapshot). Migrating the card
+            // would leave the body un-migratable, so the whole card stays
+            // resolve(). Blocked on: a sacrifice-single-bound-object capability
+            // (planned backlog Op `sacrificeObject`, mechanicsRegistry.ts).
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "permanent") return;
@@ -256,6 +266,10 @@ export const goblinKites: CardDefinition = {
             oracleText:
                 "Flip a coin. If you lose the flip, sacrifice that creature (Goblin Kites).",
             timing: "next-end-step",
+            // NOT DSL-migratable (ADR 0045, assessed #851): "sacrifice that
+            // creature" sacrifices a SINGLE captured object, which the
+            // `sacrifice` Op (picks-consuming only) cannot express — see the
+            // activated ability above. Blocked on: `sacrificeObject`.
             resolve: (ctx, payload) => {
                 const creatureId = payload.creatureId;
                 const flipperId = payload.flipperId;
@@ -296,26 +310,38 @@ export const orcishCaptain: CardDefinition = {
                 count: 1,
                 subtypeFilter: "Orc",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type !== "permanent") return;
-                const won = ctx.requestCoinFlip({
-                    playerId: ctx.controller,
-                    choiceId: "orcish-captain-flip",
-                    heads: { consequence: "Target Orc gets +2/+0." },
-                    tails: { consequence: "Target Orc gets -0/-2." },
-                });
-                if (won === undefined) return; // suspended for reveal
-                if (won) {
-                    ctx.addTemporaryPTBuff(target, 2, 0, {
-                        phase: "end-of-turn",
-                    });
-                } else {
-                    ctx.addTemporaryPTBuff(target, 0, -2, {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #851): a `coinFlip` Op on
+            // the announced Orc target — win → +2/+0, loss → -0/-2, both until
+            // end of turn (CR 705 / 613.4c, the suspending reveal flip).
+            effects: [
+                {
+                    op: "coinFlip",
+                    win: {
+                        consequence: "Target Orc gets +2/+0.",
+                        effects: [
+                            {
+                                op: "pump",
+                                target: { target: 0 },
+                                power: 2,
+                                toughness: 0,
+                                duration: { phase: "end-of-turn" },
+                            },
+                        ],
+                    },
+                    loss: {
+                        consequence: "Target Orc gets -0/-2.",
+                        effects: [
+                            {
+                                op: "pump",
+                                target: { target: 0 },
+                                power: 0,
+                                toughness: -2,
+                                duration: { phase: "end-of-turn" },
+                            },
+                        ],
+                    },
+                },
+            ],
         },
     ],
 };

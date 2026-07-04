@@ -514,40 +514,53 @@ export const goblinLyre: CardDefinition = {
                 count: 1,
                 controller: "opponent",
             },
-            // NOT DSL-migratable (ADR 0045): a coin flip branches the effect
-            // (`requestCoinFlip` — a planned Op, not yet shipped), and each
-            // branch deals damage equal to a live creature count. The
-            // classifier's tap/untap hit here is a false positive (a
-            // neighbouring brace-less body over-captured); this ability uses no
-            // tap/untap. Migrates in the coinFlip Op's issue.
-            // Blocked on: the coinFlip Op (+ a creature-count damage value).
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type !== "player") return;
-                const opponent = t.id;
-                const me = ctx.controller;
-                const won = ctx.requestCoinFlip({
-                    playerId: me,
-                    choiceId: "goblin-lyre-coin",
-                    heads: {
+            // Migrated resolve()→effects[] (ADR 0045, #851): a `coinFlip` Op
+            // (CR 705.2, the suspending reveal flip). The win branch deals the
+            // targeted opponent damage equal to the creatures the controller
+            // controls; the loss branch deals the controller damage equal to
+            // the creatures that opponent controls (CR 120.1) — each amount a
+            // `count` of battlefield creatures (the fixed-set count grammar,
+            // no runtime snapshot). Planeswalkers are out of scope, so "target
+            // opponent or planeswalker" collapses to the target opponent slot.
+            effects: [
+                {
+                    op: "coinFlip",
+                    win: {
                         consequence:
                             "Deal damage to the opponent equal to creatures you control.",
+                        effects: [
+                            {
+                                op: "dealDamage",
+                                amount: {
+                                    count: {
+                                        zone: "battlefield",
+                                        controller: "controller",
+                                        filter: { type: "Creature" },
+                                    },
+                                },
+                                to: { target: 0 },
+                            },
+                        ],
                     },
-                    tails: {
+                    loss: {
                         consequence:
                             "Take damage equal to creatures the opponent controls.",
+                        effects: [
+                            {
+                                op: "dealDamage",
+                                amount: {
+                                    count: {
+                                        zone: "battlefield",
+                                        controller: { target: 0 },
+                                        filter: { type: "Creature" },
+                                    },
+                                },
+                                to: { player: "controller" },
+                            },
+                        ],
                     },
-                });
-                if (won === undefined) return; // suspended for the reveal
-                if (won) {
-                    const n = ctx.getCreatureCount(me);
-                    if (n > 0)
-                        ctx.dealDamage({ type: "player", id: opponent }, n);
-                } else {
-                    const n = ctx.getCreatureCount(opponent);
-                    if (n > 0) ctx.dealDamage({ type: "player", id: me }, n);
-                }
-            },
+                },
+            ],
         },
     ],
 };

@@ -489,6 +489,17 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // skip.)
             req.skip ??= `Op "optionChoice" suspends on a live mode pick (CR 700.2) — covered by the Op's interpreter tests`;
             return;
+        case "coinFlip":
+            // CR 705 (issue #851) — a coin flip draws a RANDOM bit from the
+            // seeded PRNG and PAUSES for the reveal; which branch runs (and so
+            // what outcome to assert) is non-deterministic across seeds and
+            // suspends for the reveal ack the canned generator cannot make.
+            // Explicit skip — the flip, both branches, and the no-re-roll
+            // resume are covered by the Op's own interpreter tests (per-Op
+            // regime; mirrors the seeded-PRNG `libraryLook` skip and the
+            // suspending `optionChoice` skip).
+            req.skip ??= `Op "coinFlip" draws a random bit and suspends for the reveal (CR 705) — covered by the Op's interpreter tests`;
+            return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.
@@ -1008,6 +1019,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // assert). Kept for the 1:1 coverage guard; mode selection and each branch's
     // execution are covered by the Op's own interpreter tests.
     optionChoice() {
+        return null;
+    },
+    // `coinFlip` (CR 705, issue #851) — never reached: `analyseOp` skips every
+    // script with a coinFlip Op (it draws a RANDOM bit and suspends for the
+    // reveal, so there is no deterministic same-resolution outcome the canned
+    // scenario can assert). Kept for the 1:1 coverage guard; the flip, both
+    // branches and the no-re-roll resume are covered by the Op's own interpreter
+    // tests (per-Op regime).
+    coinFlip() {
         return null;
     },
     // `createToken` (CR 111 / 701.7, issue #847) — a deterministic

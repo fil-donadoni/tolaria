@@ -248,12 +248,28 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // reasons. SCOPE (issue #850): fixed produced mana only — "any colour",
     // count-scaled amounts, and the addRestrictedMana rider are not folded. The
     // addMana backlog stub is retired.
+    // #851 (coinFlip Op): SpellContext.requestCoinFlip is now a COVERED Op — the
+    // coin-flip cluster's 6 closures moved Op-blocked→FREE (+6: Op-blocked
+    // 216→210), and the 3 cleanly-expressible ones (a real effects[] site with a
+    // fixed win/loss branch) were migrated away (total 612→609; FREE 375→378
+    // net; AFK-ready 344→347): Bottle of Suleiman (arn/colorless — create-Djinn
+    // / take-5), Orcish Captain (fem/red — +2/+0 or -0/-2 pump), Goblin Lyre
+    // (ice/colorless — creature-count damage). The remaining 3 FREE coin-flip
+    // closures stay resolve() with a recorded NOT-migratable reason: Goblin
+    // Kites (fem/red, ×2 — the activated ability + delayed body: "sacrifice that
+    // creature" is a SINGLE captured object the picks-consuming `sacrifice` Op
+    // cannot express; split out as the new `sacrificeObject` backlog Op) and
+    // Game of Chaos (ice/red — an unbounded repeat-until-stop DOUBLING loop:
+    // arithmetic stake + a loop construct the frozen grammar has neither of; a
+    // classifier over-count). SCOPE (issue #851): the suspending reveal flip
+    // only — the synchronous flipCoin and the loop cards stay resolve(). The
+    // coinFlip backlog stub is retired; the sacrificeObject stub is added.
     it("reports the committed baseline bucket totals", () => {
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(612);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(375);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(344);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(609);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(378);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(347);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(21);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(216);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(210);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {
@@ -282,12 +298,13 @@ describe("migration classifier — known-card routing (PRD #826)", () => {
         expect(free).toMatch(/Night's Whisper/);
     });
 
-    it("does NOT route an Op-blocked card (Bottle of Suleiman) to the FREE tranche", () => {
-        // Bottle of Suleiman calls ctx.requestCoinFlip — blocked on the
-        // unshipped `coinFlip` Op, so it belongs to that Op's cluster issue, not
-        // the free tranche. (Canary swapped from Icatian Town, whose
-        // `createToken` Op shipped — issue #847 — so it migrated to effects[]
-        // and is no longer a resolve() closure the classifier counts.)
-        expect(free).not.toMatch(/Bottle of Suleiman/);
+    it("does NOT route an Op-blocked card (Millstone) to the FREE tranche", () => {
+        // Millstone calls ctx.reorderLibraryTop / peekLibraryTop — blocked on the
+        // unshipped `scryReorder` Op (a choice-driven reorder / mill construct),
+        // so it belongs to that Op's cluster issue, not the free tranche.
+        // (Canary swapped from Bottle of Suleiman, whose `coinFlip` Op shipped —
+        // issue #851 — so it migrated to effects[] and is no longer a resolve()
+        // closure the classifier counts.)
+        expect(free).not.toMatch(/Millstone/);
     });
 });

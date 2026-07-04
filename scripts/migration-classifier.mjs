@@ -102,7 +102,11 @@ const OP_SEQUENCE = [
     // via EFFECT_OP_REGISTRY; row dropped from the future-plan sequence. Only
     // the fixed-produced-mana forms were folded (addRestrictedMana / "any
     // colour" stay resolve()).
-    ["coinFlip", ["requestCoinFlip"]],
+    // coinFlip SHIPPED (issue #851) — requestCoinFlip is now COVERED live via
+    // EFFECT_OP_REGISTRY; row dropped from the future-plan sequence. Only the
+    // suspending reveal flip was folded; the synchronous flipCoin and the
+    // repeat/doubling loops (Mana Clash, Goblin Artisans, Game of Chaos) stay
+    // resolve() (they remain residual — flipCoin is not in this sequence).
     ["Xvalue", [X_PRIMITIVE]], // value-grammar extension, not an Op
 ];
 

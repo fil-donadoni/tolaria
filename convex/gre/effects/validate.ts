@@ -554,6 +554,27 @@ function isModeList(value: unknown): boolean {
     });
 }
 
+/** A `coinFlip` Op's `win` / `loss` branch (issue #851) — SHAPE only:
+ *  `{ consequence: <non-empty string>, effects: <non-empty Op list> }`. Each
+ *  branch's Op-list deep validity (schema, refs, nesting) is checked by the
+ *  recursive schema / ref passes, exactly like an `optionChoice` mode or an
+ *  `if` branch. Only `consequence` and `effects` are permitted (grammar frozen,
+ *  ADR 0045). */
+function isCoinFlipBranch(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    for (const key of Object.keys(value)) {
+        if (key !== "consequence" && key !== "effects") return false;
+    }
+    const b = value as { consequence?: unknown; effects?: unknown };
+    return (
+        isNonEmptyString(b.consequence) &&
+        Array.isArray(b.effects) &&
+        b.effects.length > 0
+    );
+}
+
 /** dealDamage's `to`: an announced target, the current forEach member
  *  (`{ ref: "$each" }`, issue #807), OR `{ player: <EffectPlayerRef> }`. */
 function isDamageRecipient(value: unknown): boolean {
@@ -733,6 +754,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         required: {
             modes: isModeList,
             prompt: isNonEmptyString,
+        },
+        optional: { player: isPlayerRef },
+    },
+    // CR 705 (issue #851) — flip a coin, run the win / loss branch. `win` /
+    // `loss` are each `{ consequence, effects }` (SHAPE checked here; each
+    // branch's Op-list validity is checked by the recursive branch pass, like an
+    // optionChoice mode); `player` (optional) names the flipping player (default
+    // the resolving controller).
+    coinFlip: {
+        required: {
+            win: isCoinFlipBranch,
+            loss: isCoinFlipBranch,
         },
         optional: { player: isPlayerRef },
     },
@@ -1248,6 +1281,8 @@ function checkOpListRefs(
                 k === "else" ||
                 k === "effects" ||
                 k === "modes" ||
+                k === "win" ||
+                k === "loss" ||
                 k === "select" ||
                 k === "capture" ||
                 k === "targetPlayer"
@@ -1319,6 +1354,24 @@ function checkOpListRefs(
                     );
                 }
             });
+        }
+
+        // Recurse into each `coinFlip` branch with a CLONED scope (issue #851):
+        // a branch sees the bindings declared BEFORE the coinFlip, but a
+        // branch-local `bind` does not leak past it (only one branch runs — like
+        // an `if` branch / optionChoice mode, CR 705).
+        if (entry.op === "coinFlip") {
+            for (const key of ["win", "loss"] as const) {
+                const branch = entry[key] as { effects?: unknown } | undefined;
+                if (branch && Array.isArray(branch.effects)) {
+                    checkOpListRefs(
+                        branch.effects,
+                        (j) => `${at}: ${key}.effects[${j}]`,
+                        errors,
+                        new Map(declared)
+                    );
+                }
+            }
         }
 
         // Recurse into the forEach body (issue #807) with a CLONED scope that
@@ -1521,6 +1574,25 @@ function validateOpSchema(
                 });
             }
         });
+    }
+    // Recurse into each `coinFlip` branch's body (issue #851) — win / loss are
+    // nested Op lists validated at their own paths, exactly like an optionChoice
+    // mode. `inForEach` / `inDelayed` thread through so nesting bans still apply.
+    if (entry.op === "coinFlip") {
+        for (const key of ["win", "loss"] as const) {
+            const branch = entry[key] as { effects?: unknown } | undefined;
+            if (branch && Array.isArray(branch.effects)) {
+                branch.effects.forEach((op, j) => {
+                    validateOpSchema(
+                        op,
+                        `${at}: ${key}.effects[${j}]`,
+                        errors,
+                        inForEach,
+                        inDelayed
+                    );
+                });
+            }
+        }
     }
     // Recurse into the `forEach` body (issue #807) — each body Op is validated
     // at its own path, with `inForEach` set so a nested forEach is rejected.
