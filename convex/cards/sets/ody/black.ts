@@ -41,3 +41,36 @@ export const innocentBlood: CardDefinition = {
         },
     ],
 };
+
+// Entomb — {B} Instant. "Search your library for a card, put that card into
+// your graveyard, then shuffle." (CR 701.19 / 400.7 / 701.20.) An unrestricted
+// tutor straight to the graveyard — `moveZone`'s `to: "graveyard"` branch,
+// issue #677.
+export const entomb: CardDefinition = {
+    id: "f60a2091-fb97-4f04-911b-fce9b6351044",
+    name: "Entomb",
+    rarity: "rare",
+    manaCost: { B: 1 },
+    types: ["Instant"],
+    oracleText:
+        "Search your library for a card, put that card into your graveyard, then shuffle.",
+    effects: [
+        {
+            op: "choice",
+            kind: "search-library",
+            player: "controller",
+            zone: "library",
+            count: 1,
+            prompt: "Search your library for a card.",
+            bind: "$picked",
+        },
+        {
+            op: "moveZone",
+            cards: { ref: "$picked" },
+            player: "controller",
+            from: "library",
+            to: "graveyard",
+        },
+        { op: "libraryLook", action: "shuffle", player: "controller" },
+    ],
+};

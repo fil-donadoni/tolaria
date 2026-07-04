@@ -7931,11 +7931,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         },
         // CR 108.1 — library card characteristics from the registry. Mirrors
         // `getHandCards`; used to precompute the `candidateIds` allow-list for a
-        // filtered `search-library` choice (Transmute Artifact: artifact cards).
+        // filtered `search-library` choice (Transmute Artifact: artifact cards;
+        // issue #677 — a fetchland's "search for a BASIC land card" reads
+        // `supertypes`; Natural Order's "a green creature card" reads `colors`).
         getLibraryCards(playerId: string): Array<{
             id: string;
             types: CardType[];
             subtypes: string[];
+            supertypes: CardSupertype[];
+            colors: Color[];
             manaValue: number;
         }> {
             return getPlayer(state, playerId).library.map((c) => {
@@ -7945,6 +7949,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     id: c.id,
                     types: def?.types ?? c.types,
                     subtypes: def?.subtypes ?? c.subtypes,
+                    // CR 205.4 — supertypes (Basic) from the registry; hidden
+                    // library cards carry none on the instance.
+                    supertypes: def?.supertypes ?? [],
+                    // CR 202.2 — mana-cost-derived colors of the library card.
+                    colors: getColorsFromCost(def?.manaCost),
                     manaValue: manaValue(def?.manaCost),
                 };
             });

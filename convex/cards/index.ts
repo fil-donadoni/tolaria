@@ -107,6 +107,17 @@ import * as lcc from "./sets/lcc";
 import * as m3c from "./sets/m3c";
 import * as con from "./sets/con";
 import * as shm from "./sets/shm";
+// Cube FREE: tutors / library search (issue #677) — new cross-set home sets
+// for the fetchland / tutor tranche, routed to earliest paper printing
+// (ADR 0041). wwk/mir/ecl/exo already imported above (shared with #675/#676).
+import * as zen from "./sets/zen";
+import * as ons from "./sets/ons";
+import * as eld from "./sets/eld";
+import * as vis from "./sets/vis";
+import * as bbd from "./sets/bbd";
+import * as khm from "./sets/khm";
+import * as ptk from "./sets/ptk";
+import * as mbs from "./sets/mbs";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -220,6 +231,16 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "m3c", exports: m3c },
     { code: "con", exports: con },
     { code: "shm", exports: shm },
+    // Cube FREE: tutors / library search (issue #677). wwk/mir/ecl/exo already
+    // registered above (shared with the #675/#676 tranches).
+    { code: "zen", exports: zen },
+    { code: "ons", exports: ons },
+    { code: "eld", exports: eld },
+    { code: "vis", exports: vis },
+    { code: "bbd", exports: bbd },
+    { code: "khm", exports: khm },
+    { code: "ptk", exports: ptk },
+    { code: "mbs", exports: mbs },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>

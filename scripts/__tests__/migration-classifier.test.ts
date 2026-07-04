@@ -360,10 +360,10 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // `bun scripts/migration-classifier.mjs` against the merged tree, not
         // hand-picked.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(632);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(393);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(362);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(399);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(366);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(225);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(219);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {

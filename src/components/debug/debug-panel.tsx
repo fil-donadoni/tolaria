@@ -518,6 +518,29 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 2,
     },
+    {
+        // Cube FREE: tutors / library search (#677) — the moveZone
+        // `cards`/`player` shape (the search half of a tutor/fetch effect).
+        // Wishclaw Talisman starts with its three wish counters pre-seeded
+        // (the ETB grant already ran); activate it to search your library
+        // (unrestricted — guaranteed candidates whenever the library is
+        // non-empty, unlike a fetchland's subtype-restricted search), put the
+        // found card into hand, then watch control of the Talisman itself
+        // pass to the opponent (CR 613.1b). A stocked library covers the
+        // search.
+        label: "Wishclaw Talisman — moveZone tutor/fetch search (#677)",
+        cards: [
+            {
+                name: "Wishclaw Talisman",
+                owner: "me",
+                zone: "battlefield",
+                counters: { wish: 3 },
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 1,
+        libraryCount: 10,
+    },
 ];
 
 type DebugPanelProps = {

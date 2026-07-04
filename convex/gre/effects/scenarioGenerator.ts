@@ -158,9 +158,18 @@ function spawnMatching(
  *  `getBattlefieldIds` matches live instance state hydrated from it), so the
  *  seeded set is counted only when the definition matches — a generic vanilla
  *  bear would silently count as zero against a "for each Shrine" filter. */
-function countFillerId(filter: { type?: string; subtype?: string }): string {
-    const type = filter.type ?? "Creature";
-    const subtype = filter.subtype ?? FILLER_SUBTYPE;
+function countFillerId(filter: {
+    type?: string | string[];
+    subtype?: string | string[];
+}): string {
+    // issue #677 — `type`/`subtype` may be an OR-array; a single representative
+    // filler matching the FIRST value is enough for a canned scenario's count.
+    const type =
+        (Array.isArray(filter.type) ? filter.type[0] : filter.type) ??
+        "Creature";
+    const subtype =
+        (Array.isArray(filter.subtype) ? filter.subtype[0] : filter.subtype) ??
+        FILLER_SUBTYPE;
     const id = `gen-count-filler-${type}-${subtype}`;
     registerTokenDefinition({
         id,

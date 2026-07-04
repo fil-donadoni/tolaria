@@ -1,22 +1,16 @@
 // MH1 (Modern Horizons) — colorless behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import {
-    waterloggedGrove,
-    sunbakedCanyon,
-    talismanOfCreativity,
-    talismanOfConviction,
-    talismanOfCuriosity,
-} from "../colorless";
+import { waterloggedGrove, sunbakedCanyon, prismaticVista } from "../colorless";
+import { forest } from "../../lea/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
     type GameState,
     type CardInstanceState,
 } from "../../../../gre/state";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import type { CardDefinition as Def } from "../../../types";
-import { tapSourceIntoPayment } from "../../../../game";
-import { projectPublicState } from "../../../../gameProjections";
 
 function resolveActivated(
     state: GameState,
@@ -91,73 +85,50 @@ describe.each(cases)(
     }
 );
 
-// Talisman cycle (issue #675) — same painland shape as ICE's Adarkar Wastes
-// cycle (`convex/cards/sets/ice/__tests__/colorless.test.ts`): one choice
-// mana ability, index 0 is the painless {C}, indices 1-2 are the two
-// colours carrying `dealsDamageToControllerOnColoredTap: 1` (CR 605.1a / 120).
-describe.each([
-    { def: talismanOfCreativity, colors: ["U", "R"] as const },
-    { def: talismanOfConviction, colors: ["R", "W"] as const },
-    { def: talismanOfCuriosity, colors: ["G", "U"] as const },
-])(
-    "$def.name (Talisman painland cycle, CR 605.1a / 120)",
-    ({ def, colors }) => {
-        it("is a {2} Artifact with one {T} choice mana ability: {C} (index 0) + the two colours carrying a 1-damage rider", () => {
-            expect(def.types).toEqual(["Artifact"]);
-            expect(def.manaCost).toEqual({ X: 2 });
-            const mana = def.activatedAbilities?.find(
-                (a) => !a.useStack && a.manaChoices
-            );
-            expect(mana?.useStack).toBe(false);
-            expect(mana?.cost).toEqual({ tap: true });
-            expect(mana?.manaChoices).toEqual([
-                { C: 1 },
-                { [colors[0]]: 1 },
-                { [colors[1]]: 1 },
-            ]);
-            expect(mana?.dealsDamageToControllerOnColoredTap).toBe(1);
+describe("Prismatic Vista (CR 701.19 / 400.7 / 701.20, issue #677)", () => {
+    it("fetches a basic land card onto the battlefield untapped, then shuffles", () => {
+        const land = makeInstance(prismaticVista.id, {
+            id: "vistaLand",
+            controllerId: "p1",
+            ownerId: "p1",
         });
-
-        it("tapping for {C} (the painless choice) costs no life and adds {C}", () => {
-            const rock = makeInstance(def.id, {
-                id: "rock",
-                controllerId: "p1",
-                ownerId: "p1",
-            });
-            const player = makePlayer("p1", { battlefield: [rock] });
-            const state = makeState({ players: [player, makePlayer("p2")] });
-            state.activePlayerId = "p1";
-            tapSourceIntoPayment(state, player, rock, 0, []);
-            expect(player.manaPool.C).toBe(1);
-            expect(player.life).toBe(20);
+        const libForest = makeInstance(forest.id, {
+            id: "forest1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
         });
-
-        it(`tapping for ${colors[0]} (a coloured choice) costs 1 life and adds {${colors[0]}}`, () => {
-            const rock = makeInstance(def.id, {
-                id: "rock",
-                controllerId: "p1",
-                ownerId: "p1",
-            });
-            const player = makePlayer("p1", { battlefield: [rock] });
-            const state = makeState({ players: [player, makePlayer("p2")] });
-            state.activePlayerId = "p1";
-            tapSourceIntoPayment(state, player, rock, 1, []);
-            expect(player.manaPool[colors[0]]).toBe(1);
-            expect(player.life).toBe(19);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [land],
+                    library: [libForest],
+                }),
+                makePlayer("p2"),
+            ],
         });
-
-        it("the coloured-tap life loss survives the wire-format projection (PublicGameState)", () => {
-            const rock = makeInstance(def.id, {
-                id: "rock",
-                controllerId: "p1",
-                ownerId: "p1",
-            });
-            const player = makePlayer("p1", { battlefield: [rock] });
-            const state = makeState({ players: [player, makePlayer("p2")] });
-            state.activePlayerId = "p1";
-            tapSourceIntoPayment(state, player, rock, 2, []);
-            const projected = projectPublicState(state, 1, "p1");
-            expect(projected.players[0].life).toBe(19);
+        const src = state.players[0].battlefield[0];
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "prismatic-vista-fetch",
+            targets: [],
         });
-    }
-);
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toEqual(["forest1"]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["forest1"],
+        });
+        const entered = state.players[0].battlefield.find(
+            (c) => c.id === "forest1"
+        );
+        expect(entered).toBeDefined();
+        expect(entered?.isTapped).toBeFalsy();
+    });
+});

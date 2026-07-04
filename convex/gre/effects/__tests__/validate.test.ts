@@ -439,11 +439,20 @@ describe("validateEffectScript — choice Op (CR 608.2 / 101.4, issue #805)", ()
         expect(errors.some((e) => /missing field "bind"/.test(e))).toBe(true);
     });
 
-    it("rejects a filter on a non-battlefield zone (the submit validator only applies filters to battlefield picks)", () => {
+    // issue #677 broadened `filter` to zone "library" and "hand" too (both
+    // hidden-to-the-opponent zones the interpreter precomputes an explicit
+    // `candidateIds` allow-list for); "graveyard" stays rejected — it is
+    // already an unconditional public allow-list with no filter support.
+    it("rejects a filter on the graveyard zone (already an unconditional allow-list)", () => {
         const errors = validateEffectScript(
             host({
                 effects: [
-                    { ...choiceOp, filter: { type: "Creature" } } as never,
+                    {
+                        ...choiceOp,
+                        kind: "choose-graveyard-card",
+                        zone: "graveyard",
+                        filter: { type: "Creature" },
+                    } as never,
                 ],
             })
         );

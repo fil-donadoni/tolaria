@@ -1,7 +1,7 @@
 // ODY (Odyssey) — black behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { innocentBlood } from "../black";
+import { innocentBlood, entomb } from "../black";
 import {
     makeInstance,
     makePlayer,
@@ -196,5 +196,37 @@ describe("Innocent Blood (each player sacrifices a creature — DSL-only choice-
         expect(done.players[1].battlefield).toHaveLength(0);
         expect(done.players[0].graveyard.map((c) => c.id)).toContain("ibW1");
         expect(done.players[1].graveyard.map((c) => c.id)).toContain("ibW2");
+    });
+});
+
+describe("Entomb (CR 701.19 / 400.7 / 701.20, issue #677)", () => {
+    it("searches for any card and puts it into the graveyard, then shuffles", () => {
+        const libBear = makeInstance(BEAR_ID, {
+            id: "bearEntomb",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: [libBear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, entomb.id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the search
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("search-library");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["bearEntomb"],
+        });
+        expect(state.players[0].library).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain(
+            "bearEntomb"
+        );
     });
 });
