@@ -1699,6 +1699,147 @@ describe("Effect Script Op: preventDamage (CR 615, issue #845)", () => {
     });
 });
 
+describe("Effect Script Op: regenerate (CR 701.15, issue #846)", () => {
+    // Announced-target regenerate (Death Ward / Niall Silvain): the Op stacks a
+    // single regeneration shield on the announced creature (CR 701.15a).
+    it("stacks a regeneration shield on the announced creature target", () => {
+        const id = registerScript("test-op-regen-target", [
+            { op: "regenerate", target: { target: 0 } },
+        ]);
+        const bear = makeInstance(BEAR_ID, { controllerId: "p2", id: "rg1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "rg1" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield[0].regenerationShields).toBe(1);
+    });
+
+    // End-to-end shield consumption (CR 614.5 / 701.15a): the shield replaces
+    // the next destroy with "heal marked damage, tap, remove from combat", so
+    // the shielded creature SURVIVES the destroy and the shield is spent.
+    it("the shield replaces the next destroy — the creature survives, is tapped, damage healed", () => {
+        const id = registerScript("test-op-regen-consume", [
+            { op: "regenerate", target: { target: 0 } },
+            { op: "destroy", target: { target: 0 } },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "rg2",
+            damageMarked: 2,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "rg2" }]);
+        resolveTopOfStack(state);
+        // Destroy replaced by the regen rider — the creature is still on the
+        // battlefield (CR 701.15a).
+        const survivor = state.players[1].battlefield.find(
+            (c) => c.id === "rg2"
+        );
+        expect(survivor).toBeDefined();
+        expect(survivor!.isTapped).toBe(true);
+        expect(survivor!.damageMarked).toBeUndefined();
+        // The single shield was spent (CR 614.5).
+        expect(survivor!.regenerationShields).toBeUndefined();
+    });
+
+    // Self-regenerate via the implicit `$source` binding — a permanent shielding
+    // itself from its own activated ability (Drudge Skeletons / Sedge Troll /
+    // Clay Statue "{cost}: Regenerate this creature").
+    it("shields the source permanent via the implicit $source binding", () => {
+        const SHIELDER_ID = "test-op-regen-source";
+        registerTokenDefinition({
+            id: SHIELDER_ID,
+            name: SHIELDER_ID,
+            rarity: "common",
+            manaCost: { B: 1 },
+            types: ["Creature"],
+            subtypes: ["Skeleton"],
+            power: 1,
+            toughness: 1,
+            activatedAbilities: [
+                {
+                    id: "self-regen",
+                    oracleText: "{B}: Regenerate this creature.",
+                    cost: { mana: { B: 1 } },
+                    useStack: true,
+                    effects: [{ op: "regenerate", target: { ref: "$source" } }],
+                },
+            ],
+        });
+        const src = makeInstance(SHIELDER_ID, {
+            id: "regenSrc1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [src] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...state.players[0].battlefield[0],
+            zone: "stack",
+            castById: "p1",
+            abilityId: "self-regen",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield[0].regenerationShields).toBe(1);
+    });
+
+    // CR 608.2b — an announced target missing at resolution resolves to no
+    // object, so the Op is skipped without throwing and no shield is armed.
+    it("is skipped when the announced target is missing (CR 608.2b)", () => {
+        const id = registerScript("test-op-regen-missing", [
+            { op: "regenerate", target: { target: 0 } },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+
+    // Wire format (GRE testing convention): the shield's observable outcome —
+    // the regenerated creature surviving a destroy — must survive the projection
+    // to PublicGameState (the projection strips fat fields; the survivor and its
+    // tapped state must still read on the slim card the client sees).
+    it("the regenerated survivor survives projection (wire format)", () => {
+        const id = registerScript("test-op-regen-wire", [
+            { op: "regenerate", target: { target: 0 } },
+            { op: "destroy", target: { target: 0 } },
+        ]);
+        const bear = makeInstance(BEAR_ID, { controllerId: "p2", id: "rgw1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "rgw1" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "rgw1")
+        ).toBeDefined();
+        // Same survivor on the projected (slim) state the client receives.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "rgw1"
+        );
+        expect(slim).toBeDefined();
+        expect(slim!.isTapped).toBe(true);
+    });
+});
+
 describe("Effect Script construct: bind + ref (ADR 0045, CR 608.2h)", () => {
     // The Swords to Plowshares shape: bind the exiled creature, then read its
     // snapshotted power/controller after it has changed zone. The snapshot is

@@ -218,12 +218,9 @@ export const walkingDead: CardDefinition = {
             oracleText: "{B}: Regenerate this creature.",
             cost: { mana: { B: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.applyRegenerationShield({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
+            // shield on the source (CR 701.15a) via the implicit $source.
+            effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
 };
@@ -521,12 +518,9 @@ export const horrorOfHorrors: CardDefinition = {
             cost: { sacrificeFilter: { types: "Land", subtypes: "Swamp" } },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1, colorFilter: "B" },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.applyRegenerationShield(target);
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
+            // announced creature target (CR 701.15a).
+            effects: [{ op: "regenerate", target: { target: 0 } }],
         },
     ],
 };

@@ -2411,6 +2411,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
             "SpellContext.preventNextNDamageToTarget / preventAllCombatDamage / preventAllCombatDamageToAndBy",
         note: 'Establish a damage-prevention shield (CR 615, issue #845). A thin declarative skin over three SpellContext prevention primitives, one execution path per `mode` (ADR 0045): `"next-n"` → preventNextNDamageToTarget (a shield on `to` — a permanent, `$source`, a forEach `$each`, or a relative player via `{ player: … }` — absorbing up to `amount` total damage from any source until `duration`, CR 615.1/615.6: Samite Healer, Amulet of Kroog, Conservator, Warding Shard); `"all-combat"` → preventAllCombatDamage (turn-scoped global Fog, cleared at CLEANUP, no target/duration: Fog, Tangle Wire-style combat wipes); `"combat-to-and-by"` → preventAllCombatDamageToAndBy (a per-instance two-way shield preventing all combat damage dealt TO and BY `target` until `duration`, CR 615: Maze of Ith, Ebony Horse, Foxfire). Subsumes the prevention closures the migration classifier folds here (~34 blocked closures at ship time). Source-matched / half-down player shields (`addPlayerDamagePreventionShield`, Dark Sphere / Scarecrow), damage REDIRECTIONS (`addDamageRedirectionShield`, Reverse Damage / Eye for an Eye — a replacement, not a prevention), and `markAssignsNoCombatDamage` (source-only, Farrel\'s Mantle) are distinct primitives NOT folded here.',
     },
+    {
+        op: "regenerate",
+        status: "implemented",
+        cr: "701.19",
+        mechanicId: "regenerate",
+        binding: "SpellContext.applyRegenerationShield",
+        note: 'Stack a regeneration shield on a permanent (CR 701.15 / 701.19, issue #846). A thin declarative skin over the single SpellContext primitive `applyRegenerationShield`, one execution path (ADR 0045): `target` names the permanent to shield — an announced target slot (`{ target: N }` — Death Ward / Niall Silvain / Horror of Horrors "Regenerate target creature"), the resolving source (`$source` — a self-regenerate activated ability: Drudge Skeletons, Sedge Troll, Clay Statue, Zombie Master-granted regen), or a forEach `$each` (a regenerate-each rider). One shield per Op; it is consumed by the next destroy event on that permanent this turn (the shield replaces the destroy with "remove all marked damage, tap, remove from combat", CR 614.5 / 701.15a) and expires unused at CLEANUP (CR 514.2). No amount / duration — a permanent has a shield or it doesn\'t; multiple shields stack via repeated resolutions. The primitive no-ops on a non-permanent selection and off the battlefield (CR 608.2b — the Op is skipped when `resolveObjectRef` returns undefined). Subsumes the applyRegenerationShield closures the migration classifier folds here (~30 blocked closures at ship time). The continuous "if this would be destroyed, regenerate it" REPLACEMENT (`auto-regenerate`, state.ts regenerateOrDestroy — a static shield-granting effect, not a one-shot) is a distinct mechanic NOT folded here.',
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
@@ -2469,13 +2477,8 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // preventDamage SHIPPED (issue #845) — preventNextNDamageToTarget /
     // preventAllCombatDamage / preventAllCombatDamageToAndBy are now COVERED
     // live via EFFECT_OP_REGISTRY; row moved there with status "implemented".
-    {
-        op: "regenerate",
-        status: "planned",
-        cr: "701.19",
-        mechanicId: "regenerate",
-        note: 'CR 701.19 keyword action "Regenerate". Folds SpellContext.applyRegenerationShield (~30 blocked closures).',
-    },
+    // regenerate SHIPPED (issue #846) — applyRegenerationShield is now COVERED
+    // live via EFFECT_OP_REGISTRY; row moved there with status "implemented".
     {
         op: "createToken",
         status: "planned",

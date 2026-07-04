@@ -4681,6 +4681,22 @@ export type EffectOp =
           target: EffectObjectSelector;
           duration: DurationSpec;
       }
+    /** CR 701.15 (issue #846) — stack a regeneration shield on a permanent. A
+     *  thin declarative skin over the single SpellContext primitive
+     *  `applyRegenerationShield`, one execution path (ADR 0045). `target` is an
+     *  object selector: an announced target slot (`{ target: N }` — Death Ward
+     *  / Niall Silvain "Regenerate target creature"), the implicit `$source`
+     *  (`{ ref: "$source" }` — a self-regenerate activated ability like Drudge
+     *  Skeletons / Sedge Troll / Clay Statue), or a forEach `$each` (a
+     *  regenerate-each rider). The shield is consumed by the next destroy event
+     *  on that permanent this turn (CR 614.5 / 701.15a), expiring at CLEANUP if
+     *  unused (CR 514.2). Skipped when the referenced permanent is gone
+     *  (CR 608.2b — the resolver returns undefined; the primitive itself also
+     *  no-ops off the battlefield and on a non-permanent selection). */
+    | {
+          op: "regenerate";
+          target: EffectObjectSelector;
+      }
     /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a
      *  Pending Choice of the given `kind` and SUSPENDS the script (the stack

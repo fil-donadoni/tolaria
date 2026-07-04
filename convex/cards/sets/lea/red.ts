@@ -1037,12 +1037,9 @@ export const sedgeTroll: CardDefinition = {
             oracleText: "{B}: Regenerate Sedge Troll.",
             cost: { mana: { B: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.applyRegenerationShield({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
+            // shield on the source (CR 701.15a) via the implicit $source.
+            effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
 };
@@ -1262,12 +1259,9 @@ export const uthdenTroll: CardDefinition = {
             oracleText: "{R}: Regenerate Uthden Troll.",
             cost: { mana: { R: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.applyRegenerationShield({
-                    type: "permanent",
-                    id: ctx.sourceInstanceId,
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
+            // shield on the source (CR 701.15a) via the implicit $source.
+            effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
 };
