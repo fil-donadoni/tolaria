@@ -470,9 +470,13 @@ export const borisDevilboon: CardDefinition = {
                 "{2}{B}{R}, {T}: Create a 1/1 black and red Demon creature token named Minor Demon.",
             cost: { mana: { X: 2, B: 1, R: 1 }, tap: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.createToken(
-                    {
+            // Migrated resolve()→effects[] (ADR 0045, #847): create one 1/1
+            // black-and-red Demon token named Minor Demon on the controller's
+            // battlefield (CR 111 / 707.1).
+            effects: [
+                {
+                    op: "createToken",
+                    token: {
                         name: "Minor Demon",
                         types: ["Creature"],
                         subtypes: ["Demon"],
@@ -480,9 +484,9 @@ export const borisDevilboon: CardDefinition = {
                         toughness: 1,
                         colors: ["B", "R"],
                     },
-                    ctx.controller
-                );
-            },
+                    controller: "controller",
+                },
+            ],
         },
     ],
 };

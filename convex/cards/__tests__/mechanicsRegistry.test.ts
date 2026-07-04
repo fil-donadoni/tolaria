@@ -246,9 +246,12 @@ describe("Effect Script Op census (ADR 0045/0046, PRD #826)", () => {
         // peek/reorder half is deferred to the new `scryReorder` backlog stub.
         // `preventDamage` (issue #845) SHIPPED — moved to EFFECT_OP_REGISTRY.
         // `regenerate` (issue #846) SHIPPED — moved to EFFECT_OP_REGISTRY.
+        // `createToken` (issue #847) SHIPPED — its plain spec-driven form moved
+        // to EFFECT_OP_REGISTRY; the copy form (createTokenCopyOf) split out as
+        // the new `createTokenCopy` backlog stub.
         const named = [
             "scryReorder",
-            "createToken",
+            "createTokenCopy",
             "gainControl",
             "optionChoice",
             "addMana",

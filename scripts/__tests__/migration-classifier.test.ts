@@ -182,12 +182,29 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // recorded NOT-migratable reason: Aura attached-host targets read via
     // getAttachedTo / getAttachedToId — no attached-host object selector
     // (Regeneration, Thrull Retainer, The Brute — same block as Fylgja #845).
+    // #847 (createToken Op): the plain spec-driven `createToken` primitive is
+    // now a COVERED Op — the token cluster's closures moved Op-blocked→FREE
+    // (+14: Op-blocked 265→251), and the 10 cleanly-expressible ones were
+    // migrated away (total 632→622; FREE 360→350 net; AFK-ready 330→320 — all
+    // 10 migrated were AFK-ready): spec spells/abilities Icatian Town, The Hive,
+    // Master of the Hunt, Boris Devilboon, the four spore/graveyard Saproling
+    // makers (Thallid, Thallid Devourer, Elvish Farmer, Night Soil), the
+    // Breeding Pit end-step phaseTrigger, and the Caribou Range grantTemplate.
+    // The remaining 3 FREE createToken closures stay resolve() with a recorded
+    // NOT-migratable reason: a runtime X token COUNT (Homarid Spawning Bed —
+    // getAdditionalSacrificeMv, no X value grammar), a sacrifice-as-cost
+    // cardinality gate (Goblin Warrens — choice-clamp would create tokens
+    // without paying the full cost, same class as Psychic Frog #841), and the
+    // diedTrigger-factory-wrapped scheduling (Rukh Egg — the factory owns its
+    // resolve and exposes no effects[] site, blocking the inline delayedTrigger
+    // conversion). The copy form (createTokenCopyOf, Dance of Many) is split
+    // out as the new `createTokenCopy` backlog Op.
     it("reports the committed baseline bucket totals", () => {
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(632);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(346);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(316);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(622);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(350);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(320);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(21);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(265);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(251);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {
@@ -216,12 +233,12 @@ describe("migration classifier — known-card routing (PRD #826)", () => {
         expect(free).toMatch(/Night's Whisper/);
     });
 
-    it("does NOT route an Op-blocked card (Icatian Town) to the FREE tranche", () => {
-        // Icatian Town calls ctx.createToken — blocked on the unshipped
-        // `createToken` Op, so it belongs to that Op's cluster issue, not the
-        // free tranche. (Canary swapped from Flying Carpet, whose `grantAbility`
-        // Op shipped — issue #843 — so it migrated to effects[] and is no longer
-        // a resolve() closure the classifier counts.)
-        expect(free).not.toMatch(/Icatian Town/);
+    it("does NOT route an Op-blocked card (Bottle of Suleiman) to the FREE tranche", () => {
+        // Bottle of Suleiman calls ctx.requestCoinFlip — blocked on the
+        // unshipped `coinFlip` Op, so it belongs to that Op's cluster issue, not
+        // the free tranche. (Canary swapped from Icatian Town, whose
+        // `createToken` Op shipped — issue #847 — so it migrated to effects[]
+        // and is no longer a resolve() closure the classifier counts.)
+        expect(free).not.toMatch(/Bottle of Suleiman/);
     });
 });

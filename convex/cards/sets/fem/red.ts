@@ -139,6 +139,15 @@ export const goblinWarrens: CardDefinition = {
             // useful with two Goblins available; otherwise it fizzles.
             cost: { mana: { X: 2, R: 1 } },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045): "Sacrifice two Goblins" is an
+            // ACTIVATION COST paid in-resolve via a requestChoice+sacrifice
+            // (count exactly 2, else fizzle). The `createToken` Op (#847) covers
+            // the three-Goblin creation, but a choice→sacrifice→createToken DSL
+            // chain would fire createToken even when fewer than two Goblins are
+            // sacrificed (choice clamps to available) — granting the tokens
+            // without paying the full cost (CR 118.3). The `if` predicate can't
+            // test a choice binding's cardinality, so the cost-gating is not
+            // expressible (same class as Psychic Frog, #841). Stays resolve().
             resolve: (ctx: SpellContext) => {
                 const goblins = ctx.getBattlefieldIds(ctx.controller, {
                     subtypes: "Goblin",

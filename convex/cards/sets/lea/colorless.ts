@@ -1333,9 +1333,13 @@ export const theHive: CardDefinition = {
                 "{5}, {T}: Create a 1/1 colorless Insect artifact creature token with flying named Wasp.",
             cost: { mana: { X: 5 }, tap: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.createToken(
-                    {
+            // Migrated resolve()→effects[] (ADR 0045, #847): create one 1/1
+            // colorless Insect artifact creature token with flying named Wasp
+            // on the controller's battlefield (CR 111 / 707.1).
+            effects: [
+                {
+                    op: "createToken",
+                    token: {
                         name: "Wasp",
                         types: ["Artifact", "Creature"],
                         subtypes: ["Insect"],
@@ -1344,9 +1348,9 @@ export const theHive: CardDefinition = {
                         staticAbilities: ["flying"],
                         imagePrintId: tokenPrintIdFor(HIVE_ID, "Wasp"),
                     },
-                    ctx.controller
-                );
-            },
+                    controller: "controller",
+                },
+            ],
         },
     ],
 };

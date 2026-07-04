@@ -781,6 +781,37 @@ export interface TokenSpec {
     imagePrintId?: string;
 }
 
+/** JSON-pure token specification for the `createToken` Effect Script Op
+ *  (ADR 0045, issue #847). The declarable subset of `TokenSpec`: every printed
+ *  characteristic a token enters with — name, card types, subtypes,
+ *  supertypes, power/toughness, colors, keyword static abilities and optional
+ *  token art — EXCEPT `staticEffects`, whose `applies` predicates carry
+ *  closures (not JSON-expressible; a token that needs continuous static
+ *  effects, e.g. Tetravite's "can't be enchanted", stays a `resolve()` card).
+ *  Every field is plain data, so an `effects[]` script carrying an
+ *  `EffectTokenSpec` survives the JSON-purity sweep (ADR 0046). Passed verbatim
+ *  to `SpellContext.createToken` by the interpreter. */
+export interface EffectTokenSpec {
+    /** Display name (CR 707.2). */
+    name: string;
+    /** Card types the token is created as (CR 707.2). */
+    types: CardType[];
+    /** Optional creature subtypes (CR 205.3). */
+    subtypes?: string[];
+    /** Optional supertypes (Legendary, Snow). */
+    supertypes?: CardSupertype[];
+    /** Power for creature tokens (CR 208.2). */
+    power?: number;
+    /** Toughness for creature tokens. */
+    toughness?: number;
+    /** Colors of the token (CR 105 / 110.5 — colorless if omitted). */
+    colors?: Color[];
+    /** Keyword static abilities the token enters with (e.g. `["flying"]`). */
+    staticAbilities?: string[];
+    /** Optional Scryfall id of a printed token card for real token art. */
+    imagePrintId?: string;
+}
+
 // --- Copy effects (CR 706, 707) ---
 
 /** Options for a copy effect applied via `SpellContext.becomeCopyOf`. */
@@ -4696,6 +4727,32 @@ export type EffectOp =
     | {
           op: "regenerate";
           target: EffectObjectSelector;
+      }
+    /** CR 111 / 701.7 (issue #847) — create one or more token permanents. A
+     *  thin declarative skin over the single SpellContext primitive
+     *  `createToken`, one execution path (ADR 0045). `token` is the JSON-pure
+     *  token specification (`EffectTokenSpec` — every printed characteristic
+     *  the token enters with: name, types, subtypes, supertypes, P/T, colors,
+     *  keyword static abilities, token art). `controller` names the player who
+     *  gets the tokens: the resolving controller (`"controller"` — the vast
+     *  majority: The Hive's Wasp, Master of the Hunt's Wolves, the Saproling /
+     *  Thrull / Goblin token engines), an announced target-slot player, or a
+     *  forEach `$each` (a per-player token creation). `count` is how many tokens
+     *  to create (default 1; a literal, a `ref`, or a `count` — a
+     *  count-scaled token creation). SCOPE (issue #847): only the plain
+     *  spec-driven `createToken` primitive is folded — the JSON-pure token
+     *  spec that carries no closure. `createTokenCopyOf` (create a token that's
+     *  a COPY of a target creature — Dance of Many) reads a runtime source
+     *  creature and drives the copy machinery, so it is NOT a pure declarative
+     *  skin; it stays a `planned` backlog Op (`createTokenCopy`). A token that
+     *  needs continuous `staticEffects` (Tetravite's "can't be enchanted", a
+     *  predicate closure) is likewise not JSON-expressible and stays resolve().
+     *  `token.staticEffects` is intentionally absent from `EffectTokenSpec`. */
+    | {
+          op: "createToken";
+          token: EffectTokenSpec;
+          controller: EffectPlayerRef;
+          count?: EffectValue;
       }
     /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a

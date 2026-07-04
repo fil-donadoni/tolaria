@@ -2419,6 +2419,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.applyRegenerationShield",
         note: 'Stack a regeneration shield on a permanent (CR 701.15 / 701.19, issue #846). A thin declarative skin over the single SpellContext primitive `applyRegenerationShield`, one execution path (ADR 0045): `target` names the permanent to shield — an announced target slot (`{ target: N }` — Death Ward / Niall Silvain / Horror of Horrors "Regenerate target creature"), the resolving source (`$source` — a self-regenerate activated ability: Drudge Skeletons, Sedge Troll, Clay Statue, Zombie Master-granted regen), or a forEach `$each` (a regenerate-each rider). One shield per Op; it is consumed by the next destroy event on that permanent this turn (the shield replaces the destroy with "remove all marked damage, tap, remove from combat", CR 614.5 / 701.15a) and expires unused at CLEANUP (CR 514.2). No amount / duration — a permanent has a shield or it doesn\'t; multiple shields stack via repeated resolutions. The primitive no-ops on a non-permanent selection and off the battlefield (CR 608.2b — the Op is skipped when `resolveObjectRef` returns undefined). Subsumes the applyRegenerationShield closures the migration classifier folds here (~30 blocked closures at ship time). The continuous "if this would be destroyed, regenerate it" REPLACEMENT (`auto-regenerate`, state.ts regenerateOrDestroy — a static shield-granting effect, not a one-shot) is a distinct mechanic NOT folded here.',
     },
+    {
+        op: "createToken",
+        status: "implemented",
+        cr: "701.7",
+        mechanicId: "create",
+        binding: "SpellContext.createToken",
+        note: "Create token permanents (CR 111 / 701.7 keyword action \"Create\", issue #847). A thin declarative skin over the single SpellContext primitive `createToken`, one execution path (ADR 0045): `token` is the JSON-pure token spec (EffectTokenSpec — name + card types required; subtypes, supertypes, P/T, colors, keyword static abilities and token art optional), `controller` names who gets the tokens (the resolving controller — The Hive's Wasp, Master of the Hunt's Wolves, the Saproling / Thrull / Goblin token engines; an announced target-slot player; or a forEach `$each` for a per-player creation), and `count` is an optional EffectValue (default 1; a literal / ref / count for a count-scaled creation, e.g. Goblin Warrens' three Goblins). A non-positive count creates nothing (CR 707.1). SCOPE (issue #847): only the plain spec-driven `createToken` primitive is folded — the JSON-pure spec that carries no closure. `createTokenCopyOf` (create a token that's a COPY of a target creature — Dance of Many) reads a runtime source creature and drives the copy machinery, so it is NOT a pure declarative skin; it stays a `planned` backlog Op (`createTokenCopy` below). A token needing continuous `staticEffects` (Tetravite's \"can't be enchanted\", a predicate closure) is likewise not JSON-expressible — `EffectTokenSpec` omits `staticEffects`, so such a token stays resolve(). No `createdBy` provenance is stamped — provenance-linked token engines (Tetravus, Tawnos's Wand) are multi-Op choice-scoped cards that stay resolve() this wave.",
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
@@ -2479,12 +2487,16 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // live via EFFECT_OP_REGISTRY; row moved there with status "implemented".
     // regenerate SHIPPED (issue #846) — applyRegenerationShield is now COVERED
     // live via EFFECT_OP_REGISTRY; row moved there with status "implemented".
+    // createToken SHIPPED (issue #847) — the plain spec-driven `createToken`
+    // primitive is now COVERED live via EFFECT_OP_REGISTRY with status
+    // "implemented". Only the JSON-pure spec form was folded; the copy form
+    // (`createTokenCopyOf`) is a distinct capability split out below.
     {
-        op: "createToken",
+        op: "createTokenCopy",
         status: "planned",
-        cr: "701.7",
+        cr: "707.2",
         mechanicId: "create",
-        note: 'CR 701.7 keyword action "Create". Folds SpellContext.createToken / createTokenCopyOf (~15 blocked closures).',
+        note: "Create a token that is a COPY of a target creature (CR 707.2 + 111.1, Dance of Many). Folds SpellContext.createTokenCopyOf (~1 blocked closure). Split out of `createToken` (issue #847): unlike the spec-driven `createToken` Op — a JSON-pure token spec passed verbatim — the copy form reads a RUNTIME source creature (an announced target) and drives the copy machinery (`applyCopy`, the same path Clone uses), copying the source's printed characteristics onto a fresh token. That runtime object read is not expressible as a pure declarative token spec, so it is a distinct Op, not part of createToken.",
     },
     {
         op: "gainControl",

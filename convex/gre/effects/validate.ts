@@ -97,6 +97,95 @@ function isCardFilter(value: unknown): boolean {
     );
 }
 
+/** Valid `EffectTokenSpec.types` members (CR 300.1). Mirrors the `CardType`
+ *  union; a token type outside this set is rejected. */
+const TOKEN_CARD_TYPES = new Set([
+    "Creature",
+    "Planeswalker",
+    "Instant",
+    "Sorcery",
+    "Artifact",
+    "Enchantment",
+    "Land",
+    "Battle",
+    "Kindred",
+]);
+
+/** Valid `EffectTokenSpec.supertypes` members (CR 205.4). */
+const TOKEN_SUPERTYPES = new Set([
+    "Basic",
+    "Legendary",
+    "Ongoing",
+    "Snow",
+    "World",
+]);
+
+/** Valid `EffectTokenSpec.colors` members (CR 105.1, the five colors + C). */
+const TOKEN_COLORS = new Set(["W", "U", "B", "R", "G", "C"]);
+
+function isStringArray(value: unknown, allowed?: Set<string>): boolean {
+    return (
+        Array.isArray(value) &&
+        value.every(
+            (v) =>
+                typeof v === "string" &&
+                v.length > 0 &&
+                (allowed === undefined || allowed.has(v))
+        )
+    );
+}
+
+/** The JSON-pure token spec of a `createToken` Op (issue #847, `EffectTokenSpec`).
+ *  Every printed characteristic a token enters with, all plain data — name +
+ *  a non-empty types array are required; subtypes / supertypes / P/T / colors /
+ *  keyword static abilities / token art are optional. `staticEffects` is
+ *  deliberately NOT accepted (its predicates carry closures — a token needing
+ *  continuous static effects stays a `resolve()` card). Unknown keys are
+ *  rejected: the grammar is frozen (ADR 0045). */
+function isEffectTokenSpec(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const s = value as Record<string, unknown>;
+    const allowed = new Set([
+        "name",
+        "types",
+        "subtypes",
+        "supertypes",
+        "power",
+        "toughness",
+        "colors",
+        "staticAbilities",
+        "imagePrintId",
+    ]);
+    if (!Object.keys(s).every((k) => allowed.has(k))) return false;
+    if (typeof s.name !== "string" || s.name.length === 0) return false;
+    if (
+        !Array.isArray(s.types) ||
+        s.types.length === 0 ||
+        !isStringArray(s.types, TOKEN_CARD_TYPES)
+    ) {
+        return false;
+    }
+    if ("subtypes" in s && !isStringArray(s.subtypes)) return false;
+    if ("supertypes" in s && !isStringArray(s.supertypes, TOKEN_SUPERTYPES)) {
+        return false;
+    }
+    if ("power" in s && !Number.isInteger(s.power)) return false;
+    if ("toughness" in s && !Number.isInteger(s.toughness)) return false;
+    if ("colors" in s && !isStringArray(s.colors, TOKEN_COLORS)) return false;
+    if ("staticAbilities" in s && !isStringArray(s.staticAbilities)) {
+        return false;
+    }
+    if (
+        "imagePrintId" in s &&
+        (typeof s.imagePrintId !== "string" || s.imagePrintId.length === 0)
+    ) {
+        return false;
+    }
+    return true;
+}
+
 /** `{ count: { zone, controller, filter? } }` — SHAPE of the count construct
  *  (ADR 0045). The `controller` player ref is shape-checked here; any ref
  *  inside it is property-checked by the ordered ref pass. */
@@ -542,6 +631,19 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         required: {
             target: isObjectSelector,
         },
+    },
+    // CR 111 / 701.7 (issue #847) — create token permanents. `token` is the
+    // JSON-pure token spec (EffectTokenSpec — name + types required, the rest
+    // optional; staticEffects deliberately excluded, not JSON-expressible);
+    // `controller` names who gets the tokens (controller / announced slot /
+    // forEach `$each`); `count` is an optional EffectValue (default 1) for a
+    // count-scaled token creation.
+    createToken: {
+        required: {
+            token: isEffectTokenSpec,
+            controller: isPlayerRef,
+        },
+        optional: { count: isEffectValue },
     },
     // CR 611.1b / 613.1f (issue #843) — grant a keyword static ability to a
     // permanent for a limited duration (layer 6). `ability` is the free-form

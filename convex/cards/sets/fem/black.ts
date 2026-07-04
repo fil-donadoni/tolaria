@@ -146,9 +146,17 @@ export const breedingPit: CardDefinition = {
             scope: "your",
             oracleText:
                 "At the beginning of your end step, create a 0/1 black Thrull creature token.",
-            resolve: (ctx) => {
-                ctx.createToken(THRULL_TOKEN, ctx.controller, 1);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #847): create one 0/1
+            // black Thrull token on the controller's battlefield (CR 111 /
+            // 707.1).
+            effects: [
+                {
+                    op: "createToken",
+                    token: THRULL_TOKEN,
+                    controller: "controller",
+                    count: 1,
+                },
+            ],
         }),
     ],
 };
