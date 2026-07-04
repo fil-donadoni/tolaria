@@ -1528,6 +1528,12 @@ export const mindWarp: CardDefinition = {
     manaCost: { X: "X", B: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1 },
+    // NOT DSL-migratable (ADR 0045, #852): the discard count is min(X, hand
+    // size) — the `choice` Op's `count` is a positive-int LITERAL (not an
+    // EffectValue), so neither X nor the min-clamp is expressible there.
+    // Classifier over-count (folds requestChoice + discardCard + getX, blind to
+    // the choice-count value + arithmetic). Blocked on an EffectValue choice
+    // count and min arithmetic, not on X alone.
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "player") return;
@@ -2313,6 +2319,12 @@ export const soulBurn: CardDefinition = {
     types: ["Sorcery"],
     targetRequirement: { type: "any", count: 1 },
     noteManaSpent: true,
+    // NOT DSL-migratable (ADR 0045, #852): the life gain is
+    // min(X, {B} spent on X) — it reads runtime noted mana (getNotedManaSpent)
+    // and clamps with arithmetic (max/min), neither of which the value grammar
+    // expresses. `{ X: true }` supplies the X-damage half only. Classifier
+    // over-count (folds dealDamage + gainLife + getX, blind to the noted-mana
+    // read + clamp). Blocked on a noted-mana-spent value + arithmetic, not on X.
     resolve: (ctx: SpellContext) => {
         const x = ctx.getX();
         ctx.dealDamage(ctx.targets[0], x);

@@ -30,6 +30,11 @@ export const detonate: CardDefinition = {
         count: 1,
         mvFilter: { equals: "X" },
     },
+    // NOT DSL-migratable (ADR 0045, #852): the `destroy` Op has no
+    // `cantBeRegenerated` option ("It can't be regenerated"), so the destroy
+    // half is not expressible even though the X-damage half is. Classifier
+    // over-count (folds destroy + getX, blind to the destroy rider). Blocked
+    // on a `cantBeRegenerated` field for the destroy Op, not on X.
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "permanent") return;

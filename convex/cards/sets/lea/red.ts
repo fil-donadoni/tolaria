@@ -250,6 +250,12 @@ export const earthquake: CardDefinition = {
         "Earthquake deals X damage to each creature without flying and each player.",
     manaCost: { X: "X", R: 1 },
     types: ["Sorcery"],
+    // NOT DSL-migratable (ADR 0045, #852): "each creature without flying" needs
+    // an ABILITY-EXCLUSION filter on a forEach permanents set — EffectCardFilter
+    // is type/subtype only, so the creature half is not expressible even with X.
+    // Classifier over-count (folds dealDamageToEach → dealDamage + forEach +
+    // getX, blind to the ability filter). Blocked on a forEach ability filter,
+    // not on X.
     resolve: (ctx: SpellContext) => {
         ctx.dealDamageToEach(ctx.getX(), {
             creatures: { excludeAbility: "flying" },

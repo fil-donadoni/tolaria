@@ -503,6 +503,12 @@ export const hurricane: CardDefinition = {
         "Hurricane deals X damage to each creature with flying and each player.",
     manaCost: { X: "X", G: 1 },
     types: ["Sorcery"],
+    // NOT DSL-migratable (ADR 0045, #852): "each creature with flying" needs an
+    // ABILITY filter on a forEach permanents set — EffectCardFilter is
+    // type/subtype only, so the creature half is not expressible even with X.
+    // Classifier over-count (folds dealDamageToEach → dealDamage + forEach +
+    // getX, blind to the ability filter). Blocked on a forEach ability filter,
+    // not on X (same class as Earthquake).
     resolve: (ctx: SpellContext) => {
         ctx.dealDamageToEach(ctx.getX(), {
             creatures: { requireAbility: "flying" },
@@ -999,10 +1005,10 @@ export const streamOfLife: CardDefinition = {
     manaCost: { X: "X", G: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type === "player") ctx.gainLife(target.id, ctx.getX());
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #852): target player gains X
+    // life (CR 118.3) via the chosen-cost `{ X: true }` amount. A non-player
+    // target is skipped by the executor (CR 608.2b).
+    effects: [{ op: "gainLife", player: { target: 0 }, amount: { X: true } }],
 };
 
 // Thicket Basilisk — {3}{G}{G} 2/4. Same combat kill as Cockatrice, no flying.

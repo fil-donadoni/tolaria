@@ -122,6 +122,13 @@ export const recall: CardDefinition = {
         "Discard X cards, then return a card from your graveyard to your hand for each card discarded this way. Exile Recall.",
     manaCost: { X: "X", xFactor: 2, U: 1 },
     types: ["Sorcery"],
+    // NOT DSL-migratable (ADR 0045, #852): a multi-step protocol — discard X
+    // chosen cards, then return "for each card discarded THIS WAY" from the
+    // graveyard (a cross-step count read via recallChoice), with choice counts
+    // = min(X, hand/graveyard size). The `choice` Op's count is a literal, there
+    // is no cross-step discarded-count value, and the clamps are arithmetic.
+    // Classifier over-count (folds discardCard + getX). Blocked on protocol /
+    // cross-step state + arithmetic, not on X alone.
     resolveSteps: [
         // Step 0 — discard X chosen cards (CR 701.8). Clamp to hand size so a
         // chosen X above hand count discards everything held without stalling.
@@ -847,6 +854,12 @@ export const venarianGold: CardDefinition = {
             oracleText:
                 "When this Aura enters, tap enchanted creature and put X sleep counters on it.",
             scope: "self",
+            // NOT DSL-migratable (ADR 0045, #852): the tap + X sleep counters
+            // land on the ENCHANTED CREATURE, read via getAttachedToId — there
+            // is no attached-host object selector in the DSL (the recurring aura
+            // getAttachedTo block). Classifier over-count (folds tap + counters +
+            // getX, blind to the attached-host read). Blocked on an attached-host
+            // selector, not on X.
             resolve: (ctx) => {
                 const hostId = ctx.getAttachedToId();
                 if (!hostId) return;

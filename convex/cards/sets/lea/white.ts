@@ -535,14 +535,22 @@ export const guardianAngel: CardDefinition = {
     manaCost: { X: "X", W: 1 },
     types: ["Instant"],
     targetRequirement: { type: "any", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (!t) return;
-        const x = ctx.getX();
-        if (x > 0) {
-            ctx.preventNextNDamageToTarget(t, x, { phase: "end-of-turn" });
-        }
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #852): prevent the next X damage
+    // to the announced any-target this turn (CR 615.1) via the `preventDamage`
+    // next-n Op with a chosen-cost `{ X: true }` amount. `to: { target: 0 }`
+    // resolves the raw target (player OR permanent). A missing target is skipped
+    // (CR 608.2b); X = 0 stacks a harmless 0-damage shield (the executor no-ops
+    // a zero-amount prevention). The second sentence ("you may pay {1} …") was
+    // already unmodelled in the closure — the migration preserves that.
+    effects: [
+        {
+            op: "preventDamage",
+            mode: "next-n",
+            to: { target: 0 },
+            amount: { X: true },
+            duration: { phase: "end-of-turn" },
+        },
+    ],
 };
 
 // Healing Salve — "Choose one — Target player gains 3 life. OR Prevent the

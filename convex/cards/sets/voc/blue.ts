@@ -18,6 +18,13 @@ export const occultEpiphany: CardDefinition = {
         "Draw X cards, then discard X cards. Create a 1/1 white Spirit creature token with flying for each card type among cards discarded this way.",
     manaCost: { X: "X", U: 1 },
     types: ["Instant"],
+    // NOT DSL-migratable (ADR 0045, #852): the discard count is min(X, hand
+    // size) (choice `count` is a literal, not an EffectValue) and the token
+    // count is the number of DISTINCT CARD TYPES among the discarded cards — a
+    // runtime read over the picks, not a `count` construct. Classifier
+    // over-count (folds draw + discardCard + createToken + getX, blind to both
+    // the choice-count arithmetic and the distinct-types tally). Blocked on
+    // choice-count + a distinct-types count, not on X alone.
     resolveSteps: [
         (ctx: SpellContext) => {
             ctx.drawCards(ctx.controller, ctx.getX());

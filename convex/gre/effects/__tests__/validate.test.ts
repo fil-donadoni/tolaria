@@ -137,6 +137,43 @@ describe("validateEffectScript — bind + ref + count constructs (#802)", () => 
         expect(validateEffectScript(host({ effects }))).toEqual([]);
     });
 
+    it("accepts a chosen-cost X amount (Earthquake / Drain Life, issue #852)", () => {
+        const effects: EffectOp[] = [
+            { op: "dealDamage", amount: { X: true }, to: { target: 0 } },
+            { op: "gainLife", player: "controller", amount: { X: true } },
+            { op: "draw", player: "controller", count: { X: true } },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("accepts a chosen-cost X in a signed pump position (Howl from Beyond +X/+0)", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "pump",
+                target: { target: 0 },
+                power: { X: true },
+                toughness: 0,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("rejects a malformed X value (X must be the literal true)", () => {
+        for (const bad of [
+            { op: "dealDamage", amount: { X: false }, to: { target: 0 } },
+            { op: "dealDamage", amount: { X: 1 }, to: { target: 0 } },
+            {
+                op: "dealDamage",
+                amount: { X: true, extra: 1 },
+                to: { target: 0 },
+            },
+        ] as never[]) {
+            const errors = validateEffectScript(host({ effects: [bad] }));
+            expect(errors.length, JSON.stringify(bad)).toBeGreaterThan(0);
+        }
+    });
+
     it("rejects a ref to an undefined binding (static ref-check)", () => {
         const errors = validateEffectScript(
             host({

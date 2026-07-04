@@ -1408,10 +1408,11 @@ export const lavaBurst: CardDefinition = {
     manaCost: { X: "X", R: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "any", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t) ctx.dealDamage(t, ctx.getX());
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #852): X damage to any target
+    // (CR 120.1) via the chosen-cost `{ X: true }` amount. The anti-prevention /
+    // anti-redirection rider was already DEFERRED in the closure (no engine
+    // primitive) — the migration preserves that; the rider stays unmodelled.
+    effects: [{ op: "dealDamage", amount: { X: true }, to: { target: 0 } }],
 };
 // Márton Stromgald — {2}{R}{R} 1/1 Legendary Human Knight. Two combat triggers
 // (CR 603.6 — "whenever ~ attacks/blocks"), each pumping the OTHER attackers /

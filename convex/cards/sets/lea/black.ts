@@ -366,11 +366,16 @@ export const drainLife: CardDefinition = {
     manaCost: { X: "X", B: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "any", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const x = ctx.getX();
-        ctx.dealDamage(ctx.targets[0], x);
-        ctx.gainLife(ctx.caster, x);
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #852): X damage to any target
+    // (CR 120.1) + gain X life (CR 118.3), both via the chosen-cost `{ X: true }`
+    // value member — a thin skin over getX(). The oracle's life-gain sub-cap
+    // ("not more than the target's toughness / life total …") was already
+    // unmodelled in the closure (same simplification as Soul Burn); the migration
+    // preserves that behaviour exactly (gain X).
+    effects: [
+        { op: "dealDamage", amount: { X: true }, to: { target: 0 } },
+        { op: "gainLife", player: "controller", amount: { X: true } },
+    ],
 };
 
 // Drudge Skeletons — "{B}: Regenerate Drudge Skeletons." (CR 701.15a regen,
@@ -511,13 +516,18 @@ export const howlFromBeyond: CardDefinition = {
     manaCost: { X: "X", B: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (target?.type !== "permanent") return;
-        ctx.addTemporaryPTBuff(target, ctx.getX(), 0, {
-            phase: "end-of-turn",
-        });
-    },
+    // Migrated resolve()→effects[] (ADR 0045, #852): +X/+0 until end of turn
+    // (CR 611.1) via the `pump` Op with a chosen-cost `{ X: true }` power amount.
+    // A non-permanent target is skipped by the executor (CR 608.2b).
+    effects: [
+        {
+            op: "pump",
+            target: { target: 0 },
+            power: { X: true },
+            toughness: 0,
+            duration: { phase: "end-of-turn" },
+        },
+    ],
 };
 
 // Hypnotic Specter — CR 603 triggered ability on combat/spell damage to an

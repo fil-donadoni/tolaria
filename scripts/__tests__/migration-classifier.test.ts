@@ -264,11 +264,30 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // classifier over-count). SCOPE (issue #851): the suspending reveal flip
     // only — the synchronous flipCoin and the loop cards stay resolve(). The
     // coinFlip backlog stub is retired; the sacrificeObject stub is added.
+    // #852 (X value-grammar member): the chosen-cost `{ X: true }` EffectValue
+    // member shipped (a fifth value-grammar member, NOT an Op — ADR 0045 stays
+    // closed). It does not appear in "Covered Ops" (it is a value member, not an
+    // Op) and the classifier still buckets a getX()-using closure as X-only
+    // (usesX is independent of the value grammar). 7 of the 21 X-only closures
+    // were cleanly migratable and moved to effects[] (total 609→602; X-only
+    // 21→14): Drain Life (lea/black), Howl from Beyond (lea/black), Braingeyser
+    // (lea/blue), Stream of Life (lea/green), Guardian Angel (lea/white), Lava
+    // Burst (ice/red), Traumatic Critique (sos/multicolor). The remaining 14
+    // X-only closures stay resolve() with a recorded NOT-migratable reason —
+    // each has a hidden blocker BEYOND X the classifier over-counts: cap/half/
+    // divided arithmetic (Clockwork Avian, Clockwork Beast, Banshee, Dwarven
+    // Catapult), a choice count derived from X + min-clamp (Mind Warp), a
+    // noted-mana-spent + clamp life gain (Soul Burn), a forEach ability filter
+    // (Earthquake without-flying, Hurricane with-flying), a multi-step protocol
+    // (Recall), an aura attached-host selector (Venarian Gold), a modal card
+    // (Alabaster Potion), and a choice-count + distinct-types tally (Occult
+    // Epiphany). This is the LAST wave-1 issue — X was the final value-grammar
+    // gap; the residual X-only closures are Op/grammar-blocked, not X-blocked.
     it("reports the committed baseline bucket totals", () => {
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(609);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(602);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(378);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(347);
-        expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(21);
+        expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(210);
     });
 

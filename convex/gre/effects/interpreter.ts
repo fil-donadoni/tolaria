@@ -215,9 +215,10 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
 }
 
 /** Resolves a numeric Op parameter (ADR 0045 value grammar): a literal, a
- *  `ref` reading a bound snapshot's power/toughness, or a `count` of a
- *  selected set. Returns `undefined` when a ref names a binding that was never
- *  captured (its Op was skipped — CR 608.2b), so the caller skips too. */
+ *  `ref` reading a bound snapshot's power/toughness, a `count` of a selected
+ *  set, or the chosen-cost `X` (issue #852 — a thin skin over `ctx.getX()`,
+ *  CR 107.3 / 601.2b). Returns `undefined` when a ref names a binding that was
+ *  never captured (its Op was skipped — CR 608.2b), so the caller skips too. */
 function resolveValue(
     ctx: SpellContext,
     value: EffectValue
@@ -234,6 +235,10 @@ function resolveValue(
         }
         return undefined;
     }
+    // Chosen-cost X (CR 107.3, 601.2b) — the value announced for {X} at cast
+    // time, read back off the stack item via getX(). One execution path, no
+    // duplicated logic (ADR 0045, issue #852).
+    if ("X" in value) return ctx.getX();
     return countSet(ctx, value.count);
 }
 
