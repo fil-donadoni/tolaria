@@ -6,6 +6,7 @@
 import type {
     CardDefinition,
     CardPrint,
+    Color,
     DelayedTriggerDef,
     ManaCost,
     PermanentView,
@@ -21,6 +22,17 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
+
+// The five colours a "choose a color" effect can name (CR 105.1), in WUBRG
+// order. Prismatic Ward stores the pick as `chosenModeId`.
+const WARD_COLORS = ["W", "U", "B", "R", "G"] as const;
+const COLOR_NAMES: Record<string, string> = {
+    W: "white",
+    U: "blue",
+    B: "black",
+    R: "red",
+    G: "green",
+};
 
 // "At the beginning of your upkeep, sacrifice this permanent unless you pay
 // <cost>" (CR 603.6a phase trigger + CR 117.3a may-pay with a hard action on
@@ -223,13 +235,12 @@ function makeScarab(args: {
 //     `next-upkeep` delayed-trigger timing shipped; see `nextUpkeepDrawTrigger`).
 //   • Specialized interactions still missing a primitive — Arenson's Aura,
 //     Battle Cry, Drought, Enduring Renewal, General Jarkeld.
-//   • Sacred Boon — "+0/+1 counter for each 1 damage prevented this way" needs
-//     the prevention pipeline to report the amount actually consumed; no
-//     primitive exposes prevented-amount today (#653 flagged, deferred).
-//   • Prismatic Ward — needs a colour-keyed ALL-damage prevention shield that
-//     applies to an Aura's HOST plus a stored colour choice; the shipped
-//     `combat-damage-prevention` static is self-only and combat-only (#653
-//     flagged, deferred).
+//   • Sacred Boon — ACTIVE (#734). "+0/+1 counter for each 1 damage prevented
+//     this way" reads back the shield's prevented total via the tagged
+//     `preventNextNDamageToTarget` + `consumePreventionTally` seam.
+//   • Prismatic Ward — ACTIVE (#734). Colour-keyed ALL-damage prevention on the
+//     Aura's HOST via a `replacementEffects[]` damage shield reading the stored
+//     `chosenModeId` colour (runs at every damage site, not just combat).
 //   • Kjeldoran Elite Guard — "+2/+2 until that creature leaves the battlefield
 //     this turn, then sacrifice this" needs a per-turn linked-trigger watching a
 //     specific instance leave; not modelled (#653 flagged, deferred).
@@ -1440,19 +1451,56 @@ export const orderOfTheWhiteShield: CardDefinition = {
         },
     ],
 };
-// DEFERRED (#653): needs a colour-keyed ALL-damage prevention shield that
-// applies to an Aura's HOST plus a stored colour choice. The shipped
-// `combat-damage-prevention` static is self-only (no AURA_AFFECTS_HOST) and
-// combat-only; Prismatic Ward prevents ALL damage from the chosen colour.
-// export const prismaticWard: CardDefinition = {
-//     id: "6f8b50fd-3d1d-4ea8-a3c7-98ca7a8a455e",
-//     name: "Prismatic Ward",
-//     rarity: "common",
-//     oracleText: "Enchant creature\nAs this Aura enters, choose a color.\nPrevent all damage that would be dealt to enchanted creature by sources of the chosen color.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Enchantment"],
-//     subtypes: ["Aura"],
-// };
+// Prismatic Ward — {1}{W} Aura. "As this Aura enters, choose a color. Prevent
+// all damage that would be dealt to enchanted creature by sources of the chosen
+// color." (CR 700.2c the colour is a modal pick stored as `chosenModeId`; CR
+// 615 continuous, source-colour-filtered, ALL-damage prevention on the Aura's
+// HOST.) The shield is a `replacementEffects[]` entry with `eventKind:
+// "damage"` on the Aura — the replacement pipeline is the single seam that runs
+// at EVERY damage site (combat and non-combat) and already carries
+// `sourceColors`, so it prevents all damage regardless of source; the shipped
+// `combat-damage-prevention` static is combat-only. `appliesTo` matches the
+// event whose target is the Aura's host (`self.attachedTo`) and whose source
+// colours include the chosen colour; `replace` consumes the event (CR 615 —
+// the damage is not dealt).
+export const prismaticWard: CardDefinition = {
+    id: "6f8b50fd-3d1d-4ea8-a3c7-98ca7a8a455e",
+    name: "Prismatic Ward",
+    rarity: "common",
+    oracleText:
+        "Enchant creature\nAs this Aura enters, choose a color.\nPrevent all damage that would be dealt to enchanted creature by sources of the chosen color.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    // CR 700.2c — the warded colour is chosen as the Aura enters, stored as
+    // `chosenModeId` ("W"/"U"/"B"/"R"/"G") on the instance.
+    modes: WARD_COLORS.map((color) => ({
+        id: color,
+        label: COLOR_NAMES[color],
+        oracleText: `Prevent all damage dealt to enchanted creature by ${COLOR_NAMES[color]} sources.`,
+    })),
+    replacementEffects: [
+        {
+            id: "prismatic-ward-shield",
+            oracleText:
+                "Prevent all damage that would be dealt to enchanted creature by sources of the chosen color.",
+            eventKind: "damage",
+            appliesTo: (event, self) => {
+                if (event.kind !== "damage") return false;
+                if (self.attachedTo === undefined) return false;
+                if (event.target.type !== "permanent") return false;
+                if (event.target.id !== self.attachedTo) return false;
+                const color = self.chosenModeId;
+                if (color === undefined) return false;
+                return event.sourceColors.includes(color as Color);
+            },
+            // CR 615 — prevent the damage: consuming the event means it is
+            // never dealt.
+            replace: () => ({ kind: "consumed" }),
+        },
+    ],
+};
 // Rally — "Blocking creatures get +1/+1 until end of turn." (CR 611.1b, 509.1)
 // A combat trick that pumps every creature currently blocking. Blocking
 // creatures are read from the live block graph (attacker → blocker ids).
@@ -1485,18 +1533,71 @@ export const redScarab: CardDefinition = makeScarab({
     rarity: "uncommon",
     color: "R",
 });
-// DEFERRED (#653): "put a +0/+1 counter on that creature for each 1 damage
-// prevented this way" needs the prevention pipeline to report the amount
-// actually consumed by the shield. No primitive exposes prevented-amount today,
-// so the counter count can't be composed faithfully.
-// export const sacredBoon: CardDefinition = {
-//     id: "d721569d-9cf2-4c3c-b11c-4c46c258a0d2",
-//     name: "Sacred Boon",
-//     rarity: "uncommon",
-//     oracleText: "Prevent the next 3 damage that would be dealt to target creature this turn. At the beginning of the next end step, put a +0/+1 counter on that creature for each 1 damage prevented this way.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Instant"],
-// };
+// Sacred Boon — {1}{W} Instant. "Prevent the next 3 damage that would be dealt
+// to target creature this turn. At the beginning of the next end step, put a
+// +0/+1 counter on that creature for each 1 damage prevented this way." (CR
+// 615.1 prevent-next-N shield + CR 603.7d next-end-step delayed follow-up.) The
+// follow-up's count = "damage prevented this way", which needs a readback of
+// how much THIS shield actually absorbed — not expressible with the current Op
+// vocabulary (the `preventDamage` Op registers the shield but exposes no
+// prevented-amount value). So this is a seam: the shield is tagged with a
+// tally id (`preventNextNDamageToTarget(..., tallyId)`), every point it
+// prevents accumulates in `state.preventionTallies`, and the delayed trigger
+// reads it back via `consumePreventionTally` to size the +0/+1 counter grant.
+const SACRED_BOON_ID = "d721569d-9cf2-4c3c-b11c-4c46c258a0d2";
+export const sacredBoon: CardDefinition = {
+    id: SACRED_BOON_ID,
+    name: "Sacred Boon",
+    rarity: "uncommon",
+    oracleText:
+        "Prevent the next 3 damage that would be dealt to target creature this turn. At the beginning of the next end step, put a +0/+1 counter on that creature for each 1 damage prevented this way.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    // resolve() seam (ADR 0045): the +0/+1 count reads back "damage prevented
+    // this way" — a value the Op vocabulary does not surface. The shield tally
+    // (`consumePreventionTally`) is the seam; the follow-up cannot be composed
+    // from existing Ops until a prevented-amount EffectValue exists.
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (!target || target.type !== "permanent") return;
+        // Tag the shield with the resolving spell's instance id so its
+        // prevented total is uniquely attributable at the next end step.
+        const tallyId = `sacred-boon-${ctx.sourceInstanceId}`;
+        ctx.preventNextNDamageToTarget(
+            target,
+            3,
+            { phase: "end-of-turn" },
+            tallyId
+        );
+        ctx.scheduleDelayedTrigger(
+            SACRED_BOON_ID,
+            "sacred-boon-counters",
+            "next-end-step",
+            { creatureId: target.id, tallyId }
+        );
+    },
+    delayedTriggers: [
+        {
+            id: "sacred-boon-counters",
+            oracleText:
+                "Put a +0/+1 counter on that creature for each 1 damage prevented this way.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                const creatureId = payload.creatureId;
+                const tallyId = payload.tallyId;
+                if (!creatureId || !tallyId) return;
+                const prevented = ctx.consumePreventionTally(tallyId);
+                if (prevented <= 0) return;
+                ctx.addCounter(
+                    { type: "permanent", id: creatureId },
+                    "+0/+1",
+                    prevented
+                );
+            },
+        },
+    ],
+};
 // Seraph — {6}{W} 4/4 flying Angel. "Whenever a creature dealt damage by this
 // creature this turn dies, put that card onto the battlefield under your control
 // at the beginning of the next end step." (CR 603.2 death trigger keyed on

@@ -1896,6 +1896,12 @@ function tickAllDurations(state: GameState): void {
         state.targetPreventionShields = kept.length > 0 ? kept : undefined;
     }
 
+    // Prevention readback tallies (Sacred Boon). The card's next-end-step
+    // delayed trigger reads and clears its tally before CLEANUP; anything left
+    // (no follow-up ever fired) is discarded here so it can't leak into a
+    // later turn (CR 514.2).
+    if (state.preventionTallies) state.preventionTallies = undefined;
+
     // Per-player source-matched prevention shields (Dark Sphere, Scarecrow).
     // Unconsumed remainder wears off at the same boundary (CR 514.2).
     if (state.playerDamagePrevention?.length) {

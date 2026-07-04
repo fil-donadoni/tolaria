@@ -124,6 +124,7 @@ function buildPermanentView(card: CardInstanceState): PermanentView {
         power: card.power,
         toughness: card.toughness,
         attachedTo: card.attachedTo,
+        chosenModeId: card.chosenModeId,
         counters: card.counters,
         card: card.card as Record<string, unknown>,
     };

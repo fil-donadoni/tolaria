@@ -741,6 +741,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "extraTurns",
     "preventionEffects",
     "targetPreventionShields",
+    "preventionTallies",
     "playerDamagePrevention",
     "delayedTriggers",
     "nextDelayedSeq",

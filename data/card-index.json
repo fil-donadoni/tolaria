@@ -4848,6 +4848,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Prismatic Ward",
+        "scryfallId": "6f8b50fd-3d1d-4ea8-a3c7-98ca7a8a455e",
+        "oracleId": "ad5e2cb0-00d7-4dad-b20e-23bd41ada398",
+        "firstSet": "ice"
+    },
+    {
         "name": "Prodigal Pyromancer",
         "scryfallId": "081dba98-2092-4225-8e9e-214fb9263b1c",
         "oracleId": "29b3cb3e-aeb1-43eb-8095-9f7881aa34bd",
@@ -5229,6 +5235,12 @@
         "name": "Sabretooth Tiger",
         "scryfallId": "6914c5a8-2114-41c5-a471-ca97524d622f",
         "oracleId": "8ea35158-1c1a-46da-b466-0eafb376e464",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Sacred Boon",
+        "scryfallId": "d721569d-9cf2-4c3c-b11c-4c46c258a0d2",
+        "oracleId": "32a8d49b-cdfb-4944-bfb5-afd704cc3658",
         "firstSet": "ice"
     },
     {

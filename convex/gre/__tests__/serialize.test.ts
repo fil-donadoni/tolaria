@@ -1227,6 +1227,25 @@ describe("optional field round-trip smoke tests", () => {
         );
     });
 
+    it("preventionTallies (Sacred Boon readback)", () => {
+        const state = freshState();
+        state.targetPreventionShields = [
+            {
+                targetType: "permanent",
+                targetId: "c1",
+                remaining: 1,
+                duration: { phase: "end-of-turn" },
+                tallyId: "sacred-boon-1",
+            },
+        ];
+        state.preventionTallies = { "sacred-boon-1": 2 };
+        const rt = roundTrip(state);
+        expect(rt.preventionTallies).toEqual({ "sacred-boon-1": 2 });
+        expect(rt.targetPreventionShields).toEqual(
+            state.targetPreventionShields
+        );
+    });
+
     it("playerDamagePrevention (Dark Sphere / Scarecrow shields)", () => {
         const state = freshState();
         state.playerDamagePrevention = [

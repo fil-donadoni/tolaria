@@ -51,6 +51,8 @@ import {
     snowCoveredForest,
     arcticFoxes,
     hipparion,
+    prismaticWard,
+    sacredBoon,
 } from "../../ice";
 import { plains } from "../../lea";
 import { getDefinition } from "../../../index";
@@ -60,6 +62,8 @@ import {
     payManaCost,
     commitLandsForCost,
     normalizeManaCost,
+    runDamageReplacement,
+    applyTargetPrevention,
 } from "../../../../gre/state";
 import {
     buildAutoTapSources,
@@ -1436,5 +1440,212 @@ describe("Hipparion (can't block power 3+ unless you pay {1}, CR 509.1b)", () =>
         const reason = payBypassSeam(state);
         expect(reason).not.toBeNull();
         expect(reason).toMatch(/pay \{1\}/i);
+    });
+});
+
+// Prismatic Ward (#734) — colour-keyed ALL-damage prevention on the Aura host.
+describe("Prismatic Ward (colour-filtered damage prevention, CR 615)", () => {
+    function setup() {
+        const host = vanilla("host", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Warded colour = black, stored as the modal pick `chosenModeId`.
+        const aura = makeInstance(prismaticWard.id, {
+            id: "ward",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+            chosenModeId: "B",
+        });
+        // A black source and a blue source to fire damage from (CR 202.2 —
+        // colours are read off the source's mana cost via the registry).
+        const blackSrc = makeInstance(knightOfStromgald.id, {
+            id: "black-src",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const blueSrc = makeInstance(seaSpirit.id, {
+            id: "blue-src",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2", { battlefield: [blackSrc, blueSrc] }),
+            ],
+        });
+        return { state };
+    }
+
+    it("has an Enchant creature target requirement and five colour modes", () => {
+        expect(prismaticWard.targetRequirement?.type).toBe("Creature");
+        expect((prismaticWard.modes ?? []).map((m) => m.id)).toEqual([
+            "W",
+            "U",
+            "B",
+            "R",
+            "G",
+        ]);
+    });
+
+    it("prevents all damage to the host from a source of the chosen colour", () => {
+        const { state } = setup();
+        const result = runDamageReplacement(
+            state,
+            "black-src",
+            "p2",
+            { type: "permanent", id: "host" },
+            3,
+            false
+        );
+        // Fully prevented — the replacement consumes the event.
+        expect(result).toBeNull();
+    });
+
+    it("does NOT prevent damage from a source of another colour", () => {
+        const { state } = setup();
+        const result = runDamageReplacement(
+            state,
+            "blue-src",
+            "p2",
+            { type: "permanent", id: "host" },
+            3,
+            false
+        );
+        expect(result).not.toBeNull();
+        expect(result?.amount).toBe(3);
+    });
+
+    it("prevents combat damage too, not just spell/ability damage", () => {
+        const { state } = setup();
+        const result = runDamageReplacement(
+            state,
+            "black-src",
+            "p2",
+            { type: "permanent", id: "host" },
+            2,
+            true
+        );
+        expect(result).toBeNull();
+    });
+
+    it("wire format: the colour shield survives projectPublicState", () => {
+        const { state } = setup();
+        const projected = projectPublicState(
+            state,
+            1,
+            "p1"
+        ) as unknown as GameState;
+        // Black source still prevented after the projection strips card.card.
+        expect(
+            runDamageReplacement(
+                projected,
+                "black-src",
+                "p2",
+                { type: "permanent", id: "host" },
+                3,
+                false
+            )
+        ).toBeNull();
+        // Blue source still lands.
+        const fresh = projectPublicState(
+            setup().state,
+            1,
+            "p1"
+        ) as unknown as GameState;
+        expect(
+            runDamageReplacement(
+                fresh,
+                "blue-src",
+                "p2",
+                { type: "permanent", id: "host" },
+                3,
+                false
+            )?.amount
+        ).toBe(3);
+    });
+});
+
+// Sacred Boon (#734) — prevent-next-3 shield whose prevented total drives a
+// next-end-step +0/+1 counter grant (CR 615.1 readback seam).
+describe("Sacred Boon (prevented-amount readback → counters, CR 615.1)", () => {
+    function fireDelayed(state: GameState) {
+        const inst = state.delayedTriggers![0];
+        state.stack.push({
+            ...makeInstance(sacredBoon.id, {
+                id: "sb-dt",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "stack",
+            }),
+            castById: "p1",
+            delayedTriggerId: inst.triggerId,
+            delayedPayload: inst.payload,
+        } as unknown as StackItem);
+        resolveTopOfStack(state);
+    }
+
+    function setup() {
+        const creature = vanilla("c", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [creature] }),
+                makePlayer("p2"),
+            ],
+        });
+        castCantrip(state, sacredBoon.id, "p1", [
+            { type: "permanent", id: "c" },
+        ]);
+        return { state };
+    }
+
+    it("registers a tagged prevent-next-3 shield and a next-end-step trigger", () => {
+        const { state } = setup();
+        const shield = state.targetPreventionShields?.[0];
+        expect(shield?.targetId).toBe("c");
+        expect(shield?.remaining).toBe(3);
+        expect(shield?.tallyId).toBeDefined();
+        const dt = state.delayedTriggers?.[0];
+        expect(dt?.timing).toBe("next-end-step");
+        expect(dt?.payload.creatureId).toBe("c");
+    });
+
+    it("puts a +0/+1 counter per 1 damage ACTUALLY prevented this way", () => {
+        const { state } = setup();
+        // A 2-damage event is absorbed by the shield (2 of 3 prevented).
+        expect(applyTargetPrevention(state, "permanent", "c", 2)).toBe(0);
+        // Shield keeps its last point; the tally records exactly 2 prevented.
+        expect(state.targetPreventionShields?.[0]?.remaining).toBe(1);
+        fireDelayed(state);
+        const live = state.players[0].battlefield.find((c) => c.id === "c")!;
+        expect(live.counters?.["+0/+1"]).toBe(2);
+        // The +0/+1 counters raise toughness by 2 (layer 7d, CR 613.4d).
+        expect(getEffectiveToughness(state, live)).toBe(4);
+        expect(getEffectivePower(state, live)).toBe(2);
+        // The tally is consumed once — cleared after the follow-up reads it.
+        expect(state.preventionTallies).toBeUndefined();
+    });
+
+    it("grants no counters when no damage was prevented", () => {
+        const { state } = setup();
+        fireDelayed(state);
+        const live = state.players[0].battlefield.find((c) => c.id === "c")!;
+        expect(live.counters?.["+0/+1"]).toBeUndefined();
+    });
+
+    it("wire format: the +0/+1 counters survive projectPublicState", () => {
+        const { state } = setup();
+        applyTargetPrevention(state, "permanent", "c", 3);
+        fireDelayed(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "c"
+        )!;
+        expect(getEffectiveToughness(projected, slim)).toBe(5);
     });
 });
