@@ -2442,6 +2442,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.requestOptionChoice",
         note: 'Modal "choose one" effect (CR 700.2 / 601.2b, issue #849). A thin declarative skin over the single SpellContext primitive `requestOptionChoice`, one execution path (ADR 0045): `modes` is a non-empty ordered list of `{ label, effects }` — each mode a labelled nested `EffectOp[]` (the bullet clauses of a "Choose one —" spell). The chooser picks exactly one mode; the interpreter runs that mode\'s `effects` through the SAME `runOpList` path an `if` branch uses, so a mode body composes bind / ref / if / forEach and even a further suspending Op (a nested `choice` / `mayPay`). `player` (optional) names the chooser — the resolving `"controller"` by default (the caster of a modal spell chooses its mode, CR 601.2b); an announced target-slot / relative player otherwise. `prompt` is the choice header. Like `if` / `forEach` it is a structural construct that always re-descends on a re-walk (in the interpreter\'s runOpList skip-exception), so a suspension inside the chosen mode resumes correctly (CR 608.3). A SINGLE-mode Op auto-resolves — runs the one mode with no prompt (no real choice, Arena-style). Skipped when the chooser is gone (CR 608.2b). SCOPE (issue #849): the "choose one" form only. "Choose one or more" / "choose two" / "choose one. You may choose the same mode…" (Fork-style repetition, entwine, escalate) are distinct cardinality grammars a later Op adds on demand.',
     },
+    {
+        op: "addMana",
+        status: "implemented",
+        cr: "106.1",
+        binding: "SpellContext.addManaTo / addMana",
+        note: 'Add mana to a player\'s mana pool (CR 106.1, issue #850). A thin declarative skin over the SpellContext mana-add primitives `addManaTo` / `addMana` (the self-caster form `addMana(cost)` is `addManaTo(controllerId, cost)`), one execution path (ADR 0045): `mana` is the JSON-pure per-colour amount map (EffectManaPool — fixed WUBRGC pips, positive integers), passed straight through as a CardManaCost (the primitive ignores the X/generic slots and non-positive amounts, CR 106.1). `player` names whose pool receives it — the resolving `"controller"` by default (a ritual adds to its caster\'s pool, CR 106.4: Dark Ritual "Add {B}{B}{B}"); an announced target-slot / relative player otherwise. Skipped when the player cannot be resolved (CR 608.2b). SCOPE (issue #850): fixed produced mana only. "Add one mana of any colour" (a runtime colour choice) and restriction-riders ("spend only on …", addRestrictedMana) are NOT folded — the former is not a static amount, the latter has no free card demanding it this wave; both stay resolve() until a card needs them. Most `addMana` call sites are activated MANA abilities (`effect:`, useStack:false — Black Lotus, Llanowar Elves), which the migration classifier does not count; the folded closures are the one-shot mana rituals.',
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
@@ -2525,12 +2532,13 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // through the same runOpList path an `if` branch uses). "Choose one or
     // more" / "choose two" / entwine / escalate / Fork-style repetition are
     // distinct cardinality grammars a later Op adds on demand.
-    {
-        op: "addMana",
-        status: "planned",
-        cr: "106.1",
-        note: "Add mana to a player's mana pool (CR 106). Folds SpellContext.addManaTo / addMana / addRestrictedMana (~15 blocked closures).",
-    },
+    // addMana SHIPPED (issue #850) — SpellContext.addManaTo / addMana are now
+    // COVERED live via EFFECT_OP_REGISTRY with status "implemented". Only the
+    // fixed-produced-mana forms were folded (a ritual's static per-colour
+    // amount). "Add one mana of any colour" (a runtime colour choice) and the
+    // spend-restriction rider (addRestrictedMana, "spend only on …") are NOT
+    // folded — the former is not a static amount, the latter has no free card
+    // demanding it this wave; both stay resolve() until a card needs them.
     {
         op: "coinFlip",
         status: "planned",

@@ -255,7 +255,10 @@ describe("Effect Script Op census (ADR 0045/0046, PRD #826)", () => {
         // `optionChoice` (issue #849) SHIPPED — moved to EFFECT_OP_REGISTRY (the
         // "choose one" modal form folded; "choose one or more" / entwine /
         // escalate cardinality grammars stay a later Op on demand).
-        const named = ["scryReorder", "createTokenCopy", "addMana", "coinFlip"];
+        // `addMana` (issue #850) SHIPPED — moved to EFFECT_OP_REGISTRY (the
+        // fixed-produced-mana form folded; "any colour" / count-scaled amounts /
+        // the addRestrictedMana spend-rider stay resolve() on demand).
+        const named = ["scryReorder", "createTokenCopy", "coinFlip"];
         const backlog = new Set(EFFECT_OP_BACKLOG.map((r) => r.op));
         for (const op of named) expect(backlog.has(op), op).toBe(true);
         // …plus low-frequency long-tail reservations beyond the named set.

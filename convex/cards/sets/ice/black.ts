@@ -2275,6 +2275,11 @@ export const songsOfTheDamned: CardDefinition = {
     oracleText: "Add {B} for each creature card in your graveyard.",
     manaCost: { B: 1 },
     types: ["Instant"],
+    // NOT DSL-migratable (ADR 0045): the produced {B} amount is COUNT-SCALED
+    // ("for each creature card in your graveyard"). The `addMana` Op's `mana`
+    // field is a FIXED per-colour amount map, not an EffectValue — it cannot
+    // carry a `count`. Planned-migratable. Blocked on: count-scaled produced
+    // mana (an EffectValue-valued addMana amount).
     resolve: (ctx: SpellContext) => {
         const creatures = ctx
             .getGraveyardCards(ctx.controller)
@@ -2380,6 +2385,12 @@ export const spoilsOfEvil: CardDefinition = {
     manaCost: { X: 2, B: 1 },
     types: ["Instant"],
     targetRequirement: { type: "player", count: 1, controller: "opponent" },
+    // NOT DSL-migratable (ADR 0045): the produced {C} (and the life gained) are
+    // COUNT-SCALED to "each artifact or creature card in the opponent's
+    // graveyard". Two gaps: the `addMana` amount is a fixed map (no EffectValue),
+    // and the count filter is an OR of two types ("Artifact or Creature") while
+    // EffectCountSpec.filter is a single type/subtype (AND). Planned-migratable.
+    // Blocked on: count-scaled produced mana + an OR-typed count filter.
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "player") return;

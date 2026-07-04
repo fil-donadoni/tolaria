@@ -520,6 +520,11 @@ export const suChi: CardDefinition = {
     power: 4,
     toughness: 4,
     triggeredAbilities: [
+        // NOT DSL-migratable (ADR 0045): the `addMana` clause is trivial, but a
+        // `diedTrigger` FACTORY hardcodes its `resolve` and exposes no
+        // `effects[]` site (same class as the createToken/counters factory
+        // triggers, #841/#847). Planned-migratable once trigger factories take a
+        // declarative body. Blocked on: factory-trigger effects[] site.
         diedTrigger({
             id: "su-chi-mana",
             oracleText: "When this creature dies, add {C}{C}{C}{C}.",
@@ -1310,9 +1315,7 @@ export const ashnodsAltar: CardDefinition = {
             oracleText: "Sacrifice a creature: Add {C}{C}.",
             cost: { sacrificeFilter: { types: "Creature" } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.addManaTo(ctx.controller, { C: 2 });
-            },
+            effects: [{ op: "addMana", mana: { C: 2 } }],
         },
     ],
 };

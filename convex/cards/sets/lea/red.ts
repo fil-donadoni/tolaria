@@ -651,6 +651,12 @@ export const manaFlare: CardDefinition = {
     manaCost: { X: 2, R: 1 },
     types: ["Enchantment"],
     triggeredAbilities: [
+        // NOT DSL-migratable (ADR 0045): a `tappedTrigger` FACTORY hardcodes its
+        // `resolve` and exposes no `effects[]` site; the recipient and the
+        // produced colour are both read from the trigger event (the tapping
+        // player + the land's produced mana type — an event-field colour choice,
+        // not a static amount). Blocked on: factory-trigger effects[] site +
+        // event-field colour/player.
         tappedTrigger({
             id: "mana-flare-extra",
             oracleText:

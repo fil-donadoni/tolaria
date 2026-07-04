@@ -261,6 +261,13 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             analysePlayer(op.player, req, false);
             analyseValue(op.amount, req);
             return;
+        case "addMana":
+            // CR 106.1 (issue #850) — mana added to a player's pool is a
+            // deterministic same-resolution outcome. The default recipient is
+            // the resolving controller (a ritual); a ref player is unmodelable
+            // (analysePlayer records the skip).
+            analysePlayer(op.player ?? "controller", req, false);
+            return;
         case "destroy":
         case "exile":
             if ("target" in op.target) {
@@ -720,6 +727,34 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                     ok: life === expected,
                     detail: `life ${life}, expected ${expected}`,
                 };
+            },
+        };
+    },
+    // addMana (issue #850) adds mana to a player's pool — a deterministic
+    // same-resolution delta the generator asserts directly (CR 106.1). It reads
+    // the recipient's per-colour pool before/after and checks every produced
+    // pip landed.
+    addMana(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "addMana" }>;
+        const pid = assertionPlayerId(op.player ?? "controller");
+        const before = { ...findPlayer(pre, pid).manaPool };
+        const added = Object.entries(op.mana).filter(([, n]) => (n ?? 0) > 0);
+        return {
+            label: `addMana ${added
+                .map(([c, n]) => `${n}${c}`)
+                .join("")} to player ${pid}`,
+            check: (post) => {
+                const pool = findPlayer(post, pid).manaPool;
+                for (const [color, amount] of added) {
+                    const expected = (before[color] ?? 0) + (amount ?? 0);
+                    if ((pool[color] ?? 0) !== expected) {
+                        return {
+                            ok: false,
+                            detail: `${color} pool ${pool[color] ?? 0}, expected ${expected}`,
+                        };
+                    }
+                }
+                return { ok: true };
             },
         };
     },

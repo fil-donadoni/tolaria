@@ -232,12 +232,28 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // rider with no effects[] site (Barbarian Guides; ice/red, same class as
     // Rainbow Vale), and a no-test ranged-topdeck + pay-life composition (Sylvan
     // Library; leg/green). The optionChoice backlog stub is retired.
+    // #850 (addMana Op): SpellContext.addManaTo / addMana are now COVERED Ops —
+    // the mana-add cluster's 15 closures moved Op-blocked→FREE (+15: Op-blocked
+    // 231→216), and the 2 cleanly-expressible ones (fixed produced mana on a
+    // real effects[] site) were migrated away (total 614→612; FREE 362→375 net;
+    // AFK-ready 331→344): Dark Ritual (lea/black — spell, "Add {B}{B}{B}") and
+    // Ashnod's Altar (atq/colorless — activated ability, "Add {C}{C}"). The
+    // remaining 13 FREE mana-add closures (Su-Chi, Wild Growth, Mana Flare,
+    // Gauntlet of Might — tappedTrigger/diedTrigger FACTORIES with no effects[]
+    // site; Priest of Yawgmoth, Energy Tap, Sacrifice, Mana Drain ×2 — runtime
+    // mana-value amounts / captures with no mana-value EffectValue; Farrelite
+    // Priest, Initiates of the Ebon Hand — activation-count predicate; Songs of
+    // the Damned, Spoils of Evil — count-scaled produced mana the fixed-amount
+    // addMana grammar cannot carry) stay resolve() with recorded NOT-migratable
+    // reasons. SCOPE (issue #850): fixed produced mana only — "any colour",
+    // count-scaled amounts, and the addRestrictedMana rider are not folded. The
+    // addMana backlog stub is retired.
     it("reports the committed baseline bucket totals", () => {
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(614);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(362);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(331);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(612);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(375);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(344);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(21);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(231);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(216);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {

@@ -304,6 +304,13 @@ export const initiatesOfTheEbonHand: CardDefinition = {
             cost: { mana: { X: 1 } },
             useStack: false,
             manaProduced: { B: 1 },
+            // NOT DSL-migratable (ADR 0045): the `addMana {B}` half is trivial,
+            // but the conditional "if activated four or more times this turn,
+            // schedule a sacrifice" gates on a per-turn ACTIVATION COUNT
+            // (getActivationCount) — a runtime read the `if` predicate's
+            // comparison operands (literal / ref / count) cannot express.
+            // Planned-migratable. Blocked on: an activation-count predicate
+            // operand.
             resolve: (ctx: SpellContext) => {
                 ctx.addMana({ B: 1 });
                 // CR 602.5 — count includes the current activation (recorded
