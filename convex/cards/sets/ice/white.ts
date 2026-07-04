@@ -324,15 +324,47 @@ export const arcticFoxes: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const arensonsAura: CardDefinition = {
-//     id: "f94f3e87-1b39-49a8-ad0d-f18c854e298a",
-//     name: "Arenson's Aura",
-//     rarity: "common",
-//     oracleText: "{W}, Sacrifice an enchantment: Destroy target enchantment.\n{3}{U}{U}: Counter target enchantment spell.",
-//     manaCost: { X: 2, W: 1 },
-//     types: ["Enchantment"],
-// };
+// Arenson's Aura — {2}{W} Enchantment with two activated abilities:
+//   • "{W}, Sacrifice an enchantment: Destroy target enchantment." — the
+//     `destroy` Op with a typed sacrifice activation cost (CR 602.1 / 118.5,
+//     `cost.sacrificeFilter`) targeting an enchantment (CR 701.7).
+//   • "{3}{U}{U}: Counter target enchantment spell." — the `counter` Op with a
+//     `spellTypeFilter: "Enchantment"` stack-spell restriction (CR 114.1 /
+//     701.5a).
+// Both effects reuse already-shipped Ops; the sacrifice cost is fully supported
+// via `cost.sacrificeFilter`.
+export const arensonsAura: CardDefinition = {
+    id: "f94f3e87-1b39-49a8-ad0d-f18c854e298a",
+    name: "Arenson's Aura",
+    rarity: "common",
+    oracleText:
+        "{W}, Sacrifice an enchantment: Destroy target enchantment.\n{3}{U}{U}: Counter target enchantment spell.",
+    manaCost: { X: 2, W: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "arensons-aura-destroy",
+            oracleText:
+                "{W}, Sacrifice an enchantment: Destroy target enchantment.",
+            cost: { mana: { W: 1 }, sacrificeFilter: { types: "Enchantment" } },
+            useStack: true,
+            targetRequirement: { type: "Enchantment", count: 1 },
+            effects: [{ op: "destroy", target: { target: 0 } }],
+        },
+        {
+            id: "arensons-aura-counter",
+            oracleText: "{3}{U}{U}: Counter target enchantment spell.",
+            cost: { mana: { X: 3, U: 2 } },
+            useStack: true,
+            targetRequirement: {
+                type: "spell",
+                count: 1,
+                spellTypeFilter: "Enchantment",
+            },
+            effects: [{ op: "counter", target: { target: 0 } }],
+        },
+    ],
+};
 // Armor of Faith — Aura: static +1/+1 (layer 7c, CR 613) plus a repeatable
 // {W}: +0/+1 until end of turn pump on the host (CR 611.1). Same shape as
 // LEA's Holy Armor.

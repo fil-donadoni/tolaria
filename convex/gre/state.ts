@@ -1474,6 +1474,20 @@ export type PendingTarget = {
      *  TargetRequirement.spellWouldDestroyLandYouControl. Used by Equinox's
      *  granted counter ability. Ignored for non-spell target types. */
     spellWouldDestroyLandYouControl?: boolean;
+    /** Restricts a stack-object target by object kind (CR 113 / 114.1).
+     *  Propagated from TargetRequirement.spellStackKind. Used by Brown Ouphe
+     *  ("counter target activated ability ..."). Ignored for non-spell types. */
+    spellStackKind?: "spell" | "activated-ability";
+    /** Restricts a stack-object target to objects whose source card types
+     *  include at least one of these (CR 113.7a). Propagated from
+     *  TargetRequirement.stackSourceTypeFilter. Used by Brown Ouphe
+     *  ("...from an artifact source"). Ignored for non-spell types. */
+    stackSourceTypeFilter?: CardType[];
+    /** Restricts a stack SPELL target to spells that target at least one of
+     *  these permanent instance ids (CR 114.1). Propagated from
+     *  TargetRequirement.spellTargetsInstanceIds. Used by Mistfolk ("counter
+     *  target spell that targets this creature"). Ignored for non-spell types. */
+    spellTargetsInstanceIds?: string[];
     /** Restricts legal PLAYER targets to players who attacked this turn
      *  (CR 506.2). Propagated from TargetRequirement.playerAttackedThisTurn.
      *  Used by Fire and Brimstone. Ignored for non-player target types. */

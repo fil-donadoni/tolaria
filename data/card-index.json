@@ -258,6 +258,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Arenson's Aura",
+        "scryfallId": "f94f3e87-1b39-49a8-ad0d-f18c854e298a",
+        "oracleId": "465843dc-57d0-46fd-ac47-238723034563",
+        "firstSet": "ice"
+    },
+    {
         "name": "Argivian Archaeologist",
         "scryfallId": "ce83a3cb-467d-44f6-a051-4855c8cf52a6",
         "oracleId": "4b889ec0-6130-4e31-bb02-03fdabd28bee",
@@ -850,6 +856,12 @@
         "scryfallId": "ba2cc4a6-fdcc-4082-801a-d2c50e560e8d",
         "oracleId": "ee9208e7-2075-45b9-9ed7-b18e1a280d79",
         "firstSet": "drk"
+    },
+    {
+        "name": "Brown Ouphe",
+        "scryfallId": "e26ce35b-ba65-451d-a5ed-e1db6f1d0c6f",
+        "oracleId": "5b42e91a-e3bd-4f69-9abf-ed6273715fff",
+        "firstSet": "ice"
     },
     {
         "name": "Brushland",
@@ -4336,6 +4348,12 @@
         "scryfallId": "135de5c7-6ac9-4b68-8f1a-97f120a4b125",
         "oracleId": "ba284fe6-bb29-455c-8321-9714a0cdc05e",
         "firstSet": "atq"
+    },
+    {
+        "name": "Mistfolk",
+        "scryfallId": "4f3f4d4e-ca4a-4fba-b9fd-cd1d9457cfa1",
+        "oracleId": "d57409dc-22fa-40c1-a043-cab94d5f3b5f",
+        "firstSet": "ice"
     },
     {
         "name": "Moat",

@@ -8,6 +8,7 @@ import {
     matchesSpellTypeFilter,
     matchesSpellSingleTargetingController,
     matchesSpellWouldDestroyLand,
+    matchesStackObjectFilter,
     wantsSpellTarget,
 } from "~/lib/card-utils";
 import { useGameContext } from "~/hooks/useGameContext";
@@ -104,6 +105,12 @@ export default function GameStack({ stack }: GameStackProps) {
                                 pendingTarget?.spellWouldDestroyLandYouControl,
                                 allPlayers,
                                 playerId
+                            ) &&
+                            matchesStackObjectFilter(
+                                item,
+                                pendingTarget?.spellStackKind,
+                                pendingTarget?.stackSourceTypeFilter,
+                                pendingTarget?.spellTargetsInstanceIds
                             );
 
                         const litState = highlight?.nodes

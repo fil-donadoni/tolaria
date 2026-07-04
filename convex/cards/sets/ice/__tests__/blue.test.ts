@@ -57,6 +57,7 @@ import {
     realityTwist,
     rayOfCommand,
     magusOfTheUnseen,
+    mistfolk,
 } from "../../ice";
 import { matchesSpellFilter } from "../../../filters";
 import { getDefinition, getCardByName } from "../../../index";
@@ -76,6 +77,7 @@ import {
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { collectTriggers } from "../../../../gre/triggers";
 import { projectPublicState } from "../../../../gameProjections";
+import { getLegalTargets } from "../../../../gre/rules";
 import { advancePhase, finalizeCleanup } from "../../../../gre/phases";
 import { validateAttackerEligibility } from "../../../../gre/combat";
 import {
@@ -2209,5 +2211,69 @@ describe("Magus of the Unseen — steal an artifact until EOT (CR 611.2b / 613.1
         expect(magusOfTheUnseen.power).toBe(1);
         expect(magusOfTheUnseen.toughness).toBe(1);
         expect(magusOfTheUnseen.subtypes).toEqual(["Human", "Wizard"]);
+    });
+});
+
+describe("Mistfolk — counter spell that targets it (CR 701.5a / 114.1)", () => {
+    const ability = mistfolk.activatedAbilities![0];
+
+    it("has {U}{U} cost and a {U} counter ability", () => {
+        expect(mistfolk.manaCost).toEqual({ U: 2 });
+        expect(mistfolk.power).toBe(1);
+        expect(mistfolk.toughness).toBe(2);
+        expect(mistfolk.subtypes).toEqual(["Illusion"]);
+        expect(ability.cost).toEqual({ mana: { U: 1 } });
+        expect(ability.targetRequirement).toEqual({ type: "spell", count: 1 });
+    });
+
+    it("getTargetRequirement injects the source id → only spells targeting Mistfolk are legal", () => {
+        const mist = makeInstance(mistfolk.id, {
+            id: "mist",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mist] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Opponent spell targeting Mistfolk vs. one targeting something else.
+        const atMist = pushSpell(state, brainstorm.id, "p2", [
+            { type: "permanent", id: "mist" },
+        ]);
+        const atOther = pushSpell(state, brainstorm.id, "p2", [
+            { type: "permanent", id: "other" },
+        ]);
+        const req = ability.getTargetRequirement!(
+            { ...mist } as never,
+            state as never
+        );
+        expect(req.spellTargetsInstanceIds).toEqual(["mist"]);
+        const legal = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+        expect(legal).toContain(atMist.id);
+        expect(legal).not.toContain(atOther.id);
+    });
+
+    it("counters the spell that targets it — survives projection (wire format)", () => {
+        const mist = makeInstance(mistfolk.id, {
+            id: "mist",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mist] }),
+                makePlayer("p2"),
+            ],
+        });
+        const spell = pushSpell(state, brainstorm.id, "p2", [
+            { type: "permanent", id: "mist" },
+        ]);
+        resolveActivated(state, mist, "mistfolk-counter", [
+            { type: "spell", id: spell.id },
+        ]);
+        expect(state.stack.some((s) => s.id === spell.id)).toBe(false);
+        // Wire format — the countered spell is absent from the projected stack.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.stack.some((s) => s.id === spell.id)).toBe(false);
     });
 });

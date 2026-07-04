@@ -2426,6 +2426,9 @@ function applyRequirementToPendingTarget(
     pt.spellTypeFilter = undefined;
     pt.spellSingleTargetingController = undefined;
     pt.spellWouldDestroyLandYouControl = undefined;
+    pt.spellStackKind = undefined;
+    pt.stackSourceTypeFilter = undefined;
+    pt.spellTargetsInstanceIds = undefined;
     pt.playerAttackedThisTurn = undefined;
     pt.zone = undefined;
     pt.controller = undefined;
@@ -2449,6 +2452,11 @@ function applyRequirementToPendingTarget(
         pt.spellSingleTargetingController = true;
     if (req.spellWouldDestroyLandYouControl)
         pt.spellWouldDestroyLandYouControl = true;
+    if (req.spellStackKind) pt.spellStackKind = req.spellStackKind;
+    const stackSrc = toArr(req.stackSourceTypeFilter);
+    if (stackSrc) pt.stackSourceTypeFilter = stackSrc as CardType[];
+    if (req.spellTargetsInstanceIds)
+        pt.spellTargetsInstanceIds = [...req.spellTargetsInstanceIds];
     if (req.playerAttackedThisTurn) pt.playerAttackedThisTurn = true;
     if (req.zone) pt.zone = req.zone;
     if (req.controller) pt.controller = req.controller;
@@ -4469,6 +4477,47 @@ export const selectTarget = mutation({
             }
             const spell = state.stack.find((s) => s.id === args.targetId);
             if (!spell) throw new Error("Invalid spell target");
+            const spellIsAbility =
+                !!spell.abilityId ||
+                !!spell.triggeredAbilityId ||
+                !!spell.delayedTriggerId;
+            // CR 113 / 114.1 — restrict by stack-object kind (Brown Ouphe:
+            // "counter target activated ability").
+            if (pt.spellStackKind === "spell" && spellIsAbility) {
+                throw new Error("Target must be a spell");
+            }
+            if (pt.spellStackKind === "activated-ability" && !spell.abilityId) {
+                throw new Error("Target must be an activated ability");
+            }
+            // CR 113.7a — restrict by source card types (Brown Ouphe: "from an
+            // artifact source").
+            if (
+                pt.stackSourceTypeFilter &&
+                pt.stackSourceTypeFilter.length > 0 &&
+                !pt.stackSourceTypeFilter.some((t) => spell.types.includes(t))
+            ) {
+                throw new Error("Target's source is not of the required type");
+            }
+            // CR 114.1 — Mistfolk: the chosen spell must target one of the
+            // given permanents (the ability's own source).
+            if (
+                pt.spellTargetsInstanceIds &&
+                pt.spellTargetsInstanceIds.length > 0
+            ) {
+                const tgts = spell.targets ?? [];
+                if (
+                    spellIsAbility ||
+                    !tgts.some(
+                        (t) =>
+                            t.type === "permanent" &&
+                            pt.spellTargetsInstanceIds!.includes(t.id)
+                    )
+                ) {
+                    throw new Error(
+                        "Target spell does not target the required permanent"
+                    );
+                }
+            }
             // CR 114.1 + spellTypeFilter (Fork: "instant or sorcery spell"):
             // abilities aren't spells, and a spell must match the requested
             // card type(s).
@@ -6330,6 +6379,25 @@ export const activateAbility = mutation({
                     : {}),
                 ...(effectiveTargetReq.spellWouldDestroyLandYouControl
                     ? { spellWouldDestroyLandYouControl: true }
+                    : {}),
+                ...(effectiveTargetReq.spellStackKind
+                    ? { spellStackKind: effectiveTargetReq.spellStackKind }
+                    : {}),
+                ...(effectiveTargetReq.stackSourceTypeFilter
+                    ? {
+                          stackSourceTypeFilter: Array.isArray(
+                              effectiveTargetReq.stackSourceTypeFilter
+                          )
+                              ? effectiveTargetReq.stackSourceTypeFilter
+                              : [effectiveTargetReq.stackSourceTypeFilter],
+                      }
+                    : {}),
+                ...(effectiveTargetReq.spellTargetsInstanceIds
+                    ? {
+                          spellTargetsInstanceIds: [
+                              ...effectiveTargetReq.spellTargetsInstanceIds,
+                          ],
+                      }
                     : {}),
                 ...(() => {
                     const resolved = resolveMvFilter(

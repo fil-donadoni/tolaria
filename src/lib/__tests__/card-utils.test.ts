@@ -6,6 +6,7 @@ import {
     matchesSpellTypeFilter,
     matchesSpellSingleTargetingController,
     matchesSpellWouldDestroyLand,
+    matchesStackObjectFilter,
     wantsSpellTarget,
     getStackAbilities,
     getAnyPlayerStackAbilities,
@@ -663,6 +664,80 @@ describe("wantsSpellTarget", () => {
         expect(wantsSpellTarget("Creature")).toBe(false);
         expect(wantsSpellTarget("player")).toBe(false);
         expect(wantsSpellTarget(undefined)).toBe(false);
+    });
+});
+
+describe("matchesStackObjectFilter (Brown Ouphe / Mistfolk — CR 113/114.1)", () => {
+    const artifactAbility = { types: ["Artifact"], abilityId: "icy-tap" };
+    const creatureAbility = { types: ["Creature"], abilityId: "tim-zap" };
+    const artifactSpell = { types: ["Artifact"] };
+
+    it("keeps an activated ability from an artifact source (Brown Ouphe)", () => {
+        expect(
+            matchesStackObjectFilter(
+                artifactAbility,
+                "activated-ability",
+                ["Artifact"],
+                undefined
+            )
+        ).toBe(true);
+    });
+
+    it("rejects a non-artifact ability and an artifact SPELL under the Brown Ouphe filter", () => {
+        expect(
+            matchesStackObjectFilter(
+                creatureAbility,
+                "activated-ability",
+                ["Artifact"],
+                undefined
+            )
+        ).toBe(false);
+        // An artifact spell is not an activated ability.
+        expect(
+            matchesStackObjectFilter(
+                artifactSpell,
+                "activated-ability",
+                ["Artifact"],
+                undefined
+            )
+        ).toBe(false);
+    });
+
+    it("keeps only spells targeting the given permanent (Mistfolk)", () => {
+        const atMist = {
+            types: ["Instant"],
+            targets: [{ type: "permanent", id: "mist" }],
+        };
+        const atOther = {
+            types: ["Instant"],
+            targets: [{ type: "permanent", id: "other" }],
+        };
+        expect(
+            matchesStackObjectFilter(atMist, undefined, undefined, ["mist"])
+        ).toBe(true);
+        expect(
+            matchesStackObjectFilter(atOther, undefined, undefined, ["mist"])
+        ).toBe(false);
+        // An ability never satisfies a "spell that targets ~" filter.
+        expect(
+            matchesStackObjectFilter(
+                { ...atMist, abilityId: "x" },
+                undefined,
+                undefined,
+                ["mist"]
+            )
+        ).toBe(false);
+    });
+
+    it("matches any stack item when no filter is set", () => {
+        expect(
+            matchesStackObjectFilter(
+                artifactSpell,
+                undefined,
+                undefined,
+                undefined
+            )
+        ).toBe(true);
     });
 });
 

@@ -55,6 +55,7 @@ import {
     sacredBoon,
     energyStorm,
     kjeldoranRoyalGuard,
+    arensonsAura,
 } from "../../ice";
 import { plains } from "../../lea";
 import { getDefinition } from "../../../index";
@@ -78,6 +79,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
+import { getLegalTargets } from "../../../../gre/rules";
 import { advancePhase, applyAllCombatDamage } from "../../../../gre/phases";
 import {
     validateBlockerEligibility,
@@ -1883,5 +1885,74 @@ describe("Kjeldoran Royal Guard — combat-damage redirect (CR 614.6)", () => {
         expect(slimGuard?.damageMarked ?? 0).toBe(2);
         const p2 = projected.players.find((p) => p.id === "p2");
         expect(p2?.life).toBe(20);
+    });
+});
+
+describe("Arenson's Aura — destroy/counter enchantment (CR 701.7 / 701.5a)", () => {
+    const destroyAbility = arensonsAura.activatedAbilities![0];
+    const counterAbility = arensonsAura.activatedAbilities![1];
+
+    it("has {2}{W} cost, a sac-an-enchantment destroy and an enchantment-spell counter", () => {
+        expect(arensonsAura.manaCost).toEqual({ X: 2, W: 1 });
+        expect(arensonsAura.types).toEqual(["Enchantment"]);
+        expect(destroyAbility.cost).toEqual({
+            mana: { W: 1 },
+            sacrificeFilter: { types: "Enchantment" },
+        });
+        expect(destroyAbility.targetRequirement).toEqual({
+            type: "Enchantment",
+            count: 1,
+        });
+        expect(counterAbility.cost).toEqual({ mana: { X: 3, U: 2 } });
+        expect(counterAbility.targetRequirement).toEqual({
+            type: "spell",
+            count: 1,
+            spellTypeFilter: "Enchantment",
+        });
+    });
+
+    it("destroys the target enchantment — gone from board, survives projection (wire format)", () => {
+        const aura = makeInstance(arensonsAura.id, {
+            id: "aura",
+            controllerId: "p1",
+        });
+        const victim = makeInstance(armorOfFaith.id, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [aura] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        resolveActivated(state, aura, "arensons-aura-destroy", [
+            { type: "permanent", id: "victim" },
+        ]);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "victim")
+        ).toBe(false);
+        // Wire format — the destroyed enchantment is gone from the projection.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players.some((p) =>
+                p.battlefield.some((c) => c.id === "victim")
+            )
+        ).toBe(false);
+    });
+
+    it("counters only an enchantment spell, not a creature spell (CR 114.1)", () => {
+        const state = makeState();
+        const ench = pushSpell(state, armorOfFaith.id, "p2");
+        const creature = pushSpell(state, balduvianBears.id, "p2");
+        const legal = getLegalTargets(
+            state,
+            counterAbility.targetRequirement!,
+            [],
+            "p1"
+        ).map((t) => t.id);
+        expect(legal).toContain(ench.id);
+        expect(legal).not.toContain(creature.id);
     });
 });
