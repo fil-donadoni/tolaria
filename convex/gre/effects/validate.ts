@@ -518,6 +518,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             target: isObjectSelector,
         },
     },
+    // CR 611.1b / 613.1f (issue #843) — grant a keyword static ability to a
+    // permanent for a limited duration (layer 6). `ability` is the free-form
+    // keyword granted; `target` is an object selector (announced slot,
+    // `$source`, or a forEach `$each`); `duration` is the phase boundary at
+    // which the grant expires (CR 611.2).
+    grantAbility: {
+        required: {
+            ability: isNonEmptyString,
+            target: isObjectSelector,
+            duration: isDurationSpec,
+        },
+    },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution choice through the
     // existing Pending Choice pipeline. `bind` is REQUIRED: a choice whose
     // picks nothing consumes is meaningless.

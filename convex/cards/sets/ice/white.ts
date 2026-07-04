@@ -778,14 +778,25 @@ export const formation: CardDefinition = {
     manaCost: { X: 1, W: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type === "permanent") {
-            ctx.grantStaticAbility(t, "banding", { phase: "end-of-turn" });
-        }
-        scheduleNextUpkeepDraw(ctx, formation.id);
-    },
-    delayedTriggers: [nextUpkeepDrawTrigger()],
+    // Migrated resolve()→effects[] (ADR 0045, #843): grant banding to the
+    // announced target creature until end of turn (CR 611.1b), then the
+    // next-upkeep cantrip as an inline `delayedTrigger` Op (ADR 0048,
+    // CR 603.7d).
+    effects: [
+        {
+            op: "grantAbility",
+            ability: "banding",
+            target: { target: 0 },
+            duration: { phase: "end-of-turn" },
+        },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText:
+                "At the beginning of the next turn's upkeep, draw a card.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
 };
 // Fylgja — {W} Aura. Enters with four healing counters (CR 122.1, 614.1c
 // `entersWith`); "Remove a healing counter: prevent the next 1 damage to the
@@ -1021,14 +1032,16 @@ export const kelsinkoRanger: CardDefinition = {
                 count: 1,
                 colorFilter: "G",
             },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type === "permanent") {
-                    ctx.grantStaticAbility(t, "first strike", {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): grant first strike
+            // to the announced target creature until end of turn (CR 611.1b).
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "first strike",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1200,16 +1213,25 @@ export const lightningBlow: CardDefinition = {
     manaCost: { X: 1, W: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type === "permanent") {
-            ctx.grantStaticAbility(t, "first strike", {
-                phase: "end-of-turn",
-            });
-        }
-        scheduleNextUpkeepDraw(ctx, lightningBlow.id);
-    },
-    delayedTriggers: [nextUpkeepDrawTrigger()],
+    // Migrated resolve()→effects[] (ADR 0045, #843): grant first strike to the
+    // announced target creature until end of turn (CR 611.1b), then the
+    // next-upkeep cantrip as an inline `delayedTrigger` Op (ADR 0048,
+    // CR 603.7d).
+    effects: [
+        {
+            op: "grantAbility",
+            ability: "first strike",
+            target: { target: 0 },
+            duration: { phase: "end-of-turn" },
+        },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText:
+                "At the beginning of the next turn's upkeep, draw a card.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
 };
 // Lost Order of Jarkeld — as it enters, choose an opponent (CR 603.6b); its P/T
 // is a characteristic-defining ability (CR 604.3, layer 7a) equal to 1 plus the
@@ -1354,13 +1376,16 @@ export const orderOfTheWhiteShield: CardDefinition = {
                 "{W}: This creature gains first strike until end of turn.",
             cost: { mana: { W: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.grantStaticAbility(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "first strike",
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant first
+            // strike until end of turn (CR 611.1b).
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "first strike",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
         {
             id: "order-white-shield-pump",

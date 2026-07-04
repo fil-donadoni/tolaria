@@ -384,6 +384,19 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSlot(req, op.target.target, "permanent");
             return;
+        case "grantAbility":
+            // `grantAbility` (issue #843) grants a keyword static ability to a
+            // permanent for a duration (CR 611.1b / 613.1f). The generator can
+            // assert a grant on an announced permanent slot (it seeds a filler
+            // creature there and reads its `staticAbilities` after resolution).
+            // A `$source` / `$each` target is not modelled — skip and let the
+            // card's own per-card test cover it.
+            if (!("target" in op.target)) {
+                req.skip ??= `Op "grantAbility" targets $source/$each — covered by the card's own per-card test`;
+                return;
+            }
+            recordSlot(req, op.target.target, "permanent");
+            return;
         case "forEach":
             // The forEach construct (issue #807) iterates a runtime-selected
             // set; the generator cannot predict per-member outcomes (and a
@@ -810,6 +823,35 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 return {
                     ok: perm.isTapped === true,
                     detail: `isTapped ${perm.isTapped}, expected true`,
+                };
+            },
+        };
+    },
+    // `grantAbility` (issue #843, CR 611.1b / 613.1f) — a grant on an announced
+    // permanent slot is observable as the keyword appearing in the target's
+    // `staticAbilities` (the primitive appends it, and the grant is active for
+    // the rest of the turn so it reads immediately after resolution).
+    // `$source`/`$each` targets are skipped upstream in `analyseOp` (returns
+    // null defensively here).
+    grantAbility(rawOp, scenario) {
+        const op = rawOp as Extract<EffectOp, { op: "grantAbility" }>;
+        if (!("target" in op.target)) return null;
+        const permId = scenario.targetPermanentIds[op.target.target];
+        return {
+            label: `grant "${op.ability}" to permanent ${permId}`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                const has = perm.staticAbilities.includes(op.ability);
+                return {
+                    ok: has,
+                    detail: has
+                        ? `has "${op.ability}"`
+                        : `missing "${op.ability}" (staticAbilities: ${perm.staticAbilities.join(", ")})`,
                 };
             },
         };

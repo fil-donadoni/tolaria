@@ -315,19 +315,25 @@ export const wallOfWonder: CardDefinition = {
                 "{2}{U}{U}: This creature gets +4/-4 until end of turn and can attack this turn as though it didn't have defender.",
             cost: { mana: { X: 2, U: 2 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                const self = {
-                    type: "permanent" as const,
-                    id: ctx.sourceInstanceId,
-                };
-                ctx.addTemporaryPTBuff(self, 4, -4, { phase: "end-of-turn" });
-                // "can attack as though it didn't have defender" — grant the
-                // attack-enable keyword the combat validator checks for
-                // defender suspension (CR 508.1a).
-                ctx.grantStaticAbility(self, "can-attack-with-defender", {
-                    phase: "end-of-turn",
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): self +4/-4
+            // (CR 611.1) + self-grant the internal "can-attack-with-defender"
+            // keyword the combat validator checks for defender suspension
+            // (CR 508.1a), both until end of turn.
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 4,
+                    toughness: -4,
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "grantAbility",
+                    ability: "can-attack-with-defender",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -607,6 +613,12 @@ export const partWater: CardDefinition = {
     manaCost: { X: "X", U: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "Creature", count: "X" },
+    // NOT DSL-migratable (ADR 0045): grants islandwalk to a VARIABLE number (X)
+    // of announced targets. grantAbility addresses a single announced slot
+    // (`{ target: N }`), and no construct maps over "all announced targets" —
+    // forEach selects zone sets, not the announced-target list (same class as
+    // Word of Binding / Winter Blast). Blocked on: iteration over X announced
+    // targets; grantStaticAbility itself is covered by grantAbility (#843).
     resolve: (ctx: SpellContext) => {
         for (const target of ctx.targets) {
             if (target.type === "permanent") {

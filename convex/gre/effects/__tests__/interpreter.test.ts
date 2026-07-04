@@ -24,7 +24,7 @@ import {
 import { compactState, expandState } from "../../serialize";
 import { refreshExpectedInput } from "../../expectedInput";
 import { projectPublicState } from "../../../gameProjections";
-import { fireDelayedTriggers } from "../../phases";
+import { fireDelayedTriggers, finalizeCleanup } from "../../phases";
 import { INLINE_DELAYED_TRIGGER_ID } from "../interpreter";
 import { getEffectivePower, getEffectiveToughness } from "../../layers";
 
@@ -1149,6 +1149,203 @@ describe("Effect Script Op: tapUntap (CR 701.26, issue #842)", () => {
     it("is a no-op when the announced target is missing (CR 608.2b)", () => {
         const id = registerScript("test-op-tapuntap-missing", [
             { op: "tapUntap", action: "tap", target: { target: 0 } },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+});
+
+describe("Effect Script Op: grantAbility (CR 611.1b / 613.1f, layer 6, issue #843)", () => {
+    // Granting a keyword to an announced target: the keyword appears in the
+    // creature's `staticAbilities`, and that must survive the projection (the
+    // client reads a creature's keywords off the slimmed wire state — a
+    // granted ability is board-visible, e.g. an evasion keyword changes how
+    // blocks are shown).
+    it("grants a keyword to an announced target and survives the projection (wire format)", () => {
+        const id = registerScript("test-op-grantability-target", [
+            {
+                op: "grantAbility",
+                ability: "flying",
+                target: { target: 0 },
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearGrant",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearGrant" }]);
+        resolveTopOfStack(state);
+        const granted = state.players[1].battlefield.find(
+            (c) => c.id === "bearGrant"
+        )!;
+        expect(granted.staticAbilities).toContain("flying");
+        // Same assertion after the projection — a granted keyword is
+        // board-visible and must not be stripped on the way to the client.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bearGrant"
+        )!;
+        expect(slim.staticAbilities).toContain("flying");
+    });
+
+    // The grant expires at the declared phase boundary (CR 611.2 / 514.2):
+    // walking to CLEANUP splices the keyword back out.
+    it("expires at the cleanup step (CR 611.2 / 514.2)", () => {
+        const id = registerScript("test-op-grantability-expire", [
+            {
+                op: "grantAbility",
+                ability: "trample",
+                target: { target: 0 },
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "bearExpire",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearExpire" }]);
+        resolveTopOfStack(state);
+        const granted = state.players[0].battlefield.find(
+            (c) => c.id === "bearExpire"
+        )!;
+        expect(granted.staticAbilities).toContain("trample");
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(granted.staticAbilities).not.toContain("trample");
+    });
+
+    // A self-grant via the implicit `$source` binding — a permanent granting
+    // itself an ability as part of an activated ability's effect.
+    it("grants to the source permanent via the implicit $source binding", () => {
+        const GRANTER_ID = "test-op-grantability-source";
+        registerTokenDefinition({
+            id: GRANTER_ID,
+            name: GRANTER_ID,
+            rarity: "common",
+            manaCost: { generic: 1 },
+            types: ["Creature"],
+            power: 1,
+            toughness: 1,
+            activatedAbilities: [
+                {
+                    id: "self-grant",
+                    oracleText:
+                        "{1}: This creature gains flying until end of turn.",
+                    cost: { mana: { generic: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "grantAbility",
+                            ability: "flying",
+                            target: { ref: "$source" },
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        });
+        const granter = makeInstance(GRANTER_ID, {
+            id: "granter1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [granter] }),
+                makePlayer("p2"),
+            ],
+        });
+        const src = state.players[0].battlefield[0];
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "self-grant",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        const self = state.players[0].battlefield.find(
+            (c) => c.id === "granter1"
+        )!;
+        expect(self.staticAbilities).toContain("flying");
+    });
+
+    // A mass grant: forEach over the controller's creatures, each granted the
+    // keyword via the per-iteration `{ ref: "$each" }` object binding.
+    it("grants to every member of a forEach set via { ref: $each }", () => {
+        const id = registerScript("test-op-grantability-foreach", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    controller: "controller",
+                    filter: { type: "Creature" },
+                },
+                effects: [
+                    {
+                        op: "grantAbility",
+                        ability: "haste",
+                        target: { ref: "$each" },
+                        duration: { phase: "end-of-turn" },
+                    },
+                ],
+            },
+        ]);
+        const mine = ["gA", "gB"].map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        const theirs = makeInstance(BEAR_ID, {
+            id: "tG",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: mine }),
+                makePlayer("p2", { battlefield: [theirs] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        for (const cid of ["gA", "gB"]) {
+            const c = state.players[0].battlefield.find((x) => x.id === cid)!;
+            expect(c.staticAbilities).toContain("haste");
+        }
+        // The opponent's creature is outside the controller-scoped set.
+        const other = state.players[1].battlefield.find((x) => x.id === "tG")!;
+        expect(other.staticAbilities).not.toContain("haste");
+    });
+
+    it("is a no-op when the announced target is missing (CR 608.2b)", () => {
+        const id = registerScript("test-op-grantability-missing", [
+            {
+                op: "grantAbility",
+                ability: "flying",
+                target: { target: 0 },
+                duration: { phase: "end-of-turn" },
+            },
         ]);
         const state = makeState();
         pushSpell(state, id, "p1", []);

@@ -256,14 +256,16 @@ export const cavePeople: CardDefinition = {
             cost: { tap: true, mana: { X: 1, R: 2 } },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.grantStaticAbility(target, "mountainwalk", {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): grant mountainwalk
+            // to the announced target creature until end of turn (CR 611.1b).
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "mountainwalk",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -593,14 +595,17 @@ export const goblinWizard: CardDefinition = {
                 count: 1,
                 subtypeFilter: "Goblin",
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.grantStaticAbility(target, "protection from white", {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): grant protection
+            // from white to the announced target Goblin until end of turn
+            // (CR 611.1b / 702.16).
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "protection from white",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

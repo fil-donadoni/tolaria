@@ -429,13 +429,16 @@ export const riverMerfolk: CardDefinition = {
                 "{U}: This creature gains mountainwalk until end of turn.",
             cost: { mana: { U: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.grantStaticAbility(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "mountainwalk",
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant
+            // mountainwalk until end of turn (CR 611.1b).
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "mountainwalk",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -464,14 +467,16 @@ export const svyelunitePriest: CardDefinition = {
             controllerTurnOnly: true,
             activationPhaseRestriction: ["UPKEEP"],
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.grantStaticAbility(target, "shroud", {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): grant shroud to the
+            // announced target creature until end of turn (CR 611.1b).
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "shroud",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -572,13 +577,16 @@ export const vodalianKnights: CardDefinition = {
             oracleText: "{U}: This creature gains flying until end of turn.",
             cost: { mana: { U: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.grantStaticAbility(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "flying",
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant flying
+            // until end of turn (CR 611.1b).
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "flying",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -824,6 +832,14 @@ export const tidalFlats: CardDefinition = {
                 "{U}{U}: For each attacking creature without flying, its controller may pay {1}. If that player doesn't, creatures you control blocking that creature gain first strike until end of turn.",
             cost: { mana: { U: 2 } },
             useStack: true,
+            // NOT DSL-migratable (ADR 0045): iterates live combat pairings
+            // (getBlockersByAttacker) — a per-attacker may-pay whose declined
+            // branch grants first strike to a runtime-computed set of blocker
+            // ids. forEach selects static zone sets, not combat pairings, and
+            // no construct expresses a per-attacker may-pay over computed
+            // targets. Blocked on: combat-pairing iteration (planned-
+            // migratable); grantStaticAbility itself is covered by
+            // grantAbility (#843).
             resolve: (ctx: SpellContext) => {
                 // CR 509 / 117.3a — for each non-flying attacker, its controller
                 // may pay {1}; if they don't, this Aura's controller's creatures

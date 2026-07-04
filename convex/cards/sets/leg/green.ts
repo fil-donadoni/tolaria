@@ -391,13 +391,16 @@ export const emeraldDragonfly: CardDefinition = {
                 "{G}{G}: This creature gains first strike until end of turn.",
             cost: { mana: { G: 2 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.grantStaticAbility(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "first strike",
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant first
+            // strike until end of turn (CR 611.1b).
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "first strike",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -483,14 +486,16 @@ export const pixieQueen: CardDefinition = {
             cost: { mana: { G: 3 }, tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.grantStaticAbility(target, "flying", {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): grant flying to the
+            // announced target creature until end of turn (CR 611.1b).
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "flying",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

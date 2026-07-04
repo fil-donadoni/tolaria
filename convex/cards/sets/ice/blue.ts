@@ -169,14 +169,16 @@ export const arnjlotsAscent: CardDefinition = {
             cost: { mana: { X: 1 } },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent") {
-                    ctx.grantStaticAbility(target, "flying", {
-                        phase: "end-of-turn",
-                    });
-                }
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): grant flying to the
+            // announced target creature until end of turn (CR 611.1b).
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "flying",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1828,14 +1830,25 @@ export const updraft: CardDefinition = {
     manaCost: { X: 1, U: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type === "permanent") {
-            ctx.grantStaticAbility(t, "flying", { phase: "end-of-turn" });
-        }
-        scheduleNextUpkeepDraw(ctx, updraft.id);
-    },
-    delayedTriggers: [nextUpkeepDrawTrigger()],
+    // Migrated resolve()→effects[] (ADR 0045, #843): grant flying to the
+    // announced target creature until end of turn (CR 611.1b), then the
+    // next-upkeep cantrip as an inline `delayedTrigger` Op (ADR 0048,
+    // CR 603.7d).
+    effects: [
+        {
+            op: "grantAbility",
+            ability: "flying",
+            target: { target: 0 },
+            duration: { phase: "end-of-turn" },
+        },
+        {
+            op: "delayedTrigger",
+            timing: "next-upkeep",
+            oracleText:
+                "At the beginning of the next turn's upkeep, draw a card.",
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
 };
 // Wind Spirit — 3/2 flying + menace keyword creature (CR 702.9, 702.111).
 export const windSpirit: CardDefinition = {

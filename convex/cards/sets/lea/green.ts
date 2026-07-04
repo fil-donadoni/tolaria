@@ -90,10 +90,15 @@ export const berserk: CardDefinition = {
         "FIRST_STRIKE_DAMAGE",
     ],
     targetRequirement: { type: "Creature", count: 1 },
-    // NOT DSL-migratable (ADR 0045, issue #831): grants trample, applies a
-    // +power/+0 pump where the amount is the creature's own power, and schedules
-    // a conditional delayed destroy — the pump/grant/delayed Ops are `planned`,
-    // not implemented. Blocked on: `grantAbility` + `pump` + `delayedTrigger` Ops.
+    // NOT DSL-migratable (ADR 0045): the trample grant (grantAbility #843), the
+    // pump (#840) and the delayed trigger (#838) Ops all now exist, but two
+    // clauses remain inexpressible. (1) The +X/+0 amount is the creature's OWN
+    // current power (X = getPower(target)); `EffectValue` is literal | ref |
+    // count with no self-referential "this target's power" value and no bind-
+    // only snapshot of an announced target to ref. (2) The delayed destroy is
+    // CONDITIONAL on "if it attacked this turn" (hasAttackedThisTurn) — the `if`
+    // predicate grammar has no combat-history test. Blocked on: self-power
+    // EffectValue + attacked-this-turn predicate (both planned-migratable).
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (!target || target.type !== "permanent") return;

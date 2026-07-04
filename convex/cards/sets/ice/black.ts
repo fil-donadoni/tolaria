@@ -810,16 +810,23 @@ export const hyalopterousLemure: CardDefinition = {
                 "{0}: This creature gets -1/-0 and gains flying until end of turn.",
             cost: { mana: { X: 0 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                const self = {
-                    type: "permanent" as const,
-                    id: ctx.sourceInstanceId,
-                };
-                ctx.addTemporaryPTBuff(self, -1, 0, { phase: "end-of-turn" });
-                ctx.grantStaticAbility(self, "flying", {
-                    phase: "end-of-turn",
-                });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): self -1/0 (CR 611.1)
+            // + self-grant flying until end of turn (CR 611.1b).
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: -1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "grantAbility",
+                    ability: "flying",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1048,13 +1055,16 @@ export const knightOfStromgald: CardDefinition = {
                 "{B}: This creature gains first strike until end of turn.",
             cost: { mana: { B: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.grantStaticAbility(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "first strike",
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant first
+            // strike until end of turn (CR 611.1b).
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "first strike",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
         {
             id: "knight-of-stromgald-pump",
@@ -1123,6 +1133,13 @@ export const krovikanElementalist: CardDefinition = {
                 count: 1,
                 controller: "you",
             },
+            // NOT DSL-migratable (ADR 0045): the flying grant is covered
+            // (grantAbility #843), but the delayed "sacrifice it" body cannot be
+            // expressed — the `sacrifice` Op reads a picks-LIST binding, while a
+            // delayedTrigger capture binds the announced target as a single
+            // OBJECT ($ via bindSnapshot), which `sacrifice` cannot read.
+            // Blocked on: sacrifice-by-object-ref (a single-permanent sacrifice
+            // Op).
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "permanent") return;

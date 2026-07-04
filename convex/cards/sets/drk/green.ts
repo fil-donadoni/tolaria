@@ -198,14 +198,17 @@ export const wormwoodTreefolk: CardDefinition = {
                 "{G}{G}: This creature gains forestwalk until end of turn and deals 2 damage to you.",
             cost: { mana: { G: 2 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.grantStaticAbility(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "forestwalk",
-                    { phase: "end-of-turn" }
-                );
-                ctx.dealDamage({ type: "player", id: ctx.controller }, 2);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant
+            // forestwalk until end of turn (CR 611.1b) + 2 damage to controller.
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "forestwalk",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+                { op: "dealDamage", amount: 2, to: { player: "controller" } },
+            ],
         },
         {
             id: "wormwood-treefolk-swampwalk",
@@ -213,14 +216,17 @@ export const wormwoodTreefolk: CardDefinition = {
                 "{B}{B}: This creature gains swampwalk until end of turn and deals 2 damage to you.",
             cost: { mana: { B: 2 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.grantStaticAbility(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "swampwalk",
-                    { phase: "end-of-turn" }
-                );
-                ctx.dealDamage({ type: "player", id: ctx.controller }, 2);
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant
+            // swampwalk until end of turn (CR 611.1b) + 2 damage to controller.
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "swampwalk",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+                { op: "dealDamage", amount: 2, to: { player: "controller" } },
+            ],
         },
     ],
 };
@@ -502,13 +508,18 @@ export const scarwoodHag: CardDefinition = {
             cost: { mana: { G: 4 }, tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const [target] = ctx.targets;
-                if (target?.type === "permanent")
-                    ctx.grantStaticAbility(target, "forestwalk", {
-                        phase: "end-of-turn",
-                    });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): grant forestwalk to
+            // the announced target creature until end of turn (CR 611.1b). The
+            // sibling strip ability (removeStaticAbilities, a predicate closure)
+            // stays resolve() — not JSON-expressible as an Op.
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "forestwalk",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
         {
             id: "scarwood-hag-strip-forestwalk",
@@ -613,6 +624,14 @@ export const spittingSlug: CardDefinition = {
                     event.attackerId === self.id || event.blockerId === self.id
                 );
             },
+            // NOT DSL-migratable (ADR 0045): reads trigger-event fields
+            // (event.attackerId / blockerId) to compute the paired combat
+            // creature, then grants first strike to self OR that runtime-
+            // computed creature depending on the may-pay outcome — no DSL
+            // construct captures trigger-event data or a computed (non-
+            // announced) target. Blocked on: trigger-event field capture
+            // (planned-migratable); grantStaticAbility itself is covered by
+            // grantAbility (#843).
             resolve: (ctx, event) => {
                 if (event.type !== "BLOCKERS_CONFIRMED") return;
                 const self = {

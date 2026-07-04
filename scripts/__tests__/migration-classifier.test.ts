@@ -117,23 +117,44 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // choices (Demonic Hordes, Soldevi Golem), and enteredTrigger ETB taps
     // (no effects[] site). The X-only bucket gains one (16→...→19) as a residual
     // {X}-cost closure surfaces.
+    // #843 (grantAbility Op): grantStaticAbility is now a COVERED Op — the grant
+    // cluster's closures moved from Op-blocked to FREE, and the 40
+    // cleanly-expressible ones (grant a keyword to an announced slot / `$source`
+    // / a forEach $each, self-pump+grant combos, a "your"-scoped phaseTrigger
+    // self-grant, grant + next-upkeep-cantrip via an inline delayedTrigger, and
+    // a BLOCKERS_CONFIRMED self-grant trigger) were migrated away (total
+    // 728→688; Op-blocked 383→332 as the residual grant closures surface as
+    // FREE; FREE 326→337; AFK-ready 299→309). The remaining FREE grant closures
+    // stay resolve() with a recorded NOT-migratable reason: trigger-event field
+    // capture / combat-pairing reads (Giant Shark, Spitting Slug, Tidal Flats),
+    // opponent-zone choice with a subtype-exclusion filter (Erhnam Djinn),
+    // X-count announced-target iteration (Part Water), forEach combat-role
+    // filter (Stampede — no isAttacking predicate), delayed self/target
+    // SACRIFICE (Goblin Ski Patrol, Krovikan Elementalist — the sacrifice Op
+    // reads a picks-LIST, not the object a delayed capture binds), the
+    // self-power +X/+0 value + attacked-this-turn predicate (Berserk), and an
+    // implementation-coupled per-card test (Stone Giant — its test asserts the
+    // delayed trigger's internal id/payload, which the inline delayedTrigger Op
+    // changes). Ability removal (removeStaticAbilities, a predicate closure)
+    // stays residual — not JSON-expressible.
     it("reports the committed baseline bucket totals", () => {
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(728);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(326);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(299);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(688);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(337);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(309);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(19);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(383);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(332);
     });
 
-    it("surfaces the demonstrated new-Op backlog (top blocker is grantStaticAbility)", () => {
-        // pump (#840), counters (#841) and tapUntap (#842) SHIPPED:
-        // addTemporaryPTBuff, addCounter / removeCounter and tap / untap are now
-        // COVERED Ops (they appear in the "Covered Ops" line, no longer in the
-        // backlog). The most-blocking remaining primitive is grantStaticAbility
-        // — a stable, high-frequency signal that the Op backlog is being read.
+    it("surfaces the demonstrated new-Op backlog (top blocker is applyRegenerationShield)", () => {
+        // pump (#840), counters (#841), tapUntap (#842) and grantAbility (#843)
+        // SHIPPED: addTemporaryPTBuff, addCounter / removeCounter, tap / untap
+        // and grantStaticAbility are now COVERED Ops (they appear in the
+        // "Covered Ops" line, no longer in the backlog). The most-blocking
+        // remaining primitive is applyRegenerationShield — a stable signal that
+        // the Op backlog is being read.
         expect(summary).toMatch(/New-Op backlog/);
-        expect(summary).toMatch(/grantStaticAbility/);
-        expect(summary).toMatch(/Covered Ops[^\n]*addCounter/);
+        expect(summary).toMatch(/applyRegenerationShield/);
+        expect(summary).toMatch(/Covered Ops[^\n]*grantStaticAbility/);
     });
 });
 
@@ -149,12 +170,12 @@ describe("migration classifier — known-card routing (PRD #826)", () => {
         expect(free).toMatch(/Night's Whisper/);
     });
 
-    it("does NOT route an Op-blocked card (Flying Carpet) to the FREE tranche", () => {
-        // Flying Carpet calls ctx.grantStaticAbility — blocked on the unshipped
-        // `grantAbility` Op, so it belongs to that Op's cluster issue, not the
-        // free tranche. (Canary swapped from Icy Manipulator, whose `tapUntap`
-        // Op shipped — issue #842 — so it migrated to effects[] and is no longer
+    it("does NOT route an Op-blocked card (Icatian Town) to the FREE tranche", () => {
+        // Icatian Town calls ctx.createToken — blocked on the unshipped
+        // `createToken` Op, so it belongs to that Op's cluster issue, not the
+        // free tranche. (Canary swapped from Flying Carpet, whose `grantAbility`
+        // Op shipped — issue #843 — so it migrated to effects[] and is no longer
         // a resolve() closure the classifier counts.)
-        expect(free).not.toMatch(/Flying Carpet/);
+        expect(free).not.toMatch(/Icatian Town/);
     });
 });

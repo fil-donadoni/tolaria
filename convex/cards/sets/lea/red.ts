@@ -171,13 +171,16 @@ export const dwarvenWarriors: CardDefinition = {
                 count: 1,
                 powerFilter: { max: 2 },
             },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type === "permanent")
-                    ctx.grantStaticAbility(target, "unblockable", {
-                        phase: "end-of-turn",
-                    });
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): grant unblockable
+            // to the announced target creature until end of turn (CR 611.1b).
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "unblockable",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -431,13 +434,16 @@ export const goblinBalloonBrigade: CardDefinition = {
                 "{R}: Goblin Balloon Brigade gains flying until end of turn.",
             cost: { mana: { R: 1 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.grantStaticAbility(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "flying",
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant flying
+            // until end of turn (CR 611.1b).
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "flying",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
@@ -1146,10 +1152,17 @@ export const stoneGiant: CardDefinition = {
                 controller: "you" as const,
                 toughnessFilter: { max: (source.power ?? 0) - 1 },
             }),
-            // NOT DSL-migratable (ADR 0045, issue #831): grants flying until EOT
-            // and schedules a delayed end-step destroy — both Ops
-            // (`grantAbility`, `delayedTrigger`) are `planned`, not implemented.
-            // Blocked on: `grantAbility` + `delayedTrigger` Ops.
+            // NOT DSL-migratable (ADR 0045): the flying grant (grantAbility #843)
+            // and the delayed destroy (delayedTrigger #838 + destroy) are both
+            // expressible in isolation, but the card's per-card test asserts the
+            // delayed trigger's INTERNAL shape — `delayedTriggers[0].triggerId
+            // === "stone-giant-destroy"` and `payload.targetId === "bear"`. The
+            // inline `delayedTrigger` Op necessarily changes those internals
+            // (triggerId "$inline-effects", capture payload `{ $c }`), so
+            // migrating would force editing the harness test — a violation of
+            // the green-before/green-after invariant. Blocked on: an
+            // implementation-coupled per-card test (rewrite the test to assert
+            // behaviour, then migrate).
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (!target || target.type !== "permanent") return;

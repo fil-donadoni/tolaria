@@ -4606,6 +4606,27 @@ export type EffectOp =
           action: "tap" | "untap";
           target: EffectObjectSelector;
       }
+    /** CR 611.1b / 613.1f (layer 6, issue #843) — grant a keyword static
+     *  ability to a permanent for a limited duration. A thin declarative skin
+     *  over the SpellContext primitive `grantStaticAbility`, one execution path
+     *  (ADR 0045). `ability` is the keyword granted ("flying", "trample",
+     *  "haste", "banding", …; a free-form keyword read at combat / rules-check
+     *  time). `target` names the permanent: an announced target slot (Berserk's
+     *  "target creature gains trample"), the resolving source (`$source` — a
+     *  permanent granting itself an ability), or the current member of a
+     *  `forEach` set (`{ ref: "$each" }` — a mass grant). `duration` is the
+     *  phase boundary at which the grant expires (CR 611.2 — the phase-boundary
+     *  purge splices the keyword back out). Skipped when the referenced
+     *  permanent is gone (CR 608.2b — the spell does as much as it can); the
+     *  primitive is a no-op if the permanent has left the battlefield.
+     *  Ability REMOVAL / loss (`removeStaticAbilities`) takes a predicate
+     *  closure and stays `resolve()` by design — not expressible as a JSON Op. */
+    | {
+          op: "grantAbility";
+          ability: string;
+          target: EffectObjectSelector;
+          duration: DurationSpec;
+      }
     /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a
      *  Pending Choice of the given `kind` and SUSPENDS the script (the stack

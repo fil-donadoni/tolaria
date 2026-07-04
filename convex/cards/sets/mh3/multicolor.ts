@@ -94,13 +94,18 @@ export const psychicFrog: CardDefinition = {
                 "Exile three cards from your graveyard: This creature gains flying until end of turn.",
             cost: { exileFromGraveyard: { count: 3 } },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                ctx.grantStaticAbility(
-                    { type: "permanent", id: ctx.sourceInstanceId },
-                    "flying",
-                    { phase: "end-of-turn" }
-                );
-            },
+            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant flying
+            // until end of turn (CR 611.1b). The three-card graveyard exile is
+            // an activation cost (handled by the cost field), so the effect is
+            // just the grant.
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "flying",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };
