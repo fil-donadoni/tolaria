@@ -284,11 +284,11 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // Epiphany). This is the LAST wave-1 issue — X was the final value-grammar
     // gap; the residual X-only closures are Op/grammar-blocked, not X-blocked.
     it("reports the committed baseline bucket totals", () => {
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(602);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(378);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(347);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(604);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(379);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(348);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(210);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(211);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {

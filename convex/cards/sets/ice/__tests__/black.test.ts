@@ -5,6 +5,7 @@
 import { describe, it, expect } from "vitest";
 import {
     balduvianBears,
+    burntOffering,
     spoilsOfWar,
     kjeldoranWarrior,
     seaSpirit,
@@ -2397,5 +2398,69 @@ describe("Hecatomb (tap-a-Swamp activation cost + ETB sac-4, CR 602.1 / 118.8)",
         expect(state.players[0].graveyard.some((c) => c.id === "hec")).toBe(
             true
         );
+    });
+});
+
+describe("Burnt Offering ({B} — sac creature, add X {B}/{R}, X = sac MV, CR 202.3)", () => {
+    it("declares the sacrifice-a-creature additional cost", () => {
+        expect(burntOffering.additionalCosts?.sacrificeFilter).toEqual({
+            types: "Creature",
+        });
+    });
+
+    it("adds mana split black/red per the choice, total = sacrificed MV", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, burntOffering.id, "p1");
+        item.additionalSacrificeSnapshot = { cardInstanceId: "fake", mv: 3 };
+        // Resolution suspends on the black/red split choice.
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        // Pick "2 black, 1 red".
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["split-2"],
+        });
+        expect(state.players[0].manaPool.B).toBe(2);
+        expect(state.players[0].manaPool.R).toBe(1);
+    });
+
+    it("produces the mana in the wire-projected pool (client-visible)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, burntOffering.id, "p1");
+        item.additionalSacrificeSnapshot = { cardInstanceId: "fake", mv: 2 };
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        // Pick "0 black, 2 red" (all red).
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["split-0"],
+        });
+        expect(state.players[0].manaPool.R).toBe(2);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].manaPool.R).toBe(2);
+        expect(projected.players[0].manaPool.B).toBe(0);
+    });
+
+    it("does nothing when the sacrificed creature's MV is 0", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        const item = pushSpell(state, burntOffering.id, "p1");
+        item.additionalSacrificeSnapshot = { cardInstanceId: "fake", mv: 0 };
+        resolveTopOfStack(state);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].manaPool.B).toBe(0);
+        expect(state.players[0].manaPool.R).toBe(0);
     });
 });

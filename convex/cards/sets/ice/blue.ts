@@ -559,7 +559,16 @@ export const enervate: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
+// DEFERRED (#628) — re-verified against the current engine (2026-07). Errant
+// Minion's upkeep trigger lets the enchanted creature's controller "pay any
+// amount of mana", then deals 2 damage to them and prevents X of it, X = the
+// amount paid. `mayPay` is a boolean gate over a FIXED cost and `addMana` is a
+// fixed produced amount — neither expresses a VARIABLE-amount payment whose paid
+// total feeds a later prevention value. There is no "pay any amount of mana"
+// choice primitive that captures the amount. Papering this with a resolve() that
+// caps the pay at {2} (paying more is pointless) would misrepresent "any amount"
+// and hard-code the interaction — a card-shaped gap-paper, disallowed. Blocked
+// on: a variable-amount mana-payment value primitive.
 // export const errantMinion: CardDefinition = {
 //     id: "61648ddb-6efb-43d0-b2b1-418cc957854c",
 //     name: "Errant Minion",
@@ -1780,7 +1789,17 @@ export const snowfall: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
+// DEFERRED (#628) — re-verified against the current engine (2026-07). Soldevi
+// Machinist's "{T}: Add {C}{C}. Spend this mana only to activate abilities of
+// artifacts" needs a mana RESTRICTION that the shipped `ManaRestriction` union
+// does not model: the three members (`creature-spell`, `artifact-spell`,
+// `cumulative-upkeep`) are all evaluated only at the SPELL-CAST site
+// (`restrictionAllowsSpell` / `restrictedUnitAllowsSpell` take `spellTypes`);
+// there is no restriction eligibility hook at the ABILITY-ACTIVATION payment
+// path, and no "artifact-ability" member. Building "spendable only on artifacts'
+// activated abilities" is a new seam (a union member PLUS activation-payment
+// eligibility keyed on the ability source's card type). Stop-and-issue, not an
+// invented restriction. Blocked on: an ability-activation mana restriction.
 // export const soldeviMachinist: CardDefinition = {
 //     id: "1f0999df-2f94-499e-b9af-fe377d515400",
 //     name: "Soldevi Machinist",

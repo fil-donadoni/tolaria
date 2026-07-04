@@ -20,7 +20,7 @@ not the literal event shape:
     "op": "delayedTrigger",
     "timing": "next-end-of-combat",
     "capture": { "$wall": { "ref": "$event.blockerId" } },
-    "effects": [{ "op": "destroy", "target": { "ref": "$wall" } }]
+    "effects": [{ "op": "destroy", "target": { "ref": "$wall" } }],
 }
 ```
 
@@ -55,7 +55,7 @@ resolve }`. It is the single decision point:
   (preserving a scheduling-time snapshot of a gone object's P/T) is not built
   here — it waits for a card that forces it.
 
-**Conditional picks stay out.** Venom ("destroy *the other* creature in the
+**Conditional picks stay out.** Venom ("destroy _the other_ creature in the
 pair") is expressed as **two triggered abilities** — the role discrimination
 lives in the already-imperative `matches` (host-is-blocker vs host-is-attacker),
 each with a clean single-field `$event` capture — rather than an id-equality
@@ -80,12 +80,17 @@ iterates with a new `{ set: "bound", ref: "$partners" }` forEach selector.
     "op": "delayedTrigger",
     "timing": "next-end-of-combat",
     "capture": {
-        "$partners": { "select": { "set": "combatPartners", "of": { "target": 0 } } }
+        "$partners": {
+            "select": { "set": "combatPartners", "of": { "target": 0 } },
+        },
     },
     "effects": [
-        { "op": "forEach", "select": { "set": "bound", "ref": "$partners" },
-          "effects": [{ "op": "destroy", "target": { "ref": "$each" } }] }
-    ]
+        {
+            "op": "forEach",
+            "select": { "set": "bound", "ref": "$partners" },
+            "effects": [{ "op": "destroy", "target": { "ref": "$each" } }],
+        },
+    ],
 }
 ```
 
@@ -96,8 +101,8 @@ Members that leave the battlefield before the trigger fires stay in the frozen
 list; their `destroy` is a no-op (CR 608.2b).
 
 **Why freeze-at-cast, not evaluate-at-fire.** Evaluating the selector at the
-end-of-combat fire is closer to the CR's "this turn" wording *in the
-abstract*, but the engine's combat state is **live-only** — a creature that
+end-of-combat fire is closer to the CR's "this turn" wording _in the
+abstract_, but the engine's combat state is **live-only** — a creature that
 dies is pruned from `blockerAssignments` (phases.ts). So a fire-time
 `combatPartners-of-$target` returns an empty set when the **target itself**
 died in combat, wrongly sparing the blockers that killed it. Freeze-at-cast

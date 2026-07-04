@@ -804,6 +804,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Burnt Offering",
+        "scryfallId": "1dae52a2-3af7-4b97-9d2e-2448b7c413fb",
+        "oracleId": "86eb30a0-0beb-42db-9ddf-cf8be6c99dd3",
+        "firstSet": "ice"
+    },
+    {
         "name": "Burrowing",
         "scryfallId": "a14c05e4-8df3-450b-8a98-5028e73b14c1",
         "oracleId": "d6b9b88b-e31b-4b88-9d53-3df5687804ba",
@@ -1726,6 +1732,12 @@
         "scryfallId": "18348df2-9037-4db4-bddb-76dc933229bf",
         "oracleId": "8ada7388-fd8b-434c-a17a-bce19cf3e615",
         "firstSet": "arn"
+    },
+    {
+        "name": "Elkin Bottle",
+        "scryfallId": "49301c19-55a0-4146-9474-0b86cd320e31",
+        "oracleId": "1e381361-7404-4654-bfb4-5ea65f6e4dce",
+        "firstSet": "ice"
     },
     {
         "name": "Elven Fortress",
