@@ -15,10 +15,15 @@ const MOX_SAPPHIRE_LEA = "82da0972-b17b-4600-9efd-e9430a0db04b";
 const BLACK_LOTUS_LEA = "b0faa7f2-b547-42c4-a810-839da50dadfe";
 const FOREST_LEA = "6f1c8cb0-38eb-408b-94e8-16db83999b3b";
 
+// "mythic" (CR 206 mythic rare, introduced with Shards of Alara in 2008)
+// joined the `Rarity` union alongside common/uncommon/rare but had no active
+// card exercising it until #674's Griselbrand (avr/black.ts) and Sheoldred,
+// the Apocalypse (dmu/black.ts) — both genuinely Scryfall-mythic.
 const VALID_RARITIES: ReadonlySet<Rarity> = new Set([
     "common",
     "uncommon",
     "rare",
+    "mythic",
 ]);
 
 describe("per-card rarity (CR 206, issue #511)", () => {

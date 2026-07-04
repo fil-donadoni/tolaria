@@ -13,6 +13,7 @@
 
 import type { CardType } from "../../types";
 import type {
+    EffectOp,
     GameEvent,
     PermanentEnteredEvent,
     PermanentView,
@@ -66,12 +67,23 @@ export interface EnteredTriggerArgs {
     ) => boolean;
     /** Effect run when the trigger resolves from the stack. Receives the
      *  full event plus a flattened `EnteredPermanentInfo` view so card bodies
-     *  don't have to know the event's field naming. */
-    resolve: (
+     *  don't have to know the event's field naming. Mutually exclusive with
+     *  `effects` — use exactly one. */
+    resolve?: (
         ctx: SpellContext,
         event: PermanentEnteredEvent,
         entered: EnteredPermanentInfo
     ) => void;
+    /** Effect Script (ADR 0045, issue #803) — declarative alternative to
+     *  `resolve`. Unlike `phaseTrigger` / `drawTrigger`, an ETB trigger's
+     *  ability always belongs to the SOURCE permanent (the thing that has
+     *  the "when this enters" ability) — the entering permanent is a
+     *  separate payload, never the acting player — so `ctx.controller`
+     *  inside the script is always the source's controller regardless of
+     *  `scope`. That means `effects` is safe for every scope value (no
+     *  `scope: "your"`-only restriction like `phaseTrigger`/`drawTrigger`).
+     *  Mutually exclusive with `resolve`. */
+    effects?: EffectOp[];
 }
 
 /** Builds a `TriggeredAbility` listening for `PERMANENT_ENTERED` events
@@ -116,15 +128,19 @@ export function enteredTrigger(args: EnteredTriggerArgs): TriggeredAbility {
             }
             return true;
         },
-        resolve: (ctx: SpellContext, event: GameEvent) => {
-            if (event.type !== "PERMANENT_ENTERED") return;
-            const entered: EnteredPermanentInfo = {
-                id: event.instanceId,
-                controllerId: event.controllerId,
-                types: event.types,
-            };
-            args.resolve(ctx, event, entered);
-        },
+        ...(args.effects
+            ? { effects: args.effects }
+            : {
+                  resolve: (ctx: SpellContext, event: GameEvent) => {
+                      if (event.type !== "PERMANENT_ENTERED") return;
+                      const entered: EnteredPermanentInfo = {
+                          id: event.instanceId,
+                          controllerId: event.controllerId,
+                          types: event.types,
+                      };
+                      args.resolve!(ctx, event, entered);
+                  },
+              }),
     };
     if (args.interveningIf !== undefined) {
         const userInterveningIf = args.interveningIf;
