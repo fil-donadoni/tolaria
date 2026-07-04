@@ -293,19 +293,28 @@ describe("migration classifier — census buckets (PRD #826)", () => {
     // classifier's static heuristic buckets it FREE/need-test (it can't see
     // the scope-mismatch reason) — 602→603 total, 378→379 FREE, need-test
     // 31→32; AFK-ready/X-only/Op-blocked unchanged.
+    // #888 (PR review fixup): Sheoldred's "opponents"-scope drawTrigger
+    // resolve() closure now has a dedicated GRE test
+    // (dmu/__tests__/black.test.ts, CR 121.1) covering both draw-scope
+    // clauses and no-cross-fire. The classifier's hasTest heuristic now sees
+    // it, flipping it from need-test → AFK-ready — 380 FREE unchanged,
+    // need-test 32→31, AFK-ready 348→349 (relative to the post-rebase
+    // combined baseline below, which already folds in #886/#734/#674).
     it("reports the committed baseline bucket totals", () => {
-        // Combined post-#886 + #734 + #674 truth. #886 landed ICE utility
-        // cards; #734 added Sacred Boon (a card-level resolve() seam + its
-        // next-end-step delayed-trigger resolve, both Op-blocked — the
+        // Combined post-#886 + #734 + #674 + #888 truth. #886 landed ICE
+        // utility cards; #734 added Sacred Boon (a card-level resolve() seam
+        // + its next-end-step delayed-trigger resolve, both Op-blocked — the
         // +0/+1-per-1-damage-prevented follow-up reads back a prevented amount
         // that no Op surfaces); #674 added Sheoldred, the Apocalypse's
         // opponents-scoped drawTrigger resolve() closure (see the #674 note
-        // above — need-test, not AFK-ready). Pins below are the classifier's
-        // actual reported values with all three waves landed (computed via
-        // `bun scripts/migration-classifier.mjs` post-rebase, not hand-picked).
+        // above); #888's fixup gave it a dedicated GRE test, flipping it
+        // need-test → AFK-ready (see the #888 note above). Pins below are the
+        // classifier's actual reported values with all waves landed (computed
+        // via `bun scripts/migration-classifier.mjs` post-rebase, not
+        // hand-picked).
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(607);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(380);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(348);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(349);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(213);
     });
