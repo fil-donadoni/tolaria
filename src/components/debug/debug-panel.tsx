@@ -162,6 +162,26 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 4,
     },
     {
+        // Filtered counter abilities (issue #736): Mistfolk ("{U}: Counter
+        // target spell that targets this creature"), Brown Ouphe ("{1}{G},{T}:
+        // Counter target activated ability from an artifact source"), and
+        // Arenson's Aura ("{W}, Sac an enchantment: Destroy target enchantment"
+        // / "{3}{U}{U}: Counter target enchantment spell"). The opponent's Icy
+        // Manipulator gives Brown Ouphe an artifact activated ability to target
+        // ({1},{T}: tap); the opponent's Energy Storm is an enchantment for
+        // Arenson's Aura to destroy. 5 lands cover the coloured costs.
+        label: "ICE filtered counters (Mistfolk / Brown Ouphe / Arenson's Aura) (#736)",
+        cards: [
+            { name: "Mistfolk", owner: "me", zone: "battlefield" },
+            { name: "Brown Ouphe", owner: "me", zone: "battlefield" },
+            { name: "Arenson's Aura", owner: "me", zone: "battlefield" },
+            { name: "Icy Manipulator", owner: "opp", zone: "battlefield" },
+            { name: "Energy Storm", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 5,
+    },
+    {
         // Effect Script tracer bullet (ADR 0045, issue #800): Lava Spike is
         // the first DSL-only card — cast it at a player to exercise the
         // effects[] interpreter end-to-end. Two copies in hand + one for the

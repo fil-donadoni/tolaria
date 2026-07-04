@@ -56,6 +56,8 @@ import {
     forgottenLore,
     freyaliseSupplicant,
     ritualOfSubdual,
+    brownOuphe,
+    aegisOfTheMeek,
 } from "../../ice";
 import { applyLandManaReplacement } from "../../../../gre/constants";
 import { mountain } from "../../lea";
@@ -2119,6 +2121,83 @@ describe("Ritual of Subdual (lands → colourless, CR 614/702.24)", () => {
         applyMayPaySubmit(state, { playerId: "p1", accept: false });
         expect(
             state.players[0].battlefield.some((c) => c.id === "ritual")
+        ).toBe(false);
+    });
+});
+
+describe("Brown Ouphe — filtered ability counter (CR 701.5a / 113.7a)", () => {
+    const req = brownOuphe.activatedAbilities![0].targetRequirement!;
+
+    /** Build an activated-ability stack item from a source card def id. */
+    function abilityOnStack(
+        cardId: string,
+        instId: string,
+        abilityId = "src-ability"
+    ): StackItem {
+        return {
+            ...makeInstance(cardId, {
+                id: instId,
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "stack",
+            }),
+            castById: "p2",
+            abilityId,
+            targets: [],
+        };
+    }
+
+    it("has the {1}{G}, {T} cost and the activated-ability/artifact filter", () => {
+        expect(brownOuphe.manaCost).toEqual({ G: 1 });
+        const ab = brownOuphe.activatedAbilities![0];
+        expect(ab.cost).toEqual({ mana: { X: 1, G: 1 }, tap: true });
+        expect(req.type).toBe("spell");
+        expect(req.spellStackKind).toBe("activated-ability");
+        expect(req.stackSourceTypeFilter).toBe("Artifact");
+    });
+
+    it("targets an activated ability whose source is an artifact", () => {
+        const state = makeState();
+        state.stack.push(abilityOnStack(aegisOfTheMeek.id, "aegis-ability"));
+        const legal = getLegalTargets(state, req, [], "p1");
+        expect(legal).toEqual([{ type: "spell", id: "aegis-ability" }]);
+    });
+
+    it("does NOT target an activated ability from a non-artifact source", () => {
+        const state = makeState();
+        // A creature's activated ability on the stack — wrong source type.
+        state.stack.push(abilityOnStack(balduvianBears.id, "bear-ability"));
+        expect(getLegalTargets(state, req, [], "p1")).toEqual([]);
+    });
+
+    it("does NOT target an artifact SPELL (only activated abilities)", () => {
+        const state = makeState();
+        // An artifact on the stack as a spell (no abilityId) — not an ability.
+        pushSpell(state, aegisOfTheMeek.id, "p2");
+        expect(getLegalTargets(state, req, [], "p1")).toEqual([]);
+    });
+
+    it("counters the targeted artifact ability — it vanishes, not to graveyard (CR 113.7a)", () => {
+        const state = makeState();
+        const artifactAbility = abilityOnStack(
+            aegisOfTheMeek.id,
+            "aegis-ability"
+        );
+        state.stack.push(artifactAbility);
+        // Brown Ouphe's counter ability resolves against that stack item.
+        const ouphe = makeInstance(brownOuphe.id, {
+            id: "ouphe",
+            controllerId: "p1",
+        });
+        resolveActivated(state, ouphe, "brown-ouphe-counter", [
+            { type: "spell", id: "aegis-ability" },
+        ]);
+        // The countered ability left the stack and did NOT go to a graveyard.
+        expect(state.stack.some((s) => s.id === "aegis-ability")).toBe(false);
+        expect(
+            state.players.some((p) =>
+                p.graveyard.some((c) => c.id === "aegis-ability")
+            )
         ).toBe(false);
     });
 });

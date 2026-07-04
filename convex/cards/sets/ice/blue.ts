@@ -1246,18 +1246,41 @@ export const mesmericTrance: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const mistfolk: CardDefinition = {
-//     id: "4f3f4d4e-ca4a-4fba-b9fd-cd1d9457cfa1",
-//     name: "Mistfolk",
-//     rarity: "common",
-//     oracleText: "{U}: Counter target spell that targets this creature.",
-//     manaCost: { U: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Illusion"],
-//     power: 1,
-//     toughness: 2,
-// };
+// Mistfolk — {U}{U} 1/2 Illusion with "{U}: Counter target spell that targets
+// this creature." (CR 701.5a counter, CR 114.1 spell targeting.) The filtered
+// counter reuses the shipped `counter` Op; the "targets this creature" clause
+// is a stack-SPELL filter (`spellTargetsInstanceIds`) injected at activation
+// time via a dynamic `getTargetRequirement` carrying the source's own instance
+// id — the Sorceress Queen `excludeInstanceIds` injection pattern.
+export const mistfolk: CardDefinition = {
+    id: "4f3f4d4e-ca4a-4fba-b9fd-cd1d9457cfa1",
+    name: "Mistfolk",
+    rarity: "common",
+    oracleText: "{U}: Counter target spell that targets this creature.",
+    manaCost: { U: 2 },
+    types: ["Creature"],
+    subtypes: ["Illusion"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "mistfolk-counter",
+            oracleText: "{U}: Counter target spell that targets this creature.",
+            cost: { mana: { U: 1 } },
+            useStack: true,
+            // Static fallback (no legal target without the source id); the
+            // dynamic form injects the source's own id so only spells that
+            // target Mistfolk qualify (CR 114.1).
+            targetRequirement: { type: "spell", count: 1 },
+            getTargetRequirement: (source) => ({
+                type: "spell",
+                count: 1,
+                spellTargetsInstanceIds: [source.id],
+            }),
+            effects: [{ op: "counter", target: { target: 0 } }],
+        },
+    ],
+};
 // Musician — {2}{U} 1/3 with cumulative upkeep {1} (CR 702.24, ADR 0042) and an
 // activated ability that loads a target creature with a "music" counter and, if
 // it lacks the music-upkeep ability, GRANTS it: "At the beginning of your

@@ -165,18 +165,43 @@ export const blizzard: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
-// export const brownOuphe: CardDefinition = {
-//     id: "e26ce35b-ba65-451d-a5ed-e1db6f1d0c6f",
-//     name: "Brown Ouphe",
-//     rarity: "common",
-//     oracleText: "{1}{G}, {T}: Counter target activated ability from an artifact source. (Mana abilities can't be targeted.)",
-//     manaCost: { G: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Ouphe"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Brown Ouphe — {G} 1/1 Ouphe with "{1}{G}, {T}: Counter target activated
+// ability from an artifact source." (CR 701.5a counter of an ability, CR 113.7a
+// source, CR 605.3a mana abilities never use the stack.) Reuses the shipped
+// `counter` Op — `ctx.counter` already vanishes an activated ability on the
+// stack (CR 113.7a). The filter is a stack-object target restriction:
+// `spellStackKind: "activated-ability"` keeps only activated abilities, and
+// `stackSourceTypeFilter: "Artifact"` keeps only those whose source is an
+// artifact. Mana abilities are never targetable because they never reach the
+// stack, so the "(Mana abilities can't be targeted.)" clause holds for free.
+export const brownOuphe: CardDefinition = {
+    id: "e26ce35b-ba65-451d-a5ed-e1db6f1d0c6f",
+    name: "Brown Ouphe",
+    rarity: "common",
+    oracleText:
+        "{1}{G}, {T}: Counter target activated ability from an artifact source. (Mana abilities can't be targeted.)",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: ["Ouphe"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "brown-ouphe-counter",
+            oracleText:
+                "{1}{G}, {T}: Counter target activated ability from an artifact source. (Mana abilities can't be targeted.)",
+            cost: { mana: { X: 1, G: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "spell",
+                count: 1,
+                spellStackKind: "activated-ability",
+                stackSourceTypeFilter: "Artifact",
+            },
+            effects: [{ op: "counter", target: { target: 0 } }],
+        },
+    ],
+};
 // Chub Toad — {2}{G} 1/1. "Whenever this creature blocks or becomes blocked, it
 // gets +2/+2 until end of turn." (CR 509.1h blocks / becomes-blocked trigger;
 // CR 514.2 cleanup expiry.) Fires on BLOCKERS_CONFIRMED whenever self is the

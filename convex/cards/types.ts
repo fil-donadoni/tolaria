@@ -292,6 +292,29 @@ export interface TargetRequirement {
      *  a land you control." Evaluated by `spellWouldDestroyLandControlledBy` in
      *  `gre/rules.ts`. Ignored for non-spell target types. */
     spellWouldDestroyLandYouControl?: boolean;
+    /** Restricts a stack-object target (`type: "spell"`) by object KIND
+     *  (CR 113 / 114.1). Omitted = any stack object (the historical behavior —
+     *  spells and abilities alike). `"spell"` keeps only actual spells;
+     *  `"activated-ability"` keeps only activated abilities on the stack
+     *  (CR 602 / 113.3 — the stack item carries an `abilityId`). Used by Brown
+     *  Ouphe ("Counter target activated ability from an artifact source").
+     *  Mana abilities never use the stack (CR 605.3a), so they are never a
+     *  legal target regardless. Ignored for non-spell target types. */
+    spellStackKind?: "spell" | "activated-ability";
+    /** Restricts a stack-object target (`type: "spell"`) to objects whose
+     *  SOURCE card types include at least one of these (CR 113.7a). An
+     *  activated ability on the stack carries the source permanent's card
+     *  characteristics, so this reads the stack item's live `types`. Used by
+     *  Brown Ouphe ("...from an artifact source"). Single string is shorthand
+     *  for one type. Ignored for non-spell target types. */
+    stackSourceTypeFilter?: CardType | CardType[];
+    /** Restricts a stack SPELL target (`type: "spell"`) to spells that target
+     *  at least one of these permanent instance ids (CR 114.1). Injected at
+     *  activation time via a dynamic `getTargetRequirement` with the source's
+     *  own id. Used by Mistfolk ("Counter target spell that targets this
+     *  creature"). Abilities on the stack never qualify. Ignored for non-spell
+     *  target types. */
+    spellTargetsInstanceIds?: ReadonlyArray<string>;
 }
 
 /** "For as long as" condition on a conditional control change (CR 611.2b).

@@ -870,7 +870,47 @@ export function getLegalTargets(
                 ? requirement.spellTypeFilter
                 : [requirement.spellTypeFilter]
             : undefined;
+        const stackKind = requirement.spellStackKind;
+        const stackSourceTypes = requirement.stackSourceTypeFilter
+            ? Array.isArray(requirement.stackSourceTypeFilter)
+                ? requirement.stackSourceTypeFilter
+                : [requirement.stackSourceTypeFilter]
+            : undefined;
+        const spellTargetsIds = requirement.spellTargetsInstanceIds;
         for (const item of state.stack) {
+            const isAbilityItem =
+                !!item.abilityId ||
+                !!item.triggeredAbilityId ||
+                !!item.delayedTriggerId;
+            // CR 113 / 114.1 — restrict by stack-object kind. "spell" drops
+            // abilities; "activated-ability" keeps only activated abilities
+            // (Brown Ouphe — mana abilities never reach the stack, CR 605.3a).
+            if (stackKind === "spell" && isAbilityItem) continue;
+            if (stackKind === "activated-ability" && !item.abilityId) continue;
+            // CR 113.7a — restrict by the object's source card types (Brown
+            // Ouphe: "from an artifact source"). The ability stack item carries
+            // the source permanent's live `types`.
+            if (
+                stackSourceTypes &&
+                !stackSourceTypes.some((t) => item.types.includes(t))
+            ) {
+                continue;
+            }
+            // CR 114.1 — Mistfolk: the spell must target one of the given
+            // permanent instance ids (its own source). Abilities never qualify.
+            if (spellTargetsIds) {
+                if (isAbilityItem) continue;
+                const tgts = item.targets ?? [];
+                if (
+                    !tgts.some(
+                        (t) =>
+                            t.type === "permanent" &&
+                            spellTargetsIds.includes(t.id)
+                    )
+                ) {
+                    continue;
+                }
+            }
             if (colorFilter && !hasColor(item, colorFilter)) continue;
             if (mvFilter && !matchesMvFilter(mvFilter, mvOfStackItem(item))) {
                 continue;

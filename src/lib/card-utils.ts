@@ -362,6 +362,54 @@ export function matchesSpellWouldDestroyLand(
     return false;
 }
 
+/** True if a stack item is a legal target under the stack-object filters
+ *  introduced for filtered counter abilities (CR 113 / 114.1):
+ *   - `spellStackKind`: `"spell"` drops abilities; `"activated-ability"` keeps
+ *     only activated abilities (Brown Ouphe — mana abilities never reach the
+ *     stack, CR 605.3a);
+ *   - `stackSourceTypeFilter`: the object's source card `types` must include at
+ *     least one listed type (Brown Ouphe: "from an artifact source");
+ *   - `spellTargetsInstanceIds`: the spell must target one of these permanent
+ *     instance ids (Mistfolk: "spell that targets this creature").
+ *  With every filter absent, any stack item qualifies. */
+export function matchesStackObjectFilter(
+    item: {
+        types?: string[];
+        abilityId?: string;
+        triggeredAbilityId?: string;
+        delayedTriggerId?: string;
+        targets?: { type: string; id: string }[];
+    },
+    spellStackKind: "spell" | "activated-ability" | undefined,
+    stackSourceTypeFilter: string[] | undefined,
+    spellTargetsInstanceIds: string[] | undefined
+): boolean {
+    const isAbility =
+        !!item.abilityId ||
+        !!item.triggeredAbilityId ||
+        !!item.delayedTriggerId;
+    if (spellStackKind === "spell" && isAbility) return false;
+    if (spellStackKind === "activated-ability" && !item.abilityId) return false;
+    if (stackSourceTypeFilter && stackSourceTypeFilter.length > 0) {
+        const types = item.types ?? [];
+        if (!stackSourceTypeFilter.some((t) => types.includes(t))) return false;
+    }
+    if (spellTargetsInstanceIds && spellTargetsInstanceIds.length > 0) {
+        if (isAbility) return false;
+        const targets = item.targets ?? [];
+        if (
+            !targets.some(
+                (t) =>
+                    t.type === "permanent" &&
+                    spellTargetsInstanceIds.includes(t.id)
+            )
+        ) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /** Builds a `TriggerStateView` (the shape `canActivate` predicates read,
  *  CR 602.5b) from the viewer-visible players and turn state. Predicates
  *  legitimately inspect `state.players` (a controller's hand size — Library of
