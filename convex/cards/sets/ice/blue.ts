@@ -13,7 +13,7 @@ import type {
     SpellContext,
     TriggeredAbility,
 } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
+import { AURA_AFFECTS_HOST, BASIC_LAND_SUBTYPES } from "../../types";
 import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
@@ -922,32 +922,83 @@ export const illusionaryPresence: CardDefinition = {
         }),
     ],
 };
-// DEFERRED (issue #727) — needs a genuinely-absent engine seam, so it stays a
-// tracked stub rather than being papered over.
-//   "As this enchantment enters, choose two basic land types. Basic lands of
-//    the first chosen type are the second chosen type."
-// This is a continuous layer-4 subtype-changing static (like Blood Moon) whose
-// OUTPUT subtype is DYNAMIC — the second chosen type, picked on entry — and
-// whose applicability is gated by the FIRST chosen type. The shipped
-// `subtype-set` static (`StaticSubtypeSet`) carries a FIXED `subtypes: string[]`
-// (Blood Moon → always Mountain); there is no way to drive the set value from a
-// pair of on-entry choices. Two missing pieces:
-//   1. On-entry storage of an ORDERED PAIR of basic land types on the instance
-//      (the `chosenModeId` field holds a single string; there is no chosen-
-//      subtype-pair slot readable by a static).
-//   2. A subtype-set variant whose `subtypes` is computed from the source's
-//      stored choice (a `subtypesFor(source, ctx)` form, or the ability for
-//      `applies` to project the target's subtype through the stored map).
-// The cumulative upkeep {2} half is fully expressible (ADR 0042 template); the
-// swap is not. Flagged for a "chosen-subtype-pair driven layer-4 swap" seam.
-// export const illusionaryTerrain: CardDefinition = {
-//     id: "691f4a1b-4706-41aa-82da-ae920739f036",
-//     name: "Illusionary Terrain",
-//     rarity: "uncommon",
-//     oracleText: "Cumulative upkeep {2} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nAs this enchantment enters, choose two basic land types.\nBasic lands of the first chosen type are the second chosen type.",
-//     manaCost: { U: 2 },
-//     types: ["Enchantment"],
-// };
+// Illusionary Terrain — {U}{U} Enchantment. Cumulative upkeep {2} (ADR 0042
+// template) plus a continuous layer-4 subtype swap driven by an ordered pair of
+// basic land types chosen as it enters (CR 305.7, 603.6b, 611, 613; ADR 0050).
+// The ETB "choose two basic land types" is stored on the instance via
+// `setChosenSubtypes`; the `subtype-set` static's `subtypesFor` callback reads
+// that pair and rewrites every basic land of the FIRST type to the SECOND type.
+// Because intrinsic basic-land mana is derived from subtype at read time
+// (CR 305.6), the mana each swapped land produces follows for free.
+export const illusionaryTerrain: CardDefinition = {
+    id: "691f4a1b-4706-41aa-82da-ae920739f036",
+    name: "Illusionary Terrain",
+    rarity: "uncommon",
+    oracleText:
+        "Cumulative upkeep {2} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)\nAs this enchantment enters, choose two basic land types.\nBasic lands of the first chosen type are the second chosen type.",
+    manaCost: { U: 2 },
+    types: ["Enchantment"],
+    // CR 305.7 / 611 / 613 (layer 4, ADR 0050) — computed-output subtype swap.
+    // `subtypesFor` reads the on-entry chosen pair off this source instance and
+    // rewrites basic lands of the first type into the second. Returns null to
+    // leave a target untouched (before the pair is chosen, and for every land
+    // that isn't a basic of the first type). `target.subtypes` is the effective
+    // (post-earlier-timestamp) value, so multiple swaps compose by CR 613 order.
+    staticEffects: [
+        {
+            kind: "subtype-set",
+            subtypesFor: (target, source, ctx) => {
+                const pair = source.chosenSubtypes;
+                if (!pair || pair.length < 2) return null;
+                const [first, second] = pair;
+                if (!target.types.includes("Land")) return null;
+                if (!ctx.hasSupertype(target, "Basic")) return null;
+                if (!target.subtypes.includes(first)) return null;
+                return [second];
+            },
+        },
+    ],
+    triggeredAbilities: [
+        cumulativeUpkeepTrigger({
+            id: "illusionary-terrain-cumulative-upkeep",
+            cost: { generic: 2 },
+            costLabel: "{2}",
+        }),
+        // protocol: on-entry ordered-pair choice storage (CR 603.6b), the same
+        // class as Cursed Rack's `setChosenPlayer`. No Effect Script Op persists
+        // an instance-scoped choice, so this stays a `resolve()` — two sequential
+        // `requestOptionChoice` picks over the basic types, then stored via
+        // `setChosenSubtypes` for the static to read. (This is the sanctioned
+        // choice-storage protocol, NOT a "missing Op" escape hatch.)
+        enteredTrigger({
+            id: "illusionary-terrain-choose-types",
+            oracleText:
+                "As this enchantment enters, choose two basic land types.",
+            scope: "self",
+            resolve: (ctx) => {
+                const options = BASIC_LAND_SUBTYPES.map((s) => ({
+                    id: s,
+                    label: s,
+                }));
+                const first = ctx.requestOptionChoice({
+                    playerId: ctx.controller,
+                    choiceId: "illusionary-terrain-first-type",
+                    options,
+                    prompt: "Choose the first basic land type.",
+                });
+                if (first === undefined) return;
+                const second = ctx.requestOptionChoice({
+                    playerId: ctx.controller,
+                    choiceId: "illusionary-terrain-second-type",
+                    options,
+                    prompt: "Choose the second basic land type.",
+                });
+                if (second === undefined) return;
+                ctx.setChosenSubtypes([first, second]);
+            },
+        }),
+    ],
+};
 // Illusionary Wall — {4}{U} 7/4 with defender, flying, first strike and
 // cumulative upkeep {U} (CR 702.24, ADR 0042). All keywords are plain statics.
 export const illusionaryWall: CardDefinition = {

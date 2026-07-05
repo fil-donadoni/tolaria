@@ -966,6 +966,13 @@ export interface SpellContext {
      *  `setChosenPlayer`). Undefined if no choice was stored or the source has
      *  left the battlefield. */
     getChosenPlayer: () => string | undefined;
+    /** Records an ordered pair of basic land types chosen as the source
+     *  permanent enters, stored on the instance for the rest of the game
+     *  (CR 603.6b / 614.12 — Illusionary Terrain "as this enchantment enters,
+     *  choose two basic land types"). `[first, second]`. Read back by a
+     *  `subtype-set` static's `subtypesFor` callback (ADR 0050). The source is
+     *  the resolving permanent; no-op if it has left the battlefield. */
+    setChosenSubtypes: (pair: string[]) => void;
     /** Reads the mode chosen as the source permanent entered (CR 700.2c modal
      *  pick stored on the instance as `chosenModeId`). Undefined if no mode was
      *  chosen or the source has left the battlefield. Used by Psychic Allergy's
@@ -2739,6 +2746,12 @@ export interface PermanentView {
      *  trigger system passes the raw `CardInstanceState` as `self`, so this is
      *  populated for trigger predicates. */
     chosenPlayerId?: string;
+    /** Ordered pair of basic land types chosen as this permanent entered
+     *  (CR 603.6b), stored for the rest of the game. Read by a `subtype-set`
+     *  static's `subtypesFor` callback to drive a computed layer-4 subtype swap
+     *  (Illusionary Terrain, ADR 0050). The static apply loop passes the raw
+     *  `CardInstanceState` as `source`, so this is populated. */
+    chosenSubtypes?: string[];
     /** True while this creature is a declared attacker (CR 508.1). Set at
      *  DECLARE_ATTACKERS, cleared at END_OF_COMBAT. Static effect predicates
      *  like Orcish Oriflamme read this to buff attacking creatures. */
@@ -3443,12 +3456,26 @@ export interface StaticHandSizeOverride {
  *  previous source or to printed subtypes when none remain. */
 export interface StaticSubtypeSet {
     kind: "subtype-set";
-    applies: (
+    /** Fixed-output form (Blood Moon): the static replaces every matching
+     *  target's subtypes with `subtypes`. Provide `applies` + `subtypes`
+     *  together. Mutually exclusive with `subtypesFor`. */
+    applies?: (
         target: PermanentView,
         source: PermanentView,
         ctx: StaticEffectContext
     ) => boolean;
-    subtypes: string[];
+    subtypes?: string[];
+    /** Computed-output form (Illusionary Terrain, ADR 0050): subsumes both
+     *  `applies` and `subtypes`. Returns the replacement subtypes for `target`,
+     *  or `null` to leave the target untouched. Reads per-source stored state
+     *  (e.g. `source.chosenSubtypes`) so the layer-4 swap is driven by an
+     *  on-entry choice rather than a literal. Mutually exclusive with the
+     *  fixed form. */
+    subtypesFor?: (
+        target: PermanentView,
+        source: PermanentView,
+        ctx: StaticEffectContext
+    ) => string[] | null;
 }
 
 /** Layer 4 subtype ADDITION (CR 305.7, 611 — "each land is a Swamp IN ADDITION
@@ -3802,6 +3829,20 @@ export const AURA_AFFECTS_HOST: StaticKeywordGrant["applies"] = (
     target,
     source
 ) => target.id === source.attachedTo;
+
+/** The five basic land types (CR 305.6), in WUBRG order. Canonical home for a
+ *  constant several cards had duplicated locally (subtype-matters filters and
+ *  choose-a-basic-type modes — Magical Hack, Illusionary Terrain, Reclamation,
+ *  Erode/Path). Lives here in the card type module (not `gre/constants.ts`,
+ *  which imports the card registry and would form a load-order cycle for early
+ *  set files). Import from `../../types` rather than re-declaring. */
+export const BASIC_LAND_SUBTYPES: readonly string[] = [
+    "Plains",
+    "Island",
+    "Swamp",
+    "Mountain",
+    "Forest",
+];
 
 /** Canonical "this static effect applies to its source" predicate, used by
  *  self-buffing CDA effects (e.g. Nightmare's flying-Swamp scaling — only the

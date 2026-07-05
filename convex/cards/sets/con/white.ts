@@ -3,6 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import type { CardDefinition, SpellContext } from "../../types";
+import { BASIC_LAND_SUBTYPES } from "../../types";
 
 // Path to Exile — "Exile target creature. Its controller may search their
 // library for a basic land card, put that card onto the battlefield tapped,
@@ -10,7 +11,6 @@ import type { CardDefinition, SpellContext } from "../../types";
 // search-to-battlefield gap as Erode (sos/white.ts) — `moveZone` only reaches
 // `battlefield` from a graveyard card, not a library search choice. Stays
 // `resolve()` (Nature's Lore precedent, ice/green.ts).
-const BASIC_LAND_SUBTYPES = ["Plains", "Island", "Swamp", "Mountain", "Forest"];
 
 export const pathToExile: CardDefinition = {
     id: "29b7a8b1-b98e-483a-87a4-73bd831c03d4",

@@ -51,6 +51,7 @@ import {
     rayOfErasure,
     updraft,
     illusionaryPresence,
+    illusionaryTerrain,
     musician,
     mysticMight,
     mysticRemora,
@@ -109,8 +110,11 @@ import {
     enterUpkeepAndFire,
     makeLand,
 } from "./helpers";
-import { applyLandManaReplacement } from "../../../../gre/constants";
-import { mountain, island } from "../../lea";
+import {
+    applyLandManaReplacement,
+    getBasicLandMana,
+} from "../../../../gre/constants";
+import { mountain, island, forest } from "../../lea";
 
 // ===========================================================================
 // Blue free tranche (#631)
@@ -1630,6 +1634,177 @@ describe("Illusionary Presence (CR 603.6a upkeep + 702.13 chosen-type landwalk)"
             (c) => c.id === "ip"
         )!;
         expect(slim.staticAbilities).toContain("islandwalk");
+    });
+});
+
+// --- Illusionary Terrain — computed subtype swap driven by an on-entry pair --
+// CR 305.6/305.7 (basic land subtypes + type-changing) + CR 611/613 (layer 4)
+// + CR 603.6b (on-entry choice). ADR 0050 (computed static output). ADR 0042
+// (cumulative upkeep {2}).
+
+/** Illusionary Terrain in play whose on-entry pair is pre-set to `[first,
+ *  second]`, plus one basic land, with the enchantment's statics applied. */
+function withTerrain(
+    landCardId: string,
+    pair: [string, string]
+): {
+    state: GameState;
+    terrain: CardInstanceState;
+    land: CardInstanceState;
+} {
+    const state = makeState();
+    const terrain = makeInstance(illusionaryTerrain.id, {
+        id: "terr-1",
+        controllerId: "p1",
+        zone: "battlefield",
+    });
+    terrain.chosenSubtypes = pair;
+    const land = makeInstance(landCardId, {
+        id: "land-1",
+        controllerId: "p2",
+        zone: "battlefield",
+    });
+    state.players[0].battlefield.push(terrain);
+    state.players[1].battlefield.push(land);
+    applySourceStaticEffects(state, terrain);
+    return { state, terrain, land };
+}
+
+describe("Illusionary Terrain ({U}{U} — CR 305.7 computed subtype swap, ADR 0050)", () => {
+    it("declares cumulative upkeep {2}, an ETB choose-types trigger, and a subtype-set static", () => {
+        expect(illusionaryTerrain.manaCost).toEqual({ U: 2 });
+        expect(illusionaryTerrain.types).toEqual(["Enchantment"]);
+        const kinds = (illusionaryTerrain.staticEffects ?? []).map(
+            (e) => e.kind
+        );
+        expect(kinds).toEqual(["subtype-set"]);
+        const cu = illusionaryTerrain.triggeredAbilities?.find((t) =>
+            t.id.includes("cumulative-upkeep")
+        );
+        const choose = illusionaryTerrain.triggeredAbilities?.find(
+            (t) => t.id === "illusionary-terrain-choose-types"
+        );
+        expect(cu).toBeTruthy();
+        expect(choose).toBeTruthy();
+    });
+
+    it("stores the ordered pair on entry via two sequential option picks (CR 603.6b)", () => {
+        const terrain = makeInstance(illusionaryTerrain.id, {
+            id: "terr-1",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [terrain] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.activePlayerId = "p1";
+        resolveTrigger(state, terrain, "illusionary-terrain-choose-types", {
+            type: "PERMANENT_ENTERED",
+            instanceId: "terr-1",
+            controllerId: "p1",
+            types: ["Enchantment"],
+        } as unknown as StackItem["triggerEvent"]);
+        submitChoice(state, ["Forest"]);
+        submitChoice(state, ["Island"]);
+        const after = state.players[0].battlefield.find(
+            (c) => c.id === "terr-1"
+        )!;
+        expect(after.chosenSubtypes).toEqual(["Forest", "Island"]);
+    });
+
+    it("rewrites a basic Forest into an Island — subtype + intrinsic mana (CR 305.6/305.7)", () => {
+        const { land } = withTerrain(forest.id, ["Forest", "Island"]);
+        expect(land.subtypes).toEqual(["Island"]);
+        expect(getBasicLandMana(land)).toBe("U");
+    });
+
+    it("leaves a basic of a different type untouched (Mountain stays Mountain)", () => {
+        const { land } = withTerrain(mountain.id, ["Forest", "Island"]);
+        expect(land.subtypes).toEqual(["Mountain"]);
+        expect(getBasicLandMana(land)).toBe("R");
+    });
+
+    it("does NOT touch a nonbasic land of the first type (dual land untouched)", () => {
+        // Tropical Island is a nonbasic Forest/Island dual — it carries the
+        // first chosen type (Forest) but isn't Basic, so the swap skips it.
+        const { land } = withTerrain(getCardByName("Tropical Island").id, [
+            "Forest",
+            "Island",
+        ]);
+        expect(land.subtypes).toEqual(["Forest", "Island"]);
+    });
+
+    it("equal chosen types are a no-op (Forest → Forest keeps its type and {G})", () => {
+        const { land } = withTerrain(forest.id, ["Forest", "Forest"]);
+        expect(land.subtypes).toEqual(["Forest"]);
+        expect(getBasicLandMana(land)).toBe("G");
+    });
+
+    it("swaps a basic Forest that ENTERS after the terrain resolves (applyExistingGrantsTo)", () => {
+        const { state } = withTerrain(mountain.id, ["Forest", "Island"]);
+        const late = makeInstance(forest.id, {
+            id: "land-2",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(late);
+        applyExistingGrantsTo(state, late);
+        expect(late.subtypes).toEqual(["Island"]);
+        expect(getBasicLandMana(late)).toBe("U");
+    });
+
+    it("reverts the land cleanly when the terrain leaves play (unapplySourceStaticEffects)", () => {
+        const { state, terrain, land } = withTerrain(forest.id, [
+            "Forest",
+            "Island",
+        ]);
+        unapplySourceStaticEffects(state, terrain);
+        expect(land.subtypes).toEqual(["Forest"]);
+        expect(getBasicLandMana(land)).toBe("G");
+    });
+
+    it("composes two terrains by timestamp: Forest→Island then Island→Swamp (CR 613)", () => {
+        const state = makeState();
+        const t1 = makeInstance(illusionaryTerrain.id, {
+            id: "terr-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        t1.chosenSubtypes = ["Forest", "Island"];
+        const t2 = makeInstance(illusionaryTerrain.id, {
+            id: "terr-2",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        t2.chosenSubtypes = ["Island", "Swamp"];
+        const land = makeInstance(forest.id, {
+            id: "land-1",
+            controllerId: "p2",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(t1, t2);
+        state.players[1].battlefield.push(land);
+        // Apply in timestamp order: Forest→Island first, then Island→Swamp.
+        applySourceStaticEffects(state, t1);
+        applySourceStaticEffects(state, t2);
+        expect(land.subtypes).toEqual(["Swamp"]);
+        expect(getBasicLandMana(land)).toBe("B");
+    });
+
+    // Wire format (MANDATORY for staticEffects): the swapped subtype and the
+    // producible mana must survive projection to the client.
+    it("wire format: swapped Island subtype + producible {U} survive projectPublicState", () => {
+        const { state } = withTerrain(forest.id, ["Forest", "Island"]);
+        const projected = projectPublicState(state, 1, "p2");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "land-1"
+        )!;
+        expect(slim.subtypes).toEqual(["Island"]);
+        expect(getBasicLandMana(slim as unknown as CardInstanceState)).toBe(
+            "U"
+        );
     });
 });
 

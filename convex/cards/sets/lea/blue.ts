@@ -15,7 +15,11 @@ import type {
     SpellContext,
     SpellMode,
 } from "../../types";
-import { AURA_AFFECTS_HOST, TARGET_ACL_PERMANENT } from "../../types";
+import {
+    AURA_AFFECTS_HOST,
+    BASIC_LAND_SUBTYPES,
+    TARGET_ACL_PERMANENT,
+} from "../../types";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
@@ -494,13 +498,6 @@ export const lordOfAtlantis: CardDefinition = {
 // (CR 612.6/612.7). For Alpha targets at most one basic land type is present,
 // so the from-type is unambiguous; a target referencing several is a documented
 // gap (ADR 0011) — the first that differs from the chosen type is used.
-const BASIC_LAND_TYPES = [
-    "Plains",
-    "Island",
-    "Swamp",
-    "Mountain",
-    "Forest",
-] as const;
 
 function magicalHackMode(toType: string): SpellMode {
     return {
@@ -529,7 +526,7 @@ export const magicalHack: CardDefinition = {
     manaCost: { U: 1 },
     types: ["Instant"],
     targetRequirement: { type: "spell-or-permanent", count: 1 },
-    modes: BASIC_LAND_TYPES.map(magicalHackMode),
+    modes: BASIC_LAND_SUBTYPES.map(magicalHackMode),
 };
 
 export const mahamotiDjinn: CardDefinition = {
