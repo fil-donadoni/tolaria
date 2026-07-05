@@ -604,6 +604,14 @@ export type CardInstanceState = {
      *  damage at the chosen player's upkeep). Cleared when the permanent leaves
      *  the battlefield (a new object, CR 400.7). */
     chosenPlayerId?: string;
+    /** An ordered pair of basic land types chosen as this permanent enters and
+     *  stored for the rest of the game (CR 603.6b / 614.12 — Illusionary
+     *  Terrain "as this enchantment enters, choose two basic land types").
+     *  `[first, second]`. Set via `SpellContext.setChosenSubtypes` from an ETB
+     *  trigger; read by a `subtype-set` static's `subtypesFor` callback to
+     *  drive a computed layer-4 subtype swap (ADR 0050). Cleared when the
+     *  permanent leaves the battlefield (a new object, CR 400.7). */
+    chosenSubtypes?: string[];
     /** Layer 5 color override (CR 305.7, 613.1d). When set, getColors()
      *  returns this array instead of mana-cost-derived + grantedColors.
      *  Set by lace instants ("target spell or permanent becomes [color]"). */
@@ -3122,7 +3130,31 @@ export function applySourceStaticEffects(
                     target.grantedColors =
                         colorGrants.length > 0 ? colorGrants : undefined;
                 } else if (effect.kind === "subtype-set") {
-                    if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
+                    // Two forms (ADR 0050): the fixed-output form (Blood Moon)
+                    // gates with `applies` and replaces with the literal
+                    // `subtypes`; the computed-output form (Illusionary Terrain)
+                    // asks `subtypesFor` for the replacement, reading per-source
+                    // stored state (`source.chosenSubtypes`) and returning null
+                    // to leave the target untouched. `target.subtypes` is read
+                    // mid-layer-4, so the computed form sees earlier-timestamp
+                    // effects (CR 613 composition).
+                    let newSubtypes: string[] | null;
+                    if (effect.subtypesFor) {
+                        newSubtypes = effect.subtypesFor(
+                            target,
+                            source,
+                            STATIC_EFFECT_CTX
+                        );
+                    } else {
+                        newSubtypes = effect.applies!(
+                            target,
+                            source,
+                            STATIC_EFFECT_CTX
+                        )
+                            ? effect.subtypes!
+                            : null;
+                    }
+                    if (newSubtypes === null) {
                         continue;
                     }
                     if (!target.printedSubtypes) {
@@ -3134,13 +3166,13 @@ export function applySourceStaticEffects(
                     );
                     if (!already) {
                         grants.push({
-                            subtypes: effect.subtypes,
+                            subtypes: newSubtypes,
                             sourceId: source.id,
                         });
                     }
                     target.grantedSubtypes =
                         grants.length > 0 ? grants : undefined;
-                    target.subtypes = [...effect.subtypes];
+                    target.subtypes = [...newSubtypes];
                 } else if (effect.kind === "subtype-add") {
                     if (!effect.applies(target, source, STATIC_EFFECT_CTX)) {
                         continue;
@@ -3469,9 +3501,27 @@ export function applyExistingGrantsTo(
                     newPermanent.grantedColors =
                         colorGrants.length > 0 ? colorGrants : undefined;
                 } else if (effect.kind === "subtype-set") {
-                    if (
-                        !effect.applies(newPermanent, source, STATIC_EFFECT_CTX)
-                    ) {
+                    // Mirror of the apply-time branching (ADR 0050): a land
+                    // entering while a computed-output subtype swap (Illusionary
+                    // Terrain) is in play must swap immediately, same as a
+                    // pre-existing land.
+                    let newSubtypes: string[] | null;
+                    if (effect.subtypesFor) {
+                        newSubtypes = effect.subtypesFor(
+                            newPermanent,
+                            source,
+                            STATIC_EFFECT_CTX
+                        );
+                    } else {
+                        newSubtypes = effect.applies!(
+                            newPermanent,
+                            source,
+                            STATIC_EFFECT_CTX
+                        )
+                            ? effect.subtypes!
+                            : null;
+                    }
+                    if (newSubtypes === null) {
                         continue;
                     }
                     if (!newPermanent.printedSubtypes) {
@@ -3485,13 +3535,13 @@ export function applyExistingGrantsTo(
                     );
                     if (!already) {
                         grants.push({
-                            subtypes: effect.subtypes,
+                            subtypes: newSubtypes,
                             sourceId: source.id,
                         });
                     }
                     newPermanent.grantedSubtypes =
                         grants.length > 0 ? grants : undefined;
-                    newPermanent.subtypes = [...effect.subtypes];
+                    newPermanent.subtypes = [...newSubtypes];
                 } else if (effect.kind === "subtype-add") {
                     // CR 305.7 — a land entering while Urborg / Yavimaya-style
                     // "each land is a [type] in addition" is in play gains the
@@ -4858,6 +4908,10 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     // this permanent is on the battlefield; a zone change makes a new object
     // (CR 400.7), so the choice does not carry over.
     delete card.chosenPlayerId;
+    // CR 603.6b / 400.7 — the on-entry chosen subtype pair (Illusionary
+    // Terrain) is stored while the permanent stays in play; a zone change makes
+    // a new object, so the choice does not carry over.
+    delete card.chosenSubtypes;
     // CR 612.7 — a text-changing effect ends when the object changes zones
     // (it becomes a new object). Same lifecycle as colorOverride above.
     delete card.textChanges;
@@ -5125,6 +5179,21 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 item.triggerSourceId ?? item.id
             );
             return src?.card.chosenPlayerId;
+        },
+
+        setChosenSubtypes(pair: string[]): void {
+            // CR 603.6b / 614.12 — record an ordered pair of basic land types
+            // chosen as this permanent enters (Illusionary Terrain), stored on
+            // the source instance for the rest of the game and read by a
+            // `subtype-set` static's `subtypesFor` callback (ADR 0050). The
+            // source is the resolving permanent: an ETB trigger's
+            // `triggerSourceId` points at the permanent that just entered.
+            // No-op if it is no longer on the battlefield.
+            const src = findOnBattlefield(
+                state,
+                item.triggerSourceId ?? item.id
+            );
+            if (src) src.card.chosenSubtypes = [...pair];
         },
 
         getChosenModeId(): string | undefined {

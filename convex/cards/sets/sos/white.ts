@@ -4,6 +4,7 @@
 // cost (CR 202.2): lands and colourless artifacts (no coloured cost) live in
 // colorless.ts.
 import type { CardDefinition, SpellContext } from "../../types";
+import { BASIC_LAND_SUBTYPES } from "../../types";
 
 // Erode — "Destroy target creature or planeswalker. Its controller may
 // search their library for a basic land card, put it onto the battlefield
@@ -14,7 +15,6 @@ import type { CardDefinition, SpellContext } from "../../types";
 // following the established search-to-battlefield precedent (Nature's Lore,
 // ice/green.ts: `ctx.requestChoice` + `ctx.putFromLibraryOntoBattlefield` +
 // `ctx.shuffleLibrary`).
-const BASIC_LAND_SUBTYPES = ["Plains", "Island", "Swamp", "Mountain", "Forest"];
 
 export const erode: CardDefinition = {
     id: "32e670da-7563-4f6a-a7db-4c126a440eb8",

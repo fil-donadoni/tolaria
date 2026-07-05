@@ -217,6 +217,22 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 4,
     },
     {
+        // ICE computed subtype swap (issue #727, ADR 0050): Illusionary Terrain
+        // in hand. As it enters, choose two basic land types — pick Forest then
+        // Island. Your basic Forests immediately become Islands and tap for {U}
+        // instead of {G} (CR 305.6/305.7). Cast it from hand to make the two
+        // choices, then tap a former Forest to watch it produce blue. Cumulative
+        // upkeep {2} bites on your next upkeep.
+        label: "ICE computed subtype swap (Illusionary Terrain) (#727)",
+        cards: [
+            { name: "Illusionary Terrain", owner: "me", zone: "hand" },
+            { name: "Forest", owner: "me", zone: "battlefield", count: 3 },
+            { name: "Island", owner: "me", zone: "battlefield", count: 1 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+    },
+    {
         // ICE combat-damage redirect / assign-no-damage riders (issue #732):
         // Kjeldoran Royal Guard ({T}) redirects all combat damage unblocked
         // attackers would deal to you onto itself (CR 614.6). Cloak of

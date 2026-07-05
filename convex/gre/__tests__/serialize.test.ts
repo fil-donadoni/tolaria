@@ -529,6 +529,9 @@ describe("game_state serialize round-trip", () => {
         lion.cantBlockThisTurn = true;
         lion.cantBeBlockedThisTurn = true;
         lion.chosenPlayerId = "p2";
+        // ADR 0050 — Illusionary Terrain's on-entry chosen basic-type pair must
+        // survive the DB round-trip so the computed subtype swap reloads.
+        lion.chosenSubtypes = ["Forest", "Island"];
         lion.copiedFrom = "printed-clone-id";
         // CR 613.1f — "loses all abilities" suppression source list
         // (Titania's Song, #288).
@@ -625,6 +628,7 @@ describe("game_state serialize round-trip", () => {
         expect(got.cantBlockThisTurn).toBe(true);
         expect(got.cantBeBlockedThisTurn).toBe(true);
         expect(got.chosenPlayerId).toBe("p2");
+        expect(got.chosenSubtypes).toEqual(["Forest", "Island"]);
         expect(got.copiedFrom).toBe("printed-clone-id");
         expect(got.abilitiesSuppressedBy).toEqual(["song-1", "song-2"]);
         expect(got.grantedSupertypes).toEqual([

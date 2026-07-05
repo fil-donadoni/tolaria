@@ -188,6 +188,7 @@ function compactCard(
             card.cantBeBlockedBySubtypesThisTurn;
     }
     if (card.chosenPlayerId) out.chosenPlayerId = card.chosenPlayerId;
+    if (card.chosenSubtypes?.length) out.chosenSubtypes = card.chosenSubtypes;
     if (card.pileLabel) out.pileLabel = card.pileLabel;
     if (card.faceDown) out.faceDown = true;
     if (card.faceDownOf) out.faceDownOf = card.faceDownOf;
@@ -391,6 +392,9 @@ function expandCard(
     }
     if (compact.chosenPlayerId) {
         result.chosenPlayerId = compact.chosenPlayerId as string;
+    }
+    if (compact.chosenSubtypes) {
+        result.chosenSubtypes = compact.chosenSubtypes as string[];
     }
     if (compact.pileLabel) result.pileLabel = compact.pileLabel as string;
     if (compact.faceDown) result.faceDown = true;

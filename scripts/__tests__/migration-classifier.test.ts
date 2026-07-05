@@ -380,11 +380,15 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // both folded into one inline `delayedTrigger` with a `combatPartners`
         // list capture + `forEach { set: "bound" }` body. Net: total 627→625,
         // FREE 394→393, AFK-ready 361→360, Op-blocked 219→218, X-only unchanged.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(625);
+        // #727 (Illusionary Terrain, ADR 0050) ADDED one protocol resolve() — the
+        // ETB "choose two basic land types" storing the pair via
+        // `setChosenSubtypes` (on-entry-choice-storage class, not a migratable
+        // Op). Net: total 625→626, Op-blocked 218→219, others unchanged.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(626);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(393);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(360);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(218);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(219);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {
