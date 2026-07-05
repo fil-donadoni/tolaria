@@ -6290,12 +6290,21 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 }
             }
         },
-        grantCastFromExile(cardInstanceId: string, playerId: string): void {
-            // CR 601.3e — Ice Cauldron: mark a card in `playerId`'s exile as
-            // castable from exile by that player ("You may cast that card for as
-            // long as it remains exiled"). No-op for an id not in their exile.
-            const player = getPlayer(state, playerId);
-            const card = player.exile.find((c) => c.id === cardInstanceId);
+        grantCastFromExile(
+            cardInstanceId: string,
+            playerId: string,
+            zoneOwnerId?: string
+        ): void {
+            // CR 601.3e — Ice Cauldron: mark a card in `zoneOwnerId`'s exile
+            // (defaults to `playerId` — the historical same-player shape) as
+            // castable from exile by `playerId` ("You may cast that card for
+            // as long as it remains exiled"). No-op for an id not in that
+            // zone owner's exile. A distinct `zoneOwnerId` supports a
+            // CROSS-PLAYER grant (Robber of the Rich: the defending player's
+            // library card, exiled into THEIR OWN exile per CR 400.7, is
+            // castable by the attacking player).
+            const owner = getPlayer(state, zoneOwnerId ?? playerId);
+            const card = owner.exile.find((c) => c.id === cardInstanceId);
             if (card) card.castableFromExileBy = playerId;
         },
         getX(): number {

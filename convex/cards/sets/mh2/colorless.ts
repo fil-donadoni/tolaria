@@ -27,3 +27,17 @@ export const yavimayaCradleOfGrowth: CardDefinition = {
         },
     ],
 };
+
+// TODO(issue #679 stub — Kaldra Compleat needs Living Weapon (CR 702.92):
+// mechanicsRegistry.ts lists it `status: "planned"` — no keyword name and no
+// "create a token then attach this Equipment to it as it enters" ETB
+// primitive exist yet. Stop-and-issue per gre-development.md; tracked stub.
+// export const kaldraCompleat: CardDefinition = {
+//     id: "87cc2855-6b14-44dd-a398-7dc2bbae081f",
+//     name: "Kaldra Compleat",
+//     rarity: "mythic",
+//     manaCost: { X: 7 },
+//     types: ["Artifact"],
+//     supertypes: ["Legendary"],
+//     subtypes: ["Equipment"],
+// };

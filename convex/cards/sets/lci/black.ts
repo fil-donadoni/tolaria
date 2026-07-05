@@ -16,4 +16,30 @@
 //     types: ["Instant"],
 // };
 
+// TODO(issue #679 stub — Deep-Cavern Bat's leave trigger needs to remember
+// ONE specific card this creature exiled (arbitrarily many turns earlier)
+// and move THAT card to its owner's hand when Deep-Cavern Bat leaves.
+// `SpellContext` has no exile-zone reader (`getHandCards`/`getBattlefieldIds`
+// exist; no `getExileIds`) and no generic per-instance scratch note that
+// stores a card id (only `addCounter`, numeric). The one channel that DOES
+// carry a value from an ETB exile to a later trigger,
+// `exileWithAttachments`/`returnExiledForSource` (ADR 0028), is wired only
+// for a return-to-BATTLEFIELD host (Tawnos's Coffin shape) — not a
+// return-to-hand. `scheduleDelayedTrigger`'s `timing: "leaves-battlefield"`
+// (issue #731/#916) looked promising but is explicitly THIS-TURN-scoped —
+// "every `leaves-battlefield` instance is this-turn scoped... purged at
+// CLEANUP" (convex/gre/phases.ts) — wrong semantics for an "until this
+// leaves the battlefield" duration that must survive across turns. Stop-
+// and-issue per gre-development.md; tracked stub.
+// export const deepCavernBat: CardDefinition = {
+//     id: "69c68c95-b788-43b1-9f22-1b22c5a00b25",
+//     name: "Deep-Cavern Bat",
+//     rarity: "uncommon",
+//     manaCost: { X: 1, B: 1 },
+//     types: ["Creature"],
+//     subtypes: ["Bat"],
+//     power: 1,
+//     toughness: 1,
+// };
+
 export {};

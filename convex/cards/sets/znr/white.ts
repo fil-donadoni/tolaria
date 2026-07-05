@@ -65,3 +65,33 @@ export const luminarchAspirant: CardDefinition = {
         }),
     ],
 };
+
+// TODO(issue #679 stub — Skyclave Apparition's leave trigger needs to size a
+// replacement token off the mana value of a card THIS SOURCE exiled earlier
+// in the game (arbitrarily many turns prior) and that no longer exists
+// anywhere in the game (CR 400.7 — an exiled permanent that leaves exile
+// becomes a new object; nothing keeps its mana value queryable). The only
+// SpellContext channel that carries a value forward from an ETB exile to a
+// later leave-trigger is the `exileWithAttachments` / `returnExiledForSource`
+// bundle (ADR 0028) — and that channel is wired ONLY for a return-to-
+// BATTLEFIELD host (Tawnos's Coffin shape, `resolve()` re-enters the SAME
+// card under its owner's control), not for "read a stored number, then
+// create an unrelated token." `addCounter` stores a number on a permanent
+// but only for that permanent's own remaining lifetime on the battlefield —
+// by the time Skyclave Apparition's OWN leave-trigger fires, the same
+// last-known-info snapshot semantics that make `self` usable for e.g.
+// `power`/`controllerId` (CR 603.10) are not exercised anywhere in this
+// codebase for `counters`, so relying on it here would be new, untested
+// engine behavior rather than a card-definition composition. Flagged in
+// convex/cards/sets/mrd/colorless.ts (Chrome Mox) at authoring time. Stop-
+// and-issue per gre-development.md; tracked stub.
+// export const skyclaveApparition: CardDefinition = {
+//     id: "b83cfbaa-7890-4f6f-878b-4edb45677371",
+//     name: "Skyclave Apparition",
+//     rarity: "rare",
+//     manaCost: { X: 1, W: 2 },
+//     types: ["Creature"],
+//     subtypes: ["Kor", "Spirit"],
+//     power: 2,
+//     toughness: 2,
+// };
