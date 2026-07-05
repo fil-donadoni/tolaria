@@ -17,7 +17,7 @@ import {
     pushSpell,
 } from "../../../cards/__tests__/setup";
 import { resolveTopOfStack } from "../../state";
-import type { GameState } from "../../state";
+import type { GameState, StackItem } from "../../state";
 import {
     applyMayPaySubmit,
     applyPendingChoiceSubmit,
@@ -5731,5 +5731,233 @@ describe("Effect Script Op: optionChoice (CR 700.2 / 601.2b, issue #849)", () =>
         expect(grave).toContain("h3");
         expect(state.stack).toHaveLength(0);
         expect(state.pendingChoices).toBeUndefined();
+    });
+});
+
+// --- $event.<field> refs at trigger sites (ADR 0049, issue #865) ------------
+// A triggered ability's Effect Script can read fields of the FIRING event via
+// the reserved `$event.<field>` ref, resolved through EVENT_FIELD_REGISTRY. This
+// issue closes the interpreter seam: `resolveTopOfStack` now threads
+// `top.triggerEvent` into the ctx for the Effect Script path (it previously
+// reached only the imperative `resolve(ctx, event)`). Coverage per the "new
+// construct usage" regime: object family (BLOCKERS_CONFIRMED.blockerId) read in
+// an IMMEDIATE destroy target AND as a delayedTrigger CAPTURE source; player
+// family (DAMAGE_DEALT.damagedPlayer) read in an immediate loseLife — once
+// through projectPublicState (wire format).
+describe("Effect Script value grammar: $event.<field> (ADR 0049, CR 603, issue #865)", () => {
+    const EVENT_RAM_ID = "test-event-ram";
+    registerTokenDefinition({
+        id: EVENT_RAM_ID,
+        name: EVENT_RAM_ID,
+        rarity: "common",
+        manaCost: { X: 1 },
+        types: ["Artifact", "Creature"],
+        subtypes: ["Construct"],
+        power: 1,
+        toughness: 1,
+        triggeredAbilities: [
+            {
+                // Immediate: destroy the blocker read live from the event.
+                id: "ram-destroy-blocker",
+                oracleText: "destroy that blocker",
+                event: "BLOCKERS_CONFIRMED",
+                matches: () => true,
+                effects: [
+                    { op: "destroy", target: { ref: "$event.blockerId" } },
+                ],
+            },
+            {
+                // Delayed: capture the blocker at fire time, destroy at EOC.
+                id: "ram-delay-blocker",
+                oracleText: "destroy that blocker at end of combat",
+                event: "BLOCKERS_CONFIRMED",
+                matches: () => true,
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-of-combat",
+                        oracleText: "destroy that blocker at end of combat",
+                        capture: { $blk: { ref: "$event.blockerId" } },
+                        effects: [{ op: "destroy", target: { ref: "$blk" } }],
+                    },
+                ],
+            },
+        ],
+    });
+
+    const EVENT_ASP_ID = "test-event-asp";
+    registerTokenDefinition({
+        id: EVENT_ASP_ID,
+        name: EVENT_ASP_ID,
+        rarity: "common",
+        manaCost: { G: 1 },
+        types: ["Creature"],
+        subtypes: ["Snake"],
+        power: 1,
+        toughness: 1,
+        triggeredAbilities: [
+            {
+                // Player family: the damaged player loses 2 life.
+                id: "asp-poison",
+                oracleText: "that player loses 2 life",
+                event: "DAMAGE_DEALT",
+                matches: () => true,
+                effects: [
+                    {
+                        op: "loseLife",
+                        player: { ref: "$event.damagedPlayer" },
+                        amount: 2,
+                    },
+                ],
+            },
+        ],
+    });
+
+    function blockersConfirmed(
+        attackerId: string,
+        blockerId: string
+    ): StackItem["triggerEvent"] {
+        return {
+            type: "BLOCKERS_CONFIRMED",
+            attackerId,
+            attackerControllerId: "p1",
+            attackerTypes: ["Creature"],
+            attackerSubtypes: [],
+            blockerId,
+            blockerControllerId: "p2",
+            blockerTypes: ["Creature"],
+            blockerSubtypes: [],
+        };
+    }
+
+    function damageToPlayer(
+        sourceInstanceId: string,
+        playerId: string
+    ): StackItem["triggerEvent"] {
+        return {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId,
+            sourceControllerId: "p1",
+            target: { type: "player", id: playerId },
+            amount: 1,
+            isCombat: true,
+        };
+    }
+
+    function fireTrigger(
+        state: GameState,
+        source: { id: string; controllerId: string },
+        triggeredAbilityId: string,
+        triggerEvent: StackItem["triggerEvent"]
+    ): void {
+        const src = state.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === source.id)!;
+        state.stack.push({
+            ...src,
+            zone: "stack",
+            castById: source.controllerId,
+            triggeredAbilityId,
+            triggerSourceId: source.id,
+            triggerEvent,
+            targets: [],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("object family: $event.blockerId destroys the blocker immediately", () => {
+        const ram = makeInstance(EVENT_RAM_ID, {
+            id: "ram",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blk = makeInstance(BEAR_ID, {
+            id: "blk",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ram] }),
+                makePlayer("p2", { battlefield: [blk] }),
+            ],
+        });
+        fireTrigger(
+            state,
+            { id: "ram", controllerId: "p1" },
+            "ram-destroy-blocker",
+            blockersConfirmed("ram", "blk")
+        );
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "blk")
+        ).toBeUndefined();
+        expect(
+            state.players[1].graveyard.find((c) => c.id === "blk")
+        ).toBeDefined();
+    });
+
+    it("player family: $event.damagedPlayer loses life (wire format)", () => {
+        const asp = makeInstance(EVENT_ASP_ID, {
+            id: "asp",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [asp] }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        fireTrigger(
+            state,
+            { id: "asp", controllerId: "p1" },
+            "asp-poison",
+            damageToPlayer("asp", "p2")
+        );
+        expect(state.players[1].life).toBe(18);
+        // The same result survives the projection (ADR 0049 / wire format).
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].life).toBe(18);
+    });
+
+    it("object family as a delayedTrigger capture: destroys the blocker at end of combat", () => {
+        const ram = makeInstance(EVENT_RAM_ID, {
+            id: "ram2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blk = makeInstance(BEAR_ID, {
+            id: "blk2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ram] }),
+                makePlayer("p2", { battlefield: [blk] }),
+            ],
+        });
+        fireTrigger(
+            state,
+            { id: "ram2", controllerId: "p1" },
+            "ram-delay-blocker",
+            blockersConfirmed("ram2", "blk2")
+        );
+        // The blocker id is captured into the payload under the `$blk` binding.
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers![0].payload["$blk"]).toBe("blk2");
+        // Still alive until end of combat.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "blk2")
+        ).toBeDefined();
+        // Fire the delayed trigger — the body re-binds $blk and destroys it.
+        fireDelayedTriggers(state, "next-end-of-combat");
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "blk2")
+        ).toBeUndefined();
+        expect(
+            state.players[1].graveyard.find((c) => c.id === "blk2")
+        ).toBeDefined();
     });
 });

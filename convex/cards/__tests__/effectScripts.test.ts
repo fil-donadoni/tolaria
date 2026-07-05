@@ -18,16 +18,28 @@ import type { CardDefinition } from "../types";
  *  Effect Script, tagged with the owning card's label (ADR 0045, issue #803).
  *  Modes carry their own per-mode resolution site; those are spell-site scripts
  *  validated by `validateEffectScript`, so they are not re-walked here. */
-function abilitySites(
-    card: CardDefinition
-): { ability: { id: string; effects?: unknown }; label: string }[] {
+function abilitySites(card: CardDefinition): {
+    ability: { id: string; effects?: unknown };
+    label: string;
+    triggerEventType?: string;
+}[] {
     const label = `${card.name} (${card.id})`;
-    return [
+    // Activated abilities have no firing event ($event illegal); triggered
+    // abilities carry `event`, threaded so the trigger-site $event scope
+    // (ADR 0049, issue #865) is validated with the right event type.
+    const activated = [
         ...(card.activatedAbilities ?? []),
         ...(card.grantTemplates ?? []),
+    ].map((ability) => ({ ability, label }));
+    const triggered = [
         ...(card.triggeredAbilities ?? []),
         ...(card.triggeredGrantTemplates ?? []),
-    ].map((ability) => ({ ability, label }));
+    ].map((ability) => ({
+        ability,
+        label,
+        triggerEventType: (ability as { event?: string }).event,
+    }));
+    return [...activated, ...triggered];
 }
 
 describe("Effect Script catalogue sweep (ADR 0045)", () => {
@@ -45,7 +57,11 @@ describe("Effect Script catalogue sweep (ADR 0045)", () => {
     it("every ability-site Effect Script passes validation (schema + vocabulary + exclusivity + $source)", () => {
         const errors = cards.flatMap((card) =>
             abilitySites(card).flatMap((s) =>
-                validateAbilityEffectScript(s.ability, s.label)
+                validateAbilityEffectScript(
+                    s.ability,
+                    s.label,
+                    s.triggerEventType
+                )
             )
         );
         expect(errors).toEqual([]);

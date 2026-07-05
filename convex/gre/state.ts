@@ -5069,6 +5069,13 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         // stamped on scheduled delayed triggers so the fired trigger renders
         // its source card). Empty for synthetic items with no registry id.
         sourceCardId: (item.card as { id?: string }).id ?? "",
+        // CR 603 (ADR 0049, issue #865) — the event that fired this triggered
+        // ability, threaded into the interpreter so `$event.<field>` refs
+        // resolve at trigger sites. Undefined for spells / activated abilities /
+        // fired delayed triggers (whose `triggerEvent` is the phase-boundary
+        // event, not the original firing event); the validator forbids `$event`
+        // at all of those sites, so this is only ever read at a real trigger.
+        triggerEvent: item.triggerEvent,
         targets: item.targets ?? [],
         allPlayerIds: state.players.map((p) => p.id),
 

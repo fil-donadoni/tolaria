@@ -83,6 +83,7 @@ import type {
     SpellContext,
     TargetSelection,
 } from "../../cards/types";
+import { getEventFieldRow } from "../../cards/mechanicsRegistry";
 
 type OpOf<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
 
@@ -126,6 +127,36 @@ function parseRef(ref: string): { binding: string; property: string } | null {
     const dot = ref.indexOf(".");
     if (!ref.startsWith("$") || dot < 0) return null;
     return { binding: ref.slice(0, dot), property: ref.slice(dot + 1) };
+}
+
+/** True for a reserved `$event.<field>` ref string (ADR 0049, issue #865) —
+ *  read at a trigger site, resolved live from the firing event rather than a
+ *  stored binding. */
+function isEventRef(ref: string): boolean {
+    return ref.startsWith("$event.");
+}
+
+/** Resolves a `$event.<field>` ref (ADR 0049, issue #865) at a trigger site
+ *  through the EVENT_FIELD_REGISTRY: looks the friendly field up for the FIRING
+ *  event's type, flattens it to a single id via the row's `resolve`, and
+ *  returns the id with its declared family. Returns undefined when there is no
+ *  firing event (a spell / activated site — the validator already rejects this
+ *  statically), the field is uncensused, or the event carries no such id
+ *  (CR 608.2b — the reading Op then skips). */
+function resolveEventRef(
+    ctx: SpellContext,
+    ref: string
+): { family: "object" | "player"; id: string } | undefined {
+    const dot = ref.indexOf(".");
+    if (dot < 0) return undefined;
+    const field = ref.slice(dot + 1);
+    const event = ctx.triggerEvent;
+    if (!event) return undefined;
+    const row = getEventFieldRow(event.type, field);
+    if (!row) return undefined;
+    const id = row.resolve(event);
+    if (id === undefined) return undefined;
+    return { family: row.family, id };
 }
 
 /** Reads a binding's stored value array from the stack item's persisted
@@ -350,6 +381,13 @@ function resolvePlayerRef(
         return ctx.allPlayerIds.find((id) => id !== ctx.controller);
     }
     if ("ref" in ref) {
+        // `$event.<field>` player ref (ADR 0049, issue #865) — the firing
+        // event's player id, flattened through the registry. Legal only at a
+        // trigger site (validator-enforced); a wrong family here is a skip.
+        if (isEventRef(ref.ref)) {
+            const ev = resolveEventRef(ctx, ref.ref);
+            return ev && ev.family === "player" ? ev.id : undefined;
+        }
         const parsed = parseRef(ref.ref);
         if (!parsed) {
             // Bare `{ ref: "$each" }` in a player position (issue #807): the
@@ -404,6 +442,15 @@ function resolveObjectRef(
     ref: EffectObjectSelector
 ): TargetSelection | undefined {
     if ("target" in ref) return ctx.targets[ref.target];
+    // `$event.<field>` object ref (ADR 0049, issue #865) — the firing event's
+    // permanent id, re-checked for battlefield presence (CR 608.2b) exactly
+    // like a snapshot. Legal only at a trigger site (validator-enforced).
+    if (isEventRef(ref.ref)) {
+        const ev = resolveEventRef(ctx, ref.ref);
+        if (!ev || ev.family !== "object") return undefined;
+        if (ctx.getOwnerId(ev.id) === undefined) return undefined;
+        return { type: "permanent", id: ev.id };
+    }
     if (!ref.ref.startsWith("$") || ref.ref.includes(".")) return undefined;
     const snap = readBinding(ctx, ref.ref);
     const id = snap?.[SNAP_ID];
@@ -1371,6 +1418,10 @@ function resolveCaptureSource(
 ): string | undefined {
     if (typeof source === "string") return source;
     if ("target" in source) return ctx.targets[source.target]?.id;
+    // `$event.<field>` capture (ADR 0049, issue #865) — flatten the firing
+    // event to its id at scheduling time; the body re-binds it fresh at fire
+    // time (object → snapshot, player → player binding, per ADR 0048).
+    if (isEventRef(source.ref)) return resolveEventRef(ctx, source.ref)?.id;
     const parsed = parseRef(source.ref);
     if (parsed) {
         // Property refs: only `.controller` is capturable (validator-enforced

@@ -17,8 +17,12 @@ import {
     EFFECT_OP_BACKLOG,
     isRegisteredEffectOp,
     isNamedMechanic,
+    EVENT_FIELD_REGISTRY,
+    getEventFieldRow,
+    isRegisteredEventField,
     type MechanicRow,
 } from "../mechanicsRegistry";
+import type { GameEvent } from "../types";
 
 describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities, ADR 0045/0046)", () => {
     it("is a total census: ~240+ rows spanning both CR 701 and CR 702", () => {
@@ -283,5 +287,95 @@ describe("Effect Script Op census (ADR 0045/0046, PRD #826)", () => {
             expect(isRegisteredEffectOp(row.op), row.op).toBe(false);
         }
         expect(isRegisteredEffectOp("notARealOp")).toBe(false);
+    });
+});
+
+// -----------------------------------------------------------------------
+// EVENT_FIELD_REGISTRY — the `$event.<field>` name authority (ADR 0049,
+// issue #865). Mirrors the EFFECT_OP_REGISTRY census tests: every censused
+// field has a family and a working `resolve` that flattens the event to a
+// single id, and lookups reject uncensused pairs (which is what keeps a wrong
+// `$event.<field>` a CI failure, never a silent runtime skip).
+// -----------------------------------------------------------------------
+describe("Event field registry ($event.<field>, ADR 0049, issue #865)", () => {
+    it("every row carries a valid family and a callable resolve", () => {
+        for (const [eventType, fields] of Object.entries(
+            EVENT_FIELD_REGISTRY
+        )) {
+            for (const [field, row] of Object.entries(fields)) {
+                expect(["object", "player"], `${eventType}.${field}`).toContain(
+                    row.family
+                );
+                expect(typeof row.resolve, `${eventType}.${field}`).toBe(
+                    "function"
+                );
+            }
+        }
+    });
+
+    it("getEventFieldRow / isRegisteredEventField accept censused fields and reject the rest", () => {
+        expect(
+            getEventFieldRow("BLOCKERS_CONFIRMED", "blockerId")?.family
+        ).toBe("object");
+        expect(
+            getEventFieldRow("BLOCKERS_CONFIRMED", "attackerId")?.family
+        ).toBe("object");
+        expect(getEventFieldRow("DAMAGE_DEALT", "damagedPlayer")?.family).toBe(
+            "player"
+        );
+        expect(isRegisteredEventField("BLOCKERS_CONFIRMED", "blockerId")).toBe(
+            true
+        );
+        // Uncensused pairs are rejected — no runtime skip, a validation failure.
+        expect(getEventFieldRow("BLOCKERS_CONFIRMED", "bogus")).toBeUndefined();
+        expect(
+            getEventFieldRow("PHASE_BEGIN", "activePlayerId")
+        ).toBeUndefined();
+        expect(isRegisteredEventField("DAMAGE_DEALT", "damagedCreature")).toBe(
+            false
+        );
+    });
+
+    it("BLOCKERS_CONFIRMED object fields flatten to the pair ids", () => {
+        const event: GameEvent = {
+            type: "BLOCKERS_CONFIRMED",
+            attackerId: "atk",
+            attackerControllerId: "p1",
+            attackerTypes: ["Creature"],
+            attackerSubtypes: [],
+            blockerId: "blk",
+            blockerControllerId: "p2",
+            blockerTypes: ["Creature"],
+            blockerSubtypes: [],
+        };
+        expect(
+            getEventFieldRow("BLOCKERS_CONFIRMED", "attackerId")!.resolve(event)
+        ).toBe("atk");
+        expect(
+            getEventFieldRow("BLOCKERS_CONFIRMED", "blockerId")!.resolve(event)
+        ).toBe("blk");
+    });
+
+    it("DAMAGE_DEALT.damagedPlayer flattens the nested target, undefined for a permanent", () => {
+        const toPlayer: GameEvent = {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "src",
+            sourceControllerId: "p1",
+            target: { type: "player", id: "p2" },
+            amount: 1,
+            isCombat: true,
+        };
+        const toPermanent: GameEvent = {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "src",
+            sourceControllerId: "p1",
+            target: { type: "permanent", id: "creature" },
+            amount: 1,
+            isCombat: true,
+        };
+        const row = getEventFieldRow("DAMAGE_DEALT", "damagedPlayer")!;
+        expect(row.resolve(toPlayer)).toBe("p2");
+        // Damage to a permanent has no damagedPlayer — the reading Op skips.
+        expect(row.resolve(toPermanent)).toBeUndefined();
     });
 });

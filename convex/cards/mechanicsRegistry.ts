@@ -35,6 +35,8 @@
 // below are marked `status: "planned"` with a `note` documenting this rather
 // than `implemented`, to keep the registry an honest source of truth.
 
+import type { GameEvent } from "./types";
+
 export type MechanicKind = "keyword-ability" | "keyword-action";
 export type MechanicStatus = "implemented" | "planned" | "out-of-scope";
 
@@ -2632,4 +2634,86 @@ export function isNamedMechanic(value: string): boolean {
             (m) => m.binding === value || m.bindingPattern?.test(value)
         )
     );
+}
+
+// --- Event field registry (ADR 0049, issue #865) -----------------------------
+// The name authority for `$event.<field>` refs read at a TRIGGER site: maps a
+// (GameEventType, flat friendly field) pair to its value FAMILY (object /
+// player — which decides the ref POSITION it is legal in) and a `resolve(event)`
+// that FLATTENS the possibly-nested event shape to a single id string, so the
+// ref stays single-level and the frozen ref grammar (ADR 0045) is untouched.
+// Censused, not free-form: an unlisted field is a static validation failure,
+// never a runtime skip (ADR 0049 — free-form `$event.<any field>` gives no
+// static family and turns a wrong field into a silent no-op instead of a CI
+// error, breaking validate.ts's dangling-ref guarantee). The table grows one
+// row per migrated card. `TriggeredAbility.event` is statically known, so
+// validation is exact per trigger.
+
+export type EventFieldFamily = "object" | "player";
+
+export interface EventFieldRow {
+    /** Value family — an object (permanent instance id) ref or a player id ref.
+     *  The validator checks this against the ref's POSITION (a destroy target vs
+     *  a player selector); a mismatch is a definition bug. */
+    family: EventFieldFamily;
+    /** Flattens the firing event to the single id the friendly field names, or
+     *  undefined when the event carries no such id (e.g. DAMAGE_DEALT dealt to a
+     *  permanent has no `damagedPlayer`). CR 608.2b — the reading Op then
+     *  skips. */
+    resolve: (event: GameEvent) => string | undefined;
+}
+
+/** `(GameEventType, field) → { family, resolve }` (ADR 0049). Keyed by the
+ *  literal event-type string so a lookup needs no event instance. */
+export const EVENT_FIELD_REGISTRY: Record<
+    string,
+    Record<string, EventFieldRow>
+> = {
+    // CR 509.1h — the attacker/blocker pairing, emitted per attacker-blocker
+    // PAIR (phases.ts), so a per-pair capture reads exactly one attacker and one
+    // blocker even under multi-block / banding. Both ids are OBJECT refs
+    // (permanents expected on the battlefield when the trigger fires).
+    BLOCKERS_CONFIRMED: {
+        attackerId: {
+            family: "object",
+            resolve: (e) =>
+                e.type === "BLOCKERS_CONFIRMED" ? e.attackerId : undefined,
+        },
+        blockerId: {
+            family: "object",
+            resolve: (e) =>
+                e.type === "BLOCKERS_CONFIRMED" ? e.blockerId : undefined,
+        },
+    },
+    // CR 119.3 — damage to a target. `damagedPlayer` FLATTENS the nested
+    // `TargetSelection` down to the player id (a single-level ref), or undefined
+    // when the damage went to a permanent (no player was damaged).
+    DAMAGE_DEALT: {
+        damagedPlayer: {
+            family: "player",
+            resolve: (e) =>
+                e.type === "DAMAGE_DEALT" && e.target.type === "player"
+                    ? e.target.id
+                    : undefined,
+        },
+    },
+};
+
+/** The registry row for a `(GameEventType, field)` pair, or undefined when the
+ *  event type has no such censused field (ADR 0049). The single decision point
+ *  consulted by both the validator (family + census) and the interpreter
+ *  (`resolve`). */
+export function getEventFieldRow(
+    eventType: string,
+    field: string
+): EventFieldRow | undefined {
+    return EVENT_FIELD_REGISTRY[eventType]?.[field];
+}
+
+/** True when `field` is a censused `$event.<field>` for `eventType` (ADR 0049). */
+export function isRegisteredEventField(
+    eventType: string,
+    field: string
+): boolean {
+    return getEventFieldRow(eventType, field) !== undefined;
 }

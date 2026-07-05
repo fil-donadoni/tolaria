@@ -2037,9 +2037,12 @@ describe("Battering Ram (banding grant + destroy blocking Wall)", () => {
             "battering-ram-wall-destroy",
             blockEvent("ram", "wall", ["Wall"])
         );
-        // A delayed trigger should now be queued to destroy the Wall.
+        // A delayed trigger should now be queued to destroy the Wall. The
+        // inline delayedTrigger Op (ADR 0048/0049) captures the Wall under the
+        // binding name `$wall` (a $-prefixed capture key), where the legacy
+        // resolve() used the payload key `targetId`.
         expect(
-            state.delayedTriggers?.some((d) => d.payload.targetId === "wall")
+            state.delayedTriggers?.some((d) => d.payload["$wall"] === "wall")
         ).toBe(true);
     });
 });

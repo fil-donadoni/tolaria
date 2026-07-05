@@ -53,7 +53,6 @@ import {
     resolveTrigger,
     answerChoice,
     upkeepEvent,
-    resolveDelayed,
 } from "./helpers";
 
 describe("Sandstorm (1 damage to each attacking creature)", () => {
@@ -304,6 +303,20 @@ describe("Ghazbán Ogre (upkeep: control to the unique most-life player, CR 603.
 });
 
 describe("Nafs Asp (damage → next-draw-step pay {1} or lose 1 life)", () => {
+    // Migrated to effects[] (ADR 0049, issue #865): the damage trigger schedules
+    // an INLINE delayedTrigger (ADR 0048) reading `$event.damagedPlayer`, so the
+    // scheduled body rides on the instance (no `nafs-asp-draw-step` template) and
+    // the captured player lives under the binding name `$victim`.
+    const damageP2 = (asp: CardInstanceState): StackItem["triggerEvent"] =>
+        ({
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: asp.id,
+            sourceControllerId: "p1",
+            target: { type: "player", id: "p2" },
+            amount: 1,
+            isCombat: true,
+        }) as StackItem["triggerEvent"];
+
     it("schedules a next-draw-step delayed trigger on the damaged player", () => {
         const asp = makeInstance(nafsAsp.id, {
             id: "asp",
@@ -316,38 +329,30 @@ describe("Nafs Asp (damage → next-draw-step pay {1} or lose 1 life)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveTrigger(state, asp, "nafs-asp-damage", {
-            type: "DAMAGE_DEALT",
-            sourceInstanceId: "asp",
-            sourceControllerId: "p1",
-            target: { type: "player", id: "p2" },
-            amount: 1,
-            isCombat: true,
-        } as StackItem["triggerEvent"]);
+        resolveTrigger(state, asp, "nafs-asp-damage", damageP2(asp));
         const dt = state.delayedTriggers?.[0];
         expect(dt?.timing).toBe("next-draw-step");
+        // targetPlayer + capture both resolve through $event.damagedPlayer.
         expect(dt?.targetPlayerId).toBe("p2");
-        expect(dt?.payload.playerId).toBe("p2");
+        expect(dt?.payload["$victim"]).toBe("p2");
     });
 
     it("fires only on the target player's draw step; declining loses 1 life", () => {
+        const asp = makeInstance(nafsAsp.id, {
+            id: "asp",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
         const state = makeState({
             players: [
-                makePlayer("p1", { life: 20 }),
+                makePlayer("p1", { life: 20, battlefield: [asp] }),
                 makePlayer("p2", { life: 20 }),
             ],
-            delayedTriggers: [
-                {
-                    id: "delayed-1",
-                    sourceCardId: nafsAsp.id,
-                    triggerId: "nafs-asp-draw-step",
-                    controller: "p1",
-                    timing: "next-draw-step",
-                    payload: { playerId: "p2" },
-                    targetPlayerId: "p2",
-                },
-            ],
         });
+        // Deal damage to p2 → schedule the draw-step trigger on p2.
+        resolveTrigger(state, asp, "nafs-asp-damage", damageP2(asp));
+        expect(state.delayedTriggers).toHaveLength(1);
+
         // p1's draw step does NOT fire it (wrong player).
         state.activePlayerId = "p1";
         fireDelayedTriggers(state, "next-draw-step");
@@ -364,18 +369,24 @@ describe("Nafs Asp (damage → next-draw-step pay {1} or lose 1 life)", () => {
     });
 
     it("paying {1} avoids the life loss", () => {
+        const asp = makeInstance(nafsAsp.id, {
+            id: "asp",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
         const state = makeState({
             players: [
-                makePlayer("p1", { life: 20 }),
+                makePlayer("p1", { life: 20, battlefield: [asp] }),
                 makePlayer("p2", {
                     life: 20,
                     manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 1 },
                 }),
             ],
         });
-        resolveDelayed(state, nafsAsp.id, "p1", "nafs-asp-draw-step", {
-            playerId: "p2",
-        });
+        resolveTrigger(state, asp, "nafs-asp-damage", damageP2(asp));
+        state.activePlayerId = "p2";
+        fireDelayedTriggers(state, "next-draw-step");
+        resolveTopOfStack(state); // suspends at the may-pay
         answerChoice(state, ["yes"]);
         expect(state.players[1].life).toBe(20);
     });

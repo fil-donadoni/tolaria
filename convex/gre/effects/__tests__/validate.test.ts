@@ -11,6 +11,7 @@ import { OP_EXECUTORS } from "../interpreter";
 import {
     SCHEMA_OP_NAMES,
     validateEffectScript,
+    validateAbilityEffectScript,
     type EffectScriptHost,
 } from "../validate";
 
@@ -1239,5 +1240,135 @@ describe("validateEffectScript — delayedTrigger Op (CR 603.7, ADR 0048)", () =
         expect(
             power.some((e) => /only ".controller" property captures/.test(e))
         ).toBe(true);
+    });
+});
+
+// --- $event.<field> refs at trigger sites (ADR 0049, issue #865) ------------
+// `$event.<field>` is legal ONLY at a triggered-ability site: the validator
+// carries the firing event type (from `TriggeredAbility.event`) and checks the
+// EVENT_FIELD_REGISTRY family against the ref position. It is rejected at spell
+// / activated sites (no firing event), in a delayedTrigger BODY (the event is
+// gone at fire time), for an uncensused field, and on a family mismatch.
+describe("validateAbilityEffectScript — $event.<field> refs (ADR 0049, issue #865)", () => {
+    const abilityHost = (effects: EffectOp[]) => ({
+        id: "trig",
+        effects,
+    });
+
+    it("accepts an object-family $event ref in an object position at a trigger site", () => {
+        const errors = validateAbilityEffectScript(
+            abilityHost([
+                { op: "destroy", target: { ref: "$event.blockerId" } },
+            ]),
+            "Test (id)",
+            "BLOCKERS_CONFIRMED"
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it("accepts a player-family $event ref in a player position at a trigger site", () => {
+        const errors = validateAbilityEffectScript(
+            abilityHost([
+                {
+                    op: "loseLife",
+                    player: { ref: "$event.damagedPlayer" },
+                    amount: 1,
+                },
+            ]),
+            "Test (id)",
+            "DAMAGE_DEALT"
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it("accepts an $event ref as a delayedTrigger CAPTURE source (nested in the trigger's own script)", () => {
+        const errors = validateAbilityEffectScript(
+            abilityHost([
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-of-combat",
+                    oracleText: "destroy the blocker at end of combat",
+                    capture: { $blk: { ref: "$event.blockerId" } },
+                    effects: [{ op: "destroy", target: { ref: "$blk" } }],
+                },
+            ]),
+            "Test (id)",
+            "BLOCKERS_CONFIRMED"
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it("rejects a family mismatch (object field in a player position)", () => {
+        const errors = validateAbilityEffectScript(
+            abilityHost([
+                {
+                    op: "loseLife",
+                    player: { ref: "$event.blockerId" },
+                    amount: 1,
+                },
+            ]),
+            "Test (id)",
+            "BLOCKERS_CONFIRMED"
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.join("\n")).toContain(
+            "object field in a player position"
+        );
+    });
+
+    it("rejects an uncensused $event field", () => {
+        const errors = validateAbilityEffectScript(
+            abilityHost([{ op: "destroy", target: { ref: "$event.bogusId" } }]),
+            "Test (id)",
+            "BLOCKERS_CONFIRMED"
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.join("\n")).toContain("not a censused field");
+    });
+
+    it("rejects $event inside a delayedTrigger BODY (event gone at fire time)", () => {
+        const errors = validateAbilityEffectScript(
+            abilityHost([
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-of-combat",
+                    oracleText: "…",
+                    effects: [
+                        {
+                            op: "destroy",
+                            target: { ref: "$event.blockerId" },
+                        },
+                    ],
+                },
+            ]),
+            "Test (id)",
+            "BLOCKERS_CONFIRMED"
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.join("\n")).toContain("delayedTrigger body");
+    });
+
+    it("rejects $event on an ACTIVATED ability (no firing event)", () => {
+        // No trigger event type passed → activated site.
+        const errors = validateAbilityEffectScript(
+            abilityHost([
+                { op: "destroy", target: { ref: "$event.blockerId" } },
+            ]),
+            "Test (id)"
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.join("\n")).toContain("triggered-ability site");
+    });
+
+    it("rejects $event at a SPELL site", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    { op: "destroy", target: { ref: "$event.blockerId" } },
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.join("\n")).toContain("triggered-ability site");
     });
 });

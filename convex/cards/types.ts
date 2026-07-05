@@ -933,6 +933,13 @@ export interface SpellContext {
      *  card on the stack (ADR 0048). Empty string for synthetic items with
      *  no registry id. */
     sourceCardId: string;
+    /** The event that fired this triggered ability (CR 603), or undefined at
+     *  spell / activated-ability sites. Threaded from the resolving stack item
+     *  (`StackItem.triggerEvent`). Read by the Effect Script interpreter to
+     *  resolve `$event.<field>` refs through the EVENT_FIELD_REGISTRY (ADR 0049,
+     *  issue #865) — legal only at trigger sites (the validator enforces the
+     *  scope statically, so a spell/activated script can never read it). */
+    triggerEvent?: GameEvent;
     /** Chosen targets (validated at cast time). */
     targets: TargetSelection[];
     /** Ids of all players in the game. Used by "each player ~" spells like
