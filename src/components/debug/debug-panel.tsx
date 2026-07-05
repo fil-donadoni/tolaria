@@ -140,6 +140,24 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 4,
     },
     {
+        // ICE static per-pip non-mana additional cost (issue #907): Drought
+        // imposes "Sacrifice a Swamp" per BLACK mana symbol on every spell and
+        // activated ability (CR 601.2f / 118.5). Cast Hypnotic Specter
+        // ({1}{B}{B}, two black pips) from hand — you must sacrifice two of your
+        // Swamps to pay, and the cast is illegal if you control too few. Four
+        // Swamps let the tax bite twice with one to spare; extra basics cover
+        // the {1}. (Drought's own upkeep "sacrifice unless you pay {W}{W}" tax
+        // fires on your next upkeep.)
+        label: "ICE static per-pip additional cost (Drought) (#907)",
+        cards: [
+            { name: "Drought", owner: "me", zone: "battlefield" },
+            { name: "Swamp", owner: "me", zone: "battlefield", count: 4 },
+            { name: "Hypnotic Specter", owner: "me", zone: "hand" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
+    {
         // Cumulative-upkeep global-lock permanents (issue #727): Glacial Chasm
         // and Halls of Mist enter the battlefield, Energy Storm sits in hand.
         // Glacial Chasm's ETB asks you to sacrifice a land; on the battlefield

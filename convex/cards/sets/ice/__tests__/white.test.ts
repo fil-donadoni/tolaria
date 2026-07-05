@@ -57,9 +57,11 @@ import {
     kjeldoranRoyalGuard,
     arensonsAura,
     generalJarkeld,
+    drought,
 } from "../../ice";
 import { plains } from "../../lea";
-import { getDefinition } from "../../../index";
+import { getDefinition, getCardByName } from "../../../index";
+import { tryAutoCommitPendingCast } from "../../../../game";
 import { applyDamageReplacements } from "../../../../gre/replacements";
 import {
     resolveTopOfStack,
@@ -69,6 +71,9 @@ import {
     normalizeManaCost,
     runDamageReplacement,
     applyTargetPrevention,
+    getStaticAdditionalSacrifices,
+    planStaticAdditionalSacrifices,
+    removePermanentTo,
 } from "../../../../gre/state";
 import {
     buildAutoTapSources,
@@ -2176,5 +2181,296 @@ describe("General Jarkeld — reassign blockers between attackers (CR 509.1)", (
         );
         expect(legalForDefender).toContain("atk1");
         expect(legalForDefender).toContain("atk2");
+    });
+});
+
+describe("Drought (CR 601.2f / 118.5 — static per-pip non-mana additional cost)", () => {
+    const swampId = getCardByName("Swamp").id;
+    const zombies = getCardByName("Scathe Zombies"); // {2}{B} — one black pip
+    const hypnotic = getCardByName("Hypnotic Specter"); // {1}{B}{B} — two pips
+
+    const makeSwamp = (id: string): CardInstanceState =>
+        makeInstance(swampId, {
+            id,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+    const zombiesInHand = (): CardInstanceState =>
+        makeInstance(zombies.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+
+    it("ships the upkeep tax + the board-wide additional-cost static", () => {
+        expect(drought.manaCost).toEqual({ X: 2, W: 2 });
+        expect(drought.types).toContain("Enchantment");
+        // Upkeep "sacrifice unless you pay {W}{W}" (CR 117.3a).
+        expect(drought.triggeredAbilities?.length ?? 0).toBeGreaterThan(0);
+        // The per-pip additional cost rides the additional-cost static kind.
+        const eff = drought.staticEffects?.find(
+            (e) => e.kind === "additional-cost"
+        );
+        expect(eff).toBeDefined();
+    });
+
+    it("imposes one Swamp sacrifice per black pip on EVERY player's spells (board-wide, CR 601.2f)", () => {
+        // p2 controls Drought; p1 is the caster — the cost still applies.
+        const droughtInst = makeInstance(drought.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [droughtInst] }),
+            ],
+        });
+        const spell = zombiesInHand();
+        // {2}{B} → 1 black pip → 1 Swamp.
+        const one = getStaticAdditionalSacrifices(
+            state,
+            zombies.manaCost,
+            spell,
+            "spell"
+        );
+        expect(one).toHaveLength(1);
+        expect(one[0].count).toBe(1);
+        // {1}{B}{B} → 2 black pips → 2 Swamps.
+        const two = getStaticAdditionalSacrifices(
+            state,
+            hypnotic.manaCost,
+            spell,
+            "spell"
+        );
+        expect(two[0].count).toBe(2);
+        // A spell with no black pip ({2}{W}{W}) owes nothing.
+        const none = getStaticAdditionalSacrifices(
+            state,
+            drought.manaCost,
+            spell,
+            "spell"
+        );
+        expect(none).toHaveLength(0);
+    });
+
+    it("also taxes activated abilities by their black activation pips (CR 601.2f)", () => {
+        const droughtInst = makeInstance(drought.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [droughtInst] }),
+                makePlayer("p2"),
+            ],
+        });
+        const source = makeInstance(zombies.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const reqs = getStaticAdditionalSacrifices(
+            state,
+            { B: 2 },
+            source,
+            "ability"
+        );
+        expect(reqs[0].count).toBe(2);
+    });
+
+    it("makes the action illegal when the player can't pay the sacrifice (unpayable → illegal, CR 601.2f)", () => {
+        // Drought out, but the caster controls NO Swamp.
+        const droughtInst = makeInstance(drought.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [droughtInst] }),
+                makePlayer("p2"),
+            ],
+        });
+        const reqs = getStaticAdditionalSacrifices(
+            state,
+            zombies.manaCost,
+            zombiesInHand(),
+            "spell"
+        );
+        // The announcement gate wraps exactly this plan call — an unpayable
+        // requirement throws, making the cast/activation illegal.
+        expect(() =>
+            planStaticAdditionalSacrifices(reqs, state.players[0])
+        ).toThrow();
+    });
+
+    it("picks distinct victims and never double-counts across two Droughts (CR 118.5)", () => {
+        const d1 = makeInstance(drought.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const d2 = makeInstance(drought.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [d1, d2, makeSwamp("sw1"), makeSwamp("sw2")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // Two Droughts, one black pip each → two requirements of count 1.
+        const reqs = getStaticAdditionalSacrifices(
+            state,
+            zombies.manaCost,
+            zombiesInHand(),
+            "spell"
+        );
+        expect(reqs).toHaveLength(2);
+        const ids = planStaticAdditionalSacrifices(reqs, state.players[0]);
+        expect(new Set(ids).size).toBe(2); // distinct victims
+        expect([...ids].sort()).toEqual(["sw1", "sw2"]);
+        // With only ONE Swamp, the two requirements can't both be paid.
+        const stateB = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [d1, d2, makeSwamp("only")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const reqsB = getStaticAdditionalSacrifices(
+            stateB,
+            zombies.manaCost,
+            zombiesInHand(),
+            "spell"
+        );
+        expect(() =>
+            planStaticAdditionalSacrifices(reqsB, stateB.players[0])
+        ).toThrow();
+    });
+
+    it("sacrifices the Swamp when the spell is put on the stack (full commit path, CR 601.2h)", () => {
+        const droughtInst = makeInstance(drought.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const zInst = makeInstance(zombies.id, {
+            id: "z1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [zInst],
+                    battlefield: [makeSwamp("swE")],
+                    manaPool: { W: 0, U: 0, B: 3, R: 0, G: 0, C: 0 },
+                }),
+                makePlayer("p2", { battlefield: [droughtInst] }),
+            ],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+        });
+        state.pendingCast = {
+            playerId: "p1",
+            cardInstanceId: "z1",
+            manaCost: normalizeManaCost(zombies.manaCost ?? {}),
+            tappedLandIds: [],
+        };
+        const committed = tryAutoCommitPendingCast(state, "p1");
+        expect(committed).not.toBeNull();
+        // The spell is on the stack; the Swamp was sacrificed to the graveyard.
+        expect(state.stack).toHaveLength(1);
+        expect(
+            state.players[0].battlefield.some((c) =>
+                c.subtypes?.includes("Swamp")
+            )
+        ).toBe(false);
+        expect(state.players[0].graveyard.some((c) => c.id === "swE")).toBe(
+            true
+        );
+    });
+
+    it("wire format: the additional cost is derivable from the projected state", () => {
+        const droughtInst = makeInstance(drought.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [droughtInst] }),
+            ],
+        });
+        const spell = zombiesInHand();
+        const before = getStaticAdditionalSacrifices(
+            state,
+            zombies.manaCost,
+            spell,
+            "spell"
+        );
+        expect(before[0].count).toBe(1);
+        // The projection strips card.card to { id }; the additional-cost static
+        // must still resolve from the definition registry client-side.
+        const projected = projectPublicState(
+            state,
+            1,
+            "p1"
+        ) as unknown as GameState;
+        const after = getStaticAdditionalSacrifices(
+            projected,
+            zombies.manaCost,
+            spell,
+            "spell"
+        );
+        expect(after[0].count).toBe(1);
+    });
+
+    // Also exercise the sacrifice via removePermanentTo (mirrors the exact
+    // payStaticAdditionalCost commit loop the mutation sites call).
+    it("removePermanentTo pays the planned sacrifice (mirrors payStaticAdditionalCost)", () => {
+        const droughtInst = makeInstance(drought.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [droughtInst, makeSwamp("swX")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const reqs = getStaticAdditionalSacrifices(
+            state,
+            zombies.manaCost,
+            zombiesInHand(),
+            "spell"
+        );
+        for (const id of planStaticAdditionalSacrifices(
+            reqs,
+            state.players[0]
+        )) {
+            removePermanentTo(state, id, "graveyard", "sacrifice");
+        }
+        expect(state.players[0].battlefield.some((c) => c.id === "swX")).toBe(
+            false
+        );
+        expect(state.players[0].graveyard.some((c) => c.id === "swX")).toBe(
+            true
+        );
     });
 });

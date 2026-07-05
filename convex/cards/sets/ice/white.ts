@@ -17,6 +17,7 @@ import { countSnowLands } from "../../snowReads";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
 import { manaCostForCardId } from "../../manaCostLookup";
 import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
+import { payOrSacrificeUpkeepTrigger } from "../leg";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -753,25 +754,42 @@ export const disenchantIce: CardPrint = {
     setCode: "ice",
     rarity: "common",
 };
-// DEFERRED (#739, stop-and-issue) — Drought needs a board-wide, static,
+// Drought — the upkeep "sacrifice unless you pay {W}{W}" clause reuses the leg
+// `payOrSacrificeUpkeepTrigger` (CR 117.3a). Its board-wide, static,
 // per-black-pip NON-mana additional cost ("Sacrifice a Swamp" for each black
-// mana symbol) imposed on EVERY spell cast and EVERY activated ability. The
-// engine's cost-modification hook (`StaticCostModifier`, CR 601.2f) is
-// mana-only (`costIncrease`/`costReduction`); `additionalCosts.sacrificeFilter`
-// is a self-only cost. Imposing a scaling non-mana additional cost on other
-// players' spells/abilities (with an unpayable-blocks-the-action gate) is a
-// genuinely-absent static-effect subsystem — not an Op gap, so not papered
-// with resolve(). The upkeep "sacrifice unless you pay {W}{W}" clause is
-// already expressible (leg `payOrSacrificeUpkeepTrigger`), but the card is not
-// shippable without the cost seam. Left as a tracked stub.
-// export const drought: CardDefinition = {
-//     id: "97736696-3de3-416d-94cf-4fac792f23f0",
-//     name: "Drought",
-//     rarity: "uncommon",
-//     oracleText: "At the beginning of your upkeep, sacrifice this enchantment unless you pay {W}{W}.\nSpells cost an additional \"Sacrifice a Swamp\" to cast for each black mana symbol in their mana costs.\nActivated abilities cost an additional \"Sacrifice a Swamp\" to activate for each black mana symbol in their activation costs.",
-//     manaCost: { X: 2, W: 2 },
-//     types: ["Enchantment"],
-// };
+// mana symbol) on EVERY spell cast and EVERY activated ability rides the
+// `additional-cost` static-effect kind (CR 601.2f / 118.5), scanned at
+// announcement (affordability gate, unpayable → illegal) and paid at commit
+// alongside the mana cost (#907, unblocked from #739's stop-and-issue seam).
+export const drought: CardDefinition = {
+    id: "97736696-3de3-416d-94cf-4fac792f23f0",
+    name: "Drought",
+    rarity: "uncommon",
+    oracleText:
+        'At the beginning of your upkeep, sacrifice Drought unless you pay {W}{W}.\nSpells cost an additional "Sacrifice a Swamp" to cast for each black mana symbol in their mana costs.\nActivated abilities cost an additional "Sacrifice a Swamp" to activate for each black mana symbol in their activation costs.',
+    manaCost: { X: 2, W: 2 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        payOrSacrificeUpkeepTrigger({
+            id: "drought-upkeep",
+            cardName: "Drought",
+            cost: { W: 2 },
+            costText: "{W}{W}",
+        }),
+    ],
+    staticEffects: [
+        // CR 601.2f / 118.5 — one "Sacrifice a Swamp" additional cost per black
+        // mana symbol, imposed board-wide on the spells and activated abilities
+        // of EVERY player; an unpayable count makes the cast/activation illegal.
+        {
+            kind: "additional-cost",
+            appliesToSpell: () => true,
+            appliesToAbility: () => true,
+            perPipColor: "B",
+            sacrificeFilter: { subtypes: ["Swamp"] },
+        },
+    ],
+};
 // Elvish Healer — {T}: prevent the next 1 damage to any target this turn; if
 // that target is a green creature, prevent 2 instead (CR 615 prevention). The
 // amount is target-dependent, resolved from the chosen target's color/type.

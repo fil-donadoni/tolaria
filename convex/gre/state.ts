@@ -9127,6 +9127,102 @@ export function getCostModifiers(
     return { increase, reductionGeneric, minTotalMana };
 }
 
+/** One resolved static NON-mana additional-cost requirement (CR 601.2f / 118.5,
+ *  Drought): `count` permanents matching `filter` must be sacrificed by the
+ *  announcing player. */
+export interface StaticAdditionalSacrifice {
+    filter: PermanentFilter;
+    count: number;
+}
+
+/** Count of `color` mana SYMBOLS in a printed mana cost — colored pips only.
+ *  Generic (`X`) never counts (Drought: "for each black mana symbol"). */
+function countColorSymbols(cost: ManaCost | undefined, color: Color): number {
+    if (!cost) return 0;
+    const v = (cost as Record<string, number | string | undefined>)[color];
+    return typeof v === "number" ? v : 0;
+}
+
+/** Scan the battlefield for `additional-cost` static effects that apply to the
+ *  announced spell/ability and return the per-effect sacrifice requirements
+ *  (CR 601.2f / 118.5, Drought). `rawManaCost` is the object's PRINTED mana
+ *  cost; each `perPipColor` symbol in it multiplies that effect's required
+ *  sacrifice count. Multiple applying effects (e.g. two Droughts) each
+ *  contribute their own requirement. */
+export function getStaticAdditionalSacrifices(
+    state: GameState,
+    rawManaCost: ManaCost | undefined,
+    announced: PermanentView,
+    kind: "spell" | "ability"
+): StaticAdditionalSacrifice[] {
+    const out: StaticAdditionalSacrifice[] = [];
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            const cardId = (source.card as { id?: string }).id;
+            const def = cardId ? tryGetDefinition(cardId) : null;
+            const effects = getEffectiveStaticEffects(def, source.chosenModeId);
+            for (const effect of effects) {
+                if (effect.kind !== "additional-cost") continue;
+                const pred =
+                    kind === "spell"
+                        ? effect.appliesToSpell
+                        : effect.appliesToAbility;
+                if (!pred || !pred(announced, STATIC_EFFECT_CTX, source)) {
+                    continue;
+                }
+                const count = countColorSymbols(
+                    rawManaCost,
+                    effect.perPipColor
+                );
+                if (count > 0) {
+                    out.push({ filter: effect.sacrificeFilter, count });
+                }
+            }
+        }
+    }
+    return out;
+}
+
+/** Auto-pick the instance ids `player` must sacrifice to pay all the static
+ *  additional-cost requirements (CR 601.2f / 118.5, Drought). Victims are
+ *  chosen deterministically in battlefield order and never double-counted
+ *  across overlapping requirements (two Droughts drawing from the same Swamp
+ *  pool). Throws — the cast/activation is illegal (CR 601.2f) — when the
+ *  requirements can't all be met.
+ *
+ *  The pick is auto-resolved (no UI picker) — a deliberate simplification vs.
+ *  strict "the player chooses which permanent to sacrifice", tactically
+ *  irrelevant for the fungible-land case the effect targets. */
+export function planStaticAdditionalSacrifices(
+    requirements: StaticAdditionalSacrifice[],
+    player: PlayerState
+): string[] {
+    const reserved = new Set<string>();
+    for (const req of requirements) {
+        let need = req.count;
+        for (const c of player.battlefield) {
+            if (need <= 0) break;
+            if (reserved.has(c.id)) continue;
+            if (
+                matchesPermanentFilter(
+                    { ...c, colors: STATIC_EFFECT_CTX.getColors(c) },
+                    req.filter,
+                    { selfControllerId: player.id }
+                )
+            ) {
+                reserved.add(c.id);
+                need -= 1;
+            }
+        }
+        if (need > 0) {
+            throw new Error(
+                "Can't pay the additional cost (not enough permanents to sacrifice)"
+            );
+        }
+    }
+    return [...reserved];
+}
+
 /** Scan the battlefield for `mana-substitution` static effects whose source
  *  is controlled by `playerId` and return the active "spend `from` as though
  *  `to`" rules (CR 609.4b). Derived fresh per payment so the substitution

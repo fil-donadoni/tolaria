@@ -3525,6 +3525,42 @@ export interface StaticCostModifier {
     minTotalMana?: number;
 }
 
+/** Board-wide static NON-mana additional cost (CR 601.2f / 118.5). Unlike
+ *  `StaticCostModifier` (which only adds or removes MANA), this imposes a
+ *  per-mana-symbol "sacrifice a permanent matching <filter>" additional cost
+ *  on matching spells and/or activated abilities of EVERY player: for each
+ *  `perPipColor` mana symbol in the announced object's PRINTED mana cost, one
+ *  such sacrifice is required (Drought — "Spells cost an additional 'Sacrifice
+ *  a Swamp' to cast for each black mana symbol in their mana costs"). If the
+ *  announcing player controls too few matching permanents to pay, the
+ *  cast/activation is illegal. Scanned at announcement (affordability gate) and
+ *  paid at commit, alongside the mana cost.
+ *
+ *  Like `StaticCostModifier`, the `appliesTo*` predicates receive the
+ *  announced spell/ability (`card`/`source`) plus the carrier permanent
+ *  (`effectSource`); Drought is board-wide so it ignores `effectSource` and
+ *  matches every spell/ability. The sacrifice victims are auto-chosen (board
+ *  order) — a deliberate simplification vs. strict "the player chooses which
+ *  to sacrifice", tactically irrelevant for the fungible-land case. */
+export interface StaticAdditionalCost {
+    kind: "additional-cost";
+    appliesToSpell?: (
+        card: PermanentView,
+        ctx: StaticEffectContext,
+        effectSource?: PermanentView
+    ) => boolean;
+    appliesToAbility?: (
+        source: PermanentView,
+        ctx: StaticEffectContext,
+        effectSource?: PermanentView
+    ) => boolean;
+    /** The mana color whose printed symbols drive the sacrifice count. */
+    perPipColor: Color;
+    /** Each required sacrifice removes one permanent matching this filter from
+     *  the announcing player's battlefield (Drought: `{ subtypes: ["Swamp"] }`). */
+    sacrificeFilter: PermanentFilter;
+}
+
 /** Keyword-removal static effect (CR 613.1a layer 6). Suppresses a keyword
  *  on matching permanents. Tracked via `removedKeywords` on the target so
  *  unapply can restore the original. */
@@ -3725,6 +3761,7 @@ export type StaticEffect =
     | StaticBlockRequirement
     | StaticHandSizeOverride
     | StaticCostModifier
+    | StaticAdditionalCost
     | StaticManaSubstitution
     | StaticPermanentGuard
     | StaticCombatDamagePrevention

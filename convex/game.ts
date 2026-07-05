@@ -42,6 +42,8 @@ import {
     getManaSubstitutions,
     getCostModifiers,
     applyCostModifiers,
+    getStaticAdditionalSacrifices,
+    planStaticAdditionalSacrifices,
     emitSpellCastEvent,
     emitPermanentTapped,
     emitAbilityActivated,
@@ -1232,6 +1234,16 @@ export function tryAutoCommitPendingActivation(
         }
     }
 
+    // CR 601.2f / 118.5 — pay the board-wide static NON-mana additional cost
+    // (Drought) as the ability goes on the stack. Pip count comes from the
+    // ability's PRINTED activation cost. No-op unless a static applies.
+    payStaticAdditionalCost(
+        state,
+        resolveActivatedAbility(card, pa.abilityId)?.ability.cost.mana,
+        card,
+        player,
+        "ability"
+    );
     const stackItem: StackItem = {
         ...structuredClone(card),
         zone: "stack" as const,
@@ -1473,6 +1485,16 @@ export function tryAutoCommitPendingCast(
     if (pendingPayLife && pendingPayLife > 0) {
         player.life -= pendingPayLife;
     }
+    // CR 601.2f / 118.5 — pay the board-wide static NON-mana additional cost
+    // (Drought) as the spell hits the stack. No-op unless a `additional-cost`
+    // static applies.
+    payStaticAdditionalCost(
+        state,
+        castDef?.manaCost,
+        spellCard,
+        player,
+        "spell"
+    );
     const stackItem: StackItem = {
         ...spellCard,
         castById: playerId,
@@ -2661,6 +2683,17 @@ export function finalizeTargetSelection(
                 getCostModifiers(state, card, "ability")
             );
         }
+        // CR 601.2f / 118.5 — board-wide static NON-mana additional cost
+        // (Drought: "Activated abilities cost an additional 'Sacrifice a Swamp'
+        // for each black mana symbol"). Gate on affordability at announcement;
+        // pip count comes from the ability's PRINTED activation cost.
+        assertStaticAdditionalCostAffordable(
+            state,
+            ability.cost.mana,
+            card,
+            player,
+            "ability"
+        );
 
         // Enter pendingActivation (deferred commit) when mana isn't covered OR
         // the ability has a "sacrifice a permanent matching <filter>" cost that
@@ -2771,6 +2804,16 @@ export function finalizeTargetSelection(
         if (ability.cost.sacrifice) {
             removePermanentTo(state, card.id, "graveyard", "sacrifice");
         }
+        // CR 601.2f / 118.5 — pay the board-wide static NON-mana additional cost
+        // (Drought) as the ability goes on the stack. No-op unless a static
+        // applies.
+        payStaticAdditionalCost(
+            state,
+            ability.cost.mana,
+            card,
+            player,
+            "ability"
+        );
 
         const stackItem: StackItem = {
             ...structuredClone(card),
@@ -2816,6 +2859,17 @@ export function finalizeTargetSelection(
         ? normalizeManaCost(rawCost, { chosenX, additionalGeneric })
         : {};
     applyCostModifiers(manaCost, getCostModifiers(state, cardInHand, "spell"));
+    // CR 601.2f / 118.5 — board-wide static NON-mana additional cost (Drought:
+    // "Spells cost an additional 'Sacrifice a Swamp' for each black mana
+    // symbol"). Gate on affordability at announcement; pip count comes from the
+    // spell's PRINTED mana cost.
+    assertStaticAdditionalCostAffordable(
+        state,
+        rawCost,
+        cardInHand,
+        player,
+        "spell"
+    );
 
     // CR 601.2b / 118.4 — "pay X life" additional cost (Fire Covenant). X was
     // chosen at announcement and rides on `pt.chosenX`; the life is paid the
@@ -2886,6 +2940,9 @@ export function finalizeTargetSelection(
         // announcement; SBA handles a fatal payment.
         if (payLife > 0) player.life -= payLife;
         const card = removeFromZone(player, cardInstanceId, castZone);
+        // CR 601.2f / 118.5 — pay the board-wide static NON-mana additional cost
+        // (Drought) as the spell hits the stack. No-op unless a static applies.
+        payStaticAdditionalCost(state, rawCost, card, player, "spell");
         const stackItem: StackItem = {
             ...card,
             castById: playerId,
@@ -2918,6 +2975,57 @@ export function finalizeTargetSelection(
         };
         // Targets ride along on pendingCast until payment completes.
         (state.pendingCast as Record<string, unknown>).targets = targets;
+    }
+}
+
+/** CR 601.2f / 118.5 — affordability gate for board-wide static NON-mana
+ *  additional costs (Drought). Throws (the cast/activation is illegal) when the
+ *  announcing `player` controls too few permanents to pay the per-pip
+ *  "sacrifice a <filter>" cost imposed on this spell/ability. Called at each
+ *  announcement site, before entering the payment phase. */
+function assertStaticAdditionalCostAffordable(
+    state: GameState,
+    rawManaCost: ManaCost | undefined,
+    announced: CardInstanceState,
+    player: PlayerState,
+    kind: "spell" | "ability"
+): void {
+    const reqs = getStaticAdditionalSacrifices(
+        state,
+        rawManaCost,
+        announced,
+        kind
+    );
+    if (reqs.length > 0) {
+        // Throws when unaffordable — the affordability gate (result discarded).
+        planStaticAdditionalSacrifices(reqs, player);
+    }
+}
+
+/** CR 601.2f / 118.5 — pay the board-wide static NON-mana additional costs
+ *  (Drought) by sacrificing the auto-chosen victims as the spell/ability is put
+ *  on the stack. No-op when no `additional-cost` static applies. Called at each
+ *  commit site (immediate and deferred), so exactly one payment happens per
+ *  cast/activation. Affordability was validated at announcement and the board
+ *  is stable through the caster's own payment window, so the plan never throws
+ *  here in practice. */
+function payStaticAdditionalCost(
+    state: GameState,
+    rawManaCost: ManaCost | undefined,
+    announced: CardInstanceState,
+    player: PlayerState,
+    kind: "spell" | "ability"
+): void {
+    const reqs = getStaticAdditionalSacrifices(
+        state,
+        rawManaCost,
+        announced,
+        kind
+    );
+    if (reqs.length === 0) return;
+    const ids = planStaticAdditionalSacrifices(reqs, player);
+    for (const id of ids) {
+        removePermanentTo(state, id, "graveyard", "sacrifice");
     }
 }
 
@@ -3294,6 +3402,16 @@ export const announceCast = mutation({
             manaCost,
             getCostModifiers(state, cardInHand, "spell")
         );
+        // CR 601.2f / 118.5 — board-wide static NON-mana additional cost
+        // (Drought). Gate on affordability at announcement; pip count comes from
+        // the spell's PRINTED mana cost.
+        assertStaticAdditionalCostAffordable(
+            state,
+            rawCost,
+            cardInHand,
+            player,
+            "spell"
+        );
 
         const additionalCostPicker = buildAdditionalCostPicker(
             cardDef.additionalCosts,
@@ -3355,6 +3473,10 @@ export const announceCast = mutation({
                 args.cardInstanceId,
                 castFromZone
             );
+            // CR 601.2f / 118.5 — pay the board-wide static NON-mana additional
+            // cost (Drought) as the spell hits the stack. No-op unless a static
+            // applies.
+            payStaticAdditionalCost(state, rawCost, card, player, "spell");
             const stackItem: StackItem = {
                 ...card,
                 castById: args.playerId,
@@ -6566,6 +6688,16 @@ export const activateAbility = mutation({
                 getCostModifiers(state, card, "ability")
             );
         }
+        // CR 601.2f / 118.5 — board-wide static NON-mana additional cost
+        // (Drought). Gate on affordability at announcement; pip count comes from
+        // the ability's PRINTED activation cost.
+        assertStaticAdditionalCostAffordable(
+            state,
+            ability.cost.mana,
+            card,
+            player,
+            "ability"
+        );
 
         // Enter a pendingActivation payment phase that mirrors pendingCast
         // when (a) mana isn't yet covered, OR (b) the ability has a
@@ -6654,6 +6786,16 @@ export const activateAbility = mutation({
         if (ability.cost.sacrifice) {
             removePermanentTo(state, card.id, "graveyard", "sacrifice");
         }
+        // CR 601.2f / 118.5 — pay the board-wide static NON-mana additional cost
+        // (Drought) as the ability goes on the stack. No-op unless a static
+        // applies.
+        payStaticAdditionalCost(
+            state,
+            ability.cost.mana,
+            card,
+            player,
+            "ability"
+        );
 
         // Put ability on stack (clone card state as a virtual stack item)
         const stackItem: StackItem = {
