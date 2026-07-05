@@ -4798,6 +4798,48 @@ describe("Effect Script construct: forEach — permanent sets (ADR 0045 / CR 608
     });
 });
 
+describe("Effect Script Op: sacrifice — single-object target form (CR 701.16, issue #731)", () => {
+    it("sacrifices the announced target permanent", () => {
+        const id = registerScript("test-sac-target", [
+            { op: "sacrifice", target: { target: 0 } },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            id: "victim",
+                            controllerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "victim" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "victim")
+        ).toBe(false);
+        expect(state.players[0].graveyard.some((c) => c.id === "victim")).toBe(
+            true
+        );
+    });
+
+    it("is a no-op when the target has already left the battlefield (CR 608.2b)", () => {
+        const id = registerScript("test-sac-target-gone", [
+            { op: "sacrifice", target: { target: 0 } },
+        ]);
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        // Target id points at nothing on the battlefield — resolveObjectRef
+        // returns undefined and the Op skips without throwing.
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ghost" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+});
+
 describe("Effect Script construct: forEach — player sets, APNAP choice composition (CR 101.4, issue #807)", () => {
     const SAC_EFFECTS: EffectOp[] = [
         {

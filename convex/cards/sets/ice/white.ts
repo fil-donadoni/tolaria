@@ -1249,42 +1249,123 @@ export const kelsinkoRanger: CardDefinition = {
         },
     ],
 };
-// DEFERRED (#653): "+2/+2 until that creature leaves the battlefield this turn,
-// then sacrifice this creature" needs a per-turn linked-trigger that watches a
-// SPECIFIC chosen instance leave the battlefield. The engine has no
-// instance-scoped "watch target X leave this turn" delayed trigger.
-// export const kjeldoranEliteGuard: CardDefinition = {
-//     id: "a73bc4b6-f7d0-494c-9e60-48279c11b7b6",
-//     name: "Kjeldoran Elite Guard",
-//     rarity: "uncommon",
-//     oracleText: "{T}: Target creature gets +2/+2 until end of turn. When that creature leaves the battlefield this turn, sacrifice this creature. Activate only during combat.",
-//     manaCost: { X: 3, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Soldier"],
-//     power: 2,
-//     toughness: 2,
-// };
-// DEFERRED (instance-scoped leave-watch, NOT snow). The snow gate ("activate
-// only if defending player controls no snow lands") is now buildable via
-// `countSnowLands`, but Kjeldoran Guard shares Kjeldoran Elite Guard's genuine
-// engine gap: "When that creature leaves the battlefield this turn, sacrifice
-// this creature" needs a per-turn delayed trigger that watches a SPECIFIC
-// chosen instance leave the battlefield (CR 603.7a) — the delayed-trigger
-// system has timings (next-end-step, …) but no "when target X leaves" timing,
-// and `leftTrigger` only watches the source itself. Shipping the snow gate
-// alone would leave the sacrifice clause unimplemented (behavior-incorrect), so
-// the whole card waits on the leave-watch primitive (same as Elite Guard).
-// export const kjeldoranGuard: CardDefinition = {
-//     id: "bdf41f17-8f82-4a8c-adec-0f3804faff3b",
-//     name: "Kjeldoran Guard",
-//     rarity: "common",
-//     oracleText: "{T}: Target creature gets +1/+1 until end of turn. When that creature leaves the battlefield this turn, sacrifice this creature. Activate only during combat and only if defending player controls no snow lands.",
-//     manaCost: { X: 1, W: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Human", "Soldier"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Kjeldoran Elite Guard — instance leave-watch (CR 603.7a / 603.10, issue
+// #731). "{T}: Target creature gets +2/+2 until end of turn. When that creature
+// leaves the battlefield this turn, sacrifice this creature. Activate only
+// during combat." The `pump` Op applies +2/+2 EOT (CR 611.1b); the
+// `delayedTrigger` Op with `timing: "leaves-battlefield"` grants a delayed
+// triggered ability keyed to the buffed creature (`watch`) whose inline body
+// sacrifices this Guard (`$guard` = `$source`) when that creature leaves — a
+// pending watch expires at CLEANUP (the "this turn" bound). Activation is
+// restricted to the combat phases via `activationPhaseRestriction` (CR 602.5b).
+export const kjeldoranEliteGuard: CardDefinition = {
+    id: "a73bc4b6-f7d0-494c-9e60-48279c11b7b6",
+    name: "Kjeldoran Elite Guard",
+    rarity: "uncommon",
+    oracleText:
+        "{T}: Target creature gets +2/+2 until end of turn. When that creature leaves the battlefield this turn, sacrifice this creature. Activate only during combat.",
+    manaCost: { X: 3, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Soldier"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "kjeldoran-elite-guard-pump",
+            oracleText:
+                "{T}: Target creature gets +2/+2 until end of turn. When that creature leaves the battlefield this turn, sacrifice this creature. Activate only during combat.",
+            cost: { tap: true },
+            useStack: true,
+            activationPhaseRestriction: [
+                "BEGINNING_OF_COMBAT",
+                "DECLARE_ATTACKERS",
+                "DECLARE_BLOCKERS",
+                "COMBAT_DAMAGE",
+                "END_OF_COMBAT",
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 2,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "delayedTrigger",
+                    timing: "leaves-battlefield",
+                    oracleText:
+                        "When that creature leaves the battlefield this turn, sacrifice Kjeldoran Elite Guard.",
+                    watch: { target: 0 },
+                    capture: { $guard: { ref: "$source" } },
+                    effects: [{ op: "sacrifice", target: { ref: "$guard" } }],
+                },
+            ],
+        },
+    ],
+};
+// Kjeldoran Guard — Elite Guard's +1/+1 sibling with the snow activation gate
+// (CR 205.4a, issue #661). Same instance leave-watch (issue #731); additionally
+// "Activate only during combat and only if defending player controls no snow
+// lands" — `canActivate` rejects when the non-active (defending, 2-player)
+// player controls any snow land.
+export const kjeldoranGuard: CardDefinition = {
+    id: "bdf41f17-8f82-4a8c-adec-0f3804faff3b",
+    name: "Kjeldoran Guard",
+    rarity: "common",
+    oracleText:
+        "{T}: Target creature gets +1/+1 until end of turn. When that creature leaves the battlefield this turn, sacrifice this creature. Activate only during combat and only if defending player controls no snow lands.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Soldier"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "kjeldoran-guard-pump",
+            oracleText:
+                "{T}: Target creature gets +1/+1 until end of turn. When that creature leaves the battlefield this turn, sacrifice this creature. Activate only during combat and only if defending player controls no snow lands.",
+            cost: { tap: true },
+            useStack: true,
+            activationPhaseRestriction: [
+                "BEGINNING_OF_COMBAT",
+                "DECLARE_ATTACKERS",
+                "DECLARE_BLOCKERS",
+                "COMBAT_DAMAGE",
+                "END_OF_COMBAT",
+            ],
+            // CR 205.4a — the defending player (non-active, 2-player) must
+            // control NO snow lands (issue #661).
+            canActivate: (_source, state) => {
+                const active = state.activePlayerId;
+                return state.players.every(
+                    (p) =>
+                        p.id === active || countSnowLands(p.battlefield) === 0
+                );
+            },
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 1,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "delayedTrigger",
+                    timing: "leaves-battlefield",
+                    oracleText:
+                        "When that creature leaves the battlefield this turn, sacrifice Kjeldoran Guard.",
+                    watch: { target: 0 },
+                    capture: { $guard: { ref: "$source" } },
+                    effects: [{ op: "sacrifice", target: { ref: "$guard" } }],
+                },
+            ],
+        },
+    ],
+};
 // Kjeldoran Knight — banding plus two repeatable self-pumps (CR 611.1, 702.22).
 export const kjeldoranKnight: CardDefinition = {
     id: "d5b9db8f-93b5-44e3-9e2b-728c80dfbb37",

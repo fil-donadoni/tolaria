@@ -9,11 +9,9 @@ import type {
     DelayedTriggerInstance,
     GameState,
     PlayerState,
-    StackItem,
 } from "./state";
 import { MAX_HAND_SIZE } from "./constants";
 import {
-    allocInstanceId,
     applyPlayerDamagePrevention,
     applyTargetPrevention,
     bumpArtifactDamageToPlayer,
@@ -48,7 +46,7 @@ import {
 } from "./layers";
 import { isProtectedFromSource } from "./protection";
 import { isCombatDamagePreventedFromSource } from "./combatDamagePrevention";
-import { collectTriggers } from "./triggers";
+import { collectTriggers, buildDelayedTriggerStackItem } from "./triggers";
 import { hasAnyLegalBlock, getRequiredAttackerIds } from "./combat";
 import {
     getEffectiveBlockGraph,
@@ -1336,24 +1334,7 @@ export function fireDelayedTriggers(
     state.delayedTriggers = remaining.length > 0 ? remaining : undefined;
     if (firing.length === 0) return;
     for (const t of firing) {
-        const stackItem: StackItem = {
-            id: allocInstanceId(state),
-            card: { id: t.sourceCardId },
-            controllerId: t.controller,
-            ownerId: t.controller,
-            zone: "stack",
-            types: [],
-            subtypes: [],
-            staticAbilities: [],
-            isTapped: false,
-            castById: t.controller,
-            delayedTriggerId: t.triggerId,
-            delayedPayload: t.payload,
-            // ADR 0048 — an inline-body instance carries its Effect Script
-            // onto the stack item, so resolution needs no card-def lookup.
-            ...(t.effects ? { delayedEffects: t.effects } : {}),
-        };
-        state.stack.push(stackItem);
+        state.stack.push(buildDelayedTriggerStackItem(state, t));
     }
     state.priorityPlayerId = state.activePlayerId;
     state.passCount = 0;
@@ -1844,6 +1825,18 @@ export function finalizeCleanup(state: GameState): void {
                 card.cantBeBlockedBySubtypesThisTurn = undefined;
             }
         }
+    }
+
+    // CR 603.7a / 514.2 (issue #731) — an instance leave-watch delayed trigger
+    // ("when that creature leaves the battlefield THIS TURN, …") that never
+    // fired expires here. Every `leaves-battlefield` instance is this-turn
+    // scoped, so the whole class is purged at CLEANUP; the phase-boundary
+    // timings are left untouched (they fire on a future step, not this turn).
+    if (state.delayedTriggers?.length) {
+        const kept = state.delayedTriggers.filter(
+            (t) => t.timing !== "leaves-battlefield"
+        );
+        state.delayedTriggers = kept.length > 0 ? kept : undefined;
     }
 }
 

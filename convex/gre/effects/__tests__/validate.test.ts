@@ -993,11 +993,28 @@ describe("validateEffectScript — forEach construct (ADR 0045, issue #807)", ()
 });
 
 describe("validateEffectScript — sacrifice Op (CR 701.16, issue #807)", () => {
-    it("requires a bare picks ref in `permanents`", () => {
+    it("requires exactly one of `permanents` / `target`", () => {
+        // Neither form present (issue #731 — the Op is now a `permanents`
+        // picks OR a single `target`).
         const missing = validateEffectScript(
             host({ effects: [{ op: "sacrifice" } as never] })
         );
-        expect(missing.some((e) => /missing field "permanents"/.test(e))).toBe(
+        expect(missing.some((e) => /exactly one of "permanents"/.test(e))).toBe(
+            true
+        );
+        // Both forms present — also rejected.
+        const both = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "sacrifice",
+                        permanents: { ref: "$sac" },
+                        target: { target: 0 },
+                    },
+                ] as never,
+            })
+        );
+        expect(both.some((e) => /exactly one of "permanents"/.test(e))).toBe(
             true
         );
         const propertyRef = validateEffectScript(

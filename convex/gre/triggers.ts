@@ -12,9 +12,43 @@
 
 import type { GameEvent, StateCheckEvent } from "../cards/types";
 import { tryGetDefinition } from "../cards";
-import type { CardInstanceState, GameState, StackItem } from "./state";
+import type {
+    CardInstanceState,
+    DelayedTriggerInstance,
+    GameState,
+    StackItem,
+} from "./state";
 import { getPlayer, allocInstanceId } from "./state";
 import { effectiveTriggeredAbilities } from "./copy";
+
+/** Builds the StackItem a fired delayed triggered ability resolves from (CR
+ *  603.7a, ADR 0048). Shared by the phase-boundary fire path
+ *  (`fireDelayedTriggers`, phases.ts) and the instance leave-watch fire path
+ *  (`collectTriggers`, issue #731): an INLINE-body instance carries its Effect
+ *  Script + payload onto the stack item, so resolution needs no card-def
+ *  lookup. */
+export function buildDelayedTriggerStackItem(
+    state: GameState,
+    t: DelayedTriggerInstance
+): StackItem {
+    return {
+        id: allocInstanceId(state),
+        card: { id: t.sourceCardId },
+        controllerId: t.controller,
+        ownerId: t.controller,
+        zone: "stack",
+        types: [],
+        subtypes: [],
+        staticAbilities: [],
+        isTapped: false,
+        castById: t.controller,
+        delayedTriggerId: t.triggerId,
+        delayedPayload: t.payload,
+        // ADR 0048 — an inline-body instance carries its Effect Script onto the
+        // stack item, so resolution needs no card-def lookup.
+        ...(t.effects ? { delayedEffects: t.effects } : {}),
+    };
+}
 
 /** Builds a StackItem representing a triggered ability on the stack. */
 function buildTriggerItem(
@@ -158,6 +192,31 @@ export function collectTriggers(
             }
         }
     }
+
+    // CR 603.7a / 603.10 (issue #731) — instance leave-watch delayed triggers.
+    // A `timing: "leaves-battlefield"` delayed trigger fires when its watched
+    // instance leaves the battlefield ("when THAT creature leaves the
+    // battlefield this turn, …"). Match each pending watch against the
+    // PERMANENT_LEFT ids in this same event batch, push the matched triggers
+    // onto the stack (as delayed-trigger StackItems, resolved through the
+    // inline-body path), and remove the fired instances from the pending list
+    // so they can't fire twice. recentlyLeft is the set of ids that just left.
+    if (state.delayedTriggers?.length && recentlyLeft.size > 0) {
+        const remaining: DelayedTriggerInstance[] = [];
+        for (const t of state.delayedTriggers) {
+            const fires =
+                t.timing === "leaves-battlefield" &&
+                t.watchInstanceId !== undefined &&
+                recentlyLeft.has(t.watchInstanceId);
+            if (fires) {
+                out.push(buildDelayedTriggerStackItem(state, t));
+            } else {
+                remaining.push(t);
+            }
+        }
+        state.delayedTriggers = remaining.length > 0 ? remaining : undefined;
+    }
+
     return out;
 }
 

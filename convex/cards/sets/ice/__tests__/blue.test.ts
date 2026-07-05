@@ -58,6 +58,7 @@ import {
     rayOfCommand,
     magusOfTheUnseen,
     mistfolk,
+    phantasmalMount,
 } from "../../ice";
 import { matchesSpellFilter } from "../../../filters";
 import { getDefinition, getCardByName } from "../../../index";
@@ -69,6 +70,7 @@ import {
     applyExistingGrantsTo,
     addRestrictedManaToPool,
     removePermanentTo,
+    processPendingActionTriggers,
 } from "../../../../gre/state";
 import {
     getEffectivePower,
@@ -2275,5 +2277,125 @@ describe("Mistfolk — counter spell that targets it (CR 701.5a / 114.1)", () =>
         // Wire format — the countered spell is absent from the projected stack.
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.stack.some((s) => s.id === spell.id)).toBe(false);
+    });
+});
+
+// Phantasmal Mount — BIDIRECTIONAL instance leave-watch (CR 603.7a / 603.10,
+// issue #731). Its {T} ability buffs a target creature you control (+1/+1 and
+// flying EOT) and grants TWO delayed triggers with crossed captures: if the
+// Mount leaves, sacrifice the buffed creature; if the buffed creature leaves,
+// sacrifice the Mount. Both expire at CLEANUP if unfired.
+function activateMount(): {
+    state: GameState;
+    mountId: string;
+    steedId: string;
+} {
+    const mount = makeInstance(phantasmalMount.id, {
+        id: "mount1",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const steed = makeInstance(balduvianBears.id, {
+        id: "steed1",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const state = makeState({
+        players: [
+            makePlayer("p1", { battlefield: [mount, steed] }),
+            makePlayer("p2"),
+        ],
+    });
+    state.stack.push({
+        ...mount,
+        id: "ability1",
+        zone: "stack",
+        castById: "p1",
+        abilityId: "phantasmal-mount-pump",
+        triggerSourceId: "mount1",
+        targets: [{ type: "permanent", id: "steed1" }],
+    });
+    resolveTopOfStack(state);
+    return { state, mountId: "mount1", steedId: "steed1" };
+}
+
+describe("Phantasmal Mount (bidirectional leave-watch, CR 603.7a / 603.10)", () => {
+    it("is registered with Flying, {1}{U} cost and the modern oracle text", () => {
+        expect(phantasmalMount.manaCost).toEqual({ X: 1, U: 1 });
+        expect(phantasmalMount.staticAbilities).toEqual(["flying"]);
+        expect(phantasmalMount.oracleText).toContain(
+            "When this creature leaves the battlefield this turn, sacrifice that creature"
+        );
+    });
+
+    it("pumps the target +1/+1, grants flying, and schedules two crossed watches", () => {
+        const { state, mountId, steedId } = activateMount();
+        const steed = state.players[0].battlefield.find(
+            (c) => c.id === steedId
+        )!;
+        expect(getEffectiveToughness(state, steed)).toBe(3);
+        expect(steed.staticAbilities).toContain("flying");
+        const watches = (state.delayedTriggers ?? []).filter(
+            (t) => t.timing === "leaves-battlefield"
+        );
+        expect(watches.length).toBe(2);
+        // One watches the Mount (sacrifices the buffed creature); the other
+        // watches the buffed creature (sacrifices the Mount).
+        const watchMount = watches.find((t) => t.watchInstanceId === mountId)!;
+        expect(watchMount.payload.$mounted).toBe(steedId);
+        const watchSteed = watches.find((t) => t.watchInstanceId === steedId)!;
+        expect(watchSteed.payload.$mount).toBe(mountId);
+    });
+
+    it("sacrifices the buffed creature when the Mount leaves", () => {
+        const { state, mountId, steedId } = activateMount();
+        removePermanentTo(state, mountId, "graveyard");
+        processPendingActionTriggers(state);
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.some((c) => c.id === steedId)).toBe(
+            false
+        );
+        expect(state.players[0].graveyard.some((c) => c.id === steedId)).toBe(
+            true
+        );
+    });
+
+    it("sacrifices the Mount when the buffed creature leaves", () => {
+        const { state, mountId, steedId } = activateMount();
+        removePermanentTo(state, steedId, "graveyard");
+        processPendingActionTriggers(state);
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.some((c) => c.id === mountId)).toBe(
+            false
+        );
+        expect(state.players[0].graveyard.some((c) => c.id === mountId)).toBe(
+            true
+        );
+    });
+
+    it("both watches expire unfired at end of turn (CLEANUP)", () => {
+        const { state, mountId, steedId } = activateMount();
+        finalizeCleanup(state);
+        expect(
+            state.delayedTriggers?.some(
+                (t) => t.timing === "leaves-battlefield"
+            ) ?? false
+        ).toBe(false);
+        expect(state.players[0].battlefield.some((c) => c.id === mountId)).toBe(
+            true
+        );
+        expect(state.players[0].battlefield.some((c) => c.id === steedId)).toBe(
+            true
+        );
+    });
+
+    it("the granted flying + buff survive projectPublicState (wire format)", () => {
+        const { state, steedId } = activateMount();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === steedId
+        )!;
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+        expect(slim.staticAbilities).toContain("flying");
     });
 });

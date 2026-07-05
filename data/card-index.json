@@ -3768,9 +3768,21 @@
         "firstSet": "ice"
     },
     {
+        "name": "Kjeldoran Elite Guard",
+        "scryfallId": "a73bc4b6-f7d0-494c-9e60-48279c11b7b6",
+        "oracleId": "a1f6df2a-fc97-44d4-a0d1-902d8df94002",
+        "firstSet": "ice"
+    },
+    {
         "name": "Kjeldoran Frostbeast",
         "scryfallId": "2fccb1d0-b324-4780-bb9e-4533240da06d",
         "oracleId": "39050823-ccda-43c0-818d-d5db15d82b99",
+        "firstSet": "ice"
+    },
+    {
+        "name": "Kjeldoran Guard",
+        "scryfallId": "bdf41f17-8f82-4a8c-adec-0f3804faff3b",
+        "oracleId": "bd699cf8-56c7-4375-920e-8dd22c83a82c",
         "firstSet": "ice"
     },
     {
@@ -5008,6 +5020,12 @@
         "scryfallId": "0631c7c8-9aa5-4333-8e20-20247fc47033",
         "oracleId": "06a158c6-7e36-49f8-a8e0-a7b7df5fd7ed",
         "firstSet": "lea"
+    },
+    {
+        "name": "Phantasmal Mount",
+        "scryfallId": "75afdbe6-a3f9-49cf-b4ef-f370e518e960",
+        "oracleId": "8c7723a5-04c7-4241-b0ba-6a821449ca43",
+        "firstSet": "ice"
     },
     {
         "name": "Phantasmal Terrain",

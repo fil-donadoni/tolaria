@@ -1826,7 +1826,11 @@ export interface SpellContext {
         // scalar form; the widening is covariant, so their calls still type.
         payload: Record<string, string | string[]>,
         targetPlayerId?: string,
-        inline?: DelayedTriggerInlineBody
+        inline?: DelayedTriggerInlineBody,
+        /** REQUIRED for the `leaves-battlefield` timing (CR 603.7a / 603.10):
+         *  the instance id whose `PERMANENT_LEFT` fires this delayed trigger.
+         *  Undefined for every phase-boundary timing. */
+        watchInstanceId?: string
     ) => void;
     /** Returns true if the target permanent was declared as an attacker this
      *  turn (CR 506.2). Used by "destroy it if it attacked this turn"-style
@@ -2672,7 +2676,15 @@ export type DelayedTriggerTiming =
     | "next-end-of-combat"
     | "next-draw-step"
     | "next-main-phase"
-    | "next-upkeep";
+    | "next-upkeep"
+    /** CR 603.7a / 603.10 — an INSTANCE-scoped, this-turn-bounded leave-watch:
+     *  "When that creature leaves the battlefield this turn, …" (Kjeldoran
+     *  Elite Guard, Kjeldoran Guard, Phantasmal Mount). Unlike the
+     *  phase-boundary timings it fires on a `PERMANENT_LEFT` event for one
+     *  specific watched instance (`DelayedTriggerInstance.watchInstanceId`),
+     *  not at a step boundary; any instance still pending expires unfired at
+     *  CLEANUP (the "this turn" bound, CR 514.2). */
+    | "leaves-battlefield";
 
 /** ADR 0048 — the inline body of an Effect-Script-scheduled delayed trigger
  *  (CR 603.7a): a pure-JSON Op list persisted ON the `DelayedTriggerInstance`
@@ -5342,7 +5354,20 @@ export type EffectOp =
      *  Skipped when the binding was never captured (the choice found no
      *  candidates — CR 608.2b: a player with nothing to sacrifice does
      *  nothing). */
-    | { op: "sacrifice"; permanents: EffectRef }
+    | {
+          op: "sacrifice";
+          /** A bare picks ref naming a `choice` Op's bind — sacrifices EVERY
+           *  picked permanent (CR 701.16, the "each player sacrifices …"
+           *  forEach pattern). Mutually exclusive with `target`. */
+          permanents?: EffectRef;
+          /** A single announced target / snapshot-bound permanent to sacrifice
+           *  (CR 701.16 — "sacrifice that creature" / "sacrifice this
+           *  creature", Kjeldoran Elite Guard, Phantasmal Mount). Resolved via
+           *  the object-ref path (SNAP_ID + battlefield re-check, CR 608.2b),
+           *  so a permanent already gone is a no-op. Mutually exclusive with
+           *  `permanents`. */
+          target?: EffectObjectSelector;
+      }
     /** delayedTrigger — grants a DELAYED triggered ability (CR 603.7, ADR
      *  0048): "At the beginning of the next <boundary>, <do something>". The
      *  delayed body is an INLINE nested Effect Script persisted on the
@@ -5369,6 +5394,14 @@ export type EffectOp =
           /** REQUIRED for the player-scoped timings (CR 504/505); rejected
            *  for the global-boundary timings. Resolved at scheduling time. */
           targetPlayer?: EffectPlayerRef;
+          /** REQUIRED for the `leaves-battlefield` timing (CR 603.7a / 603.10):
+           *  the specific permanent whose departure fires this delayed trigger
+           *  ("When THAT creature leaves the battlefield this turn, …"),
+           *  resolved to an instance id at scheduling time. Rejected for every
+           *  phase-boundary timing. Distinct from `capture` (which carries the
+           *  body's data): `watch` is the trigger CONDITION's watched instance,
+           *  not necessarily anything the body reads. */
+          watch?: EffectObjectSelector;
           /** The delayed body — a nested Effect Script run by the
            *  interpreter when the trigger fires. */
           effects: EffectOp[];

@@ -58,6 +58,8 @@ import {
     arensonsAura,
     generalJarkeld,
     drought,
+    kjeldoranEliteGuard,
+    kjeldoranGuard,
 } from "../../ice";
 import { plains } from "../../lea";
 import { getDefinition, getCardByName } from "../../../index";
@@ -74,6 +76,7 @@ import {
     getStaticAdditionalSacrifices,
     planStaticAdditionalSacrifices,
     removePermanentTo,
+    processPendingActionTriggers,
 } from "../../../../gre/state";
 import {
     buildAutoTapSources,
@@ -86,7 +89,11 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import { getLegalTargets } from "../../../../gre/rules";
-import { advancePhase, applyAllCombatDamage } from "../../../../gre/phases";
+import {
+    advancePhase,
+    applyAllCombatDamage,
+    finalizeCleanup,
+} from "../../../../gre/phases";
 import {
     validateBlockerEligibility,
     collectBlockBypassCharges,
@@ -2472,5 +2479,193 @@ describe("Drought (CR 601.2f / 118.5 — static per-pip non-mana additional cost
         expect(state.players[0].graveyard.some((c) => c.id === "swX")).toBe(
             true
         );
+    });
+});
+
+// Instance leave-watch delayed trigger (CR 603.7a / 603.10, issue #731). The
+// Kjeldoran guards buff a target creature and grant themselves a delayed
+// triggered ability keyed to THAT creature's departure: when the buffed
+// creature leaves the battlefield this turn, sacrifice the guard; a pending
+// watch expires unfired at CLEANUP (the "this turn" bound). Also covers the new
+// single-object `sacrifice { target }` Op form the body uses.
+function activateGuardPump(
+    guardCardId: string,
+    abilityId: string
+): {
+    state: GameState;
+    guardId: string;
+    targetId: string;
+} {
+    const guard = makeInstance(guardCardId, {
+        id: "guard1",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const target = makeInstance(balduvianBears.id, {
+        id: "target1",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const state = makeState({
+        phase: "DECLARE_ATTACKERS",
+        players: [
+            makePlayer("p1", { battlefield: [guard, target] }),
+            makePlayer("p2"),
+        ],
+    });
+    // Push the {T} ability onto the stack (source stays on the battlefield;
+    // `triggerSourceId` points `$source` at the on-battlefield guard) and
+    // resolve it — pump + delayedTrigger scheduling.
+    state.stack.push({
+        ...guard,
+        id: "ability1",
+        zone: "stack",
+        castById: "p1",
+        abilityId,
+        triggerSourceId: "guard1",
+        targets: [{ type: "permanent", id: "target1" }],
+    });
+    resolveTopOfStack(state);
+    return { state, guardId: "guard1", targetId: "target1" };
+}
+
+describe("Kjeldoran Elite Guard (instance leave-watch, CR 603.7a / 603.10)", () => {
+    it("is registered with the modern oracle text and {3}{W} cost", () => {
+        expect(kjeldoranEliteGuard.manaCost).toEqual({ X: 3, W: 1 });
+        expect(kjeldoranEliteGuard.oracleText).toContain(
+            "When that creature leaves the battlefield this turn, sacrifice this creature"
+        );
+    });
+
+    it("pumps the target +2/+2 and schedules a leaves-battlefield watch keyed to it", () => {
+        const { state, guardId, targetId } = activateGuardPump(
+            kjeldoranEliteGuard.id,
+            "kjeldoran-elite-guard-pump"
+        );
+        const target = state.players[0].battlefield.find(
+            (c) => c.id === targetId
+        )!;
+        expect(getEffectivePower(state, target)).toBe(4);
+        expect(getEffectiveToughness(state, target)).toBe(4);
+        const watch = state.delayedTriggers?.find(
+            (t) => t.timing === "leaves-battlefield"
+        );
+        expect(watch).toBeDefined();
+        expect(watch!.watchInstanceId).toBe(targetId);
+        // The captured guard-to-sacrifice is the activating source.
+        expect(watch!.payload.$guard).toBe(guardId);
+    });
+
+    it("sacrifices the guard when the buffed creature leaves the battlefield", () => {
+        const { state, guardId, targetId } = activateGuardPump(
+            kjeldoranEliteGuard.id,
+            "kjeldoran-elite-guard-pump"
+        );
+        // The buffed creature dies / is removed — PERMANENT_LEFT fires the watch.
+        removePermanentTo(state, targetId, "graveyard");
+        processPendingActionTriggers(state);
+        // The leave-watch delayed trigger is on the stack; resolve it.
+        expect(state.stack.some((s) => s.delayedTriggerId !== undefined)).toBe(
+            true
+        );
+        resolveTopOfStack(state);
+        // Guard sacrificed → in its owner's graveyard, off the battlefield.
+        expect(state.players[0].battlefield.some((c) => c.id === guardId)).toBe(
+            false
+        );
+        expect(state.players[0].graveyard.some((c) => c.id === guardId)).toBe(
+            true
+        );
+        // The watch is consumed (no double fire).
+        expect(
+            state.delayedTriggers?.some(
+                (t) => t.timing === "leaves-battlefield"
+            ) ?? false
+        ).toBe(false);
+    });
+
+    it("expires unfired at end of turn — CLEANUP purges the pending watch", () => {
+        const { state, guardId } = activateGuardPump(
+            kjeldoranEliteGuard.id,
+            "kjeldoran-elite-guard-pump"
+        );
+        expect(
+            state.delayedTriggers?.some(
+                (t) => t.timing === "leaves-battlefield"
+            )
+        ).toBe(true);
+        finalizeCleanup(state);
+        // The this-turn watch is gone and the guard was never sacrificed.
+        expect(
+            state.delayedTriggers?.some(
+                (t) => t.timing === "leaves-battlefield"
+            ) ?? false
+        ).toBe(false);
+        expect(state.players[0].battlefield.some((c) => c.id === guardId)).toBe(
+            true
+        );
+    });
+
+    it("the +2/+2 buff survives projectPublicState (wire format)", () => {
+        const { state, targetId } = activateGuardPump(
+            kjeldoranEliteGuard.id,
+            "kjeldoran-elite-guard-pump"
+        );
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === targetId
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(4);
+        expect(getEffectiveToughness(projected, slim)).toBe(4);
+    });
+});
+
+describe("Kjeldoran Guard (snow-gated instance leave-watch, CR 205.4a / 603.7a)", () => {
+    it("is registered with the modern oracle text and {1}{W} cost", () => {
+        expect(kjeldoranGuard.manaCost).toEqual({ X: 1, W: 1 });
+        expect(kjeldoranGuard.oracleText).toContain(
+            "only if defending player controls no snow lands"
+        );
+    });
+
+    it("pumps +1/+1 and sacrifices the guard when the buffed creature leaves", () => {
+        const { state, guardId, targetId } = activateGuardPump(
+            kjeldoranGuard.id,
+            "kjeldoran-guard-pump"
+        );
+        const target = state.players[0].battlefield.find(
+            (c) => c.id === targetId
+        )!;
+        expect(getEffectiveToughness(state, target)).toBe(3);
+        removePermanentTo(state, targetId, "graveyard");
+        processPendingActionTriggers(state);
+        resolveTopOfStack(state);
+        expect(state.players[0].graveyard.some((c) => c.id === guardId)).toBe(
+            true
+        );
+    });
+
+    it("canActivate rejects while the defending player controls a snow land", () => {
+        const snowLand = makeInstance(snowCoveredForest.id, {
+            id: "snow1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const guard = makeInstance(kjeldoranGuard.id, {
+            id: "guard1",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            players: [
+                makePlayer("p1", { battlefield: [guard] }),
+                makePlayer("p2", { battlefield: [snowLand] }),
+            ],
+        });
+        const ability = kjeldoranGuard.activatedAbilities![0];
+        expect(ability.canActivate!(guard, state)).toBe(false);
+        // Remove the snow land → activation becomes legal.
+        state.players[1].battlefield = [];
+        expect(ability.canActivate!(guard, state)).toBe(true);
     });
 });

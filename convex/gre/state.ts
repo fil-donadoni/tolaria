@@ -1053,6 +1053,12 @@ export type DelayedTriggerInstance = {
      *  draw/main phase fires this trigger (CR 504 / CR 505). Undefined for the
      *  global-boundary timings. */
     targetPlayerId?: string;
+    /** For the `leaves-battlefield` timing (CR 603.7a / 603.10): the specific
+     *  instance whose `PERMANENT_LEFT` event fires this delayed trigger ("when
+     *  THAT creature leaves the battlefield this turn, …"). Undefined for every
+     *  phase-boundary timing. A pending leave-watch expires unfired at CLEANUP
+     *  (the "this turn" bound, CR 514.2). */
+    watchInstanceId?: string;
 };
 
 /** Tracks an in-progress spell cast during the payment phase (CR 601.2). */
@@ -6765,7 +6771,8 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             timing: DelayedTriggerTiming,
             payload: Record<string, string | string[]>,
             targetPlayerId?: string,
-            inline?: DelayedTriggerInlineBody
+            inline?: DelayedTriggerInlineBody,
+            watchInstanceId?: string
         ): void {
             state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;
             const instance: DelayedTriggerInstance = {
@@ -6776,6 +6783,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 timing,
                 payload,
                 ...(targetPlayerId ? { targetPlayerId } : {}),
+                ...(watchInstanceId ? { watchInstanceId } : {}),
                 ...(inline
                     ? {
                           effects: inline.effects,

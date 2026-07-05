@@ -2346,7 +2346,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         cr: "701.16",
         binding: "SpellContext.sacrifice",
         mechanicId: "sacrifice",
-        note: 'Effect Script Op for the CR 701 keyword action "Sacrifice" — sacrifices the permanents a `choice` Op picked (a bare picks ref, e.g. { ref: "$sac" }). Indestructible does not prevent sacrifice (CR 701.16a); dies-triggers fire as for imperative cards. Ships with the forEach construct (issue #807) for the "each player sacrifices …" pattern (Innocent Blood).',
+        note: 'Effect Script Op for the CR 701 keyword action "Sacrifice" — sacrifices either the permanents a `choice` Op picked (a bare picks ref `permanents`, e.g. { ref: "$sac" }, the "each player sacrifices …" forEach pattern, Innocent Blood, issue #807) OR a single announced target / snapshot-bound permanent (`target`, e.g. { ref: "$guard" } — "sacrifice that/this creature", Kjeldoran Elite Guard / Phantasmal Mount, issue #731; resolved through the object-ref path with a CR 608.2b battlefield re-check). Exactly one form per Op. Indestructible does not prevent sacrifice (CR 701.16a); dies-triggers fire as for imperative cards.',
     },
     {
         op: "forEach",
@@ -2368,7 +2368,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         status: "implemented",
         cr: "603.7",
         binding: "SpellContext.scheduleDelayedTrigger",
-        note: 'Grants a delayed triggered ability (CR 603.7, ADR 0048, issue #838): "At the beginning of the next <boundary>, <do something>". The delayed body is an INLINE nested Effect Script persisted on the DelayedTriggerInstance (self-contained in game state — no card-def lookup at fire time); everything the body needs from scheduling time crosses via the explicit `capture` map, resolved to serializable ids at scheduling and re-bound as the body\'s initial binding environment when the trigger fires. The two grammar gaps ADR 0048 deferred have since closed (ADR 0049): event-field captures ($event.<field> — Battering Ram, Nafs Asp, issue #865) and LIST-valued captures ({ select: EffectListSelector } re-bound as a `string[]` list binding a `forEach { set: "bound" }` iterates — Venomous Breath, issue #866, freeze-at-cast per CR 509.1h).',
+        note: 'Grants a delayed triggered ability (CR 603.7, ADR 0048, issue #838): "At the beginning of the next <boundary>, <do something>". The delayed body is an INLINE nested Effect Script persisted on the DelayedTriggerInstance (self-contained in game state — no card-def lookup at fire time); everything the body needs from scheduling time crosses via the explicit `capture` map, resolved to serializable ids at scheduling and re-bound as the body\'s initial binding environment when the trigger fires. The two grammar gaps ADR 0048 deferred have since closed (ADR 0049): event-field captures ($event.<field> — Battering Ram, Nafs Asp, issue #865) and LIST-valued captures ({ select: EffectListSelector } re-bound as a `string[]` list binding a `forEach { set: "bound" }` iterates — Venomous Breath, issue #866, freeze-at-cast per CR 509.1h). Beyond the phase-boundary timings, an INSTANCE leave-watch timing (`leaves-battlefield` + a `watch` object ref, CR 603.7a / 603.10, issue #731) fires on the watched permanent\'s PERMANENT_LEFT ("when THAT creature leaves the battlefield this turn, …" — Kjeldoran Elite Guard, Kjeldoran Guard, Phantasmal Mount); a pending watch expires unfired at CLEANUP (the "this turn" bound, CR 514.2).',
     },
     {
         op: "pump",
