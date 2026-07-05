@@ -4,5 +4,25 @@
             "scryfallId": "09921372-126f-4c81-b6d8-ea50b1d0eb44",
             "name": "Wasp"
         }
+    ],
+    "5da578b8-19e6-4068-9336-e7cd33c585f1": [
+        {
+            "scryfallId": "6ec42fab-86b8-4479-90f2-a1690318d6d4",
+            "name": "Servo"
+        },
+        {
+            "scryfallId": "8d502061-ca95-4067-a61f-bc5294c274dd",
+            "name": "Thopter"
+        },
+        {
+            "scryfallId": "7fee6034-f0bb-49b9-ad75-67d3d6be1159",
+            "name": "Construct"
+        }
+    ],
+    "f1a21287-e244-4960-84fb-c4f6e5c346d9": [
+        {
+            "scryfallId": "83981313-ff55-4030-ac82-d6a3087cf675",
+            "name": "Soldier"
+        }
     ]
 }

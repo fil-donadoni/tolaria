@@ -621,6 +621,28 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 1,
         libraryCount: 10,
     },
+    {
+        // Cube FREE token makers (issue #678). Two spec-driven `createToken`
+        // engines side by side: Retrofitter Foundry ({2},{T}: make a Servo →
+        // {1},{T},Sac a Servo: make a flying Thopter → {T},Sac a Thopter: make
+        // a 4/4 Construct — climb the ladder with the pre-placed lands), and
+        // Third Path Iconoclast (Whenever you cast a noncreature spell, make a
+        // 1/1 Soldier artifact token — cast the Lightning Bolt in hand to fire
+        // it). Exercises createToken at both an activated- and a triggered-
+        // ability site (CR 111 / 707.1).
+        label: "Cube token makers (Retrofitter Foundry / Third Path Iconoclast) (#678)",
+        cards: [
+            { name: "Retrofitter Foundry", owner: "me", zone: "battlefield" },
+            {
+                name: "Third Path Iconoclast",
+                owner: "me",
+                zone: "battlefield",
+            },
+            { name: "Lightning Bolt", owner: "me", zone: "hand" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 5,
+    },
 ];
 
 type DebugPanelProps = {
