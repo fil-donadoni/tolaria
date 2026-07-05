@@ -2,7 +2,10 @@
 // `import * as tmt from "./sets/tmt"` resolves through tmt/index.ts.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition, TriggeredAbility } from "../../../../convex/cards/types";
+import type {
+    CardDefinition,
+    TriggeredAbility,
+} from "../../../../convex/cards/types";
 
 // Super Shredder — {1}{B} Legendary Creature — Mutant Ninja Human, 1/1
 // (issue #681, Cube FREE +1/+1 counters). "Menace\nWhenever another

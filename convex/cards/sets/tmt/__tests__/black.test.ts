@@ -6,6 +6,7 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     removePermanentTo,
     processPendingActionTriggers,
+    resolveTopOfStack,
 } from "../../../../gre/state";
 import { getEffectivePower } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
@@ -44,7 +45,10 @@ describe("Super Shredder (CR 702.111 menace; CR 603.2 leaves-the-battlefield tri
         const { state } = setup();
         removePermanentTo(state, "other", "graveyard");
         processPendingActionTriggers(state);
-        const live = state.players[0].battlefield.find((c) => c.id === "shredder")!;
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "shredder"
+        )!;
         expect(live.counters?.["+1/+1"]).toBe(1);
         expect(getEffectivePower(state, live)).toBe(2);
     });
@@ -53,7 +57,9 @@ describe("Super Shredder (CR 702.111 menace; CR 603.2 leaves-the-battlefield tri
         const { state } = setup();
         removePermanentTo(state, "shredder", "graveyard");
         processPendingActionTriggers(state);
-        const dead = state.players[0].graveyard.find((c) => c.id === "shredder")!;
+        const dead = state.players[0].graveyard.find(
+            (c) => c.id === "shredder"
+        )!;
         expect(dead.counters?.["+1/+1"]).toBeUndefined();
     });
 
@@ -61,7 +67,10 @@ describe("Super Shredder (CR 702.111 menace; CR 603.2 leaves-the-battlefield tri
         const { state } = setup();
         removePermanentTo(state, "other", "exile");
         processPendingActionTriggers(state);
-        const live = state.players[0].battlefield.find((c) => c.id === "shredder")!;
+        resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "shredder"
+        )!;
         expect(live.counters?.["+1/+1"]).toBe(1);
     });
 
@@ -69,8 +78,11 @@ describe("Super Shredder (CR 702.111 menace; CR 603.2 leaves-the-battlefield tri
         const { state } = setup();
         removePermanentTo(state, "other", "graveyard");
         processPendingActionTriggers(state);
+        resolveTopOfStack(state);
         const projected = projectPublicState(state, 1, "p1");
-        const live = projected.players[0].battlefield.find((c) => c.id === "shredder")!;
+        const live = projected.players[0].battlefield.find(
+            (c) => c.id === "shredder"
+        )!;
         expect(getEffectivePower(projected, live)).toBe(2);
     });
 });

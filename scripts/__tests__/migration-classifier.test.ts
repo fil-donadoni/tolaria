@@ -384,9 +384,18 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // ETB "choose two basic land types" storing the pair via
         // `setChosenSubtypes` (on-entry-choice-storage class, not a migratable
         // Op). Net: total 625→626, Op-blocked 218→219, others unchanged.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(626);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(393);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(360);
+        // #681 (Cube FREE +1/+1 counters) ADDED one protocol resolve() —
+        // Luminarch Aspirant's beginning-of-combat "put a +1/+1 counter on
+        // target creature you control": no trigger-level targetRequirement
+        // exists yet, so the pick rides a resolution-time `choose-permanents`
+        // choice (documented protocol note in `sets/znr/white.ts`, same shape
+        // as Oubliette/Tourach's Chant). It has a per-card test
+        // (`sets/znr/__tests__/white.test.ts`), so it counts as AFK-ready, not
+        // "need test first". Net: total 626→627, FREE 393→394, AFK-ready
+        // 360→361, X-only/Op-blocked unchanged.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(627);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(394);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(361);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(219);
     });

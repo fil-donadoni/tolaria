@@ -2,6 +2,7 @@
 
 import { describe, it, expect } from "vitest";
 import { ouroboroid } from "../green";
+import { grizzlyBears } from "../../lea/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
@@ -19,7 +20,9 @@ describe("Ouroboroid (CR 603.6a beginning-of-combat trigger; CR 122 mass counter
             controllerId: "p1",
             ownerId: "p1",
         });
-        const other = makeInstance(ouroboroid.id, {
+        // A plain vanilla creature — NOT another Ouroboroid, so its own
+        // beginning-of-combat trigger doesn't also fire and double the count.
+        const other = makeInstance(grizzlyBears.id, {
             id: "other",
             controllerId: "p1",
             ownerId: "p1",
@@ -45,12 +48,20 @@ describe("Ouroboroid (CR 603.6a beginning-of-combat trigger; CR 122 mass counter
         const { state } = setup();
         state.stack.push(
             ...collectTriggers(state, [
-                { type: "PHASE_BEGIN", phase: "BEGINNING_OF_COMBAT", activePlayerId: "p1" },
+                {
+                    type: "PHASE_BEGIN",
+                    phase: "BEGINNING_OF_COMBAT",
+                    activePlayerId: "p1",
+                },
             ])
         );
         resolveTopOfStack(state);
-        const ouroLive = state.players[0].battlefield.find((c) => c.id === "ouro")!;
-        const otherLive = state.players[0].battlefield.find((c) => c.id === "other")!;
+        const ouroLive = state.players[0].battlefield.find(
+            (c) => c.id === "ouro"
+        )!;
+        const otherLive = state.players[0].battlefield.find(
+            (c) => c.id === "other"
+        )!;
         expect(ouroLive.counters?.["+1/+1"]).toBe(1);
         expect(otherLive.counters?.["+1/+1"]).toBe(1);
         expect(getEffectivePower(state, ouroLive)).toBe(2);
@@ -59,7 +70,7 @@ describe("Ouroboroid (CR 603.6a beginning-of-combat trigger; CR 122 mass counter
 
     it("does NOT put counters on an opponent's creature", () => {
         const { state, ouro } = setup();
-        const oppCreature = makeInstance(ouroboroid.id, {
+        const oppCreature = makeInstance(grizzlyBears.id, {
             id: "opp",
             controllerId: "p2",
             ownerId: "p2",
@@ -68,11 +79,17 @@ describe("Ouroboroid (CR 603.6a beginning-of-combat trigger; CR 122 mass counter
         state.players[0].battlefield = [ouro];
         state.stack.push(
             ...collectTriggers(state, [
-                { type: "PHASE_BEGIN", phase: "BEGINNING_OF_COMBAT", activePlayerId: "p1" },
+                {
+                    type: "PHASE_BEGIN",
+                    phase: "BEGINNING_OF_COMBAT",
+                    activePlayerId: "p1",
+                },
             ])
         );
         resolveTopOfStack(state);
-        const oppLive = state.players[1].battlefield.find((c) => c.id === "opp")!;
+        const oppLive = state.players[1].battlefield.find(
+            (c) => c.id === "opp"
+        )!;
         expect(oppLive.counters?.["+1/+1"]).toBeUndefined();
     });
 
@@ -80,12 +97,18 @@ describe("Ouroboroid (CR 603.6a beginning-of-combat trigger; CR 122 mass counter
         const { state } = setup();
         state.stack.push(
             ...collectTriggers(state, [
-                { type: "PHASE_BEGIN", phase: "BEGINNING_OF_COMBAT", activePlayerId: "p1" },
+                {
+                    type: "PHASE_BEGIN",
+                    phase: "BEGINNING_OF_COMBAT",
+                    activePlayerId: "p1",
+                },
             ])
         );
         resolveTopOfStack(state);
         const projected = projectPublicState(state, 1, "p1");
-        const otherLive = projected.players[0].battlefield.find((c) => c.id === "other")!;
+        const otherLive = projected.players[0].battlefield.find(
+            (c) => c.id === "other"
+        )!;
         expect(getEffectivePower(projected, otherLive)).toBe(3);
     });
 });
