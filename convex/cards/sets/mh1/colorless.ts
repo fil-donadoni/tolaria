@@ -94,3 +94,46 @@ export const talismanOfCuriosity: CardDefinition = makeTalisman({
     rarity: "uncommon",
     colors: ["G", "U"],
 });
+
+// Prismatic Vista — {T}, Pay 1 life, Sacrifice this land: Search your library
+// for a basic land card, put it onto the battlefield, then shuffle. (CR 701.19
+// search / 400.7 put onto battlefield / 701.20 shuffle, issue #677.)
+// `filter.supertype: "Basic"` restricts the fetch to basic lands; the
+// `moveZone` cards-shape moves the picked id to the battlefield untapped.
+export const prismaticVista: CardDefinition = {
+    id: "e37da81e-be12-45a2-9128-376f1ad7b3e8",
+    name: "Prismatic Vista",
+    rarity: "rare",
+    types: ["Land"],
+    oracleText:
+        "{T}, Pay 1 life, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield, then shuffle.",
+    activatedAbilities: [
+        {
+            id: "prismatic-vista-fetch",
+            oracleText:
+                "{T}, Pay 1 life, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield, then shuffle.",
+            cost: { tap: true, life: 1, sacrifice: true },
+            useStack: true,
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { supertype: "Basic" },
+                    count: 1,
+                    prompt: "Search your library for a basic land card.",
+                    bind: "$picked",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked" },
+                    player: "controller",
+                    from: "library",
+                    to: "battlefield",
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ],
+        },
+    ],
+};

@@ -2475,11 +2475,19 @@ export interface SpellContext {
      *  701.19 — "search your library for a [type] card"), since the submit
      *  validator enforces `candidateIds` on library picks but does not apply a
      *  `PermanentFilter` to hidden library cards. `manaValue` folds X to 0 (CR
-     *  202.3b). Empty for an empty library. Used by Transmute Artifact. */
+     *  202.3b). `supertypes` (issue #677) is the card's printed supertypes
+     *  (CR 205.4a) — read by a `choice(zone: "library")` Op's `filter.supertype`
+     *  for a "search for a BASIC land card" restriction (Fabled Passage,
+     *  Prismatic Vista). `colors` (issue #677) are mana-cost-derived (CR 202.2)
+     *  — read by `filter.color` for a "search for a green creature card"
+     *  restriction (Natural Order). Empty for an empty library. Used by
+     *  Transmute Artifact. */
     getLibraryCards: (playerId: string) => Array<{
         id: string;
         types: CardType[];
         subtypes: string[];
+        supertypes: CardSupertype[];
+        colors: Color[];
         manaValue: number;
     }>;
 
@@ -4635,12 +4643,29 @@ export interface EffectCountSpec {
     filter?: EffectCardFilter;
 }
 
-/** Minimal JSON-pure card filter for `count` sets — a card type and/or a
- *  subtype (CR 205). Deliberately small: the count construct answers
- *  "how many X" for the common "for each" cards, not arbitrary predicates. */
+/** Minimal JSON-pure card filter for `count` sets and a `choice` Op's
+ *  zone-"library" search restriction — a card type, subtype, supertype,
+ *  color and/or mana value ceiling (CR 205 / 205.4a / 202.2 / 202.3). All
+ *  fields present are ANDed; an array-valued `type`/`subtype`/`color` is an OR
+ *  WITHIN that field (CR 205 "an artifact creature" needs both dimensions
+ *  true, but a fetchland's "a Forest or Island card" is one dimension with
+ *  two acceptable values — mirrors `PermanentFilter.subtypes`' OR-of-array
+ *  semantics). `supertype` (issue #677) is the "search your library for a
+ *  BASIC land card" restriction (Fabled Passage, Prismatic Vista) — a printed
+ *  supertype, not a type/subtype. `color` (issue #677) is the mana-cost-
+ *  derived color restriction (Natural Order's "a green creature card").
+ *  `manaValueAtMost` (issue #677) is a FIXED mana-value ceiling (Spellseeker's
+ *  "mana value 2 or less", Brightglass Gearhulk's "mana value 1 or less"); a
+ *  DYNAMIC ceiling (Green Sun's Zenith's "mana value X or less") is NOT
+ *  expressible here (a literal number, not an EffectValue) — that card stays a
+ *  tracked stub. Deliberately small: it answers "how many X" / "search for an
+ *  X card", not arbitrary predicates. */
 export interface EffectCardFilter {
-    type?: CardType;
-    subtype?: string;
+    type?: CardType | CardType[];
+    subtype?: string | string[];
+    supertype?: CardSupertype;
+    color?: Color | Color[];
+    manaValueAtMost?: number;
 }
 
 /** X — the chosen-cost value (CR 107.3, 601.2b), a thin JSON-pure skin over
@@ -4849,6 +4874,35 @@ export type EffectOp =
      *  battlefield permanent to exile, which needs LTB semantics — use
      *  `exile`). */
     | { op: "moveZone"; target: EffectObjectSelector; to: EffectMoveZone }
+    /** CR 400.7 (issue #677) — the SEARCH half of a tutor/fetch effect: move
+     *  the cards a `choice` Op picked (a bare picks ref, e.g.
+     *  `{ ref: "$picked" }`) OUT OF `player`'s hidden `from` zone. A thin
+     *  declarative skin over the SpellContext primitives `moveCardById`
+     *  (library/hand → hand/graveyard/exile — Vampiric Tutor, Entomb),
+     *  `putFromLibraryOntoBattlefield` (library → battlefield — a fetchland's
+     *  "search … and put it onto the battlefield", Natural Order), and
+     *  `putFromHandOntoBattlefield` (hand → battlefield — Stoneforge Mystic's
+     *  "you may put an Equipment card from your hand onto the battlefield").
+     *  Distinct from the `target`-based shape above because a `choice` Op's
+     *  picks are hidden-zone card ids, not an announced target slot (CR
+     *  601.2b — a hidden zone can't be targeted) — `resolveObjectRef`'s
+     *  snapshot machinery does not apply. Every picked id still in `from` is
+     *  moved (in practice a tutor's `choice` asks for exactly one); pair with
+     *  a trailing `libraryLook` (shuffle) Op after a `from: "library"` move,
+     *  as every real tutor/fetch oracle text does. `tapped` (issue #677,
+     *  meaningful only with `to: "battlefield"`) forces the entering
+     *  permanent tapped regardless of its own `entersTapped` flag (Fabled
+     *  Passage's "put it onto the battlefield tapped") — omitted/false enters
+     *  normally. Skipped when the binding was never captured (the choice
+     *  found no candidates, CR 608.2b) or the player cannot be resolved. */
+    | {
+          op: "moveZone";
+          cards: EffectRef;
+          player: EffectPlayerRef;
+          from: "library" | "hand";
+          to: EffectMoveZone;
+          tapped?: boolean;
+      }
     /** CR 613.4c (layer 7c, issue #840) — a temporary P/T modification that
      *  expires at a phase boundary. A thin declarative skin over the
      *  SpellContext primitive `addTemporaryPTBuff`, one execution path
@@ -5102,9 +5156,13 @@ export type EffectOp =
      *  with a bare `{ ref: "$name" }`). `count` is clamped to the candidates
      *  actually available (CR 608.2b — do as much as possible); when zero
      *  candidates exist the choice is skipped entirely and the binding stays
-     *  uncaptured, so consuming Ops skip too. `filter` is only meaningful for
+     *  uncaptured, so consuming Ops skip too. `filter` is meaningful for
      *  `zone: "battlefield"` (the submit validator and the UI apply it
-     *  there); the validator rejects it elsewhere. */
+     *  directly to public permanents) or `zone: "library"` (issue #677 — a
+     *  hidden zone, so the interpreter precomputes an explicit `candidateIds`
+     *  allow-list from the filter instead, "search your library for a [type]
+     *  card" — Mystical Tutor, Green Sun's Zenith, a fetchland); the
+     *  validator rejects it for `"hand"`/`"graveyard"`. */
     | {
           op: "choice";
           kind: EffectChoiceKind;
@@ -5112,8 +5170,16 @@ export type EffectOp =
           player: EffectPlayerRef;
           zone: "battlefield" | "hand" | "library" | "graveyard";
           filter?: EffectCardFilter;
-          /** Literal pick count (clamped to availability, CR 608.2b). */
-          count: number;
+          /** Pick count, clamped to availability (CR 608.2b). A plain number
+           *  is an EXACT count (the chooser must pick that many, down to
+           *  however many exist). `{ min, max }` (issue #677) is an OPTIONAL
+           *  range — `min: 0` is "you may…" (Stoneforge Mystic's "you may
+           *  search your library for an Equipment card"; Brightglass
+           *  Gearhulk's "up to two" is `{ min: 0, max: 2 }`). Maps 1:1 onto
+           *  `PendingChoice.count`'s existing fixed-N / range union — no new
+           *  primitive, just exposing the shape the Op already had access to
+           *  via `SpellContext.requestChoice`. */
+          count: number | { min: number; max: number };
           prompt: string;
           /** REQUIRED — the picks binding name (`"$picked"`). A choice whose
            *  picks nothing consumes is meaningless, so the grammar demands a

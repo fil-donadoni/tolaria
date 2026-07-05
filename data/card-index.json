@@ -300,6 +300,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Arid Mesa",
+        "scryfallId": "16c8d2fa-54a7-46e8-980c-905258497c90",
+        "oracleId": "c5acf2a5-40f4-433d-a74d-1cb56c521464",
+        "firstSet": "zen"
+    },
+    {
         "name": "Armageddon",
         "scryfallId": "5b6ddce7-b9c5-431d-a0b0-46d4aa93cbcb",
         "oracleId": "c9ed8b01-959a-47d6-891e-0abbdccf6e4f",
@@ -720,6 +726,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Bloodstained Mire",
+        "scryfallId": "68c72226-6f52-4322-8b14-18737293dfa0",
+        "oracleId": "fc0707c7-d504-4ccf-a0d2-3eb6e26e7a57",
+        "firstSet": "ons"
+    },
+    {
         "name": "Blooming Marsh",
         "scryfallId": "90da33d4-fe9c-42fe-b326-2fe337dc3ecd",
         "oracleId": "66fa2326-1b5d-41fb-b919-83bf9f383577",
@@ -856,6 +868,12 @@
         "scryfallId": "a0d7e85f-eba5-4fc5-9fc0-109109d368aa",
         "oracleId": "ddc83b35-cf7c-495b-bd30-e409b622e299",
         "firstSet": "fem"
+    },
+    {
+        "name": "Brightglass Gearhulk",
+        "scryfallId": "3dea5b45-925c-4732-8e9d-fa8232792736",
+        "oracleId": "0c7019a7-3cca-481a-9af0-abedb89c15ad",
+        "firstSet": "dft"
     },
     {
         "name": "Brine Shaman",
@@ -1962,6 +1980,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Entomb",
+        "scryfallId": "f60a2091-fb97-4f04-911b-fce9b6351044",
+        "oracleId": "299fc083-0834-4064-8344-f895aff68867",
+        "firstSet": "ody"
+    },
+    {
         "name": "Equinox",
         "scryfallId": "840c6586-a7a9-4ae8-96be-a995a0693eb6",
         "oracleId": "0fa2cb01-476e-4e82-94e6-9639e53a7743",
@@ -2040,6 +2064,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Expedition Map",
+        "scryfallId": "c55bee97-593f-441f-b96c-a998d5212a55",
+        "oracleId": "8fcf50cd-e6d0-4516-850f-d42ee75dcc3a",
+        "firstSet": "zen"
+    },
+    {
         "name": "Expressive Iteration",
         "scryfallId": "31b770cc-09e7-4c0b-b2a4-462ab4f7200d",
         "oracleId": "c7aecca5-2f67-4245-ab2d-e723d8b23a67",
@@ -2050,6 +2080,12 @@
         "scryfallId": "2933ca2a-097b-44f4-ae56-ad524d26fd06",
         "oracleId": "22647b1a-5a7c-41b5-b820-b2e9f49c7aad",
         "firstSet": "arn"
+    },
+    {
+        "name": "Fabled Passage",
+        "scryfallId": "b841bfa8-7c17-4df2-8466-780ab9a4a53a",
+        "oracleId": "0c85b8f7-0bd0-4680-9ec5-d4b110460a54",
+        "firstSet": "eld"
     },
     {
         "name": "Fallen Angel",
@@ -2242,6 +2278,12 @@
         "scryfallId": "fabc3267-b59b-4f36-8873-5b4b072711ca",
         "oracleId": "e8eb2abb-daf9-43e0-b909-d96b679f71c2",
         "firstSet": "drk"
+    },
+    {
+        "name": "Flooded Strand",
+        "scryfallId": "b4e3d844-d3b4-41d8-921d-c1cb3af343f8",
+        "oracleId": "f3c7af78-a77d-4134-82a2-a5ce84285a84",
+        "firstSet": "ons"
     },
     {
         "name": "Flooded Woodlands",
@@ -4032,6 +4074,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Lórien Revealed",
+        "scryfallId": "0ce44270-a684-4489-9077-521456e6dfaa",
+        "oracleId": "66f28905-c7fc-4ada-8fa0-199626d9bedb",
+        "firstSet": "ltr"
+    },
+    {
         "name": "Lost Order of Jarkeld",
         "scryfallId": "0f8fe1e5-69d2-401f-97cb-3cc01064bad3",
         "oracleId": "75f047dc-4a51-494d-8765-fa7502d1fd06",
@@ -4156,6 +4204,12 @@
         "scryfallId": "67330004-6720-46d9-9de0-c79230110583",
         "oracleId": "c202f124-4283-48f6-aef1-470ad9ded22b",
         "firstSet": "leg"
+    },
+    {
+        "name": "Marsh Flats",
+        "scryfallId": "45026d57-0324-4312-8b86-2e7d4f581ee9",
+        "oracleId": "dab520d0-20b4-4273-ba6b-eb07f85ea433",
+        "firstSet": "zen"
     },
     {
         "name": "Marsh Gas",
@@ -4398,6 +4452,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Misty Rainforest",
+        "scryfallId": "24a5cc2c-0fbf-4a5f-b175-6e0ffd0d0787",
+        "oracleId": "09dd85aa-47bc-4713-a9b9-8b52ff2285ed",
+        "firstSet": "zen"
+    },
+    {
         "name": "Moat",
         "scryfallId": "952ba126-0915-47f0-9b6a-a0a6dcd22c6f",
         "oracleId": "42208fea-8c24-451f-861d-6d70c0a7a502",
@@ -4564,6 +4624,12 @@
         "scryfallId": "348a467a-4661-4fdb-af1d-9171a1a930d9",
         "oracleId": "35a717ea-bd32-4714-b402-de7f15398e52",
         "firstSet": "drk"
+    },
+    {
+        "name": "Natural Order",
+        "scryfallId": "0845f0b0-9413-4ddd-861d-9607636bebc6",
+        "oracleId": "8c1fe337-375a-4add-93b6-0ac39ed72b4f",
+        "firstSet": "vis"
     },
     {
         "name": "Natural Selection",
@@ -5010,6 +5076,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Polluted Delta",
+        "scryfallId": "0f7585c8-9e21-4eef-afc1-2852de23db2f",
+        "oracleId": "ef86989d-ce80-4e55-aece-7d11710eeffa",
+        "firstSet": "ons"
+    },
+    {
         "name": "Ponder",
         "scryfallId": "ba6b6fc5-5077-4812-b8e9-906783dbaf67",
         "oracleId": "02090581-61aa-4348-ad57-451be8ee91c2",
@@ -5110,6 +5182,12 @@
         "scryfallId": "a1dcf48c-2700-4024-807e-9244e4c649ac",
         "oracleId": "dd1d21f5-f5cd-43e4-8155-3cca85da80a9",
         "firstSet": "leg"
+    },
+    {
+        "name": "Prismatic Vista",
+        "scryfallId": "e37da81e-be12-45a2-9128-376f1ad7b3e8",
+        "oracleId": "032b8a0d-491a-4a12-ab9f-689010054d5b",
+        "firstSet": "mh1"
     },
     {
         "name": "Prismatic Ward",
@@ -5584,6 +5662,12 @@
         "scryfallId": "d05b92bd-797e-413f-a8b0-32e0937a1ee0",
         "oracleId": "60ba93eb-39e6-4af2-9c66-cd38f72daff2",
         "firstSet": "lea"
+    },
+    {
+        "name": "Scalding Tarn",
+        "scryfallId": "327cf118-cc92-4073-85d0-94d2a0a6989a",
+        "oracleId": "cb027150-848c-4a66-88ad-e20222304dd8",
+        "firstSet": "zen"
     },
     {
         "name": "Scaled Wurm",
@@ -6066,6 +6150,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Spellseeker",
+        "scryfallId": "74b4c336-5d4c-4bc5-b82a-35084a6ad808",
+        "oracleId": "47a785ed-8095-4685-8daa-02c4e2b0ffcd",
+        "firstSet": "bbd"
+    },
+    {
         "name": "Spinal Villain",
         "scryfallId": "d6d5e36f-0049-4be8-bf85-8dc0186339a4",
         "oracleId": "990c0359-c2d6-4a3c-aa0b-1904da805e15",
@@ -6214,6 +6304,12 @@
         "scryfallId": "d1c387dd-1347-4443-91ce-b71f7ccdceba",
         "oracleId": "124c8663-21f3-4cd8-a060-9d04be35c43f",
         "firstSet": "arn"
+    },
+    {
+        "name": "Stoneforge Mystic",
+        "scryfallId": "19557351-b65f-4b04-b971-66abdc07000a",
+        "oracleId": "358789f9-7d87-411d-919e-d597da665cbd",
+        "firstSet": "wwk"
     },
     {
         "name": "Stonehands",
@@ -6660,6 +6756,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Tinker",
+        "scryfallId": "7da23b15-dfb8-4267-9b33-d7a4c035c434",
+        "oracleId": "254878f0-be90-4653-a395-0c41258fceaf",
+        "firstSet": "ulg"
+    },
+    {
         "name": "Titania's Song",
         "scryfallId": "583a53af-2e2a-4f3f-8eab-bd874c6ed80a",
         "oracleId": "30ac0f06-3dd3-4827-8136-4cf8adbf9b12",
@@ -6970,6 +7072,12 @@
         "scryfallId": "8eeb9e02-1d26-4959-a878-2ef8db2358bc",
         "oracleId": "fc73bd1b-c713-4825-9f2d-f6ae95dddf09",
         "firstSet": "ice"
+    },
+    {
+        "name": "Verdant Catacombs",
+        "scryfallId": "7abd2723-2851-4f1a-b2d0-dfcb526472c3",
+        "oracleId": "67d60b24-d429-4ded-90d9-06e49f28c396",
+        "firstSet": "zen"
     },
     {
         "name": "Verduran Enchantress",
@@ -7368,6 +7476,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Windswept Heath",
+        "scryfallId": "7a7c5941-9c8a-4a40-9efb-a84f05c58e53",
+        "oracleId": "29737a60-3ebd-40d9-b935-c4f54b90d45d",
+        "firstSet": "ons"
+    },
+    {
         "name": "Wings of Aesthir",
         "scryfallId": "eeb0282d-ccec-4556-8b70-b6f665077afe",
         "oracleId": "06413d87-d119-4c04-93d5-5ced7ad4a858",
@@ -7384,6 +7498,12 @@
         "scryfallId": "9359f60c-9a27-4e53-b35b-964a121a6fba",
         "oracleId": "1dcbd583-3388-4b34-a7cd-131648aa6abd",
         "firstSet": "lea"
+    },
+    {
+        "name": "Wishclaw Talisman",
+        "scryfallId": "07c17b01-ee5d-491a-8403-b3f819b778c4",
+        "oracleId": "81c70ae7-3c18-4c9b-8505-e4db9e0e6518",
+        "firstSet": "eld"
     },
     {
         "name": "Witch Hunter",
@@ -7408,6 +7528,12 @@
         "scryfallId": "ba5aee52-095e-4c69-93eb-5adac11ed1fc",
         "oracleId": "d67d9d82-2786-48fc-8107-11d12c5813d0",
         "firstSet": "leg"
+    },
+    {
+        "name": "Wooded Foothills",
+        "scryfallId": "cdad38f7-9dfa-4f1b-9fac-41ab2b253f53",
+        "oracleId": "6587a463-a108-4854-b6d1-944e89b8c8a4",
+        "firstSet": "ons"
     },
     {
         "name": "Wooden Sphere",

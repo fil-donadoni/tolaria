@@ -1057,6 +1057,550 @@ describe("Effect Script Op: moveZone (CR 400.7, issue #839)", () => {
     });
 });
 
+// The `cards`-shaped moveZone (issue #677): the SEARCH half of a tutor/fetch
+// effect, consuming a `choice(zone: "library")` Op's picks — a library card
+// has no announced-target form (CR 601.2b, hidden zone), so `resolveObjectRef`
+// does not apply. Covers both the tutor pattern (library → hand, unfiltered)
+// and the fetchland pattern (library → battlefield, filtered by type) — the
+// Op's permanent test per the DSL testing regime (every future tutor/fetch
+// card reuses this coverage for free).
+const LAND_ID = "test-effects-land";
+registerTokenDefinition({
+    id: LAND_ID,
+    name: LAND_ID,
+    rarity: "common",
+    types: ["Land"],
+    subtypes: ["Plains"],
+});
+// A NON-basic land sharing the same subtype as a basic Plains — proves a
+// `supertype: "Basic"` filter (issue #677 — Fabled Passage / Prismatic Vista's
+// "search for a BASIC land card") excludes it even though its subtype/type
+// alone would match.
+const NONBASIC_LAND_ID = "test-effects-nonbasic-land";
+registerTokenDefinition({
+    id: NONBASIC_LAND_ID,
+    name: NONBASIC_LAND_ID,
+    rarity: "rare",
+    types: ["Land"],
+    subtypes: ["Plains"],
+});
+const BASIC_LAND_ID = "test-effects-basic-land";
+registerTokenDefinition({
+    id: BASIC_LAND_ID,
+    name: BASIC_LAND_ID,
+    rarity: "common",
+    supertypes: ["Basic"],
+    types: ["Land"],
+    subtypes: ["Plains"],
+});
+
+describe("Effect Script Op: moveZone — cards/player shape (CR 400.7, issue #677)", () => {
+    const libraryOf = (owner: "p1" | "p2", ids: string[], cardId = BEAR_ID) =>
+        ids.map((cid) =>
+            makeInstance(cardId, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    it("moves the choice-picked library card into the searching player's hand, then shuffles (tutor pattern)", () => {
+        const id = registerScript("test-op-movezone-tutor", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                count: 1,
+                prompt: "Search your library for a card.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "library",
+                to: "hand",
+            },
+            { op: "libraryLook", action: "shuffle", player: "controller" },
+        ]);
+        const lib = libraryOf("p1", ["lib1", "lib2", "lib3"]);
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the search
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("search-library");
+        expect(head.zone).toBe("library");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["lib2"],
+        });
+        // Moved out of the library into the hand.
+        expect(state.players[0].library.map((c) => c.id)).not.toContain("lib2");
+        expect(state.players[0].hand.map((c) => c.id)).toContain("lib2");
+        expect(state.players[0].library).toHaveLength(2);
+        // Resolution completed (the trailing shuffle ran without a further
+        // suspension) and the sorcery landed in its owner's graveyard.
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(id);
+    });
+
+    it("moves the choice-picked library card onto the battlefield, filtered by type (fetchland pattern)", () => {
+        const id = registerScript("test-op-movezone-fetch", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: { type: "Land" },
+                count: 1,
+                prompt: "Search your library for a land card.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "library",
+                to: "battlefield",
+            },
+            { op: "libraryLook", action: "shuffle", player: "controller" },
+            { op: "loseLife", player: "controller", amount: 1 },
+        ]);
+        const lib = [
+            ...libraryOf("p1", ["bear1", "bear2"]),
+            ...libraryOf("p1", ["plains1"], LAND_ID),
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: lib, life: 20 }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the search
+        const head = state.pendingChoices![0];
+        // The filter precomputed a candidateIds allow-list — only the land is
+        // eligible, even though the search-space is the whole (hidden) library.
+        expect(head.candidateIds).toEqual(["plains1"]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["plains1"],
+        });
+        expect(state.players[0].library.map((c) => c.id)).not.toContain(
+            "plains1"
+        );
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "plains1"
+        );
+        expect(state.players[0].life).toBe(19);
+        expect(state.stack).toHaveLength(0);
+    });
+
+    it("skips the search-and-move (and every downstream Op) when there are no matching candidates (CR 608.2b)", () => {
+        const id = registerScript("test-op-movezone-nomatch", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: { type: "Land" },
+                count: 1,
+                prompt: "Search your library for a land card.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "library",
+                to: "battlefield",
+            },
+        ]);
+        const lib = libraryOf("p1", ["bear1", "bear2"]);
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        // No lands in the library — the choice finds zero candidates and is
+        // skipped entirely (no PendingChoice raised), so resolution completes
+        // synchronously without a search prompt.
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].library).toHaveLength(2);
+        expect(state.players[0].battlefield).toHaveLength(0);
+    });
+
+    // Wire format (GRE testing convention): the searching player's hand and
+    // battlefield are public zones, so the tutor/fetch outcome must survive
+    // `projectPublicState` exactly as observed on the fat state.
+    it("the moved card survives projection to both hand and battlefield destinations (wire format)", () => {
+        const id = registerScript("test-op-movezone-wire", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: { type: "Land" },
+                count: 1,
+                prompt: "Search your library for a land card.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "library",
+                to: "battlefield",
+            },
+        ]);
+        const lib = [
+            ...libraryOf("p1", ["bear1"]),
+            ...libraryOf("p1", ["plainsWire"], LAND_ID),
+        ];
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the search
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["plainsWire"],
+        });
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "plainsWire"
+        );
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[0].battlefield.map((c) => c.id)).toContain(
+            "plainsWire"
+        );
+    });
+
+    // `filter.supertype` (issue #677): a "search for a BASIC land card"
+    // restriction (Fabled Passage, Prismatic Vista) excludes a nonbasic land
+    // sharing the same subtype — a plain type/subtype filter would wrongly
+    // admit it.
+    it("restricts the search-library candidates by supertype (basic-land-only fetch)", () => {
+        const id = registerScript("test-op-movezone-supertype", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: { supertype: "Basic" },
+                count: 1,
+                prompt: "Search your library for a basic land card.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "library",
+                to: "battlefield",
+            },
+        ]);
+        const lib = [
+            ...libraryOf("p1", ["nonbasic1"], NONBASIC_LAND_ID),
+            ...libraryOf("p1", ["basic1"], BASIC_LAND_ID),
+        ];
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the search
+        const head = state.pendingChoices![0];
+        // Only the basic land is eligible — the nonbasic Plains-subtype land
+        // is excluded even though it shares the subtype.
+        expect(head.candidateIds).toEqual(["basic1"]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["basic1"],
+        });
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "basic1"
+        );
+    });
+
+    // `filter.subtype` as an ARRAY (issue #677): OR-within-the-field — a
+    // fetchland's "a Forest or Island card" (any ONE of the two subtypes is
+    // eligible, not both).
+    it("restricts the search-library candidates by an array of subtypes (fetchland OR pattern)", () => {
+        const FOREST_ID = "test-effects-forest";
+        registerTokenDefinition({
+            id: FOREST_ID,
+            name: FOREST_ID,
+            rarity: "common",
+            types: ["Land"],
+            subtypes: ["Forest"],
+        });
+        const id = registerScript("test-op-choice-subtype-array", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: { subtype: ["Forest", "Island"] },
+                count: 1,
+                prompt: "Search your library for a Forest or Island card.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "library",
+                to: "battlefield",
+            },
+        ]);
+        const lib = [
+            ...libraryOf("p1", ["bear1"]),
+            ...libraryOf("p1", ["forest1"], FOREST_ID),
+            ...libraryOf("p1", ["plains1"], LAND_ID),
+        ];
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // The Forest matches (one of the two OR'd subtypes); the Bear and the
+        // Plains do not.
+        expect(state.pendingChoices![0].candidateIds).toEqual(["forest1"]);
+    });
+
+    // `filter.color` (issue #677) — Natural Order's "a green creature card".
+    it("restricts the search-library candidates by color", () => {
+        const COLORLESS_CREATURE_ID = "test-effects-colorless-creature";
+        registerTokenDefinition({
+            id: COLORLESS_CREATURE_ID,
+            name: COLORLESS_CREATURE_ID,
+            rarity: "common",
+            manaCost: { X: 2 },
+            types: ["Creature"],
+            subtypes: ["Golem"],
+            power: 2,
+            toughness: 2,
+        });
+        const GREEN_CREATURE_ID = "test-effects-green-creature";
+        registerTokenDefinition({
+            id: GREEN_CREATURE_ID,
+            name: GREEN_CREATURE_ID,
+            rarity: "common",
+            manaCost: { G: 2 },
+            types: ["Creature"],
+            subtypes: ["Beast"],
+            power: 3,
+            toughness: 3,
+        });
+        const id = registerScript("test-op-choice-color", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: { type: "Creature", color: "G" },
+                count: 1,
+                prompt: "Search your library for a green creature card.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "library",
+                to: "battlefield",
+            },
+        ]);
+        const lib = [
+            ...libraryOf("p1", ["colorless1"], COLORLESS_CREATURE_ID), // no green — doesn't match
+            ...libraryOf("p1", ["green1"], GREEN_CREATURE_ID),
+        ];
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].candidateIds).toEqual(["green1"]);
+    });
+
+    // `filter.manaValueAtMost` (issue #677, a FIXED literal ceiling) —
+    // Spellseeker's "mana value 2 or less".
+    it("restricts the search-library candidates by a fixed mana-value ceiling", () => {
+        const CHEAP_SORCERY_ID = "test-effects-cheap-sorcery";
+        registerTokenDefinition({
+            id: CHEAP_SORCERY_ID,
+            name: CHEAP_SORCERY_ID,
+            rarity: "common",
+            manaCost: { X: 2 },
+            types: ["Sorcery"],
+        });
+        const EXPENSIVE_SORCERY_ID = "test-effects-expensive-sorcery";
+        registerTokenDefinition({
+            id: EXPENSIVE_SORCERY_ID,
+            name: EXPENSIVE_SORCERY_ID,
+            rarity: "common",
+            manaCost: { X: 5 },
+            types: ["Sorcery"],
+        });
+        const id = registerScript("test-op-choice-manavalue", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: { type: "Sorcery", manaValueAtMost: 2 },
+                count: 1,
+                prompt: "Search your library for a sorcery card with mana value 2 or less.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "library",
+                to: "hand",
+            },
+        ]);
+        const lib = [
+            ...libraryOf("p1", ["cheap1"], CHEAP_SORCERY_ID),
+            ...libraryOf("p1", ["expensive1"], EXPENSIVE_SORCERY_ID),
+        ];
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].candidateIds).toEqual(["cheap1"]);
+    });
+
+    // `count: { min: 0, max: N }` (issue #677) — an OPTIONAL / "up to N"
+    // search (Stoneforge Mystic's "you may search…", Brightglass Gearhulk's
+    // "up to two"). The player may submit FEWER than `max` (down to `min`).
+    it("allows submitting fewer than max picks under a { min, max } count range", () => {
+        const id = registerScript("test-op-choice-range", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: { subtype: "Equipment" },
+                count: { min: 0, max: 2 },
+                prompt: "Search your library for up to two Equipment cards.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "library",
+                to: "hand",
+            },
+        ]);
+        const EQUIPMENT_ID = "test-effects-equipment";
+        registerTokenDefinition({
+            id: EQUIPMENT_ID,
+            name: EQUIPMENT_ID,
+            rarity: "common",
+            manaCost: { X: 1 },
+            types: ["Artifact"],
+            subtypes: ["Equipment"],
+        });
+        const lib = libraryOf("p1", ["eq1", "eq2", "eq3"], EQUIPMENT_ID);
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        // The clamped range is passed straight to the choice's count.
+        expect(head.count).toEqual({ min: 0, max: 2 });
+        // Declining down to ZERO is legal — no picks, and the moveZone Op
+        // consuming an empty picks array is a no-op.
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [],
+        });
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].library).toHaveLength(3);
+    });
+
+    // `from: "hand"` (issue #677) — Stoneforge Mystic's second ability, "you
+    // may put an Equipment card from your hand onto the battlefield".
+    it("moves a choice-picked HAND card onto the battlefield (hand-source pattern)", () => {
+        const EQUIPMENT_ID = "test-effects-equipment-hand";
+        registerTokenDefinition({
+            id: EQUIPMENT_ID,
+            name: EQUIPMENT_ID,
+            rarity: "common",
+            manaCost: { X: 1 },
+            types: ["Artifact"],
+            subtypes: ["Equipment"],
+        });
+        const id = registerScript("test-op-movezone-hand-source", [
+            {
+                op: "choice",
+                kind: "choose-hand-card",
+                player: "controller",
+                zone: "hand",
+                filter: { subtype: "Equipment" },
+                count: { min: 0, max: 1 },
+                prompt: "Put an Equipment card from your hand onto the battlefield.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "hand",
+                to: "battlefield",
+            },
+        ]);
+        const equip = makeInstance(EQUIPMENT_ID, {
+            id: "equipHand1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [makePlayer("p1", { hand: [equip] }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-hand-card");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["equipHand1"],
+        });
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "equipHand1"
+        );
+    });
+});
+
 describe("Effect Script Op: pump (CR 613.4c, layer 7c, issue #840)", () => {
     // A one-shot pump spell targeting a creature: Giant Growth (+3/+3).
     // Wire-format assertion — the buffed P/T must survive the projection

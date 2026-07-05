@@ -1,7 +1,8 @@
 // Urza's Legacy (ULG) — blue behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { franticSearch } from "../blue";
+import { franticSearch, tinker } from "../blue";
+import { ornithopter } from "../../atq/colorless";
 import {
     makeInstance,
     makePlayer,
@@ -91,5 +92,41 @@ describe("Frantic Search (draw 2, discard 2, untap 3 lands; CR 121.1 / 701.8)", 
             c.types.includes("Land")
         );
         expect(lands.every((l) => !l.isTapped)).toBe(true);
+    });
+});
+
+describe("Tinker (CR 117.9 additional cost / 701.19 / 400.7 / 701.20, issue #677)", () => {
+    it("declares the sacrifice-an-artifact additional cost", () => {
+        expect(tinker.additionalCosts?.sacrificeFilter).toEqual({
+            types: "Artifact",
+        });
+    });
+
+    it("searches for an artifact card and puts it onto the battlefield", () => {
+        const libOrn = makeInstance(ornithopter.id, {
+            id: "orn1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: [libOrn] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, tinker.id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the search
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toEqual(["orn1"]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["orn1"],
+        });
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain("orn1");
+        expect(state.players[0].library).toHaveLength(0);
     });
 });

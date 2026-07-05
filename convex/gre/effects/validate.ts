@@ -51,6 +51,32 @@ function isPositiveInt(value: unknown): boolean {
     return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
+/** A `choice` Op's `count` (issue #677): a plain positive-int literal (an
+ *  EXACT pick count) or a `{ min, max }` range (an OPTIONAL pick count — "you
+ *  may search…", "up to two…"). `min` is a non-negative int, `max` a
+ *  positive int, `min <= max` — mirrors `PendingChoice.count`'s existing
+ *  fixed-N / range union (`getPendingChoiceMin` / `getPendingChoiceMax`). */
+function isChoiceCount(value: unknown): boolean {
+    if (isPositiveInt(value)) return true;
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const keys = Object.keys(value);
+    if (keys.length !== 2 || !keys.includes("min") || !keys.includes("max")) {
+        return false;
+    }
+    const { min, max } = value as { min: unknown; max: unknown };
+    return (
+        typeof min === "number" &&
+        Number.isInteger(min) &&
+        min >= 0 &&
+        typeof max === "number" &&
+        Number.isInteger(max) &&
+        max > 0 &&
+        min <= max
+    );
+}
+
 /** `{ target: n }` — an announced-target slot index (CR 601.2c order). */
 function isTargetRef(value: unknown): boolean {
     if (typeof value !== "object" || value === null) return false;
@@ -82,19 +108,53 @@ function isRefValue(value: unknown): boolean {
     );
 }
 
-/** `{ type?, subtype? }` — the minimal card filter for a `count` set. Only
- *  those two keys, each a non-empty string when present. */
+/** A value or a non-empty array of values, each satisfying `check` — the
+ *  shared OR-within-a-field shape `EffectCardFilter.type` / `.subtype` /
+ *  `.color` use (issue #677, mirrors `PermanentFilter`'s own array fields). */
+function isValueOrArray(
+    value: unknown,
+    check: (v: unknown) => boolean
+): boolean {
+    if (Array.isArray(value)) return value.length > 0 && value.every(check);
+    return check(value);
+}
+
+/** `{ type?, subtype?, supertype?, color?, manaValueAtMost? }` — the minimal
+ *  card filter for a `count` set or a `choice` Op's zone-"library" search
+ *  restriction (issue #677). `type`/`subtype`/`color` accept a single value OR
+ *  a non-empty array (OR within the field — a fetchland's "a Forest or Island
+ *  card"). `supertype` is the "search for a BASIC land card" restriction
+ *  (CR 205.4a) and its value must be a real printed supertype (reuses
+ *  `TOKEN_SUPERTYPES`). `color` reuses `TOKEN_COLORS`. `manaValueAtMost` is a
+ *  non-negative integer ceiling (Spellseeker's "mana value 2 or less") — a
+ *  literal only, no `ref`/`X` (a dynamic ceiling like Green Sun's Zenith's
+ *  "mana value X or less" is not expressible here). */
 function isCardFilter(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
     }
     const entries = Object.entries(value);
-    return entries.every(
-        ([k, v]) =>
-            (k === "type" || k === "subtype") &&
-            typeof v === "string" &&
-            v.length > 0
-    );
+    return entries.every(([k, v]) => {
+        if (k === "type" || k === "subtype") {
+            return isValueOrArray(
+                v,
+                (m) => typeof m === "string" && m.length > 0
+            );
+        }
+        if (k === "supertype") {
+            return typeof v === "string" && TOKEN_SUPERTYPES.has(v);
+        }
+        if (k === "color") {
+            return isValueOrArray(
+                v,
+                (m) => typeof m === "string" && TOKEN_COLORS.has(m)
+            );
+        }
+        if (k === "manaValueAtMost") {
+            return typeof v === "number" && Number.isInteger(v) && v >= 0;
+        }
+        return false;
+    });
 }
 
 /** Valid `EffectTokenSpec.types` members (CR 300.1). Mirrors the `CardType`
@@ -342,6 +402,17 @@ function isMoveZone(value: unknown): boolean {
         value === "exile" ||
         value === "battlefield"
     );
+}
+
+/** The hidden source zone a `moveZone` Op's `cards`-shape (issue #677) may
+ *  name — the two zones a `choice` Op can raise a picks binding from that
+ *  this shape knows how to move out of. */
+function isMoveZoneFrom(value: unknown): boolean {
+    return value === "library" || value === "hand";
+}
+
+function isBoolean(value: unknown): boolean {
+    return typeof value === "boolean";
 }
 
 /** A SIGNED effect value, for a `pump` Op's P/T amounts (issue #840). Unlike
@@ -693,8 +764,55 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // selector (announced slot or a bare snapshot ref like `$source`); `to` is
     // the destination zone. The source zone is inferred from the object's kind,
     // so there is no `from` field.
+    // SECOND SHAPE (issue #677): `cards` (a bare choice-picks ref) + `player` +
+    // `from` — the search half of a tutor/fetch effect, consuming a
+    // `choice(zone: "library" | "hand")` Op's picks (a hidden zone has no
+    // announced-target form, CR 601.2b). Exactly one of `target` / `cards` is
+    // required; `player`/`from` are required with `cards` and invalid with
+    // `target`. `tapped` (optional) is valid only alongside `cards` AND
+    // `to: "battlefield"` (Fabled Passage's forced-tapped fetch).
     moveZone: {
-        required: { target: isObjectSelector, to: isMoveZone },
+        required: { to: isMoveZone },
+        optional: {
+            target: isObjectSelector,
+            cards: isBarePicksRef,
+            player: isPlayerRef,
+            from: isMoveZoneFrom,
+            tapped: isBoolean,
+        },
+        check: (entry) => {
+            const hasTarget = "target" in entry;
+            const hasCards = "cards" in entry;
+            const errors: string[] = [];
+            if (hasTarget === hasCards) {
+                errors.push('exactly one of "target" or "cards" is required');
+            }
+            if (hasCards) {
+                if (!("player" in entry)) {
+                    errors.push('field "player" is required with "cards"');
+                }
+                if (!("from" in entry)) {
+                    errors.push('field "from" is required with "cards"');
+                }
+            }
+            if (hasTarget) {
+                if ("player" in entry) {
+                    errors.push('field "player" is not valid with "target"');
+                }
+                if ("from" in entry) {
+                    errors.push('field "from" is not valid with "target"');
+                }
+            }
+            if (
+                "tapped" in entry &&
+                (!hasCards || entry.to !== "battlefield")
+            ) {
+                errors.push(
+                    'field "tapped" is only valid with "cards" and to: "battlefield"'
+                );
+            }
+            return errors;
+        },
     },
     // CR 613.4c (issue #840) — a temporary P/T buff (layer 7c). `target` is an
     // object selector (announced slot, `$source`, or a forEach `$each`);
@@ -855,21 +973,28 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution choice through the
     // existing Pending Choice pipeline. `bind` is REQUIRED: a choice whose
-    // picks nothing consumes is meaningless.
+    // picks nothing consumes is meaningless. `filter` is valid with zone
+    // "battlefield" (the submit validator applies it directly to public
+    // permanents) OR zone "library" / "hand" (issue #677 — hidden-to-the-
+    // opponent zones, so the interpreter precomputes an explicit
+    // `candidateIds` allow-list from the filter instead, the same allow-list
+    // mechanism the graveyard branch already uses unconditionally); it is
+    // invalid with "graveyard" (already an unconditional allow-list with no
+    // filter support).
     choice: {
         required: {
             kind: isEffectChoiceKind,
             player: isPlayerRef,
             zone: isChoiceZone,
-            count: isPositiveInt,
+            count: isChoiceCount,
             prompt: isNonEmptyString,
             bind: isBindingName,
         },
         optional: { filter: isCardFilter },
         check: (entry) =>
-            "filter" in entry && entry.zone !== "battlefield"
+            "filter" in entry && entry.zone === "graveyard"
                 ? [
-                      `field "filter" is only valid with zone "battlefield" — the Pending Choice submit validator applies filters to battlefield picks only`,
+                      `field "filter" is only valid with zone "battlefield", "library" or "hand"`,
                   ]
                 : [],
     },

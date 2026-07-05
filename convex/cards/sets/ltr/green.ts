@@ -27,4 +27,23 @@
 //     power: 1,
 //     toughness: 2,
 // };
+
+// Generous Ent — "Reach. When this creature enters, create a Food token.
+// Forestcycling {1} ({1}, Discard this card: Search your library for a
+// Forest card, reveal it, put it into your hand, then shuffle.)" Blocked:
+// Forestcycling (CR 702.29, a `[Subtype]cycling` variant) is `status:
+// "planned"` in mechanicsRegistry.ts (tracked-by #689) — no cycling special
+// action exists yet. Kept as a whole-card stub rather than a partial ship.
+// tracked-by: #689
+// export const generousEnt: CardDefinition = {
+//     id: "85d22d5d-3875-42ff-b51e-c6e21db201f5",
+//     name: "Generous Ent",
+//     rarity: "common",
+//     manaCost: { X: 5, G: 1 },
+//     types: ["Creature"],
+//     subtypes: ["Treefolk"],
+//     power: 5,
+//     toughness: 7,
+// };
+
 export {};

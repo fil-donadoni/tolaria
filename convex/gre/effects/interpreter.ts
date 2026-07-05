@@ -249,7 +249,72 @@ function toPermanentFilter(
     filter: EffectCardFilter | undefined
 ): PermanentFilter | undefined {
     if (!filter) return undefined;
-    return { types: filter.type, subtypes: filter.subtype };
+    return {
+        types: filter.type,
+        subtypes: filter.subtype,
+        supertypes: filter.supertype,
+        colors: filter.color,
+    };
+}
+
+/** Normalizes a possibly-array filter field to an array (an absent field
+ *  stays absent — the caller treats that as "no constraint"). Mirrors
+ *  `PermanentFilter`'s own `asArray` helper (issue #677 — OR-within-a-field
+ *  semantics, e.g. a fetchland's "a Forest or Island card"). */
+function asFilterArray<T>(value: T | T[] | undefined): T[] | undefined {
+    if (value === undefined) return undefined;
+    return Array.isArray(value) ? value : [value];
+}
+
+/** Matches a hidden-zone card's registry-read characteristics (library /
+ *  graveyard, via `getLibraryCards` / `getGraveyardCards`) against an
+ *  `EffectCardFilter` (issue #677). Every present field is ANDed; an
+ *  array-valued `type`/`subtype`/`color` matches on ANY member (OR within
+ *  that field). `supertypes` / `colors` are optional on the card shape since
+ *  `getGraveyardCards` doesn't carry supertypes — a filter naming a field the
+ *  card shape lacks simply never matches (fail-closed, mirrors
+ *  `FilterMatchContext.supertypesOf`'s fail-closed default). */
+function matchesCardFilter(
+    card: {
+        types: readonly string[];
+        subtypes: readonly string[];
+        supertypes?: readonly string[];
+        colors?: readonly string[];
+        manaValue: number;
+    },
+    filter: EffectCardFilter
+): boolean {
+    const types = asFilterArray(filter.type);
+    const subtypes = asFilterArray(filter.subtype);
+    const colors = asFilterArray(filter.color);
+    if (types !== undefined && !types.some((t) => card.types.includes(t))) {
+        return false;
+    }
+    if (
+        subtypes !== undefined &&
+        !subtypes.some((s) => card.subtypes.includes(s))
+    ) {
+        return false;
+    }
+    if (
+        filter.supertype !== undefined &&
+        !(card.supertypes ?? []).includes(filter.supertype)
+    ) {
+        return false;
+    }
+    if (
+        colors !== undefined &&
+        !colors.some((c) => (card.colors ?? []).includes(c))
+    ) {
+        return false;
+    }
+    if (
+        filter.manaValueAtMost !== undefined &&
+        card.manaValue > filter.manaValueAtMost
+    ) {
+        return false;
+    }
+    return true;
 }
 
 /** Counts a declaratively-selected set of cards (ADR 0045 `count` construct,
@@ -261,19 +326,13 @@ function countSet(ctx: SpellContext, spec: EffectCountSpec): number {
         return ctx.getBattlefieldIds(playerId, toPermanentFilter(spec.filter))
             .length;
     }
-    // graveyard (CR 404) — filter by card type and/or subtype (CR 205),
-    // mirroring the battlefield branch. Both fields are ANDed; an absent
-    // field imposes no constraint. Honouring `subtype` here (rather than
-    // rejecting it in the validator) is deliberate: subtype-scoped
-    // graveyard counts are legitimate ("for each Zombie in your graveyard").
+    // graveyard (CR 404) — filter by the shared card-filter matcher, mirroring
+    // the battlefield branch. An absent filter imposes no constraint.
+    // Subtype-scoped graveyard counts are legitimate ("for each Zombie in your
+    // graveyard").
     const cards = ctx.getGraveyardCards(playerId);
-    const type = spec.filter?.type;
-    const subtype = spec.filter?.subtype;
-    return cards.filter(
-        (c) =>
-            (type === undefined || c.types.includes(type)) &&
-            (subtype === undefined || c.subtypes.includes(subtype))
-    ).length;
+    if (!spec.filter) return cards.length;
+    return cards.filter((c) => matchesCardFilter(c, spec.filter!)).length;
 }
 
 /** Resolves a player selector to a concrete player id, or undefined when the
@@ -434,10 +493,40 @@ function choiceCandidates(
         };
     }
     if (op.zone === "hand") {
-        return { available: ctx.getHandSize(playerId) };
+        // A hand is hidden to the opponent but known to its owner — same
+        // reasoning as the library branch below (issue #677): a type/
+        // subtype/supertype/color/mana-value restriction (Stoneforge Mystic's
+        // "an Equipment card from your hand") is precomputed as an explicit
+        // `candidateIds` allow-list via the shared matcher. No filter — every
+        // card in hand is eligible.
+        if (!op.filter) {
+            return { available: ctx.getHandSize(playerId) };
+        }
+        const filter = op.filter;
+        const ids = ctx
+            .getHandCards(playerId)
+            .filter((c) => matchesCardFilter(c, filter))
+            .map((c) => c.id);
+        return { available: ids.length, candidateIds: ids };
     }
     if (op.zone === "library") {
-        return { available: ctx.getLibraryCards(playerId).length };
+        // A library is hidden — the submit validator has no card
+        // characteristics to check a raw pick against, so a type/subtype/
+        // supertype/color/mana-value restriction (issue #677 — "search … for
+        // a [type] card" / "… a BASIC land card" / "… a green creature card",
+        // the tutor/fetchland pattern) must be precomputed here as an
+        // explicit `candidateIds` allow-list via the shared `matchesCardFilter`
+        // matcher (mirrors `countSet`'s graveyard branch). No filter — every
+        // card in the library is eligible (Vampiric Tutor, Entomb).
+        if (!op.filter) {
+            return { available: ctx.getLibraryCards(playerId).length };
+        }
+        const filter = op.filter;
+        const ids = ctx
+            .getLibraryCards(playerId)
+            .filter((c) => matchesCardFilter(c, filter))
+            .map((c) => c.id);
+        return { available: ids.length, candidateIds: ids };
     }
     // graveyard — a public zone: eligibility is the snapshot taken when the
     // choice is raised, carried as an explicit allow-list (the submit
@@ -525,15 +614,50 @@ export const OP_EXECUTORS: {
         if (op.bind) bindSnapshot(ctx, op.bind, target);
         ctx.exile(target);
     },
-    // CR 400.7 (issue #839) — a plain zone change. A thin declarative skin
-    // over the SpellContext zone-movement primitives, ONE execution path
-    // (ADR 0045): the current zone is inferred from the object's kind (a
-    // permanent is on the battlefield; a graveyard-card is in the graveyard),
-    // so the Op carries no `from`. Skipped when the referenced object is gone
-    // (CR 608.2b — the spell does as much as it can), or for a zone pair with
-    // no plain-move primitive (a battlefield permanent to any zone but the
-    // hand needs LTB semantics — that is `destroy`/`exile`, not `moveZone`).
+    // CR 400.7 (issue #839 / #677) — a plain zone change. A thin declarative
+    // skin over the SpellContext zone-movement primitives, ONE execution path
+    // per shape (ADR 0045). Two shapes share the "moveZone" Op name:
+    //  - `cards` (issue #677) — the SEARCH half of a tutor/fetch effect: the
+    //    ids a `choice(zone: "library" | "hand")` Op picked. A hidden-zone card
+    //    has no announced-target form (CR 601.2b), so this shape consumes the
+    //    picks binding directly instead of `resolveObjectRef`. `to:
+    //    "battlefield"` routes through `putFromLibraryOntoBattlefield` /
+    //    `putFromHandOntoBattlefield` (a fetchland / Stoneforge Mystic's
+    //    second ability) — `tapped` forces the entering permanent tapped
+    //    (Fabled Passage) via a direct `ctx.tap` immediately after entry, a
+    //    simplification that skips any "as this enters tapped" replacement
+    //    interaction (none of the cube cards using it need one); every other
+    //    destination routes through `moveCardById(player, id, from, to)` (a
+    //    tutor). Skipped when the binding was never captured (no candidates,
+    //    CR 608.2b) or the player cannot be resolved.
+    //  - `target` (issue #839) — the current zone is inferred from the
+    //    object's kind (a permanent is on the battlefield; a graveyard-card is
+    //    in the graveyard), so the Op carries no `from`. Skipped when the
+    //    referenced object is gone (CR 608.2b — the spell does as much as it
+    //    can), or for a zone pair with no plain-move primitive (a battlefield
+    //    permanent to any zone but the hand needs LTB semantics — that is
+    //    `destroy`/`exile`, not `moveZone`).
     moveZone(ctx, op) {
+        if ("cards" in op) {
+            const playerId = resolvePlayerRef(ctx, op.player);
+            if (playerId === undefined) return;
+            const ids = resolvePicks(ctx, op.cards);
+            if (!ids) return; // binding never captured — CR 608.2b, skip
+            for (const id of ids) {
+                if (op.to === "battlefield") {
+                    const entered =
+                        op.from === "hand"
+                            ? ctx.putFromHandOntoBattlefield(playerId, id)
+                            : ctx.putFromLibraryOntoBattlefield(playerId, id);
+                    if (entered && op.tapped) {
+                        ctx.tap({ type: "permanent", id });
+                    }
+                } else {
+                    ctx.moveCardById(playerId, id, op.from, op.to);
+                }
+            }
+            return;
+        }
         let target = resolveObjectRef(ctx, op.target);
         // Graveyard-source self-return (Ashen Ghoul, issue #737 / CR 400.7):
         // `resolveObjectRef` is battlefield-scoped, so a `$source` whose source
@@ -742,8 +866,19 @@ export const OP_EXECUTORS: {
         const { available, candidateIds } = choiceCandidates(ctx, op, playerId);
         // CR 608.2b / 701.9b — clamp to what exists; nothing to choose from
         // means no choice at all (and no binding, so consumers skip too).
-        const count = Math.min(op.count, available);
-        if (count <= 0) return;
+        // A plain number is an EXACT count; a `{ min, max }` range (issue
+        // #677 — "you may…", "up to N…") clamps its max down to what's
+        // available and floors its min at that same clamped max (so a
+        // 0-available "you may" never asks for more than exists).
+        let count: number | { min: number; max: number };
+        if (typeof op.count === "number") {
+            count = Math.min(op.count, available);
+            if (count <= 0) return;
+        } else {
+            const max = Math.min(op.count.max, available);
+            if (max <= 0) return;
+            count = { min: Math.min(op.count.min, max), max };
+        }
         const picks = ctx.requestChoice({
             playerId,
             // The binding name doubles as the choiceId: unique within the
