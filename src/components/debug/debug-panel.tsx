@@ -495,6 +495,29 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Vintage Cube FREE targeted removal (#676): Infernal Grasp ("Destroy
+        // target creature. You lose 2 life.") and Vindicate ("Destroy target
+        // permanent.") exercise the single-target destroy golden path — cast
+        // Infernal Grasp at the opponent's Balduvian Bears, or Vindicate at
+        // either the Bears or their nonbasic Badlands (any permanent type).
+        // Wasteland is already in play — sacrifice it to destroy the Badlands
+        // (CR 205.4a nonbasic-only filter) without spending a card from hand.
+        // Swamp + Plains cover the {B} / {W}{B} pips; landCount covers the
+        // generic {1} on both spells.
+        label: "Infernal Grasp / Vindicate / Wasteland — targeted removal (#676)",
+        cards: [
+            { name: "Infernal Grasp", owner: "me", zone: "hand" },
+            { name: "Vindicate", owner: "me", zone: "hand" },
+            { name: "Swamp", owner: "me", zone: "battlefield" },
+            { name: "Plains", owner: "me", zone: "battlefield" },
+            { name: "Wasteland", owner: "me", zone: "battlefield" },
+            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
+            { name: "Badlands", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
 ];
 
 type DebugPanelProps = {

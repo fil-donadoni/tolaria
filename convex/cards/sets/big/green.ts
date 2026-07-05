@@ -1,5 +1,7 @@
-// big (The Big Score) — green cards (ADR 0043 colour split). Modern
-// Scryfall oracle text is authoritative (ADR 0004).
+// BIG — green cards, split by colour per ADR 0043. The registry's
+// `import * as big from "./sets/big"` resolves through big/index.ts.
+// Cards are classified by the colour identity of their mana cost (CR 202.2):
+// lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 // import type { CardDefinition } from "../../types";
 
@@ -24,4 +26,5 @@
 //     manaCost: { X: 2, G: 1 },
 //     types: ["Artifact"],
 // };
+
 export {};

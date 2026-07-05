@@ -669,6 +669,11 @@ export function getLegalTargets(
             ? requirement.excludeSubtypes
             : [requirement.excludeSubtypes]
         : undefined;
+    const excludeSupertypes = requirement.excludeSupertypes
+        ? Array.isArray(requirement.excludeSupertypes)
+            ? requirement.excludeSupertypes
+            : [requirement.excludeSupertypes]
+        : undefined;
     const toughnessFilter = requirement.toughnessFilter;
 
     // CR 115.4: "any target" means any creature, planeswalker, player, or
@@ -725,6 +730,14 @@ export function getLegalTargets(
                 if (
                     supertypeFilter &&
                     !supertypeFilter.every((s) => hasSupertypeLive(card, s))
+                ) {
+                    continue;
+                }
+                // CR 205.4a: negative supertype filter for "target nonbasic
+                // land" (Wasteland) — the mirror of supertypeFilter above.
+                if (
+                    excludeSupertypes &&
+                    excludeSupertypes.some((s) => hasSupertypeLive(card, s))
                 ) {
                     continue;
                 }

@@ -1,6 +1,7 @@
-// tmp (Tempest) — colorless cards (ADR 0043 colour split). Modern Scryfall
-// oracle text is authoritative (ADR 0004). Lands and colourless artifacts
-// (no coloured cost) live here per the colour-split convention.
+// TMP — colorless cards, split by colour per ADR 0043. The registry's
+// `import * as tmp from "./sets/tmp"` resolves through tmp/index.ts.
+// Cards are classified by the colour identity of their mana cost (CR 202.2):
+// lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import type { ActivatedAbilityContext, CardDefinition } from "../../types";
 import { makeTapForMana } from "../../abilities";
@@ -52,6 +53,46 @@ export const lotusPetal: CardDefinition = {
                 ctx.addMana({ W: 1 });
             },
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
+        },
+    ],
+};
+
+// Wasteland — "{T}: Add {C}.\n{T}, Sacrifice this land: Destroy target
+// nonbasic land." (CR 701.26 tap mana ability; CR 701.16 sacrifice cost;
+// CR 701.7 destroy.) "Nonbasic" needs a NEGATIVE supertype filter — the
+// engine only had the positive `supertypeFilter` (Avalanche's "target snow
+// lands"); this card motivates a small, general, orthogonal addition
+// (`TargetRequirement.excludeSupertypes`, mirroring the existing
+// `excludeTypes`/`excludeColors`/`excludeSubtypes` fields) rather than a
+// card-shaped workaround.
+export const wasteland: CardDefinition = {
+    id: "99ff731b-8399-40c8-b539-ba6ba5783771",
+    rarity: "uncommon",
+    name: "Wasteland",
+    oracleText:
+        "{T}: Add {C}.\n{T}, Sacrifice this land: Destroy target nonbasic land.",
+    types: ["Land"],
+    activatedAbilities: [
+        {
+            id: "wasteland-mana",
+            oracleText: "{T}: Add {C}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ C: 1 }),
+            manaProduced: { C: 1 },
+        },
+        {
+            id: "wasteland-destroy",
+            oracleText:
+                "{T}, Sacrifice this land: Destroy target nonbasic land.",
+            cost: { tap: true, sacrifice: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Land",
+                count: 1,
+                excludeSupertypes: "Basic",
+            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };

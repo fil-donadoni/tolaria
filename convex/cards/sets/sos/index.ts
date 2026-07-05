@@ -1,6 +1,6 @@
-// SOS set barrel — re-exports every colour module so the
-// registry's `import * as sos from "./sets/sos"` resolves here
-// unchanged (ADR 0043).
+// SOS (Secrets of Strixhaven) set barrel — re-exports every colour module so
+// the registry's `import * as sos from "./sets/sos"` resolves here unchanged
+// (ADR 0043).
 
 export * from "./white";
 export * from "./blue";

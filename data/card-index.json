@@ -1,5 +1,11 @@
 [
     {
+        "name": "Abrade",
+        "scryfallId": "84319dfb-eaf7-4b98-8c4f-30f5e779591b",
+        "oracleId": "f9db72dc-9a5b-48a4-a86e-7464d9a2166a",
+        "firstSet": "hou"
+    },
+    {
         "name": "Abu Ja'far",
         "scryfallId": "0e9ad288-d164-44a6-96ec-4185a1587f1a",
         "oracleId": "a2404d88-0621-49ae-9908-052c23a96ac6",
@@ -940,6 +946,12 @@
         "scryfallId": "d2187a64-2823-4f58-ad35-70f8913db2dc",
         "oracleId": "cee3d8e5-f26f-4f47-8a7b-9ac07ebf9025",
         "firstSet": "leg"
+    },
+    {
+        "name": "Cathar Commando",
+        "scryfallId": "98cbc1c2-b76e-4da3-aa43-00e10b2ce532",
+        "oracleId": "774dce79-67e0-4820-8013-c7a7347993ce",
+        "firstSet": "mid"
     },
     {
         "name": "Cathedral of Serra",
@@ -1968,6 +1980,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Erode",
+        "scryfallId": "32e670da-7563-4f6a-a7db-4c126a440eb8",
+        "oracleId": "2e467fab-e808-44d3-99bf-e3621baeb7cb",
+        "firstSet": "sos"
+    },
+    {
         "name": "Erosion",
         "scryfallId": "5f4b6507-89ee-482e-aafd-8e05ada8f1ce",
         "oracleId": "155ee24f-a458-4df4-86d5-5eb7396ebf45",
@@ -2176,6 +2194,12 @@
         "scryfallId": "aa2d778d-d74b-45ec-a86b-5d52ffad6ba5",
         "oracleId": "c8b1e9f3-b014-4e57-b278-6d84a7e88b23",
         "firstSet": "drk"
+    },
+    {
+        "name": "Flame Slash",
+        "scryfallId": "006d2bf1-20f7-4b09-8d98-8233d91682bd",
+        "oracleId": "8d98d674-6811-4d45-b22a-63792e272a2b",
+        "firstSet": "roe"
     },
     {
         "name": "Flame Spirit",
@@ -2602,6 +2626,12 @@
         "scryfallId": "5129b422-7a35-4bc5-b14b-c814012a0d8f",
         "oracleId": "10bc98b0-3fdc-46d1-8d3b-6d160e9dd62f",
         "firstSet": "lea"
+    },
+    {
+        "name": "Goblin Bombardment",
+        "scryfallId": "179e954f-1d90-4ef4-b800-25845cc338e2",
+        "oracleId": "edad60c6-80de-4033-af1b-a703ac332983",
+        "firstSet": "tmp"
     },
     {
         "name": "Goblin Caves",
@@ -3328,6 +3358,12 @@
         "scryfallId": "b63ac9a6-aaa5-4659-97d1-c5f6b0d5ccfe",
         "oracleId": "2f33aced-c737-4b3c-ba25-aff7b340c2d7",
         "firstSet": "ice"
+    },
+    {
+        "name": "Infernal Grasp",
+        "scryfallId": "17824929-f131-4b8d-addb-66c25323155e",
+        "oracleId": "94f0a572-e91c-4b56-a5d1-6cbbeabd210d",
+        "firstSet": "mid"
     },
     {
         "name": "Inferno",
@@ -4830,6 +4866,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Path to Exile",
+        "scryfallId": "29b7a8b1-b98e-483a-87a4-73bd831c03d4",
+        "oracleId": "d683d985-9888-4d21-8b5f-69e69ce4a03b",
+        "firstSet": "con"
+    },
+    {
         "name": "Pavel Maliki",
         "scryfallId": "304f9d39-3ea2-4274-b23e-e4eaabbc1c4b",
         "oracleId": "41026872-3c7b-40c7-8d0b-9d2f9b6c3e91",
@@ -4972,6 +5014,12 @@
         "scryfallId": "ba6b6fc5-5077-4812-b8e9-906783dbaf67",
         "oracleId": "02090581-61aa-4348-ad57-451be8ee91c2",
         "firstSet": "lrw"
+    },
+    {
+        "name": "Portable Hole",
+        "scryfallId": "80fca8c0-ae3e-439e-b202-228b9f360e9a",
+        "oracleId": "5e57a8cd-f4f0-40b2-84a0-e002751c0d40",
+        "firstSet": "afr"
     },
     {
         "name": "Portent",
@@ -5628,6 +5676,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Sear",
+        "scryfallId": "aeb4612c-758b-4492-ba03-eb6741b4176e",
+        "oracleId": "23b11fdc-61b5-4f5e-ad80-f81b729fc91d",
+        "firstSet": "ecl"
+    },
+    {
         "name": "Seasinger",
         "scryfallId": "c5266aa1-e2ea-46b9-91ab-b94a7bb7e9f9",
         "oracleId": "13745b92-1e30-4075-9733-5d00da11408c",
@@ -5776,6 +5830,12 @@
         "scryfallId": "685076cc-098c-4f98-918c-0ad825eda10f",
         "oracleId": "6ca90451-861d-4aa8-93e7-3f3e02385530",
         "firstSet": "ice"
+    },
+    {
+        "name": "Silverquill Charm",
+        "scryfallId": "3eb73579-f1c6-4762-81d2-9568ab501fac",
+        "oracleId": "d985b12e-2731-4ccf-9f51-90218b20b42a",
+        "firstSet": "sos"
     },
     {
         "name": "Simulacrum",
@@ -6246,6 +6306,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Suplex",
+        "scryfallId": "f61693a2-7042-44e0-85ba-9bf12ab94e7e",
+        "oracleId": "2d1bbeda-2e81-4aaa-9494-094ec3dd6c3b",
+        "firstSet": "fin"
+    },
+    {
         "name": "Svyelunite Priest",
         "scryfallId": "316d25ae-7ac6-4f5b-93ab-0e0e28ec104b",
         "oracleId": "fb7adbee-a3b0-42bf-988f-9d4faf6bd006",
@@ -6334,6 +6400,12 @@
         "scryfallId": "41ff849e-2439-4690-8aa4-769039b6da4c",
         "oracleId": "00e35322-1a9a-41e3-9ce1-359c8eaa3bc7",
         "firstSet": "mrd"
+    },
+    {
+        "name": "Tarfire",
+        "scryfallId": "d13a898e-6a97-4fd9-980e-3bfd8d755386",
+        "oracleId": "f07b821c-bbc1-4def-b009-6c03689478d0",
+        "firstSet": "lrw"
     },
     {
         "name": "Tarpan",
@@ -6936,6 +7008,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Vindicate",
+        "scryfallId": "2a1bfefd-dae8-49e9-9d56-cc852e3dc93b",
+        "oracleId": "63c1ac21-e3d8-40c2-8c09-3f31c52992ef",
+        "firstSet": "apc"
+    },
+    {
         "name": "Visions",
         "scryfallId": "21d00299-e183-4b3d-b015-18808e7135b9",
         "oracleId": "448fa4e3-7269-446b-8089-675bc1bff5f9",
@@ -6976,6 +7054,12 @@
         "scryfallId": "0324641d-af55-4c53-b4dc-c8262e967da5",
         "oracleId": "c718911c-c955-4eb9-9e16-be4bd49a4e4e",
         "firstSet": "leb"
+    },
+    {
+        "name": "Walking Ballista",
+        "scryfallId": "329a8738-3e17-403a-857a-0ba529ce8cd1",
+        "oracleId": "4b515bb0-f275-4400-8032-3173b799ab40",
+        "firstSet": "aer"
     },
     {
         "name": "Walking Dead",
@@ -7152,6 +7236,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Wasteland",
+        "scryfallId": "99ff731b-8399-40c8-b539-ba6ba5783771",
+        "oracleId": "09a70ae8-3859-4a09-901d-dce063fa3b5f",
+        "firstSet": "tmp"
+    },
+    {
         "name": "Wastewood Verge",
         "scryfallId": "5ceacc7d-d407-4f82-af58-9bdf8426924e",
         "oracleId": "c6e0574c-3e2b-4c40-b17a-05bce3d49309",
@@ -7300,6 +7390,12 @@
         "scryfallId": "4eef9bb7-cd3c-422e-a93b-90d98684675a",
         "oracleId": "5fc1f04a-2c39-4b3a-b62e-6e30c3d8a583",
         "firstSet": "drk"
+    },
+    {
+        "name": "Witherbloom Charm",
+        "scryfallId": "254437f7-7a8a-4b11-9cea-e8e7ea23c59e",
+        "oracleId": "ee1db746-f5c1-4dce-82eb-24b273cc9507",
+        "firstSet": "sos"
     },
     {
         "name": "Withering Wisps",
