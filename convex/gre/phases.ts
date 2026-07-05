@@ -330,6 +330,11 @@ export function untapStep(state: GameState): void {
                 card.manaCommitted = undefined;
                 card.isSummoningSick = undefined;
                 card.chosenMana = undefined;
+                // CR 502/603.3 — the source untaps (or is fully cleaned up
+                // this untap step), so a becomes-tapped trigger from a prior
+                // tap is water under the bridge: clear the irreversibility
+                // flag so next turn's fresh tap can be undone normally.
+                card.tapTriggerCommitted = undefined;
                 continue;
             }
             // ATQ cluster E (Phyrexian Gremlins, CR 611.2): a permanent locked
@@ -342,6 +347,11 @@ export function untapStep(state: GameState): void {
                 card.manaCommitted = undefined;
                 card.isSummoningSick = undefined;
                 card.chosenMana = undefined;
+                // CR 502/603.3 — the source untaps (or is fully cleaned up
+                // this untap step), so a becomes-tapped trigger from a prior
+                // tap is water under the bridge: clear the irreversibility
+                // flag so next turn's fresh tap can be undone normally.
+                card.tapTriggerCommitted = undefined;
                 continue;
             }
             // Barl's Cage (DRK, CR 302.6 / 502.1): one-shot "doesn't untap
@@ -353,6 +363,11 @@ export function untapStep(state: GameState): void {
                 card.manaCommitted = undefined;
                 card.isSummoningSick = undefined;
                 card.chosenMana = undefined;
+                // CR 502/603.3 — the source untaps (or is fully cleaned up
+                // this untap step), so a becomes-tapped trigger from a prior
+                // tap is water under the bridge: clear the irreversibility
+                // flag so next turn's fresh tap can be undone normally.
+                card.tapTriggerCommitted = undefined;
                 continue;
             }
             // ICE depletion-dual cycle (Land Cap, Lava Tubes, River Delta,
@@ -371,6 +386,11 @@ export function untapStep(state: GameState): void {
                 card.manaCommitted = undefined;
                 card.isSummoningSick = undefined;
                 card.chosenMana = undefined;
+                // CR 502/603.3 — the source untaps (or is fully cleaned up
+                // this untap step), so a becomes-tapped trigger from a prior
+                // tap is water under the bridge: clear the irreversibility
+                // flag so next turn's fresh tap can be undone normally.
+                card.tapTriggerCommitted = undefined;
                 continue;
             }
             // Freyalise's Winds (ICE, CR 614.6 untap replacement keyed on a
@@ -394,6 +414,11 @@ export function untapStep(state: GameState): void {
                 card.manaCommitted = undefined;
                 card.isSummoningSick = undefined;
                 card.chosenMana = undefined;
+                // CR 502/603.3 — the source untaps (or is fully cleaned up
+                // this untap step), so a becomes-tapped trigger from a prior
+                // tap is water under the bridge: clear the irreversibility
+                // flag so next turn's fresh tap can be undone normally.
+                card.tapTriggerCommitted = undefined;
                 continue;
             }
             // ATQ cluster E (Ashnod's Battle Gear, Tawnos's Weaponry, Phyrexian
@@ -407,6 +432,11 @@ export function untapStep(state: GameState): void {
                 card.manaCommitted = undefined;
                 card.isSummoningSick = undefined;
                 card.chosenMana = undefined;
+                // CR 502/603.3 — the source untaps (or is fully cleaned up
+                // this untap step), so a becomes-tapped trigger from a prior
+                // tap is water under the bridge: clear the irreversibility
+                // flag so next turn's fresh tap can be undone normally.
+                card.tapTriggerCommitted = undefined;
                 continue;
             }
             const view = effectivePermanentView(state, card);
@@ -418,6 +448,11 @@ export function untapStep(state: GameState): void {
                 card.manaCommitted = undefined;
                 card.isSummoningSick = undefined;
                 card.chosenMana = undefined;
+                // CR 502/603.3 — the source untaps (or is fully cleaned up
+                // this untap step), so a becomes-tapped trigger from a prior
+                // tap is water under the bridge: clear the irreversibility
+                // flag so next turn's fresh tap can be undone normally.
+                card.tapTriggerCommitted = undefined;
                 continue;
             }
             if (
@@ -432,6 +467,11 @@ export function untapStep(state: GameState): void {
                 card.manaCommitted = undefined;
                 card.isSummoningSick = undefined;
                 card.chosenMana = undefined;
+                // CR 502/603.3 — the source untaps (or is fully cleaned up
+                // this untap step), so a becomes-tapped trigger from a prior
+                // tap is water under the bridge: clear the irreversibility
+                // flag so next turn's fresh tap can be undone normally.
+                card.tapTriggerCommitted = undefined;
                 continue;
             }
             // CR 701.20b — emit "becomes untapped" on the transition so
@@ -441,6 +481,10 @@ export function untapStep(state: GameState): void {
             card.manaCommitted = undefined;
             card.isSummoningSick = undefined;
             card.chosenMana = undefined;
+            // CR 502/603.3 — the source untapped, so a becomes-tapped trigger
+            // from a prior tap is water under the bridge: clear the
+            // irreversibility flag so next turn's fresh tap undoes normally.
+            card.tapTriggerCommitted = undefined;
         }
     }
 

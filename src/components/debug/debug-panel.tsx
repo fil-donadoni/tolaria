@@ -82,6 +82,24 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Irreversible tap-for-mana untap-toggle block (issue #793, CR 603.3):
+        // City of Brass has a "Whenever ~ becomes tapped, it deals 1 damage to
+        // you" triggered ability. Tap it for mana while holding priority — the
+        // trigger goes on the stack and (after it resolves) you lose 1 life.
+        // Now try the untap-toggle on it: it is REJECTED ("tap trigger already
+        // on the stack") because a resolved triggered ability can't be undone;
+        // the source stays tapped and the mana stays floated. Contrast the
+        // plain Forest next to it: tapping it for mana can still be undone
+        // (mana refunded, land untapped) — no becomes-tapped trigger, no block.
+        label: "Untap-toggle blocked after tap trigger (City of Brass) (#793)",
+        cards: [
+            { name: "City of Brass", owner: "me", zone: "battlefield" },
+            { name: "Forest", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+    },
+    {
         // ICE per-attacker sacrifice-a-land attack tax (issue #733): Flooded
         // Woodlands taxes GREEN creatures — declaring your Grizzly Bears (green)
         // as an attacker forces you to sacrifice one land per attacking green

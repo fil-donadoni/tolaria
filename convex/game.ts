@@ -612,6 +612,29 @@ export function reverseDepletionCounterOnUntap(
     card.counters = Object.keys(next).length > 0 ? next : undefined;
 }
 
+/** CR 603.3 — a triggered ability, once put on the stack, cannot be undone.
+ *  Called on the standalone tap-for-mana path right after the PERMANENT_TAPPED
+ *  event is flushed into a trigger pass (`processPendingActionTriggers`). If
+ *  that flush GREW the stack, this tap caused at least one triggered ability to
+ *  be put on the stack — the source's own "becomes tapped" self-damage (City of
+ *  Brass) or a third-party watcher (Manabarbs on every land tap). Such a tap is
+ *  irreversible: refunding the floated mana and untapping the source while the
+ *  trigger's effect (lost life, a token, a draw) stays applied is a state with
+ *  no legal MTG equivalent. Flag the tapped source so the standalone
+ *  untap-toggle refuses to untap it (the `tapTriggerCommitted` guard in
+ *  `tapUntap`), mirroring the `manaCommitted` "mana already spent" guard.
+ *  Class-wide: keyed on stack growth, not on any specific card. `stackSizeBefore`
+ *  is the stack length captured immediately before the trigger flush. */
+export function markTapTriggerCommitment(
+    state: GameState,
+    card: CardInstanceState,
+    stackSizeBefore: number
+): void {
+    if (state.stack.length > stackSizeBefore) {
+        card.tapTriggerCommitted = true;
+    }
+}
+
 export function tapSourceIntoPayment(
     state: GameState,
     player: PlayerState,
@@ -6921,6 +6944,19 @@ export const tapUntap = mutation({
             throw new Error("Cannot untap: mana already spent");
         }
 
+        // CR 603.3 — a triggered ability cannot be undone once put on the
+        // stack. If this source's most-recent tap-for-mana caused any
+        // triggered ability to go on the stack (its own "becomes tapped"
+        // self-damage like City of Brass, or a third-party Manabarbs watching
+        // land taps), the tap is a commitment: refunding the mana and
+        // untapping the source while the trigger's effect (lost life, etc.)
+        // stays applied would produce a state with no legal MTG equivalent.
+        // Mirrors the `manaCommitted` guard above; class-wide, set at the
+        // trigger-flush site below and cleared at the untap step / on spend.
+        if (wasTapped && card.tapTriggerCommitted) {
+            throw new Error("Cannot untap: tap trigger already on the stack");
+        }
+
         // Track produced mana so we can carry it on the PERMANENT_TAPPED event
         // (CR 605.2 / 603.2 — Mana Flare reads `manaProduced` to add the
         // matching color). Set on the tap branches, undefined on untap.
@@ -7286,7 +7322,19 @@ export const tapUntap = mutation({
         // Manabarbs / Mana Flare / Wild Growth land on the stack right after
         // the mana ability resolves. Skip on untap (no event was emitted).
         if (producedThisActivation) {
+            // CR 603.3 — a triggered ability, once put on the stack, cannot be
+            // undone. Detect class-wide whether THIS tap-for-mana caused any
+            // triggered ability to be put on the stack (City of Brass's own
+            // "becomes tapped: deal 1 to you", or a third-party Manabarbs that
+            // watches every land tap): compare the stack size across the
+            // trigger flush. If it grew, the tap is irreversible — flag the
+            // source so the standalone untap-toggle refuses to untap it
+            // (checked at the untap branch above). Untapping would refund the
+            // mana and untap the land while the trigger's effect (e.g. lost
+            // life) stays applied — a state with no legal MTG equivalent.
+            const stackSizeBeforeTriggers = state.stack.length;
             processPendingActionTriggers(state);
+            markTapTriggerCommitment(state, card, stackSizeBeforeTriggers);
         }
 
         await saveGameState(
