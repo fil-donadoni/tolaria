@@ -253,6 +253,19 @@ function collect() {
                 }
                 if (/\.join\(/.test(body)) blockers.push("$listCapture");
             }
+            // Id-equality conditional pick (issue #865, ADR 0049) — "act on the
+            // OTHER object in a pair", written as `a.id === x ? b.id : c.id`
+            // over event id fields. Deferred as a demand-driven `$id-equality`
+            // capability: the frozen grammar (bind/ref/if/forEach) has no
+            // id-equality `if` predicate, and one is not built speculatively for
+            // a single card (CLAUDE.md § Primitive reuse). Never FREE. Venom,
+            // the motivating card, sidesteps it by splitting into two
+            // role-discriminated triggers (each capturing a single `$event`
+            // field), so after its migration no catalogue closure trips this —
+            // the marker stands ready for the next card that needs the predicate.
+            if (/\.\w*[Ii]d\s*===[^?{}]*\?[^:]*\.\w*[Ii]d\s*:/.test(body)) {
+                blockers.push("$id-equality");
+            }
             const name = cardNameBefore(src, start);
             items.push({
                 mod,

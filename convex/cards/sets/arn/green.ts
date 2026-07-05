@@ -8,7 +8,6 @@
 
 import type { CardDefinition, SpellContext } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
-import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 
 export const wyluliWolf: CardDefinition = {
@@ -262,49 +261,57 @@ export const nafsAsp: CardDefinition = {
     power: 1,
     toughness: 1,
     triggeredAbilities: [
-        damageDealtTrigger({
+        {
+            // Migrated resolve()→effects[] (ADR 0049, issue #865). The damaged
+            // player is read off the firing event with `$event.damagedPlayer`
+            // (player family) — both for the delayed trigger's target player
+            // (CR 504, so it fires on THAT player's next draw step) and for the
+            // captured `$victim` the body acts on. The "pay {1} or lose 1 life"
+            // decision is an inline delayedTrigger body (ADR 0048): a mayPay
+            // whose declined outcome loses 1 life. LKI reuses the ADR 0048
+            // capture semantics (the id crosses to fire time in the payload).
             id: "nafs-asp-damage",
             oracleText:
                 "Whenever this creature deals damage to a player, that player loses 1 life at the beginning of their next draw step unless they pay {1} before that draw step.",
-            source: "self",
-            target: { kind: "player", player: { relation: "any" } },
-            // NOT DSL-migratable yet (ADR 0048): the delayed capture (and
-            // the timing's target player) is a trigger-EVENT field
-            // (event.target.id) — the tracked $event.<field> grammar gap.
-            // Stays resolve().
-            resolve: (ctx, event) => {
-                if (event.target.type !== "player") return;
-                ctx.scheduleDelayedTrigger(
-                    NAFS_ASP_ID,
-                    "nafs-asp-draw-step",
-                    "next-draw-step",
-                    { playerId: event.target.id },
-                    event.target.id
+            event: "DAMAGE_DEALT",
+            matches: (event, self) => {
+                if (event.type !== "DAMAGE_DEALT") return false;
+                // Self deals damage to a player (CR 120.3 / 603.4).
+                return (
+                    event.sourceInstanceId === self.id &&
+                    event.target.type === "player"
                 );
             },
-        }),
-    ],
-    delayedTriggers: [
-        {
-            id: "nafs-asp-draw-step",
-            oracleText:
-                "That player loses 1 life unless they paid {1} before this draw step.",
-            timing: "next-draw-step",
-            // Legacy template body (ADR 0048): expressible as an inline
-            // mayPay/if body once the scheduling site's $event.<field>
-            // capture gap closes — the card migrates as a whole then.
-            resolve: (ctx, payload) => {
-                const pid = payload.playerId;
-                if (!pid) return;
-                const paid = ctx.requestMayPay({
-                    playerId: pid,
-                    choiceId: "nafs-asp-pay",
-                    cost: { X: 1 },
-                    prompt: "Pay {1} to avoid losing 1 life to Nafs Asp?",
-                });
-                if (paid === undefined) return; // suspended for the decision
-                if (!paid) ctx.loseLife(pid, 1);
-            },
+            effects: [
+                {
+                    op: "delayedTrigger",
+                    timing: "next-draw-step",
+                    oracleText:
+                        "That player loses 1 life at the beginning of their next draw step unless they pay {1} before that draw step.",
+                    targetPlayer: { ref: "$event.damagedPlayer" },
+                    capture: { $victim: { ref: "$event.damagedPlayer" } },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: { ref: "$victim" },
+                            cost: { X: 1 },
+                            prompt: "Pay {1} to avoid losing 1 life to Nafs Asp?",
+                            bind: "$paid",
+                        },
+                        {
+                            op: "if",
+                            predicate: { not: { binding: "$paid" } },
+                            then: [
+                                {
+                                    op: "loseLife",
+                                    player: { ref: "$victim" },
+                                    amount: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
         },
     ],
 };

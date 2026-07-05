@@ -949,7 +949,9 @@ describe("Venom — Aura: combat kill at end of combat (CR 509.1h / 511.3 / 701.
         emitBlockersConfirmedEvents(state);
         expect(
             state.stack.some(
-                (s) => s.triggeredAbilityId === "venom-combat-kill"
+                (s) =>
+                    s.triggeredAbilityId?.startsWith("venom-combat-kill") ??
+                    false
             )
         ).toBe(true);
     });
@@ -959,7 +961,9 @@ describe("Venom — Aura: combat kill at end of combat (CR 509.1h / 511.3 / 701.
         emitBlockersConfirmedEvents(state);
         expect(
             state.stack.some(
-                (s) => s.triggeredAbilityId === "venom-combat-kill"
+                (s) =>
+                    s.triggeredAbilityId?.startsWith("venom-combat-kill") ??
+                    false
             )
         ).toBe(false);
     });
@@ -969,7 +973,10 @@ describe("Venom — Aura: combat kill at end of combat (CR 509.1h / 511.3 / 701.
         emitBlockersConfirmedEvents(state);
         resolveTopOfStack(state);
         expect(state.delayedTriggers).toHaveLength(1);
-        expect(state.delayedTriggers![0].payload.targetId).toBe("other");
+        // The inline delayedTrigger Op (ADR 0048/0049) captures the "other"
+        // creature under the binding name `$other`, where the legacy resolve()
+        // used the payload key `targetId`.
+        expect(state.delayedTriggers![0].payload["$other"]).toBe("other");
         state.phase = "COMBAT_DAMAGE";
         advancePhase(state);
         expect(state.phase).toBe("END_OF_COMBAT");

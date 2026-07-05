@@ -14,7 +14,6 @@
 import type {
     ActivatedAbilityContext,
     CardDefinition,
-    DelayedTriggerDef,
     ManaCost,
     PermanentView,
     SpellContext,
@@ -974,30 +973,22 @@ function batteringRamWallTrigger(): TriggeredAbility {
                 event.blockerSubtypes.includes("Wall")
             );
         },
-        // NOT DSL-migratable yet (ADR 0048): the delayed capture is built
-        // from a trigger-EVENT field (event.blockerId) — the tracked
-        // $event.<field> grammar gap. Stays resolve().
-        resolve: (ctx, event) => {
-            if (event.type !== "BLOCKERS_CONFIRMED") return;
-            ctx.scheduleDelayedTrigger(
-                BATTERING_RAM_ID,
-                "battering-ram-wall-destroy-delayed",
-                "next-end-of-combat",
-                { targetId: event.blockerId }
-            );
-        },
-    };
-}
-
-function batteringRamWallDelayed(): DelayedTriggerDef {
-    return {
-        id: "battering-ram-wall-destroy-delayed",
-        oracleText: "Destroy that Wall at end of combat.",
-        timing: "next-end-of-combat",
-        resolve: (ctx, payload) => {
-            if (!payload.targetId) return;
-            ctx.destroy({ type: "permanent", id: payload.targetId });
-        },
+        // Migrated resolve()→effects[] (ADR 0049, issue #865): the delayed
+        // capture reads the blocking Wall off the firing event via
+        // `$event.blockerId` (object family) and an inline delayedTrigger body
+        // (ADR 0048) destroys it at end of combat. LKI reuses the ADR 0048
+        // capture semantics — the id is captured at trigger-fire and re-bound
+        // fresh at the end-of-combat body run; a Wall already gone is a no-op
+        // (CR 608.2b + 701.7c).
+        effects: [
+            {
+                op: "delayedTrigger",
+                timing: "next-end-of-combat",
+                oracleText: "Destroy that Wall at end of combat.",
+                capture: { $wall: { ref: "$event.blockerId" } },
+                effects: [{ op: "destroy", target: { ref: "$wall" } }],
+            },
+        ],
     };
 }
 
@@ -1034,7 +1025,6 @@ export const batteringRam: CardDefinition = {
         }),
         batteringRamWallTrigger(),
     ],
-    delayedTriggers: [batteringRamWallDelayed()],
 };
 
 // Urza's Avenger — {6} Artifact Creature — Shapeshifter, 4/4. "{0}: This

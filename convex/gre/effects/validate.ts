@@ -24,7 +24,10 @@
 // card.
 
 import type { CardDefinition, EffectChoiceKind } from "../../cards/types";
-import { isRegisteredEffectOp } from "../../cards/mechanicsRegistry";
+import {
+    getEventFieldRow,
+    isRegisteredEffectOp,
+} from "../../cards/mechanicsRegistry";
 
 /** The slice of CardDefinition the validator reads — kept narrow so tests
  *  can validate synthetic shapes without building a full definition. */
@@ -475,12 +478,28 @@ function isBareRef(value: unknown): boolean {
  *  `sacrifice.permanents`). */
 const isBarePicksRef = isBareRef;
 
+/** `{ ref: "$event.<field>" }` — a trigger-event ref (ADR 0049, issue #865).
+ *  SHAPE only: a single `ref` key holding an `$event.field` string. Site
+ *  legality (trigger-only, not a delayed body), field census, and family are
+ *  checked by the ordered ref pass. */
+function isEventRefValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    return (
+        keys.length === 1 &&
+        keys[0] === "ref" &&
+        typeof (value as { ref: unknown }).ref === "string" &&
+        /^\$event\.[A-Za-z]+$/.test((value as { ref: string }).ref)
+    );
+}
+
 /** An object-acting Op's selector (destroy/exile `target`, dealDamage `to`):
- *  an announced target slot, or — inside a permanents-set forEach body
- *  (issue #807) — the bare `{ ref: "$each" }`. The ordered ref pass enforces
- *  that an object-position bare ref IS `$each` of a permanents iteration. */
+ *  an announced target slot, the bare `{ ref: "$each" }` inside a permanents-set
+ *  forEach body (issue #807), or a `{ ref: "$event.<field>" }` object field at a
+ *  trigger site (issue #865). The ordered ref pass enforces the family and the
+ *  trigger-site scope. */
 function isObjectSelector(value: unknown): boolean {
-    return isTargetRef(value) || isBareRef(value);
+    return isTargetRef(value) || isBareRef(value) || isEventRefValue(value);
 }
 
 /** A ManaCost's numeric pips — WUBRGC + generic + xFactor are non-negative
@@ -1216,6 +1235,68 @@ function collectPredicateRefUses(predicate: unknown, out: RefUse[]): void {
     collectRefUses(p.right, "right", out);
 }
 
+/** The `$event` scope threaded through the ref pass (ADR 0049, issue #865).
+ *  `eventType` is the firing event's type at a triggered-ability site (undefined
+ *  at spell / activated sites — `$event` is then illegal); `inDelayedBody` marks
+ *  a `delayedTrigger` body, where `$event` is illegal even at a trigger site
+ *  (the firing event is gone at fire time). */
+interface EventScope {
+    eventType: string | undefined;
+    inDelayedBody: boolean;
+}
+
+/** Validates a `$event.<field>` ref (ADR 0049, issue #865). Legal ONLY at a
+ *  trigger site (`eventType` known) and NOT inside a delayed body. The field
+ *  must be censused for the trigger's event type, and its registry family must
+ *  match the ref's POSITION (an object field in an object position, a player
+ *  field in a player position). */
+function checkEventRef(
+    use: RefUse,
+    eventScope: EventScope,
+    at: string,
+    errors: string[]
+): void {
+    const field = use.ref.slice(use.ref.indexOf(".") + 1);
+    if (eventScope.inDelayedBody) {
+        errors.push(
+            `${at}: "$event" ref "${use.ref}" is not legal in a delayedTrigger body — the firing event is gone at fire time (ADR 0049); capture the field into a binding instead`
+        );
+        return;
+    }
+    if (eventScope.eventType === undefined) {
+        errors.push(
+            `${at}: "$event" ref "${use.ref}" is only legal at a triggered-ability site (ADR 0049) — there is no firing event at a spell / activated site`
+        );
+        return;
+    }
+    const row = getEventFieldRow(eventScope.eventType, field);
+    if (!row) {
+        errors.push(
+            `${at}: "$event" ref "${use.ref}" — "${field}" is not a censused field for event "${eventScope.eventType}" (EVENT_FIELD_REGISTRY, ADR 0049)`
+        );
+        return;
+    }
+    // Family must match the ref position. An `$event` ref only ever reads an
+    // object or player id — a numeric position is always a bug.
+    const positionFamily =
+        use.kind === "object"
+            ? "object"
+            : use.kind === "player"
+              ? "player"
+              : undefined;
+    if (positionFamily === undefined) {
+        errors.push(
+            `${at}: "$event" ref "${use.ref}" appears in a ${use.kind} position — an $event ref reads an object or player id, not a ${use.kind} value`
+        );
+        return;
+    }
+    if (row.family !== positionFamily) {
+        errors.push(
+            `${at}: "$event" ref "${use.ref}" is a ${row.family} field in a ${positionFamily} position — the EVENT_FIELD_REGISTRY family must match the ref position`
+        );
+    }
+}
+
 /** Validates one recorded ref use against the bindings declared so far, pushing
  *  a human-readable error for a dangling binding, a family mismatch, or an
  *  unknown property path. */
@@ -1223,8 +1304,15 @@ function checkRefUse(
     use: RefUse,
     declared: ReadonlyMap<string, BindingKind>,
     at: string,
-    errors: string[]
+    errors: string[],
+    eventScope: EventScope
 ): void {
+    // `$event.<field>` (ADR 0049, issue #865) — resolved live from the firing
+    // event, not a stored binding. Site / census / family are checked here.
+    if (use.ref.startsWith("$event.")) {
+        checkEventRef(use, eventScope, at, errors);
+        return;
+    }
     // Bare-binding positions (no property path): picks (#805) and boolean
     // (#806, an `if` predicate).
     if (use.kind === "picks" || use.kind === "boolean") {
@@ -1328,12 +1416,34 @@ function checkCaptureSource(
     source: unknown,
     declared: ReadonlyMap<string, BindingKind>,
     at: string,
-    errors: string[]
+    errors: string[],
+    eventScope: EventScope
 ): void {
     if (typeof source !== "object" || source === null) return; // literal
     const obj = source as Record<string, unknown>;
     if (typeof obj.ref !== "string") return; // target slot — nothing to check
     const ref = obj.ref;
+    // `$event.<field>` capture (ADR 0049, issue #865) — legal at a trigger
+    // site's scheduling scope (a delayedTrigger capture map is resolved at fire
+    // time, while the firing event is still live). Site legality and census are
+    // checked here; the fire-time re-binding family is decided by
+    // `captureBindingKind`. Either family is fine as a capture SOURCE — both
+    // store a single id string.
+    if (ref.startsWith("$event.")) {
+        const field = ref.slice(ref.indexOf(".") + 1);
+        if (eventScope.inDelayedBody || eventScope.eventType === undefined) {
+            errors.push(
+                `${at}: capture "${name}" "$event" ref "${ref}" is only legal at a triggered-ability site (ADR 0049)`
+            );
+            return;
+        }
+        if (!getEventFieldRow(eventScope.eventType, field)) {
+            errors.push(
+                `${at}: capture "${name}" "$event" ref "${ref}" — "${field}" is not a censused field for event "${eventScope.eventType}" (EVENT_FIELD_REGISTRY, ADR 0049)`
+            );
+        }
+        return;
+    }
     if (!ref.includes(".")) {
         const family = declared.get(ref);
         if (family === undefined) {
@@ -1375,11 +1485,22 @@ function checkCaptureSource(
  *  permanent (the fire-time seeding rule) — snapshot is the static family. */
 function captureBindingKind(
     source: unknown,
-    declared: ReadonlyMap<string, BindingKind>
+    declared: ReadonlyMap<string, BindingKind>,
+    eventType: string | undefined
 ): BindingKind {
     if (typeof source === "object" && source !== null) {
         const ref = (source as Record<string, unknown>).ref;
         if (typeof ref === "string") {
+            // `$event.<field>` capture (ADR 0049) — the fire-time family
+            // follows the registry family: an object field re-binds as a live
+            // snapshot, a player field as a player binding (runDelayedTriggerBody
+            // seeds each accordingly). Checked BEFORE the generic `.`-property
+            // branch below (an `$event.blockerId` also contains a dot).
+            if (ref.startsWith("$event.") && eventType) {
+                const field = ref.slice(ref.indexOf(".") + 1);
+                const row = getEventFieldRow(eventType, field);
+                return row?.family === "player" ? "player" : "snapshot";
+            }
             if (ref.includes(".")) return "player"; // `.controller` capture
             const outer = declared.get(ref);
             if (outer === "player") return "player";
@@ -1400,7 +1521,8 @@ function checkOpListRefs(
     effects: readonly unknown[],
     label: (i: number) => string,
     errors: string[],
-    declared: Map<string, BindingKind>
+    declared: Map<string, BindingKind>,
+    eventScope: EventScope
 ): void {
     effects.forEach((raw, i) => {
         if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
@@ -1459,12 +1581,20 @@ function checkOpListRefs(
             const capture = entry.capture;
             if (capture && typeof capture === "object") {
                 for (const [name, src] of Object.entries(capture)) {
-                    checkCaptureSource(name, src, declared, at, errors);
+                    checkCaptureSource(
+                        name,
+                        src,
+                        declared,
+                        at,
+                        errors,
+                        eventScope
+                    );
                 }
             }
             collectRefUses(entry.targetPlayer, "player", uses);
         }
-        for (const use of uses) checkRefUse(use, declared, at, errors);
+        for (const use of uses)
+            checkRefUse(use, declared, at, errors, eventScope);
 
         // Recurse into branches with a CLONED scope (branch-local binds do not
         // escape the branch — CR: the branch may not execute).
@@ -1476,7 +1606,8 @@ function checkOpListRefs(
                         branch,
                         (j) => `${at}: ${key}[${j}]`,
                         errors,
-                        new Map(declared)
+                        new Map(declared),
+                        eventScope
                     );
                 }
             }
@@ -1494,7 +1625,8 @@ function checkOpListRefs(
                         effects,
                         (j) => `${at}: modes[${m}].effects[${j}]`,
                         errors,
-                        new Map(declared)
+                        new Map(declared),
+                        eventScope
                     );
                 }
             });
@@ -1512,7 +1644,8 @@ function checkOpListRefs(
                         branch.effects,
                         (j) => `${at}: ${key}.effects[${j}]`,
                         errors,
-                        new Map(declared)
+                        new Map(declared),
+                        eventScope
                     );
                 }
             }
@@ -1531,11 +1664,14 @@ function checkOpListRefs(
                 "$each",
                 select?.set === "players" ? "player" : "snapshot"
             );
+            // forEach body stays in the SAME trigger scope — `$event` is still
+            // legal inside a trigger's own forEach (ADR 0049).
             checkOpListRefs(
                 entry.effects,
                 (j) => `${at}: effects[${j}]`,
                 errors,
-                bodyScope
+                bodyScope,
+                eventScope
             );
         }
 
@@ -1549,14 +1685,20 @@ function checkOpListRefs(
             const capture = entry.capture;
             if (capture && typeof capture === "object") {
                 for (const [name, src] of Object.entries(capture)) {
-                    bodyScope.set(name, captureBindingKind(src, declared));
+                    bodyScope.set(
+                        name,
+                        captureBindingKind(src, declared, eventScope.eventType)
+                    );
                 }
             }
+            // The body runs at FIRE time — the firing event is gone, so `$event`
+            // is illegal here (ADR 0049). `inDelayedBody` flips on.
             checkOpListRefs(
                 entry.effects,
                 (j) => `${at}: effects[${j}]`,
                 errors,
-                bodyScope
+                bodyScope,
+                { eventType: eventScope.eventType, inDelayedBody: true }
             );
         }
 
@@ -1587,7 +1729,8 @@ function checkRefUses(
     effects: readonly unknown[],
     label: string,
     errors: string[],
-    implicit: ReadonlySet<string>
+    implicit: ReadonlySet<string>,
+    triggerEventType: string | undefined
 ): void {
     const declared = new Map<string, BindingKind>();
     for (const name of implicit) declared.set(name, "snapshot");
@@ -1595,7 +1738,8 @@ function checkRefUses(
         effects,
         (i) => `${label}: effects[${i}]`,
         errors,
-        declared
+        declared,
+        { eventType: triggerEventType, inDelayedBody: false }
     );
 }
 
@@ -1771,7 +1915,8 @@ function validateEffectOpList(
     effects: unknown,
     label: string,
     implicit: ReadonlySet<string>,
-    errors: string[]
+    errors: string[],
+    triggerEventType: string | undefined
 ): void {
     if (!Array.isArray(effects)) {
         errors.push(`${label}: effects must be an array`);
@@ -1785,8 +1930,8 @@ function validateEffectOpList(
     });
 
     // 5 — ordered ref / binding check (#802, extended for #806 predicates +
-    // branches).
-    checkRefUses(effects, label, errors, implicit);
+    // branches, #865 $event refs).
+    checkRefUses(effects, label, errors, implicit, triggerEventType);
 
     // 4 — JSON purity (ADR 0046).
     const impurity = findImpurity(effects, `${label}: effects`);
@@ -1817,8 +1962,9 @@ export function validateEffectScript(def: EffectScriptHost): string[] {
         }
     }
 
-    // A spell's source is the stack item, not a permanent — no `$source`.
-    validateEffectOpList(def.effects, label, EMPTY_BINDINGS, errors);
+    // A spell's source is the stack item, not a permanent — no `$source`; and a
+    // spell has no firing event, so `$event` is illegal (ADR 0049).
+    validateEffectOpList(def.effects, label, EMPTY_BINDINGS, errors, undefined);
     return errors;
 }
 
@@ -1842,10 +1988,16 @@ export type AbilityEffectScriptHost = {
  *  mutual exclusivity (`effects[]` XOR `resolve`/`resolveSteps`) and the
  *  `$source` implicit binding. `label` identifies the owning card; the ability
  *  id is appended for a legible catalogue-sweep error. Returns [] when the
- *  ability has no `effects[]`. */
+ *  ability has no `effects[]`.
+ *
+ *  `triggerEventType` (ADR 0049, issue #865) is the firing event's type when the
+ *  ability is a TRIGGERED ability — it makes `$event.<field>` refs legal at this
+ *  site and drives the family / census check. Omitted (undefined) for an
+ *  ACTIVATED ability, where there is no firing event so `$event` is rejected. */
 export function validateAbilityEffectScript(
     ability: AbilityEffectScriptHost,
-    cardLabel: string
+    cardLabel: string,
+    triggerEventType?: string
 ): string[] {
     const errors: string[] = [];
     if (ability.effects === undefined) return errors;
@@ -1862,6 +2014,12 @@ export function validateAbilityEffectScript(
         );
     }
 
-    validateEffectOpList(ability.effects, label, ABILITY_BINDINGS, errors);
+    validateEffectOpList(
+        ability.effects,
+        label,
+        ABILITY_BINDINGS,
+        errors,
+        triggerEventType
+    );
     return errors;
 }

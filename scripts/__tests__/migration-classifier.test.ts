@@ -363,11 +363,22 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // + #736 + #676 + #739) landed together post-rebase — computed via
         // `bun scripts/migration-classifier.mjs` against the merged tree, not
         // hand-picked.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(633);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(399);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(366);
+        // #865 (`$event.<field>` refs, ADR 0049) migrated Battering Ram, Venom
+        // and Nafs Asp off resolve() — 6 closures removed (each card's
+        // scheduling trigger + its delayed body: Battering Ram/Venom fold their
+        // "destroy at end of combat" into an inline delayedTrigger, Nafs Asp its
+        // "pay {1} or lose 1 life" draw-step body — all reading the firing event
+        // via the new value grammar). Battering Ram's/Venom's/Nafs Asp's
+        // scheduling closures were Op-blocked ($eventFieldCapture); their delayed
+        // bodies were FREE/AFK-ready. Net: total 633→627, FREE 399→394,
+        // AFK-ready 366→361, Op-blocked 220→219, X-only unchanged. The new
+        // `$id-equality` pseudo-blocker adds 0 (Venom's split removed the only
+        // catalogue closure that would have tripped it).
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(627);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(394);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(361);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(220);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(219);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {

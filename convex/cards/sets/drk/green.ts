@@ -7,11 +7,7 @@
 // classified by the colour identity of their mana cost (CR 202.2); lands and
 // artifacts (no coloured cost) live in colorless.ts.
 
-import type {
-    CardDefinition,
-    DelayedTriggerDef,
-    SpellContext,
-} from "../../types";
+import type { CardDefinition, SpellContext } from "../../types";
 import { EFFECT_AFFECTS_SELF } from "../../types";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
@@ -688,54 +684,68 @@ export const venom: CardDefinition = {
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Creature", count: 1 },
+    // Migrated resolve()→effects[] (ADR 0049, issue #865). "Destroy the OTHER
+    // creature in the pair" is expressed as TWO triggered abilities rather than
+    // an id-equality conditional pick (deferred as the `$id-equality` classifier
+    // pseudo-blocker): role discrimination stays in the imperative `matches`
+    // (host-is-attacker vs host-is-blocker), and each ability captures the
+    // single relevant `$event` field (the blocker when the host attacks, the
+    // attacker when the host blocks). BLOCKERS_CONFIRMED is emitted per
+    // attacker-blocker pair (phases.ts), so the split fires correctly under
+    // multi-block and banding. Each destroy runs at end of combat via an inline
+    // delayedTrigger body (ADR 0048); the captured id is re-bound fresh at fire
+    // time and a creature already gone is a no-op (CR 608.2b + 701.7c).
     triggeredAbilities: [
         {
-            id: "venom-combat-kill",
+            id: "venom-combat-kill-attacker",
             oracleText:
                 "Whenever enchanted creature blocks or becomes blocked by a non-Wall creature, destroy the other creature at end of combat.",
             event: "BLOCKERS_CONFIRMED",
             matches: (event, self) => {
                 if (event.type !== "BLOCKERS_CONFIRMED") return false;
                 if (!self.attachedTo) return false;
-                const hostIsAttacker = event.attackerId === self.attachedTo;
-                const hostIsBlocker = event.blockerId === self.attachedTo;
-                if (!hostIsAttacker && !hostIsBlocker) return false;
-                // The "other creature" must be a non-Wall (CR 509.1h pairing).
-                const otherSubtypes = hostIsAttacker
-                    ? event.blockerSubtypes
-                    : event.attackerSubtypes;
-                return !otherSubtypes.includes("Wall");
-            },
-            // NOT DSL-migratable yet (ADR 0048): the delayed capture is built
-            // from trigger-EVENT fields (event.attackerId / event.blockerId) —
-            // the tracked $event.<field> grammar gap. Stays resolve().
-            resolve: (ctx, event) => {
-                if (event.type !== "BLOCKERS_CONFIRMED") return;
-                const hostId = ctx.getAttachedToId();
-                if (!hostId) return;
-                const otherId =
-                    event.attackerId === hostId
-                        ? event.blockerId
-                        : event.attackerId;
-                ctx.scheduleDelayedTrigger(
-                    VENOM_ID,
-                    "venom-combat-kill-destroy",
-                    "next-end-of-combat",
-                    { targetId: otherId }
+                // Host is the ATTACKER; the "other" creature is the blocker,
+                // which must be a non-Wall (CR 509.1h pairing).
+                return (
+                    event.attackerId === self.attachedTo &&
+                    !event.blockerSubtypes.includes("Wall")
                 );
             },
+            effects: [
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-of-combat",
+                    oracleText: "Destroy the other creature at end of combat.",
+                    capture: { $other: { ref: "$event.blockerId" } },
+                    effects: [{ op: "destroy", target: { ref: "$other" } }],
+                },
+            ],
         },
-    ],
-    delayedTriggers: [
         {
-            id: "venom-combat-kill-destroy",
-            oracleText: "Destroy the other creature at end of combat.",
-            timing: "next-end-of-combat",
-            resolve: (ctx, payload) => {
-                if (!payload.targetId) return;
-                ctx.destroy({ type: "permanent", id: payload.targetId });
+            id: "venom-combat-kill-blocker",
+            oracleText:
+                "Whenever enchanted creature blocks or becomes blocked by a non-Wall creature, destroy the other creature at end of combat.",
+            event: "BLOCKERS_CONFIRMED",
+            matches: (event, self) => {
+                if (event.type !== "BLOCKERS_CONFIRMED") return false;
+                if (!self.attachedTo) return false;
+                // Host is the BLOCKER; the "other" creature is the attacker,
+                // which must be a non-Wall (CR 509.1h pairing).
+                return (
+                    event.blockerId === self.attachedTo &&
+                    !event.attackerSubtypes.includes("Wall")
+                );
             },
-        } satisfies DelayedTriggerDef,
+            effects: [
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-of-combat",
+                    oracleText: "Destroy the other creature at end of combat.",
+                    capture: { $other: { ref: "$event.attackerId" } },
+                    effects: [{ op: "destroy", target: { ref: "$other" } }],
+                },
+            ],
+        },
     ],
 };
 
