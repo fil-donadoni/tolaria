@@ -76,6 +76,7 @@ import { projectPublicState } from "../../../../gameProjections";
 import {
     emitBlockersConfirmedEvents,
     emitAttackersDeclaredEvents,
+    fireDelayedTriggers,
 } from "../../../../gre/phases";
 import { recordBlockedAttackers } from "../../../../gre/banding";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
@@ -1295,16 +1296,9 @@ describe("Thoughtleech (CR 603.2 opponent-Island-tap lifegain)", () => {
 
 // --- Venomous Breath — end-of-combat destroy of combat partners (CR 603.7a)--
 
-describe("Venomous Breath (CR 603.7a delayed combat-partner destroy)", () => {
-    it("schedules and then destroys creatures that blocked the target", () => {
-        const attacker = makeInstance(venomousBreath.id, {
-            // placeholder; real attacker below
-            id: "att",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "battlefield",
-        });
-        // Use a vanilla attacker the target, and two blockers.
+describe("Venomous Breath (CR 603.7a delayed combat-partner destroy, ADR 0049 list capture)", () => {
+    it("freezes the target's combat partners at cast, then destroys them at end of combat", () => {
+        // Vanilla attacker (the spell's target) blocked by two creatures.
         const target = vanilla("att", 2, 2, {
             id: "att",
             controllerId: "p1",
@@ -1323,7 +1317,6 @@ describe("Venomous Breath (CR 603.7a delayed combat-partner destroy)", () => {
             ownerId: "p2",
             isBlocking: true,
         });
-        void attacker;
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [target] }),
@@ -1338,35 +1331,24 @@ describe("Venomous Breath (CR 603.7a delayed combat-partner destroy)", () => {
             },
         });
         recordBlockedAttackers(state);
-        // Resolve Venomous Breath targeting the attacker → schedules the delayed
-        // destroy of its two blockers.
+        // Resolve Venomous Breath targeting the attacker → schedules an inline
+        // next-end-of-combat delayed trigger whose list-valued capture (ADR
+        // 0049) freezes both blockers into `$partners` at CAST (CR 509.1h).
         pushSpell(state, venomousBreath.id, "p1", [
             { type: "permanent", id: "att" },
         ]);
         resolveTopOfStack(state);
-        // Drive the delayed trigger directly (mirrors next-end-of-combat fire):
-        // both blockers are destroyed.
-        const delayed = venomousBreath.delayedTriggers!.find(
-            (d) => d.id === "venomous-breath-destroy"
-        )!;
-        delayed.resolve(
-            {
-                destroy: (t: { id: string }) => {
-                    for (const p of state.players) {
-                        const idx = p.battlefield.findIndex(
-                            (c) => c.id === t.id
-                        );
-                        if (idx >= 0) {
-                            const [dead] = p.battlefield.splice(idx, 1);
-                            p.graveyard.push(dead);
-                            return true;
-                        }
-                    }
-                    return false;
-                },
-            } as never,
-            { targetIds: "blkA,blkB" }
-        );
+        expect(state.delayedTriggers).toHaveLength(1);
+        expect(state.delayedTriggers![0].timing).toBe("next-end-of-combat");
+        // Freeze-at-cast: the partner ids are in the scheduled payload as a list.
+        const frozen = state.delayedTriggers![0].payload.$partners;
+        expect(Array.isArray(frozen)).toBe(true);
+        expect([...(frozen as string[])].sort()).toEqual(["blkA", "blkB"]);
+        // Fire the delayed trigger at end of combat through the REAL path
+        // (fireDelayedTriggers → resolveTopOfStack runs the inline forEach body)
+        // → both blockers are destroyed (CR 603.7a / 701.7).
+        fireDelayedTriggers(state, "next-end-of-combat");
+        resolveTopOfStack(state);
         expect(state.players[1].battlefield).toHaveLength(0);
         expect(state.players[1].graveyard.map((c) => c.id).sort()).toEqual([
             "blkA",

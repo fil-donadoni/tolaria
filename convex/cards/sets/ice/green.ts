@@ -1602,12 +1602,18 @@ export const trailblazer: CardDefinition = {
 // Venomous Breath — {3}{G} Instant. "Choose target creature. At this turn's next
 // end of combat, destroy all creatures that blocked or were blocked by it this
 // turn." (CR 509.1h combat pairing; CR 603.7a delayed end-of-combat destroy;
-// CR 701.7 destroy.) The combat partners are captured from the live block graph
-// (`getBlockersByAttacker` / `getAttackersByBlocker`) at resolution and a single
-// delayed `next-end-of-combat` trigger destroys each. The combatPairKill factory
-// keys off the SOURCE permanent being in the pair; Venomous Breath instead reads
-// an ARBITRARY targeted creature's partners, so the capture is inline. The
-// "needs primitive" defer was stale — the delayed-trigger machinery ships.
+// CR 701.7 destroy.)
+//
+// DSL-migrated (ADR 0045/0049, issue #866): the delayed capture is now a
+// LIST-valued `delayedTrigger` capture. `{ select: { set: "combatPartners",
+// of: { target: 0 } } }` scans the live block graph BOTH directions (CR 509.1h
+// "blocked OR were blocked by") and freezes the partner ids into the payload at
+// CAST time — freeze-at-cast (ADR 0049): combat state is live-only, so a
+// fire-time scan would return empty once the target itself died in combat,
+// wrongly sparing its killers. The inline `next-end-of-combat` body iterates
+// the frozen `$partners` list (`forEach { set: "bound" }`) and destroys each
+// survivor; a member that has left the battlefield is a no-op (CR 608.2b).
+// Replaces the old CSV-join `resolve()` hack.
 const VENOMOUS_BREATH_ID = "8eeb9e02-1d26-4959-a878-2ef8db2358bc";
 export const venomousBreath: CardDefinition = {
     id: VENOMOUS_BREATH_ID,
@@ -1618,46 +1624,25 @@ export const venomousBreath: CardDefinition = {
     manaCost: { X: 3, G: 1 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1 },
-    // NOT DSL-migratable yet (ADR 0048): the delayed capture is a LIST of
-    // combat-partner ids — the tracked list-valued-capture grammar gap (the
-    // delayedTrigger Op's capture map is single-value). Stays resolve().
-    resolve: (ctx: SpellContext) => {
-        const t = ctx.targets[0];
-        if (t?.type !== "permanent") return;
-        // CR 509.1h — "creatures that blocked or were blocked by it": the
-        // target's blockers (if it attacked) and the attackers it blocked.
-        // Only `getBlockersByAttacker` is exposed (attacker → blockers), so the
-        // "blocked by it" direction is the inverse — scan for attackers whose
-        // blocker list contains the target.
-        const blockGraph = ctx.getBlockersByAttacker();
-        const partners = new Set<string>();
-        for (const id of blockGraph[t.id] ?? []) partners.add(id);
-        for (const [attackerId, blockerIds] of Object.entries(blockGraph)) {
-            if (blockerIds.includes(t.id)) partners.add(attackerId);
-        }
-        if (partners.size === 0) return; // nothing to schedule
-        // Payload values are strings only; join the partner ids (CR 603.7a
-        // delayed trigger captures serializable state).
-        ctx.scheduleDelayedTrigger(
-            VENOMOUS_BREATH_ID,
-            "venomous-breath-destroy",
-            "next-end-of-combat",
-            { targetIds: [...partners].join(",") }
-        );
-    },
-    delayedTriggers: [
+    effects: [
         {
-            id: "venomous-breath-destroy",
+            op: "delayedTrigger",
+            timing: "next-end-of-combat",
             oracleText:
                 "Destroy all creatures that blocked or were blocked by the target this turn.",
-            timing: "next-end-of-combat",
-            resolve: (ctx: SpellContext, payload: Record<string, string>) => {
-                if (!payload.targetIds) return;
-                for (const id of payload.targetIds.split(",")) {
-                    if (id) ctx.destroy({ type: "permanent", id });
-                }
+            capture: {
+                $partners: {
+                    select: { set: "combatPartners", of: { target: 0 } },
+                },
             },
-        } satisfies DelayedTriggerDef,
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: "$partners" },
+                    effects: [{ op: "destroy", target: { ref: "$each" } }],
+                },
+            ],
+        },
     ],
 };
 // Wall of Pine Needles — 3/3 Wall with Defender and "{G}: Regenerate this

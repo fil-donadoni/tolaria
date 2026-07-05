@@ -1332,6 +1332,34 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).delayedTriggers).toEqual(state.delayedTriggers);
     });
 
+    it("delayedTriggers — list-valued (string[]) capture payload (ADR 0049, issue #866)", () => {
+        // A list-valued capture (Venomous Breath) freezes N partner ids into
+        // the payload as a `string[]`; the value must survive the DB round-trip
+        // byte-for-byte so a save/load mid-combat reloads the frozen set (the
+        // body's forEach re-iterates the identical members on the wire).
+        const state = freshState();
+        state.delayedTriggers = [
+            {
+                id: "dt-list-1",
+                sourceCardId: "venomous-breath",
+                triggerId: "$inline-effects",
+                controller: "p1",
+                timing: "next-end-of-combat",
+                payload: { $partners: ["blkA", "blkB", "blkC"] },
+                effects: [
+                    {
+                        op: "forEach",
+                        select: { set: "bound", ref: "$partners" },
+                        effects: [{ op: "destroy", target: { ref: "$each" } }],
+                    },
+                ],
+                oracleText:
+                    "Destroy all creatures that blocked or were blocked by it.",
+            },
+        ];
+        expect(roundTrip(state).delayedTriggers).toEqual(state.delayedTriggers);
+    });
+
     it("nextDelayedSeq", () => {
         const state = freshState();
         state.nextDelayedSeq = 3;

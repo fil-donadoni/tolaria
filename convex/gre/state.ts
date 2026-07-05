@@ -954,9 +954,11 @@ export type StackItem = CardInstanceState & {
     delayedTriggerId?: string;
     /** Serializable payload captured when the delayed trigger was scheduled.
      *  Holds instance / player ids so the trigger can look up live targets at
-     *  fire time (CR 603.7a). On the inline-body path (ADR 0048) it is
-     *  re-bound as the body's initial binding environment. */
-    delayedPayload?: Record<string, string>;
+     *  fire time (CR 603.7a). A value is a single id (ADR 0048) or a frozen
+     *  `string[]` list (ADR 0049, issue #866 — a list-valued capture). On the
+     *  inline-body path (ADR 0048) it is re-bound as the body's initial binding
+     *  environment (a list value becomes a `forEach`-iterable list binding). */
+    delayedPayload?: Record<string, string | string[]>;
     /** ADR 0048 — the INLINE Effect Script body of a fired delayed trigger
      *  (CR 603.7a). When set, `resolveTopOfStack` seeds the binding
      *  environment from `delayedPayload` and runs this Op list through the
@@ -1034,8 +1036,11 @@ export type DelayedTriggerInstance = {
     controller: string;
     /** When the trigger should fire. */
     timing: DelayedTriggerTiming;
-    /** Payload carried over from the scheduling spell's resolution. */
-    payload: Record<string, string>;
+    /** Payload carried over from the scheduling spell's resolution. A value is
+     *  a single id (ADR 0048) or a frozen `string[]` list (ADR 0049, issue
+     *  #866 — a list-valued capture read as a list binding by an inline body's
+     *  forEach). */
+    payload: Record<string, string | string[]>;
     /** ADR 0048 — INLINE body of an Effect-Script-scheduled trigger (CR
      *  603.7a): the pure-JSON Op list the interpreter runs directly at fire
      *  time, with `payload` re-bound as the body's initial binding
@@ -2487,7 +2492,14 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
         );
         if (trigger) {
             const ctx = buildSpellContext(state, top);
-            trigger.resolve(ctx, top.delayedPayload ?? {});
+            // The template path (legacy `resolve()` cards) only ever schedules
+            // scalar payloads — list-valued captures (ADR 0049, issue #866) are
+            // an inline-body-only feature that takes the branch above. The cast
+            // reflects that invariant: a template trigger never sees a string[].
+            trigger.resolve(
+                ctx,
+                (top.delayedPayload ?? {}) as Record<string, string>
+            );
             if ((state.pendingChoices?.length ?? 0) > 0) return null;
         }
         delete top.collectedChoices;
@@ -6751,7 +6763,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             sourceCardId: string,
             triggerId: string,
             timing: DelayedTriggerTiming,
-            payload: Record<string, string>,
+            payload: Record<string, string | string[]>,
             targetPlayerId?: string,
             inline?: DelayedTriggerInlineBody
         ): void {

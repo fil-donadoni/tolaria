@@ -50,7 +50,9 @@ export function pushDelayedTrigger(
         sourceCardId: string;
         controller: string;
         triggerId: string;
-        payload: Record<string, string>;
+        // A value is a single id (ADR 0048) or a frozen `string[]` list
+        // (ADR 0049, issue #866 — a list-valued capture).
+        payload: Record<string, string | string[]>;
     },
     id = "delayed-1"
 ): void {
