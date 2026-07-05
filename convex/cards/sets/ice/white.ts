@@ -987,10 +987,10 @@ export const fylgja: CardDefinition = {
 //
 // SIMPLIFICATION (flagged, no engine change): `combatRoleFilter` has no
 // "blocked" refinement, so the target requirement admits any attacking creature
-// the opponent controls; the primitive's own CR 509.1 gate no-ops on an
-// unblocked attacker, so targeting one is legal-but-inert. Tightening the
-// filter to "blocked attackers only" would need a new combat target-filter
-// value — deferred.
+// (controlled by EITHER player — the oracle has no controller clause); the
+// primitive's own CR 509.1 gate no-ops on an unblocked attacker, so targeting
+// one is legal-but-inert. Tightening the filter to "blocked attackers only"
+// would need a new combat target-filter value — deferred.
 export const generalJarkeld: CardDefinition = {
     id: "6a4f5a28-0bd2-4cc4-b67f-324e89193caa",
     name: "General Jarkeld",
@@ -1012,13 +1012,17 @@ export const generalJarkeld: CardDefinition = {
             useStack: true,
             // CR 602.5b — "Activate only during the declare blockers step."
             activationPhaseRestriction: ["DECLARE_BLOCKERS"],
-            // CR 509.1 — two attacking creatures the opponent controls; the
-            // "blocked" refinement is enforced by the primitive gate (see note).
+            // CR 509.1 — two blocked attacking creatures. The oracle has NO
+            // controller clause: the ability is symmetric, so the attacking
+            // player can control Jarkeld and rearrange blockers among two of
+            // THEIR OWN blocked attackers. A `controller: "opponent"` filter
+            // would zero out the legal targets in exactly that (legal) line —
+            // so it is intentionally absent. The "blocked" refinement is
+            // enforced by the primitive's own CR 509.1 gate (see note).
             targetRequirement: {
                 type: "Creature",
                 count: 2,
                 combatRoleFilter: "attacking",
-                controller: "opponent",
             },
             resolve: (ctx: SpellContext) => {
                 const [x, y] = ctx.targets;

@@ -2060,8 +2060,9 @@ describe("General Jarkeld — reassign blockers between attackers (CR 509.1)", (
             type: "Creature",
             count: 2,
             combatRoleFilter: "attacking",
-            controller: "opponent",
         });
+        // The oracle has NO controller clause — the ability is symmetric.
+        expect(ab.targetRequirement).not.toHaveProperty("controller");
     });
 
     it("legal reassignment: each blocker blocking exactly one attacker moves to the other", () => {
@@ -2146,5 +2147,34 @@ describe("General Jarkeld — reassign blockers between attackers (CR 509.1)", (
             blk1: ["atk2"],
             blk2: ["atk1"],
         });
+    });
+
+    // Regression (issue #739): the oracle is controller-agnostic. The
+    // attacking player can control an untapped Jarkeld that didn't attack and
+    // activate it during their OWN declare-blockers step to rearrange the
+    // defender's blockers among two of THEIR OWN blocked attackers. A
+    // `controller: "opponent"` filter zeroed out the legal targets in exactly
+    // that (legal) line. `resolveActivated` bypasses `getLegalTargets`, so the
+    // behavioral tests above never exercised target legality — this one does.
+    it("legality (CR 509.1): blocked attackers are legal targets regardless of who controls Jarkeld", () => {
+        const { state } = jarkeldCombat();
+        const req = generalJarkeld.activatedAbilities![0].targetRequirement!;
+
+        // p2 is the attacking player and controls atk1/atk2. When p2 ALSO
+        // controls Jarkeld (activates it on their own attackers), their own
+        // blocked attackers MUST be legal targets — the case that was broken.
+        const legalForAttacker = getLegalTargets(state, req, [], "p2").map(
+            (t) => t.id
+        );
+        expect(legalForAttacker).toContain("atk1");
+        expect(legalForAttacker).toContain("atk2");
+
+        // And symmetrically legal for the defender (p1) controlling Jarkeld —
+        // the opponent's attackers are still valid targets.
+        const legalForDefender = getLegalTargets(state, req, [], "p1").map(
+            (t) => t.id
+        );
+        expect(legalForDefender).toContain("atk1");
+        expect(legalForDefender).toContain("atk2");
     });
 });
