@@ -1820,7 +1820,11 @@ export interface SpellContext {
         sourceCardId: string,
         triggerId: string,
         timing: DelayedTriggerTiming,
-        payload: Record<string, string>,
+        // A value is a single id (ADR 0048) or a frozen `string[]` list
+        // (ADR 0049, issue #866 — a list-valued capture read as a list binding
+        // by an inline body's forEach). Legacy `resolve()` cards pass only the
+        // scalar form; the widening is covariant, so their calls still type.
+        payload: Record<string, string | string[]>,
         targetPlayerId?: string,
         inline?: DelayedTriggerInlineBody
     ) => void;
@@ -4775,22 +4779,46 @@ export interface EffectCoinFlipBranch {
     effects: EffectOp[];
 }
 
+/** A LIST-valued capture source of a `delayedTrigger` Op (ADR 0049, issue
+ *  #866): resolves to N serializable instance ids at SCHEDULING (cast) time,
+ *  frozen into the payload and read in the body as a `string[]` list binding.
+ *  Restricted to the capture-source position for now (no general forEach
+ *  `combatPartners` selector until a card needs it).
+ *
+ *  v1 has one member: `{ set: "combatPartners", of: { target: n } }` — the
+ *  creatures that BLOCKED OR WERE BLOCKED BY the announced target this turn
+ *  (CR 509.1h, bidirectional). Scanned from the live block graph at cast time
+ *  (freeze-at-cast, ADR 0049): combat state is live-only, so a fire-time scan
+ *  would return empty once the target itself died. The selector vocabulary may
+ *  grow like the Op vocabulary — one member + validator/interpreter arm per
+ *  set — without reopening ADR 0045. */
+export type EffectListSelector = {
+    set: "combatPartners";
+    of: EffectTargetRef;
+};
+
 /** One captured value of a `delayedTrigger` Op (ADR 0048): what crosses the
- *  scheduling-time → fire-time boundary. Resolved to ONE serializable string
- *  at scheduling:
+ *  scheduling-time → fire-time boundary. A SINGLE-VALUE source resolves to ONE
+ *  serializable string at scheduling:
  *  - `{ target: n }` — the announced target slot's object/player id;
  *  - `{ ref: "$x" }` — a bound snapshot's instance id (or a players-set
  *    `$each`'s player id);
  *  - `{ ref: "$x.controller" }` — the bound snapshot's controller player id;
+ *  - `{ ref: "$event.<field>" }` — a firing-event field id (ADR 0049, #865);
  *  - a literal string — stored as-is.
+ *  A LIST source — `{ select: EffectListSelector }` (ADR 0049, #866) — resolves
+ *  to N ids frozen into the payload as a `string[]`.
  *  At fire time each captured value is re-bound as the body's initial binding
  *  environment: a live battlefield permanent id becomes a FRESH snapshot (the
  *  body acts on the object's current state, CR 603.7a), a player id becomes a
- *  player binding, and anything else stays uncaptured so body Ops reading it
- *  skip (CR 608.2b — the object left before the trigger fired). Single-value
- *  only: list-valued captures are a tracked grammar gap (ADR 0048), not part
- *  of the Op. */
-export type EffectCaptureSource = EffectTargetRef | EffectRef | string;
+ *  player binding, a `string[]` becomes a list binding a `forEach` iterates,
+ *  and anything else stays uncaptured so body Ops reading it skip (CR 608.2b —
+ *  the object left before the trigger fired). */
+export type EffectCaptureSource =
+    | EffectTargetRef
+    | EffectRef
+    | string
+    | { select: EffectListSelector };
 
 // --- Structural construct: forEach (ADR 0045, issue #807) ---
 //
@@ -4819,6 +4847,13 @@ export type EffectCaptureSource = EffectTargetRef | EffectRef | string;
  *    `$each.controller` read its snapshot (CR 608.2h last-known information,
  *    captured at iteration entry).
  *
+ *  - `{ set: "bound", ref: "$partners" }` — iterate a `string[]` LIST binding
+ *    (ADR 0049, issue #866), in stored order. The ref MUST name a list binding
+ *    (a `delayedTrigger` list-valued capture); `$each` is the current member's
+ *    snapshot (object positions take the bare `{ ref: "$each" }`), a member
+ *    that has left the battlefield is skipped (CR 608.2b). Only iterable — no
+ *    controller/filter (the list is already frozen at capture).
+ *
  *  Like the Op vocabulary — and unlike the construct list — the selector
  *  shapes may grow (new zones, new scopes) without reopening ADR 0045. */
 export type EffectForEachSelector =
@@ -4834,7 +4869,8 @@ export type EffectForEachSelector =
           controller?: EffectPlayerRef;
           /** Optional type/subtype filter (AND, CR 205). Omitted = all. */
           filter?: EffectCardFilter;
-      };
+      }
+    | { set: "bound"; ref: string };
 
 /** The Pending Choice kinds a `choice` Op may request (issue #805). A strict
  *  subset of the existing `ZonePickKind` taxonomy — the Op maps 1:1 onto
@@ -5318,9 +5354,10 @@ export type EffectOp =
      *  inside the body). `targetPlayer` scopes the player-gated timings
      *  (`next-draw-step` / `next-main-phase`, CR 504/505) to one player's
      *  step; the global-boundary timings reject it (validator-enforced).
-     *  Does not nest inside another delayedTrigger body. Two tracked
-     *  grammar gaps stay OUT of this Op (ADR 0048): event-field captures
-     *  (`$event.<field>`) and list-valued captures. */
+     *  Does not nest inside another delayedTrigger body. The two grammar gaps
+     *  ADR 0048 tracked have since closed (ADR 0049): event-field captures
+     *  (`$event.<field>`, issue #865) and list-valued captures
+     *  (`{ select: EffectListSelector }`, issue #866). */
     | {
           op: "delayedTrigger";
           timing: DelayedTriggerTiming;

@@ -5461,6 +5461,167 @@ describe("Effect Script Op: delayedTrigger (CR 603.7)", () => {
     });
 });
 
+// --- delayedTrigger LIST-valued capture (ADR 0049, issue #866) ----------------
+// A `delayedTrigger` capture may resolve to N ids via a `{ select }` source and
+// FREEZE them into the payload as a `string[]` (freeze-at-cast, not fire-time:
+// combat state is live-only, so a fire-time scan returns empty once the target
+// itself died). The inline body reads the frozen list with the new
+// `forEach { set: "bound", ref }` selector and acts on each member. v1's only
+// list selector is `combatPartners of { target }` — the creatures that BLOCKED
+// OR WERE BLOCKED BY the target this turn (CR 509.1h, BOTH directions). These
+// tests drive the REAL path end to end (schedule → fire → resolve) exactly as
+// the engine does, and cover the frozen `string[]` across projection + DB.
+describe("Effect Script Op: delayedTrigger LIST capture (combatPartners, CR 509.1h / ADR 0049)", () => {
+    const VENOM_SCRIPT: EffectOp[] = [
+        {
+            op: "delayedTrigger",
+            timing: "next-end-of-combat",
+            oracleText:
+                "At end of combat, destroy all creatures that blocked or were blocked by it.",
+            capture: {
+                $partners: {
+                    select: { set: "combatPartners", of: { target: 0 } },
+                },
+            },
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: "$partners" },
+                    effects: [{ op: "destroy", target: { ref: "$each" } }],
+                },
+            ],
+        },
+    ];
+
+    /** p1's attacker "att" blocked by p2's "blkA" and "blkB" (CR 509.1h). */
+    function combatState(): GameState {
+        const att = makeInstance(BEAR_ID, {
+            id: "att",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const blkA = makeInstance(BEAR_ID, {
+            id: "blkA",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const blkB = makeInstance(BEAR_ID, {
+            id: "blkB",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [att] }),
+                makePlayer("p2", { battlefield: [blkA, blkB] }),
+            ],
+            phase: "DECLARE_BLOCKERS",
+            combat: {
+                attackerIds: ["att"],
+                confirmed: true,
+                blockerAssignments: { blkA: ["att"], blkB: ["att"] },
+                blockersConfirmed: true,
+            },
+        });
+    }
+
+    it("freezes the target-attacker's blockers as a list at cast, then destroys each at end of combat", () => {
+        const id = registerScript("test-op-list-attacker", VENOM_SCRIPT);
+        const state = combatState();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "att" }]);
+        resolveTopOfStack(state);
+        // Freeze-at-cast: the two blockers are in the payload as a `string[]`.
+        expect(state.delayedTriggers).toHaveLength(1);
+        const frozen = state.delayedTriggers![0].payload.$partners;
+        expect(Array.isArray(frozen)).toBe(true);
+        expect([...(frozen as string[])].sort()).toEqual(["blkA", "blkB"]);
+        // Fire at end of combat → the inline forEach body destroys each member.
+        fireDelayedTriggers(state, "next-end-of-combat");
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "blkA",
+            "blkB",
+        ]);
+    });
+
+    it("captures the OTHER direction too — a target-blocker freezes the attacker it blocked (CR 509.1h bidirectional)", () => {
+        const id = registerScript("test-op-list-blocker", VENOM_SCRIPT);
+        const state = combatState();
+        // Target a BLOCKER: the inverse scan must find the attacker it blocked.
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "blkA" }]);
+        resolveTopOfStack(state);
+        expect(state.delayedTriggers![0].payload.$partners).toEqual(["att"]);
+        fireDelayedTriggers(state, "next-end-of-combat");
+        resolveTopOfStack(state);
+        // Only the attacker "att" (p1) dies; both untargeted blockers survive.
+        // (p1's graveyard also holds the resolved Sorcery itself, so assert att
+        // is present rather than sole-occupant.)
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("att");
+        expect(state.players[1].battlefield.map((c) => c.id).sort()).toEqual([
+            "blkA",
+            "blkB",
+        ]);
+    });
+
+    it("keeps a member that has left the battlefield in the frozen list — its destroy is a no-op (CR 608.2b)", () => {
+        const id = registerScript("test-op-list-lki", VENOM_SCRIPT);
+        const state = combatState();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "att" }]);
+        resolveTopOfStack(state);
+        // One frozen partner leaves before the trigger fires.
+        state.players[1].battlefield = state.players[1].battlefield.filter(
+            (c) => c.id !== "blkA"
+        );
+        state.players[1].graveyard.push(
+            makeInstance(BEAR_ID, {
+                id: "blkA",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "graveyard",
+            })
+        );
+        fireDelayedTriggers(state, "next-end-of-combat");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        // blkB still dies; blkA is not double-destroyed (one grave copy).
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "blkA",
+            "blkB",
+        ]);
+    });
+
+    it("wire format: the frozen string[] payload survives projection and the DB round-trip and replays identically", () => {
+        const id = registerScript("test-op-list-wire", VENOM_SCRIPT);
+        const state = combatState();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "att" }]);
+        resolveTopOfStack(state);
+        // Projection passes `delayedTriggers` through whole — the list payload
+        // must reach the client untouched.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.delayedTriggers).toEqual(state.delayedTriggers);
+        // DB round-trip while queued: the `string[]` value survives compact/
+        // expand (JSON-pure, no scalar-only assumption).
+        const reloaded = expandState(compactState(state));
+        expect(reloaded.delayedTriggers).toEqual(state.delayedTriggers);
+        expect(reloaded.delayedTriggers![0].payload.$partners).toEqual(
+            state.delayedTriggers![0].payload.$partners
+        );
+        // The reloaded state fires and resolves identically (replay
+        // determinism): both blockers destroyed.
+        fireDelayedTriggers(reloaded, "next-end-of-combat");
+        resolveTopOfStack(reloaded);
+        expect(reloaded.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "blkA",
+            "blkB",
+        ]);
+    });
+});
+
 // --- optionChoice Op: modal "choose one" (CR 700.2 / 601.2b, issue #849) ------
 // The interpreter presents the ordered modes as an `option-pick` Pending Choice
 // and SUSPENDS; on the pick it runs the chosen mode's `effects` through the same

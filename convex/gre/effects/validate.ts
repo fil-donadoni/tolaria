@@ -89,6 +89,25 @@ function isTargetRef(value: unknown): boolean {
     return typeof n === "number" && Number.isInteger(n) && n >= 0;
 }
 
+/** A LIST-valued capture source (ADR 0049, issue #866): exactly
+ *  `{ select: { set: "combatPartners", of: { target: n } } }`. The only set is
+ *  `combatPartners` (v1); `of` is an announced target slot. Restricted to the
+ *  capture-source position — never a general forEach selector — so the shape is
+ *  frozen here rather than in `isForEachSelector`. */
+function isListCaptureSource(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "select") return false;
+    const select = (value as { select: unknown }).select;
+    if (typeof select !== "object" || select === null) return false;
+    const s = select as Record<string, unknown>;
+    return (
+        Object.keys(s).length === 2 &&
+        s.set === "combatPartners" &&
+        isTargetRef(s.of)
+    );
+}
+
 /** A `bind` name (ADR 0045) — a `$`-prefixed identifier. Property-path
  *  validity of the refs that read it is checked in the ordered ref pass. */
 function isBindingName(value: unknown): boolean {
@@ -710,6 +729,12 @@ function isForEachSelector(value: unknown): boolean {
     if (s.set === "players") {
         return Object.keys(s).length === 1;
     }
+    // `bound` (ADR 0049, issue #866) — iterate a `string[]` LIST binding.
+    // Exactly `{ set, ref }`; `ref` must be a binding name (its family — a list
+    // binding — is checked by the ordered ref pass, not here).
+    if (s.set === "bound") {
+        return Object.keys(s).length === 2 && isBindingName(s.ref);
+    }
     if (s.set !== "permanents") return false;
     const allowed = new Set(["set", "zone", "controller", "filter"]);
     if (!Object.keys(s).every((k) => allowed.has(k))) return false;
@@ -736,9 +761,10 @@ function isDelayedTiming(value: unknown): boolean {
 
 /** SHAPE of a `delayedTrigger` Op's `capture` map (ADR 0048): binding-name
  *  keys (the reserved `$each` / `$source` names are rejected), each value a
- *  literal string, an announced target slot, a bare binding ref, or a
- *  `$x.controller` property ref. Binding existence / family / property
- *  legality are checked by the ordered ref pass. */
+ *  literal string, an announced target slot, a bare binding ref, a
+ *  `$x.controller` property ref, or a `{ select }` LIST-valued source (ADR
+ *  0049, issue #866). Binding existence / family / property legality are checked
+ *  by the ordered ref pass. */
 function isCaptureMap(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
@@ -751,7 +777,8 @@ function isCaptureMap(value: unknown): boolean {
             (isNonEmptyString(v) ||
                 isTargetRef(v) ||
                 isBareRef(v) ||
-                isRefValue(v))
+                isRefValue(v) ||
+                isListCaptureSource(v))
     );
 }
 
@@ -1199,7 +1226,12 @@ function parseRef(ref: string): { binding: string; property: string } | null {
  *  picks, an `if` binding predicate reads a boolean, object positions read a
  *  snapshot, bare player positions read a player — so the interpreter
  *  interprets the persisted value unambiguously. */
-type BindingKind = "snapshot" | "picks" | "boolean" | "player";
+// A LIST binding (ADR 0049, issue #866) stores a frozen `string[]` of instance
+// ids captured by a `delayedTrigger` list-valued capture; only a
+// `forEach { set: "bound", ref }` reads it (as its iterated member set), so it
+// has no scalar ref position — a `.property` / object / player / picks / boolean
+// ref naming a list binding is a family mismatch (checkRefUse reports it).
+type BindingKind = "snapshot" | "picks" | "boolean" | "player" | "list";
 
 /** The binding family a `bind`-carrying Op declares. */
 function bindingKindOf(op: unknown): BindingKind {
@@ -1409,8 +1441,11 @@ function checkRefUse(
 /** Checks one `delayedTrigger` capture source (ADR 0048) against the bindings
  *  declared BEFORE the Op (captures resolve at scheduling time, in the outer
  *  scope). A bare ref must name a snapshot or player binding (single-value —
- *  picks/boolean bindings cannot cross the boundary; list captures are a
- *  tracked grammar gap). A property ref must be `.controller` on a snapshot. */
+ *  picks/boolean/list bindings cannot cross the boundary as a bare ref). A
+ *  property ref must be `.controller` on a snapshot. A `{ select }` LIST source
+ *  (ADR 0049, issue #866) resolves its own `combatPartners` set at cast time —
+ *  it names no outer binding, so nothing is checked here (shape already passed
+ *  `isCaptureMap`). */
 function checkCaptureSource(
     name: string,
     source: unknown,
@@ -1489,6 +1524,9 @@ function captureBindingKind(
     eventType: string | undefined
 ): BindingKind {
     if (typeof source === "object" && source !== null) {
+        // LIST-valued capture (ADR 0049, issue #866): the body binding is a
+        // `string[]` list — a `forEach { set: "bound", ref }` iterates it.
+        if ("select" in source) return "list";
         const ref = (source as Record<string, unknown>).ref;
         if (typeof ref === "string") {
             // `$event.<field>` capture (ADR 0049) — the fire-time family
@@ -1567,11 +1605,24 @@ function checkOpListRefs(
         if (entry.op === "forEach") {
             const select = entry.select;
             if (select && typeof select === "object") {
-                collectRefUses(
-                    (select as Record<string, unknown>).controller,
-                    "controller",
-                    uses
-                );
+                const s = select as Record<string, unknown>;
+                collectRefUses(s.controller, "controller", uses);
+                // `bound` (ADR 0049, issue #866): the iterated ref MUST name a
+                // LIST binding (a delayedTrigger list-valued capture). The
+                // family is checked here directly — it is not a scalar ref
+                // position `checkRefUse` handles.
+                if (s.set === "bound" && typeof s.ref === "string") {
+                    const family = declared.get(s.ref);
+                    if (family === undefined) {
+                        errors.push(
+                            `${at}: forEach { set: "bound" } ref "${s.ref}" references undefined binding — no earlier Op binds it (a bound-set ref names a delayedTrigger list-valued capture, ADR 0049)`
+                        );
+                    } else if (family !== "list") {
+                        errors.push(
+                            `${at}: forEach { set: "bound" } ref "${s.ref}" names a ${family} binding — a bound set iterates a list binding (a delayedTrigger list-valued capture, ADR 0049)`
+                        );
+                    }
+                }
             }
         }
         // delayedTrigger (CR 603.7, ADR 0048): capture sources and the

@@ -72,6 +72,7 @@ import type {
     EffectMode,
     EffectCountSpec,
     EffectForEachSelector,
+    EffectListSelector,
     EffectObjectSelector,
     EffectOp,
     EffectPlayerRef,
@@ -1095,8 +1096,18 @@ export const OP_EXECUTORS: {
     // binding environment when the trigger fires. A thin skin over
     // `SpellContext.scheduleDelayedTrigger` (one execution path, ADR 0045).
     delayedTrigger(ctx, op) {
-        const payload: Record<string, string> = {};
+        const payload: Record<string, string | string[]> = {};
         for (const [name, source] of Object.entries(op.capture ?? {})) {
+            // LIST-valued capture (ADR 0049, issue #866): resolve N ids at
+            // scheduling (cast) time and freeze them into the payload as a
+            // `string[]` list binding. An empty list stays OUT of the payload
+            // (like an unresolvable scalar) — the body's forEach then iterates
+            // nothing (CR 608.2b), same as a captured-but-since-emptied list.
+            if (typeof source === "object" && "select" in source) {
+                const list = resolveCaptureListSource(ctx, source.select);
+                if (list.length > 0) payload[name] = list;
+                continue;
+            }
             const value = resolveCaptureSource(ctx, source);
             // An unresolvable capture (target slot gone, binding never made)
             // stays OUT of the payload: the body binding is uncaptured and
@@ -1274,6 +1285,12 @@ function selectForEachMembers(
     select: EffectForEachSelector
 ): string[] {
     if (select.set === "players") return [...ctx.apNapOrder()];
+    // `bound` (ADR 0049, issue #866): iterate a frozen `string[]` LIST binding
+    // (a delayedTrigger list-valued capture, e.g. `$partners`) in stored order.
+    // The member ids are read straight off the binding; each is snapshotted at
+    // iteration entry by `execForEach`, so a member that has left is skipped
+    // there (CR 608.2b). Absent binding (empty capture) → iterate nothing.
+    if (select.set === "bound") return readBinding(ctx, select.ref) ?? [];
     let owners: string[];
     if (select.controller !== undefined) {
         const pid = resolvePlayerRef(ctx, select.controller);
@@ -1418,6 +1435,10 @@ function resolveCaptureSource(
 ): string | undefined {
     if (typeof source === "string") return source;
     if ("target" in source) return ctx.targets[source.target]?.id;
+    // A `{ select }` LIST source (ADR 0049, issue #866) never reaches here — the
+    // `delayedTrigger` executor routes it to `resolveCaptureListSource` — but
+    // narrow it out so the remaining single-value ref shapes type-check.
+    if ("select" in source) return undefined;
     // `$event.<field>` capture (ADR 0049, issue #865) — flatten the firing
     // event to its id at scheduling time; the body re-binds it fresh at fire
     // time (object → snapshot, player → player binding, per ADR 0048).
@@ -1435,6 +1456,39 @@ function resolveCaptureSource(
     return stored.length === 1 ? stored[PLAYER_BINDING_ID] : stored[SNAP_ID];
 }
 
+/** Resolves a `delayedTrigger` LIST-valued capture (ADR 0049, issue #866) to
+ *  the frozen `string[]` of instance ids persisted in the payload, at
+ *  SCHEDULING (cast) time — freeze-at-cast, not fire-time (combat state is
+ *  live-only, so a fire-time scan returns empty once the target itself died).
+ *
+ *  v1's only set is `combatPartners of { target: n }` — the creatures that
+ *  BLOCKED OR WERE BLOCKED BY the announced target this turn (CR 509.1h,
+ *  bidirectional): the target's blockers (attacker → blockers direction) plus
+ *  the attackers the target blocked (the inverse scan). Returns [] when the
+ *  target slot is gone or the pairing is empty (the body's forEach iterates
+ *  nothing, CR 608.2b). Order is deterministic (block-graph insertion order),
+ *  deduped by a Set. */
+function resolveCaptureListSource(
+    ctx: SpellContext,
+    select: EffectListSelector
+): string[] {
+    const targetId = ctx.targets[select.of.target]?.id;
+    if (targetId === undefined) return [];
+    // `combatPartners` is the only member (validator-enforced); the arm is
+    // explicit so a future set joins without changing the fallback.
+    if (select.set !== "combatPartners") return [];
+    const blockGraph = ctx.getBlockersByAttacker();
+    const partners = new Set<string>();
+    // "were blocked by it": the target attacked — its blockers are partners.
+    for (const id of blockGraph[targetId] ?? []) partners.add(id);
+    // "blocked it": the target blocked — the attackers whose blocker list
+    // contains the target are partners (CR 509.1h inverse direction).
+    for (const [attackerId, blockerIds] of Object.entries(blockGraph)) {
+        if (blockerIds.includes(targetId)) partners.add(attackerId);
+    }
+    return [...partners];
+}
+
 /** Runs a fired INLINE delayed-trigger body (CR 603.7a, ADR 0048). On a FRESH
  *  entry (no checkpoint) the persisted payload becomes the body's initial
  *  binding environment: a captured id that names a player becomes a player
@@ -1448,11 +1502,20 @@ function resolveCaptureSource(
 export function runDelayedTriggerBody(
     ctx: SpellContext,
     effects: readonly EffectOp[],
-    payload: Record<string, string>
+    payload: Record<string, string | string[]>
 ): void {
     if (ctx.getScriptCheckpoint() === undefined) {
         for (const [name, value] of Object.entries(payload)) {
             if (!name.startsWith("$")) continue; // not a binding capture
+            // LIST capture (ADR 0049, issue #866): the frozen `string[]` of ids
+            // becomes a list binding a `forEach { set: "bound", ref }` iterates.
+            // Stored raw (member ids only) — the forEach snapshots each member
+            // afresh at iteration entry, so a member that has since left the
+            // battlefield is skipped there (CR 608.2b), not here.
+            if (Array.isArray(value)) {
+                ctx.noteChoice(name, value);
+                continue;
+            }
             if (ctx.allPlayerIds.includes(value)) {
                 ctx.noteChoice(name, [value]);
             } else if (ctx.getOwnerId(value) !== undefined) {

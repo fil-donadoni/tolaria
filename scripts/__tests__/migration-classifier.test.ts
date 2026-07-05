@@ -374,11 +374,17 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // AFK-ready 366→361, Op-blocked 220→219, X-only unchanged. The new
         // `$id-equality` pseudo-blocker adds 0 (Venom's split removed the only
         // catalogue closure that would have tripped it).
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(627);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(394);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(361);
+        // #866 (list-valued delayedTrigger capture, ADR 0049) migrated Venomous
+        // Breath off resolve() — 2 closures removed: its scheduling closure was
+        // Op-blocked ($list-capture) and its delayed body was FREE/AFK-ready,
+        // both folded into one inline `delayedTrigger` with a `combatPartners`
+        // list capture + `forEach { set: "bound" }` body. Net: total 627→625,
+        // FREE 394→393, AFK-ready 361→360, Op-blocked 219→218, X-only unchanged.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(625);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(393);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(360);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(219);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(218);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {

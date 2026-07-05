@@ -1243,6 +1243,155 @@ describe("validateEffectScript — delayedTrigger Op (CR 603.7, ADR 0048)", () =
     });
 });
 
+// --- delayedTrigger LIST-valued capture (ADR 0049, issue #866) --------------
+// A `{ select }` capture source freezes a `string[]` list binding; the body
+// iterates it with `forEach { set: "bound", ref }`. The validator: accepts the
+// list-select capture shape, types the body binding as a `list` family, and
+// requires a `{ set: "bound" }` ref to name a list binding (never a scalar one).
+describe("validateEffectScript — delayedTrigger LIST capture (ADR 0049, issue #866)", () => {
+    const wellFormed: EffectOp[] = [
+        {
+            op: "delayedTrigger",
+            timing: "next-end-of-combat",
+            oracleText:
+                "At end of combat, destroy all creatures that blocked or were blocked by it.",
+            capture: {
+                $partners: {
+                    select: { set: "combatPartners", of: { target: 0 } },
+                },
+            },
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: "$partners" },
+                    effects: [{ op: "destroy", target: { ref: "$each" } }],
+                },
+            ],
+        },
+    ];
+
+    it("accepts a combatPartners list capture iterated by a bound forEach", () => {
+        expect(validateEffectScript(host({ effects: wellFormed }))).toEqual([]);
+    });
+
+    it("rejects a bound forEach whose ref names an undefined binding", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-of-combat",
+                        oracleText: "x",
+                        effects: [
+                            {
+                                op: "forEach",
+                                select: { set: "bound", ref: "$ghost" },
+                                effects: [
+                                    { op: "destroy", target: { ref: "$each" } },
+                                ],
+                            },
+                        ],
+                    } as never,
+                ],
+            })
+        );
+        expect(
+            errors.some((e) =>
+                /forEach \{ set: "bound" \} ref "\$ghost" references undefined/.test(
+                    e
+                )
+            )
+        ).toBe(true);
+    });
+
+    it("rejects a bound forEach whose ref names a NON-list binding (a snapshot)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    // `$dead` is a snapshot binding, not a list — a bound set
+                    // may only iterate a list-valued capture.
+                    { op: "destroy", target: { target: 0 }, bind: "$dead" },
+                    {
+                        op: "forEach",
+                        select: { set: "bound", ref: "$dead" },
+                        effects: [{ op: "destroy", target: { ref: "$each" } }],
+                    } as never,
+                ],
+            })
+        );
+        expect(
+            errors.some((e) =>
+                /forEach \{ set: "bound" \} ref "\$dead" names a snapshot binding/.test(
+                    e
+                )
+            )
+        ).toBe(true);
+    });
+
+    it("rejects a list-valued capture with an unknown set", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-of-combat",
+                        oracleText: "x",
+                        capture: {
+                            $partners: {
+                                select: { set: "bogusSet", of: { target: 0 } },
+                            },
+                        },
+                        effects: [
+                            {
+                                op: "forEach",
+                                select: { set: "bound", ref: "$partners" },
+                                effects: [
+                                    { op: "destroy", target: { ref: "$each" } },
+                                ],
+                            },
+                        ],
+                    } as never,
+                ],
+            })
+        );
+        expect(
+            errors.some((e) => /field "capture" has invalid value/.test(e))
+        ).toBe(true);
+    });
+
+    it("rejects a scalar ref that reads a list binding in an object position (family mismatch)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-of-combat",
+                        oracleText: "x",
+                        capture: {
+                            $partners: {
+                                select: {
+                                    set: "combatPartners",
+                                    of: { target: 0 },
+                                },
+                            },
+                        },
+                        // A list binding has no scalar object position — reading
+                        // `$partners` as a single object is a family error.
+                        effects: [
+                            { op: "destroy", target: { ref: "$partners" } },
+                        ],
+                    } as never,
+                ],
+            })
+        );
+        expect(
+            errors.some((e) =>
+                /names a list binding in an object position/.test(e)
+            )
+        ).toBe(true);
+    });
+});
+
 // --- $event.<field> refs at trigger sites (ADR 0049, issue #865) ------------
 // `$event.<field>` is legal ONLY at a triggered-ability site: the validator
 // carries the firing event type (from `TriggeredAbility.event`) and checks the
