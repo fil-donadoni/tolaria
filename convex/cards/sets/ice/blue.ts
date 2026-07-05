@@ -1480,7 +1480,7 @@ export const phantasmalMount: CardDefinition = {
     name: "Phantasmal Mount",
     rarity: "uncommon",
     oracleText:
-        "Flying\n{T}: Target creature you control with toughness 2 or less gets +1/+1 and gains flying until end of turn. When this creature leaves the battlefield this turn, sacrifice that creature. When that creature leaves the battlefield this turn, sacrifice this creature.",
+        "Flying\n{T}: Target creature you control with toughness 2 or less gets +1/+1 and gains flying until end of turn. When this creature leaves the battlefield this turn, sacrifice that creature. When the creature leaves the battlefield this turn, sacrifice this creature.",
     manaCost: { X: 1, U: 1 },
     types: ["Creature"],
     subtypes: ["Illusion", "Horse"],
@@ -1491,7 +1491,7 @@ export const phantasmalMount: CardDefinition = {
         {
             id: "phantasmal-mount-pump",
             oracleText:
-                "{T}: Target creature you control with toughness 2 or less gets +1/+1 and gains flying until end of turn. When this creature leaves the battlefield this turn, sacrifice that creature. When that creature leaves the battlefield this turn, sacrifice this creature.",
+                "{T}: Target creature you control with toughness 2 or less gets +1/+1 and gains flying until end of turn. When this creature leaves the battlefield this turn, sacrifice that creature. When the creature leaves the battlefield this turn, sacrifice this creature.",
             cost: { tap: true },
             useStack: true,
             targetRequirement: {
