@@ -161,3 +161,21 @@ export const silverquillCharm: CardDefinition = {
         },
     ],
 };
+
+// Lorehold Charm — {R}{W} Instant. "Choose one — Each opponent sacrifices a
+// nontoken artifact of their choice. / Return target artifact or creature
+// card with mana value 2 or less from your graveyard to the battlefield. /
+// Creatures you control get +1/+1 and gain trample until end of turn." (CR
+// 700.2 modal, already supported by `optionChoice`.) Blocked: modes 2 (a
+// graveyard reanimation with `manaValueAtMost: 2`) and 3 (a mass pump +
+// trample grant) are both free with existing Ops, but mode 1 needs a
+// `nontoken` field on `EffectCardFilter`, which doesn't exist — and a card
+// can't ship with only 2 of its 3 modes (issue #920).
+// tracked-by: #920
+// export const loreholdCharm: CardDefinition = {
+//     id: "5fe70295-e550-4577-a341-dab6c25aabfd",
+//     name: "Lorehold Charm",
+//     rarity: "uncommon",
+//     manaCost: { W: 1, R: 1 },
+//     types: ["Instant"],
+// };

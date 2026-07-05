@@ -659,6 +659,31 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 5,
     },
+    {
+        // Cube FREE: graveyard recursion (#680) — the `moveZone` graveyard
+        // reanimation branches. Cast Reanimate targeting Griselbrand (mana
+        // value 8) in your own graveyard: it enters under your control and you
+        // lose 8 life (the `ref.manaValue` snapshot, CR 608.2h). Cast Exhume:
+        // both players put a creature card from their OWN graveyard onto the
+        // battlefield (the `forEach(players)` + per-player `choice` pattern —
+        // "me" picks Balduvian Bears, "opp" also has one to pick up, exercising
+        // the two-player APNAP branch). Cast Eternal Witness: its ETB lets you
+        // return any card from your graveyard to hand (no type filter — the
+        // Bears card, or Reanimate/Exhume themselves once they're in the
+        // graveyard).
+        label: "Graveyard recursion (#680) — Reanimate / Exhume / Eternal Witness",
+        cards: [
+            { name: "Reanimate", owner: "me", zone: "hand" },
+            { name: "Exhume", owner: "me", zone: "hand" },
+            { name: "Eternal Witness", owner: "me", zone: "hand" },
+            { name: "Griselbrand", owner: "me", zone: "graveyard" },
+            { name: "Balduvian Bears", owner: "me", zone: "graveyard" },
+            { name: "Balduvian Bears", owner: "opp", zone: "graveyard" },
+            { name: "Swamp", owner: "me", zone: "battlefield", count: 4 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

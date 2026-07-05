@@ -1427,9 +1427,11 @@ export interface SpellContext {
      *  returns the printed cost's mana value — X in the cost counts as 0
      *  because the chosen X is not currently preserved on the resulting
      *  permanent. For a spell target on the stack, X folds in the chosen
-     *  value from the stack item. Returns 0 for player / graveyard-card /
-     *  unknown targets. Used by Spell Blast ("counter target spell with
-     *  mana value X"). */
+     *  value from the stack item. For a graveyard-card target (issue #680 —
+     *  Reanimate's "lose life equal to that card's mana value"), looks the
+     *  card up in its owner's graveyard and returns its printed mana value.
+     *  Returns 0 for player / unknown targets. Used by Spell Blast ("counter
+     *  target spell with mana value X"). */
     getManaValue: (target: TargetSelection) => number;
     /** Mana value snapshotted on the stack item when this spell's
      *  additional sacrifice cost (CR 117.9) was paid at cast time. Returns
@@ -4735,12 +4737,18 @@ export type EffectMoveZone =
 
 /** ref — reads a single property off a bound object snapshot (ADR 0045). The
  *  string is `"$binding.property"`; `$binding` MUST be named by an earlier
- *  Op's `bind`, and `property` is `power` / `toughness` (numeric contexts) or
- *  `controller` (player contexts). The snapshot is captured when the binding
- *  Op ran (CR 608.2h / 603.10 last-known information), so a ref still reads the
- *  right value after the object has changed zone — e.g. Swords to Plowshares
- *  reads the exiled creature's power. `validateEffectScript` statically
- *  rejects an undefined binding or an unknown property path. */
+ *  Op's `bind`, and `property` is `power` / `toughness` / `manaValue`
+ *  (numeric contexts) or `controller` (player contexts). `manaValue` (issue
+ *  #680) is CR 202.3's printed mana value, read the same way for a
+ *  battlefield permanent OR a graveyard-card snapshot (`moveZone`'s
+ *  reanimation `bind` — Reanimate's "lose life equal to that card's mana
+ *  value"); a snapshot's `power`/`toughness` stay 0 for a graveyard-card
+ *  binding (CR 208.2 — a card not on the battlefield has no power/toughness).
+ *  The snapshot is captured when the binding Op ran (CR 608.2h / 603.10
+ *  last-known information), so a ref still reads the right value after the
+ *  object has changed zone — e.g. Swords to Plowshares reads the exiled
+ *  creature's power. `validateEffectScript` statically rejects an undefined
+ *  binding or an unknown property path. */
 export type EffectRef = { ref: string };
 
 /** count — the size of a declaratively-selected set of cards (ADR 0045),
@@ -5022,8 +5030,25 @@ export type EffectOp =
      *  Skipped when the referenced object is gone (CR 608.2b — does as much as
      *  it can), or for a zone pair with no plain-move primitive (e.g. a
      *  battlefield permanent to exile, which needs LTB semantics — use
-     *  `exile`). */
-    | { op: "moveZone"; target: EffectObjectSelector; to: EffectMoveZone }
+     *  `exile`). `bind` (issue #680) snapshots the object BEFORE it moves —
+     *  power/toughness/controller/id for a permanent, mana value (+ owner as
+     *  `controller`, 0 power/toughness) for a graveyard card — so a later
+     *  `ref` reads e.g. the reanimated card's mana value (Reanimate: "You
+     *  lose life equal to that card's mana value"). `controller` (issue #680,
+     *  meaningful only for a graveyard-card reanimation) overrides the
+     *  default owner-control (CR 800.4a — Reanimate / Hymn of Rebirth's
+     *  "under your control", a cross-graveyard reanimation) by passing
+     *  through to `SpellContext.returnToBattlefield`'s existing optional 4th
+     *  argument; omitted keeps the default (Resurrection, Hell's Caretaker —
+     *  "under the owner's control"). Invalid outside a `to: "battlefield"`
+     *  graveyard-card move. */
+    | {
+          op: "moveZone";
+          target: EffectObjectSelector;
+          to: EffectMoveZone;
+          bind?: string;
+          controller?: EffectPlayerRef;
+      }
     /** CR 400.7 (issue #677) — the SEARCH half of a tutor/fetch effect: move
      *  the cards a `choice` Op picked (a bare picks ref, e.g.
      *  `{ ref: "$picked" }`) OUT OF `player`'s hidden `from` zone. A thin
@@ -5044,12 +5069,24 @@ export type EffectOp =
      *  permanent tapped regardless of its own `entersTapped` flag (Fabled
      *  Passage's "put it onto the battlefield tapped") — omitted/false enters
      *  normally. Skipped when the binding was never captured (the choice
-     *  found no candidates, CR 608.2b) or the player cannot be resolved. */
+     *  found no candidates, CR 608.2b) or the player cannot be resolved.
+     *  `from: "graveyard"` (issue #680) is the third source zone: pairs with a
+     *  `choice(zone: "graveyard")` Op for a "puts A card from THEIR graveyard"
+     *  pick that isn't an announced target (CR 601.2b hidden-zone-adjacent —
+     *  a graveyard is public, but the pick is per-player self-selection, not
+     *  a spell target — Exhume "each player puts a creature card from their
+     *  graveyard", Titania "return target land card from YOUR graveyard" via
+     *  the `TriggeredAbility`-has-no-`targetRequirement` choice-as-target
+     *  substitute, ADR 0002 precedent: Banishing Light). `to: "battlefield"`
+     *  routes through `returnToBattlefield` (owner control, same as the
+     *  `target`-shape above); every other destination is the existing generic
+     *  `moveCardById` branch (already used with a graveyard source
+     *  elsewhere). */
     | {
           op: "moveZone";
           cards: EffectRef;
           player: EffectPlayerRef;
-          from: "library" | "hand";
+          from: "library" | "hand" | "graveyard";
           to: EffectMoveZone;
           tapped?: boolean;
       }
@@ -5344,23 +5381,32 @@ export type EffectOp =
      *  (the choice found no candidates — CR 608.2b). */
     | { op: "discard"; player: EffectPlayerRef; cards: EffectRef }
     /** CR 117.3a / 118.4 — an optional "you may pay {cost}" decision offered to
-     *  a player (issue #806). Maps 1:1 onto `SpellContext.requestMayPay`, riding
-     *  the existing `may-pay` Pending Choice pipeline (enqueue → generic Pay/Skip
-     *  prompt UI → `submitMayPay` mutation → resume): no new choice
-     *  infrastructure. Like `choice`, the interpreter SUSPENDS the script at this
-     *  Op (`resolutionStep` checkpoints the Op index) and resumes here when the
-     *  player answers. `bind` (REQUIRED) names a BOOLEAN binding — `true` when the
-     *  player paid, `false` when they declined — read by a later `if` predicate.
-     *  This is the counter/punisher primitive: "… unless its controller pays
-     *  {2}" is `mayPay` + an `if` on the outcome. */
+     *  a player (issue #806), OR a bare cost-free "you may …" decision (issue
+     *  #680 — `cost` omitted). Maps 1:1 onto `SpellContext.requestMayPay`,
+     *  riding the existing `may-pay` Pending Choice pipeline (enqueue →
+     *  generic Pay/Skip prompt UI → `submitMayPay` mutation → resume): no new
+     *  choice infrastructure. Like `choice`, the interpreter SUSPENDS the
+     *  script at this Op (`resolutionStep` checkpoints the Op index) and
+     *  resumes here when the player answers. `bind` (REQUIRED) names a
+     *  BOOLEAN binding — `true` when the player paid/accepted, `false` when
+     *  they declined — read by a later `if` predicate. With a `cost`, this is
+     *  the counter/punisher primitive: "… unless its controller pays {2}" is
+     *  `mayPay` + an `if` on the outcome. WITHOUT a `cost` (issue #680), it is
+     *  a bare optional action with no payment — "you may return this card
+     *  from your graveyard to your hand" (Squee, Goblin Nabob) — mirroring
+     *  `SpellContext.requestMayPay`'s already-optional `cost` field (used
+     *  cost-free by Verduran Enchantress / Nether Shadow's `resolve()`); this
+     *  Op shape simply exposes that existing capability to the DSL (ADR 0045
+     *  "generalize, don't add" — no new primitive). */
     | {
           op: "mayPay";
-          /** Who is offered the payment (CR 117.3a — usually the controller of
-           *  the affected object, "its controller pays"). */
+          /** Who is offered the payment/decision (CR 117.3a — usually the
+           *  controller of the affected object, "its controller pays"). */
           player: EffectPlayerRef;
           /** The cost to pay on accept (mana / life / sacrifice union, CR
-           *  702.24 shape). */
-          cost: MayPayCost;
+           *  702.24 shape). Omitted for a bare cost-free "you may" decision
+           *  (issue #680). */
+          cost?: MayPayCost;
           prompt: string;
           /** REQUIRED — the boolean binding name (`"$paid"`). A may-pay whose
            *  outcome nothing reads is meaningless, so the grammar demands it. */
