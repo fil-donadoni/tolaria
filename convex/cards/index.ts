@@ -40,6 +40,7 @@ import * as thb from "./sets/thb";
 import * as fut from "./sets/fut";
 import * as mh1 from "./sets/mh1";
 import * as bro from "./sets/bro";
+import * as c18 from "./sets/c18";
 import * as sos from "./sets/sos";
 // Issue #674 remaining tranche — additional cross-set home sets.
 import * as avr from "./sets/avr";
@@ -241,6 +242,8 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "khm", exports: khm },
     { code: "ptk", exports: ptk },
     { code: "mbs", exports: mbs },
+    // Cube FREE: token makers (issue #678).
+    { code: "c18", exports: c18 },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>
