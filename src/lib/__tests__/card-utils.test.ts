@@ -3,6 +3,7 @@ import {
     wantsPermanentTarget,
     matchesPermanentFilter,
     matchesTargetRequirement,
+    matchesTargetController,
     matchesSpellTypeFilter,
     matchesSpellSingleTargetingController,
     matchesSpellWouldDestroyLand,
@@ -93,6 +94,31 @@ describe("wantsPermanentTarget", () => {
 // ---------------------------------------------------------------------------
 // matchesTargetRequirement
 // ---------------------------------------------------------------------------
+
+describe("matchesTargetController (CR 109.3 / 102.1, #904)", () => {
+    // chooser = "p1", active player = "p1", opponent = "p2".
+    it("'you' accepts the chooser's permanent, rejects the opponent's", () => {
+        expect(matchesTargetController("p1", "p1", "p1", "you")).toBe(true);
+        expect(matchesTargetController("p2", "p1", "p1", "you")).toBe(false);
+    });
+    it("'opponent' accepts the opponent's permanent, rejects the chooser's", () => {
+        expect(matchesTargetController("p2", "p1", "p1", "opponent")).toBe(
+            true
+        );
+        expect(matchesTargetController("p1", "p1", "p1", "opponent")).toBe(
+            false
+        );
+    });
+    it("'active' accepts the active player's permanent regardless of chooser", () => {
+        // Chooser is the non-active player p2; active player is p1.
+        expect(matchesTargetController("p1", "p2", "p1", "active")).toBe(true);
+        expect(matchesTargetController("p2", "p2", "p1", "active")).toBe(false);
+    });
+    it("'any' / undefined accepts any controller", () => {
+        expect(matchesTargetController("p2", "p1", "p1", "any")).toBe(true);
+        expect(matchesTargetController("p2", "p1", "p1", undefined)).toBe(true);
+    });
+});
 
 describe("matchesTargetRequirement", () => {
     it("creature matches 'Creature'", () => {

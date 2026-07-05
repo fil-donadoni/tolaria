@@ -4,6 +4,7 @@ import type { Phase } from "@convex/gre/types";
 import type {
     MayPayCost,
     PermanentView,
+    TargetRequirement,
     TriggerStateView,
 } from "@convex/cards/types";
 import {
@@ -272,6 +273,29 @@ export function matchesTargetRequirement(
         return DAMAGEABLE_PERMANENT_TYPES.some((t) => cardTypes.includes(t));
     }
     return types.some((t) => cardTypes.includes(t as never));
+}
+
+/** CR 109.3 / 102.1 — client mirror of the server's permanent-controller gate
+ *  (`matchesBattlefieldController` in convex/gre/rules.ts, #904). Keeps an
+ *  illegal-controller permanent from reading as clickable; the server remains
+ *  the authority and rejects it regardless. `chooserId` is the player choosing
+ *  targets (`pendingTarget.playerId`), NOT necessarily the viewer. */
+export function matchesTargetController(
+    controllerId: string,
+    chooserId: string,
+    activePlayerId: string,
+    filter: TargetRequirement["controller"]
+): boolean {
+    switch (filter ?? "any") {
+        case "you":
+            return controllerId === chooserId;
+        case "opponent":
+            return controllerId !== chooserId;
+        case "active":
+            return controllerId === activePlayerId;
+        case "any":
+            return true;
+    }
 }
 
 /** True if the target requirement can target a spell on the stack (CR 114.1):

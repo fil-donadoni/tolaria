@@ -17,6 +17,7 @@ import {
     buildTriggerStateView,
     wantsPermanentTarget,
     matchesTargetRequirement,
+    matchesTargetController,
     isTapLockedBySummoningSickness,
 } from "~/lib/card-utils";
 import { isUntargetableByPending } from "~/lib/targeting";
@@ -274,6 +275,16 @@ export function useBattlefieldInteraction(player: Player) {
             isSelectingTarget &&
             pendingTarget &&
             matchesTargetRequirement(card, pendingTarget.targetType) &&
+            // CR 109.3 / 102.1 — don't fire selectTarget for a wrong-controller
+            // permanent; `useBattlefieldVisualState` already dims it, so firing
+            // the doomed mutation just surfaces an error toast (#904). Mirror
+            // the visual-state gate: chooser is pendingTarget.playerId.
+            matchesTargetController(
+                card.controllerId,
+                pendingTarget.playerId,
+                activePlayerId,
+                pendingTarget.controller
+            ) &&
             // CR 702.18 / 611 — don't fire selectTarget for a shrouded /
             // "can't be the target" permanent; the server would reject it
             // anyway (#382).
