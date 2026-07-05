@@ -7,7 +7,11 @@ import {
     type GameState,
     type StackItem,
 } from "../state";
-import { getLegalTargets, getPendingTargetSourceSubtypes } from "../rules";
+import {
+    getLegalTargets,
+    getPendingTargetSourceSubtypes,
+    matchesBattlefieldController,
+} from "../rules";
 import { isGuardedAgainst } from "../permanentGuard";
 import type { CardType, TargetRequirement } from "../../cards/types";
 import { getDefinition, tryGetDefinition } from "../../cards";
@@ -301,6 +305,130 @@ describe("getLegalTargets", () => {
             count: 1,
         };
         expect(getLegalTargets(state, req)).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Permanent-controller filter (CR 109.3 / 102.1, #904).
+//
+// `matchesBattlefieldController` is the single authority both `getLegalTargets`
+// (offered set) and the `selectTarget` mutation's permanent branch (accepted
+// set — the authoritative anti-spoof gate) route through. The project has no
+// convex-test harness (ADR 0001), so these tests drive that shared predicate
+// directly: it is the exact decision the mutation makes, so exercising it is
+// equivalent to exercising the mutation's controller rejection. A negative
+// (server rejects a wrong-controller permanent) + positive (accepts the right
+// one) is asserted per controller value.
+// ---------------------------------------------------------------------------
+
+describe("permanent-controller filter — selectTarget authority (CR 109.3 / 102.1, #904)", () => {
+    // chooser = p1, active player = p1, opponent = p2.
+    const ACTIVE = "p1";
+
+    describe("controller: 'you' (Simulacrum)", () => {
+        it("accepts a permanent the chooser controls", () => {
+            expect(
+                matchesBattlefieldController("p1", "p1", ACTIVE, "you")
+            ).toBe(true);
+        });
+        it("rejects an opponent's permanent (spoof)", () => {
+            expect(
+                matchesBattlefieldController("p2", "p1", ACTIVE, "you")
+            ).toBe(false);
+        });
+    });
+
+    describe("controller: 'opponent' (Nettling Imp)", () => {
+        it("accepts an opponent's permanent", () => {
+            expect(
+                matchesBattlefieldController("p2", "p1", ACTIVE, "opponent")
+            ).toBe(true);
+        });
+        it("rejects a permanent the chooser controls (spoof)", () => {
+            expect(
+                matchesBattlefieldController("p1", "p1", ACTIVE, "opponent")
+            ).toBe(false);
+        });
+        it("rejects when the chooser is unknown (can never be an opponent)", () => {
+            expect(
+                matchesBattlefieldController(
+                    "p2",
+                    undefined,
+                    ACTIVE,
+                    "opponent"
+                )
+            ).toBe(false);
+        });
+    });
+
+    describe("controller: 'active' (Arcum's Whistle)", () => {
+        it("accepts a permanent the active player controls", () => {
+            // Chooser is the non-active player p2; the active player is p1.
+            expect(
+                matchesBattlefieldController("p1", "p2", ACTIVE, "active")
+            ).toBe(true);
+        });
+        it("rejects a permanent the non-active player controls (spoof)", () => {
+            expect(
+                matchesBattlefieldController("p2", "p2", ACTIVE, "active")
+            ).toBe(false);
+        });
+    });
+
+    describe("controller: 'any' / undefined", () => {
+        it("accepts any controller", () => {
+            expect(
+                matchesBattlefieldController("p1", "p2", ACTIVE, "any")
+            ).toBe(true);
+            expect(
+                matchesBattlefieldController("p2", "p1", ACTIVE, undefined)
+            ).toBe(true);
+        });
+    });
+
+    // getLegalTargets integration: the offered set honors the same filter, so
+    // the client is never shown an illegal target either.
+    describe("getLegalTargets honors the controller filter", () => {
+        const OWN = makeCard({ id: "own", card: CREATURE, controllerId: "p1" });
+        const THEIRS = makeCard({
+            id: "theirs",
+            card: CREATURE,
+            controllerId: "p2",
+        });
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [OWN] }),
+                makePlayer({ id: "p2", battlefield: [THEIRS] }),
+            ],
+        });
+
+        it("'you' offers only the caster's creature", () => {
+            const req: TargetRequirement = {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            };
+            const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+            expect(ids).toEqual(["own"]);
+        });
+        it("'opponent' offers only the opponent's creature", () => {
+            const req: TargetRequirement = {
+                type: "Creature",
+                count: 1,
+                controller: "opponent",
+            };
+            const ids = getLegalTargets(state, req, [], "p1").map((t) => t.id);
+            expect(ids).toEqual(["theirs"]);
+        });
+        it("'active' offers only the active player's creature (chooser p2)", () => {
+            const req: TargetRequirement = {
+                type: "Creature",
+                count: 1,
+                controller: "active",
+            };
+            const ids = getLegalTargets(state, req, [], "p2").map((t) => t.id);
+            expect(ids).toEqual(["own"]); // p1 is active
+        });
     });
 });
 

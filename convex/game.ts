@@ -84,6 +84,7 @@ import {
     getPendingTargetSourceSubtypes,
     hasColor,
     isProtectedFromColors,
+    matchesBattlefieldController,
     matchesMvFilter,
     resolveMvFilter,
     spellWouldDestroyLandControlledBy,
@@ -4291,6 +4292,29 @@ export const selectTarget = mutation({
                 }
             }
             if (!matchedCard) throw new Error("Invalid target");
+            // CR 109.3 / 102.1 — enforce the controller-relationship filter for
+            // battlefield targets (anti-spoof, #904). Routes through the same
+            // matchesBattlefieldController predicate getLegalTargets uses, so
+            // the offered and accepted target sets can't diverge. Guards
+            // Simulacrum ("you"), Nettling Imp ("opponent") and Arcum's
+            // Whistle ("active").
+            if (
+                !matchesBattlefieldController(
+                    matchedCard.controllerId,
+                    args.playerId,
+                    state.activePlayerId,
+                    pt.controller
+                )
+            ) {
+                const filter = pt.controller ?? "any";
+                throw new Error(
+                    filter === "you"
+                        ? "Must target a permanent you control"
+                        : filter === "opponent"
+                          ? "Must target a permanent an opponent controls"
+                          : "Must target a permanent the active player controls"
+                );
+            }
             // CR 205.3: subtype-restricted choice (e.g. "target Mountains").
             if (pt.subtypeFilter && pt.subtypeFilter.length > 0) {
                 const matchedSubtype = pt.subtypeFilter.some((s) =>

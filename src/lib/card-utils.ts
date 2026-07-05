@@ -274,6 +274,29 @@ export function matchesTargetRequirement(
     return types.some((t) => cardTypes.includes(t as never));
 }
 
+/** CR 109.3 / 102.1 — client mirror of the server's permanent-controller gate
+ *  (`matchesBattlefieldController` in convex/gre/rules.ts, #904). Keeps an
+ *  illegal-controller permanent from reading as clickable; the server remains
+ *  the authority and rejects it regardless. `chooserId` is the player choosing
+ *  targets (`pendingTarget.playerId`), NOT necessarily the viewer. */
+export function matchesTargetController(
+    controllerId: string,
+    chooserId: string,
+    activePlayerId: string,
+    filter: "you" | "opponent" | "active" | "any" | undefined
+): boolean {
+    switch (filter ?? "any") {
+        case "you":
+            return controllerId === chooserId;
+        case "opponent":
+            return controllerId !== chooserId;
+        case "active":
+            return controllerId === activePlayerId;
+        case "any":
+            return true;
+    }
+}
+
 /** True if the target requirement can target a spell on the stack (CR 114.1):
  *  the `"spell"` or `"spell-or-permanent"` types. */
 export function wantsSpellTarget(

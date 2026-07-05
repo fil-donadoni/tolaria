@@ -493,6 +493,36 @@ export function matchesMvFilter(
     return true;
 }
 
+/** CR 109.3 / 102.1 — the single authority on a battlefield/permanent target's
+ *  controller-relationship filter (`TargetRequirement.controller`). Both
+ *  `getLegalTargets` (which permanents may be offered) and the `selectTarget`
+ *  mutation's permanent branch (which permanents the server will accept —
+ *  anti-spoof) route through this predicate so the two can never disagree.
+ *
+ *  - `"you"`      — the permanent's controller is the chooser (Simulacrum).
+ *  - `"opponent"` — the controller is NOT the chooser (Nettling Imp). A missing
+ *                   `chooserId` can never satisfy this.
+ *  - `"active"`   — the controller is the active player regardless of who is
+ *                   choosing (Arcum's Whistle).
+ *  - `"any"` / undefined — no controller restriction. */
+export function matchesBattlefieldController(
+    controllerId: string,
+    chooserId: string | undefined,
+    activePlayerId: string,
+    filter: "you" | "opponent" | "active" | "any" | undefined
+): boolean {
+    switch (filter ?? "any") {
+        case "you":
+            return chooserId !== undefined && controllerId === chooserId;
+        case "opponent":
+            return chooserId !== undefined && controllerId !== chooserId;
+        case "active":
+            return controllerId === activePlayerId;
+        case "any":
+            return true;
+    }
+}
+
 /** Returns all legal targets for a spell/ability with the given target
  *  requirement. `sourceColors` are the colors of the casting spell or the
  *  activating permanent (CR 202.2); when provided, protected permanents
@@ -681,27 +711,20 @@ export function getLegalTargets(
     const battlefieldControllerFilter = requirement.controller ?? "any";
     if (wantsAny || wantsSpellOrPermanent || permanentTypes.length > 0) {
         for (const player of state.players) {
-            // CR 109.3 — `controller: "you" | "opponent"` filter restricts
-            // legal battlefield targets to (the caster's) or (an opponent's)
-            // permanents. Used by Simulacrum's "target creature you control".
+            // CR 109.3 / 102.1 — `controller` filter restricts legal
+            // battlefield targets to the caster's / an opponent's / the active
+            // player's permanents (Simulacrum "you", Nettling Imp "opponent",
+            // Arcum's Whistle "active"). Shared with the selectTarget mutation
+            // via matchesBattlefieldController so the offered and accepted sets
+            // can't diverge. A permanent always lives on its controller's
+            // battlefield, so `player.id` is the controllerId here.
             if (
-                battlefieldControllerFilter === "you" &&
-                player.id !== casterId
-            ) {
-                continue;
-            }
-            if (
-                battlefieldControllerFilter === "opponent" &&
-                (casterId === undefined || player.id === casterId)
-            ) {
-                continue;
-            }
-            // CR 102.1 — `"active"` restricts to the active player's
-            // permanents regardless of who is choosing (Arcum's Whistle:
-            // "target creature the active player controls").
-            if (
-                battlefieldControllerFilter === "active" &&
-                player.id !== state.activePlayerId
+                !matchesBattlefieldController(
+                    player.id,
+                    casterId,
+                    state.activePlayerId,
+                    battlefieldControllerFilter
+                )
             ) {
                 continue;
             }

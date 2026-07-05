@@ -10,6 +10,7 @@ import {
     hasManaAbility,
     matchesPermanentFilter,
     matchesTargetRequirement,
+    matchesTargetController,
     wantsPermanentTarget,
     isTapLockedBySummoningSickness,
     getLandManaColor,
@@ -200,6 +201,19 @@ export function useBattlefieldVisualState(player: Player) {
             ) {
                 return false;
             }
+            // CR 109.3 / 102.1 — respect the target's controller filter so a
+            // wrong-controller permanent doesn't read as clickable (#904). The
+            // chooser is pendingTarget.playerId, not necessarily the viewer.
+            if (
+                !matchesTargetController(
+                    card.controllerId,
+                    pendingTarget.playerId,
+                    activePlayerId,
+                    pendingTarget.controller
+                )
+            ) {
+                return false;
+            }
             // CR 702.18 / 611 — a shrouded / "can't be the target" permanent is
             // not a legal target, so it must not read as clickable (#382). The
             // server also rejects it; this just mirrors the gate client-side.
@@ -285,7 +299,13 @@ export function useBattlefieldVisualState(player: Player) {
         const isValidTarget =
             isSelectingTarget &&
             pendingTarget &&
-            matchesTargetRequirement(card, pendingTarget.targetType);
+            matchesTargetRequirement(card, pendingTarget.targetType) &&
+            matchesTargetController(
+                card.controllerId,
+                pendingTarget.playerId,
+                activePlayerId,
+                pendingTarget.controller
+            );
 
         const isTargetSelected =
             isSelectingTarget &&
