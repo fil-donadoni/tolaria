@@ -56,6 +56,7 @@ import {
     energyStorm,
     kjeldoranRoyalGuard,
     arensonsAura,
+    generalJarkeld,
 } from "../../ice";
 import { plains } from "../../lea";
 import { getDefinition } from "../../../index";
@@ -1954,5 +1955,196 @@ describe("Arenson's Aura — destroy/counter enchantment (CR 701.7 / 701.5a)", (
         ).map((t) => t.id);
         expect(legal).toContain(ench.id);
         expect(legal).not.toContain(creature.id);
+    });
+});
+
+// --- General Jarkeld (attacker-side blocker reassignment, CR 509.1) ---------
+//
+// New combat primitive `ctx.reassignAttackerBlockers` (the attacker-side dual
+// of Sorrow's Path's `reassignBlocks`). p1 controls Jarkeld and is the
+// defender; p2 is the active/attacking player with two attackers, each blocked
+// by one of p1's creatures.
+function jarkeldCombat(opts?: {
+    atk1Abilities?: string[];
+    atk2Abilities?: string[];
+    blk1Abilities?: string[];
+    blk2Abilities?: string[];
+    blockerAssignments?: Record<string, string[]>;
+    attackerIds?: string[];
+    blockedAttackerIds?: string[];
+    extraDefenders?: CardInstanceState[];
+}): { state: GameState; jarkeld: CardInstanceState } {
+    const jarkeld = makeInstance(generalJarkeld.id, {
+        id: "jarkeld",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    // p2's two attackers (vanilla 2/2 bears unless given evasion).
+    const atk1 = makeInstance(balduvianBears.id, {
+        id: "atk1",
+        controllerId: "p2",
+        ownerId: "p2",
+        power: 2,
+        toughness: 2,
+        isAttacking: true,
+        staticAbilities: opts?.atk1Abilities ?? [],
+    });
+    const atk2 = makeInstance(balduvianBears.id, {
+        id: "atk2",
+        controllerId: "p2",
+        ownerId: "p2",
+        power: 2,
+        toughness: 2,
+        isAttacking: true,
+        staticAbilities: opts?.atk2Abilities ?? [],
+    });
+    // p1's two blockers, each blocking one attacker.
+    const blk1 = makeInstance(balduvianBears.id, {
+        id: "blk1",
+        controllerId: "p1",
+        ownerId: "p1",
+        power: 1,
+        toughness: 3,
+        isBlocking: true,
+        staticAbilities: opts?.blk1Abilities ?? [],
+    });
+    const blk2 = makeInstance(balduvianBears.id, {
+        id: "blk2",
+        controllerId: "p1",
+        ownerId: "p1",
+        power: 1,
+        toughness: 3,
+        isBlocking: true,
+        staticAbilities: opts?.blk2Abilities ?? [],
+    });
+    const state = makeState({
+        activePlayerId: "p2",
+        phase: "DECLARE_BLOCKERS",
+        players: [
+            makePlayer("p1", {
+                battlefield: [
+                    jarkeld,
+                    blk1,
+                    blk2,
+                    ...(opts?.extraDefenders ?? []),
+                ],
+            }),
+            makePlayer("p2", { battlefield: [atk1, atk2] }),
+        ],
+        combat: {
+            attackerIds: opts?.attackerIds ?? ["atk1", "atk2"],
+            confirmed: true,
+            blockerAssignments: opts?.blockerAssignments ?? {
+                blk1: ["atk1"],
+                blk2: ["atk2"],
+            },
+            blockedAttackerIds: opts?.blockedAttackerIds ?? ["atk1", "atk2"],
+            blockersConfirmed: true,
+        },
+    });
+    return { state, jarkeld };
+}
+
+describe("General Jarkeld — reassign blockers between attackers (CR 509.1)", () => {
+    it("card definition: Legendary 1/2, {T} two-attacker target ability gated to declare-blockers", () => {
+        expect(generalJarkeld.types).toEqual(["Creature"]);
+        expect(generalJarkeld.supertypes).toEqual(["Legendary"]);
+        expect(generalJarkeld.manaCost).toEqual({ X: 3, W: 1 });
+        expect(generalJarkeld.power).toBe(1);
+        expect(generalJarkeld.toughness).toBe(2);
+        const ab = generalJarkeld.activatedAbilities![0];
+        expect(ab.cost).toEqual({ tap: true });
+        expect(ab.useStack).toBe(true);
+        expect(ab.activationPhaseRestriction).toEqual(["DECLARE_BLOCKERS"]);
+        expect(ab.targetRequirement).toEqual({
+            type: "Creature",
+            count: 2,
+            combatRoleFilter: "attacking",
+            controller: "opponent",
+        });
+    });
+
+    it("legal reassignment: each blocker blocking exactly one attacker moves to the other", () => {
+        const { state, jarkeld } = jarkeldCombat();
+        resolveActivated(state, jarkeld, "general-jarkeld-reassign-blockers", [
+            { type: "permanent", id: "atk1" },
+            { type: "permanent", id: "atk2" },
+        ]);
+        // blk1 (was blocking atk1) now blocks atk2; blk2 now blocks atk1.
+        expect(state.combat!.blockerAssignments).toEqual({
+            blk1: ["atk2"],
+            blk2: ["atk1"],
+        });
+        // Both attackers stay blocked (CR 509.1h — blockedAttackerIds untouched).
+        expect(state.combat!.blockedAttackerIds).toEqual(["atk1", "atk2"]);
+    });
+
+    it("illegal reassignment: flying attacker can't be blocked by the other's ground blocker — no-op", () => {
+        // atk2 has flying; blk2 also flies (blocks it legally). After a
+        // hypothetical reassign, atk2 (flying) would be blocked by blk1 (no
+        // flying) — illegal — so the whole reassignment is a no-op.
+        const { state, jarkeld } = jarkeldCombat({
+            atk2Abilities: ["flying"],
+            blk2Abilities: ["flying"],
+        });
+        resolveActivated(state, jarkeld, "general-jarkeld-reassign-blockers", [
+            { type: "permanent", id: "atk1" },
+            { type: "permanent", id: "atk2" },
+        ]);
+        expect(state.combat!.blockerAssignments).toEqual({
+            blk1: ["atk1"],
+            blk2: ["atk2"],
+        });
+    });
+
+    it("blocker blocking BOTH attackers is unchanged (only 'exactly one' moves)", () => {
+        // blk1 blocks both atk1 and atk2; blk2 blocks only atk2. After the
+        // reassign only blk2 (exactly one) moves onto atk1; blk1 stays on both.
+        const { state, jarkeld } = jarkeldCombat({
+            blockerAssignments: {
+                blk1: ["atk1", "atk2"],
+                blk2: ["atk2"],
+            },
+        });
+        resolveActivated(state, jarkeld, "general-jarkeld-reassign-blockers", [
+            { type: "permanent", id: "atk1" },
+            { type: "permanent", id: "atk2" },
+        ]);
+        expect(state.combat!.blockerAssignments).toEqual({
+            blk1: ["atk1", "atk2"],
+            blk2: ["atk1"],
+        });
+    });
+
+    it("no-op when a chosen creature is not a blocked attacker", () => {
+        // atk2 is attacking but unblocked (not in blockedAttackerIds).
+        const { state, jarkeld } = jarkeldCombat({
+            blockerAssignments: { blk1: ["atk1"] },
+            blockedAttackerIds: ["atk1"],
+        });
+        resolveActivated(state, jarkeld, "general-jarkeld-reassign-blockers", [
+            { type: "permanent", id: "atk1" },
+            { type: "permanent", id: "atk2" },
+        ]);
+        expect(state.combat!.blockerAssignments).toEqual({ blk1: ["atk1"] });
+    });
+
+    it("wire format: the reassignment survives projectPublicState", () => {
+        const { state, jarkeld } = jarkeldCombat();
+        resolveActivated(state, jarkeld, "general-jarkeld-reassign-blockers", [
+            { type: "permanent", id: "atk1" },
+            { type: "permanent", id: "atk2" },
+        ]);
+        // Assert on fat state first.
+        expect(state.combat!.blockerAssignments).toEqual({
+            blk1: ["atk2"],
+            blk2: ["atk1"],
+        });
+        // The projected (client-visible) combat must carry the same graph.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.combat!.blockerAssignments).toEqual({
+            blk1: ["atk2"],
+            blk2: ["atk1"],
+        });
     });
 });

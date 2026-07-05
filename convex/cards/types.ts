@@ -1939,6 +1939,23 @@ export interface SpellContext {
      *  blocked throughout (`blockedAttackerIds` is untouched). Orthogonal combat
      *  operation, reusable by any future block-swap effect. */
     reassignBlocks: (blockerAId: string, blockerBId: string) => boolean;
+    /** Attacker-side dual of {@link reassignBlocks} (CR 509.1 — General
+     *  Jarkeld). Given two BLOCKED attacking creatures X and Y, IFF each could
+     *  legally be blocked by every creature the other is currently blocked by
+     *  (full declare-blockers legality: evasion, "can't be blocked by",
+     *  protection — CR 509.1b/c), every creature blocking exactly one of X / Y
+     *  stops blocking it and instead blocks the other (a creature blocking both,
+     *  or neither, is unchanged; other attackers in a multi-block set are
+     *  untouched). Returns `true` when the reassignment happened, `false`
+     *  (no-op) when either attacker is missing / not a blocked attacker, the two
+     *  ids are equal, or any leg of the legality gate fails — matching the
+     *  card's "if each ... could be blocked by all creatures the other is
+     *  blocked by" hard condition. Both attackers stay blocked throughout
+     *  (`blockedAttackerIds` is untouched). Orthogonal combat operation. */
+    reassignAttackerBlockers: (
+        attackerXId: string,
+        attackerYId: string
+    ) => boolean;
     /** Grants a target permanent the ability to block additional attackers
      *  this turn (CR 509.1a). `value` is the number of EXTRA attackers (999
      *  = "any number"). Cleared at CLEANUP. Used by Blaze of Glory. */

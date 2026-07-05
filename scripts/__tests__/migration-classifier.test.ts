@@ -352,18 +352,22 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // closure is FREE and carries the per-card test → AFK-ready
         // (+2 closures, +1 FREE, +1 AFK-ready, +1 Op-blocked).
         // #733 added the ICE attack-sacrifice-tax cluster (Flooded Woodlands,
-        // Reclamation) and #736 added the ICE filtered-counter cluster
-        // (Mistfolk, Brown Ouphe, Arenson's Aura).
+        // Reclamation), #736 added the ICE filtered-counter cluster (Mistfolk,
+        // Brown Ouphe, Arenson's Aura), and #739 added General Jarkeld: one
+        // resolve() closure (the {T} attacker-side blocker-reassignment
+        // ability). Combat manipulation is a SpellContext primitive, not an
+        // Op — Op-blocked (Jarkeld: +1 closure, +1 Op-blocked;
+        // FREE/AFK-ready/X-only unchanged).
         // Pins below are the classifier's actual reported values with every
         // wave (#886 + #734 + #674 + #888 + #675 + #732 + #730 + #738 + #733
-        // + #736 + #676) landed together post-rebase — computed via
+        // + #736 + #676 + #739) landed together post-rebase — computed via
         // `bun scripts/migration-classifier.mjs` against the merged tree, not
         // hand-picked.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(632);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(633);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(399);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(366);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(219);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(220);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {

@@ -119,6 +119,27 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 4,
     },
     {
+        // ICE attacker-side blocker reassignment (issue #739): General Jarkeld
+        // ({T}, declare-blockers only) chooses two blocked attacking creatures
+        // and, if each could be blocked by all the other's blockers, moves each
+        // blocker blocking exactly one of them onto the other attacker (CR
+        // 509.1). Solo flow: with the opponent, attack with both opposing
+        // Balduvian Bears; with you (defender), block one Bear with each of your
+        // Balduvian Bears; then in the declare-blockers step activate Jarkeld
+        // targeting the two attackers to swap the blockers. Jarkeld is untapped
+        // and not summoning-sick so its {T} is available.
+        label: "ICE reassign blockers (General Jarkeld) (#739)",
+        cards: [
+            { name: "General Jarkeld", owner: "me", zone: "battlefield" },
+            { name: "Balduvian Bears", owner: "me", zone: "battlefield" },
+            { name: "Balduvian Bears", owner: "me", zone: "battlefield" },
+            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
+            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
+    {
         // Cumulative-upkeep global-lock permanents (issue #727): Glacial Chasm
         // and Halls of Mist enter the battlefield, Energy Storm sits in hand.
         // Glacial Chasm's ETB asks you to sacrifice a land; on the battlefield

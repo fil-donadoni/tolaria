@@ -406,7 +406,9 @@ export const armorOfFaith: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
+// TODO(#884): Battle Cry — split out of #739 as a buildable-now DSL card
+// (forEach + tapUntap untap-group + a turn-scoped "whenever a creature blocks"
+// delayedTrigger whose body pumps +0/+1). Tracked separately in #884.
 // export const battleCry: CardDefinition = {
 //     id: "c558a8c4-035c-464e-9ff8-c188c1bb619e",
 //     name: "Battle Cry",
@@ -751,7 +753,17 @@ export const disenchantIce: CardPrint = {
     setCode: "ice",
     rarity: "common",
 };
-// TODO(#628): implement.
+// DEFERRED (#739, stop-and-issue) — Drought needs a board-wide, static,
+// per-black-pip NON-mana additional cost ("Sacrifice a Swamp" for each black
+// mana symbol) imposed on EVERY spell cast and EVERY activated ability. The
+// engine's cost-modification hook (`StaticCostModifier`, CR 601.2f) is
+// mana-only (`costIncrease`/`costReduction`); `additionalCosts.sacrificeFilter`
+// is a self-only cost. Imposing a scaling non-mana additional cost on other
+// players' spells/abilities (with an unpayable-blocks-the-action gate) is a
+// genuinely-absent static-effect subsystem — not an Op gap, so not papered
+// with resolve(). The upkeep "sacrifice unless you pay {W}{W}" clause is
+// already expressible (leg `payOrSacrificeUpkeepTrigger`), but the card is not
+// shippable without the cost seam. Left as a tracked stub.
 // export const drought: CardDefinition = {
 //     id: "97736696-3de3-416d-94cf-4fac792f23f0",
 //     name: "Drought",
@@ -960,19 +972,64 @@ export const fylgja: CardDefinition = {
         },
     ],
 };
-// TODO(#628): implement.
-// export const generalJarkeld: CardDefinition = {
-//     id: "6a4f5a28-0bd2-4cc4-b67f-324e89193caa",
-//     name: "General Jarkeld",
-//     rarity: "rare",
-//     oracleText: "{T}: Choose two target blocked attacking creatures. If each of those creatures could be blocked by all creatures that the other is blocked by, each creature that's blocking exactly one of those attacking creatures stops blocking it and is blocking the other attacking creature. Activate only during the declare blockers step.",
-//     manaCost: { X: 3, W: 1 },
-//     types: ["Creature"],
-//     supertypes: ["Legendary"],
-//     subtypes: ["Human", "Soldier"],
-//     power: 1,
-//     toughness: 2,
-// };
+// General Jarkeld — {3}{W} Legendary 1/2. Attacker-side blocker reassignment
+// (CR 509.1). The {T} ability targets two BLOCKED attacking creatures and, if
+// each could legally be blocked by all of the other's blockers, moves every
+// creature blocking exactly one of them onto the other attacker. The whole
+// legality gate + atomic reassignment lives in the `ctx.reassignAttackerBlockers`
+// combat primitive (the attacker-side dual of Sorrow's Path's
+// `reassignBlocks`); a failed gate is a clean no-op.
+//
+// resolve() justification — combat manipulation is a SpellContext primitive
+// (like Sorrow's Path / False Orders), NOT an Effect-Script Op: it mutates the
+// live block graph, which the DSL vocabulary does not model. This is the
+// accepted combat-primitive escape hatch, not a papered-over Op gap.
+//
+// SIMPLIFICATION (flagged, no engine change): `combatRoleFilter` has no
+// "blocked" refinement, so the target requirement admits any attacking creature
+// the opponent controls; the primitive's own CR 509.1 gate no-ops on an
+// unblocked attacker, so targeting one is legal-but-inert. Tightening the
+// filter to "blocked attackers only" would need a new combat target-filter
+// value — deferred.
+export const generalJarkeld: CardDefinition = {
+    id: "6a4f5a28-0bd2-4cc4-b67f-324e89193caa",
+    name: "General Jarkeld",
+    rarity: "rare",
+    oracleText:
+        "{T}: Choose two target blocked attacking creatures. If each of those creatures could be blocked by all creatures that the other is blocked by, each creature that's blocking exactly one of those attacking creatures stops blocking it and is blocking the other attacking creature. Activate only during the declare blockers step.",
+    manaCost: { X: 3, W: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Human", "Soldier"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "general-jarkeld-reassign-blockers",
+            oracleText:
+                "{T}: Choose two target blocked attacking creatures. If each of those creatures could be blocked by all creatures that the other is blocked by, each creature that's blocking exactly one of those attacking creatures stops blocking it and is blocking the other attacking creature. Activate only during the declare blockers step.",
+            cost: { tap: true },
+            useStack: true,
+            // CR 602.5b — "Activate only during the declare blockers step."
+            activationPhaseRestriction: ["DECLARE_BLOCKERS"],
+            // CR 509.1 — two attacking creatures the opponent controls; the
+            // "blocked" refinement is enforced by the primitive gate (see note).
+            targetRequirement: {
+                type: "Creature",
+                count: 2,
+                combatRoleFilter: "attacking",
+                controller: "opponent",
+            },
+            resolve: (ctx: SpellContext) => {
+                const [x, y] = ctx.targets;
+                if (x?.type !== "permanent" || y?.type !== "permanent") return;
+                // Legality gate + atomic reassignment (CR 509.1); a failed
+                // gate is a clean no-op.
+                ctx.reassignAttackerBlockers(x.id, y.id);
+            },
+        },
+    ],
+};
 export const greenScarab: CardDefinition = makeScarab({
     id: "0fbf9266-c97e-4666-b0fa-1802a69a62cc",
     name: "Green Scarab",

@@ -7038,6 +7038,87 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             return true;
         },
 
+        reassignAttackerBlockers(
+            attackerXId: string,
+            attackerYId: string
+        ): boolean {
+            const combat = state.combat;
+            if (!combat) return false;
+            if (attackerXId === attackerYId) return false;
+
+            const foundX = findOnBattlefield(state, attackerXId);
+            const foundY = findOnBattlefield(state, attackerYId);
+            if (!foundX || !foundY) return false;
+            const cardX = foundX.card;
+            const cardY = foundY.card;
+            // CR 509.1 — both chosen creatures must be blocked attackers.
+            if (!cardX.isAttacking || !cardY.isAttacking) return false;
+            const blocked = combat.blockedAttackerIds ?? [];
+            if (
+                !blocked.includes(attackerXId) ||
+                !blocked.includes(attackerYId)
+            ) {
+                return false;
+            }
+
+            // Gather every creature blocking X and every creature blocking Y
+            // from the authoritative blocker→attacker graph.
+            const ba = combat.blockerAssignments;
+            const blockersOfX: string[] = [];
+            const blockersOfY: string[] = [];
+            for (const [blockerId, atkIds] of Object.entries(ba)) {
+                if (atkIds.includes(attackerXId)) blockersOfX.push(blockerId);
+                if (atkIds.includes(attackerYId)) blockersOfY.push(blockerId);
+            }
+
+            // Legality gate (CR 509.1b/c): X must be blockable by every creature
+            // Y is blocked by, and vice versa. `validateBlockerEligibility`
+            // reads the defending (blocker's) battlefield for landwalk-style
+            // checks, so each blocker is validated against its own controller's
+            // battlefield.
+            const canBeBlockedByAll = (
+                attackerCard: CardInstanceState,
+                blockerIds: ReadonlyArray<string>
+            ): boolean =>
+                blockerIds.every((bid) => {
+                    const b = findOnBattlefield(state, bid);
+                    if (!b) return false;
+                    return validateBlockerEligibility(
+                        attackerCard,
+                        b.card,
+                        b.player.battlefield,
+                        state
+                    ).eligible;
+                });
+
+            if (
+                !canBeBlockedByAll(cardX, blockersOfY) ||
+                !canBeBlockedByAll(cardY, blockersOfX)
+            ) {
+                return false;
+            }
+
+            // Reassign: each blocker blocking exactly one of {X, Y} swaps that
+            // membership to the other attacker (CR 509.1). A blocker blocking
+            // BOTH (or neither) is untouched; any third attacker it also blocks
+            // is preserved. `Object.entries` snapshots the keys, so mutating
+            // during the loop is safe. `blockedAttackerIds` is untouched — both
+            // attackers remain blocked throughout.
+            for (const [blockerId, atkIds] of Object.entries(ba)) {
+                const hasX = atkIds.includes(attackerXId);
+                const hasY = atkIds.includes(attackerYId);
+                if (hasX === hasY) continue;
+                combat.blockerAssignments[blockerId] = atkIds.map((id) =>
+                    id === attackerXId
+                        ? attackerYId
+                        : id === attackerYId
+                          ? attackerXId
+                          : id
+                );
+            }
+            return true;
+        },
+
         setMustBlockAll(target: TargetSelection): void {
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
