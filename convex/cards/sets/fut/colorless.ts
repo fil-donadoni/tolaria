@@ -58,3 +58,19 @@ export const horizonCanopy: CardDefinition = {
 //     manaCost: { X: 3 },
 //     types: ["Artifact"],
 // };
+
+// Sword of the Meek — {2} Artifact — Equipment. "Equipped creature gets
+// +1/+2. Equip {2}. Whenever a 1/1 creature you control enters, you may
+// return this card from your graveyard to the battlefield, then attach it to
+// that creature." Blocked: "return this card from your graveyard, then
+// attach it to that creature" needs an Equipment attach Op — already tracked
+// by #776 ([engine] Equipment subsystem: equip cost, attach/detach, SBA).
+// tracked-by: #776
+// export const swordOfTheMeek: CardDefinition = {
+//     id: "e9f13705-6ede-4c29-a2b4-a082bf69e9c5",
+//     name: "Sword of the Meek",
+//     rarity: "uncommon",
+//     manaCost: { X: 2 },
+//     types: ["Artifact"],
+//     subtypes: ["Equipment"],
+// };

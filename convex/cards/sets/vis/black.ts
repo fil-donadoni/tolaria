@@ -19,4 +19,26 @@
 //     types: ["Instant"],
 // };
 
+// Necromancy — {2}{B} Enchantment. "You may cast this spell as though it had
+// flash. If you cast it any time a sorcery couldn't have been cast, the
+// controller of the permanent it becomes sacrifices it at the beginning of
+// the next cleanup step. When this enchantment enters, if it's on the
+// battlefield, it becomes an Aura with 'enchant creature put onto the
+// battlefield with Necromancy.' Put target creature card from a graveyard
+// onto the battlefield under your control and attach this enchantment to it.
+// When this enchantment leaves the battlefield, that creature's controller
+// sacrifices it." (CR 400.7 reanimation.) Blocked: "becomes an Aura enchanting
+// the creature it just reanimated, sacrificed by that creature's controller
+// when the Aura leaves" is a self-transform-and-dynamic-attach pattern with no
+// Op — nothing lets a resolving permanent retarget itself to attach to an
+// object the SAME resolution just chose (issue #920).
+// tracked-by: #920
+// export const necromancy: CardDefinition = {
+//     id: "311a6257-dd77-4bb6-81cb-c8e7862350f3",
+//     name: "Necromancy",
+//     rarity: "uncommon",
+//     manaCost: { X: 2, B: 1 },
+//     types: ["Enchantment"],
+// };
+
 export {};

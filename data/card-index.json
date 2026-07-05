@@ -2058,10 +2058,22 @@
         "firstSet": "leg"
     },
     {
+        "name": "Eternal Witness",
+        "scryfallId": "c7e10ca7-1e5d-4224-82cf-798a4d436d72",
+        "oracleId": "30b24e8e-3b0e-4d8e-90f3-f66eb7c1858c",
+        "firstSet": "5dn"
+    },
+    {
         "name": "Evil Presence",
         "scryfallId": "0551d66e-8cd4-48f0-aa17-15f26be9d85f",
         "oracleId": "3d8ac41c-0566-48b2-a744-39db2f72272c",
         "firstSet": "lea"
+    },
+    {
+        "name": "Exhume",
+        "scryfallId": "a88b23ce-ce19-47da-b9f2-055a4d6bdc79",
+        "oracleId": "fbe61f74-1b3c-4e12-8758-7029872c9ff1",
+        "firstSet": "usg"
     },
     {
         "name": "Exorcist",
@@ -5412,6 +5424,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Reanimate",
+        "scryfallId": "ae1ef31c-8ca5-444c-8f39-e1d1827318f5",
+        "oracleId": "a044474a-cd72-4e9d-bd8d-a08f2de9cdc0",
+        "firstSet": "tmp"
+    },
+    {
         "name": "Recall",
         "scryfallId": "33296718-0625-4422-a65c-b21cf99c52ec",
         "oracleId": "4158f397-4ee4-4f53-90f2-3b64bfe4f9b8",
@@ -6264,6 +6282,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Squee, Goblin Nabob",
+        "scryfallId": "4ba8325a-1203-4125-9111-94d9e2b1f14b",
+        "oracleId": "0ef760f4-bbec-4735-8d60-fc24d973452a",
+        "firstSet": "mmq"
+    },
+    {
         "name": "Squire",
         "scryfallId": "374df061-ebd2-4f1f-9a6e-7940a49197a9",
         "oracleId": "aa6cdcc7-f5ea-47bf-9448-1c63e36b18d1",
@@ -6808,6 +6832,12 @@
         "scryfallId": "7da23b15-dfb8-4267-9b33-d7a4c035c434",
         "oracleId": "254878f0-be90-4653-a395-0c41258fceaf",
         "firstSet": "ulg"
+    },
+    {
+        "name": "Titania, Protector of Argoth",
+        "scryfallId": "224d904a-5972-4152-878a-9a922e7a55b6",
+        "oracleId": "d0ade00d-a496-441d-9b7e-7dc033d3292c",
+        "firstSet": "c14"
     },
     {
         "name": "Titania's Song",

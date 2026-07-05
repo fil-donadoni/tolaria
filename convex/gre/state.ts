@@ -6331,6 +6331,20 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 const base = manaValue(def?.manaCost);
                 return base + (stackItem.chosenX ?? 0);
             }
+            // CR 202.3 (issue #680) — a graveyard-card target (Reanimate's
+            // "lose life equal to that card's mana value"). Mirrors
+            // `getGraveyardCards`' own per-card mana-value computation.
+            if (target.type === "graveyard-card") {
+                const owner = target.playerId;
+                if (owner === undefined) return 0;
+                const found = getPlayer(state, owner).graveyard.find(
+                    (c) => c.id === target.id
+                );
+                if (!found) return 0;
+                const cardId = (found.card as { id?: string }).id;
+                const def = cardId ? tryGetDefinition(cardId) : undefined;
+                return manaValue(def?.manaCost);
+            }
             return 0;
         },
         // CR 120.1: damage divided evenly, rounded down, among target

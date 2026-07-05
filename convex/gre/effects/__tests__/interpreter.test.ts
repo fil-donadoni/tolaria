@@ -28,6 +28,7 @@ import { refreshExpectedInput } from "../../expectedInput";
 import { projectPublicState } from "../../../gameProjections";
 import { fireDelayedTriggers, finalizeCleanup } from "../../phases";
 import { checkConditionalControlChanges } from "../../sba";
+import { collectTriggers } from "../../triggers";
 import { INLINE_DELAYED_TRIGGER_ID } from "../interpreter";
 import { getEffectivePower, getEffectiveToughness } from "../../layers";
 
@@ -1055,6 +1056,98 @@ describe("Effect Script Op: moveZone (CR 400.7, issue #839)", () => {
         pushSpell(state, id, "p1", []);
         expect(() => resolveTopOfStack(state)).not.toThrow();
     });
+
+    // `bind` + `ref.manaValue` (issue #680) — Reanimate: "Put target creature
+    // card from a graveyard onto the battlefield under your control. You
+    // lose life equal to that card's mana value." The snapshot is taken
+    // BEFORE the reanimation (CR 608.2h last-known information), so the
+    // later `loseLife` reads the card's mana value even though by then it's
+    // a battlefield permanent under a (possibly) different id context.
+    it("snapshots a reanimated graveyard card's mana value for a later ref (Reanimate's life-loss clause)", () => {
+        const id = registerScript("test-op-movezone-bind-manavalue", [
+            {
+                op: "moveZone",
+                target: { target: 0 },
+                to: "battlefield",
+                bind: "$reanimated",
+            },
+            {
+                op: "loseLife",
+                player: "controller",
+                amount: { ref: "$reanimated.manaValue" },
+            },
+        ]);
+        // BEAR_ID's manaCost is { X: 1, G: 1 } → mana value 2 (CR 202.3).
+        const dead = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "deadMV",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "deadMV", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "deadMV"
+        );
+        // 20 (base) - 2 (Bear's mana value) = 18.
+        expect(state.players[0].life).toBe(18);
+    });
+
+    // `controller` (issue #680) — Reanimate targets "a graveyard" (ANY
+    // player's, CR 601.2c) and reanimates "under YOUR control" — a
+    // cross-graveyard reanimation where the caster differs from the card's
+    // owner (Hymn of Rebirth's `resolve()` precedent, now DSL-expressible).
+    // Wire-format assertion: both zones are public.
+    it("reanimates a graveyard card under an explicit controller override (cross-graveyard reanimation)", () => {
+        const id = registerScript("test-op-movezone-controller-override", [
+            {
+                op: "moveZone",
+                target: { target: 0 },
+                to: "battlefield",
+                controller: "controller",
+            },
+        ]);
+        // p2 OWNS the card; p1 casts the spell and reanimates it.
+        const dead = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "deadXG",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { graveyard: [dead] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "graveyard-card", id: "deadXG", playerId: "p2" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].graveyard.map((c) => c.id)).not.toContain(
+            "deadXG"
+        );
+        // Under p1's control (the caster), NOT p2's (the owner).
+        const entered = state.players[0].battlefield.find(
+            (c) => c.id === "deadXG"
+        );
+        expect(entered).toBeDefined();
+        expect(entered!.controllerId).toBe("p1");
+        expect(entered!.ownerId).toBe("p2");
+        const projected = projectPublicState(state, 1, "p1");
+        const projectedEntered = projected.players[0].battlefield.find(
+            (c) => c.id === "deadXG"
+        );
+        expect(projectedEntered).toBeDefined();
+    });
 });
 
 // The `cards`-shaped moveZone (issue #677): the SEARCH half of a tutor/fetch
@@ -1597,6 +1690,122 @@ describe("Effect Script Op: moveZone — cards/player shape (CR 400.7, issue #67
         expect(state.players[0].hand).toHaveLength(0);
         expect(state.players[0].battlefield.map((c) => c.id)).toContain(
             "equipHand1"
+        );
+    });
+
+    // `from: "graveyard"` (issue #680) — the self-selection pick pattern
+    // ("each player puts A CREATURE CARD FROM THEIR GRAVEYARD onto the
+    // battlefield", Exhume), distinct from the `target`-shape's announced
+    // target (a `choice` Op's picks are a self-selection, not a spell
+    // target). `to: "battlefield"` routes through `returnToBattlefield`
+    // (owner control) — the same primitive Hell's Caretaker's `resolve()`
+    // uses for a target-based reanimation. Wire-format assertion: both zones
+    // are public, so the outcome survives the projection.
+    it("reanimates a choice-picked GRAVEYARD card onto the battlefield (graveyard-source pattern, wire format)", () => {
+        const id = registerScript("test-op-movezone-graveyard-source-bf", [
+            {
+                op: "choice",
+                kind: "choose-graveyard-card",
+                player: "controller",
+                zone: "graveyard",
+                filter: { type: "Creature" },
+                count: 1,
+                prompt: "Put a creature card from your graveyard onto the battlefield.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "graveyard",
+                to: "battlefield",
+            },
+        ]);
+        const dead = makeInstance(BEAR_ID, {
+            id: "deadGYtoBF",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["deadGYtoBF"],
+        });
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "deadGYtoBF"
+        );
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "deadGYtoBF"
+        );
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].battlefield.map((c) => c.id)).toContain(
+            "deadGYtoBF"
+        );
+    });
+
+    // `from: "graveyard"`, `to: "hand"` (issue #680) — the plain-move half
+    // (Eternal Witness's "you may return target card from your graveyard to
+    // your hand"), falling through the existing generic `moveCardById`
+    // branch (unchanged by this generalization — only the `battlefield`
+    // destination needed new wiring).
+    it("returns a choice-picked GRAVEYARD card to hand (graveyard-source pattern)", () => {
+        const id = registerScript("test-op-movezone-graveyard-source-hand", [
+            {
+                op: "choice",
+                kind: "choose-graveyard-card",
+                player: "controller",
+                zone: "graveyard",
+                count: { min: 0, max: 1 },
+                prompt: "You may return target card from your graveyard to your hand.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "graveyard",
+                to: "hand",
+            },
+        ]);
+        const dead = makeInstance(BEAR_ID, {
+            id: "deadGYtoHand",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["deadGYtoHand"],
+        });
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "deadGYtoHand"
+        );
+        expect(state.players[0].hand.map((c) => c.id)).toContain(
+            "deadGYtoHand"
         );
     });
 });
@@ -4138,6 +4347,117 @@ describe("Effect Script Op: choice (CR 608.2 / 101.4, issue #805)", () => {
         expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["hb"]);
         expect(state.stack).toHaveLength(0); // ability resolved and popped
     });
+
+    // `zone: "graveyard"` + `filter` (issue #680): the graveyard branch used to
+    // ignore `op.filter` entirely (unlike the hand/library branches above),
+    // so a "choose a LAND card" pick could illegally offer a non-land
+    // (Titania, Protector of Argoth's "return target LAND card from your
+    // graveyard"). Paired with the `moveZone` cards-shape `from: "graveyard"`
+    // Op (issue #680) to reanimate the pick — the Exhume / Titania pattern.
+    it("restricts choose-graveyard-card candidates by type filter, then reanimates the pick", () => {
+        const LAND_GY_ID = "test-effects-land-gy";
+        registerTokenDefinition({
+            id: LAND_GY_ID,
+            name: LAND_GY_ID,
+            rarity: "common",
+            types: ["Land"],
+            subtypes: ["Forest"],
+        });
+        const id = registerScript("test-choice-gy-filter", [
+            {
+                op: "choice",
+                kind: "choose-graveyard-card",
+                player: "controller",
+                zone: "graveyard",
+                filter: { type: "Land" },
+                count: 1,
+                prompt: "Return target land card from your graveyard to the battlefield.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "graveyard",
+                to: "battlefield",
+            },
+        ]);
+        const land = makeInstance(LAND_GY_ID, {
+            id: "landGY1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const bear = makeInstance(BEAR_ID, {
+            id: "bearGY1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [land, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-graveyard-card");
+        // Only the land is offered — the Bear is filtered out (CR 205).
+        expect(head.candidateIds).toEqual(["landGY1"]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["landGY1"],
+        });
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "landGY1"
+        );
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain(
+            "bearGY1"
+        );
+        expect(state.players[0].battlefield.map((c) => c.id)).toContain(
+            "landGY1"
+        );
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].battlefield.map((c) => c.id)).toContain(
+            "landGY1"
+        );
+    });
+
+    // `count: { min: 0, max: 1 }` on a `choose-graveyard-card` pick (issue
+    // #680) — "you MAY return target card from your graveyard to your hand"
+    // (Eternal Witness) with no candidates at all: the choice clamps to 0 and
+    // is skipped entirely (CR 608.2b), so the consuming `moveZone` Op has
+    // nothing to move — no throw, no PendingChoice.
+    it("skips an optional (min:0) choose-graveyard-card pick with an empty graveyard", () => {
+        const id = registerScript("test-choice-gy-optional-empty", [
+            {
+                op: "choice",
+                kind: "choose-graveyard-card",
+                player: "controller",
+                zone: "graveyard",
+                count: { min: 0, max: 1 },
+                prompt: "You may return target card from your graveyard to your hand.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "graveyard",
+                to: "hand",
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].hand).toHaveLength(0);
+    });
 });
 
 // --- if construct + mayPay / counter Ops (ADR 0045, issue #806) --------------
@@ -4199,6 +4519,92 @@ describe("Effect Script Op: mayPay (CR 117.3a / 118.4, issue #806)", () => {
         // Declined → predicate true → 5 life lost (base 20).
         expect(state.players[1].life).toBe(15);
         expect(state.stack).toHaveLength(0);
+    });
+
+    // Cost-free `mayPay` (issue #680) — `cost` omitted models a bare "you
+    // may …" decision with no payment (Squee, Goblin Nabob: "At the
+    // beginning of your upkeep, you may return this card from your graveyard
+    // to your hand"), generalizing the existing Op rather than adding a new
+    // one (`SpellContext.requestMayPay`'s `cost` field was already optional —
+    // Nether Shadow / Verduran Enchantress's `resolve()` already call it
+    // cost-free; this Op shape merely exposes that to the DSL). A graveyard-
+    // zone ability's `$source` still resolves via the existing Ashen Ghoul
+    // self-return path (issue #737).
+    it("suspends with a cost-free may-pay PendingChoice (no `cost` field) and returns the source to hand when accepted", () => {
+        const UPKEEP_RETURNER_ID = "test-effects-upkeep-returner";
+        registerTokenDefinition({
+            id: UPKEEP_RETURNER_ID,
+            name: UPKEEP_RETURNER_ID,
+            rarity: "rare",
+            manaCost: { X: 2, R: 1 },
+            types: ["Creature"],
+            subtypes: ["Goblin"],
+            power: 1,
+            toughness: 1,
+            triggeredAbilities: [
+                {
+                    id: "upkeep-returner-maypay",
+                    oracleText:
+                        "At the beginning of your upkeep, you may return this card from your graveyard to your hand.",
+                    event: "PHASE_BEGIN",
+                    zone: "graveyard",
+                    matches: (event, self) =>
+                        event.type === "PHASE_BEGIN" &&
+                        event.phase === "UPKEEP" &&
+                        event.activePlayerId === self.controllerId,
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Return this card to your hand?",
+                            bind: "$yes",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$yes" },
+                            then: [
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$source" },
+                                    to: "hand",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        });
+        const dead = makeInstance(UPKEEP_RETURNER_ID, {
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "deadReturner",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", { graveyard: [dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        const upkeep = {
+            type: "PHASE_BEGIN" as const,
+            phase: "UPKEEP" as const,
+            activePlayerId: "p1",
+        };
+        state.stack.push(...collectTriggers(state, [upkeep]));
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("may-pay");
+        expect(head.cost).toBeUndefined(); // cost-free — nothing to pay
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain(
+            "deadReturner"
+        );
+        expect(state.players[0].hand.map((c) => c.id)).toContain(
+            "deadReturner"
+        );
     });
 });
 

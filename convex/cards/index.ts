@@ -119,6 +119,17 @@ import * as bbd from "./sets/bbd";
 import * as khm from "./sets/khm";
 import * as ptk from "./sets/ptk";
 import * as mbs from "./sets/mbs";
+// Cube FREE: graveyard recursion (issue #680) — new cross-set home sets,
+// routed to earliest paper printing (ADR 0041). Most are sparse — a single
+// tracked stub each, blocked on a capability this issue doesn't add
+// (mmq/c14 carry the tranche's two active new-home-set cards).
+import * as mmq from "./sets/mmq";
+import * as c14 from "./sets/c14";
+import * as dtk from "./sets/dtk";
+import * as onc from "./sets/onc";
+import * as spm from "./sets/spm";
+import * as moc from "./sets/moc";
+import * as dsc from "./sets/dsc";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -244,6 +255,14 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "mbs", exports: mbs },
     // Cube FREE: token makers (issue #678).
     { code: "c18", exports: c18 },
+    // Cube FREE: graveyard recursion (issue #680) — new cross-set home sets.
+    { code: "mmq", exports: mmq },
+    { code: "c14", exports: c14 },
+    { code: "dtk", exports: dtk },
+    { code: "onc", exports: onc },
+    { code: "spm", exports: spm },
+    { code: "moc", exports: moc },
+    { code: "dsc", exports: dsc },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>

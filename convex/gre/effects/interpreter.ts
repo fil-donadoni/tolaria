@@ -105,15 +105,19 @@ type OpOutcome = void | "suspend";
 type Cursor = { pos: number; readonly resume: number };
 
 /** Snapshot layout inside `collectedChoices` (see module doc):
- *  [0] power, [1] toughness, [2] controller, [3] instance id — all strings
- *  (the store is the same `string[]` shape every collected answer uses).
- *  The id slot (issue #807) lets a `forEach` body act ON the snapshotted
- *  object (`{ ref: "$each" }` in an object position); snapshots written
- *  before #807 lack it, and readers treat a missing id as "no object". */
+ *  [0] power, [1] toughness, [2] controller, [3] instance id, [4] mana value
+ *  — all strings (the store is the same `string[]` shape every collected
+ *  answer uses). The id slot (issue #807) lets a `forEach` body act ON the
+ *  snapshotted object (`{ ref: "$each" }` in an object position); snapshots
+ *  written before #807 lack it, and readers treat a missing id as "no
+ *  object". The mana-value slot (issue #680) is 0 for pre-existing snapshots
+ *  (`Number("")` reads back as `NaN`, but no card predates `ref.manaValue`
+ *  support so nothing reads a missing slot). */
 const SNAP_POWER = 0;
 const SNAP_TOUGHNESS = 1;
 const SNAP_CONTROLLER = 2;
 const SNAP_ID = 3;
+const SNAP_MANA_VALUE = 4;
 
 /** A players-set `$each` binding (issue #807) is stored as the single-element
  *  `[playerId]` — distinguishable from a 4-slot object snapshot by the
@@ -264,6 +268,11 @@ function resolveValue(
         if (parsed.property === "power") return Number(snap[SNAP_POWER]);
         if (parsed.property === "toughness") {
             return Number(snap[SNAP_TOUGHNESS]);
+        }
+        // manaValue (issue #680) — CR 202.3, e.g. Reanimate's "lose life
+        // equal to that card's mana value".
+        if (parsed.property === "manaValue") {
+            return Number(snap[SNAP_MANA_VALUE]);
         }
         return undefined;
     }
@@ -506,20 +515,30 @@ function resolvePicks(
  *  persisted in the stack item's `collectedChoices` (via `noteChoice`) so it
  *  survives a later suspension and a DB round-trip. Called by object-moving
  *  Ops BEFORE the zone change, so a later ref reads last-known information
- *  (CR 608.2h). */
+ *  (CR 608.2h). `target` is normally a battlefield permanent (destroy/exile,
+ *  a bounce); a `moveZone` graveyard-card reanimation (issue #680) can also
+ *  bind — `getPower`/`getToughness`/`getController` are battlefield-scoped
+ *  and meaningless for a card that never was on the battlefield (CR 208.2), so
+ *  those three slots fall back to 0/0/owner for a non-permanent target;
+ *  `getManaValue` (SNAP_MANA_VALUE) already dispatches on `target.type`. */
 function bindSnapshot(
     ctx: SpellContext,
     name: string,
     target: TargetSelection
 ): void {
+    const isPermanent = target.type === "permanent";
     ctx.noteChoice(name, [
-        String(ctx.getPower(target)),
-        String(ctx.getToughness(target)),
-        ctx.getController(target),
+        String(isPermanent ? ctx.getPower(target) : 0),
+        String(isPermanent ? ctx.getToughness(target) : 0),
+        isPermanent ? ctx.getController(target) : (target.playerId ?? ""),
         // SNAP_ID (issue #807) — lets a forEach body act on the snapshotted
         // member via `{ ref: "$each" }`; readers re-check battlefield
         // presence before acting (CR 608.2b).
         target.id,
+        // SNAP_MANA_VALUE (issue #680) — CR 202.3, read before the object
+        // moves so a graveyard-card reanimation's mana value survives the
+        // zone change (Reanimate).
+        String(ctx.getManaValue(target)),
     ]);
 }
 
@@ -578,8 +597,17 @@ function choiceCandidates(
     }
     // graveyard — a public zone: eligibility is the snapshot taken when the
     // choice is raised, carried as an explicit allow-list (the submit
-    // validator gates graveyard picks on `candidateIds`).
-    const ids = ctx.getGraveyardCards(playerId).map((c) => c.id);
+    // validator gates graveyard picks on `candidateIds`). A type/subtype/
+    // mana-value restriction (issue #680 — Titania's "a LAND card", Exhume's
+    // "a CREATURE card") is precomputed the same way as the hand/library
+    // branches above (mirrors `countSet`'s graveyard branch too). No filter —
+    // every card in the graveyard is eligible (Eternal Witness).
+    const graveyardCards = ctx.getGraveyardCards(playerId);
+    const ids = op.filter
+        ? graveyardCards
+              .filter((c) => matchesCardFilter(c, op.filter!))
+              .map((c) => c.id)
+        : graveyardCards.map((c) => c.id);
     return { available: ids.length, candidateIds: ids };
 }
 
@@ -693,10 +721,21 @@ export const OP_EXECUTORS: {
             if (!ids) return; // binding never captured — CR 608.2b, skip
             for (const id of ids) {
                 if (op.to === "battlefield") {
+                    // `from: "graveyard"` (issue #680) reanimates each picked
+                    // card under ITS OWN owner's control (`playerId` — the
+                    // `choice` Op's chooser, which for a "puts a card from
+                    // THEIR graveyard" pick is always that same owner: Exhume,
+                    // Titania), mirroring the `target`-shape's reanimation.
                     const entered =
                         op.from === "hand"
                             ? ctx.putFromHandOntoBattlefield(playerId, id)
-                            : ctx.putFromLibraryOntoBattlefield(playerId, id);
+                            : op.from === "graveyard"
+                              ? ctx.returnToBattlefield(
+                                    playerId,
+                                    id,
+                                    "graveyard"
+                                )
+                              : ctx.putFromLibraryOntoBattlefield(playerId, id);
                     if (entered && op.tapped) {
                         ctx.tap({ type: "permanent", id });
                     }
@@ -727,16 +766,37 @@ export const OP_EXECUTORS: {
             // Battlefield source (CR 110). Only the bounce-to-hand pair has a
             // plain-move primitive (CR 701.10); other destinations from the
             // battlefield need leaves-the-battlefield handling and are skipped.
-            if (op.to === "hand") ctx.returnToHand(target);
+            if (op.to === "hand") {
+                if (op.bind) bindSnapshot(ctx, op.bind, target);
+                ctx.returnToHand(target);
+            }
             return;
         }
         if (target.type === "graveyard-card") {
             const owner = target.playerId;
             if (owner === undefined) return; // CR 608.2b — zone owner unknown
+            // Snapshot BEFORE the move (issue #680) — a later `ref` reads the
+            // reanimated card's mana value even after it changes zone/id
+            // context (Reanimate: "lose life equal to that card's mana
+            // value", CR 608.2h last-known information).
+            if (op.bind) bindSnapshot(ctx, op.bind, target);
             if (op.to === "battlefield") {
-                // Reanimation (CR 400.7 — graveyard → battlefield under the
-                // owner's control; Resurrection, Hell's Caretaker).
-                ctx.returnToBattlefield(owner, target.id, "graveyard");
+                // Reanimation (CR 400.7 — graveyard → battlefield). `owner`
+                // stays the source pile's owner (CR 800.4a); the new
+                // controller defaults to that owner (Resurrection, Hell's
+                // Caretaker) but an explicit `op.controller` (issue #680)
+                // redirects it — Reanimate / Hymn of Rebirth's "under your
+                // control".
+                const controllerId = op.controller
+                    ? resolvePlayerRef(ctx, op.controller)
+                    : undefined;
+                if (op.controller && controllerId === undefined) return;
+                ctx.returnToBattlefield(
+                    owner,
+                    target.id,
+                    "graveyard",
+                    controllerId
+                );
                 return;
             }
             // A plain graveyard → hand/library/exile/graveyard move by id

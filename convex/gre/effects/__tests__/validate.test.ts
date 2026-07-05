@@ -442,25 +442,26 @@ describe("validateEffectScript — choice Op (CR 608.2 / 101.4, issue #805)", ()
 
     // issue #677 broadened `filter` to zone "library" and "hand" too (both
     // hidden-to-the-opponent zones the interpreter precomputes an explicit
-    // `candidateIds` allow-list for); "graveyard" stays rejected — it is
-    // already an unconditional public allow-list with no filter support.
-    it("rejects a filter on the graveyard zone (already an unconditional allow-list)", () => {
-        const errors = validateEffectScript(
-            host({
-                effects: [
-                    {
-                        ...choiceOp,
-                        kind: "choose-graveyard-card",
-                        zone: "graveyard",
-                        filter: { type: "Creature" },
-                    } as never,
-                ],
-            })
-        );
+    // `candidateIds` allow-list for); issue #680 broadened it to "graveyard"
+    // too (Titania's "a LAND card", Exhume's "a CREATURE card") — the
+    // interpreter's graveyard branch now precomputes the same allow-list from
+    // the filter, so every zone accepts one.
+    it("accepts a filter on the graveyard zone (issue #680 — Titania, Exhume)", () => {
         expect(
-            errors.some((e) => /only valid with zone "battlefield"/.test(e))
-        ).toBe(true);
-        // ... and accepts it on the battlefield.
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            ...choiceOp,
+                            kind: "choose-graveyard-card",
+                            zone: "graveyard",
+                            filter: { type: "Creature" },
+                        } as never,
+                    ],
+                })
+            )
+        ).toEqual([]);
+        // ... and on the battlefield too.
         expect(
             validateEffectScript(
                 host({

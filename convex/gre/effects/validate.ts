@@ -426,11 +426,13 @@ function isMoveZone(value: unknown): boolean {
     );
 }
 
-/** The hidden source zone a `moveZone` Op's `cards`-shape (issue #677) may
- *  name — the two zones a `choice` Op can raise a picks binding from that
- *  this shape knows how to move out of. */
+/** The hidden/public source zone a `moveZone` Op's `cards`-shape (issue #677,
+ *  #680) may name — the zones a `choice` Op can raise a picks binding from
+ *  that this shape knows how to move out of. `"graveyard"` (issue #680) is
+ *  the self-selection pick, distinct from an announced target (Exhume,
+ *  Titania). */
 function isMoveZoneFrom(value: unknown): boolean {
-    return value === "library" || value === "hand";
+    return value === "library" || value === "hand" || value === "graveyard";
 }
 
 function isBoolean(value: unknown): boolean {
@@ -813,18 +815,24 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // CR 400.7 (issue #839) — a plain zone change. `target` is an object
     // selector (announced slot or a bare snapshot ref like `$source`); `to` is
     // the destination zone. The source zone is inferred from the object's kind,
-    // so there is no `from` field.
-    // SECOND SHAPE (issue #677): `cards` (a bare choice-picks ref) + `player` +
-    // `from` — the search half of a tutor/fetch effect, consuming a
-    // `choice(zone: "library" | "hand")` Op's picks (a hidden zone has no
-    // announced-target form, CR 601.2b). Exactly one of `target` / `cards` is
-    // required; `player`/`from` are required with `cards` and invalid with
-    // `target`. `tapped` (optional) is valid only alongside `cards` AND
-    // `to: "battlefield"` (Fabled Passage's forced-tapped fetch).
+    // so there is no `from` field. `bind` (issue #680) snapshots the object
+    // BEFORE the move — valid only alongside `target` (the `cards` shape's
+    // picks are hidden-zone ids with no snapshot machinery).
+    // SECOND SHAPE (issue #677, #680): `cards` (a bare choice-picks ref) +
+    // `player` + `from` — the search/self-select half of a tutor/fetch/
+    // graveyard-pick effect, consuming a `choice(zone: "library" | "hand" |
+    // "graveyard")` Op's picks (a hidden zone has no announced-target form,
+    // CR 601.2b; a graveyard pick is a self-selection, not a spell target).
+    // Exactly one of `target` / `cards` is required; `player`/`from` are
+    // required with `cards` and invalid with `target`. `tapped` (optional) is
+    // valid only alongside `cards` AND `to: "battlefield"` (Fabled Passage's
+    // forced-tapped fetch).
     moveZone: {
         required: { to: isMoveZone },
         optional: {
             target: isObjectSelector,
+            bind: isBindingName,
+            controller: isPlayerRef,
             cards: isBarePicksRef,
             player: isPlayerRef,
             from: isMoveZoneFrom,
@@ -844,6 +852,12 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 if (!("from" in entry)) {
                     errors.push('field "from" is required with "cards"');
                 }
+                if ("bind" in entry) {
+                    errors.push('field "bind" is not valid with "cards"');
+                }
+                if ("controller" in entry) {
+                    errors.push('field "controller" is not valid with "cards"');
+                }
             }
             if (hasTarget) {
                 if ("player" in entry) {
@@ -852,6 +866,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 if ("from" in entry) {
                     errors.push('field "from" is not valid with "target"');
                 }
+            }
+            if ("controller" in entry && entry.to !== "battlefield") {
+                errors.push(
+                    'field "controller" is only valid with to: "battlefield"'
+                );
             }
             if (
                 "tapped" in entry &&
@@ -1023,14 +1042,15 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution choice through the
     // existing Pending Choice pipeline. `bind` is REQUIRED: a choice whose
-    // picks nothing consumes is meaningless. `filter` is valid with zone
+    // picks nothing consumes is meaningless. `filter` is valid with any zone:
     // "battlefield" (the submit validator applies it directly to public
-    // permanents) OR zone "library" / "hand" (issue #677 — hidden-to-the-
-    // opponent zones, so the interpreter precomputes an explicit
-    // `candidateIds` allow-list from the filter instead, the same allow-list
-    // mechanism the graveyard branch already uses unconditionally); it is
-    // invalid with "graveyard" (already an unconditional allow-list with no
-    // filter support).
+    // permanents), "library" / "hand" (issue #677 — hidden-to-the-opponent
+    // zones, so the interpreter precomputes an explicit `candidateIds`
+    // allow-list from the filter instead), or "graveyard" (issue #680 —
+    // `choiceCandidates`'s graveyard branch now precomputes the same
+    // allow-list from the filter, e.g. Titania's "a LAND card", Exhume's "a
+    // CREATURE card" — a graveyard is a public zone, so no filter at all
+    // admits every card, CR 400.7).
     choice: {
         required: {
             kind: isEffectChoiceKind,
@@ -1041,12 +1061,6 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             bind: isBindingName,
         },
         optional: { filter: isCardFilter },
-        check: (entry) =>
-            "filter" in entry && entry.zone === "graveyard"
-                ? [
-                      `field "filter" is only valid with zone "battlefield", "library" or "hand"`,
-                  ]
-                : [],
     },
     // CR 701.9 (issue #805) — discard the cards a `choice` Op picked.
     discard: {
@@ -1056,16 +1070,17 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     counter: {
         required: { target: isTargetRef },
     },
-    // CR 117.3a / 118.4 (issue #806) — optional "you may pay {cost}". `bind`
-    // is REQUIRED: a may-pay whose boolean outcome nothing reads is
-    // meaningless.
+    // CR 117.3a / 118.4 (issue #806, #680) — optional "you may pay {cost}",
+    // or a bare cost-free "you may …" decision when `cost` is omitted (issue
+    // #680 — Squee, Goblin Nabob). `bind` is REQUIRED: a may-pay whose
+    // boolean outcome nothing reads is meaningless.
     mayPay: {
         required: {
             player: isPlayerRef,
-            cost: isMayPayCost,
             prompt: isNonEmptyString,
             bind: isBindingName,
         },
+        optional: { cost: isMayPayCost },
     },
     // if — the `if` structural construct (ADR 0045, issue #806). `predicate`
     // shape is checked here; branch Op validity and predicate binding
@@ -1162,8 +1177,10 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
  *  guard test to keep schemas 1:1 with the registry and the interpreter. */
 export const SCHEMA_OP_NAMES: readonly string[] = Object.keys(OP_SCHEMAS);
 
-/** Property paths legal in a NUMERIC ref position (amount / count). */
-const NUMBER_REF_PROPERTIES = new Set(["power", "toughness"]);
+/** Property paths legal in a NUMERIC ref position (amount / count).
+ *  `manaValue` (issue #680) reads a `moveZone` reanimation `bind`'s CR 202.3
+ *  mana value (Reanimate). */
+const NUMBER_REF_PROPERTIES = new Set(["power", "toughness", "manaValue"]);
 /** Property paths legal in a PLAYER ref position (a player selector). */
 const PLAYER_REF_PROPERTIES = new Set(["controller"]);
 
@@ -1462,7 +1479,7 @@ function checkRefUse(
     }
     if (family !== "snapshot") {
         errors.push(
-            `${at}: ref "${use.ref}" names a ${family} binding in a ${use.kind} position — power/toughness/controller refs read snapshot bindings`
+            `${at}: ref "${use.ref}" names a ${family} binding in a ${use.kind} position — power/toughness/manaValue/controller refs read snapshot bindings`
         );
         return;
     }
