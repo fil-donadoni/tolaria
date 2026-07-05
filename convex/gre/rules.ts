@@ -509,7 +509,7 @@ export function matchesBattlefieldController(
     controllerId: string,
     chooserId: string | undefined,
     activePlayerId: string,
-    filter: "you" | "opponent" | "active" | "any" | undefined
+    filter: TargetRequirement["controller"]
 ): boolean {
     switch (filter ?? "any") {
         case "you":

@@ -4,6 +4,7 @@ import type { Phase } from "@convex/gre/types";
 import type {
     MayPayCost,
     PermanentView,
+    TargetRequirement,
     TriggerStateView,
 } from "@convex/cards/types";
 import {
@@ -283,7 +284,7 @@ export function matchesTargetController(
     controllerId: string,
     chooserId: string,
     activePlayerId: string,
-    filter: "you" | "opponent" | "active" | "any" | undefined
+    filter: TargetRequirement["controller"]
 ): boolean {
     switch (filter ?? "any") {
         case "you":
