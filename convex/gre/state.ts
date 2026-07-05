@@ -191,6 +191,19 @@ export type CardInstanceState = {
     chosenModeId?: string;
     /** Set when this land's mana has been consumed by a spell. Cannot be manually untapped. Resets at untap step. */
     manaCommitted?: boolean;
+    /** Set when this source's most-recent tap-for-mana caused one or more
+     *  triggered abilities to be put on the stack (CR 603.3 — e.g. City of
+     *  Brass "becomes tapped: deal 1 damage to you", or a third-party
+     *  Manabarbs). A resolved/pending triggered ability cannot be undone
+     *  (CR 603.3 — there is no undo of a triggered ability), so the standalone
+     *  untap-toggle is rejected while this is set: untapping would refund the
+     *  mana and untap the source while leaving the trigger's effect (e.g. lost
+     *  life) applied — an illegal state. Class-wide (any becomes-tapped
+     *  trigger), not keyed to a specific card. Cleared when the source untaps
+     *  at the untap step (CR 502/514) and when its mana is committed to a
+     *  spell. Persisted (must survive the DB write between the tap mutation and
+     *  the later untap attempt). */
+    tapTriggerCommitted?: boolean;
     /** Set when a creature enters the battlefield. Cleared at untap step. Prevents attacking. */
     isSummoningSick?: boolean;
     /** Set during combat when this creature is declared as attacker. Cleared
@@ -4813,6 +4826,7 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.chosenMana;
     delete card.manaCounterRemoval;
     delete card.manaCommitted;
+    delete card.tapTriggerCommitted;
     delete card.counters;
     delete card.temporaryPTMods;
     delete card.sourceTappedPTMods;
@@ -8995,6 +9009,10 @@ export function commitLandsForCost(
                 getManaColor(card) === color
             ) {
                 card.manaCommitted = true;
+                // CR 603.3 — mana now spent on a spell: the tap is committed
+                // via `manaCommitted`, so drop the tap-trigger irreversibility
+                // flag (its job is done; both block untap).
+                card.tapTriggerCommitted = undefined;
                 needed--;
             }
         }
@@ -9021,6 +9039,9 @@ export function commitLandsForCost(
                     getManaColor(card) === color
                 ) {
                     card.manaCommitted = true;
+                    // CR 603.3 — see colored-cost loop above; mana spent,
+                    // clear the tap-trigger irreversibility flag.
+                    card.tapTriggerCommitted = undefined;
                     generic--;
                 }
             }

@@ -84,6 +84,7 @@ function compactCard(
     if (card.startedTurnUntapped) out.startedTurnUntapped = true;
     if (card.chosenModeId) out.chosenModeId = card.chosenModeId;
     if (card.manaCommitted) out.manaCommitted = true;
+    if (card.tapTriggerCommitted) out.tapTriggerCommitted = true;
     if (card.damageMarked) out.damageMarked = card.damageMarked;
     if (card.regenerationShields) {
         out.regenerationShields = card.regenerationShields;
@@ -260,6 +261,7 @@ function expandCard(
     }
     if (compact.startedTurnUntapped) result.startedTurnUntapped = true;
     if (compact.manaCommitted) result.manaCommitted = true;
+    if (compact.tapTriggerCommitted) result.tapTriggerCommitted = true;
     if (compact.damageMarked) {
         result.damageMarked = compact.damageMarked as number;
     }

@@ -450,6 +450,11 @@ describe("game_state serialize round-trip", () => {
         lion.dealtDamageToOpponentThisTurn = true;
         lion.startedTurnUntapped = true;
         lion.manaCommitted = true;
+        // #793 (CR 603.3) — irreversible-tap flag: the source's tap-for-mana
+        // put a becomes-tapped trigger on the stack, so the standalone
+        // untap-toggle is blocked. Must survive the DB round-trip between the
+        // tap mutation and the later untap attempt.
+        lion.tapTriggerCommitted = true;
         lion.damageMarked = 2;
         lion.regenerationShields = 1;
         lion.chosenMana = { R: 1, G: 1 };
@@ -554,6 +559,7 @@ describe("game_state serialize round-trip", () => {
         expect(got.dealtDamageToOpponentThisTurn).toBe(true);
         expect(got.startedTurnUntapped).toBe(true);
         expect(got.manaCommitted).toBe(true);
+        expect(got.tapTriggerCommitted).toBe(true);
         expect(got.damageMarked).toBe(2);
         expect(got.regenerationShields).toBe(1);
         expect(got.chosenMana).toEqual({ R: 1, G: 1 });
