@@ -1704,6 +1704,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Drought",
+        "scryfallId": "97736696-3de3-416d-94cf-4fac792f23f0",
+        "oracleId": "ecba74bd-850e-4cbe-9b1c-b0d4d6f27d1c",
+        "firstSet": "ice"
+    },
+    {
         "name": "Drowned",
         "scryfallId": "951b6c10-cbba-44b6-aae2-2c386b7ebacb",
         "oracleId": "3da87e58-6a4b-48c3-873c-bc654277d4df",
