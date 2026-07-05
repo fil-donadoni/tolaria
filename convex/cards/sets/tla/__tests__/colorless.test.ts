@@ -2,7 +2,7 @@
 
 import { describe, it, expect } from "vitest";
 import { abandonedAirTemple } from "../colorless";
-import { island } from "../../lea/colorless";
+import { island, tundra } from "../../lea/colorless";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { applyPlayLand } from "../../../../gre/playLand";
 import { getPlayer, resolveTopOfStack } from "../../../../gre/state";
@@ -61,6 +61,28 @@ describe("Abandoned Air Temple (CR 614.1c conditional tapped entry; CR 605.1a ma
         });
         const state = makeState({
             players: [makePlayer("p1", { hand: [temple] }), makePlayer("p2")],
+        });
+        const played = applyPlayLand(state, getPlayer(state, "p1"), "temple");
+        expect(played.isTapped).toBe(true);
+    });
+
+    it('enters TAPPED when you control only a Tundra — basic land TYPE (Plains/Island subtypes) without the Basic SUPERTYPE (CR 305.6) does not satisfy "control a basic land"', () => {
+        // Regression for the review finding on #921: the ABUR dual lands
+        // (`makeDualLand`, `sets/lea/colorless.ts`) carry basic land subtypes
+        // (Tundra: "Plains", "Island") but never the "Basic" supertype. "You
+        // control a basic land" (CR 305.6) means the supertype, not the
+        // subtype — a subtype-only check would wrongly let a lone Tundra
+        // untap this land.
+        const dual = makeInstance(tundra.id, { id: "tundra" });
+        const temple = makeInstance(abandonedAirTemple.id, {
+            id: "temple",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [dual], hand: [temple] }),
+                makePlayer("p2"),
+            ],
         });
         const played = applyPlayLand(state, getPlayer(state, "p1"), "temple");
         expect(played.isTapped).toBe(true);

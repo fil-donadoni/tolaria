@@ -6,21 +6,19 @@ import type {
     ActivatedAbilityContext,
     CardDefinition,
 } from "../../../../convex/cards/types";
-
-// Basic land subtypes (CR 305.6) — inlined rather than imported from
-// `gre/constants.ts`'s `LAND_SUBTYPE_MANA` (which itself imports
-// `getDefinition` from `../cards`) or `attackRestrictions.ts`'s
-// `hasSupertype` (which imports `tryGetDefinition` from `.`): either import
-// would pull `cards/index.ts` back into a set module's own eval-time import
-// graph, closing a genuine cycle THROUGH the registry itself (index.ts
-// eagerly imports every set module, including this one) — the same
-// set↔registry cycle `permanentColors` in `sets/arn/white.ts` inlines
-// `getColorsFromCost` to avoid. A permanent's `subtypes` are already present
-// on `PermanentView` with no registry lookup, so checking for a basic land
-// type name is both cycle-free and, for this catalogue (no non-standard
-// basics), equivalent to the "Basic" supertype check for "control a basic
-// land" purposes.
-const BASIC_LAND_SUBTYPES = ["Plains", "Island", "Swamp", "Mountain", "Forest"];
+// `hasSupertypeLive` (CR 205.4a) reads the Basic SUPERTYPE, not a basic land
+// SUBTYPE — the two diverge for nonbasic lands that carry a basic land type
+// without the supertype (the ABUR duals built by `makeDualLand`,
+// `sets/lea/colorless.ts`: Tundra has subtype "Plains" but is NOT Basic).
+// "You control a basic land" (CR 305.6) means the Basic supertype, so a
+// subtype check falsely returns true for a lone Tundra. `snowReads.ts`
+// imports ONLY the cycle-free `supertypeLookup` accessor (a type import plus
+// a registry-injected function, no runtime edge back into `index.ts`), so
+// it's safe for a set module to value-import — unlike `attackRestrictions.ts`'s
+// `hasSupertype` (which imports `tryGetDefinition` from `.` and would close a
+// cycle THROUGH the registry itself, since index.ts eagerly imports every set
+// module including this one).
+import { hasSupertypeLive } from "../../snowReads";
 
 // Abandoned Air Temple — Land (issue #681, Cube FREE +1/+1 counters). "This
 // land enters tapped unless you control a basic land.\n{T}: Add {W}.\n{3}{W},
@@ -37,9 +35,7 @@ export const abandonedAirTemple: CardDefinition = {
     entersTappedUnless: (view, controllerId) => {
         const own = view.players.find((p) => p.id === controllerId);
         return (own?.battlefield ?? []).some(
-            (p) =>
-                p.types.includes("Land") &&
-                p.subtypes.some((s) => BASIC_LAND_SUBTYPES.includes(s))
+            (p) => p.types.includes("Land") && hasSupertypeLive(p, "Basic")
         );
     },
     activatedAbilities: [
