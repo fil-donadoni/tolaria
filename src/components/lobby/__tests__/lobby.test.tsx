@@ -3,7 +3,7 @@
 // `createSoloGame` with the chosen `bestOf` + `deck2`; Cancel closes without
 // firing. The player's OWN deck stays the Lobby hero selection. See `../lobby`.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, cleanup } from "@testing-library/react";
 
 const navigate = vi.fn();
 const createSoloGame = vi.fn().mockResolvedValue("solo-game-1");
@@ -160,5 +160,31 @@ describe("Lobby vs-AI two-step flow", () => {
         fireEvent.click(getByText("Cancel"));
         expect(createSoloGame).not.toHaveBeenCalled();
         expect(queryByLabelText("AI Difficulty")).toBeNull();
+    });
+
+    // Regression guard for issue #910: the dialog renders through a base-ui
+    // portal attached to `document.body`, outside the RTL container. If a close
+    // or an unmount stranded that portal subtree, its labels would leak into the
+    // NEXT test's body-scoped queries and flake them ("found multiple
+    // elements"). Open the dialog, unmount as the shared afterEach does, and
+    // assert `document.body` is portal-free — the teardown contract the whole
+    // jsdom project relies on for cross-file isolation.
+    it("leaves no residual dialog portal in document.body after teardown", async () => {
+        const { getByText, getByLabelText } = await renderLobby();
+        fireEvent.click(getByText("Play vs AI"));
+        // The portal is live while the dialog is open.
+        expect(getByLabelText("AI Difficulty")).toBeTruthy();
+        expect(
+            document.querySelectorAll("[data-base-ui-portal]").length
+        ).toBeGreaterThan(0);
+        // Unmounting (what afterEach's cleanup() does) must reap the portal
+        // synchronously — no stranded subtree left behind.
+        cleanup();
+        expect(document.querySelectorAll("[data-base-ui-portal]").length).toBe(
+            0
+        );
+        expect(document.querySelectorAll('[data-slot^="dialog"]').length).toBe(
+            0
+        );
     });
 });
