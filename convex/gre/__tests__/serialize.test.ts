@@ -1360,6 +1360,30 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).delayedTriggers).toEqual(state.delayedTriggers);
     });
 
+    it("delayedTriggers — instance leave-watch (watchInstanceId, CR 603.7a, issue #731)", () => {
+        // A `leaves-battlefield` delayed trigger keys its firing to one watched
+        // instance via `watchInstanceId`; that field must survive the DB
+        // round-trip so a save/load mid-turn reloads the pending watch (else
+        // the guard would never be sacrificed on the watched creature's
+        // departure — a silent field loss).
+        const state = freshState();
+        state.delayedTriggers = [
+            {
+                id: "dt-leave-1",
+                sourceCardId: "kjeldoran-elite-guard",
+                triggerId: "$inline-effects",
+                controller: "p1",
+                timing: "leaves-battlefield",
+                watchInstanceId: "target1",
+                payload: { $guard: "guard1" },
+                effects: [{ op: "sacrifice", target: { ref: "$guard" } }],
+                oracleText:
+                    "When that creature leaves the battlefield this turn, sacrifice Kjeldoran Elite Guard.",
+            },
+        ];
+        expect(roundTrip(state).delayedTriggers).toEqual(state.delayedTriggers);
+    });
+
     it("nextDelayedSeq", () => {
         const state = freshState();
         state.nextDelayedSeq = 3;

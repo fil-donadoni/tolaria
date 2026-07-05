@@ -1462,18 +1462,84 @@ export const mysticRemora: CardDefinition = {
         }),
     ],
 };
-// TODO(#628): implement.
-// export const phantasmalMount: CardDefinition = {
-//     id: "75afdbe6-a3f9-49cf-b4ef-f370e518e960",
-//     name: "Phantasmal Mount",
-//     rarity: "uncommon",
-//     oracleText: "Flying\n{T}: Target creature you control with toughness 2 or less gets +1/+1 and gains flying until end of turn. When this creature leaves the battlefield this turn, sacrifice that creature. When the creature leaves the battlefield this turn, sacrifice this creature.",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Creature"],
-//     subtypes: ["Illusion", "Horse"],
-//     power: 1,
-//     toughness: 1,
-// };
+// Phantasmal Mount — BIDIRECTIONAL instance leave-watch (CR 603.7a / 603.10,
+// issue #731). "{T}: Target creature you control with toughness 2 or less gets
+// +1/+1 and gains flying until end of turn. When this creature leaves the
+// battlefield this turn, sacrifice that creature. When that creature leaves the
+// battlefield this turn, sacrifice this creature." The buff is `pump` +1/+1 EOT
+// + `grantAbility` flying EOT (CR 611.1b). The mutual "leave → sacrifice the
+// other" is two `delayedTrigger`s with `timing: "leaves-battlefield"` and
+// crossed captures: one watches the Mount (`$source`) and sacrifices the buffed
+// creature (`$mounted` = target 0); the other watches the buffed creature
+// (target 0) and sacrifices the Mount (`$mount` = `$source`). Both expire at
+// CLEANUP if unfired (the "this turn" bound). If both leave in the same event
+// batch, each fires and its sacrifice is a no-op on the already-gone other
+// (CR 608.2b).
+export const phantasmalMount: CardDefinition = {
+    id: "75afdbe6-a3f9-49cf-b4ef-f370e518e960",
+    name: "Phantasmal Mount",
+    rarity: "uncommon",
+    oracleText:
+        "Flying\n{T}: Target creature you control with toughness 2 or less gets +1/+1 and gains flying until end of turn. When this creature leaves the battlefield this turn, sacrifice that creature. When that creature leaves the battlefield this turn, sacrifice this creature.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Illusion", "Horse"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["flying"],
+    activatedAbilities: [
+        {
+            id: "phantasmal-mount-pump",
+            oracleText:
+                "{T}: Target creature you control with toughness 2 or less gets +1/+1 and gains flying until end of turn. When this creature leaves the battlefield this turn, sacrifice that creature. When that creature leaves the battlefield this turn, sacrifice this creature.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+                toughnessFilter: { max: 2 },
+            },
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 1,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+                {
+                    op: "grantAbility",
+                    ability: "flying",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+                // "When this creature [Mount] leaves the battlefield this turn,
+                // sacrifice that creature [the buffed one]."
+                {
+                    op: "delayedTrigger",
+                    timing: "leaves-battlefield",
+                    oracleText:
+                        "When Phantasmal Mount leaves the battlefield this turn, sacrifice that creature.",
+                    watch: { ref: "$source" },
+                    capture: { $mounted: { target: 0 } },
+                    effects: [{ op: "sacrifice", target: { ref: "$mounted" } }],
+                },
+                // "When that creature [the buffed one] leaves the battlefield
+                // this turn, sacrifice this creature [Mount]."
+                {
+                    op: "delayedTrigger",
+                    timing: "leaves-battlefield",
+                    oracleText:
+                        "When that creature leaves the battlefield this turn, sacrifice Phantasmal Mount.",
+                    watch: { target: 0 },
+                    capture: { $mount: { ref: "$source" } },
+                    effects: [{ op: "sacrifice", target: { ref: "$mount" } }],
+                },
+            ],
+        },
+    ],
+};
 // Polar Kraken — {8}{U}{U}{U} 11/11 with trample, enters tapped, and the only
 // SACRIFICE-cost cumulative upkeep in the set: "Cumulative upkeep—Sacrifice a
 // land." (CR 702.24, ADR 0042). At N age counters the controller sacrifices N

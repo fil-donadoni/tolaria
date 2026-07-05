@@ -158,6 +158,29 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 4,
     },
     {
+        // ICE instance leave-watch delayed trigger (issue #731): Kjeldoran
+        // Elite Guard's "{T}: Target creature gets +2/+2 until end of turn. When
+        // that creature leaves the battlefield this turn, sacrifice this
+        // creature. Activate only during combat." Tap the Guard targeting the
+        // Balduvian Bears to pump it +2/+2 (a leaves-battlefield watch is
+        // scheduled keyed to the Bears), then kill / bounce the Bears — the
+        // delayed trigger fires and the Guard is sacrificed. If the Bears
+        // survive the turn the watch expires unfired at cleanup. Phantasmal
+        // Mount (blue) is the bidirectional variant. Starts in combat so the
+        // Guard's combat-only activation is legal immediately.
+        label: "ICE instance leave-watch (Kjeldoran Elite Guard) (#731)",
+        cards: [
+            {
+                name: "Kjeldoran Elite Guard",
+                owner: "me",
+                zone: "battlefield",
+            },
+            { name: "Balduvian Bears", owner: "me", zone: "battlefield" },
+        ],
+        phase: "BEGINNING_OF_COMBAT",
+        landCount: 4,
+    },
+    {
         // ICE static per-pip non-mana additional cost (issue #907): Drought
         // imposes "Sacrifice a Swamp" per BLACK mana symbol on every spell and
         // activated ability (CR 601.2f / 118.5). Cast Hypnotic Specter

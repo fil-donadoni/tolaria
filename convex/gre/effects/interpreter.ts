@@ -1085,6 +1085,20 @@ export const OP_EXECUTORS: {
     // (CR 701.16a) and dies-triggers fire as for imperative cards. A pick
     // already gone from the battlefield is a no-op inside the primitive.
     sacrifice(ctx, op) {
+        // Single-object form (CR 701.16 — "sacrifice that/this creature",
+        // Kjeldoran Elite Guard, Phantasmal Mount): resolve one announced
+        // target / snapshot-bound permanent through the object-ref path, which
+        // re-checks battlefield presence (CR 608.2b — a permanent already gone
+        // is skipped here, before the primitive).
+        if (op.target !== undefined) {
+            const target = resolveObjectRef(ctx, op.target);
+            if (!target) return;
+            ctx.sacrifice(target.id);
+            return;
+        }
+        // Picks form (CR 701.16 — the "each player sacrifices …" forEach
+        // pattern): sacrifice every permanent a `choice` Op picked.
+        if (op.permanents === undefined) return;
         const ids = resolvePicks(ctx, op.permanents);
         if (!ids) return; // binding never captured — CR 608.2b, skip
         for (const id of ids) ctx.sacrifice(id);
@@ -1124,13 +1138,27 @@ export const OP_EXECUTORS: {
         if (op.targetPlayer !== undefined && targetPlayerId === undefined) {
             return;
         }
+        // Instance leave-watch (CR 603.7a / 603.10, issue #731): resolve the
+        // watched permanent to an id NOW (scheduling time — it is still on the
+        // battlefield). A watch that cannot be resolved (the object already
+        // left) would never fire — skip scheduling entirely (CR 608.2b).
+        let watchInstanceId: string | undefined;
+        if (op.timing === "leaves-battlefield") {
+            const watched =
+                op.watch !== undefined
+                    ? resolveObjectRef(ctx, op.watch)
+                    : undefined;
+            if (!watched) return;
+            watchInstanceId = watched.id;
+        }
         ctx.scheduleDelayedTrigger(
             ctx.sourceCardId,
             INLINE_DELAYED_TRIGGER_ID,
             op.timing,
             payload,
             targetPlayerId,
-            { oracleText: op.oracleText, effects: op.effects }
+            { oracleText: op.oracleText, effects: op.effects },
+            watchInstanceId
         );
     },
     // forEach — the fourth structural construct (ADR 0045, issue #807).

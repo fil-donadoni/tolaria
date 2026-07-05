@@ -753,6 +753,10 @@ const DELAYED_TIMINGS = new Set([
     "next-draw-step",
     "next-main-phase",
     "next-upkeep",
+    // Instance leave-watch (CR 603.7a / 603.10, issue #731) — fires on the
+    // watched permanent's PERMANENT_LEFT, not a step boundary. Requires
+    // `watch`; rejects `targetPlayer` (checked below).
+    "leaves-battlefield",
 ]);
 
 function isDelayedTiming(value: unknown): boolean {
@@ -1071,8 +1075,23 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         optional: { else: isOpList },
     },
     // CR 701.16 (issue #807) — sacrifice the permanents a `choice` Op picked.
+    // CR 701.16 — sacrifice a `choice` Op's picks (`permanents`, the "each
+    // player sacrifices …" forEach pattern) OR a single announced target /
+    // snapshot-bound permanent (`target`, "sacrifice that/this creature" —
+    // Kjeldoran Elite Guard, Phantasmal Mount, issue #731). Exactly one form.
     sacrifice: {
-        required: { permanents: isBarePicksRef },
+        required: {},
+        optional: { permanents: isBarePicksRef, target: isObjectSelector },
+        check: (entry) => {
+            const hasPicks = "permanents" in entry;
+            const hasTarget = "target" in entry;
+            if (hasPicks === hasTarget) {
+                return [
+                    'exactly one of "permanents" (a choice Op\'s picks) or "target" (a single permanent) is required',
+                ];
+            }
+            return [];
+        },
     },
     // forEach — the `forEach` structural construct (ADR 0045, issue #807).
     // The `select` selector shape is checked here; body Op validity, the
@@ -1094,7 +1113,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             oracleText: isNonEmptyString,
             effects: isOpList,
         },
-        optional: { capture: isCaptureMap, targetPlayer: isPlayerRef },
+        optional: {
+            capture: isCaptureMap,
+            targetPlayer: isPlayerRef,
+            watch: isObjectSelector,
+        },
         check: (entry) => {
             const errors: string[] = [];
             if (Array.isArray(entry.effects) && entry.effects.length === 0) {
@@ -1114,6 +1137,20 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             if (!playerScoped && "targetPlayer" in entry) {
                 errors.push(
                     `field "targetPlayer" is only valid with the player-scoped timings "next-draw-step" / "next-main-phase"`
+                );
+            }
+            // CR 603.7a / 603.10 (issue #731) — the instance leave-watch timing
+            // fires on a specific watched permanent, so it demands `watch`; the
+            // phase-boundary timings fire at a step and reject it.
+            const leaveWatch = entry.timing === "leaves-battlefield";
+            if (leaveWatch && !("watch" in entry)) {
+                errors.push(
+                    `timing "leaves-battlefield" is instance-scoped (CR 603.7a) — field "watch" is required`
+                );
+            }
+            if (!leaveWatch && "watch" in entry) {
+                errors.push(
+                    `field "watch" is only valid with the instance leave-watch timing "leaves-battlefield"`
                 );
             }
             return errors;
@@ -1589,7 +1626,8 @@ function checkOpListRefs(
                 k === "loss" ||
                 k === "select" ||
                 k === "capture" ||
-                k === "targetPlayer"
+                k === "targetPlayer" ||
+                k === "watch"
             ) {
                 continue;
             }
@@ -1643,6 +1681,10 @@ function checkOpListRefs(
                 }
             }
             collectRefUses(entry.targetPlayer, "player", uses);
+            // The leave-watch instance (issue #731) resolves at SCHEDULING time
+            // in this same outer scope; its ref (e.g. `$source`) is an object
+            // ref, so collect it under an object-family key hint ("target").
+            collectRefUses(entry.watch, "target", uses);
         }
         for (const use of uses)
             checkRefUse(use, declared, at, errors, eventScope);
