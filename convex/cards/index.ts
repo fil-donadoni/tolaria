@@ -169,6 +169,10 @@ import * as m20 from "./sets/m20";
 // Tidehollow Sculler, otj: Caustic Bronco — see issue #931).
 import * as ala from "./sets/ala";
 import * as otj from "./sets/otj";
+// Cube FREE: counterspells (issue #683) — new cross-set home set for Memory
+// Lapse (its earliest paper printing, Homelands, per ADR 0041). mkm/sos/rav/
+// c15/mh2 already imported above (shared with earlier tranches).
+import * as hml from "./sets/hml";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -332,6 +336,8 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     // Cube FREE: edict / discard / hand disruption (issue #682).
     { code: "ala", exports: ala },
     { code: "otj", exports: otj },
+    // Cube FREE: counterspells (issue #683) — new home set for Memory Lapse.
+    { code: "hml", exports: hml },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>

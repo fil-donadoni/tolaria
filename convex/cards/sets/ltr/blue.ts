@@ -2,7 +2,7 @@
 // `import * as ltr from "./sets/ltr"` resolves through ltr/index.ts.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../../../convex/cards/types";
+import type { CardDefinition } from "../../types";
 
 // Lórien Revealed — {3}{U}{U} Sorcery. "Draw three cards. Islandcycling {1}
 // ({1}, Discard this card: Search your library for an Island card, reveal
@@ -21,4 +21,27 @@ export const lorienRevealed: CardDefinition = {
     oracleText:
         "Draw three cards.\nIslandcycling {1} ({1}, Discard this card: Search your library for an Island card, reveal it, put it into your hand, then shuffle.)",
     effects: [{ op: "draw", player: "controller", count: 3 }],
+};
+
+// Stern Scolding — {U} Instant. "Counter target creature spell with power or
+// toughness 2 or less." (CR 701.5a counter, CR 114.1 + 208.2 the new
+// `spellCreaturePtFilter` targeting restriction, issue #683 — a stack-item
+// power/toughness gate on a "spell" target that didn't exist before this
+// card). No mayPay/if — an unconditional counter, so the effect is a single
+// Op.
+export const sternScolding: CardDefinition = {
+    id: "3ca1e1de-b916-445f-b3b2-0f4d0cc7ceeb",
+    rarity: "uncommon",
+    name: "Stern Scolding",
+    oracleText:
+        "Counter target creature spell with power or toughness 2 or less.",
+    manaCost: { U: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: "spell",
+        count: 1,
+        spellTypeFilter: "Creature",
+        spellCreaturePtFilter: { maxPowerOrToughness: 2 },
+    },
+    effects: [{ op: "counter", target: { target: 0 } }],
 };

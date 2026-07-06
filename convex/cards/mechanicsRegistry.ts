@@ -2324,7 +2324,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         cr: "701.5a",
         binding: "SpellContext.counter",
         mechanicId: "counter",
-        note: 'Effect Script Op for the CR 701 keyword action "Counter" — removes the target spell from the stack into its owner\'s graveyard. The consequence half of the counter/punisher pattern ("Counter target spell unless its controller pays {N}", issue #806).',
+        note: 'Effect Script Op for the CR 701 keyword action "Counter" — removes the target spell from the stack into its owner\'s graveyard by default. The consequence half of the counter/punisher pattern ("Counter target spell unless its controller pays {N}", issue #806). An optional `destination` (issue #683) redirects a COUNTERED SPELL to exile / the top of its owner\'s library / its owner\'s hand instead — "if that spell is countered this way, exile it / put it on top of its owner\'s library / put it into its owner\'s hand instead" (No More Lies, Memory Lapse, Remand).',
     },
     {
         op: "mayPay",

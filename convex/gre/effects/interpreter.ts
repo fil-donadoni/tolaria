@@ -1076,10 +1076,14 @@ export const OP_EXECUTORS: {
     },
     // CR 701.5a — counter the announced target spell. A silent no-op when the
     // target already left the stack (CR 608.2b — the spell does as much as it
-    // can). The consequence half of the counter/punisher pattern.
+    // can). The consequence half of the counter/punisher pattern. `destination`
+    // (issue #683) redirects a COUNTERED SPELL to exile/library-top/hand
+    // instead of the CR 701.5a graveyard default (No More Lies, Memory Lapse,
+    // Remand).
     counter(ctx, op) {
         const target = resolveTargetRef(ctx, op.target);
-        if (target && target.type === "spell") ctx.counter(target);
+        if (target && target.type === "spell")
+            ctx.counter(target, op.destination);
     },
     // if — the `if` structural construct (ADR 0045, issue #806). Evaluates a
     // predefined predicate and runs the matching branch through `runOpList`,

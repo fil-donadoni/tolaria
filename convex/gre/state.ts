@@ -5,6 +5,7 @@ import type {
     CardType,
     Color,
     ControlChangeCondition,
+    CounterDestination,
     DelayedTriggerInlineBody,
     DelayedTriggerTiming,
     DurationSpec,
@@ -1501,6 +1502,17 @@ export type PendingTarget = {
      *  TargetRequirement.spellTypeFilter. Used by Fork ("target instant or
      *  sorcery spell"). Ignored for non-spell target types. */
     spellTypeFilter?: CardType[];
+    /** Restricts legal SPELL targets to spells whose card type does NOT
+     *  include any of these (CR 114.1). Propagated from
+     *  TargetRequirement.spellExcludeTypeFilter. Used by Spell Pierce
+     *  ("target noncreature spell"). Ignored for non-spell target types. */
+    spellExcludeTypeFilter?: CardType[];
+    /** Restricts legal SPELL targets to CREATURE spells whose power or
+     *  toughness is at most this number (CR 114.1 + 208.2). Propagated from
+     *  TargetRequirement.spellCreaturePtFilter. Used by Stern Scolding
+     *  ("counter target creature spell with power or toughness 2 or less").
+     *  Ignored for non-spell target types. */
+    spellCreaturePtFilter?: { maxPowerOrToughness: number };
     /** Restricts legal SPELL targets to single-target spells whose only target
      *  is the activating player (CR 114.6 / 115.10). Propagated from
      *  TargetRequirement.spellSingleTargetingController. Used by Reflecting
@@ -6173,7 +6185,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         // it into its owner's graveyard. If the target is no longer on the
         // stack (already resolved/countered), this is a silent no-op — the
         // countering spell simply fails to find a legal target (CR 608.2b).
-        counter(target: TargetSelection): void {
+        // `destination` (issue #683) overrides the graveyard default for
+        // "if that spell is countered this way, exile it / put it on top of
+        // its owner's library / put it into its owner's hand instead" (No
+        // More Lies, Memory Lapse, Remand) — always a real card move, never
+        // applicable to a countered ABILITY (which has no card to redirect).
+        counter(
+            target: TargetSelection,
+            destination: CounterDestination = "graveyard"
+        ): void {
             if (target.type !== "spell") {
                 throw new Error("counter() requires a spell target");
             }
@@ -6183,8 +6203,25 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             const owner = getPlayer(state, item.ownerId);
             // Activated abilities are not cards: they just vanish (CR 701.5a, 113.7a).
             if (item.abilityId) return;
-            item.zone = "graveyard";
-            owner.graveyard.push(item);
+            switch (destination) {
+                case "exile":
+                    item.zone = "exile";
+                    owner.exile.push(item);
+                    break;
+                case "library-top":
+                    item.zone = "library";
+                    owner.library.unshift(item);
+                    break;
+                case "hand":
+                    item.zone = "hand";
+                    owner.hand.push(item);
+                    break;
+                case "graveyard":
+                default:
+                    item.zone = "graveyard";
+                    owner.graveyard.push(item);
+                    break;
+            }
         },
         discardAtRandom(
             playerId: string,
@@ -7554,6 +7591,18 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                               : [req.spellTypeFilter],
                       }
                     : {}),
+                ...(req.spellExcludeTypeFilter
+                    ? {
+                          spellExcludeTypeFilter: Array.isArray(
+                              req.spellExcludeTypeFilter
+                          )
+                              ? req.spellExcludeTypeFilter
+                              : [req.spellExcludeTypeFilter],
+                      }
+                    : {}),
+                ...(req.spellCreaturePtFilter
+                    ? { spellCreaturePtFilter: req.spellCreaturePtFilter }
+                    : {}),
             };
         },
         requestRetarget(spellStackItemId, requirement): void {
@@ -7624,6 +7673,21 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                           )
                               ? requirement.spellTypeFilter
                               : [requirement.spellTypeFilter],
+                      }
+                    : {}),
+                ...(requirement.spellExcludeTypeFilter
+                    ? {
+                          spellExcludeTypeFilter: Array.isArray(
+                              requirement.spellExcludeTypeFilter
+                          )
+                              ? requirement.spellExcludeTypeFilter
+                              : [requirement.spellExcludeTypeFilter],
+                      }
+                    : {}),
+                ...(requirement.spellCreaturePtFilter
+                    ? {
+                          spellCreaturePtFilter:
+                              requirement.spellCreaturePtFilter,
                       }
                     : {}),
             };

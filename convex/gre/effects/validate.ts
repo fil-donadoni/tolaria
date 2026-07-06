@@ -403,6 +403,18 @@ function isTapUntapAction(value: unknown): boolean {
     return value === "tap" || value === "untap";
 }
 
+/** The JSON-pure `destination` discriminator of a `counter` Op (issue #683,
+ *  `CounterDestination`) — where a COUNTERED SPELL ends up instead of CR
+ *  701.5a's default owner's graveyard. */
+function isCounterDestination(value: unknown): boolean {
+    return (
+        value === "graveyard" ||
+        value === "exile" ||
+        value === "hand" ||
+        value === "library-top"
+    );
+}
+
 /** The action of a `libraryLook` Op (issue #844, CR 701.20). Only `"shuffle"`
  *  is folded; peek/reorder are deferred to the `scryReorder` backlog Op. */
 function isLibraryLookAction(value: unknown): boolean {
@@ -1080,9 +1092,12 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     discard: {
         required: { player: isPlayerRef, cards: isBarePicksRef },
     },
-    // CR 701.5a (issue #806) — counter the target spell.
+    // CR 701.5a (issue #806) — counter the target spell. `destination`
+    // (issue #683) redirects a COUNTERED SPELL to exile/library-top/hand
+    // instead of the CR 701.5a graveyard default.
     counter: {
         required: { target: isTargetRef },
+        optional: { destination: isCounterDestination },
     },
     // CR 117.3a / 118.4 (issue #806, #680) — optional "you may pay {cost}",
     // or a bare cost-free "you may …" decision when `cost` is omitted (issue

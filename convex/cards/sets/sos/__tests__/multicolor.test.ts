@@ -5,6 +5,7 @@ import {
     traumaticCritique,
     witherbloomCharm,
     silverquillCharm,
+    quandrixCharm,
 } from "../multicolor";
 import {
     makeInstance,
@@ -18,11 +19,36 @@ import {
     applyMayPaySubmit,
 } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+} from "../../../../gre/layers";
+import { registerTokenDefinition } from "../../..";
 
 const CREATURE_ID = "6914c5a8-2114-41c5-a471-ca97524d622f"; // Sabretooth Tiger
 // A NON-creature artifact (Black Lotus, mv 0 — no toughness, so it can't die
 // to an unrelated SBA and mask a broken sacrifice/destroy).
 const ARTIFACT_ID = "b0faa7f2-b547-42c4-a810-839da50dadfe"; // Black Lotus
+
+// Quandrix Charm (issue #683) test fixtures — an ad-hoc filler spell (mode
+// 1's counter target) and enchantment (mode 2's destroy target); neither
+// needs any real behavior, just the right card type.
+const QC_FILLER_SPELL_ID = "test-quandrix-charm-filler-spell";
+registerTokenDefinition({
+    id: QC_FILLER_SPELL_ID,
+    name: "Test Filler Spell",
+    rarity: "common",
+    manaCost: { X: 1 },
+    types: ["Sorcery"],
+});
+const QC_ENCHANTMENT_ID = "test-quandrix-charm-enchantment";
+registerTokenDefinition({
+    id: QC_ENCHANTMENT_ID,
+    name: "Test Filler Enchantment",
+    rarity: "common",
+    manaCost: { X: 1 },
+    types: ["Enchantment"],
+});
 
 describe("Traumatic Critique (X damage + draw two, discard one; CR 107.3 / 115.4 / 121.1)", () => {
     it("is an {X}{U}{R} instant targeting any target", () => {
@@ -313,5 +339,125 @@ describe("Silverquill Charm (CR 700.2 modal — counters, exile-weak-creature, o
         resolveTopOfStack(state);
         expect(state.players[0].life).toBe(23);
         expect(state.players[1].life).toBe(17);
+    });
+});
+
+describe("Quandrix Charm (CR 700.2 modal — counter-unless-pay, destroy enchantment, or set P/T; issue #683)", () => {
+    it("declares three modes with the three different target shapes", () => {
+        expect(quandrixCharm.modes).toHaveLength(3);
+        expect(
+            quandrixCharm.modes!.find((m) => m.id === "counter")!
+                .targetRequirement
+        ).toMatchObject({ type: "spell" });
+        expect(
+            quandrixCharm.modes!.find((m) => m.id === "destroy-enchantment")!
+                .targetRequirement
+        ).toMatchObject({ type: "Enchantment" });
+        expect(
+            quandrixCharm.modes!.find((m) => m.id === "set-pt")!
+                .targetRequirement
+        ).toMatchObject({ type: "Creature" });
+    });
+
+    it("counter mode: declining payment counters the target spell (CR 701.5a / 117.3a)", () => {
+        const state = makeState();
+        const filler = pushSpell(state, QC_FILLER_SPELL_ID, "p2");
+        const item = pushSpell(state, quandrixCharm.id, "p1", [
+            { type: "spell", id: filler.id },
+        ]);
+        item.chosenModeId = "counter";
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.stack.find((s) => s.id === filler.id)).toBeUndefined();
+        expect(state.players[1].graveyard.some((c) => c.id === filler.id)).toBe(
+            true
+        );
+    });
+
+    it("counter mode: paying {2} lets the target spell resolve", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 2, C: 0 },
+                }),
+            ],
+        });
+        const filler = pushSpell(state, QC_FILLER_SPELL_ID, "p2");
+        const item = pushSpell(state, quandrixCharm.id, "p1", [
+            { type: "spell", id: filler.id },
+        ]);
+        item.chosenModeId = "counter";
+        expect(resolveTopOfStack(state)).toBeNull();
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        expect(state.stack.find((s) => s.id === filler.id)).toBeDefined();
+    });
+
+    it("destroy-enchantment mode: destroys the target enchantment (CR 701.7)", () => {
+        const ench = makeInstance(QC_ENCHANTMENT_ID, {
+            id: "ench-1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [ench] }),
+            ],
+        });
+        const item = pushSpell(state, quandrixCharm.id, "p1", [
+            { type: "permanent", id: "ench-1" },
+        ]);
+        item.chosenModeId = "destroy-enchantment";
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "ench-1")
+        ).toBe(false);
+    });
+
+    it("set-pt mode: target creature becomes base 5/5 until end of turn (CR 613.4b layer 7b)", () => {
+        const creature = makeInstance(CREATURE_ID, {
+            id: "tiger-1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [creature] }),
+            ],
+        });
+        const item = pushSpell(state, quandrixCharm.id, "p1", [
+            { type: "permanent", id: "tiger-1" },
+        ]);
+        item.chosenModeId = "set-pt";
+        resolveTopOfStack(state);
+        expect(getEffectivePower(state, creature)).toBe(5);
+        expect(getEffectiveToughness(state, creature)).toBe(5);
+    });
+
+    it("wire format: the set-pt mode's base P/T survives projectPublicState", () => {
+        const creature = makeInstance(CREATURE_ID, {
+            id: "tiger-2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [creature] }),
+            ],
+        });
+        const item = pushSpell(state, quandrixCharm.id, "p1", [
+            { type: "permanent", id: "tiger-2" },
+        ]);
+        item.chosenModeId = "set-pt";
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "tiger-2"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(5);
+        expect(getEffectiveToughness(projected, slim)).toBe(5);
     });
 });

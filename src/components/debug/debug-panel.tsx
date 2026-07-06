@@ -741,6 +741,29 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Counterspells + new spell-target filters (issue #683): Stern
+        // Scolding ("Counter target creature spell with power or toughness 2
+        // or less" — the new `spellCreaturePtFilter`) and Spell Pierce
+        // ("Counter target noncreature spell unless its controller pays {2}"
+        // — the new `spellExcludeTypeFilter`). Let the opponent cast Grizzly
+        // Bears (2/2 — qualifies for Stern Scolding's P/T gate) or Lightning
+        // Bolt (an instant — qualifies for Spell Pierce's noncreature gate;
+        // NOT a legal Stern Scolding target). Respond with the matching
+        // counterspell to verify only the right stack items are clickable.
+        label: "Counterspells — new spell-target filters (#683)",
+        cards: [
+            { name: "Stern Scolding", owner: "me", zone: "hand" },
+            { name: "Spell Pierce", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+            { name: "Grizzly Bears", owner: "opp", zone: "hand" },
+            { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+            { name: "Forest", owner: "opp", zone: "battlefield" },
+            { name: "Mountain", owner: "opp", zone: "battlefield", count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Cube FREE: evasion / protection statics (issue #684). Moonshadow
         // (menace, CR 702.111b) is seeded with its six -1/-1 counters —
         // effective 1/1, needing TWO blockers to be legally blocked at all;

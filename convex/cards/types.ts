@@ -268,6 +268,23 @@ export interface TargetRequirement {
      *  and other type-restricted spell-targeting effects. Single string is
      *  shorthand for one type. Ignored for non-spell target types. */
     spellTypeFilter?: CardType | CardType[];
+    /** Restricts legal SPELL targets (`type: "spell"`) to spells whose card
+     *  type does NOT include any of these (CR 114.1 — the negative of
+     *  `spellTypeFilter`). Used by Spell Pierce ("target noncreature spell").
+     *  An ability on the stack is never a legal target here (it isn't a
+     *  spell — CR 113.7a). Single string is shorthand for one type. Ignored
+     *  for non-spell target types. */
+    spellExcludeTypeFilter?: CardType | CardType[];
+    /** Restricts legal SPELL targets (`type: "spell"`) to CREATURE spells
+     *  whose power OR toughness (CR 114.1 + 208.2 — the values on the card
+     *  itself; a spell isn't a permanent yet, so no continuous effect applies)
+     *  is at most this number. Matches EITHER characteristic (an "or"
+     *  comparison, not "and" — mirrors the oracle phrasing "with power or
+     *  toughness N or less"). A stack item that isn't a creature spell (or an
+     *  ability) never qualifies. Used by Stern Scolding ("Counter target
+     *  creature spell with power or toughness 2 or less") — pair with
+     *  `spellTypeFilter: "Creature"`. Ignored for non-spell target types. */
+    spellCreaturePtFilter?: { maxPowerOrToughness: number };
     /** Restricts legal PLAYER targets to players who attacked this turn
      *  (CR 506.2). A player "attacked this turn" iff they control a creature
      *  whose `hasAttackedThisTurn` flag is set (the flag persists from declare
@@ -369,6 +386,16 @@ export type GainControlDuration =
     | "while-you-control-source"
     | "while-source-tapped"
     | "while-source-tapped-and-power-ge";
+
+/** Where a COUNTERED SPELL ends up instead of CR 701.5a's default owner's
+ *  graveyard (issue #683's "if that spell is countered this way, …" clause —
+ *  No More Lies "exile it", Memory Lapse "put it on top of its owner's
+ *  library", Remand "put it into its owner's hand"). `"graveyard"` is the
+ *  CR 701.5a default; every other member is a `moveZone`-style destination
+ *  applied to the stack item at the moment it's removed from the stack
+ *  (before a plain `moveZone` Op could reach it — a spell on the stack isn't
+ *  one of `moveZone`'s recognized object kinds). */
+export type CounterDestination = "graveyard" | "exile" | "hand" | "library-top";
 
 export interface TargetSelection {
     /** "permanent" = battlefield card, "player" = player, "spell" = stack
@@ -1362,8 +1389,18 @@ export interface SpellContext {
     /** Randomizes the order of a player's library using the seeded PRNG
      *  (CR 701.20). Deterministic under replay. */
     shuffleLibrary: (playerId: string) => void;
-    /** Counters a spell or ability on the stack (CR 701.5a). Target must be TargetSelection with type "spell". No-op if target no longer on stack (CR 608.2b). */
-    counter: (target: TargetSelection) => void;
+    /** Counters a spell or ability on the stack (CR 701.5a). Target must be
+     *  TargetSelection with type "spell". No-op if target no longer on stack
+     *  (CR 608.2b). `destination` overrides where a COUNTERED SPELL (never an
+     *  ability — CR 701.5a / 113.7a, abilities simply cease to exist) ends up
+     *  instead of its owner's graveyard — the "if that spell is countered this
+     *  way, exile/return/put-on-top instead" clause carried by No More Lies,
+     *  Memory Lapse, and Remand. Omitted/`"graveyard"` is the default CR
+     *  701.5a destination. */
+    counter: (
+        target: TargetSelection,
+        destination?: CounterDestination
+    ) => void;
     /** Player discards `amount` cards chosen uniformly at random (CR 701.8a).
      *  Capped at current hand size — no-op on an empty hand. Randomness is
      *  drawn from the game's seeded PRNG so replays reproduce the same picks.
@@ -5489,8 +5526,17 @@ export type EffectOp =
      *  stack, put it into its owner's graveyard). Routes through
      *  `SpellContext.counter`; skipped when the target already left the stack
      *  (CR 608.2b). The consequence half of the counter/punisher pattern
-     *  ("Counter target spell unless its controller pays {N}", issue #806). */
-    | { op: "counter"; target: EffectTargetRef }
+     *  ("Counter target spell unless its controller pays {N}", issue #806).
+     *  `destination` (issue #683) overrides the default graveyard destination
+     *  for a COUNTERED SPELL — "if that spell is countered this way, exile it
+     *  / put it on top of its owner's library / put it into its owner's hand
+     *  instead" (No More Lies, Memory Lapse, Remand). Omitted/`"graveyard"`
+     *  is the CR 701.5a default. */
+    | {
+          op: "counter";
+          target: EffectTargetRef;
+          destination?: CounterDestination;
+      }
     /** if — the third frozen structural construct (ADR 0045, issue #806). NOT
      *  an Op verb: it branches the script on a PREDEFINED predicate form (never
      *  an arbitrary boolean expression — the validator and the bot must read
