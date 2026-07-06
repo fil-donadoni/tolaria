@@ -142,6 +142,14 @@ import * as tla from "./sets/tla";
 import * as tmt from "./sets/tmt";
 import * as nec from "./sets/nec";
 import * as c21 from "./sets/c21";
+// Cube FREE: ETB / dies / attack triggers (issue #679). tla/znr shared with
+// the #681 tranche above — imported once.
+import * as eve from "./sets/eve";
+import * as blb from "./sets/blb";
+import * as clu from "./sets/clu";
+import * as bng from "./sets/bng";
+import * as one from "./sets/one";
+import * as war from "./sets/war";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -284,6 +292,14 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "tmt", exports: tmt },
     { code: "nec", exports: nec },
     { code: "c21", exports: c21 },
+    // Cube FREE: ETB / dies / attack triggers (issue #679). tla/znr shared
+    // with the #681 tranche above — registered once.
+    { code: "eve", exports: eve },
+    { code: "blb", exports: blb },
+    { code: "clu", exports: clu },
+    { code: "bng", exports: bng },
+    { code: "one", exports: one },
+    { code: "war", exports: war },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>

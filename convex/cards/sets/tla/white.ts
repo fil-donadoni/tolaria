@@ -3,4 +3,126 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-export {};
+import type { CardDefinition, SpellContext } from "../../types";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { leftTrigger } from "../../abilities/triggers/leftTrigger";
+
+// Aang's Iceberg — {2}{W} Enchantment (Vintage Cube FREE: ETB/dies/attack
+// triggers, issue #679). "Flash. When this enchantment enters, exile up to
+// one other target nonland permanent until this enchantment leaves the
+// battlefield. Waterbend {3}: Sacrifice this enchantment. If you do, scry 2."
+//
+// O-Ring idiom (precedent: Portable Hole, afr/white.ts; Banishing Light,
+// jou/white.ts) — `TriggeredAbility` carries no `targetRequirement`, so the
+// ETB's pick is a mid-resolution `choose-permanents` choice, and the leave
+// trigger drives the return via the shipped exile-and-return bundle
+// (`exileWithAttachments` / `returnExiledForSource`, host-only since Aang's
+// Iceberg's own ability doesn't carry attachments along).
+//
+// SIMPLIFICATION (flagged, CR 702.155-style alternate-cost mechanic):
+// "Waterbend {3}" — tapping artifacts/creatures to help pay part of a cost —
+// is not modelled (no such cost-payment primitive exists yet); the ability is
+// implemented as a plain {3} generic cost. The golden path (sacrifice this,
+// scry 2) is faithful. Scry composes shipped primitives, no dedicated Op
+// (precedent: Preordain, m11/blue.ts).
+const aangsIcebergHoldsSomething = (
+    _event: unknown,
+    self: { id: string },
+    state?: { exileHeld?: ReadonlyArray<{ sourceId: string }> }
+): boolean => !!state?.exileHeld?.some((b) => b.sourceId === self.id);
+
+const AANGS_ICEBERG_ID = "720fbd87-b1c1-4b3b-97a1-46b943b115e3";
+
+export const aangsIceberg: CardDefinition = {
+    id: AANGS_ICEBERG_ID,
+    name: "Aang's Iceberg",
+    rarity: "rare",
+    oracleText:
+        "Flash\nWhen this enchantment enters, exile up to one other target nonland permanent until this enchantment leaves the battlefield.\nWaterbend {3}: Sacrifice this enchantment. If you do, scry 2. (While paying a waterbend cost, you can tap your artifacts and creatures to help. Each one pays for {1}.)",
+    manaCost: { X: 2, W: 1 },
+    types: ["Enchantment"],
+    staticAbilities: ["flash"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "aangs-iceberg-exile",
+            oracleText:
+                "When this enchantment enters, exile up to one other target nonland permanent until this enchantment leaves the battlefield.",
+            scope: "self",
+            resolve: (ctx: SpellContext) => {
+                const candidateIds = ctx.allPlayerIds
+                    .flatMap((p) =>
+                        ctx.getBattlefieldIds(p, { excludeTypes: "Land" })
+                    )
+                    .filter((id) => id !== ctx.sourceInstanceId);
+                if (candidateIds.length === 0) return;
+                const picks = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: `aangs-iceberg-${ctx.sourceInstanceId}`,
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    allControllers: true,
+                    candidateIds,
+                    count: { min: 0, max: 1 },
+                    prompt: "Aang's Iceberg: exile up to one other target nonland permanent (or none).",
+                });
+                if (picks === undefined) return; // suspended for the choice
+                const targetId = picks[0];
+                if (!targetId) return;
+                ctx.exileWithAttachments(targetId, {
+                    sourceId: ctx.sourceInstanceId,
+                    returnTapped: false,
+                    includeAttachments: false,
+                });
+            },
+        }),
+        leftTrigger({
+            id: "aangs-iceberg-return",
+            oracleText:
+                "When this enchantment leaves the battlefield, return the exiled card to the battlefield under its owner's control.",
+            scope: "self",
+            condition: aangsIcebergHoldsSomething,
+            resolve: (ctx: SpellContext) => {
+                ctx.returnExiledForSource(ctx.sourceInstanceId);
+            },
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "aangs-iceberg-waterbend",
+            oracleText:
+                "Waterbend {3}: Sacrifice this enchantment. If you do, scry 2.",
+            cost: { mana: { X: 3 } },
+            useStack: true,
+            resolveSteps: [
+                (ctx: SpellContext) => {
+                    ctx.sacrifice(ctx.sourceInstanceId);
+                },
+                (ctx: SpellContext) => {
+                    const me = ctx.controller;
+                    const topIds = ctx.peekLibraryTop(me, 2);
+                    if (topIds.length === 0) return;
+                    const toBottom = ctx.requestChoice({
+                        playerId: me,
+                        choiceId: `aangs-iceberg-scry-${ctx.sourceInstanceId}`,
+                        kind: "partition",
+                        zone: "library",
+                        candidateIds: topIds,
+                        count: { min: 0, max: topIds.length },
+                        prompt: "Scry 2 — choose any number of cards to put on the bottom (the rest stay on top).",
+                    });
+                    if (toBottom === undefined) return; // suspended on the scry choice
+                    const bottomSet = new Set(toBottom);
+                    const keptTop = topIds.filter((id) => !bottomSet.has(id));
+                    const all = ctx.peekLibraryTop(me, Number.MAX_SAFE_INTEGER);
+                    const topSet = new Set(topIds);
+                    const middle = all.filter((id) => !topSet.has(id));
+                    ctx.reorderLibraryTop(me, [
+                        ...keptTop,
+                        ...middle,
+                        ...toBottom,
+                    ]);
+                },
+            ],
+        },
+    ],
+};

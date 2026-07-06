@@ -1,4 +1,4 @@
-// ZNR set barrel — re-exports every colour module so the
+// znr (Zendikar Rising) set barrel — re-exports every colour module so the
 // registry's `import * as znr from "./sets/znr"` resolves here
 // unchanged (ADR 0043).
 

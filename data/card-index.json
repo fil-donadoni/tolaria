@@ -1,5 +1,11 @@
 [
     {
+        "name": "Aang's Iceberg",
+        "scryfallId": "720fbd87-b1c1-4b3b-97a1-46b943b115e3",
+        "oracleId": "646f9ad8-9d18-4b42-954a-e21a62e9f0e8",
+        "firstSet": "tla"
+    },
+    {
         "name": "Abandoned Air Temple",
         "scryfallId": "9c0433f9-8f1e-4a19-a83f-a41925f1b1a9",
         "oracleId": "9575d7ce-f26d-4b90-87a3-6329e9799572",
@@ -424,6 +430,12 @@
         "scryfallId": "d3a925e5-0d0a-42ec-b1c6-9793b8e11625",
         "oracleId": "a349e526-882c-454f-ba79-ad17340f8153",
         "firstSet": "ice"
+    },
+    {
+        "name": "Azure Beastbinder",
+        "scryfallId": "211af1bf-910b-41a5-b928-f378188d1871",
+        "oracleId": "7bb51602-60e8-4730-b11c-2870d6b42e20",
+        "firstSet": "blb"
     },
     {
         "name": "Azure Drake",
@@ -1054,6 +1066,12 @@
         "scryfallId": "1d7a1357-debd-49b0-9fd5-560d5b3f589e",
         "oracleId": "fedbd40b-e3a5-449c-a8a3-b42e9da191a9",
         "firstSet": "tsp"
+    },
+    {
+        "name": "Chrome Mox",
+        "scryfallId": "6a058e68-70af-4a64-859c-c881e5578368",
+        "oracleId": "ec3d4466-547c-4e02-b1b5-a156ec4637e9",
+        "firstSet": "mrd"
     },
     {
         "name": "Chromium",
@@ -2292,6 +2310,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Flickerwisp",
+        "scryfallId": "5bb3cb5c-8d66-4f5e-a9a9-917e6045f024",
+        "oracleId": "b23a3d30-6b8e-4aad-890f-db0c3af43ace",
+        "firstSet": "eve"
+    },
+    {
         "name": "Flight",
         "scryfallId": "67c7784b-6b79-4268-a714-895c82809aff",
         "oracleId": "6a4068b0-fb4f-429c-a94e-47849f3eb7ef",
@@ -2994,10 +3018,22 @@
         "firstSet": "fem"
     },
     {
+        "name": "Haywire Mite",
+        "scryfallId": "847a175e-ead1-4596-baf3-5f7f57859e0b",
+        "oracleId": "749d2994-44e7-40d3-8630-7bebed239e9e",
+        "firstSet": "bro"
+    },
+    {
         "name": "Headless Horseman",
         "scryfallId": "d1aa37c8-98fa-4984-b09b-cf65ad84e97b",
         "oracleId": "5bb4961f-0a24-40f8-bfba-8618a9375c93",
         "firstSet": "leg"
+    },
+    {
+        "name": "Headliner Scarlett",
+        "scryfallId": "be77b98a-dd79-477c-8ab2-7ebf5637a89e",
+        "oracleId": "f5420901-b5e6-4d54-b3e8-5f45e37f1fab",
+        "firstSet": "clu"
     },
     {
         "name": "Heal",
@@ -5626,6 +5662,12 @@
         "scryfallId": "57a93a71-d77c-417f-85d0-cd420f573331",
         "oracleId": "510a6ac5-f098-4145-ac07-771b1b6f7cdf",
         "firstSet": "dft"
+    },
+    {
+        "name": "Robber of the Rich",
+        "scryfallId": "0ecbe097-ba51-42e5-957c-382eb66c08f0",
+        "oracleId": "4df0d381-fc05-4d30-9307-48963aa2ecfd",
+        "firstSet": "eld"
     },
     {
         "name": "Roc of Kher Ridges",

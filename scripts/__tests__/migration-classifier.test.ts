@@ -393,11 +393,24 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // (`sets/znr/__tests__/white.test.ts`), so it counts as AFK-ready, not
         // "need test first". Net: total 626→627, FREE 393→394, AFK-ready
         // 360→361, X-only/Op-blocked unchanged.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(627);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(394);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(361);
+        // #679 (Cube FREE — ETB/dies/attack triggered abilities), rebased on
+        // top of #681 above, landed 7 `resolve()`-idiom protocol cards
+        // (Robber of the Rich, Azure Beastbinder, Flickerwisp, Chrome Mox,
+        // Aang's Iceberg, Headliner Scarlett, Haywire Mite — the last a pure
+        // DSL card contributing 0 closures), each composing shipped
+        // SpellContext primitives with no new Op. Each `resolve()` card
+        // carries its own per-card GRE + wire test per the authoring rule, so
+        // all new FREE closures land AFK-ready. Net (independent of, and
+        // additive with, #681's delta above — no shared cards): total
+        // 627→637, FREE 394→397, AFK-ready 361→364, Op-blocked 219→226,
+        // X-only unchanged. Values below are the true post-rebase totals,
+        // reconciled by re-running `bun scripts/migration-classifier.mjs`
+        // against the merged tree rather than hand-added.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(637);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(397);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(364);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(219);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(226);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {

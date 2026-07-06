@@ -1,10 +1,18 @@
 // mrd (Mirrodin) — colorless behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { talismanOfProgress, talismanOfDominance } from "../colorless";
+import {
+    talismanOfProgress,
+    talismanOfDominance,
+    chromeMox,
+} from "../colorless";
+import { balduvianBears } from "../../ice/green";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
+import { resolveTopOfStack } from "../../../../gre/state";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import type { GameState, StackItem } from "../../../../gre/state";
 
 // Talisman cycle (issue #675) — same painland shape as ICE's Adarkar Wastes
 // cycle (`convex/cards/sets/ice/__tests__/colorless.test.ts`): one choice
@@ -75,3 +83,153 @@ describe.each([
         });
     }
 );
+
+function etbEvent(instanceId: string): StackItem["triggerEvent"] {
+    return {
+        type: "PERMANENT_ENTERED",
+        instanceId,
+        controllerId: "p1",
+        types: ["Artifact"],
+    } as StackItem["triggerEvent"];
+}
+
+function pushEtbTrigger(
+    state: GameState,
+    mox: ReturnType<typeof makeInstance>
+) {
+    state.stack.push({
+        ...mox,
+        zone: "stack",
+        castById: "p1",
+        triggeredAbilityId: "chrome-mox-imprint",
+        triggerSourceId: mox.id,
+        triggerEvent: etbEvent(mox.id),
+        targets: [],
+    });
+    resolveTopOfStack(state);
+}
+
+function submitChoice(state: GameState, cardInstanceIds: string[]) {
+    const head = state.pendingChoices![0];
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds,
+    });
+}
+
+describe("Chrome Mox ({0} Artifact — imprint exile + colour-gated mana, CR 603.6a / 605.1a)", () => {
+    it("is a {0} Artifact", () => {
+        expect(chromeMox.manaCost).toEqual({});
+        expect(chromeMox.types).toEqual(["Artifact"]);
+    });
+
+    it("ETB exiles the chosen nonartifact, nonland hand card and stamps its colours as imprint counters", () => {
+        const mox = makeInstance(chromeMox.id, {
+            id: "mox",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const greenCard = makeInstance(balduvianBears.id, {
+            id: "greenCard",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mox], hand: [greenCard] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushEtbTrigger(state, mox);
+        submitChoice(state, ["greenCard"]);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].exile.map((c) => c.id)).toContain("greenCard");
+        const moxOnBattlefield = state.players[0].battlefield.find(
+            (c) => c.id === "mox"
+        )!;
+        expect(moxOnBattlefield.counters?.["imprint-G"]).toBe(1);
+    });
+
+    it("declining the exile (or an all-land/artifact hand) leaves Chrome Mox with no mana ability available", () => {
+        const mox = makeInstance(chromeMox.id, {
+            id: "mox",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mox], hand: [] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushEtbTrigger(state, mox);
+        expect(state.pendingChoices ?? []).toEqual([]);
+        const ability = chromeMox.activatedAbilities![0];
+        expect(ability.canActivate!(mox, {} as never)).toBe(false);
+    });
+
+    it("taps for the exiled card's colour (CR 605.1a) once imprinted", () => {
+        const mox = makeInstance(chromeMox.id, {
+            id: "mox",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const greenCard = makeInstance(balduvianBears.id, {
+            id: "greenCard",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const player = makePlayer("p1", {
+            battlefield: [mox],
+            hand: [greenCard],
+        });
+        const state = makeState({ players: [player, makePlayer("p2")] });
+        state.activePlayerId = "p1";
+        pushEtbTrigger(state, mox);
+        submitChoice(state, ["greenCard"]);
+        const moxOnBattlefield = player.battlefield.find(
+            (c) => c.id === "mox"
+        )!;
+        const ability = chromeMox.activatedAbilities![0];
+        expect(ability.canActivate!(moxOnBattlefield, {} as never)).toBe(true);
+        expect(ability.getManaChoices!(moxOnBattlefield, "p1", [])).toEqual([
+            { G: 1 },
+        ]);
+        tapSourceIntoPayment(state, player, moxOnBattlefield, 0, []);
+        expect(player.manaPool.G).toBe(1);
+    });
+
+    it("wire format: the imprint counter is visible to both viewers", () => {
+        const mox = makeInstance(chromeMox.id, {
+            id: "mox",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const greenCard = makeInstance(balduvianBears.id, {
+            id: "greenCard",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mox], hand: [greenCard] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushEtbTrigger(state, mox);
+        submitChoice(state, ["greenCard"]);
+        for (const viewer of ["p1", "p2"] as const) {
+            const projected = projectPublicState(state, 1, viewer);
+            const slim = projected.players[0].battlefield.find(
+                (c) => c.id === "mox"
+            )!;
+            expect(slim.counters?.["imprint-G"]).toBe(1);
+        }
+    });
+});
