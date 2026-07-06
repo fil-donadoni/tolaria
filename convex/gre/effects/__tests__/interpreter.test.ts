@@ -6923,3 +6923,108 @@ describe("Effect Script value grammar: $event.<field> (ADR 0049, CR 603, issue #
         ).toBeDefined();
     });
 });
+
+// --- counter Op + destination (CR 701.5a, issue #683) -----------------------
+//
+// The bare `counter` Op (default graveyard destination) predates this suite —
+// existing per-card tests (Counterspell, Force Spike) are its only coverage.
+// This block adds the interpreter-level coverage the per-Op regime expects,
+// plus the NEW `destination` parameter's own permanent test (an extension to
+// an already-`implemented` Op, per the "new Op or new param shape" full-regime
+// rule) — the redirect half of "if that spell is countered this way, exile it
+// / put it on top of its owner's library / put it into its owner's hand
+// instead" (No More Lies, Memory Lapse, Remand).
+describe("Effect Script Op: counter + destination (CR 701.5a, issue #683)", () => {
+    it("removes the target spell from the stack into its owner's graveyard by default", () => {
+        const id = registerScript(
+            "test-op-counter-default",
+            [{ op: "counter", target: { target: 0 } }],
+            { targetRequirement: { type: "spell", count: 1 } }
+        );
+        const state = makeState();
+        const bolt = pushSpell(state, BEAR_ID, "p2");
+        pushSpell(state, id, "p1", [{ type: "spell", id: bolt.id }]);
+        resolveTopOfStack(state);
+        expect(state.stack.find((s) => s.id === bolt.id)).toBeUndefined();
+        expect(state.players[1].graveyard.some((c) => c.id === bolt.id)).toBe(
+            true
+        );
+    });
+
+    it('destination: "exile" — No More Lies redirects a countered spell to exile', () => {
+        const id = registerScript(
+            "test-op-counter-exile",
+            [{ op: "counter", target: { target: 0 }, destination: "exile" }],
+            { targetRequirement: { type: "spell", count: 1 } }
+        );
+        const state = makeState();
+        const bolt = pushSpell(state, BEAR_ID, "p2");
+        pushSpell(state, id, "p1", [{ type: "spell", id: bolt.id }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].graveyard.some((c) => c.id === bolt.id)).toBe(
+            false
+        );
+        expect(state.players[1].exile.some((c) => c.id === bolt.id)).toBe(true);
+    });
+
+    it('destination: "library-top" — Memory Lapse puts a countered spell on top of its owner\'s library', () => {
+        const id = registerScript(
+            "test-op-counter-library-top",
+            [
+                {
+                    op: "counter",
+                    target: { target: 0 },
+                    destination: "library-top",
+                },
+            ],
+            { targetRequirement: { type: "spell", count: 1 } }
+        );
+        const filler = makeInstance(BEAR_ID, {
+            id: "libFiller",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { library: [filler] }),
+            ],
+        });
+        const bolt = pushSpell(state, BEAR_ID, "p2");
+        pushSpell(state, id, "p1", [{ type: "spell", id: bolt.id }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].library[0]?.id).toBe(bolt.id); // top = index 0
+        expect(state.players[1].library[1]?.id).toBe("libFiller");
+    });
+
+    it('destination: "hand" — Remand puts a countered spell into its owner\'s hand', () => {
+        const id = registerScript(
+            "test-op-counter-hand",
+            [{ op: "counter", target: { target: 0 }, destination: "hand" }],
+            { targetRequirement: { type: "spell", count: 1 } }
+        );
+        const state = makeState();
+        const bolt = pushSpell(state, BEAR_ID, "p2");
+        pushSpell(state, id, "p1", [{ type: "spell", id: bolt.id }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].hand.some((c) => c.id === bolt.id)).toBe(true);
+    });
+
+    it("wire format: an exile-redirected counter survives projection", () => {
+        const id = registerScript(
+            "test-op-counter-exile-wire",
+            [{ op: "counter", target: { target: 0 }, destination: "exile" }],
+            { targetRequirement: { type: "spell", count: 1 } }
+        );
+        const state = makeState();
+        const bolt = pushSpell(state, BEAR_ID, "p2");
+        pushSpell(state, id, "p1", [{ type: "spell", id: bolt.id }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.stack.find((s) => s.id === bolt.id)).toBeUndefined();
+        expect(projected.players[1].exile.some((c) => c.id === bolt.id)).toBe(
+            true
+        );
+    });
+});

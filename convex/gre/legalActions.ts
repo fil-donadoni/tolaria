@@ -383,6 +383,8 @@ function requirementFromPendingTarget(pt: PendingTarget): TargetRequirement {
             pt.excludeSupertypes as TargetRequirement["excludeSupertypes"],
         mvFilter: pt.mvFilter,
         spellTypeFilter: pt.spellTypeFilter,
+        spellExcludeTypeFilter: pt.spellExcludeTypeFilter,
+        spellCreaturePtFilter: pt.spellCreaturePtFilter,
         spellSingleTargetingController: pt.spellSingleTargetingController,
         spellWouldDestroyLandYouControl: pt.spellWouldDestroyLandYouControl,
         spellStackKind: pt.spellStackKind,

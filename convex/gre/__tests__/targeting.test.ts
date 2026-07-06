@@ -11,6 +11,8 @@ import {
     getLegalTargets,
     getPendingTargetSourceSubtypes,
     matchesBattlefieldController,
+    spellMatchesCreaturePtFilter,
+    spellMatchesExcludeTypeFilter,
 } from "../rules";
 import { isGuardedAgainst } from "../permanentGuard";
 import type { CardType, TargetRequirement } from "../../cards/types";
@@ -895,6 +897,163 @@ describe("getLegalTargets: spell targeting (CR 114.1)", () => {
         });
         const req: TargetRequirement = { type: "spell", count: 1 };
         expect(getLegalTargets(state, req)).toHaveLength(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// spellExcludeTypeFilter / spellCreaturePtFilter — CR 114.1 (issue #683)
+// Spell Pierce ("target noncreature spell") and Stern Scolding ("target
+// creature spell with power or toughness 2 or less").
+// ---------------------------------------------------------------------------
+
+describe("getLegalTargets: spellExcludeTypeFilter (CR 114.1, Spell Pierce)", () => {
+    it("excludes creature spells, keeps every other spell type", () => {
+        const bolt: StackItem = {
+            ...makeCard({ id: "bolt1", types: ["Instant"] }),
+            castById: "p1",
+        };
+        const bear: StackItem = {
+            ...makeCard({ id: "bear1", types: ["Creature"] }),
+            castById: "p2",
+        };
+        const state = makeGameState({ stack: [bear, bolt] });
+        const req: TargetRequirement = {
+            type: "spell",
+            count: 1,
+            spellExcludeTypeFilter: "Creature",
+        };
+        const targets = getLegalTargets(state, req);
+        expect(targets.map((t) => t.id)).toEqual(["bolt1"]);
+    });
+
+    it("excludes an activated ability on the stack (it is never a spell)", () => {
+        const ability: StackItem = {
+            ...makeCard({ id: "ab1", types: ["Artifact"] }),
+            castById: "p1",
+            abilityId: "some-ability",
+        };
+        const state = makeGameState({ stack: [ability] });
+        const req: TargetRequirement = {
+            type: "spell",
+            count: 1,
+            spellExcludeTypeFilter: "Creature",
+        };
+        expect(getLegalTargets(state, req)).toHaveLength(0);
+    });
+});
+
+describe("getLegalTargets: spellCreaturePtFilter (CR 114.1 + 208.2, Stern Scolding)", () => {
+    it("keeps creature spells at or under the power-or-toughness threshold", () => {
+        const weak: StackItem = {
+            ...makeCard({
+                id: "weak1",
+                types: ["Creature"],
+                power: 1,
+                toughness: 1,
+            }),
+            castById: "p1",
+        };
+        const strong: StackItem = {
+            ...makeCard({
+                id: "strong1",
+                types: ["Creature"],
+                power: 4,
+                toughness: 4,
+            }),
+            castById: "p1",
+        };
+        const state = makeGameState({ stack: [weak, strong] });
+        const req: TargetRequirement = {
+            type: "spell",
+            count: 1,
+            spellTypeFilter: "Creature",
+            spellCreaturePtFilter: { maxPowerOrToughness: 2 },
+        };
+        const targets = getLegalTargets(state, req);
+        expect(targets.map((t) => t.id)).toEqual(["weak1"]);
+    });
+
+    it("matches on toughness alone (power over the threshold, toughness at it)", () => {
+        const lanky: StackItem = {
+            ...makeCard({
+                id: "lanky1",
+                types: ["Creature"],
+                power: 5,
+                toughness: 2,
+            }),
+            castById: "p1",
+        };
+        const state = makeGameState({ stack: [lanky] });
+        const req: TargetRequirement = {
+            type: "spell",
+            count: 1,
+            spellCreaturePtFilter: { maxPowerOrToughness: 2 },
+        };
+        expect(getLegalTargets(state, req).map((t) => t.id)).toEqual([
+            "lanky1",
+        ]);
+    });
+
+    it("excludes a noncreature spell regardless of power/toughness", () => {
+        const bolt: StackItem = {
+            ...makeCard({ id: "bolt2", types: ["Instant"] }),
+            castById: "p1",
+        };
+        const state = makeGameState({ stack: [bolt] });
+        const req: TargetRequirement = {
+            type: "spell",
+            count: 1,
+            spellCreaturePtFilter: { maxPowerOrToughness: 2 },
+        };
+        expect(getLegalTargets(state, req)).toHaveLength(0);
+    });
+});
+
+// Backend integration: `spellMatchesExcludeTypeFilter` /
+// `spellMatchesCreaturePtFilter` are the EXACT predicates `selectTarget`
+// (game.ts) calls to accept/reject a submitted target, shared with
+// `getLegalTargets` above (one predicate, two call sites — same pattern as
+// `spellWouldDestroyLandControlledBy` / Equinox). Mirrors that precedent's
+// "backend: selectTarget ACCEPTS/REJECTS" shape.
+describe("backend: selectTarget spell-filter predicates (issue #683)", () => {
+    it("spellMatchesExcludeTypeFilter REJECTS a creature spell, ACCEPTS a noncreature spell", () => {
+        const bear: StackItem = {
+            ...makeCard({ id: "bear2", types: ["Creature"] }),
+            castById: "p1",
+        };
+        const bolt: StackItem = {
+            ...makeCard({ id: "bolt3", types: ["Instant"] }),
+            castById: "p1",
+        };
+        expect(spellMatchesExcludeTypeFilter(bear, ["Creature"])).toBe(false);
+        expect(spellMatchesExcludeTypeFilter(bolt, ["Creature"])).toBe(true);
+    });
+
+    it("spellMatchesCreaturePtFilter ACCEPTS a small creature spell, REJECTS a big one", () => {
+        const small: StackItem = {
+            ...makeCard({
+                id: "small1",
+                types: ["Creature"],
+                power: 1,
+                toughness: 1,
+            }),
+            castById: "p1",
+        };
+        const big: StackItem = {
+            ...makeCard({
+                id: "big1",
+                types: ["Creature"],
+                power: 6,
+                toughness: 6,
+            }),
+            castById: "p1",
+        };
+        expect(
+            spellMatchesCreaturePtFilter(small, { maxPowerOrToughness: 2 })
+        ).toBe(true);
+        expect(
+            spellMatchesCreaturePtFilter(big, { maxPowerOrToughness: 2 })
+        ).toBe(false);
     });
 });
 

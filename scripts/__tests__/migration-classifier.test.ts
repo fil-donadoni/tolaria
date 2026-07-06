@@ -411,23 +411,32 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // no new-Op backlog entry), with a per-card test → AFK-ready;
         // Upheaval shipped pure DSL (0 closures). Net from #685: total
         // 637→638, FREE 397→398, AFK-ready 364→365.
-        // #682 (Cube FREE — edict/discard/hand disruption), rebased ON TOP of
-        // #685, ADDED one protocol resolve() card, Memory Jar (2 closures:
-        // the {T}, Sacrifice activated ability + its "next end step" delayed
-        // trigger) — a whole-hand face-down exile with a per-player linked
-        // delayed restore the frozen Effect Script grammar can't carry (no
-        // whole-zone-move Op, no per-forEach-member delayedTrigger capture;
-        // see `sets/ulg/colorless.ts`). Both closures land Op-blocked, not
-        // FREE. Net from #682: total 638→640, Op-blocked 226→228,
-        // FREE/AFK-ready/X-only unchanged. Values below are the true
+        // #682 (Cube FREE — edict/discard/hand disruption), on top of #685,
+        // ADDED one protocol resolve() card, Memory Jar (2 closures: the {T},
+        // Sacrifice activated ability + its "next end step" delayed trigger)
+        // — a whole-hand face-down exile with a per-player linked delayed
+        // restore the frozen Effect Script grammar can't carry (no whole-
+        // zone-move Op, no per-forEach-member delayedTrigger capture; see
+        // `sets/ulg/colorless.ts`). Both closures land Op-blocked. Net from
+        // #682: total 638→640, Op-blocked 226→228.
+        // #683 (Cube FREE — counterspells), rebased on top of #682/#684/#685,
+        // ADDED 3 protocol `resolve()` closures via Quandrix Charm's per-mode
+        // legacy `modes` mechanism (CR 700.2c cross-mode-target gap, same
+        // escape as Witherbloom Charm/Silverquill Charm): the
+        // counter-unless-pay and destroy-enchantment modes each carry the
+        // card's own per-card test (sos/__tests__/multicolor.test.ts),
+        // landing FREE + AFK-ready; the set-pt mode reuses the
+        // already-`resolve()`-only `setBasePT` primitive, landing Op-blocked.
+        // Net from #683: total 640→643, FREE 398→400, AFK-ready 365→367,
+        // Op-blocked 228→229, X-only unchanged. Values below are the true
         // post-rebase totals, reconciled by re-running
         // `bun scripts/migration-classifier.mjs` against the merged tree
         // rather than hand-added.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(640);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(398);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(365);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(643);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(400);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(367);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(228);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(229);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {

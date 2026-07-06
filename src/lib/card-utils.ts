@@ -326,6 +326,53 @@ export function matchesSpellTypeFilter(
     return spellTypeFilter.some((t) => types.includes(t));
 }
 
+/** True if a stack item is a legal spell target under an optional
+ *  `spellExcludeTypeFilter` (CR 114.1, Spell Pierce's "target noncreature
+ *  spell"): an activated/triggered ability isn't a spell, and a spell must
+ *  match NONE of the excluded card types. With no filter, any stack item
+ *  qualifies. */
+export function matchesSpellExcludeTypeFilter(
+    item: {
+        types?: string[];
+        abilityId?: string;
+        triggeredAbilityId?: string;
+    },
+    spellExcludeTypeFilter: string[] | undefined
+): boolean {
+    if (!spellExcludeTypeFilter || spellExcludeTypeFilter.length === 0) {
+        return true;
+    }
+    if (item.abilityId || item.triggeredAbilityId) return false;
+    const types = item.types ?? [];
+    return !spellExcludeTypeFilter.some((t) => types.includes(t));
+}
+
+/** True if a stack item is a legal spell target under an optional
+ *  `spellCreaturePtFilter` (CR 114.1 + 208.2, Stern Scolding's "target
+ *  creature spell with power or toughness 2 or less"): an
+ *  activated/triggered ability isn't a spell, the item must be a creature
+ *  spell, and its power OR toughness must be at most the given number. With
+ *  no filter, any stack item qualifies. */
+export function matchesSpellCreaturePtFilter(
+    item: {
+        types?: string[];
+        abilityId?: string;
+        triggeredAbilityId?: string;
+        power?: number;
+        toughness?: number;
+    },
+    spellCreaturePtFilter: { maxPowerOrToughness: number } | undefined
+): boolean {
+    if (!spellCreaturePtFilter) return true;
+    if (item.abilityId || item.triggeredAbilityId) return false;
+    const types = item.types ?? [];
+    if (!types.includes("Creature")) return false;
+    const max = spellCreaturePtFilter.maxPowerOrToughness;
+    const powerOk = item.power !== undefined && item.power <= max;
+    const toughnessOk = item.toughness !== undefined && item.toughness <= max;
+    return powerOk || toughnessOk;
+}
+
 /** True if a stack item is a legal target for Reflecting Mirror's
  *  `spellSingleTargetingController` requirement (CR 114.6 / 115.10): an
  *  actual spell (not an ability) that has EXACTLY ONE target whose single
