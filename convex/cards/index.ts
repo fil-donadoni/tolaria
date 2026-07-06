@@ -159,6 +159,10 @@ import * as mom from "./sets/mom";
 import * as clb from "./sets/clb";
 import * as c13 from "./sets/c13";
 import * as vow from "./sets/vow";
+// Cube FREE: evasion / protection statics (issue #684) — new cross-set home
+// sets routed to earliest paper printing (ADR 0041).
+import * as jud from "./sets/jud";
+import * as m20 from "./sets/m20";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -316,6 +320,9 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "clb", exports: clb },
     { code: "c13", exports: c13 },
     { code: "vow", exports: vow },
+    // Cube FREE: evasion / protection statics (issue #684).
+    { code: "jud", exports: jud },
+    { code: "m20", exports: m20 },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>
