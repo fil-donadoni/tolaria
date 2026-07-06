@@ -190,6 +190,19 @@ export function wantsPermanentTarget(
     return types.some((t) => t !== "player");
 }
 
+/** True if the target requirement can target a player (CR 115.1a). Mirrors
+ *  {@link wantsPermanentTarget}: handles both the scalar `"player"` and the
+ *  array form (e.g. Lava Spike's `["player", "Planeswalker"]`), plus `"any"`
+ *  (CR 115.4 "any target"). Used to mark a player face as clickable during
+ *  targeting — a raw `targetType === "player"` misses the array form. */
+export function wantsPlayerTarget(
+    targetType: string | string[] | undefined
+): boolean {
+    if (!targetType) return false;
+    const types = Array.isArray(targetType) ? targetType : [targetType];
+    return types.includes("player") || types.includes("any");
+}
+
 /** Client-side mirror of the backend's matchesPermanentFilter. Returns true
  *  if the permanent matches every constraint in the filter (AND semantics).
  *  Used by the mid-resolution choice UI to highlight legal picks.

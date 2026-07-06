@@ -1,4 +1,5 @@
 import type { Player } from "~/types/game";
+import { wantsPlayerTarget } from "~/lib/card-utils";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useMutation } from "convex/react";
@@ -58,8 +59,9 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
     const isTargetable =
         !!pendingTarget &&
         pendingTarget.playerId === playerId &&
-        (pendingTarget.targetType === "player" ||
-            pendingTarget.targetType === "any") &&
+        // Accepts scalar "player"/"any" AND the array form (Lava Spike's
+        // ["player", "Planeswalker"]) — a raw === "player" missed arrays.
+        wantsPlayerTarget(pendingTarget.targetType) &&
         // CR 506.2 — "target player who attacked this turn" (Fire and
         // Brimstone): a player is only clickable when they control a creature
         // flagged as having attacked. The server enforces this too, but gating

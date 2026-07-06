@@ -141,6 +141,30 @@ describe("board player target parity (#280)", () => {
         });
     });
 
+    // Regression: Lava Spike's requirement is the ARRAY ["player",
+    // "Planeswalker"], not the scalar "player". The player face must still be
+    // clickable — a raw === "player" left it inert.
+    it("(a2) an array target type ['player','Planeswalker'] still targets the player", () => {
+        const arrayCtx: Partial<NonNullable<Ctx>> = {
+            playerId: "p2",
+            pendingTarget: {
+                playerId: "p2",
+                targetType: ["player", "Planeswalker"],
+                selected: [],
+            } as never,
+        };
+        const { container } = renderSpatial(makePlayer("p1"), arrayCtx, "top");
+        fireEvent.click(
+            container.querySelector('[data-arrow-anchor-player="p1"]')!
+        );
+        expect(selectTargetSpy).toHaveBeenCalledWith(
+            expect.objectContaining({
+                targetType: "player",
+                targetId: "p1",
+            })
+        );
+    });
+
     it("a non-targetable player is inert on the spatial board", () => {
         // No pendingTarget → nothing to dispatch.
         const { container } = renderSpatial(makePlayer("p1"), {

@@ -36,9 +36,15 @@ type GameDialogProps = {
     children: React.ReactNode;
 };
 
+// The in-game dialog centers on the PLAY AREA (viewport minus the right piles
+// strip), not the viewport — via `.play-area-center-x` (`left: calc(50% -
+// --right-piles-w/2)`). A width measured against the full `100vw` centered on
+// that offset point overflows the left edge, so the available width is the play
+// area, i.e. `100vw - --right-piles-w`. The var resolves to 0px off-board (lobby)
+// ⇒ plain full-viewport sizing.
 const sizeClasses: Record<GameDialogSize, string> = {
-    default: "max-w-md w-[calc(100vw-2rem)]",
-    wide: "max-w-[90vw] w-[calc(100vw-2rem)]",
+    default: "max-w-md w-[calc(100vw-var(--right-piles-w,0px)-2rem)]",
+    wide: "max-w-[90vw] w-[calc(100vw-var(--right-piles-w,0px)-2rem)]",
 };
 
 /**

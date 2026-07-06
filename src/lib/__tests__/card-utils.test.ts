@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
     wantsPermanentTarget,
+    wantsPlayerTarget,
     matchesPermanentFilter,
     matchesTargetRequirement,
     matchesTargetController,
@@ -90,6 +91,39 @@ describe("wantsPermanentTarget", () => {
 
     it("returns true for 'spell-or-permanent'", () => {
         expect(wantsPermanentTarget("spell-or-permanent")).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// wantsPlayerTarget
+// ---------------------------------------------------------------------------
+
+describe("wantsPlayerTarget", () => {
+    it("returns true for 'player'", () => {
+        expect(wantsPlayerTarget("player")).toBe(true);
+    });
+
+    it("returns true for 'any'", () => {
+        expect(wantsPlayerTarget("any")).toBe(true);
+    });
+
+    // Lava Spike (chk/red): "3 damage to target player or planeswalker" →
+    // type ["player", "Planeswalker"]. The array form MUST mark the player
+    // face as targetable — the regression this covers (player not highlighted).
+    it("returns true for ['player', 'Planeswalker'] (Lava Spike)", () => {
+        expect(wantsPlayerTarget(["player", "Planeswalker"])).toBe(true);
+    });
+
+    it("returns false for 'Creature'", () => {
+        expect(wantsPlayerTarget("Creature")).toBe(false);
+    });
+
+    it("returns false for ['Artifact', 'Enchantment']", () => {
+        expect(wantsPlayerTarget(["Artifact", "Enchantment"])).toBe(false);
+    });
+
+    it("returns false for undefined", () => {
+        expect(wantsPlayerTarget(undefined)).toBe(false);
     });
 });
 

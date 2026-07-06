@@ -1,11 +1,4 @@
-Mishra's Bauble non mostra la carta in cima alla library del giocatore targettato. e la carta non resta nemmeno tra le visibili successivamente, dovrebbe farlo.
-L'abilità innescata di pescata di Mishra's Bauble mostra la carta sullo stack invece della card preview con l'oracle text dell'abilità.
-
 il bot ha castato Copy artifact senza alcun artefatto in gioco.
-
-Lifelink non mi fa guadagnare vite (nello specifico, attacco con Griselbrand)
-
-Haste non permette alla creatura di attaccare subito
 
 Se ho aperto un box di scelta del mana per una terra che sto tappando, e poi premo auto-tap, il box di scelta deve chiudersi.
 
@@ -14,8 +7,6 @@ Pagare il costo dell'abilità attivata di Goblin bombardment non deve mostrare i
 Ogni tanto draggo per sbaglio una carta in mano fuori dal viewport. Teoricamente dovrei poter cambiare l'ordine visuale delle carte in mano facendo drag&drop ma non devo poter andare oltre la prima e l'ultima carta della mano.
 
 Witherbloom Charm mi ha fatto sacrificare un permanente random, non a mia scelta.
-
-Lava Spike non mi permette di selezionare i giocatori come target. forse si rompe perché supporta anche i plaeswalker che non esistono ancora nel gioco. Tra l'altro è stata implementata pur non avendo né planeswalker né arcane a disposizione.
 
 L'Elemental Token generato da Titania non riporta la sua immagine da Scryfall. E nemmeno gli spirits. sembra che l'immagine dei token non venga recuperata mai, ma il Servo di Retrofitter foundry si vede.
 
