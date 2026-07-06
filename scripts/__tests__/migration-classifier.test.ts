@@ -408,19 +408,26 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // resolve() — Damnation ("destroy all creatures, can't be
         // regenerated") via the shared `SpellContext.destroyAll` primitive
         // (the SECOND consumer after Wrath of God — not a new primitive, so
-        // no new-Op backlog entry). It has a per-card test
-        // (`sets/plc/__tests__/black.test.ts`), so it counts as AFK-ready.
-        // Upheaval ("return all permanents to hand") shipped as a pure DSL
-        // card (`forEach` + `moveZone`), contributing 0 closures. Net: total
-        // 637→638, FREE 397→398, AFK-ready 364→365, X-only/Op-blocked
-        // unchanged. Values below are the true post-rebase totals,
-        // reconciled by re-running `bun scripts/migration-classifier.mjs`
-        // against the merged tree rather than hand-added.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(638);
+        // no new-Op backlog entry), with a per-card test → AFK-ready;
+        // Upheaval shipped pure DSL (0 closures). Net from #685: total
+        // 637→638, FREE 397→398, AFK-ready 364→365.
+        // #682 (Cube FREE — edict/discard/hand disruption), rebased ON TOP of
+        // #685, ADDED one protocol resolve() card, Memory Jar (2 closures:
+        // the {T}, Sacrifice activated ability + its "next end step" delayed
+        // trigger) — a whole-hand face-down exile with a per-player linked
+        // delayed restore the frozen Effect Script grammar can't carry (no
+        // whole-zone-move Op, no per-forEach-member delayedTrigger capture;
+        // see `sets/ulg/colorless.ts`). Both closures land Op-blocked, not
+        // FREE. Net from #682: total 638→640, Op-blocked 226→228,
+        // FREE/AFK-ready/X-only unchanged. Values below are the true
+        // post-rebase totals, reconciled by re-running
+        // `bun scripts/migration-classifier.mjs` against the merged tree
+        // rather than hand-added.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(640);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(398);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(365);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(226);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(228);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {

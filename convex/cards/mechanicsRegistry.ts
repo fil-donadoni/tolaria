@@ -2308,7 +2308,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         status: "implemented",
         cr: "608.2",
         binding: "SpellContext.requestChoice",
-        note: "Mid-resolution player choice (CR 101.4 / 608.2, issue #805) mapped 1:1 onto the existing Pending Choice zone-pick kinds (EffectChoiceKind ⊂ ZonePickKind) — same enqueue, same generic prompt UI, same submitResolutionChoice mutation. The interpreter SUSPENDS the script at this Op (resolutionStep checkpoints the Op index) and resumes here when the picks are submitted; its required `bind` names the picks for later Ops.",
+        note: 'Mid-resolution player choice (CR 101.4 / 608.2, issue #805) mapped 1:1 onto the existing Pending Choice zone-pick kinds (EffectChoiceKind ⊂ ZonePickKind) — same enqueue, same generic prompt UI, same submitResolutionChoice mutation. The interpreter SUSPENDS the script at this Op (resolutionStep checkpoints the Op index) and resumes here when the picks are submitted; its required `bind` names the picks for later Ops. Optional `zoneOwnerId` (issue #920, #682) names the zone owner when it differs from the chooser (`player`) — a direct passthrough of the `zoneOwnerId` parameter `SpellContext.requestChoice` already accepted (Leshrac\'s Sigil, Demonic Hordes); unblocks the Thoughtseize/Duress/Inquisition-of-Kozilek "target player reveals their hand, you choose a card from it" template.',
     },
     {
         op: "discard",
@@ -2459,6 +2459,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.requestCoinFlip",
         note: "Flip a coin, then run the win / loss branch (CR 705, issue #851). A thin declarative skin over the single SpellContext primitive `requestCoinFlip` (the suspending reveal flip, ADR 0023), one execution path (ADR 0045): the bit is drawn ONCE from the seeded PRNG, PAUSES resolution to animate the coin landing (WIN/LOSE reveal overlay), and on resume the persisted outcome short-circuits the re-run (no re-roll, CR 608.3). `win` / `loss` are each `{ consequence, effects }` — a labelled nested `EffectOp[]` run through the SAME `runOpList` path an `if` branch / optionChoice mode uses, so a branch composes bind / ref / if / forEach and even a further suspending Op (Goblin Kites' delayed-body sacrifice-on-loss, Orcish Captain's +2/+0-or--0/-2 buff, Bottle of Suleiman's create-token-or-take-5, Goblin Lyre's creature-count damage). `player` (optional) names the flipping player — the resolving `\"controller\"` by default (CR 705.1); an announced target-slot / relative player otherwise. Like `if` / `optionChoice` it is a structural construct that always re-descends on a re-walk (in the interpreter's runOpList skip-exception), so a suspension inside the taken branch resumes correctly. Skipped when the flipper is gone (CR 608.2b). SCOPE (issue #851): the suspending reveal flip only. The synchronous non-suspending `flipCoin` loop cards — repeat-until-lose / doubling-stake stakes (Goblin Artisans, Mana Clash, Game of Chaos) — are NOT folded: they need an unbounded loop + arithmetic value the frozen grammar does not carry, so they stay resolve() until demanded. Note Mijae Djinn / Ydwen Efreet use THIS same `requestCoinFlip` primitive (not a separate synchronous flip) yet remain resolve() for an unrelated reason — they are blocked on combat-manipulation Ops (removeFromCombat / unblock), not on the coin flip.",
     },
+    {
+        op: "reveal",
+        status: "implemented",
+        cr: "701.20",
+        mechanicId: "reveal",
+        binding: "SpellContext.markKnownToAll",
+        note: 'Reveal `player`\'s hand to every player (CR 701.20a, issue #920 / #682 — promoted from the `planned` backlog). A thin declarative skin over the single SpellContext primitive `markKnownToAll` (ADR 0026), one execution path (ADR 0045): every card currently in `player`\'s hand is stamped with every player in `knownTo`, so the wire projection (`convex/gameProjections.ts`) shows the real card instead of nulling the slot. Frozen to `zone: "hand"` — the only shape a shipped card needs today (Thoughtseize / Duress / Inquisition of Kozilek / Grief\'s "target player reveals their hand"). No-op on an empty hand (CR 608.2b). SCOPE: only the ALL-PLAYERS reveal is folded. A private "look" (ONE knower, e.g. Word of Command\'s "look at target opponent\'s hand") is a DIFFERENT, narrower primitive (`SpellContext.markKnown`) and stays resolve() — Word of Command\'s control-transfer protocol has other reasons to stay resolve() regardless (ADR 0037). A library-top reveal (Caustic Bronco-class, positional order matters) is also NOT folded — left for a future Op.',
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
@@ -2566,13 +2574,12 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Low-frequency long-tail (surfaced by the classifier, PRD #826 §Out
     //     of Scope — recorded as reservations, filed as issues only on demand
     //     past wave-1). ---
-    {
-        op: "reveal",
-        status: "planned",
-        cr: "701.20",
-        mechanicId: "reveal",
-        note: 'CR 701.20 keyword action "Reveal" as an Op. Folds SpellContext.markKnown / markKnownToAll / revealHand (~16 blocked closures). Long-tail: the reveal PRIMITIVE exists (Reveal keyword action) but no Effect Script Op wraps it yet.',
-    },
+    // `reveal` SHIPPED (issue #920 / #682) — SpellContext.markKnownToAll is
+    // now COVERED live via EFFECT_OP_REGISTRY with status "implemented". Only
+    // the ALL-PLAYERS hand reveal is folded (Thoughtseize / Duress /
+    // Inquisition of Kozilek / Grief's "target player reveals their hand").
+    // A private single-knower "look" (Word of Command) and a library-top
+    // reveal (Caustic Bronco-class) are NOT folded — see the registry note.
     {
         op: "setColor",
         status: "planned",

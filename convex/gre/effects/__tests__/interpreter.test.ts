@@ -4463,6 +4463,230 @@ describe("Effect Script Op: choice (CR 608.2 / 101.4, issue #805)", () => {
     });
 });
 
+// issue #920 / #682 — the `choice` Op's `zoneOwnerId` generalization: the
+// chooser (`player`) and the zone owner picked from can now differ. Paired
+// with the new `reveal` Op this is the Thoughtseize/Duress/Inquisition-of-
+// Kozilek/Grief template: "target player reveals their hand, you choose a
+// nonland card from it, that player discards it."
+describe("Effect Script Op: choice — zoneOwnerId (issue #920)", () => {
+    const handOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "hand",
+            })
+        );
+
+    it("lets the CONTROLLER choose from the TARGET's hand (chooser ≠ zone owner), then discards the pick from the target's hand", () => {
+        const id = registerScript(
+            "test-op-choice-zoneownerid",
+            [
+                { op: "reveal", player: { target: 0 }, zone: "hand" },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zoneOwnerId: { target: 0 },
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Choose a card from that player's hand.",
+                    bind: "$picked",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$picked" },
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf("p2", ["h1", "h2", "h3"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the choice
+
+        const head = state.pendingChoices![0];
+        // The CHOOSER is the caster (p1), even though the zone belongs to p2.
+        expect(head.playerId).toBe("p1");
+        expect(head.zoneOwnerId).toBe("p2");
+        expect(head.count).toBe(1);
+
+        // Wire format (CR 701.20a reveal): the `reveal` Op ran first, so p2's
+        // hand cards are now known to p1 too — the projection for VIEWER p1
+        // must show the real cards instead of nulling p2's hand slots.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].hand.map((c) => c?.id).sort()).toEqual([
+            "h1",
+            "h2",
+            "h3",
+        ]);
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["h2"],
+        });
+        // The TARGET (p2) discards the chosen card, not the chooser (p1).
+        expect(state.players[1].hand.map((c) => c.id).sort()).toEqual([
+            "h1",
+            "h3",
+        ]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["h2"]);
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices).toBeUndefined();
+    });
+
+    it("skips the choice when zoneOwnerId cannot be resolved (CR 608.2b) and defaults to the chooser's own zone when omitted", () => {
+        // Omitted zoneOwnerId — unchanged pre-existing behaviour (the chooser
+        // picks from their OWN hand, Mind Rot-style).
+        const id = registerScript("test-op-choice-zoneownerid-default", [
+            {
+                op: "choice",
+                kind: "discard-hand",
+                player: "controller",
+                zone: "hand",
+                count: 1,
+                prompt: "Discard a card.",
+                bind: "$picked",
+            },
+            { op: "discard", player: "controller", cards: { ref: "$picked" } },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: handOf("p1", ["own1", "own2"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p1");
+        expect(head.zoneOwnerId).toBeUndefined();
+        expect(head.candidateIds).toBeUndefined(); // no filter, unfiltered hand pick
+    });
+
+    it("restricts a battlefield choice to tokens / nontoken permanents via the isToken filter (issue #920)", () => {
+        const token = makeInstance(BEAR_ID, {
+            id: "tok1",
+            controllerId: "p2",
+            ownerId: "p2",
+            isToken: true,
+        });
+        const nontoken = makeInstance(BEAR_ID, {
+            id: "real1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const id = registerScript(
+            "test-op-choice-istoken",
+            [
+                {
+                    op: "choice",
+                    kind: "sacrifice-permanents",
+                    player: { target: 0 },
+                    zone: "battlefield",
+                    filter: { type: "Creature", isToken: true },
+                    count: 1,
+                    prompt: "Sacrifice a creature token.",
+                    bind: "$sac",
+                },
+                { op: "sacrifice", permanents: { ref: "$sac" } },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [token, nontoken] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.filter?.isToken).toBe(true);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["tok1"],
+        });
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            "real1",
+        ]); // the nontoken survives; only the token is gone
+    });
+
+    // issue #682 — `excludeType` is the negative of `type` (mirrors the
+    // already-shipped `TargetRequirement.excludeTypes`), exposed on the hand/
+    // library/graveyard `EffectCardFilter` too. Thoughtseize/Inquisition of
+    // Kozilek/Duress-class "reveal hand, choose a NONLAND card" template.
+    it("excludes cards of the listed type(s) from a hand choice via excludeType (issue #682)", () => {
+        const land = makeInstance(LAND_ID, {
+            id: "land1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const bear = makeInstance(BEAR_ID, {
+            id: "bear1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const id = registerScript(
+            "test-op-choice-excludetype",
+            [
+                { op: "reveal", player: { target: 0 }, zone: "hand" },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zoneOwnerId: { target: 0 },
+                    zone: "hand",
+                    filter: { excludeType: "Land" },
+                    count: 1,
+                    prompt: "Choose a nonland card.",
+                    bind: "$picked",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$picked" },
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [land, bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        // Only the nonland card is a legal candidate — the land is excluded.
+        expect(head.candidateIds).toEqual(["bear1"]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["bear1"],
+        });
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["land1"]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["bear1"]);
+    });
+});
+
 // --- if construct + mayPay / counter Ops (ADR 0045, issue #806) --------------
 
 describe("Effect Script Op: mayPay (CR 117.3a / 118.4, issue #806)", () => {

@@ -56,4 +56,28 @@
 //     toughness: 1,
 // };
 
+// Deceit — {4}{U/B}{U/B} Creature — Elemental Incarnation (Vintage Cube
+// edict/discard/hand disruption, issue #682). "When this creature enters, if
+// {U}{U} was spent to cast it, return up to one other target nonland
+// permanent to its owner's hand. When this creature enters, if {B}{B} was
+// spent to cast it, target opponent reveals their hand. You choose a nonland
+// card from it. That player discards that card. Evoke {U/B}{U/B}." Blocked:
+// same shape as this file's Vibrance stub above — keyword **Evoke** (CR
+// 702.74) is `status: "planned"`, AND neither ETB condition is checkable (no
+// spent-mana-color primitive tracks WHICH color paid a hybrid cost). Already
+// tracked by #900 ("Cube CAP: Evoke keyword + spent-mana-color tracking for
+// hybrid ETB triggers"). Home file is `multicolor.ts` (a genuine U/B card,
+// hybrid {U/B}{U/B} in its cost), NOT `colorless.ts`.
+// tracked-by: #900
+// export const deceit: CardDefinition = {
+//     id: "bd82c9e4-9871-4e6d-b691-ee00b4b9a3c6",
+//     name: "Deceit",
+//     rarity: "mythic",
+//     manaCost: { X: 4 },
+//     types: ["Creature"],
+//     subtypes: ["Elemental", "Incarnation"],
+//     power: 5,
+//     toughness: 5,
+// };
+
 export {};

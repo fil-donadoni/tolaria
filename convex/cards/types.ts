@@ -4805,13 +4805,32 @@ export interface EffectCountSpec {
  *  DYNAMIC ceiling (Green Sun's Zenith's "mana value X or less") is NOT
  *  expressible here (a literal number, not an EffectValue) — that card stays a
  *  tracked stub. Deliberately small: it answers "how many X" / "search for an
- *  X card", not arbitrary predicates. */
+ *  X card", not arbitrary predicates. `isToken` (issue #920) restricts a
+ *  `zone: "battlefield"` pick to tokens (`true`, Sheoldred's Edict's "a
+ *  creature TOKEN") or nontoken permanents (`false`, Sheoldred's Edict's "a
+ *  NONTOKEN creature") — a direct passthrough of the `PermanentFilter.isToken`
+ *  field `matchesPermanentFilter` already checks (`convex/cards/filters.ts`),
+ *  just exposed to the DSL (ADR 0045 "generalize, don't add"). Meaningful only
+ *  for `zone: "battlefield"`: a hidden-zone pick (hand/library/graveyard) has
+ *  no engine-tracked `isToken` on its card-shape reader, and tokens don't
+ *  meaningfully persist off the battlefield anyway (CR 111.7). `excludeType`
+ *  (issue #682) is the negative of `type` — mirrors the ALREADY-EXISTING
+ *  `TargetRequirement.excludeTypes` field (Terror's "target nonartifact,
+ *  nonblack creature") exactly, just exposed on the hand/library/graveyard
+ *  filter shape too (ADR 0045 "generalize, don't add" — a symmetric field on
+ *  an existing primitive, not a new one). A card matches only if it has NONE
+ *  of the listed types: Thoughtseize / Inquisition of Kozilek / Grief's
+ *  "nonland card" is `excludeType: "Land"`; Duress's "noncreature, nonland
+ *  card" is `excludeType: ["Land", "Creature"]`. AND with `type` when both are
+ *  present (an unlikely but not-forbidden combination). */
 export interface EffectCardFilter {
     type?: CardType | CardType[];
     subtype?: string | string[];
     supertype?: CardSupertype;
     color?: Color | Color[];
     manaValueAtMost?: number;
+    isToken?: boolean;
+    excludeType?: CardType | CardType[];
 }
 
 /** X — the chosen-cost value (CR 107.3, 601.2b), a thin JSON-pure skin over
@@ -5353,6 +5372,24 @@ export type EffectOp =
           loss: EffectCoinFlipBranch;
           player?: EffectPlayerRef;
       }
+    /** CR 701.20a — reveal `player`'s hand to every player (issue #920, #682).
+     *  A thin declarative skin over `SpellContext.markKnownToAll` (ADR 0026):
+     *  every card currently in `player`'s hand is stamped with every player in
+     *  `knownTo`, so the wire projection (`convex/gameProjections.ts`) shows
+     *  the real card to everyone instead of nulling the slot — CR 701.20a
+     *  reveal is public knowledge, unlike a private "look" (Word of Command's
+     *  `ctx.markKnown`, a single knower, stays `resolve()` — a different,
+     *  narrower primitive). Distinct from a `choice` Op reading someone else's
+     *  zone (`zoneOwnerId`): `reveal` grants NO chooser action by itself, it
+     *  only makes an otherwise-hidden zone visible — pair it with a following
+     *  `choice(zone: "hand", zoneOwnerId: <same player>)` for the
+     *  Thoughtseize/Duress/Inquisition-of-Kozilek template ("target player
+     *  reveals their hand, you choose a card from it"). No-op on an empty
+     *  hand (CR 608.2b — nothing to reveal). Scoped to `zone: "hand"` only for
+     *  now — a library-top reveal (Caustic Bronco-class) is a distinct
+     *  positional-order case left for a future Op (`EFFECT_OP_BACKLOG`'s
+     *  broader "reveal" note, `mechanicsRegistry.ts`). */
+    | { op: "reveal"; player: EffectPlayerRef; zone: "hand" }
     /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a
      *  Pending Choice of the given `kind` and SUSPENDS the script (the stack
@@ -5373,9 +5410,25 @@ export type EffectOp =
     | {
           op: "choice";
           kind: EffectChoiceKind;
-          /** The chooser — also the owner of the zone picked from. */
+          /** The chooser. Defaults to also being the owner of the zone picked
+           *  from (Mind Rot, Innocent Blood — the common case). */
           player: EffectPlayerRef;
           zone: "battlefield" | "hand" | "library" | "graveyard";
+          /** Owner of the zone picked from, when it differs from the chooser
+           *  (issue #920 generalization). Maps 1:1 onto the `zoneOwnerId`
+           *  parameter `SpellContext.requestChoice` already accepts and
+           *  production `resolve()` cards already pass (Leshrac's Sigil:
+           *  the Sigil's controller chooses from the OPPONENT's hand; Demonic
+           *  Hordes: the opponent chooses from the CONTROLLER's battlefield)
+           *  — this just exposes that existing capability to the DSL, no new
+           *  primitive (ADR 0045 "generalize, don't add"). The
+           *  Thoughtseize/Duress/Inquisition-of-Kozilek "target player
+           *  reveals their hand, you choose a card from it" template is the
+           *  canonical case: `player: "controller"`, `zoneOwnerId: { target:
+           *  0 }`. Omitted = the chooser's own zone (unchanged default
+           *  behaviour for every pre-existing `choice` Op card). Skipped
+           *  entirely if this player ref cannot be resolved (CR 608.2b). */
+          zoneOwnerId?: EffectPlayerRef;
           filter?: EffectCardFilter;
           /** Pick count, clamped to availability (CR 608.2b). A plain number
            *  is an EXACT count (the chooser must pick that many, down to

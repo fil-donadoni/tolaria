@@ -258,6 +258,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Archon of Cruelty",
+        "scryfallId": "1be9d9a4-d7ee-4854-abc2-85cabf993ec9",
+        "oracleId": "aa1a6646-c1e6-4bff-9092-43ee3e137914",
+        "firstSet": "mh2"
+    },
+    {
         "name": "Arctic Foxes",
         "scryfallId": "98f99c3e-dddc-492f-aab6-1d899346a385",
         "oracleId": "898f0824-cf4c-4e34-8407-9a32fdae6dcb",
@@ -1750,6 +1756,12 @@
         "scryfallId": "23614289-0d73-4747-a849-5cb67cc97d6a",
         "oracleId": "c180ed02-07f4-4538-9bea-8c249234a8e2",
         "firstSet": "lea"
+    },
+    {
+        "name": "Duress",
+        "scryfallId": "ca367f49-0f4a-4b7f-8104-851893fbcd8a",
+        "oracleId": "33d405ea-7a9a-4970-b70f-9c05d90dd6f0",
+        "firstSet": "usg"
     },
     {
         "name": "Durkwood Boars",
@@ -3534,6 +3546,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Inquisition of Kozilek",
+        "scryfallId": "6a3ff5c3-0fdb-4d54-b4e5-ce7bad9953f0",
+        "oracleId": "395611fa-aec2-4c9e-92c3-70cf95cc00f4",
+        "firstSet": "roe"
+    },
+    {
         "name": "Inspiring Vantage",
         "scryfallId": "160ac412-005f-48ca-a204-10207307c6c2",
         "oracleId": "3f17c60e-923a-4392-9da8-87d9ded009b7",
@@ -4378,6 +4396,12 @@
         "scryfallId": "8d90065e-2c7e-44e5-9f59-015d468214bf",
         "oracleId": "599247f2-7f88-40ab-be08-e284e5f231d9",
         "firstSet": "ice"
+    },
+    {
+        "name": "Memory Jar",
+        "scryfallId": "60b70b7f-6f24-4c00-947a-b109f302205b",
+        "oracleId": "eb9c9a34-88a8-4afe-a053-806f6b29834f",
+        "firstSet": "vma"
     },
     {
         "name": "Mercenaries",
@@ -6024,6 +6048,12 @@
         "firstSet": "dmu"
     },
     {
+        "name": "Sheoldred's Edict",
+        "scryfallId": "a9225cc3-90f0-448f-a8d9-7c6c2796d077",
+        "oracleId": "217062f5-96f1-454c-9507-17f34ef37070",
+        "firstSet": "one"
+    },
+    {
         "name": "Shield Bearer",
         "scryfallId": "318ff2da-d309-469c-8e2f-fa3c7517a15a",
         "oracleId": "75decba6-d188-4144-8e74-58285be0fe9f",
@@ -6838,6 +6868,12 @@
         "scryfallId": "d8fe7f9d-644f-48d0-93fa-d9a536f1f755",
         "oracleId": "b74d3768-74bb-413c-b7c7-41028ff48225",
         "firstSet": "ice"
+    },
+    {
+        "name": "Thoughtseize",
+        "scryfallId": "3df8c148-e87d-4043-9d8b-ec72bf8b6d5d",
+        "oracleId": "edd8d1e8-be43-4c38-bb3a-83081fbaf0b5",
+        "firstSet": "lrw"
     },
     {
         "name": "Throne of Bone",

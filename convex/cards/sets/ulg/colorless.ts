@@ -2,7 +2,7 @@
 // Scryfall oracle text is authoritative (ADR 0004). Lands and colourless
 // artifacts (no coloured cost) live here per the colour-split convention.
 
-import type { CardDefinition } from "../../types";
+import type { CardDefinition, SpellContext } from "../../types";
 import { makeTapForMana } from "../../abilities";
 
 // Grim Monolith — "This artifact doesn't untap during your untap step.
@@ -34,6 +34,95 @@ export const grimMonolith: CardDefinition = {
             effects: [
                 { op: "tapUntap", action: "untap", target: { ref: "$source" } },
             ],
+        },
+    ],
+};
+
+// Memory Jar — {5} Artifact (Vintage Cube FREE: edict/discard/hand
+// disruption, issue #682). "{T}, Sacrifice this artifact: Each player exiles
+// all cards from their hand face down and draws seven cards. At the
+// beginning of the next end step, each player discards their hand and
+// returns to their hand each card they exiled this way." (CR 400.7 zone
+// changes, CR 701.20a-adjacent face-down exile, CR 603.7a delayed trigger.)
+//
+// PROTOCOL (`resolve()` — no Op vocabulary gap, a genuine per-player linked-
+// state capability the frozen Effect Script grammar doesn't carry, ADR 0045):
+// (1) a WHOLE-ZONE "exile every hand card" has no Op — `moveZone`'s cards-ref
+// shape only moves cards a `choice` Op already picked, and there is no
+// "select the entire hand" set selector; (2) `exileFaceDown` (ADR 0026) is a
+// per-card imperative primitive with no Op skin; (3) most importantly, the
+// `delayedTrigger` Op's `capture` map resolves ONCE at scheduling (a flat
+// map), but this card needs a DIFFERENT list of exiled ids PER PLAYER,
+// re-associated with that same player at fire time — the list-valued capture
+// grammar (issue #866) has no per-`forEach`-member capture shape. The
+// template `resolve()` path composes only already-shipped primitives
+// (`getHandIds`, `exileFaceDown`, `drawCards`, `moveZone`, `moveCardById`,
+// `scheduleDelayedTrigger`) with a plain comma-joined-ids payload encoding —
+// the legacy template payload is scalar-only (`Record<string, string>`, see
+// `gre/state.ts`'s `resolveTopOfStack`), so a per-player id list is carried as
+// one joined string under a per-player key (`exiled:<playerId>`), the same
+// "note a value for the resume" idiom Jester's Mask uses
+// (`convex/cards/sets/ice/colorless.ts`). `exileFaceDown`'s `knowerId` is the
+// card's own owner — a player may always look at their own face-down cards
+// (morph precedent), matching the "you may look at it for as long as it
+// remains exiled" spirit of a self-owned face-down zone.
+const MEMORY_JAR_RETURN_TRIGGER_ID = "memory-jar-return";
+
+export const memoryJar: CardDefinition = {
+    id: "60b70b7f-6f24-4c00-947a-b109f302205b",
+    name: "Memory Jar",
+    rarity: "rare",
+    oracleText:
+        "{T}, Sacrifice this artifact: Each player exiles all cards from their hand face down and draws seven cards. At the beginning of the next end step, each player discards their hand and returns to their hand each card they exiled this way.",
+    manaCost: { X: 5 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "memory-jar-activate",
+            oracleText:
+                "{T}, Sacrifice this artifact: Each player exiles all cards from their hand face down and draws seven cards. At the beginning of the next end step, each player discards their hand and returns to their hand each card they exiled this way.",
+            cost: { tap: true, sacrifice: true },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                const payload: Record<string, string> = {};
+                for (const pid of ctx.allPlayerIds) {
+                    const handIds = ctx.getHandIds(pid);
+                    for (const id of handIds) {
+                        ctx.exileFaceDown(pid, id, "hand", pid);
+                    }
+                    payload[`exiled:${pid}`] = handIds.join(",");
+                    ctx.drawCards(pid, 7);
+                }
+                ctx.scheduleDelayedTrigger(
+                    memoryJar.id,
+                    MEMORY_JAR_RETURN_TRIGGER_ID,
+                    "next-end-step",
+                    payload
+                );
+            },
+        },
+    ],
+    delayedTriggers: [
+        {
+            id: MEMORY_JAR_RETURN_TRIGGER_ID,
+            oracleText:
+                "At the beginning of the next end step, each player discards their hand and returns to their hand each card they exiled this way.",
+            timing: "next-end-step",
+            resolve: (ctx, payload) => {
+                // Oracle order: discard the (drawn) hand FIRST, then return
+                // the exiled cards — a player who exiled nothing and drew
+                // nothing (empty library) simply discards an empty hand.
+                for (const pid of ctx.allPlayerIds) {
+                    ctx.moveZone(pid, "hand", "graveyard");
+                }
+                for (const pid of ctx.allPlayerIds) {
+                    const raw = payload[`exiled:${pid}`];
+                    if (!raw) continue;
+                    for (const id of raw.split(",").filter(Boolean)) {
+                        ctx.moveCardById(pid, id, "exile", "hand");
+                    }
+                }
+            },
         },
     ],
 };

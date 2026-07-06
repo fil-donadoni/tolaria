@@ -310,6 +310,16 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // scenario — same skip rationale as `choice`.
             req.skip ??= `Op "discard" consumes a choice binding — covered by the card's own suspension/resume tests`;
             return;
+        case "reveal":
+            // `reveal` (issue #920 / #682) stamps `knownTo` on hidden cards —
+            // an information-visibility change, not a battlefield/life/hand-
+            // count outcome the canned generator's assertions model. In every
+            // shipped card it also precedes a `choice(zoneOwnerId: …)` Op,
+            // which already forces a skip on its own — so this case never
+            // needs to carry the skip alone in practice, but is explicit for
+            // exhaustiveness (a reveal-only script would hit this branch).
+            req.skip ??= `Op "reveal" changes card visibility (knownTo) — not a state change the canned generator asserts`;
+            return;
         case "mayPay":
             // A `mayPay` Op suspends resolution for a live Pay/Skip decision
             // (issue #806) — a canned scenario cannot submit an answer, so the
@@ -820,6 +830,13 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // `discard` (issue #805) — never reached, same rationale as `choice`
     // (its `cards` picks binding depends on a live player pick).
     discard() {
+        return null;
+    },
+    // `reveal` (issue #920 / #682) — never reached: `analyseOp` skips every
+    // script containing it (an information-visibility change, not a state
+    // check the canned generator asserts). Kept for the 1:1 coverage guard;
+    // execution coverage is the card's own tests.
+    reveal() {
         return null;
     },
     // `mayPay` (issue #806) — never reached: `analyseOp` skips every script
