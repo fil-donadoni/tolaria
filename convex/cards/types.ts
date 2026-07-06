@@ -268,6 +268,23 @@ export interface TargetRequirement {
      *  and other type-restricted spell-targeting effects. Single string is
      *  shorthand for one type. Ignored for non-spell target types. */
     spellTypeFilter?: CardType | CardType[];
+    /** Restricts legal SPELL targets (`type: "spell"`) to spells whose card
+     *  type does NOT include any of these (CR 114.1 — the negative of
+     *  `spellTypeFilter`). Used by Spell Pierce ("target noncreature spell").
+     *  An ability on the stack is never a legal target here (it isn't a
+     *  spell — CR 113.7a). Single string is shorthand for one type. Ignored
+     *  for non-spell target types. */
+    spellExcludeTypeFilter?: CardType | CardType[];
+    /** Restricts legal SPELL targets (`type: "spell"`) to CREATURE spells
+     *  whose power OR toughness (CR 114.1 + 208.2 — the values on the card
+     *  itself; a spell isn't a permanent yet, so no continuous effect applies)
+     *  is at most this number. Matches EITHER characteristic (an "or"
+     *  comparison, not "and" — mirrors the oracle phrasing "with power or
+     *  toughness N or less"). A stack item that isn't a creature spell (or an
+     *  ability) never qualifies. Used by Stern Scolding ("Counter target
+     *  creature spell with power or toughness 2 or less") — pair with
+     *  `spellTypeFilter: "Creature"`. Ignored for non-spell target types. */
+    spellCreaturePtFilter?: { maxPowerOrToughness: number };
     /** Restricts legal PLAYER targets to players who attacked this turn
      *  (CR 506.2). A player "attacked this turn" iff they control a creature
      *  whose `hasAttackedThisTurn` flag is set (the flag persists from declare
@@ -369,6 +386,16 @@ export type GainControlDuration =
     | "while-you-control-source"
     | "while-source-tapped"
     | "while-source-tapped-and-power-ge";
+
+/** Where a COUNTERED SPELL ends up instead of CR 701.5a's default owner's
+ *  graveyard (issue #683's "if that spell is countered this way, …" clause —
+ *  No More Lies "exile it", Memory Lapse "put it on top of its owner's
+ *  library", Remand "put it into its owner's hand"). `"graveyard"` is the
+ *  CR 701.5a default; every other member is a `moveZone`-style destination
+ *  applied to the stack item at the moment it's removed from the stack
+ *  (before a plain `moveZone` Op could reach it — a spell on the stack isn't
+ *  one of `moveZone`'s recognized object kinds). */
+export type CounterDestination = "graveyard" | "exile" | "hand" | "library-top";
 
 export interface TargetSelection {
     /** "permanent" = battlefield card, "player" = player, "spell" = stack
@@ -1362,8 +1389,18 @@ export interface SpellContext {
     /** Randomizes the order of a player's library using the seeded PRNG
      *  (CR 701.20). Deterministic under replay. */
     shuffleLibrary: (playerId: string) => void;
-    /** Counters a spell or ability on the stack (CR 701.5a). Target must be TargetSelection with type "spell". No-op if target no longer on stack (CR 608.2b). */
-    counter: (target: TargetSelection) => void;
+    /** Counters a spell or ability on the stack (CR 701.5a). Target must be
+     *  TargetSelection with type "spell". No-op if target no longer on stack
+     *  (CR 608.2b). `destination` overrides where a COUNTERED SPELL (never an
+     *  ability — CR 701.5a / 113.7a, abilities simply cease to exist) ends up
+     *  instead of its owner's graveyard — the "if that spell is countered this
+     *  way, exile/return/put-on-top instead" clause carried by No More Lies,
+     *  Memory Lapse, and Remand. Omitted/`"graveyard"` is the default CR
+     *  701.5a destination. */
+    counter: (
+        target: TargetSelection,
+        destination?: CounterDestination
+    ) => void;
     /** Player discards `amount` cards chosen uniformly at random (CR 701.8a).
      *  Capped at current hand size — no-op on an empty hand. Randomness is
      *  drawn from the game's seeded PRNG so replays reproduce the same picks.
@@ -4805,13 +4842,32 @@ export interface EffectCountSpec {
  *  DYNAMIC ceiling (Green Sun's Zenith's "mana value X or less") is NOT
  *  expressible here (a literal number, not an EffectValue) — that card stays a
  *  tracked stub. Deliberately small: it answers "how many X" / "search for an
- *  X card", not arbitrary predicates. */
+ *  X card", not arbitrary predicates. `isToken` (issue #920) restricts a
+ *  `zone: "battlefield"` pick to tokens (`true`, Sheoldred's Edict's "a
+ *  creature TOKEN") or nontoken permanents (`false`, Sheoldred's Edict's "a
+ *  NONTOKEN creature") — a direct passthrough of the `PermanentFilter.isToken`
+ *  field `matchesPermanentFilter` already checks (`convex/cards/filters.ts`),
+ *  just exposed to the DSL (ADR 0045 "generalize, don't add"). Meaningful only
+ *  for `zone: "battlefield"`: a hidden-zone pick (hand/library/graveyard) has
+ *  no engine-tracked `isToken` on its card-shape reader, and tokens don't
+ *  meaningfully persist off the battlefield anyway (CR 111.7). `excludeType`
+ *  (issue #682) is the negative of `type` — mirrors the ALREADY-EXISTING
+ *  `TargetRequirement.excludeTypes` field (Terror's "target nonartifact,
+ *  nonblack creature") exactly, just exposed on the hand/library/graveyard
+ *  filter shape too (ADR 0045 "generalize, don't add" — a symmetric field on
+ *  an existing primitive, not a new one). A card matches only if it has NONE
+ *  of the listed types: Thoughtseize / Inquisition of Kozilek / Grief's
+ *  "nonland card" is `excludeType: "Land"`; Duress's "noncreature, nonland
+ *  card" is `excludeType: ["Land", "Creature"]`. AND with `type` when both are
+ *  present (an unlikely but not-forbidden combination). */
 export interface EffectCardFilter {
     type?: CardType | CardType[];
     subtype?: string | string[];
     supertype?: CardSupertype;
     color?: Color | Color[];
     manaValueAtMost?: number;
+    isToken?: boolean;
+    excludeType?: CardType | CardType[];
 }
 
 /** X — the chosen-cost value (CR 107.3, 601.2b), a thin JSON-pure skin over
@@ -5353,6 +5409,24 @@ export type EffectOp =
           loss: EffectCoinFlipBranch;
           player?: EffectPlayerRef;
       }
+    /** CR 701.20a — reveal `player`'s hand to every player (issue #920, #682).
+     *  A thin declarative skin over `SpellContext.markKnownToAll` (ADR 0026):
+     *  every card currently in `player`'s hand is stamped with every player in
+     *  `knownTo`, so the wire projection (`convex/gameProjections.ts`) shows
+     *  the real card to everyone instead of nulling the slot — CR 701.20a
+     *  reveal is public knowledge, unlike a private "look" (Word of Command's
+     *  `ctx.markKnown`, a single knower, stays `resolve()` — a different,
+     *  narrower primitive). Distinct from a `choice` Op reading someone else's
+     *  zone (`zoneOwnerId`): `reveal` grants NO chooser action by itself, it
+     *  only makes an otherwise-hidden zone visible — pair it with a following
+     *  `choice(zone: "hand", zoneOwnerId: <same player>)` for the
+     *  Thoughtseize/Duress/Inquisition-of-Kozilek template ("target player
+     *  reveals their hand, you choose a card from it"). No-op on an empty
+     *  hand (CR 608.2b — nothing to reveal). Scoped to `zone: "hand"` only for
+     *  now — a library-top reveal (Caustic Bronco-class) is a distinct
+     *  positional-order case left for a future Op (`EFFECT_OP_BACKLOG`'s
+     *  broader "reveal" note, `mechanicsRegistry.ts`). */
+    | { op: "reveal"; player: EffectPlayerRef; zone: "hand" }
     /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a
      *  Pending Choice of the given `kind` and SUSPENDS the script (the stack
@@ -5373,9 +5447,25 @@ export type EffectOp =
     | {
           op: "choice";
           kind: EffectChoiceKind;
-          /** The chooser — also the owner of the zone picked from. */
+          /** The chooser. Defaults to also being the owner of the zone picked
+           *  from (Mind Rot, Innocent Blood — the common case). */
           player: EffectPlayerRef;
           zone: "battlefield" | "hand" | "library" | "graveyard";
+          /** Owner of the zone picked from, when it differs from the chooser
+           *  (issue #920 generalization). Maps 1:1 onto the `zoneOwnerId`
+           *  parameter `SpellContext.requestChoice` already accepts and
+           *  production `resolve()` cards already pass (Leshrac's Sigil:
+           *  the Sigil's controller chooses from the OPPONENT's hand; Demonic
+           *  Hordes: the opponent chooses from the CONTROLLER's battlefield)
+           *  — this just exposes that existing capability to the DSL, no new
+           *  primitive (ADR 0045 "generalize, don't add"). The
+           *  Thoughtseize/Duress/Inquisition-of-Kozilek "target player
+           *  reveals their hand, you choose a card from it" template is the
+           *  canonical case: `player: "controller"`, `zoneOwnerId: { target:
+           *  0 }`. Omitted = the chooser's own zone (unchanged default
+           *  behaviour for every pre-existing `choice` Op card). Skipped
+           *  entirely if this player ref cannot be resolved (CR 608.2b). */
+          zoneOwnerId?: EffectPlayerRef;
           filter?: EffectCardFilter;
           /** Pick count, clamped to availability (CR 608.2b). A plain number
            *  is an EXACT count (the chooser must pick that many, down to
@@ -5436,8 +5526,17 @@ export type EffectOp =
      *  stack, put it into its owner's graveyard). Routes through
      *  `SpellContext.counter`; skipped when the target already left the stack
      *  (CR 608.2b). The consequence half of the counter/punisher pattern
-     *  ("Counter target spell unless its controller pays {N}", issue #806). */
-    | { op: "counter"; target: EffectTargetRef }
+     *  ("Counter target spell unless its controller pays {N}", issue #806).
+     *  `destination` (issue #683) overrides the default graveyard destination
+     *  for a COUNTERED SPELL — "if that spell is countered this way, exile it
+     *  / put it on top of its owner's library / put it into its owner's hand
+     *  instead" (No More Lies, Memory Lapse, Remand). Omitted/`"graveyard"`
+     *  is the CR 701.5a default. */
+    | {
+          op: "counter";
+          target: EffectTargetRef;
+          destination?: CounterDestination;
+      }
     /** if — the third frozen structural construct (ADR 0045, issue #806). NOT
      *  an Op verb: it branches the script on a PREDEFINED predicate form (never
      *  an arbitrary boolean expression — the validator and the bot must read

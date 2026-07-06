@@ -14,4 +14,23 @@
 //     toughness: 3,
 // };
 
+// Lose Focus — {1}{U} Instant. "Replicate {U} (When you cast this spell,
+// copy it for each time you paid its replicate cost. You may choose new
+// targets for the copies.) Counter target spell unless its controller pays
+// {2}." Blocked: Replicate (CR 702.56) is `status: "planned"` in
+// mechanicsRegistry.ts — no alternate-cast-with-copies primitive exists yet
+// (distinct from CR 706 copy-a-spell: replicate copies are paid for and
+// created AT CAST TIME, not via a resolution-time copy effect). The
+// counter-unless-pay half is otherwise free (same shape as Force Spike,
+// leg/blue.ts) — only the keyword blocks it. Stop-and-issue per
+// gre-development.md; tracked stub.
+// tracked-by: #930
+// export const loseFocus: CardDefinition = {
+//     id: "985bdb0c-ce6c-4506-8163-76f3b2fdf5fb",
+//     name: "Lose Focus",
+//     rarity: "common",
+//     manaCost: { X: 1, U: 1 },
+//     types: ["Instant"],
+// };
+
 export {};

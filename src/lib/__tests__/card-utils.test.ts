@@ -5,6 +5,8 @@ import {
     matchesTargetRequirement,
     matchesTargetController,
     matchesSpellTypeFilter,
+    matchesSpellExcludeTypeFilter,
+    matchesSpellCreaturePtFilter,
     matchesSpellSingleTargetingController,
     matchesSpellWouldDestroyLand,
     matchesStackObjectFilter,
@@ -827,6 +829,100 @@ describe("matchesSpellTypeFilter", () => {
         expect(
             matchesSpellTypeFilter({ types: ["Sorcery"] }, artifactFilter)
         ).toBe(false);
+    });
+});
+
+// Spell Pierce (issue #683): "target noncreature spell" — frontend
+// clickability gate (CR 114.1, the negative of spellTypeFilter).
+describe("matchesSpellExcludeTypeFilter", () => {
+    it("rejects a creature spell, accepts a noncreature spell", () => {
+        const filter = ["Creature"];
+        expect(
+            matchesSpellExcludeTypeFilter({ types: ["Creature"] }, filter)
+        ).toBe(false);
+        expect(
+            matchesSpellExcludeTypeFilter({ types: ["Instant"] }, filter)
+        ).toBe(true);
+    });
+
+    it("rejects stack abilities (not spells)", () => {
+        expect(
+            matchesSpellExcludeTypeFilter(
+                { types: ["Instant"], abilityId: "tim-zap" },
+                ["Creature"]
+            )
+        ).toBe(false);
+    });
+
+    it("matches anything when no filter is set", () => {
+        expect(
+            matchesSpellExcludeTypeFilter({ types: ["Creature"] }, undefined)
+        ).toBe(true);
+        expect(matchesSpellExcludeTypeFilter({ types: ["Creature"] }, [])).toBe(
+            true
+        );
+    });
+});
+
+// Stern Scolding (issue #683): "target creature spell with power or
+// toughness 2 or less" — frontend clickability gate (CR 114.1 + 208.2).
+describe("matchesSpellCreaturePtFilter", () => {
+    const filter = { maxPowerOrToughness: 2 };
+
+    it("matches a creature spell at or under the threshold on either stat", () => {
+        expect(
+            matchesSpellCreaturePtFilter(
+                { types: ["Creature"], power: 2, toughness: 5 },
+                filter
+            )
+        ).toBe(true);
+        expect(
+            matchesSpellCreaturePtFilter(
+                { types: ["Creature"], power: 5, toughness: 1 },
+                filter
+            )
+        ).toBe(true);
+    });
+
+    it("rejects a creature spell over the threshold on both stats", () => {
+        expect(
+            matchesSpellCreaturePtFilter(
+                { types: ["Creature"], power: 4, toughness: 4 },
+                filter
+            )
+        ).toBe(false);
+    });
+
+    it("rejects a noncreature spell regardless of power/toughness", () => {
+        expect(
+            matchesSpellCreaturePtFilter(
+                { types: ["Instant"], power: 1, toughness: 1 },
+                filter
+            )
+        ).toBe(false);
+    });
+
+    it("rejects stack abilities (not spells)", () => {
+        expect(
+            matchesSpellCreaturePtFilter(
+                {
+                    types: ["Creature"],
+                    power: 1,
+                    toughness: 1,
+                    abilityId: "some-ability",
+                },
+                filter
+            )
+        ).toBe(false);
+    });
+
+    it("matches anything when no filter is set", () => {
+        expect(
+            matchesSpellCreaturePtFilter(
+                { types: ["Instant"], power: 9, toughness: 9 },
+                undefined
+            )
+        ).toBe(true);
     });
 });
 

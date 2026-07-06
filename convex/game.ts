@@ -89,6 +89,8 @@ import {
     matchesBattlefieldController,
     matchesMvFilter,
     resolveMvFilter,
+    spellMatchesCreaturePtFilter,
+    spellMatchesExcludeTypeFilter,
     spellWouldDestroyLandControlledBy,
 } from "./gre/rules";
 import {
@@ -2472,6 +2474,8 @@ function applyRequirementToPendingTarget(
     pt.toughnessFilter = undefined;
     pt.mvFilter = undefined;
     pt.spellTypeFilter = undefined;
+    pt.spellExcludeTypeFilter = undefined;
+    pt.spellCreaturePtFilter = undefined;
     pt.spellSingleTargetingController = undefined;
     pt.spellWouldDestroyLandYouControl = undefined;
     pt.spellStackKind = undefined;
@@ -2498,6 +2502,11 @@ function applyRequirementToPendingTarget(
     if (mv) pt.mvFilter = mv;
     const spellType = toArr(req.spellTypeFilter);
     if (spellType) pt.spellTypeFilter = spellType as CardType[];
+    const spellExcludeType = toArr(req.spellExcludeTypeFilter);
+    if (spellExcludeType)
+        pt.spellExcludeTypeFilter = spellExcludeType as CardType[];
+    if (req.spellCreaturePtFilter)
+        pt.spellCreaturePtFilter = req.spellCreaturePtFilter;
     if (req.spellSingleTargetingController)
         pt.spellSingleTargetingController = true;
     if (req.spellWouldDestroyLandYouControl)
@@ -3393,6 +3402,23 @@ export const announceCast = mutation({
                           )
                               ? activeTargetRequirement.spellTypeFilter
                               : [activeTargetRequirement.spellTypeFilter],
+                      }
+                    : {}),
+                ...(activeTargetRequirement.spellExcludeTypeFilter
+                    ? {
+                          spellExcludeTypeFilter: Array.isArray(
+                              activeTargetRequirement.spellExcludeTypeFilter
+                          )
+                              ? activeTargetRequirement.spellExcludeTypeFilter
+                              : [
+                                    activeTargetRequirement.spellExcludeTypeFilter,
+                                ],
+                      }
+                    : {}),
+                ...(activeTargetRequirement.spellCreaturePtFilter
+                    ? {
+                          spellCreaturePtFilter:
+                              activeTargetRequirement.spellCreaturePtFilter,
                       }
                     : {}),
                 ...(activeTargetRequirement.playerAttackedThisTurn
@@ -4726,6 +4752,21 @@ export const selectTarget = mutation({
                         "Target is not a spell of the required type"
                     );
                 }
+            }
+            // CR 114.1 + spellExcludeTypeFilter (Spell Pierce: "target
+            // noncreature spell"). Shared predicate with `getLegalTargets`.
+            if (
+                !spellMatchesExcludeTypeFilter(spell, pt.spellExcludeTypeFilter)
+            ) {
+                throw new Error("Target is not a spell of the required type");
+            }
+            // CR 114.1 + 208.2 — Stern Scolding ("target creature spell with
+            // power or toughness 2 or less"). Shared predicate with
+            // `getLegalTargets`.
+            if (
+                !spellMatchesCreaturePtFilter(spell, pt.spellCreaturePtFilter)
+            ) {
+                throw new Error("Target is not a spell of the required type");
             }
             if (pt.colorFilter && !hasColor(spell, pt.colorFilter as Color)) {
                 throw new Error(`Target must be ${pt.colorFilter}`);
@@ -6606,6 +6647,21 @@ export const activateAbility = mutation({
                           )
                               ? effectiveTargetReq.spellTypeFilter
                               : [effectiveTargetReq.spellTypeFilter],
+                      }
+                    : {}),
+                ...(effectiveTargetReq.spellExcludeTypeFilter
+                    ? {
+                          spellExcludeTypeFilter: Array.isArray(
+                              effectiveTargetReq.spellExcludeTypeFilter
+                          )
+                              ? effectiveTargetReq.spellExcludeTypeFilter
+                              : [effectiveTargetReq.spellExcludeTypeFilter],
+                      }
+                    : {}),
+                ...(effectiveTargetReq.spellCreaturePtFilter
+                    ? {
+                          spellCreaturePtFilter:
+                              effectiveTargetReq.spellCreaturePtFilter,
                       }
                     : {}),
                 ...(effectiveTargetReq.spellSingleTargetingController

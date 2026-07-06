@@ -162,6 +162,74 @@ export const silverquillCharm: CardDefinition = {
     ],
 };
 
+// Quandrix Charm — {G}{U} Instant. "Choose one — Counter target spell unless
+// its controller pays {2}. / Destroy target enchantment. / Target creature
+// has base power and toughness 5/5 until end of turn." (CR 700.2 modal.)
+// Modes have DIFFERENT target shapes (mode 1 targets a spell, mode 2 an
+// enchantment, mode 3 a creature) — a card-level `targetRequirement` can't
+// flex per chosen mode, and the DSL `optionChoice` Op runs on a SINGLE
+// already-announced target set. Uses the legacy `modes` mechanism instead
+// (CR 700.2c per-mode target/resolve), the same established escape used by
+// Witherbloom Charm/Silverquill Charm above for this exact cross-mode-target
+// gap (issue #683 adds mode 1's counter-unless-pay shape and mode 3's
+// `setBasePT` set, both already-shipped primitives — Force Spike (leg/blue.ts)
+// and Halfdane (leg/multicolor.ts) respectively).
+export const quandrixCharm: CardDefinition = {
+    id: "318486e0-f255-40f5-8150-dc272eec9d7d",
+    rarity: "uncommon",
+    name: "Quandrix Charm",
+    oracleText:
+        "Choose one —\n• Counter target spell unless its controller pays {2}.\n• Destroy target enchantment.\n• Target creature has base power and toughness 5/5 until end of turn.",
+    manaCost: { G: 1, U: 1 },
+    types: ["Instant"],
+    modes: [
+        {
+            id: "counter",
+            label: "Counter target spell unless its controller pays {2}.",
+            oracleText: "Counter target spell unless its controller pays {2}.",
+            targetRequirement: { type: "spell", count: 1 },
+            resolve: (ctx) => {
+                const target = ctx.targets[0];
+                if (!target || target.type !== "spell") return;
+                // CR 117.3a — the spell's controller decides whether to pay.
+                const controllerId = ctx.getController(target);
+                const paid = ctx.requestMayPay({
+                    playerId: controllerId,
+                    choiceId: `quandrix-charm-counter-${ctx.sourceInstanceId}`,
+                    cost: { X: 2 },
+                    prompt: "Pay {2} to prevent your spell from being countered?",
+                });
+                if (paid === undefined) return; // suspended for the decision
+                if (!paid) ctx.counter(target);
+            },
+        },
+        {
+            id: "destroy-enchantment",
+            label: "Destroy target enchantment.",
+            oracleText: "Destroy target enchantment.",
+            targetRequirement: { type: "Enchantment", count: 1 },
+            resolve: (ctx) => {
+                const target = ctx.targets[0];
+                if (target) ctx.destroy(target);
+            },
+        },
+        {
+            id: "set-pt",
+            label: "Target creature has base power and toughness 5/5 until end of turn.",
+            oracleText:
+                "Target creature has base power and toughness 5/5 until end of turn.",
+            targetRequirement: { type: "Creature", count: 1 },
+            resolve: (ctx) => {
+                const target = ctx.targets[0];
+                if (!target) return;
+                // CR 613.4b layer 7b — a fixed base P/T set, locked at
+                // resolution (CR 611.2), until end of turn.
+                ctx.setBasePT(target, 5, 5, { phase: "end-of-turn" });
+            },
+        },
+    ],
+};
+
 // Lorehold Charm — {R}{W} Instant. "Choose one — Each opponent sacrifices a
 // nontoken artifact of their choice. / Return target artifact or creature
 // card with mana value 2 or less from your graveyard to the battlefield. /

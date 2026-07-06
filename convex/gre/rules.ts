@@ -531,6 +531,44 @@ export function matchesBattlefieldController(
  *  resolved relative to the chooser. `chosenX` is required when the
  *  requirement carries a `mvFilter` whose bounds use the `"X"` placeholder
  *  (CR 107.3 / 202.3, e.g. Spell Blast). */
+/** CR 114.1 — Spell Pierce's "target noncreature spell": true when `item` is
+ *  a legal spell target under `excludeTypes` (an ability never qualifies; an
+ *  actual spell must match NONE of the given card types). An
+ *  undefined/empty filter always passes. Shared by `getLegalTargets`'s spell
+ *  loop and `selectTarget`'s server-side validation (game.ts) — one
+ *  predicate, two call sites (issue #683). */
+export function spellMatchesExcludeTypeFilter(
+    item: GameState["stack"][number],
+    excludeTypes: ReadonlyArray<CardType> | undefined
+): boolean {
+    if (!excludeTypes || excludeTypes.length === 0) return true;
+    if (item.abilityId || item.triggeredAbilityId || item.delayedTriggerId) {
+        return false;
+    }
+    return !excludeTypes.some((t) => item.types.includes(t));
+}
+
+/** CR 114.1 + 208.2 — Stern Scolding's "target creature spell with power or
+ *  toughness N or less": true when `item` is a legal spell target under
+ *  `filter` (an ability never qualifies; the spell must be a creature spell
+ *  whose power OR toughness, as printed on the card, is at most the given
+ *  number). An undefined filter always passes. Shared by `getLegalTargets`'s
+ *  spell loop and `selectTarget`'s server-side validation (issue #683). */
+export function spellMatchesCreaturePtFilter(
+    item: GameState["stack"][number],
+    filter: { maxPowerOrToughness: number } | undefined
+): boolean {
+    if (!filter) return true;
+    if (item.abilityId || item.triggeredAbilityId || item.delayedTriggerId) {
+        return false;
+    }
+    if (!item.types.includes("Creature")) return false;
+    const max = filter.maxPowerOrToughness;
+    const powerOk = item.power !== undefined && item.power <= max;
+    const toughnessOk = item.toughness !== undefined && item.toughness <= max;
+    return powerOk || toughnessOk;
+}
+
 /** CR 114.1 + 701.7 — would the spell `item` on the stack destroy a land that
  *  `playerId` controls? Inspects the spell DECLARATIVELY (never runs its
  *  imperative `resolve()`): a single-target `effect: "destroy-target"` whose
@@ -939,6 +977,12 @@ export function getLegalTargets(
                 : [requirement.stackSourceTypeFilter]
             : undefined;
         const spellTargetsIds = requirement.spellTargetsInstanceIds;
+        const spellExcludeTypes = requirement.spellExcludeTypeFilter
+            ? Array.isArray(requirement.spellExcludeTypeFilter)
+                ? requirement.spellExcludeTypeFilter
+                : [requirement.spellExcludeTypeFilter]
+            : undefined;
+        const spellCreaturePtFilter = requirement.spellCreaturePtFilter;
         for (const item of state.stack) {
             const isAbilityItem =
                 !!item.abilityId ||
@@ -987,6 +1031,16 @@ export function getLegalTargets(
                     !!item.delayedTriggerId;
                 if (isAbility) continue;
                 if (!spellTypes.some((t) => item.types.includes(t))) continue;
+            }
+            // CR 114.1 + spellExcludeTypeFilter (Spell Pierce: "target
+            // noncreature spell").
+            if (!spellMatchesExcludeTypeFilter(item, spellExcludeTypes)) {
+                continue;
+            }
+            // CR 114.1 + 208.2 — Stern Scolding ("target creature spell with
+            // power or toughness 2 or less").
+            if (!spellMatchesCreaturePtFilter(item, spellCreaturePtFilter)) {
+                continue;
             }
             // CR 114.6 / 115.10 — Reflecting Mirror: only spells that have
             // EXACTLY ONE target whose single target IS the activating player

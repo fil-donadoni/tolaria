@@ -6,6 +6,8 @@ import {
     getAbilityOracleText,
     getTriggeredAbilityOracleText,
     matchesSpellTypeFilter,
+    matchesSpellExcludeTypeFilter,
+    matchesSpellCreaturePtFilter,
     matchesSpellSingleTargetingController,
     matchesSpellWouldDestroyLand,
     matchesStackObjectFilter,
@@ -94,6 +96,14 @@ export default function GameStack({ stack }: GameStackProps) {
                             matchesSpellTypeFilter(
                                 item,
                                 pendingTarget?.spellTypeFilter
+                            ) &&
+                            matchesSpellExcludeTypeFilter(
+                                item,
+                                pendingTarget?.spellExcludeTypeFilter
+                            ) &&
+                            matchesSpellCreaturePtFilter(
+                                item,
+                                pendingTarget?.spellCreaturePtFilter
                             ) &&
                             matchesSpellSingleTargetingController(
                                 item,
