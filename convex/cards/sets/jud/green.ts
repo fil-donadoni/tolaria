@@ -33,7 +33,11 @@ export const sylvanSafekeeper: CardDefinition = {
                 "Sacrifice a land: Target creature you control gains shroud until end of turn.",
             cost: { sacrificeFilter: { types: "Land" } },
             useStack: true,
-            targetRequirement: { type: "Creature", count: 1, controller: "you" },
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
             effects: [
                 {
                     op: "grantAbility",

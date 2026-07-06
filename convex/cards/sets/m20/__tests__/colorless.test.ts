@@ -3,13 +3,13 @@
 import { describe, it, expect } from "vitest";
 import { manifoldKey } from "../colorless";
 import { balduvianBears } from "../../ice";
-import {
-    makeInstance,
-    makePlayer,
-    makeState,
-} from "../../../__tests__/setup";
+import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
-import type { CardInstanceState, GameState, StackItem } from "../../../../gre/state";
+import type {
+    CardInstanceState,
+    GameState,
+    StackItem,
+} from "../../../../gre/state";
 
 /** Push an activated ability onto the stack with its cost assumed already
  *  paid, then resolve it (mirrors post-activateAbility state). */

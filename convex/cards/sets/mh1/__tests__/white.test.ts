@@ -3,14 +3,18 @@
 import { describe, it, expect } from "vitest";
 import { giverOfRunes } from "../white";
 import { balduvianBears } from "../../ice";
-import {
-    makeInstance,
-    makePlayer,
-    makeState,
-} from "../../../__tests__/setup";
+import { juggernaut, lightningBolt } from "../../lea";
+import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
-import type { CardInstanceState, GameState, StackItem } from "../../../../gre/state";
+import { isProtectedFromSource } from "../../../../gre/protection";
+import { getLegalTargets } from "../../../../gre/rules";
+import { projectPublicState } from "../../../../gameProjections";
+import type {
+    CardInstanceState,
+    GameState,
+    StackItem,
+} from "../../../../gre/state";
 
 /** Push an activated ability onto the stack with its cost assumed already
  *  paid, then resolve it (mirrors post-activateAbility state). */
@@ -83,17 +87,59 @@ describe("Giver of Runes (CR 702.16 protection incl. colorless; CR 109.2 'anothe
         expect(dynamicReq.controller).toBe("you");
     });
 
-    it("grants colorless protection to another target creature until end of turn", () => {
+    it("CR 702.16 — grants protection from colorless that actually blocks colorless sources (issue #928)", () => {
         const { state, giver } = setup();
         resolveActivated(state, giver, "giver-of-runes-protect", [
             { type: "permanent", id: "t" },
         ]);
         expect(state.pendingChoices).toHaveLength(1);
         submitOption(state, "protection-colorless");
-        const target = state.players[0].battlefield.find(
+        const target = state.players[0].battlefield.find((c) => c.id === "t")!;
+        expect(target.staticAbilities).toContain("protection from colorless");
+
+        // CR 105.2c — a source with no colors at all (Juggernaut, {X:4} only)
+        // is colorless: enforcement, not just the string, must be present.
+        const colorlessSource = makeInstance(juggernaut.id, {
+            id: "jug",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        expect(isProtectedFromSource(target, colorlessSource)).toBe(true);
+
+        // A colored source (green) is untouched by protection FROM colorless.
+        const coloredSource = makeInstance(balduvianBears.id, {
+            id: "bb2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        expect(isProtectedFromSource(target, coloredSource)).toBe(false);
+
+        // CR 702.16b — a colorless spell/source (sourceColors: []) can no
+        // longer choose the protected creature as a target.
+        const legalAgainstColorless = getLegalTargets(
+            state,
+            lightningBolt.targetRequirement!,
+            []
+        );
+        expect(legalAgainstColorless.map((x) => x.id)).not.toContain("t");
+        // ...but a colored (green) source is unaffected.
+        const legalAgainstGreen = getLegalTargets(
+            state,
+            lightningBolt.targetRequirement!,
+            ["G"]
+        );
+        expect(legalAgainstGreen.map((x) => x.id)).toContain("t");
+
+        // Wire format (ADR — projection must not strip the enforcement path):
+        // the granted ability and its enforcement both survive projection.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimTarget = projected.players[0].battlefield.find(
             (c) => c.id === "t"
         )!;
-        expect(target.staticAbilities).toContain("protection from colorless");
+        expect(slimTarget.staticAbilities).toContain(
+            "protection from colorless"
+        );
+        expect(isProtectedFromSource(slimTarget, colorlessSource)).toBe(true);
     });
 
     it("grants a chosen color's protection to another target creature", () => {
@@ -102,9 +148,7 @@ describe("Giver of Runes (CR 702.16 protection incl. colorless; CR 109.2 'anothe
             { type: "permanent", id: "t" },
         ]);
         submitOption(state, "protection-blue");
-        const target = state.players[0].battlefield.find(
-            (c) => c.id === "t"
-        )!;
+        const target = state.players[0].battlefield.find((c) => c.id === "t")!;
         expect(target.staticAbilities).toContain("protection from blue");
     });
 });

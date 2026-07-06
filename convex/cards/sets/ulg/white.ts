@@ -1,39 +1,6 @@
 // ulg — white cards (ADR 0043 colour split).
-import type { CardDefinition, EffectOp } from "../../types";
-import { colors as ALL_COLORS } from "../../types";
-
-const COLOR_NAMES: Record<(typeof ALL_COLORS)[number], string> = {
-    W: "white",
-    U: "blue",
-    B: "black",
-    R: "red",
-    G: "green",
-    C: "colorless",
-};
-
-/** One `optionChoice` mode per grantable color, each granting
- *  "protection from <color>" to the announced target (CR 702.16, 613.1f).
- *  Shared by Mother of Runes (5 colors) and Giver of Runes (5 colors +
- *  colorless — issue #684). */
-function protectionColorModes(
-    codes: ReadonlyArray<(typeof ALL_COLORS)[number]>
-): { id: string; label: string; effects: EffectOp[] }[] {
-    return codes.map((code) => {
-        const color = COLOR_NAMES[code];
-        return {
-            id: `protection-${color}`,
-            label: `Protection from ${color}`,
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: `protection from ${color}`,
-                    target: { target: 0 },
-                    duration: { phase: "end-of-turn" },
-                } satisfies EffectOp,
-            ],
-        };
-    });
-}
+import type { CardDefinition } from "../../types";
+import { protectionColorModes } from "../../abilities";
 
 // Mother of Runes — {W} Creature — Human Cleric (issue #684, Cube FREE
 // evasion/protection statics). "{T}: Target creature you control gains
@@ -57,7 +24,11 @@ export const motherOfRunes: CardDefinition = {
                 "{T}: Target creature you control gains protection from the color of your choice until end of turn.",
             cost: { tap: true },
             useStack: true,
-            targetRequirement: { type: "Creature", count: 1, controller: "you" },
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
             effects: [
                 {
                     op: "optionChoice",

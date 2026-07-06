@@ -39,6 +39,16 @@ const CR_300_1_PERMANENT_CARD_TYPES: ReadonlyArray<CardType> = [
 // counters actually present (SpellContext.removeCounter), so firing with
 // zero counters on the creature is a safe no-op — CR-equivalent to gating
 // the trigger itself.
+//
+// "One or more" batching (CR 603.3b, issue #928 fix): both trigger halves
+// below set `oncePerEventBatch: true` so N simultaneous PERMANENT_LEFT (or
+// CARD_DISCARDED) events from a single action — a board wipe killing several
+// permanents at once, say — remove exactly ONE counter, not N. The two
+// halves dedupe independently PER EVENT TYPE; a single action producing both
+// a permanent death AND a discard in the exact same batch would still fire
+// twice (once per half) rather than once overall. No card in the catalogue
+// currently produces that combined batch, so it's a documented residual gap,
+// not a live bug.
 function moonshadowEntersWithCounters(): TriggeredAbility {
     return enteredTrigger({
         id: "moonshadow-enters-with-counters",
@@ -66,6 +76,10 @@ function moonshadowRemoveCounterOnDeath(): TriggeredAbility {
             event.type === "PERMANENT_LEFT" &&
             event.toZone === "graveyard" &&
             event.ownerId === self.controllerId,
+        // CR 603.3b — "one or more permanent cards" collapses N simultaneous
+        // PERMANENT_LEFT events in the same batch (e.g. a board wipe killing
+        // several permanents at once) into ONE trigger, not N (issue #928).
+        oncePerEventBatch: true,
         effects: [
             {
                 op: "counters",
@@ -100,6 +114,15 @@ function moonshadowRemoveCounterOnDiscard(): TriggeredAbility {
                 CR_300_1_PERMANENT_CARD_TYPES.includes(t as CardType)
             );
         },
+        // CR 603.3b — collapses N simultaneous CARD_DISCARDED events in the
+        // same batch (e.g. discarding a full hand to Hymn to Tourach-style
+        // effects) into ONE trigger, not N (issue #928). Note this dedupes
+        // PER EVENT TYPE: a single action that both discards a permanent card
+        // AND causes a permanent to die in the exact same batch would still
+        // fire this ability once per type (2 total) rather than once overall
+        // — no card in the current catalogue produces that combined batch, so
+        // it's an untested residual gap rather than a live bug.
+        oncePerEventBatch: true,
         effects: [
             {
                 op: "counters",

@@ -1,40 +1,6 @@
 // mh1 — white cards (ADR 0043 colour split).
-import type { CardDefinition, EffectOp, PermanentView } from "../../types";
-import { colors as ALL_COLORS } from "../../types";
-
-const COLOR_NAMES: Record<(typeof ALL_COLORS)[number], string> = {
-    W: "white",
-    U: "blue",
-    B: "black",
-    R: "red",
-    G: "green",
-    C: "colorless",
-};
-
-/** One `optionChoice` mode per grantable color/quality, each granting
- *  "protection from <quality>" to the announced target (CR 702.16, 613.1f).
- *  Mirrors Mother of Runes's shared shape (ulg/white.ts, issue #684); kept
- *  local since Giver of Runes' 6-mode set (colors + colorless) differs from
- *  Mother of Runes's 5-mode set. */
-function protectionModes(
-    codes: ReadonlyArray<(typeof ALL_COLORS)[number]>
-): { id: string; label: string; effects: EffectOp[] }[] {
-    return codes.map((code) => {
-        const quality = COLOR_NAMES[code];
-        return {
-            id: `protection-${quality}`,
-            label: `Protection from ${quality}`,
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: `protection from ${quality}`,
-                    target: { target: 0 },
-                    duration: { phase: "end-of-turn" },
-                } satisfies EffectOp,
-            ],
-        };
-    });
-}
+import type { CardDefinition, PermanentView } from "../../types";
+import { protectionColorModes } from "../../abilities";
 
 // Giver of Runes — {W} Creature — Kor Cleric (issue #684, Cube FREE evasion/
 // protection statics). "{T}: Another target creature you control gains
@@ -59,7 +25,11 @@ export const giverOfRunes: CardDefinition = {
                 "{T}: Another target creature you control gains protection from colorless or from the color of your choice until end of turn.",
             cost: { tap: true },
             useStack: true,
-            targetRequirement: { type: "Creature", count: 1, controller: "you" },
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
             getTargetRequirement: (source: PermanentView) => ({
                 type: "Creature",
                 count: 1,
@@ -70,7 +40,7 @@ export const giverOfRunes: CardDefinition = {
                 {
                     op: "optionChoice",
                     prompt: "Choose colorless or a color",
-                    modes: protectionModes(["C", "W", "U", "B", "R", "G"]),
+                    modes: protectionColorModes(["C", "W", "U", "B", "R", "G"]),
                 },
             ],
         },

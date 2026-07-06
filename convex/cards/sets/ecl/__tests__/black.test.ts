@@ -3,11 +3,7 @@
 import { describe, it, expect } from "vitest";
 import { moonshadow } from "../black";
 import { balduvianBears } from "../../ice";
-import {
-    makeInstance,
-    makePlayer,
-    makeState,
-} from "../../../__tests__/setup";
+import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     removePermanentTo,
     discardToGraveyard,
@@ -101,6 +97,31 @@ describe("Moonshadow (CR 702.111 menace; CR 122.1 counters; CR 603.2 graveyard-f
         const live = state.players[0].battlefield.find(
             (c) => c.id === "shadow"
         )!;
+        expect(live.counters?.["-1/-1"]).toBe(5);
+    });
+
+    it("CR 603.3b — removes exactly ONE -1/-1 counter when two permanent cards die simultaneously in the same batch (issue #928)", () => {
+        const { state, shadow } = setup();
+        shadow.counters = { "-1/-1": 6 };
+        const third = makeInstance(balduvianBears.id, {
+            id: "third",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        state.players[0].battlefield.push(third);
+        // Both departures are queued to `pendingEvents` BEFORE the drain, the
+        // same shape a board wipe produces: one action, N simultaneous
+        // PERMANENT_LEFT events, drained together by a single
+        // `processPendingActionTriggers` call.
+        removePermanentTo(state, "other", "graveyard");
+        removePermanentTo(state, "third", "graveyard");
+        processPendingActionTriggers(state);
+        while (state.stack.length > 0) resolveTopOfStack(state);
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "shadow"
+        )!;
+        // "One or more permanent cards" triggers once per batch, not once per
+        // card (CR 603.3b) — 6 - 1 = 5, NOT 6 - 2 = 4.
         expect(live.counters?.["-1/-1"]).toBe(5);
     });
 

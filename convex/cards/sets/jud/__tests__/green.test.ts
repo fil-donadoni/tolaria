@@ -3,13 +3,13 @@
 import { describe, it, expect } from "vitest";
 import { sylvanSafekeeper } from "../green";
 import { forest } from "../../lea/colorless";
-import {
-    makeInstance,
-    makePlayer,
-    makeState,
-} from "../../../__tests__/setup";
+import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
-import type { CardInstanceState, GameState, StackItem } from "../../../../gre/state";
+import type {
+    CardInstanceState,
+    GameState,
+    StackItem,
+} from "../../../../gre/state";
 
 /** Push an activated ability onto the stack with its cost assumed already
  *  paid (the sacrifice happens at activation, before this call in the real

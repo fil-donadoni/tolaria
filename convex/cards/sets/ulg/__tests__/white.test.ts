@@ -3,14 +3,14 @@
 import { describe, it, expect } from "vitest";
 import { motherOfRunes } from "../white";
 import { balduvianBears } from "../../ice";
-import {
-    makeInstance,
-    makePlayer,
-    makeState,
-} from "../../../__tests__/setup";
+import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
-import type { CardInstanceState, GameState, StackItem } from "../../../../gre/state";
+import type {
+    CardInstanceState,
+    GameState,
+    StackItem,
+} from "../../../../gre/state";
 
 /** Push an activated ability onto the stack with its cost assumed already
  *  paid, then resolve it (mirrors post-activateAbility state). */
@@ -84,9 +84,7 @@ describe("Mother of Runes (CR 702.16 protection; CR 700.2 color choice)", () => 
         expect(state.pendingChoices).toHaveLength(1);
         expect(state.pendingChoices![0].kind).toBe("option-pick");
         submitOption(state, "protection-black");
-        const target = state.players[0].battlefield.find(
-            (c) => c.id === "t"
-        )!;
+        const target = state.players[0].battlefield.find((c) => c.id === "t")!;
         expect(target.staticAbilities).toContain("protection from black");
     });
 
