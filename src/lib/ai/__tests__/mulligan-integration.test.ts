@@ -58,6 +58,7 @@ function engineMutations(state: GameState): MoveMutations {
             applyMulliganBottomChoice(state, cardInstanceIds);
         },
         submitMayPay: reject,
+        submitLandEntryChoice: reject,
         submitNameCard: reject,
         submitRandomRevealAck: reject,
         passPriority: reject,

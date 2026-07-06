@@ -23,6 +23,7 @@ import { advancePhase } from "@convex/gre/phases";
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
+    applyLandEntrySubmit,
     applyNameCardSubmit,
     applyRandomRevealAck,
 } from "@convex/gre/pendingChoiceSubmit";
@@ -76,6 +77,9 @@ function engineMutations(state: GameState): MoveMutations {
         },
         submitMayPay: async ({ playerId, accept }) => {
             applyMayPaySubmit(state, { playerId, accept });
+        },
+        submitLandEntryChoice: async ({ playerId, accept }) => {
+            applyLandEntrySubmit(state, { playerId, accept });
         },
         submitNameCard: async ({ playerId, cardName }) => {
             applyNameCardSubmit(state, { playerId, cardName });

@@ -69,3 +69,4 @@ added later (see issue tracker).
 | 0048 | delayedTrigger Op: inline body with explicit capture                                               | [link](0048-delayed-trigger-op-inline-body.md)                         |
 | 0049 | Trigger-site event refs (`$event.<field>`) and list-valued capture                                 | [link](0049-trigger-event-refs-and-list-capture.md)                    |
 | 0050 | Computed static output driven by an on-entry stored choice                                         | [link](0050-computed-static-output-from-stored-choice.md)              |
+| 0051 | Land-entry pay-choice as a stackless pending choice (shock lands)                                  | [link](0051-land-entry-pay-choice-stackless-pending-choice.md)         |

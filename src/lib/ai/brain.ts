@@ -170,6 +170,7 @@ export type BotAction =
     | { kind: "mulligan-bottom"; cardInstanceIds: string[] }
     | { kind: "resolution-choice"; cardInstanceIds: string[] }
     | { kind: "may-pay"; accept: boolean }
+    | { kind: "land-entry"; accept: boolean }
     | { kind: "name-card"; cardName: string }
     | { kind: "random-reveal-ack" }
     | { kind: "declare-attackers" }
@@ -429,6 +430,7 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // via `random-reveal-ack` (`decideBotAction` handles all three before
         // reaching here). Reaching any via `chooseResolution` is a bug.
         case "may-pay":
+        case "land-entry-tapped":
         case "mulligan-bottom":
         case "random-reveal":
         case "name-card":
@@ -478,6 +480,12 @@ export function decideBotAction(view: BotView): BotAction {
             // from the bot's mana pool, else decline (ADR 0016 minimal policy —
             // smart "should I pay?" is deferred). Both answers are legal.
             return { kind: "may-pay", accept: choice.affordable === true };
+        }
+        if (choice.kind === "land-entry-tapped") {
+            // CR 614.12 / ADR 0051 — shock land: pay iff affordable (life ≥
+            // cost) to enter untapped, else enter tapped. Same minimal-legal
+            // default as may-pay (ADR 0016); routed through its own mutation.
+            return { kind: "land-entry", accept: choice.affordable === true };
         }
         if (choice.kind === "random-reveal") {
             // CR 705.2 / ADR 0023 — a no-decision reveal: the engine already

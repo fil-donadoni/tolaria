@@ -159,6 +159,7 @@ import { applyPlayLand } from "./gre/playLand";
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
+    applyLandEntrySubmit,
     applyNameCardSubmit,
     applyRandomRevealAck,
 } from "./gre/pendingChoiceSubmit";
@@ -5943,6 +5944,39 @@ export const submitMayPay = mutation({
         });
 
         applyMayPaySubmit(state, {
+            playerId: args.playerId,
+            accept: args.accept,
+        });
+
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
+    },
+});
+
+/** Answers a suspended `land-entry-tapped` pay-choice (CR 614.12, ADR 0051 —
+ *  shock lands). `accept: true` pays the cost (e.g. 2 life) so the land enters
+ *  untapped; `false` declines and it enters tapped. Completes the entry that
+ *  `applyPlayLand` suspended before the zone move. Separate entry point from
+ *  `submitMayPay` because a played land has no stack item to resume through. */
+export const submitLandEntryChoice = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        accept: v.boolean(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "choice",
+        });
+
+        applyLandEntrySubmit(state, {
             playerId: args.playerId,
             accept: args.accept,
         });

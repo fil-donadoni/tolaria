@@ -25,8 +25,13 @@ import {
     shouldEnterTapped,
     applyExistingGrantsTo,
     applySourceStaticEffects,
+    getPlayer,
+    payMayPayCost,
+    normalizeMayPayCost,
 } from "./state";
 import { checkStateBasedActions } from "./sba";
+import { tryGetDefinition } from "../cards";
+import type { MayPayCost } from "../cards/types";
 
 /**
  * Canonical play-land transition. Moves `cardInstanceId` from the player's hand
@@ -74,18 +79,51 @@ export function applyPlayLand(
     state: GameState,
     player: PlayerState,
     cardInstanceId: string
-): CardInstanceState {
+): CardInstanceState | null {
     // CR 614.1c — tapped-on-entry is decided from the PRE-move board (the
     // card is still in hand here), so a board-conditional predicate counting
     // "other lands" (fast lands) doesn't double-count the entering land
     // against itself once `moveCard` below pushes it onto the battlefield.
     const handCard = player.hand.find((c) => c.id === cardInstanceId);
+
+    // CR 614.12 / ADR 0051 — a land carrying a land-entry pay-choice (shock
+    // lands) suspends BEFORE the zone move on a stackless `land-entry-tapped`
+    // PendingChoice. The card stays in hand for the choice window; priority is
+    // frozen, so nothing observes the not-yet-entered land. `finalizeLandEntry`
+    // completes the entry once the controller answers. Returns null (no
+    // on-battlefield instance yet) — both callers (`playCard`, search
+    // `applyMove`) ignore the return.
+    const cardId = (handCard?.card as { id?: string } | undefined)?.id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    if (handCard && def?.entersTappedUnlessPay) {
+        enqueueLandEntryChoice(
+            state,
+            player.id,
+            handCard.id,
+            def.entersTappedUnlessPay,
+            handCard.card
+        );
+        return null;
+    }
+
     const willEnterTapped = handCard
         ? shouldEnterTapped(state, handCard)
         : false;
 
     const card = moveCard(player, cardInstanceId, "hand", "battlefield");
+    return settleEnteredLand(state, player, card, willEnterTapped);
+}
 
+/** Post-move land-entry bookkeeping (steps 2–7 of `applyPlayLand`), shared by
+ *  the normal path and the land-entry-choice finalizer so a shock land and a
+ *  plain land settle through byte-identical logic. Assumes `card` is already
+ *  on `player.battlefield`. */
+function settleEnteredLand(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState,
+    willEnterTapped: boolean
+): CardInstanceState {
     // CR 305.2 — track the land drop.
     if (card.types.includes("Land")) {
         player.landsPlayedThisTurn = (player.landsPlayedThisTurn ?? 0) + 1;
@@ -108,4 +146,84 @@ export function applyPlayLand(
     checkStateBasedActions(state);
 
     return card;
+}
+
+/** Human-readable label for a land-entry pay-choice cost (CR 614.12). Kept
+ *  minimal — the client renders the button from `choice.cost`; this is the
+ *  secondary prompt text. Covers the life / mana / sacrifice legs the shock
+ *  cycle and any future `entersTappedUnlessPay` land might carry. */
+function payCostText(cost: MayPayCost): string {
+    const norm = normalizeMayPayCost(cost);
+    const parts: string[] = [];
+    if (norm.life !== undefined && norm.life > 0)
+        parts.push(`${norm.life} life`);
+    if (norm.mana) {
+        for (const sym of ["W", "U", "B", "R", "G", "C"] as const) {
+            const n = norm.mana[sym] ?? 0;
+            for (let i = 0; i < n; i++) parts.push(`{${sym}}`);
+        }
+        const generic =
+            (typeof norm.mana.X === "number" ? norm.mana.X : 0) +
+            (norm.mana.C ?? 0);
+        if (generic > 0 && !norm.mana.C) parts.unshift(`{${generic}}`);
+    }
+    if (norm.sacrifice) parts.push(`sacrifice ${norm.sacrifice.count}`);
+    return parts.join(", ") || "the cost";
+}
+
+/** CR 614.12 / ADR 0051 — enqueue the stackless land-entry pay-choice for a
+ *  shock land currently in `playerId`'s hand. Freezes priority on the chooser.
+ *  `landCardData` is the entering card's `.card` payload, forwarded onto the
+ *  prompt so it can name the land. */
+function enqueueLandEntryChoice(
+    state: GameState,
+    playerId: string,
+    landInstanceId: string,
+    cost: MayPayCost,
+    landCardData: unknown
+): void {
+    const name =
+        (landCardData as { name?: string } | undefined)?.name ?? "This land";
+    state.pendingChoices = state.pendingChoices ?? [];
+    state.pendingChoices.push({
+        stackItemId: "",
+        step: 0,
+        choiceId: `land-entry-${landInstanceId}`,
+        playerId,
+        zoneOwnerId: playerId,
+        kind: "land-entry-tapped",
+        landInstanceId,
+        cost,
+        count: 1,
+        prompt: `You may pay ${payCostText(cost)}. If you don't, ${name} enters the battlefield tapped.`,
+    });
+    state.priorityPlayerId = playerId;
+}
+
+/** CR 614.12 / ADR 0051 — complete a suspended land-entry after the controller
+ *  answers the pay-choice. `accept` pays the cost (caller/validator has already
+ *  gated affordability) to skip the land's OWN tapped clause; declining taps
+ *  it. Any OTHER tapped source (Kismet) still applies independently, so the
+ *  final tapped bit is `shouldEnterTapped(state, card) || !accept` — the land's
+ *  own contribution is the pay-choice, everything else comes through the shared
+ *  oracle. Mutates `state`; returns the now-on-battlefield land. */
+export function finalizeLandEntry(
+    state: GameState,
+    playerId: string,
+    landInstanceId: string,
+    cost: MayPayCost,
+    accept: boolean
+): CardInstanceState {
+    const player = getPlayer(state, playerId);
+    if (accept) payMayPayCost(state, playerId, cost);
+
+    const handCard = player.hand.find((c) => c.id === landInstanceId);
+    // Kismet-style forced-tapped is read from the PRE-move board, like the
+    // normal path. A shock land declares no own `entersTapped(Unless)`, so
+    // `shouldEnterTapped` returns only the battlefield-scanned replacement.
+    const forcedTapped = handCard ? shouldEnterTapped(state, handCard) : false;
+    const willEnterTapped = forcedTapped || !accept;
+
+    const card = moveCard(player, landInstanceId, "hand", "battlefield");
+    return settleEnteredLand(state, player, card, willEnterTapped);
 }

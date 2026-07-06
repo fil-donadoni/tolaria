@@ -106,6 +106,10 @@ export type ChoiceAction =
     /** Yes/no answer to a `may-pay` choice (`submitMayPay`, CR 117.3a /
      *  118.4). `accept: true` is enumerated only when the cost is payable. */
     | { kind: "submit-may-pay"; accept: boolean }
+    /** Yes/no answer to a `land-entry-tapped` shock-land choice
+     *  (`submitLandEntryChoice`, CR 614.12, ADR 0051). `accept: true` (pay to
+     *  enter untapped) is enumerated only when the cost is payable. */
+    | { kind: "submit-land-entry"; accept: boolean }
     /** Name a card (`submitNameCard`, CR 201.2 / 202.3). The payload domain is
      *  the entire card registry, so it is carried OPEN — one action stands for
      *  the whole family and the caller supplies the name. */
@@ -228,6 +232,18 @@ function choiceActions(
             canPayMayPayCost(state, playerId, head.cost, head.manaRestriction)
         ) {
             actions.unshift(wrap({ kind: "submit-may-pay", accept: true }));
+        }
+        return actions;
+    }
+
+    // CR 614.12 / ADR 0051 — land-entry pay-choice (shock land): declining
+    // (enter tapped) is always legal; paying only when the cost is affordable.
+    if (head.kind === "land-entry-tapped") {
+        const actions: LegalAction[] = [
+            wrap({ kind: "submit-land-entry", accept: false }),
+        ];
+        if (!head.cost || canPayMayPayCost(state, playerId, head.cost)) {
+            actions.unshift(wrap({ kind: "submit-land-entry", accept: true }));
         }
         return actions;
     }

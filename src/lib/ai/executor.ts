@@ -77,6 +77,7 @@ export type MoveMutations = {
         }
     ) => Promise<unknown>;
     submitMayPay: (a: GP & { accept: boolean }) => Promise<unknown>;
+    submitLandEntryChoice: (a: GP & { accept: boolean }) => Promise<unknown>;
     submitNameCard: (a: GP & { cardName: string }) => Promise<unknown>;
     submitRandomRevealAck: (
         a: GP & { stackItemId: string; choiceId: string }
@@ -129,6 +130,15 @@ export async function executeMove(
             // Yes/no family (CR 117.3a / 118.4) — a SEPARATE entry point from
             // submitResolutionChoice (ADR 0016).
             await mutations.submitMayPay({ ...base, accept: move.accept });
+            return;
+
+        case "land-entry":
+            // Shock-land pay-choice (CR 614.12 / ADR 0051) — its own entry
+            // point (`submitLandEntryChoice`); a played land has no stack item.
+            await mutations.submitLandEntryChoice({
+                ...base,
+                accept: move.accept,
+            });
             return;
 
         case "name-card":

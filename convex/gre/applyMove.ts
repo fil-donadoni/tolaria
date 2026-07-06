@@ -33,11 +33,12 @@ import {
     resolveTopOfStack,
     getOpponentId,
     tapPermanent,
+    canPayMayPayCost,
 } from "./state";
 import { matchesPermanentFilter } from "../cards/filters";
 import { liveSupertypesOf } from "./snow";
 import { checkStateBasedActions } from "./sba";
-import { applyPlayLand } from "./playLand";
+import { applyPlayLand, finalizeLandEntry } from "./playLand";
 import { applyAllCombatDamage, buildAutoDamageAssignments } from "./phases";
 import { recordBlockedAttackers } from "./banding";
 import { cloneGameState } from "./clone";
@@ -156,12 +157,13 @@ export function applyMoveForSearch(
         case "mulligan-bottom":
         case "resolution-choice":
         case "may-pay":
+        case "land-entry":
         case "name-card":
         case "random-reveal-ack":
             // No board change worth modelling for a 1-ply leaf: passing keeps
             // the position; a mulligan / resolution-choice / may-pay /
-            // random-reveal-ack pick's value is not material here (these are
-            // brain-resolved and never reach the search anyway —
+            // land-entry / random-reveal-ack pick's value is not material here
+            // (these are brain-resolved and never reach the search anyway —
             // `enumerateMoves` returns [] while a choice is pending).
             return next;
 
@@ -169,6 +171,30 @@ export function applyMoveForSearch(
             // Shared canonical play-land core (CR 305 / 302.6) — identical to
             // the authoritative `playCard` mutation in game.ts. See playLand.ts.
             applyPlayLand(next, player, move.cardInstanceId);
+            // CR 614.12 / ADR 0051 — a shock land suspends entry on a
+            // `land-entry-tapped` pending choice. Search must not stall on it;
+            // auto-resolve inline with the ADR 0016 minimal default (pay iff
+            // affordable, i.e. life ≥ cost) so the leaf stays deterministic.
+            const head = next.pendingChoices?.[0];
+            if (
+                head?.kind === "land-entry-tapped" &&
+                head.playerId === playerId &&
+                head.landInstanceId &&
+                head.cost
+            ) {
+                const accept = canPayMayPayCost(next, playerId, head.cost);
+                next.pendingChoices =
+                    next.pendingChoices!.length > 1
+                        ? next.pendingChoices!.slice(1)
+                        : undefined;
+                finalizeLandEntry(
+                    next,
+                    playerId,
+                    head.landInstanceId,
+                    head.cost,
+                    accept
+                );
+            }
             return next;
         }
 

@@ -43,6 +43,7 @@ export default function PendingChoicePrompt({
     const { allPlayers } = useGameContext();
     const { offset, dragHandlers } = useDraggable();
     const submitMayPay = useMutation(api.game.submitMayPay);
+    const submitLandEntryChoice = useMutation(api.game.submitLandEntryChoice);
     const submitNameCard = useMutation(api.game.submitNameCard);
     const submitResolutionChoice = useMutation(api.game.submitResolutionChoice);
     const [isBusy, setIsBusy] = useState(false);
@@ -55,6 +56,10 @@ export default function PendingChoicePrompt({
     const min = pendingChoiceMin(choice.count);
     const max = pendingChoiceMax(choice.count);
     const isMayPay = choice.kind === "may-pay";
+    // CR 614.12 / ADR 0051 — shock-land pay-choice: same yes-no Pay/Skip UI as
+    // may-pay, only the submit mutation differs (dispatched below).
+    const isLandEntry = choice.kind === "land-entry-tapped";
+    const isYesNoPay = isMayPay || isLandEntry;
     const isOptionPick = choice.kind === "option-pick";
     const isNameCard = choice.kind === "name-card";
 
@@ -72,7 +77,7 @@ export default function PendingChoicePrompt({
     // gating itself lives in usePendingChoicePrimaryAction (shared with Space).
     const canConfirm = primary?.canConfirm ?? false;
     const costSymbols =
-        isMayPay && choice.cost
+        isYesNoPay && choice.cost
             ? formatOracleText(mayPayCostLabel(choice.cost))
             : null;
 
@@ -164,7 +169,7 @@ export default function PendingChoicePrompt({
                                     }
                                 }}
                             />
-                        ) : isMayPay ? (
+                        ) : isYesNoPay ? (
                             <div className="flex gap-2 mt-1">
                                 <button
                                     type="button"
@@ -191,11 +196,21 @@ export default function PendingChoicePrompt({
                                         if (isBusy) return;
                                         setIsBusy(true);
                                         try {
-                                            await submitMayPay({
-                                                gameId,
-                                                playerId,
-                                                accept: false,
-                                            });
+                                            // CR 614.12 / ADR 0051 — decline
+                                            // routes to the kind's own mutation.
+                                            if (isLandEntry) {
+                                                await submitLandEntryChoice({
+                                                    gameId,
+                                                    playerId,
+                                                    accept: false,
+                                                });
+                                            } else {
+                                                await submitMayPay({
+                                                    gameId,
+                                                    playerId,
+                                                    accept: false,
+                                                });
+                                            }
                                         } finally {
                                             setIsBusy(false);
                                         }

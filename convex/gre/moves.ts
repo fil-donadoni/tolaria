@@ -82,6 +82,15 @@ export type Move =
           accept: boolean;
       }
     | {
+          /** Yes/no answer to a `land-entry-tapped` pending choice (shock lands,
+           *  CR 614.12 / ADR 0051), realised through the dedicated
+           *  `submitLandEntryChoice` mutation. Like `may-pay` only the boolean
+           *  travels; the choice identity is read from the active pending
+           *  choice. */
+          kind: "land-entry";
+          accept: boolean;
+      }
+    | {
           /** Name a card for a `name-card` pending choice (CR 202.3 / ADR 0016)
            *  — the bot's legal default when it is targeted by a name-a-card
            *  effect (Petra Sphinx). Realised through the dedicated

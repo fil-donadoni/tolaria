@@ -27,6 +27,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "legend-keep": "Legend rule",
     // yes-no family
     "may-pay": "Optional",
+    // land-entry pay-choice (CR 614.12, ADR 0051 — shock lands)
+    "land-entry-tapped": "Pay 2 life",
     // order family
     "mulligan-bottom": "Mulligan",
     // option family

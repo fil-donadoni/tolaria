@@ -96,6 +96,22 @@ A **Permanent** type with power and toughness that can attack and block.
 **Land**:
 A card type that produces **Mana**. Played (not cast) — does not use the **Stack**.
 
+**Shock Land**:
+A dual land whose entry offers a **Land-Entry Pay-Choice**: "as it enters, you
+may pay 2 life; if you don't, it enters tapped" (the RAV/GPT/DIS cycle — Steam
+Vents, Godless Shrine, …). Distinguished from a **fast land** / check-land,
+whose tapped-on-entry is a pure board predicate with no player decision.
+_Avoid_: dual land (that's the broader family — a Shock Land is one kind of dual)
+
+**Land-Entry Pay-Choice**:
+A player decision made **as a land enters** the battlefield that determines
+whether it enters tapped — "you may pay a cost; if you don't, it enters
+tapped." Because a **Land** is played and never touches the **Stack**, this is
+the one enters-tapped source that is not a deterministic board predicate: it
+suspends land entry on a stackless **Pending Choice** rather than resolving
+synchronously (ADR 0051). Paying satisfies only the land's own tapped clause —
+any other tapped source (Kismet) still applies independently.
+
 **Token**:
 A **Permanent** not represented by a physical card. Created by effects. Ceases to exist when it leaves the **Battlefield**.
 

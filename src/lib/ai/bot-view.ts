@@ -268,7 +268,7 @@ function buildOwedChoice(
         max: getPendingChoiceMax(head.count),
         candidates,
         affordable:
-            head.kind === "may-pay"
+            head.kind === "may-pay" || head.kind === "land-entry-tapped"
                 ? mayPayIsAffordable(state, head, botId)
                 : undefined,
         // issue #242 — the discard heuristic needs the board's mana picture to
@@ -416,6 +416,20 @@ export function botActionToMove(
             return null;
         }
         return { kind: "may-pay", accept: action.accept };
+    }
+    if (action.kind === "land-entry") {
+        // CR 614.12 / ADR 0051 — shock land: routes through
+        // `submitLandEntryChoice`. Only the boolean travels; the server reads
+        // the head choice.
+        const head = state.pendingChoices?.[0];
+        if (
+            !head ||
+            head.kind !== "land-entry-tapped" ||
+            head.playerId !== botId
+        ) {
+            return null;
+        }
+        return { kind: "land-entry", accept: action.accept };
     }
     if (action.kind === "name-card") {
         // CR 202.3 — routes through `submitNameCard`. Only the name travels;

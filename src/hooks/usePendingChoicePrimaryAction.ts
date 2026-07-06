@@ -28,10 +28,16 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
     const { gameId, playerId, pendingChoices, allPlayers } = useGameContext();
     const bufferCtx = usePendingChoiceBuffer();
     const submitMayPay = useMutation(api.game.submitMayPay);
+    const submitLandEntryChoice = useMutation(api.game.submitLandEntryChoice);
     const [isBusy, setIsBusy] = useState(false);
 
     const choice = pendingChoices?.[0];
     const isChooser = !!choice && choice.playerId === playerId;
+    // CR 117.6 / 614.12 — the two yes-no "pay a cost or not" families share the
+    // affordability + affirmative rendering; only the submit mutation differs
+    // (`may-pay` → submitMayPay, `land-entry-tapped` → submitLandEntryChoice).
+    const isYesNoPay =
+        choice?.kind === "may-pay" || choice?.kind === "land-entry-tapped";
 
     const confirm = useCallback(async () => {
         if (!choice || isBusy) return;
@@ -42,17 +48,32 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
             } finally {
                 setIsBusy(false);
             }
+        } else if (choice.kind === "land-entry-tapped") {
+            setIsBusy(true);
+            try {
+                await submitLandEntryChoice({ gameId, playerId, accept: true });
+            } finally {
+                setIsBusy(false);
+            }
         } else {
             // Zone picks route through the buffer, which owns its own
             // in-flight + error state (see usePendingChoiceBuffer).
             await bufferCtx.submit();
         }
-    }, [choice, isBusy, submitMayPay, gameId, playerId, bufferCtx]);
+    }, [
+        choice,
+        isBusy,
+        submitMayPay,
+        submitLandEntryChoice,
+        gameId,
+        playerId,
+        bufferCtx,
+    ]);
 
     if (!choice || !isChooser) return null;
 
     let canConfirm: boolean;
-    if (choice.kind === "may-pay") {
+    if (isYesNoPay) {
         // CR 117.6 / 702.24 — Pay/Yes is legal only once every leg of the cost
         // union (mana / life / sacrifice) can be paid.
         const chooser = allPlayers.find((p) => p.id === choice.playerId);

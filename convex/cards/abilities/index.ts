@@ -224,17 +224,33 @@ export function makeDualLand(args: {
     rarity: Rarity;
     colors: [Color, Color];
     fastLand?: boolean;
+    /** CR 614.12 / ADR 0051 — the RAV/GPT/DIS "shock land" cycle: "as it
+     *  enters, you may pay 2 life; if you don't, it enters tapped." Unlike a
+     *  fast land (a deterministic board predicate), this suspends land entry on
+     *  a `land-entry-tapped` pay-choice. Keeps the basic land subtypes; declares
+     *  `entersTappedUnlessPay: { life: 2 }`. Mutually exclusive with
+     *  `fastLand`. */
+    shockLand?: boolean;
 }): CardDefinition {
     const [c1, c2] = args.colors;
     const slug = args.name.toLowerCase().replaceAll(/\s+/g, "-");
     const fastLandOracle =
         "This land enters tapped unless you control two or fewer other lands.\n" +
         `{T}: Add {${c1}} or {${c2}}.`;
+    const shockLandOracle =
+        `As ${args.name} enters the battlefield, you may pay 2 life. If you ` +
+        "don't, it enters the battlefield tapped.\n" +
+        `{T}: Add {${c1}} or {${c2}}.`;
+    const oracleText = args.fastLand
+        ? fastLandOracle
+        : args.shockLand
+          ? shockLandOracle
+          : args.oracleText;
     return {
         id: args.id,
         name: args.name,
         rarity: args.rarity,
-        oracleText: args.fastLand ? fastLandOracle : args.oracleText,
+        oracleText,
         types: ["Land"],
         subtypes: args.fastLand
             ? undefined
@@ -248,6 +264,7 @@ export function makeDualLand(args: {
                   return otherLands <= 2;
               }
             : undefined,
+        entersTappedUnlessPay: args.shockLand ? { life: 2 } : undefined,
         activatedAbilities: [
             {
                 id: `${slug}-mana`,

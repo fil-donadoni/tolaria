@@ -32,7 +32,7 @@ describe("Inspiring Vantage (fast land, CR 614.1c / 605.1a)", () => {
             ],
         });
         const player = getPlayer(state, "p1");
-        const played = applyPlayLand(state, player, "vantage");
+        const played = applyPlayLand(state, player, "vantage")!;
         expect(played.isTapped).toBe(false);
     });
 
@@ -53,7 +53,7 @@ describe("Inspiring Vantage (fast land, CR 614.1c / 605.1a)", () => {
             ],
         });
         const player = getPlayer(state, "p1");
-        const played = applyPlayLand(state, player, "vantage");
+        const played = applyPlayLand(state, player, "vantage")!;
         expect(played.isTapped).toBe(true);
     });
 });

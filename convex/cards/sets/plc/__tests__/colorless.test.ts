@@ -32,7 +32,7 @@ describe("Urborg, Tomb of Yawgmoth ({T}: Add {B} via basic-land inference — CR
             players: [player, makePlayer("p2")],
         });
 
-        const played = applyPlayLand(state, player, urborg.id);
+        const played = applyPlayLand(state, player, urborg.id)!;
 
         expect(played.subtypes).toContain("Swamp");
     });
@@ -44,7 +44,7 @@ describe("Urborg, Tomb of Yawgmoth ({T}: Add {B} via basic-land inference — CR
             players: [player, makePlayer("p2")],
         });
 
-        const played = applyPlayLand(state, player, urborg.id);
+        const played = applyPlayLand(state, player, urborg.id)!;
 
         expect(getBasicLandMana(played)).toBe("B");
     });
@@ -86,7 +86,7 @@ describe("Urborg, Tomb of Yawgmoth ({T}: Add {B} via basic-land inference — CR
         });
         applySourceStaticEffects(state, urborg);
 
-        const played = applyPlayLand(state, player, newForest.id);
+        const played = applyPlayLand(state, player, newForest.id)!;
 
         expect(played.subtypes).toContain("Forest");
         expect(played.subtypes).toContain("Swamp");

@@ -1857,7 +1857,7 @@ describe("game.ts playCard play-land path is summoning-sick (CR 302.6)", () => {
      *  shared `applyPlayLand(state, player, id)`. */
     const playLandViaMutationPath = (state: GameState, id: string) => {
         const player = getPlayer(state, "p1");
-        return applyPlayLand(state, player, id);
+        return applyPlayLand(state, player, id)!;
     };
 
     it("a Land played this turn via playCard is summoning-sick", () => {

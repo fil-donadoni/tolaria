@@ -330,16 +330,16 @@
         "firstSet": "atq"
     },
     {
-        "name": "Armor Thrull",
-        "scryfallId": "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a",
-        "oracleId": "35453c9e-e1ae-4fe9-926d-75724deb0555",
-        "firstSet": "fem"
-    },
-    {
         "name": "Armor of Faith",
         "scryfallId": "fccbbc47-99c6-4ba9-95c2-992d5d2a67b2",
         "oracleId": "1c482b20-b423-48ef-b162-53960d43b4f7",
         "firstSet": "ice"
+    },
+    {
+        "name": "Armor Thrull",
+        "scryfallId": "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a",
+        "oracleId": "35453c9e-e1ae-4fe9-926d-75724deb0555",
+        "firstSet": "fem"
     },
     {
         "name": "Army of Allah",
@@ -732,6 +732,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Blood Crypt",
+        "scryfallId": "f281e16f-0fe1-4095-bd63-0a4479f75c11",
+        "oracleId": "43985bbc-a0f6-4812-984e-392bc8562633",
+        "firstSet": "dis"
+    },
+    {
         "name": "Blood Lust",
         "scryfallId": "fbbf1a9c-8b94-4ee7-92db-65b531149990",
         "oracleId": "55a253f9-f44d-4898-af83-fea68b7b279d",
@@ -886,6 +892,12 @@
         "scryfallId": "a0d7e85f-eba5-4fc5-9fc0-109109d368aa",
         "oracleId": "ddc83b35-cf7c-495b-bd30-e409b622e299",
         "firstSet": "fem"
+    },
+    {
+        "name": "Breeding Pool",
+        "scryfallId": "b98b2a35-ec2b-47fe-903d-dd292e469a3c",
+        "oracleId": "20283c4a-f1f0-42f0-bc08-6da87474426b",
+        "firstSet": "dis"
     },
     {
         "name": "Brightglass Gearhulk",
@@ -2226,6 +2238,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Fire and Brimstone",
+        "scryfallId": "d5208dbb-63d2-4789-8ef9-f82499a43b3a",
+        "oracleId": "b1f857c5-cd22-4a4e-8039-1e7eeb3754d8",
+        "firstSet": "drk"
+    },
+    {
         "name": "Fire Covenant",
         "scryfallId": "6a0139c2-ad86-4c71-ab6d-4840c37d5d20",
         "oracleId": "025939a0-424a-41bf-8fc9-2ef9ea5485f7",
@@ -2248,12 +2266,6 @@
         "scryfallId": "d26fa79a-ede8-4c80-98d5-f49696f8104d",
         "oracleId": "fc5e42b5-4da2-4777-828b-138c0a5d234f",
         "firstSet": "leg"
-    },
-    {
-        "name": "Fire and Brimstone",
-        "scryfallId": "d5208dbb-63d2-4789-8ef9-f82499a43b3a",
-        "oracleId": "b1f857c5-cd22-4a4e-8039-1e7eeb3754d8",
-        "firstSet": "drk"
     },
     {
         "name": "Fireball",
@@ -2382,6 +2394,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Force of Nature",
+        "scryfallId": "21551cb6-3a53-42dd-9bbd-4bc56304d6d3",
+        "oracleId": "e3c4c27d-f263-4c69-a4fe-2928136ff68b",
+        "firstSet": "lea"
+    },
+    {
         "name": "Force Spike",
         "scryfallId": "70e64028-ae96-4950-aa6c-9d347409fad3",
         "oracleId": "896ea218-3019-47e4-b0a0-2487335872bb",
@@ -2392,12 +2410,6 @@
         "scryfallId": "226555ba-22af-45f1-a3f4-d265f8685dd5",
         "oracleId": "469bdca3-d373-4420-9266-921b6605f327",
         "firstSet": "ice"
-    },
-    {
-        "name": "Force of Nature",
-        "scryfallId": "21551cb6-3a53-42dd-9bbd-4bc56304d6d3",
-        "oracleId": "e3c4c27d-f263-4c69-a4fe-2928136ff68b",
-        "firstSet": "lea"
     },
     {
         "name": "Forcefield",
@@ -2856,6 +2868,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Godless Shrine",
+        "scryfallId": "be010c2f-06db-47e3-80bd-df3f2a21ca34",
+        "oracleId": "73864fcc-1bde-4bc0-831e-2b93e546e417",
+        "firstSet": "gpt"
+    },
+    {
         "name": "Golgothian Sylex",
         "scryfallId": "856be1dd-a20b-49c2-be9d-7db76c7efd8b",
         "oracleId": "95197f8f-c24e-4d13-a106-7186b3cc59e0",
@@ -2992,6 +3010,12 @@
         "scryfallId": "2e939761-3542-4044-9038-d1d30c6a38fc",
         "oracleId": "2ee13155-a3b8-4cad-8e68-5d2c5aba3bb4",
         "firstSet": "leg"
+    },
+    {
+        "name": "Hallowed Fountain",
+        "scryfallId": "c28aea19-2a39-4934-afda-909e234fa3ba",
+        "oracleId": "f1750962-a87c-49f6-b731-02ae971ac6ea",
+        "firstSet": "dis"
     },
     {
         "name": "Hallowed Ground",
@@ -3582,16 +3606,16 @@
         "firstSet": "arn"
     },
     {
-        "name": "Island Sanctuary",
-        "scryfallId": "c15e8a42-89de-42bc-8d5f-33426d207c3a",
-        "oracleId": "7d1769d0-d942-45b3-a31c-2bbe45e68661",
-        "firstSet": "lea"
-    },
-    {
         "name": "Island of Wak-Wak",
         "scryfallId": "f09cbd18-79f1-49a0-a3bd-b380ff5ecf03",
         "oracleId": "d427e61d-5b30-4d2a-bad2-2e7f016036ca",
         "firstSet": "arn"
+    },
+    {
+        "name": "Island Sanctuary",
+        "scryfallId": "c15e8a42-89de-42bc-8d5f-33426d207c3a",
+        "oracleId": "7d1769d0-d942-45b3-a31c-2bbe45e68661",
+        "firstSet": "lea"
     },
     {
         "name": "Ivory Cup",
@@ -4170,6 +4194,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Lórien Revealed",
+        "scryfallId": "0ce44270-a684-4489-9077-521456e6dfaa",
+        "oracleId": "66f28905-c7fc-4ada-8fa0-199626d9bedb",
+        "firstSet": "ltr"
+    },
+    {
         "name": "Lost Order of Jarkeld",
         "scryfallId": "0f8fe1e5-69d2-401f-97cb-3cc01064bad3",
         "oracleId": "75f047dc-4a51-494d-8765-fa7502d1fd06",
@@ -4204,12 +4234,6 @@
         "scryfallId": "b39eb671-e17e-4c5a-8913-1e3be7faedfb",
         "oracleId": "4aedbbaf-b6ae-4bf0-84eb-31b0b28cfdfa",
         "firstSet": "drk"
-    },
-    {
-        "name": "Lórien Revealed",
-        "scryfallId": "0ce44270-a684-4489-9077-521456e6dfaa",
-        "oracleId": "66f28905-c7fc-4ada-8fa0-199626d9bedb",
-        "firstSet": "ltr"
     },
     {
         "name": "Maddening Wind",
@@ -4336,6 +4360,12 @@
         "scryfallId": "109cce7a-96f7-4e67-878a-bd5c93ea8643",
         "oracleId": "5249df56-7571-46c0-882e-cf88e452fb4d",
         "firstSet": "drk"
+    },
+    {
+        "name": "Márton Stromgald",
+        "scryfallId": "7880e815-53e7-43e0-befd-e368f00a75d8",
+        "oracleId": "8364cf93-c323-46f4-854f-ae872e484438",
+        "firstSet": "ice"
     },
     {
         "name": "Martyr's Cry",
@@ -4716,12 +4746,6 @@
         "firstSet": "ice"
     },
     {
-        "name": "Márton Stromgald",
-        "scryfallId": "7880e815-53e7-43e0-befd-e368f00a75d8",
-        "oracleId": "8364cf93-c323-46f4-854f-ae872e484438",
-        "firstSet": "ice"
-    },
-    {
         "name": "Nacre Talisman",
         "scryfallId": "06912236-8225-4eb0-8086-c6a163c69892",
         "oracleId": "f87aaed9-7f78-4f8b-8af5-44d4be1d6f30",
@@ -5026,6 +5050,12 @@
         "scryfallId": "209c591a-4ab2-4e89-9523-a7b766cf4e51",
         "oracleId": "50d6fd91-23d3-4d32-804f-6233e4386904",
         "firstSet": "eoe"
+    },
+    {
+        "name": "Overgrown Tomb",
+        "scryfallId": "fce07335-cc78-4683-b2f0-9c98a06ea1d8",
+        "oracleId": "975ec9a3-6f20-4177-8211-82526e092538",
+        "firstSet": "rav"
     },
     {
         "name": "Pale Bears",
@@ -5760,6 +5790,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Sacred Foundry",
+        "scryfallId": "168ef687-5797-4b45-b75b-393d8117cebd",
+        "oracleId": "45181cb8-2090-4471-ba90-e5a8f04d525f",
+        "firstSet": "rav"
+    },
+    {
         "name": "Sacrifice",
         "scryfallId": "12164aee-6a27-4246-8d15-2d6dd20d92e9",
         "oracleId": "068b3692-411b-44d4-a7e9-005262760cfc",
@@ -6030,16 +6066,16 @@
         "firstSet": "ice"
     },
     {
-        "name": "Shield Wall",
-        "scryfallId": "a5032bf0-f9c0-4ef0-8ec2-fe7ccea9bdf3",
-        "oracleId": "8148eaa4-6fde-41f2-9b87-ccfc4d8e822f",
-        "firstSet": "leg"
-    },
-    {
         "name": "Shield of the Ages",
         "scryfallId": "7411ab40-47f6-44d1-8e33-9ff5301dcd9b",
         "oracleId": "65164450-b477-4096-8146-ebb80a709787",
         "firstSet": "ice"
+    },
+    {
+        "name": "Shield Wall",
+        "scryfallId": "a5032bf0-f9c0-4ef0-8ec2-fe7ccea9bdf3",
+        "oracleId": "8148eaa4-6fde-41f2-9b87-ccfc4d8e822f",
+        "firstSet": "leg"
     },
     {
         "name": "Shivan Dragon",
@@ -6384,16 +6420,16 @@
         "firstSet": "drk"
     },
     {
-        "name": "Staff of Zegon",
-        "scryfallId": "a6bf858d-bba9-4a16-9045-55384b1de633",
-        "oracleId": "52c53132-146a-4912-8e0f-1d4d9937fff3",
-        "firstSet": "atq"
-    },
-    {
         "name": "Staff of the Ages",
         "scryfallId": "5c709836-55b6-4de9-b190-b5f66dc53c87",
         "oracleId": "86af21ba-58ad-45e8-a316-5411c870e415",
         "firstSet": "ice"
+    },
+    {
+        "name": "Staff of Zegon",
+        "scryfallId": "a6bf858d-bba9-4a16-9045-55384b1de633",
+        "oracleId": "52c53132-146a-4912-8e0f-1d4d9937fff3",
+        "firstSet": "atq"
     },
     {
         "name": "Stampede",
@@ -6420,6 +6456,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Steam Vents",
+        "scryfallId": "054f2276-2dd5-43da-bb26-c57c560861fe",
+        "oracleId": "17039058-822d-409f-938c-b727a366ba63",
+        "firstSet": "gpt"
+    },
+    {
         "name": "Stench of Evil",
         "scryfallId": "4c7065a2-f819-4cbe-b453-a55e904f0461",
         "oracleId": "14062abe-14df-4dbe-ad7b-530e5f6c4988",
@@ -6430,6 +6472,12 @@
         "scryfallId": "0a786855-6eb4-42c0-a528-4842db46809d",
         "oracleId": "2251e34e-4ce8-4452-9dc6-d8cce8583996",
         "firstSet": "dft"
+    },
+    {
+        "name": "Stomping Ground",
+        "scryfallId": "a2773d8f-f906-475d-aaff-b7ca3b01f188",
+        "oracleId": "16052b52-ade1-406f-a06b-ce7ea607fb63",
+        "firstSet": "gpt"
     },
     {
         "name": "Stone Calendar",
@@ -6702,6 +6750,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Temple Garden",
+        "scryfallId": "794a2b79-8c55-4423-8843-7e6e96f84071",
+        "oracleId": "f413a83d-a40d-434c-b20a-4c707c0527fa",
+        "firstSet": "rav"
+    },
+    {
         "name": "Terror",
         "scryfallId": "21004958-2c7e-4a55-bc80-411c4d780106",
         "oracleId": "b81f041d-98db-4408-9472-c483e4a502bc",
@@ -6936,16 +6990,16 @@
         "firstSet": "ulg"
     },
     {
-        "name": "Titania's Song",
-        "scryfallId": "583a53af-2e2a-4f3f-8eab-bd874c6ed80a",
-        "oracleId": "30ac0f06-3dd3-4827-8136-4cf8adbf9b12",
-        "firstSet": "atq"
-    },
-    {
         "name": "Titania, Protector of Argoth",
         "scryfallId": "224d904a-5972-4152-878a-9a922e7a55b6",
         "oracleId": "d0ade00d-a496-441d-9b7e-7dc033d3292c",
         "firstSet": "c14"
+    },
+    {
+        "name": "Titania's Song",
+        "scryfallId": "583a53af-2e2a-4f3f-8eab-bd874c6ed80a",
+        "oracleId": "30ac0f06-3dd3-4827-8136-4cf8adbf9b12",
+        "firstSet": "atq"
     },
     {
         "name": "Tivadar's Crusade",
@@ -7558,6 +7612,12 @@
         "scryfallId": "0ab6bfbd-d2e1-4c4c-9f91-6f69c5b8e3bb",
         "oracleId": "70fa2eba-565e-4fed-adc9-7f5d9fcbf1fa",
         "firstSet": "mh1"
+    },
+    {
+        "name": "Watery Grave",
+        "scryfallId": "139b90cd-8272-457a-be32-1298145345be",
+        "oracleId": "fc9ec820-4245-4a96-b009-5308a818ca58",
+        "firstSet": "rav"
     },
     {
         "name": "Weakness",

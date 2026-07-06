@@ -27,7 +27,7 @@ describe("Copperline Gorge (fast land, CR 614.1c / 605.1a)", () => {
             ],
         });
         const player = getPlayer(state, "p1");
-        const played = applyPlayLand(state, player, "gorge");
+        const played = applyPlayLand(state, player, "gorge")!;
         expect(played.isTapped).toBe(false);
     });
 
@@ -48,7 +48,7 @@ describe("Copperline Gorge (fast land, CR 614.1c / 605.1a)", () => {
             ],
         });
         const player = getPlayer(state, "p1");
-        const played = applyPlayLand(state, player, "gorge");
+        const played = applyPlayLand(state, player, "gorge")!;
         expect(played.isTapped).toBe(true);
     });
 

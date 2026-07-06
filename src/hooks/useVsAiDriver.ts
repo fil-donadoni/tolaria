@@ -68,6 +68,7 @@ export function useVsAiDriver(
         declareMulligan: useMutation(api.game.declareMulligan),
         submitResolutionChoice: useMutation(api.game.submitResolutionChoice),
         submitMayPay: useMutation(api.game.submitMayPay),
+        submitLandEntryChoice: useMutation(api.game.submitLandEntryChoice),
         submitNameCard: useMutation(api.game.submitNameCard),
         submitRandomRevealAck: useMutation(api.game.submitRandomRevealAck),
         passPriority: useMutation(api.game.passPriority),

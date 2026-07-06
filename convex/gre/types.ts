@@ -81,6 +81,15 @@ export type PhaseReturnCondition =
 export type PhaseInRider = { tap?: boolean };
 
 export type YesNoChoiceKind = "may-pay";
+/** Land-entry pay-choice (CR 614.12, ADR 0051). A yes/no answer — "pay the
+ *  cost to enter untapped, or decline and enter tapped" — enqueued by
+ *  `applyPlayLand` for a land carrying `entersTappedUnlessPay` (shock lands).
+ *  Its own family (not a `may-pay` member) because it is STACKLESS: a land is
+ *  played, never cast, so there is no stack item to commit the answer into.
+ *  Flows through its own `submitLandEntryChoice` mutation (like `name-card` →
+ *  `submitNameCard`); the entering land's instance id rides on
+ *  `PendingChoice.landInstanceId`. */
+export type LandEntryChoiceKind = "land-entry-tapped";
 export type OrderChoiceKind = "mulligan-bottom";
 /** Pick exactly one abstract option from a precomputed list (CR 614.12 /
  *  701.x "as it enters, choose …" body selection). Unlike `ZonePickKind` the
@@ -150,6 +159,7 @@ export type ManaRestriction =
 export type PendingChoiceKind =
     | ZonePickKind
     | YesNoChoiceKind
+    | LandEntryChoiceKind
     | OrderChoiceKind
     | OptionChoiceKind
     | NameCardChoiceKind

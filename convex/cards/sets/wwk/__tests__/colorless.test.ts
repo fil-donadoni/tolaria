@@ -67,7 +67,7 @@ describe("Creeping Tar Pit (manland — CR 611.1 animate, CR 614.1c enters tappe
         const player = makePlayer("p1", { hand: [land] });
         const state = makeState({ players: [player, makePlayer("p2")] });
 
-        const played = applyPlayLand(state, player, land.id);
+        const played = applyPlayLand(state, player, land.id)!;
 
         expect(played.isTapped).toBe(true);
     });
@@ -140,7 +140,7 @@ describe("Celestial Colonnade (manland — CR 611.1 animate, CR 614.1c enters ta
         const player = makePlayer("p1", { hand: [land] });
         const state = makeState({ players: [player, makePlayer("p2")] });
 
-        const played = applyPlayLand(state, player, land.id);
+        const played = applyPlayLand(state, player, land.id)!;
 
         expect(played.isTapped).toBe(true);
     });

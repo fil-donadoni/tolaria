@@ -50,7 +50,7 @@ describe("Abandoned Air Temple (CR 614.1c conditional tapped entry; CR 605.1a ma
                 makePlayer("p2"),
             ],
         });
-        const played = applyPlayLand(state, getPlayer(state, "p1"), "temple");
+        const played = applyPlayLand(state, getPlayer(state, "p1"), "temple")!;
         expect(played.isTapped).toBe(false);
     });
 
@@ -62,7 +62,7 @@ describe("Abandoned Air Temple (CR 614.1c conditional tapped entry; CR 605.1a ma
         const state = makeState({
             players: [makePlayer("p1", { hand: [temple] }), makePlayer("p2")],
         });
-        const played = applyPlayLand(state, getPlayer(state, "p1"), "temple");
+        const played = applyPlayLand(state, getPlayer(state, "p1"), "temple")!;
         expect(played.isTapped).toBe(true);
     });
 
@@ -84,7 +84,7 @@ describe("Abandoned Air Temple (CR 614.1c conditional tapped entry; CR 605.1a ma
                 makePlayer("p2"),
             ],
         });
-        const played = applyPlayLand(state, getPlayer(state, "p1"), "temple");
+        const played = applyPlayLand(state, getPlayer(state, "p1"), "temple")!;
         expect(played.isTapped).toBe(true);
     });
 

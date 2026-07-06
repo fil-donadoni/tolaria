@@ -1226,6 +1226,7 @@ export type PendingActivation = {
 import type {
     ZonePickKind,
     YesNoChoiceKind,
+    LandEntryChoiceKind,
     OrderChoiceKind,
     OptionChoiceKind,
     NameCardChoiceKind,
@@ -1238,6 +1239,7 @@ import type {
 export type {
     ZonePickKind,
     YesNoChoiceKind,
+    LandEntryChoiceKind,
     OrderChoiceKind,
     OptionChoiceKind,
     NameCardChoiceKind,
@@ -1335,6 +1337,12 @@ export type PendingChoice = {
      *  Undefined for cost-less yes/no choices ("may draw a card"). The submit
      *  path (`applyMayPaySubmit`) normalizes either shape. */
     cost?: MayPayCost;
+    /** For `kind: "land-entry-tapped"` only (CR 614.12, ADR 0051) — the
+     *  instance id of the land currently entering, which is still in the
+     *  chooser's hand while this choice is pending (the entry suspends BEFORE
+     *  the zone move). `finalizeLandEntry` reads it to complete the entry on
+     *  submit. */
+    landInstanceId?: string;
     /** For `kind: "may-pay"` only — a spend restriction the mana leg may draw
      *  on in addition to the fungible pool (CR 106.6, ADR 0022 / 0042). Set to
      *  `"cumulative-upkeep"` by the cumulative-upkeep trigger so Adarkar Unicorn

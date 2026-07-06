@@ -62,3 +62,9 @@ describe("pendingChoiceLabel for option-pick (#289)", () => {
         expect(pendingChoiceLabel("option-pick")).toBe("Choose");
     });
 });
+
+describe("pendingChoiceLabel for land-entry-tapped (ADR 0051)", () => {
+    it("tags the shock-land pay-choice", () => {
+        expect(pendingChoiceLabel("land-entry-tapped")).toBe("Pay 2 life");
+    });
+});

@@ -82,6 +82,21 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Shock-land land-entry pay-choice (CR 614.12, ADR 0051): the RAV/GPT/
+        // DIS "shock land" cycle. Play Steam Vents from hand — a "Pay 2 life"
+        // prompt appears (a stackless land-entry choice). Pay to enter untapped
+        // (−2 life) or Skip to enter tapped. Blood Crypt is a second copy to try
+        // both branches. At 20 life both options are open; the golden path is
+        // paying for immediate untapped mana.
+        label: "Shock land pay-2-life-or-tapped (Steam Vents / Blood Crypt) (ADR 0051)",
+        cards: [
+            { name: "Steam Vents", owner: "me", zone: "hand" },
+            { name: "Blood Crypt", owner: "me", zone: "hand" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+    {
         // Irreversible tap-for-mana untap-toggle block (issue #793, CR 603.3):
         // City of Brass has a "Whenever ~ becomes tapped, it deals 1 damage to
         // you" triggered ability. Tap it for mana while holding priority — the

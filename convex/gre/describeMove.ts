@@ -86,6 +86,10 @@ export function describeMove(move: Move, state: GameState): string {
             })`;
         case "may-pay":
             return move.accept ? "pay optional cost" : "decline optional cost";
+        case "land-entry":
+            return move.accept
+                ? "pay to enter untapped"
+                : "enter tapped (decline)";
         case "name-card":
             return `name a card (${move.cardName})`;
         case "random-reveal-ack":

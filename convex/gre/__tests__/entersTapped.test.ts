@@ -20,7 +20,7 @@ describe("entersTapped / entersTappedUnless at land-play (CR 614.1c)", () => {
         const player = makePlayer("p1", { hand: [land] });
         const state = makeState({ players: [player, makePlayer("p2")] });
 
-        const played = applyPlayLand(state, player, land.id);
+        const played = applyPlayLand(state, player, land.id)!;
 
         expect(played.isTapped).toBe(true);
     });
@@ -44,7 +44,7 @@ describe("entersTapped / entersTappedUnless at land-play (CR 614.1c)", () => {
         });
         const state = makeState({ players: [player, makePlayer("p2")] });
 
-        const played = applyPlayLand(state, player, fastLand.id);
+        const played = applyPlayLand(state, player, fastLand.id)!;
 
         expect(played.isTapped).toBe(false);
     });
@@ -63,7 +63,7 @@ describe("entersTapped / entersTappedUnless at land-play (CR 614.1c)", () => {
         });
         const state = makeState({ players: [player, makePlayer("p2")] });
 
-        const played = applyPlayLand(state, player, fastLand.id);
+        const played = applyPlayLand(state, player, fastLand.id)!;
 
         expect(played.isTapped).toBe(true);
     });

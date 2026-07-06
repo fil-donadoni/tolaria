@@ -24,6 +24,7 @@ import {
 import { checkStateBasedActions, finalizeLegendKeep } from "./sba";
 import { applyMulliganBottomChoice } from "./mulligan";
 import { tryGetCardByName } from "../cards";
+import { finalizeLandEntry } from "./playLand";
 
 export type SubmitChoiceArgs = {
     playerId: string;
@@ -107,6 +108,68 @@ export function applyMayPaySubmit(
     } else {
         state.priorityPlayerId = state.pendingChoices![0].playerId;
     }
+}
+
+export type SubmitLandEntryArgs = {
+    playerId: string;
+    accept: boolean;
+};
+
+/** Validates and applies a `land-entry-tapped` submission (CR 614.12, ADR 0051)
+ *  against the current head pending choice — the shock-land pay-choice. On
+ *  accept the cost is paid (gated by `canPayMayPayCost`; throws if unaffordable)
+ *  to skip the land's own tapped clause; either way `finalizeLandEntry`
+ *  completes the suspended entry (moving the land from hand to battlefield,
+ *  tapped iff declined OR forced by another source). Unlike `applyMayPaySubmit`
+ *  there is NO stack item: a land is played, not cast, so resolution resumes to
+ *  the active player's priority window rather than `resolveTopOfStack`. Throws
+ *  on identity mismatch or a non-`land-entry-tapped` head. Extracted from the
+ *  `submitLandEntryChoice` mutation so the mutation and the bot's resolution
+ *  path (ADR 0016) drive the SAME primitive. */
+export function applyLandEntrySubmit(
+    state: GameState,
+    args: SubmitLandEntryArgs
+): void {
+    const queue = state.pendingChoices ?? [];
+    if (queue.length === 0) throw new Error("No pending choice");
+    const head = queue[0];
+    if (head.kind !== "land-entry-tapped") {
+        throw new Error("Pending choice is not a land-entry-tapped");
+    }
+    if (head.playerId !== args.playerId) {
+        throw new Error("Not your pending choice");
+    }
+    if (!head.landInstanceId || !head.cost) {
+        throw new Error("Malformed land-entry choice");
+    }
+
+    if (args.accept && !canPayMayPayCost(state, args.playerId, head.cost)) {
+        throw new Error("Cannot pay the cost");
+    }
+
+    queue.shift();
+    state.pendingChoices = queue.length > 0 ? queue : undefined;
+
+    finalizeLandEntry(
+        state,
+        args.playerId,
+        head.landInstanceId,
+        head.cost,
+        args.accept
+    );
+
+    // CR 614.12 — a played land is not a stack resolution; resume priority to
+    // the active player (any ETB triggers `settleEnteredLand` pushed sit on the
+    // stack for that window), then settle SBAs. If somehow another choice was
+    // enqueued during finalize, hand priority to its chooser.
+    if ((state.pendingChoices?.length ?? 0) > 0) {
+        state.priorityPlayerId = state.pendingChoices![0].playerId;
+    } else {
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+        drainAutoPasses(state);
+    }
+    checkStateBasedActions(state);
 }
 
 export type SubmitNameCardArgs = {

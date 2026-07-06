@@ -84,11 +84,13 @@ export type { PlayerInput, DeckInput } from "./setup";
 export {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
+    applyLandEntrySubmit,
     applyNameCardSubmit,
 } from "./pendingChoiceSubmit";
 export type {
     SubmitChoiceArgs,
     SubmitMayPayArgs,
+    SubmitLandEntryArgs,
     SubmitNameCardArgs,
 } from "./pendingChoiceSubmit";
 export { recordDeclaration } from "./mulligan";

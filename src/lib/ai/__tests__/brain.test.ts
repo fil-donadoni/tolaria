@@ -693,6 +693,28 @@ describe("decideBotAction resolves an owed mid-resolution choice (ADR 0016)", ()
         });
     });
 
+    it("pays an affordable shock land and declines an unaffordable one (CR 614.12, ADR 0051)", () => {
+        const landEntry = (affordable: boolean) =>
+            view({
+                priorityPlayerId: BOT,
+                owedChoice: {
+                    kind: "land-entry-tapped",
+                    min: 1,
+                    max: 1,
+                    candidates: [],
+                    affordable,
+                },
+            });
+        expect(decideBotAction(landEntry(true))).toEqual({
+            kind: "land-entry",
+            accept: true,
+        });
+        expect(decideBotAction(landEntry(false))).toEqual({
+            kind: "land-entry",
+            accept: false,
+        });
+    });
+
     it("acknowledges an engine-drawn random-reveal (coin flip, #301)", () => {
         const action = decideBotAction(
             view({

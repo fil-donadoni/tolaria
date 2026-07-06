@@ -5741,6 +5741,15 @@ export interface CardDefinition {
         view: LandEntryStateView,
         controllerId: string
     ) => boolean;
+    /** CR 614.12 land-entry pay-choice (shock lands — Steam Vents "as it
+     *  enters, you may pay 2 life; if you don't, it enters tapped"). Unlike
+     *  `entersTappedUnless` (a deterministic board predicate), this suspends
+     *  land entry on a stackless `land-entry-tapped` PendingChoice: the
+     *  controller may pay this cost to skip the land's OWN tapped clause.
+     *  Declining taps it. Paying removes only this clause — any other tapped
+     *  source (Kismet) still applies independently (CR 616). `MayPayCost`
+     *  generalises the clause beyond life. See ADR 0051. */
+    entersTappedUnlessPay?: MayPayCost;
     /** Tracks continuity of control like summoning sickness, even for
      *  noncreature permanents (CR 302.6 generalised). When set, the permanent
      *  enters with `isSummoningSick` and clears it at its controller's untap

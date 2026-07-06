@@ -82,11 +82,28 @@ What should happen after the fix. Be specific about edge cases.
 - Describe types, interfaces, and behavioral contracts
 - Each acceptance criterion must be independently testable
 
-### Step 5 — Confirm with user
+### Step 5 — Pick a model label
 
-Present the full draft (title, body, labels) and ask for approval. Accept edits. Do not create the issue until the user confirms.
+Every issue gets exactly one model-routing label — it decides which model the
+implement-subagent runs on in `/process-gh-issues`. Judge by the scope you just
+drafted:
 
-### Step 6 — Create the issue
+- `model:sonnet` — **default.** Bounded fix or feature: few files, clear
+  diagnosis, established pattern, low ambiguity. Most QA issues.
+- `model:opus` — complex, high-risk, or wide-blast-radius: multi-module change,
+  subtle CR/timing interaction, cross-cutting refactor, or acceptance criteria
+  that need real judgement.
+- `model:fable` — **only** architecture-setting work (new ADR, new subsystem,
+  design that later issues build on). Rare for a QA observation.
+
+Pick the label and carry it into the draft's label list.
+
+### Step 6 — Confirm with user
+
+Present the full draft (title, body, labels including the model label) and ask
+for approval. Accept edits. Do not create the issue until the user confirms.
+
+### Step 7 — Create the issue
 
 Ensure the `needs-triage` label exists:
 
@@ -94,10 +111,10 @@ Ensure the `needs-triage` label exists:
 gh label create needs-triage --description "Maintainer needs to evaluate" --color "FBCA04" --force
 ```
 
-Create the issue:
+Create the issue (`<model>` = the model label chosen in Step 5):
 
 ```sh
-gh issue create --title "<title>" --body "<body>" --label "<type>" --label "needs-triage"
+gh issue create --title "<title>" --body "<body>" --label "<type>" --label "needs-triage" --label "ready-for-agent" --label "model:<sonnet|opus|fable>"
 ```
 
 Output the issue URL.
@@ -110,5 +127,6 @@ Output the issue URL.
 - [ ] Domain terms match `CONTEXT.md` glossary
 - [ ] Acceptance criteria are testable
 - [ ] Out of scope section present
+- [ ] Model label chosen (`model:sonnet` default / `model:opus` / `model:fable`)
 - [ ] User confirmed before creation
-- [ ] Labels applied: category + `needs-triage`
+- [ ] Labels applied: category + `needs-triage` + `ready-for-agent` + `model:*`
