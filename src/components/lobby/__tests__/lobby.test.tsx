@@ -4,6 +4,13 @@
 // firing. The player's OWN deck stays the Lobby hero selection. See `../lobby`.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, cleanup } from "@testing-library/react";
+// Static import: `vi.mock` is hoisted above all imports, so the lobby module
+// graph (dnd-kit, base-ui, deck-builder, AI) loads fully mocked. Importing it
+// here — during collection, not inside a test — keeps its heavy one-time
+// transform off the per-test 5s timeout budget, which a lazy `await
+// import("../lobby")` inside the first test otherwise blew under full-suite
+// load (the transform is only cache-warm when the file runs in isolation).
+import Lobby from "../lobby";
 
 const navigate = vi.fn();
 const createSoloGame = vi.fn().mockResolvedValue("solo-game-1");
@@ -111,7 +118,6 @@ async function renderLobby() {
         const handlers = [deletePreset, createGame, createSoloGame, joinGame];
         return handlers[idx % handlers.length];
     });
-    const { default: Lobby } = await import("../lobby");
     return render(<Lobby />);
 }
 
