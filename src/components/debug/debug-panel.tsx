@@ -684,6 +684,33 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Cube FREE: mass removal / sweepers (#685) — Damnation
+        // (`resolve()`/`destroyAll`, CR 701.8/701.15c) and Upheaval (Effect
+        // Script `forEach` + `moveZone`, CR 400.7) side by side. Cast
+        // Damnation first: every creature on BOTH sides dies (including a
+        // regenerating Lion — the "can't be regenerated" rider suppresses
+        // its shield) while Sol Ring survives untouched. Then cast Upheaval:
+        // Sol Ring and every remaining permanent (lands included) bounce to
+        // their owners' hands — nothing is left on either battlefield.
+        label: "Cube FREE sweepers (#685) — Damnation / Upheaval",
+        cards: [
+            { name: "Damnation", owner: "me", zone: "hand" },
+            { name: "Upheaval", owner: "me", zone: "hand" },
+            { name: "Swamp", owner: "me", zone: "battlefield", count: 4 },
+            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+            { name: "Sol Ring", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            { name: "War Mammoth", owner: "opp", zone: "battlefield" },
+            {
+                name: "Savannah Lions",
+                owner: "opp",
+                zone: "battlefield",
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

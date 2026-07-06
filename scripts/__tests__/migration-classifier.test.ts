@@ -403,12 +403,22 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // all new FREE closures land AFK-ready. Net (independent of, and
         // additive with, #681's delta above — no shared cards): total
         // 627→637, FREE 394→397, AFK-ready 361→364, Op-blocked 219→226,
-        // X-only unchanged. Values below are the true post-rebase totals,
+        // X-only unchanged.
+        // #685 (Cube FREE — mass removal / sweepers) ADDED one protocol
+        // resolve() — Damnation ("destroy all creatures, can't be
+        // regenerated") via the shared `SpellContext.destroyAll` primitive
+        // (the SECOND consumer after Wrath of God — not a new primitive, so
+        // no new-Op backlog entry). It has a per-card test
+        // (`sets/plc/__tests__/black.test.ts`), so it counts as AFK-ready.
+        // Upheaval ("return all permanents to hand") shipped as a pure DSL
+        // card (`forEach` + `moveZone`), contributing 0 closures. Net: total
+        // 637→638, FREE 397→398, AFK-ready 364→365, X-only/Op-blocked
+        // unchanged. Values below are the true post-rebase totals,
         // reconciled by re-running `bun scripts/migration-classifier.mjs`
         // against the merged tree rather than hand-added.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(637);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(397);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(364);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(638);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(398);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(365);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(226);
     });
