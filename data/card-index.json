@@ -1,5 +1,11 @@
 [
     {
+        "name": "Abandoned Air Temple",
+        "scryfallId": "9c0433f9-8f1e-4a19-a83f-a41925f1b1a9",
+        "oracleId": "9575d7ce-f26d-4b90-87a3-6329e9799572",
+        "firstSet": "tla"
+    },
+    {
         "name": "Abrade",
         "scryfallId": "84319dfb-eaf7-4b98-8c4f-30f5e779591b",
         "oracleId": "f9db72dc-9a5b-48a4-a86e-7464d9a2166a",
@@ -4140,6 +4146,12 @@
         "firstSet": "tmp"
     },
     {
+        "name": "Luminarch Aspirant",
+        "scryfallId": "fe964e7e-e2c5-4263-889d-0a531eb51442",
+        "oracleId": "cb9994b9-924b-4e10-9075-9cfbec88f2bf",
+        "firstSet": "znr"
+    },
+    {
         "name": "Lure",
         "scryfallId": "2a87b26e-0431-42e9-b44f-94ba8546111a",
         "oracleId": "7a7425ba-4478-4bc4-855f-abf947ea4fa2",
@@ -4942,6 +4954,12 @@
         "scryfallId": "30d1450f-2909-410e-9920-731278fa74de",
         "oracleId": "c753e9e3-9374-4e3c-8622-94576a8c1da3",
         "firstSet": "arn"
+    },
+    {
+        "name": "Ouroboroid",
+        "scryfallId": "209c591a-4ab2-4e89-9523-a7b766cf4e51",
+        "oracleId": "50d6fd91-23d3-4d32-804f-6233e4386904",
+        "firstSet": "eoe"
     },
     {
         "name": "Pale Bears",
@@ -6466,6 +6484,12 @@
         "scryfallId": "3c1c67fa-ff88-4a61-b8a5-8a872b3dc44f",
         "oracleId": "300ad0f7-92a7-450d-a9de-b658836fe3cb",
         "firstSet": "ice"
+    },
+    {
+        "name": "Super Shredder",
+        "scryfallId": "37a497b8-e908-4ddc-996e-a8470df72afb",
+        "oracleId": "b7ee76bf-d15a-489e-8f05-414788f8f649",
+        "firstSet": "tmt"
     },
     {
         "name": "Suplex",

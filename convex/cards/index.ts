@@ -130,6 +130,18 @@ import * as onc from "./sets/onc";
 import * as spm from "./sets/spm";
 import * as moc from "./sets/moc";
 import * as dsc from "./sets/dsc";
+// Cube FREE: +1/+1 counters matter (issue #681) — new cross-set home sets
+// routed to earliest paper printing (ADR 0041). 10 of the 14 cards in this
+// tranche are stop-and-issue stubs (tolaria#917); every home set is wired
+// per ADR 0043 even where its only content is a tracked stub. `moc` is
+// shared with the #680 tranche above — imported once.
+import * as znr from "./sets/znr";
+import * as woe from "./sets/woe";
+import * as eoe from "./sets/eoe";
+import * as tla from "./sets/tla";
+import * as tmt from "./sets/tmt";
+import * as nec from "./sets/nec";
+import * as c21 from "./sets/c21";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -263,6 +275,15 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "spm", exports: spm },
     { code: "moc", exports: moc },
     { code: "dsc", exports: dsc },
+    // Cube FREE: +1/+1 counters matter (issue #681). `moc` shared with #680
+    // above — registered once.
+    { code: "znr", exports: znr },
+    { code: "woe", exports: woe },
+    { code: "eoe", exports: eoe },
+    { code: "tla", exports: tla },
+    { code: "tmt", exports: tmt },
+    { code: "nec", exports: nec },
+    { code: "c21", exports: c21 },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>
