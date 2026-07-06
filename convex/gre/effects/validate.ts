@@ -141,23 +141,25 @@ function isValueOrArray(
     return check(value);
 }
 
-/** `{ type?, subtype?, supertype?, color?, manaValueAtMost? }` — the minimal
- *  card filter for a `count` set or a `choice` Op's zone-"library" search
- *  restriction (issue #677). `type`/`subtype`/`color` accept a single value OR
- *  a non-empty array (OR within the field — a fetchland's "a Forest or Island
- *  card"). `supertype` is the "search for a BASIC land card" restriction
- *  (CR 205.4a) and its value must be a real printed supertype (reuses
- *  `TOKEN_SUPERTYPES`). `color` reuses `TOKEN_COLORS`. `manaValueAtMost` is a
- *  non-negative integer ceiling (Spellseeker's "mana value 2 or less") — a
- *  literal only, no `ref`/`X` (a dynamic ceiling like Green Sun's Zenith's
- *  "mana value X or less" is not expressible here). */
+/** `{ type?, excludeType?, subtype?, supertype?, color?, manaValueAtMost?,
+ *  isToken? }` — the minimal card filter for a `count` set or a `choice` Op's
+ *  zone-restricted candidates (issue #677). `type`/`excludeType`/`subtype`/
+ *  `color` accept a single value OR a non-empty array (OR within the field —
+ *  a fetchland's "a Forest or Island card"). `excludeType` (issue #682) is
+ *  the negative of `type` — Thoughtseize's "nonland card", Duress's
+ *  "noncreature, nonland card". `supertype` is the "search for a BASIC land
+ *  card" restriction (CR 205.4a) and its value must be a real printed
+ *  supertype (reuses `TOKEN_SUPERTYPES`). `color` reuses `TOKEN_COLORS`.
+ *  `manaValueAtMost` is a non-negative integer ceiling (Spellseeker's "mana
+ *  value 2 or less") — a literal only, no `ref`/`X` (a dynamic ceiling like
+ *  Green Sun's Zenith's "mana value X or less" is not expressible here). */
 function isCardFilter(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
     }
     const entries = Object.entries(value);
     return entries.every(([k, v]) => {
-        if (k === "type" || k === "subtype") {
+        if (k === "type" || k === "subtype" || k === "excludeType") {
             return isValueOrArray(
                 v,
                 (m) => typeof m === "string" && m.length > 0
@@ -174,6 +176,9 @@ function isCardFilter(value: unknown): boolean {
         }
         if (k === "manaValueAtMost") {
             return typeof v === "number" && Number.isInteger(v) && v >= 0;
+        }
+        if (k === "isToken") {
+            return typeof v === "boolean";
         }
         return false;
     });
@@ -1040,6 +1045,13 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             return errors;
         },
     },
+    // CR 701.20a (issue #920, #682) — reveal `player`'s hand to every player.
+    // `zone` is frozen to `"hand"` (the only reveal shape a shipped card
+    // needs today); a library-top reveal is a distinct positional-order case
+    // left for a future Op.
+    reveal: {
+        required: { player: isPlayerRef, zone: (v) => v === "hand" },
+    },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution choice through the
     // existing Pending Choice pipeline. `bind` is REQUIRED: a choice whose
     // picks nothing consumes is meaningless. `filter` is valid with any zone:
@@ -1050,7 +1062,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // `choiceCandidates`'s graveyard branch now precomputes the same
     // allow-list from the filter, e.g. Titania's "a LAND card", Exhume's "a
     // CREATURE card" — a graveyard is a public zone, so no filter at all
-    // admits every card, CR 400.7).
+    // admits every card, CR 400.7). `zoneOwnerId` (issue #920) names the zone
+    // owner when it differs from the chooser (`player`) — "target player
+    // reveals their hand, YOU choose a card from it", Thoughtseize/Duress.
     choice: {
         required: {
             kind: isEffectChoiceKind,
@@ -1060,7 +1074,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             prompt: isNonEmptyString,
             bind: isBindingName,
         },
-        optional: { filter: isCardFilter },
+        optional: { filter: isCardFilter, zoneOwnerId: isPlayerRef },
     },
     // CR 701.9 (issue #805) — discard the cards a `choice` Op picked.
     discard: {
@@ -1230,7 +1244,8 @@ interface RefUse {
 }
 
 /** Walks an Op's parameters collecting every `{ ref }` use, tagged by
- *  position. A ref under a `player` / `controller` key is a player ref; a ref
+ *  position. A ref under a `player` / `controller` / `zoneOwnerId` key is a
+ *  player ref (issue #920 — a `choice` Op's zone-owner override); a ref
  *  under a `cards` / `permanents` key is a picks ref (issues #805/#807 — reads
  *  a choice Op's picks); a ref under a `target` / `to` key is an object ref
  *  (issue #807 — acts ON the referenced permanent, `$each`); any other ref is
@@ -1250,7 +1265,9 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
         out.push({
             ref: obj.ref,
             kind:
-                keyHint === "player" || keyHint === "controller"
+                keyHint === "player" ||
+                keyHint === "controller" ||
+                keyHint === "zoneOwnerId"
                     ? "player"
                     : keyHint === "cards" || keyHint === "permanents"
                       ? "picks"

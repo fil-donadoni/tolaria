@@ -1,4 +1,104 @@
 // mh2 — black cards (ADR 0043 colour split).
+import type { CardDefinition, EffectOp } from "../../types";
+
+// Archon of Cruelty — {6}{B}{B} Creature Archon, 6/6, flying (Vintage Cube
+// FREE: edict/discard/hand-disruption, issue #682). "Flying. Whenever this
+// creature enters or attacks, target opponent sacrifices a creature or
+// planeswalker of their choice, discards a card, and loses 3 life. You draw
+// a card and gain 3 life." `TriggeredAbility` carries no `targetRequirement`
+// (only `CardDefinition`/`ActivatedAbility` do, ADR 0002 precedent), so
+// "target opponent" resolves directly through the `"opponent"`
+// `EffectPlayerRef` (CR 102.2) — deterministic in this engine's 2-player-only
+// scope (no real choice needed to identify who "the opponent" is). Two
+// `TriggeredAbility` entries (enters / attacks) share the identical effect
+// list: `choice(sacrifice-permanents)` + `sacrifice` for the
+// creature-or-planeswalker pick, `choice(discard-hand)` + `discard` for the
+// forced discard (CR 701.9a — unspecified "discards a card" is that player's
+// own choice), then `loseLife`/`draw`/`gainLife`.
+const archonOfCrueltyTriggerEffects: EffectOp[] = [
+    {
+        op: "choice",
+        kind: "sacrifice-permanents",
+        player: "opponent",
+        zone: "battlefield",
+        filter: { type: ["Creature", "Planeswalker"] },
+        count: 1,
+        prompt: "Sacrifice a creature or planeswalker of your choice.",
+        bind: "$sac",
+    },
+    { op: "sacrifice", permanents: { ref: "$sac" } },
+    {
+        op: "choice",
+        kind: "discard-hand",
+        player: "opponent",
+        zone: "hand",
+        count: 1,
+        prompt: "Discard a card.",
+        bind: "$disc",
+    },
+    { op: "discard", player: "opponent", cards: { ref: "$disc" } },
+    { op: "loseLife", player: "opponent", amount: 3 },
+    { op: "draw", player: "controller", count: 1 },
+    { op: "gainLife", player: "controller", amount: 3 },
+];
+
+export const archonOfCruelty: CardDefinition = {
+    id: "1be9d9a4-d7ee-4854-abc2-85cabf993ec9",
+    name: "Archon of Cruelty",
+    rarity: "mythic",
+    oracleText:
+        "Flying\nWhenever this creature enters or attacks, target opponent sacrifices a creature or planeswalker of their choice, discards a card, and loses 3 life. You draw a card and gain 3 life.",
+    manaCost: { X: 6, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Archon"],
+    power: 6,
+    toughness: 6,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        {
+            id: "archon-of-cruelty-enters",
+            oracleText:
+                "Whenever this creature enters, target opponent sacrifices a creature or planeswalker of their choice, discards a card, and loses 3 life. You draw a card and gain 3 life.",
+            event: "PERMANENT_ENTERED",
+            matches: (event, self) =>
+                event.type === "PERMANENT_ENTERED" &&
+                event.instanceId === self.id,
+            effects: archonOfCrueltyTriggerEffects,
+        },
+        {
+            id: "archon-of-cruelty-attacks",
+            oracleText:
+                "Whenever this creature attacks, target opponent sacrifices a creature or planeswalker of their choice, discards a card, and loses 3 life. You draw a card and gain 3 life.",
+            event: "ATTACKERS_DECLARED",
+            matches: (event, self) =>
+                event.type === "ATTACKERS_DECLARED" &&
+                event.attackerIds.includes(self.id),
+            effects: archonOfCrueltyTriggerEffects,
+        },
+    ],
+};
+
+// Grief — {2}{B}{B} Creature Elemental Incarnation, 3/2, menace (Vintage Cube
+// edict/discard/hand-disruption, issue #682). "Menace. When this creature
+// enters, target opponent reveals their hand. You choose a nonland card from
+// it. That player discards that card. Evoke—Exile a black card from your
+// hand." Blocked: keyword **Evoke** (CR 702.74) is `status: "planned"` in
+// mechanicsRegistry.ts, and there is no `CardDefinition` alternative-cost
+// shape for it at all — Evoke is integral to how Grief is played (the whole
+// point is the free hand-disruption evoke line), so shipping only the
+// hard-cast body would misrepresent the card (never ship partial). See
+// issue #931 (split from #682).
+// tracked-by: #900, #931
+// export const grief: CardDefinition = {
+//     id: "e6befbc4-1320-4f26-bd9f-b1814fedda10",
+//     name: "Grief",
+//     rarity: "mythic",
+//     manaCost: { X: 2, B: 2 },
+//     types: ["Creature"],
+//     subtypes: ["Elemental", "Incarnation"],
+//     power: 3,
+//     toughness: 2,
+// };
 
 // TODO(issue #676 stub — "as an additional cost, sacrifice a creature or
 // discard a card" is a CASTER-CHOSEN alternative additional cost;
@@ -25,5 +125,3 @@
 //     manaCost: { B: 2 },
 //     types: ["Sorcery"],
 // };
-
-export {};

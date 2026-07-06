@@ -75,3 +75,26 @@ export const expressiveIteration: CardDefinition = {
         }
     },
 };
+
+// Witherbloom Apprentice — {B}{G} Creature — Human Druid, 2/2 (Vintage Cube
+// edict/discard/hand disruption, issue #682). "Magecraft — Whenever you cast
+// or copy an instant or sorcery spell, each opponent loses 1 life and you
+// gain 1 life." Blocked: the "or copy" half of Magecraft has no trigger
+// source. `SPELL_CAST` (a `GameEventType`) fires on an original cast, but the
+// primitives that create a spell copy (`copyStackItem` / `copyResolvingSpell`,
+// backed by `cloneSpellOntoStack`, `convex/gre/state.ts`) emit NO event at
+// all for the copy — a "cast or copy" trigger can only ever see the cast
+// half, silently dropping the copy half (never ship partial). Needs a
+// `SPELL_COPIED` event (or `SPELL_CAST` emitted for copies too) before any
+// Magecraft-class card can ship. See issue #931 (split from #682).
+// tracked-by: #931
+// export const witherbloomApprentice: CardDefinition = {
+//     id: "7f80a11b-188b-464c-b00d-c9d1cfb8ddee",
+//     name: "Witherbloom Apprentice",
+//     rarity: "common",
+//     manaCost: { B: 1, G: 1 },
+//     types: ["Creature"],
+//     subtypes: ["Human", "Druid"],
+//     power: 2,
+//     toughness: 2,
+// };

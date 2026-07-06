@@ -163,6 +163,12 @@ import * as vow from "./sets/vow";
 // sets routed to earliest paper printing (ADR 0041).
 import * as jud from "./sets/jud";
 import * as m20 from "./sets/m20";
+// Cube FREE: edict / discard / hand disruption (issue #682) — new cross-set
+// home sets routed to earliest paper printing (ADR 0041). Every home set is
+// wired per ADR 0043 even where its only content is a tracked stub (ala:
+// Tidehollow Sculler, otj: Caustic Bronco — see issue #931).
+import * as ala from "./sets/ala";
+import * as otj from "./sets/otj";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -323,6 +329,9 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     // Cube FREE: evasion / protection statics (issue #684).
     { code: "jud", exports: jud },
     { code: "m20", exports: m20 },
+    // Cube FREE: edict / discard / hand disruption (issue #682).
+    { code: "ala", exports: ala },
+    { code: "otj", exports: otj },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>

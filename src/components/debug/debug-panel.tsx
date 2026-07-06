@@ -712,6 +712,35 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Cube FREE: edict / discard / hand disruption (#682) — the
+        // `reveal` + `choice(zoneOwnerId)` template. Cast Thoughtseize /
+        // Inquisition of Kozilek / Duress targeting "opp": each reveals
+        // opp's hand (Swamp + Balduvian Bears + Lightning Bolt) and lets
+        // "me" choose a nonland (Thoughtseize/Inquisition) or noncreature-
+        // nonland (Duress, picks Lightning Bolt over the Bears) card to
+        // discard — the Swamp is never a legal pick. Inquisition's mana-
+        // value-3-or-less filter also excludes nothing here (both remaining
+        // nonland cards are cheap). Sheoldred's Edict is the 3-mode
+        // `optionChoice` — its nontoken-creature mode has Balduvian Bears to
+        // sacrifice. Memory Jar exercises the whole-hand exile/draw-7/
+        // delayed-return sequence independently of the discard spells.
+        label: "Edict / discard / hand disruption (#682) — Thoughtseize / Inquisition / Duress / Sheoldred's Edict / Memory Jar",
+        cards: [
+            { name: "Thoughtseize", owner: "me", zone: "hand" },
+            { name: "Inquisition of Kozilek", owner: "me", zone: "hand" },
+            { name: "Duress", owner: "me", zone: "hand" },
+            { name: "Sheoldred's Edict", owner: "me", zone: "hand" },
+            { name: "Memory Jar", owner: "me", zone: "battlefield" },
+            { name: "Swamp", owner: "opp", zone: "hand" },
+            { name: "Balduvian Bears", owner: "opp", zone: "hand" },
+            { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
+            { name: "Swamp", owner: "me", zone: "battlefield", count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Cube FREE: evasion / protection statics (issue #684). Moonshadow
         // (menace, CR 702.111b) is seeded with its six -1/-1 counters —
         // effective 1/1, needing TWO blockers to be legally blocked at all;

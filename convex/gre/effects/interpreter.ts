@@ -292,9 +292,11 @@ function toPermanentFilter(
     if (!filter) return undefined;
     return {
         types: filter.type,
+        excludeTypes: filter.excludeType,
         subtypes: filter.subtype,
         supertypes: filter.supertype,
         colors: filter.color,
+        isToken: filter.isToken,
     };
 }
 
@@ -326,9 +328,19 @@ function matchesCardFilter(
     filter: EffectCardFilter
 ): boolean {
     const types = asFilterArray(filter.type);
+    const excludeTypes = asFilterArray(filter.excludeType);
     const subtypes = asFilterArray(filter.subtype);
     const colors = asFilterArray(filter.color);
     if (types !== undefined && !types.some((t) => card.types.includes(t))) {
+        return false;
+    }
+    // issue #682 — the negative of `type` (Thoughtseize's "nonland card",
+    // Duress's "noncreature, nonland card"). Mirrors `PermanentFilter`'s own
+    // `excludeTypes` semantics: fails if the card has ANY listed type.
+    if (
+        excludeTypes !== undefined &&
+        excludeTypes.some((t) => card.types.includes(t))
+    ) {
         return false;
     }
     if (
@@ -545,16 +557,19 @@ function bindSnapshot(
 /** Computes how many candidates a `choice` Op actually has, plus the
  *  graveyard allow-list when applicable. The pick count is clamped to this
  *  (CR 608.2b — the chooser cannot be asked for more than exists; "discard
- *  two cards" with one card in hand discards one, CR 701.9b). */
+ *  two cards" with one card in hand discards one, CR 701.9b). `zoneOwnerId`
+ *  is the owner of the zone being read — the chooser by default, but a
+ *  different player when the Op's `zoneOwnerId` field is set (issue #920 —
+ *  "target player reveals their hand, YOU choose a card from it"). */
 function choiceCandidates(
     ctx: SpellContext,
     op: OpOf<"choice">,
-    playerId: string
+    zoneOwnerId: string
 ): { available: number; candidateIds?: string[] } {
     if (op.zone === "battlefield") {
         return {
             available: ctx.getBattlefieldIds(
-                playerId,
+                zoneOwnerId,
                 toPermanentFilter(op.filter)
             ).length,
         };
@@ -567,11 +582,11 @@ function choiceCandidates(
         // `candidateIds` allow-list via the shared matcher. No filter — every
         // card in hand is eligible.
         if (!op.filter) {
-            return { available: ctx.getHandSize(playerId) };
+            return { available: ctx.getHandSize(zoneOwnerId) };
         }
         const filter = op.filter;
         const ids = ctx
-            .getHandCards(playerId)
+            .getHandCards(zoneOwnerId)
             .filter((c) => matchesCardFilter(c, filter))
             .map((c) => c.id);
         return { available: ids.length, candidateIds: ids };
@@ -586,11 +601,11 @@ function choiceCandidates(
         // matcher (mirrors `countSet`'s graveyard branch). No filter — every
         // card in the library is eligible (Vampiric Tutor, Entomb).
         if (!op.filter) {
-            return { available: ctx.getLibraryCards(playerId).length };
+            return { available: ctx.getLibraryCards(zoneOwnerId).length };
         }
         const filter = op.filter;
         const ids = ctx
-            .getLibraryCards(playerId)
+            .getLibraryCards(zoneOwnerId)
             .filter((c) => matchesCardFilter(c, filter))
             .map((c) => c.id);
         return { available: ids.length, candidateIds: ids };
@@ -602,7 +617,7 @@ function choiceCandidates(
     // "a CREATURE card") is precomputed the same way as the hand/library
     // branches above (mirrors `countSet`'s graveyard branch too). No filter —
     // every card in the graveyard is eligible (Eternal Witness).
-    const graveyardCards = ctx.getGraveyardCards(playerId);
+    const graveyardCards = ctx.getGraveyardCards(zoneOwnerId);
     const ids = op.filter
         ? graveyardCards
               .filter((c) => matchesCardFilter(c, op.filter!))
@@ -963,6 +978,18 @@ export const OP_EXECUTORS: {
             ctx.untap(target);
         }
     },
+    // CR 701.20a (issue #920, #682) — reveal `player`'s hand to every player.
+    // A thin adapter over `SpellContext.markKnownToAll` (ADR 0026): stamps
+    // every current hand card with every player in `knownTo` so the wire
+    // projection shows the real cards instead of nulling the slot. No target
+    // resolution beyond `player`; not a choice, no binding.
+    reveal(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        const ids = ctx.getHandIds(playerId);
+        if (ids.length === 0) return; // CR 608.2b — nothing to reveal
+        ctx.markKnownToAll(playerId, ids);
+    },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution player choice through
     // the existing Pending Choice pipeline. First execution enqueues the
     // choice and SUSPENDS the script; the resumed execution (after the
@@ -971,7 +998,21 @@ export const OP_EXECUTORS: {
     choice(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return; // CR 608.2b — chooser gone, skip
-        const { available, candidateIds } = choiceCandidates(ctx, op, playerId);
+        // issue #920 — the zone owner defaults to the chooser (every
+        // pre-existing `choice` Op card), but a Thoughtseize/Duress-class
+        // script names a DIFFERENT owner ("target player reveals their hand,
+        // you choose a card from it"). Unresolvable owner skips like any
+        // other missing player-ref target (CR 608.2b).
+        const zoneOwnerId =
+            op.zoneOwnerId === undefined
+                ? playerId
+                : resolvePlayerRef(ctx, op.zoneOwnerId);
+        if (zoneOwnerId === undefined) return;
+        const { available, candidateIds } = choiceCandidates(
+            ctx,
+            op,
+            zoneOwnerId
+        );
         // CR 608.2b / 701.9b — clamp to what exists; nothing to choose from
         // means no choice at all (and no binding, so consumers skip too).
         // A plain number is an EXACT count; a `{ min, max }` range (issue
@@ -999,6 +1040,7 @@ export const OP_EXECUTORS: {
             count,
             prompt: op.prompt,
             ...(candidateIds ? { candidateIds } : {}),
+            ...(op.zoneOwnerId !== undefined ? { zoneOwnerId } : {}),
         });
         if (picks === undefined) return "suspend"; // enqueued — wait
     },

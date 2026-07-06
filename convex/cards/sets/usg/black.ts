@@ -45,3 +45,41 @@ export const exhume: CardDefinition = {
         },
     ],
 };
+
+// Duress — {B} Sorcery (Vintage Cube FREE: edict/discard/hand disruption,
+// issue #682). "Target opponent reveals their hand. You choose a
+// noncreature, nonland card from it. That player discards that card." (CR
+// 701.20a reveal, CR 701.9 discard.) Same `reveal` + `choice(zoneOwnerId)`
+// template as Thoughtseize (`convex/cards/sets/lrw/black.ts`), with
+// `targetRequirement.controller: "opponent"` (CR 115 — a real spell-level
+// target, unlike a `TriggeredAbility`'s `"opponent"` ref shortcut) and a
+// two-member `excludeType` array ("noncreature, nonland" — issue #682).
+export const duress: CardDefinition = {
+    id: "ca367f49-0f4a-4b7f-8104-851893fbcd8a",
+    name: "Duress",
+    rarity: "common",
+    oracleText:
+        "Target opponent reveals their hand. You choose a noncreature, nonland card from it. That player discards that card.",
+    manaCost: { B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1, controller: "opponent" },
+    effects: [
+        { op: "reveal", player: { target: 0 }, zone: "hand" },
+        {
+            op: "choice",
+            kind: "choose-hand-card",
+            player: "controller",
+            zoneOwnerId: { target: 0 },
+            zone: "hand",
+            filter: { excludeType: ["Land", "Creature"] },
+            count: 1,
+            prompt: "Choose a noncreature, nonland card from that player's hand.",
+            bind: "$picked",
+        },
+        {
+            op: "discard",
+            player: { target: 0 },
+            cards: { ref: "$picked" },
+        },
+    ],
+};
