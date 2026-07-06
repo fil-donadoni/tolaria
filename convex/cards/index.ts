@@ -150,6 +150,15 @@ import * as clu from "./sets/clu";
 import * as bng from "./sets/bng";
 import * as one from "./sets/one";
 import * as war from "./sets/war";
+// Cube FREE: mass removal / sweepers (issue #685) — 4 new cross-set home
+// sets routed to earliest paper printing (ADR 0041), each holding only a
+// tracked stop-and-issue stub (#924/#925/#926/#778); every home set is
+// wired per ADR 0043 regardless. `plc`/`sos`/`fin` are shared with earlier
+// tranches above — imported once (`fin` also carries a #927 stub).
+import * as mom from "./sets/mom";
+import * as clb from "./sets/clb";
+import * as c13 from "./sets/c13";
+import * as vow from "./sets/vow";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -300,6 +309,13 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "bng", exports: bng },
     { code: "one", exports: one },
     { code: "war", exports: war },
+    // Cube FREE: mass removal / sweepers (issue #685). plc/sos/fin shared
+    // with earlier tranches above — registered once (fin's #927 stub rides
+    // along with it).
+    { code: "mom", exports: mom },
+    { code: "clb", exports: clb },
+    { code: "c13", exports: c13 },
+    { code: "vow", exports: vow },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>

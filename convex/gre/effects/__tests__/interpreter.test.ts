@@ -27,7 +27,10 @@ import { compactState, expandState } from "../../serialize";
 import { refreshExpectedInput } from "../../expectedInput";
 import { projectPublicState } from "../../../gameProjections";
 import { fireDelayedTriggers, finalizeCleanup } from "../../phases";
-import { checkConditionalControlChanges } from "../../sba";
+import {
+    checkConditionalControlChanges,
+    checkStateBasedActions,
+} from "../../sba";
 import { collectTriggers } from "../../triggers";
 import { INLINE_DELAYED_TRIGGER_ID } from "../interpreter";
 import { getEffectivePower, getEffectiveToughness } from "../../layers";
@@ -5243,6 +5246,132 @@ describe("Effect Script Op: sacrifice — single-object target form (CR 701.16, 
         // returns undefined and the Op skips without throwing.
         pushSpell(state, id, "p1", [{ type: "permanent", id: "ghost" }]);
         expect(() => resolveTopOfStack(state)).not.toThrow();
+    });
+});
+
+// forEach + moveZone (target-shape, to: "hand") — a NEW construct
+// combination (issue #685, Upheaval): every prior forEach consumer paired
+// $each with destroy/exile/pump/counters/tapUntap/grantAbility, never with
+// moveZone's target-shape. `moveZone`'s `resolveObjectRef(ctx, op.target)`
+// call is generic (identical to destroy/exile's), so `{ ref: "$each" }`
+// resolves the same way — this test is the combination's permanent proof,
+// reused free by every later mass-bounce card (CR 400.7 zone change,
+// CR 608.2i "determined once" set-freeze).
+describe("Effect Script construct: forEach + moveZone — mass bounce (CR 400.7 / 608.2i, issue #685)", () => {
+    const BOUNCE_LAND_ID = "test-foreach-movezone-land";
+    registerTokenDefinition({
+        id: BOUNCE_LAND_ID,
+        name: BOUNCE_LAND_ID,
+        rarity: "common",
+        manaCost: {},
+        types: ["Land"],
+    });
+
+    it("returns EVERY permanent on BOTH battlefields to its owner's hand, regardless of type (Upheaval sweep)", () => {
+        const id = registerScript("test-foreach-movezone-sweep", [
+            {
+                op: "forEach",
+                select: { set: "permanents", zone: "battlefield" },
+                effects: [
+                    { op: "moveZone", target: { ref: "$each" }, to: "hand" },
+                ],
+            },
+        ]);
+        const myCreature = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            id: "uphA",
+        });
+        const myLand = makeInstance(BOUNCE_LAND_ID, {
+            controllerId: "p1",
+            id: "uphB",
+        });
+        const theirCreature = makeInstance(BEAR_ID, {
+            id: "uphC",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [myCreature, myLand] }),
+                makePlayer("p2", { battlefield: [theirCreature] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "uphA",
+            "uphB",
+        ]);
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["uphC"]);
+    });
+
+    it("a token bounced to hand ceases to exist instead (CR 111.7) — no crash, no phantom hand card", () => {
+        const id = registerScript("test-foreach-movezone-token", [
+            {
+                op: "forEach",
+                select: { set: "permanents", zone: "battlefield" },
+                effects: [
+                    { op: "moveZone", target: { ref: "$each" }, to: "hand" },
+                ],
+            },
+        ]);
+        const token = makeInstance(BEAR_ID, {
+            id: "uphTok",
+            controllerId: "p1",
+            isToken: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [token] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        // CR 111.7 is a state-based action — the token still transiently sits
+        // in hand right after the move; `checkStateBasedActions` is what
+        // wipes it (mirrors the engine's real post-resolution SBA sweep).
+        checkStateBasedActions(state);
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].hand.some((c) => c.id === "uphTok")).toBe(
+            false
+        );
+    });
+
+    // Wire format (mandatory — the effect is fully client-visible): every
+    // permanent leaves both battlefields and the mover's hand count grows.
+    it("wire format: the mass-bounce outcome survives projectPublicState", () => {
+        const id = registerScript("test-foreach-movezone-wire", [
+            {
+                op: "forEach",
+                select: { set: "permanents", zone: "battlefield" },
+                effects: [
+                    { op: "moveZone", target: { ref: "$each" }, to: "hand" },
+                ],
+            },
+        ]);
+        const mine = makeInstance(BEAR_ID, { controllerId: "p1", id: "uphW1" });
+        const theirs = makeInstance(BEAR_ID, {
+            id: "uphW2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mine] }),
+                makePlayer("p2", { battlefield: [theirs] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].battlefield).toHaveLength(0);
+        expect(projected.players[1].battlefield).toHaveLength(0);
+        expect(projected.players[0].hand).toHaveLength(1);
+        // Opponent's hand is hidden from this viewer — slimmed to a count.
+        expect(projected.players[1].hand).toEqual([null]);
     });
 });
 

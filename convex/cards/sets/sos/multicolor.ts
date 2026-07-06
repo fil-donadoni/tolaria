@@ -179,3 +179,24 @@ export const silverquillCharm: CardDefinition = {
 //     manaCost: { W: 1, R: 1 },
 //     types: ["Instant"],
 // };
+
+// Vicious Rivalry — {2}{B}{G} Sorcery. "As an additional cost to cast this
+// spell, pay X life. Destroy all artifacts and creatures with mana value X or
+// less." (CR 118.4 pay-X-life additional cost — already shipped via
+// `additionalCosts.payXLife`, Fire Covenant.) BLOCKED: `EffectCardFilter.
+// manaValueAtMost` is a FIXED literal ceiling by design (its own doc comment
+// in `convex/cards/types.ts` names Green Sun's Zenith's "mana value X or
+// less" as the exact NOT-expressible case) — there is no DYNAMIC (chosen-X)
+// mana-value ceiling for a `forEach`/battlefield-sweep filter. Do not invent
+// a name or paper over the gap with `resolve()`.
+// tracked-by: #898
+// export const viciousRivalry: CardDefinition = {
+//     id: "6fa9cd18-3181-4373-ab65-49bf9de9487f",
+//     name: "Vicious Rivalry",
+//     rarity: "rare",
+//     oracleText:
+//         "As an additional cost to cast this spell, pay X life.\nDestroy all artifacts and creatures with mana value X or less.",
+//     manaCost: { X: 2, B: 1, G: 1 },
+//     types: ["Sorcery"],
+//     additionalCosts: { payXLife: true },
+// };

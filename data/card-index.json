@@ -1440,6 +1440,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Damnation",
+        "scryfallId": "26c68473-70ca-40ba-b5c6-71ec30f88a2c",
+        "oracleId": "d57a8f0b-7989-4db5-8756-6f2690097252",
+        "firstSet": "plc"
+    },
+    {
         "name": "Dance of Many",
         "scryfallId": "13453abe-3f05-4956-8493-382d7d2af699",
         "oracleId": "72e1a239-11a7-4dbe-b093-65d395e3ccc9",
@@ -7132,6 +7138,12 @@
         "scryfallId": "d1bd4e16-27fe-4c7b-ae25-78ed77d8e8e7",
         "oracleId": "ff0d5cbe-99d3-4d3b-9a5b-80223fc18869",
         "firstSet": "ice"
+    },
+    {
+        "name": "Upheaval",
+        "scryfallId": "9e201229-34a6-48c8-a07c-d8aefcf5f8a7",
+        "oracleId": "7cafc972-a6f5-4cac-a3d3-8a3ae36ffb1e",
+        "firstSet": "ody"
     },
     {
         "name": "Urborg, Tomb of Yawgmoth",
