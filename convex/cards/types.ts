@@ -4387,6 +4387,16 @@ export interface TriggeredAbility {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
+    /** CR 603.3b — for "whenever one or more X happen(s), ..." wording: when
+     *  a single game action emits several events of `event`'s type that all
+     *  `matches` this ability in the SAME `collectTriggers` batch (e.g. a
+     *  board wipe emitting one `PERMANENT_LEFT` per dying permanent), the
+     *  ability still triggers only ONCE for that batch — not once per event.
+     *  Opt-in and rare: plain "whenever a permanent enters/dies" triggers
+     *  (Soul Warden) must keep firing once per event, so this defaults to
+     *  false. Moonshadow (ecl/black.ts, issue #684/#928) is the first
+     *  consumer. */
+    oncePerEventBatch?: boolean;
     /** Intervening-if condition (CR 603.4d). When defined, re-evaluated by
      *  the engine immediately before `resolve` runs. If it returns false the
      *  trigger fizzles: it leaves the stack without invoking `resolve`, and

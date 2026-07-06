@@ -7,6 +7,7 @@ import type {
     ActivatedAbility,
     CardDefinition,
     Color,
+    EffectOp,
     ManaCost,
     Rarity,
     SpellContext,
@@ -149,6 +150,43 @@ type ProtectionColor = "white" | "blue" | "black" | "red" | "green";
 export const knightStaticAbilities = (
     protectionFrom: ProtectionColor
 ): string[] => ["first strike", `protection from ${protectionFrom}`];
+
+/** Names for every grantable "protection from <X>" quality (CR 702.16),
+ *  including colorless (`C` — CR 105.2c, issue #684/#928). Shared by every
+ *  "choose a color (or colorless)" protection-granting activated ability. */
+export const PROTECTION_QUALITY_NAMES: Record<Color, string> = {
+    W: "white",
+    U: "blue",
+    B: "black",
+    R: "red",
+    G: "green",
+    C: "colorless",
+};
+
+/** Builds one `optionChoice` mode per grantable color/quality in `codes`,
+ *  each granting "protection from <quality>" to the announced target (CR
+ *  702.16, 613.1f, CR 700.2 modal choice). Shared by Mother of Runes (5
+ *  colors, ulg/white.ts) and Giver of Runes (5 colors + colorless,
+ *  mh1/white.ts) — issue #684/#928 dedup. */
+export function protectionColorModes(
+    codes: ReadonlyArray<Color>
+): { id: string; label: string; effects: EffectOp[] }[] {
+    return codes.map((code) => {
+        const quality = PROTECTION_QUALITY_NAMES[code];
+        return {
+            id: `protection-${quality}`,
+            label: `Protection from ${quality}`,
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: `protection from ${quality}`,
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                } satisfies EffectOp,
+            ],
+        };
+    });
+}
 
 const COLOR_TO_LAND_SUBTYPE: Record<Color, string> = {
     W: "Plains",

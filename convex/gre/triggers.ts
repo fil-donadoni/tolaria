@@ -161,9 +161,16 @@ export function collectTriggers(
                 // Battlefield-zone abilities only here; graveyard-zone
                 // abilities (zone: "graveyard") are scanned separately below.
                 if (ability.zone) continue;
+                // CR 603.3b — "whenever one or more X" abilities collapse
+                // every matching event in this batch into a single trigger
+                // (see `TriggeredAbility.oncePerEventBatch`); everything else
+                // fires once per matching event, as before.
+                let firedThisBatch = false;
                 for (const event of events) {
                     if (event.type !== ability.event) continue;
+                    if (ability.oncePerEventBatch && firedThisBatch) continue;
                     if (!ability.matches(event, permanent, state)) continue;
+                    firedThisBatch = true;
                     out.push(
                         buildTriggerItem(state, permanent, ability.id, event)
                     );

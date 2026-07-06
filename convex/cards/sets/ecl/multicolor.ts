@@ -25,4 +25,35 @@
 //     toughness: 4,
 // };
 
+// TODO(issue #684 stub — Figure of Fable is blocked on TWO independent
+// gaps:
+//  1. Its printed cost is the hybrid pip {G/W} — ManaCost (cards/types.ts)
+//     has no hybrid-pip representation at all (single W/U/B/R/G/C numeric
+//     fields only), so the card's mana cost can't even be declared, let
+//     alone its three activation costs ({G/W}, {1}{G/W}{G/W},
+//     {3}{G/W}{G/W}{G/W}). Same root gap flagged on Vibrance above
+//     (tracked-by #900), which is about hybrid spent-mana tracking
+//     specifically — this is the more basic "hybrid pips aren't
+//     representable in ManaCost" gap.
+//  2. Even with a mana-cost workaround, the card's whole mechanic — three
+//     activated abilities that PERMANENTLY reclassify the creature's own
+//     subtypes and base power/toughness in stages (Kithkin → Kithkin Scout
+//     2/3 → Kithkin Soldier 4/5 → Kithkin Avatar 7/8 with "protection from
+//     each of your opponents") — has no engine primitive. This is
+//     structurally a Level Up/Class-style permanent respec (CR 702.87 Level
+//     Up is `status: "planned"`, zero engine hits); layer 7b `staticEffects`
+//     handles CONTINUOUS conditional P/T sets, not a one-way staged
+//     transformation gated on ability activation history.
+// Home file is `multicolor.ts` (a genuine G/W card, not colorless) per the
+// Vibrance precedent above. Stop-and-issue; tracked stub.
+// export const figureOfFable: CardDefinition = {
+//     id: "e0ef33dd-5f6d-48fa-8ef6-a8092868d50f",
+//     name: "Figure of Fable",
+//     rarity: "rare",
+//     types: ["Creature"],
+//     subtypes: ["Kithkin"],
+//     power: 1,
+//     toughness: 1,
+// };
+
 export {};

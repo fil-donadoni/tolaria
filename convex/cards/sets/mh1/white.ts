@@ -1,4 +1,51 @@
 // mh1 — white cards (ADR 0043 colour split).
+import type { CardDefinition, PermanentView } from "../../types";
+import { protectionColorModes } from "../../abilities";
+
+// Giver of Runes — {W} Creature — Kor Cleric (issue #684, Cube FREE evasion/
+// protection statics). "{T}: Another target creature you control gains
+// protection from colorless or from the color of your choice until end of
+// turn." (CR 702.16 protection; CR 613.1f temporary keyword grant; CR 700.2
+// modal choice; CR 109.2 "another" excludes the source itself.)
+export const giverOfRunes: CardDefinition = {
+    id: "4e117771-5a8b-4812-b487-32ba34b7f724",
+    name: "Giver of Runes",
+    rarity: "rare",
+    oracleText:
+        "{T}: Another target creature you control gains protection from colorless or from the color of your choice until end of turn.",
+    manaCost: { W: 1 },
+    types: ["Creature"],
+    subtypes: ["Kor", "Cleric"],
+    power: 1,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "giver-of-runes-protect",
+            oracleText:
+                "{T}: Another target creature you control gains protection from colorless or from the color of your choice until end of turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "you",
+            },
+            getTargetRequirement: (source: PermanentView) => ({
+                type: "Creature",
+                count: 1,
+                controller: "you",
+                excludeInstanceIds: [source.id],
+            }),
+            effects: [
+                {
+                    op: "optionChoice",
+                    prompt: "Choose colorless or a color",
+                    modes: protectionColorModes(["C", "W", "U", "B", "R", "G"]),
+                },
+            ],
+        },
+    ],
+};
 
 // TODO(issue #676 stub — Rebound, CR 702.88, is `planned` in
 // mechanicsRegistry.ts: no "cast this from exile next upkeep without paying

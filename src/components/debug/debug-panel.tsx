@@ -711,6 +711,31 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Cube FREE: evasion / protection statics (issue #684). Moonshadow
+        // (menace, CR 702.111b) is seeded with its six -1/-1 counters —
+        // effective 1/1, needing TWO blockers to be legally blocked at all;
+        // the lone opposing Grizzly Bears can't block it alone. Mother of
+        // Runes sits untapped, ready to activate "{T}: Target creature you
+        // control gains protection from the color of your choice until end
+        // of turn" (CR 702.16 protection, CR 700.2 modal color choice) on
+        // either creature before you commit to combat. Move to the beginning
+        // of combat, activate Mother of Runes choosing a color, then declare
+        // Moonshadow as an attacker to see it go unblocked.
+        label: "Evasion/protection statics: Moonshadow menace + Mother of Runes (#684)",
+        cards: [
+            {
+                name: "Moonshadow",
+                owner: "me",
+                zone: "battlefield",
+                counters: { "-1/-1": 6 },
+            },
+            { name: "Mother of Runes", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "BEGINNING_OF_COMBAT",
+        landCount: 3,
+    },
 ];
 
 type DebugPanelProps = {
