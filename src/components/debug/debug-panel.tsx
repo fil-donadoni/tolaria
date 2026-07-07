@@ -183,6 +183,23 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 8,
     },
     {
+        // Hexproof (CR 702.11b, issue #958): the opponent controls Sylvan
+        // Caryatid (defender, hexproof) alongside a plain Grizzly Bears. Cast
+        // Lightning Bolt ({R}) — the Bears is a legal target and lights up, but
+        // the Caryatid stays greyed out and un-clickable (its controller's
+        // opponents can't target it). Your own spells could still target your
+        // own hexproof permanents; the server rejects an opponent's attempt.
+        label: "Hexproof: opponent's Sylvan Caryatid can't be targeted (#958)",
+        cards: [
+            { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+            { name: "Sylvan Caryatid", owner: "opp", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Copy-on-ETB Bot cast prune (issue #938): a copy-on-ETB spell (Copy
         // Artifact, Clone, Vesuvan Doppelganger, Dance of Many) enters as a copy
         // of a permanent already in play. Casting one with NO permanent it could

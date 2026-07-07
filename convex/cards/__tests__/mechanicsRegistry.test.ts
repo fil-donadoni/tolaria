@@ -102,6 +102,7 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
         ["banding", "702.22", "banding"],
         ["cumulative-upkeep", "702.24", "cumulative-upkeep"],
         ["haste", "702.10", "haste"],
+        ["hexproof", "702.11", "hexproof"],
         ["unblockable", undefined, "unblockable"],
     ] as const)(
         "%s is implemented with binding %s",
@@ -124,13 +125,16 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
         }
     );
 
-    // Known gaps (see module header): declared on cards, not actually
-    // enforced anywhere in the engine. Documented as a fact, not silently
-    // marked implemented.
+    // Known gaps (see module header): the keyword STRING is declared on cards
+    // but not enforced by anything reading that string. Documented as a fact,
+    // not silently marked implemented.
     // Haste graduated to `implemented` in issue #730 (combat honours it for
-    // attack eligibility). The remaining rows are still declared-but-unenforced.
-    it.each(["hexproof", "shroud", "ward"] as const)(
-        "%s is honestly marked planned (declared-but-unenforced gap)",
+    // attack eligibility); hexproof in issue #958 (targeting-legality gate reads
+    // the keyword). NOTE: shroud/ward FUNCTION via a permanent-guard/staticEffect
+    // model, not the keyword string — their registry status is reconciled
+    // separately in issue #959. The remaining rows are still keyword-unenforced.
+    it.each(["shroud", "ward"] as const)(
+        "%s is honestly marked planned (keyword string unenforced)",
         (id) => {
             const row = MECHANICS_REGISTRY.find((r) => r.id === id);
             expect(row, `no row for id "${id}"`).toBeDefined();

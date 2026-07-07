@@ -712,8 +712,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Hexproof",
         kind: "keyword-ability",
         cr: "702.11",
-        status: "planned",
-        note: "GAP: granted via SpellContext.grantStaticAbility on at least one card but no target-legality check anywhere reads the string — decorative only, same class as haste.",
+        status: "implemented",
+        binding: "hexproof",
+        note: "CR 702.11b — a permanent with hexproof can't be the target of spells or abilities its controller's OPPONENTS control (its own controller may still target it). Enforced in the targeting-legality gate: getLegalTargets (rules.ts) skips a hexproof permanent when the source controller is an opponent, selectTarget (game.ts) rejects it authoritatively, and the client mirrors it via isUntargetableByPending (src/lib/targeting.ts) so it greys out. Reads the effective (layer-6-materialized) staticAbilities. Narrower cousin of shroud, which bars every source via a permanent-guard staticEffect.",
     },
     // 702.12 Indestructible
     {

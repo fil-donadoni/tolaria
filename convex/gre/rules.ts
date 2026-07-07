@@ -939,6 +939,18 @@ export function getLegalTargets(
                     })
                 )
                     continue;
+                // CR 702.11b — hexproof: a permanent with hexproof can't be the
+                // target of spells or abilities its controller's OPPONENTS
+                // control. Its own controller may still target it (unlike
+                // shroud, which bars everyone via a permanent-guard staticEffect
+                // above). `card.staticAbilities` is the layer-6-materialized
+                // effective set (granted hexproof counts, stripped does not).
+                if (
+                    card.staticAbilities.includes("hexproof") &&
+                    casterId !== undefined &&
+                    casterId !== card.controllerId
+                )
+                    continue;
                 targets.push({ type: "permanent", id: card.id });
             }
         }

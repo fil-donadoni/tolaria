@@ -251,7 +251,8 @@ export function useBattlefieldVisualState(player: Player) {
                     allPlayers,
                     card,
                     pendingTarget.cardInstanceId,
-                    pendingTarget.kind
+                    pendingTarget.kind,
+                    pendingTarget.playerId
                 )
             ) {
                 return false;

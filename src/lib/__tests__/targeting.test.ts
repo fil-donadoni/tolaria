@@ -87,6 +87,57 @@ describe("isUntargetableByPending — Spectral Cloak (CR 702.18)", () => {
     });
 });
 
+describe("isUntargetableByPending — hexproof (CR 702.11b)", () => {
+    // p2 controls a hexproof creature; p1 is casting a spell (chooser = p1).
+    function board(): Player[] {
+        const caryatid = inst({
+            id: "caryatid",
+            controllerId: "p2",
+            ownerId: "p2",
+            card: { id: JASMINE_BOREAL },
+            staticAbilities: ["defender", "hexproof"],
+        });
+        const spell = inst({
+            id: "spell",
+            card: { id: JASMINE_BOREAL },
+            zone: "hand",
+        });
+        return [
+            player({ id: "p1", hand: [spell] }),
+            player({ id: "p2", battlefield: [caryatid] }),
+        ];
+    }
+
+    it("an opponent's spell can't target a hexproof permanent", () => {
+        const players = board();
+        const caryatid = players[1].battlefield[0];
+        expect(
+            isUntargetableByPending(players, caryatid, "spell", "cast", "p1")
+        ).toBe(true);
+    });
+
+    it("its own controller CAN target it", () => {
+        const players = board();
+        const caryatid = players[1].battlefield[0];
+        expect(
+            isUntargetableByPending(players, caryatid, "spell", "cast", "p2")
+        ).toBe(false);
+    });
+
+    it("a non-hexproof creature stays targetable by opponents", () => {
+        const players = board();
+        const plain = inst({
+            id: "plain",
+            controllerId: "p2",
+            ownerId: "p2",
+            card: { id: JASMINE_BOREAL },
+        });
+        expect(
+            isUntargetableByPending(players, plain, "spell", "cast", "p1")
+        ).toBe(false);
+    });
+});
+
 describe("isUntargetableByPending — Anti-Magic Aura (CR 113.3)", () => {
     function board(): Player[] {
         const bear = inst({ id: "bear", card: { id: JASMINE_BOREAL } });

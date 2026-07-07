@@ -4834,6 +4834,17 @@ export const selectTarget = mutation({
                     "Target can't be the target of spells or abilities"
                 );
             }
+            // CR 702.11b — hexproof: bars targeting only by the controller's
+            // OPPONENTS (its own controller may still target it). Mirror of the
+            // getLegalTargets gate. `staticAbilities` is the effective set.
+            if (
+                matchedCard.staticAbilities.includes("hexproof") &&
+                pt.playerId !== matchedCard.controllerId
+            ) {
+                throw new Error(
+                    "Target has hexproof from your spells and abilities"
+                );
+            }
         } else if (args.targetType === "player") {
             if (!wantsAny && !reqTypes.includes("player")) {
                 throw new Error("Must target a permanent");

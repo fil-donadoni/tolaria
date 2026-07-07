@@ -146,6 +146,38 @@ describe("getLegalTargets", () => {
         expect(targets[0]).toEqual({ type: "permanent", id: "bear" });
     });
 
+    // CR 702.11b — hexproof: bars targeting only by the controller's opponents.
+    describe("hexproof (CR 702.11b)", () => {
+        function boardWithHexproof(): GameState {
+            const caryatid = makeCard({
+                id: "caryatid",
+                card: CREATURE,
+                controllerId: "p2",
+                ownerId: "p2",
+                staticAbilities: ["defender", "hexproof"],
+            });
+            return makeGameState({
+                players: [
+                    makePlayer({ id: "p1", battlefield: [] }),
+                    makePlayer({ id: "p2", battlefield: [caryatid] }),
+                ],
+            });
+        }
+        const req: TargetRequirement = { type: "Creature", count: 1 };
+
+        it("excludes a hexproof permanent from an OPPONENT's source", () => {
+            const state = boardWithHexproof();
+            const targets = getLegalTargets(state, req, [], "p1");
+            expect(targets.map((t) => t.id)).not.toContain("caryatid");
+        });
+
+        it("includes it for the controller's OWN source", () => {
+            const state = boardWithHexproof();
+            const targets = getLegalTargets(state, req, [], "p2");
+            expect(targets.map((t) => t.id)).toContain("caryatid");
+        });
+    });
+
     it("finds artifacts and enchantments for Disenchant-style requirement", () => {
         const bear = makeCard({ id: "bear", card: CREATURE });
         const mox = makeCard({ id: "mox", card: ARTIFACT });

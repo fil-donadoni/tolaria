@@ -315,7 +315,8 @@ export function useBattlefieldInteraction(player: Player) {
                 allPlayers,
                 card,
                 pendingTarget.cardInstanceId,
-                pendingTarget.kind
+                pendingTarget.kind,
+                pendingTarget.playerId
             )
         ) {
             guardMutation(

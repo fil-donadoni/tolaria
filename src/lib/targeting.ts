@@ -73,21 +73,38 @@ function pendingGuardSource(
 }
 
 /** True if `candidate` is barred from being targeted by the pending
- *  spell/ability under any active `cantBeTargeted` guard (CR 702.18 / 611).
- *  Used by the battlefield click gate to make shrouded permanents un-clickable.
- *  When there is no source info the check stays conservative. */
+ *  spell/ability under any active `cantBeTargeted` guard (CR 702.18 / 611) or
+ *  hexproof (CR 702.11b). Used by the battlefield click gate to make shrouded /
+ *  hexproof permanents un-clickable. When there is no source info the check
+ *  stays conservative. `chooserId` is the player selecting targets
+ *  (`pendingTarget.playerId`) — hexproof bars only that permanent's opponents. */
 export function isUntargetableByPending(
     players: Player[],
     candidate: CardInstance,
     sourceCardInstanceId: string,
-    kind: "cast" | "ability" | "copy-retarget" | "retarget" | undefined
+    kind: "cast" | "ability" | "copy-retarget" | "retarget" | undefined,
+    chooserId?: string
 ): boolean {
     const state = toGuardState(players);
     const source = pendingGuardSource(players, sourceCardInstanceId, kind);
-    return isGuardedAgainst(
-        state,
-        toGuardTarget(candidate),
-        "cantBeTargeted",
-        source
-    );
+    if (
+        isGuardedAgainst(
+            state,
+            toGuardTarget(candidate),
+            "cantBeTargeted",
+            source
+        )
+    ) {
+        return true;
+    }
+    // CR 702.11b — hexproof: bars targeting only by the controller's opponents.
+    // `chooserId` is the source controller; its own permanents stay targetable.
+    if (
+        chooserId !== undefined &&
+        (candidate.staticAbilities ?? []).includes("hexproof") &&
+        candidate.controllerId !== chooserId
+    ) {
+        return true;
+    }
+    return false;
 }
