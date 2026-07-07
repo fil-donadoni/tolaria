@@ -103,6 +103,28 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Urborg unified mana-tap options (CR 605.1a / 305.6): Urborg makes
+        // every land a Swamp IN ADDITION to its own types, so each land's
+        // {T}: Add {B} STACKS with its other abilities as a separate choice.
+        // Tap the Mountain → pick {R} or {B}. Tap City of Traitors → pick
+        // {C}{C} or {B} (its own ability is kept, not shadowed). Tap Tropical
+        // Island → pick {G}, {U}, or {B}. Without Urborg the same lands offer
+        // only their printed options — this exercises the multi-option picker.
+        label: "Urborg: every land taps for its colour OR {B} (City of Traitors keeps {C}{C})",
+        cards: [
+            {
+                name: "Urborg, Tomb of Yawgmoth",
+                owner: "me",
+                zone: "battlefield",
+            },
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+            { name: "City of Traitors", owner: "me", zone: "battlefield" },
+            { name: "Tropical Island", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Lifelink (CR 702.15b / CR 119.3, issue #936): Griselbrand (7/7 flying,
         // lifelink) is in play on my side, ready to attack. Move to combat,
         // declare it as an attacker, and let combat damage resolve — the

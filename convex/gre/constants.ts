@@ -5,7 +5,7 @@ import type {
     PermanentView,
 } from "../cards/types";
 import type { ManaRestriction } from "./types";
-import { getDefinition } from "../cards";
+import { getDefinition, tryGetDefinition } from "../cards";
 import type { CardInstanceState, GameState } from "./state";
 import { applySubstitution } from "./textChanges";
 
@@ -336,6 +336,174 @@ export function getEffectiveManaChoices(
     if (dynamic) return dynamic;
     const ability = getActivatedManaAbility(card);
     return ability?.manaChoices ?? null;
+}
+
+/** Provenance of a single mana-tap option (CR 605.1a): which mana ability it
+ *  comes from. `"activated"` carries the source ability's id (and, for a
+ *  `manaChoices` ability, the index into THAT ability's own choice list — the
+ *  Mana Battery counter-removal count reads this local index, not the unified
+ *  index); `"basic"` is an intrinsic basic-land-subtype ability (CR 305.6),
+ *  which has no riders (self-damage, depletion, life/discard cost). */
+export type ManaTapOptionSource =
+    | { kind: "activated"; abilityId: string; choiceIndex?: number }
+    | { kind: "basic"; subtype: string };
+
+/** One selectable mana-tap option: the `ManaCost` produced by activating one of
+ *  a permanent's mana abilities once, plus its provenance. */
+export type ManaTapOption = { mana: ManaCost; source: ManaTapOptionSource };
+
+/** Canonical dedup key for a `ManaCost` (sorted colour:amount pairs). */
+function manaCostKey(mana: ManaCost): string {
+    return MANA_COLORS.map((c) => `${c}:${mana[c] ?? 0}`).join("|");
+}
+
+/** CR 605.1a / 305.6 — the full set of mana-tap options a permanent exposes:
+ *  every printed/granted activated tap mana ability (its fixed `manaProduced`,
+ *  its static/board-conditional choices) AND one intrinsic option per DISTINCT
+ *  basic land subtype it currently has. A single {T} activates exactly ONE of
+ *  these, so the player chooses when 2+ survive. This is the single authority
+ *  the tap mutations, the affordability planner and the client picker all read,
+ *  so the index they submit references one list (CR 106.1).
+ *
+ *  Ordering is stable: activated-ability options first (preserving the indices
+ *  existing `manaChoices` cards already use — including a storage land's
+ *  "remove N counters" list where the index IS the counter count, so the
+ *  zero-output "remove 0" entry is kept), then basic-subtype options in subtype
+ *  order. Duplicate outputs (a dual land whose basic subtypes reproduce its own
+ *  choice colours) are dropped, keeping the first occurrence's provenance — so
+ *  `getManaTapOptions` for a plain dual land is byte-identical to its old
+ *  `manaChoices`.
+ *
+ *  A SACRIFICE-cost mana ability (ADR 0039 — the FEM sac-land "Sacrifice this:
+ *  Add {X}{X}", Basal Thrull, Lotus Petal) is a deliberate destructive
+ *  activation, NOT folded into the routine tap-for-mana picker: it is offered
+ *  only when the source has no non-destructive tap option, so a land with both
+ *  a plain tap and a sacrifice ability taps plainly while a sacrifice-only
+ *  source (Lotus Petal) still surfaces its colours.
+ *
+ *  Suppression (Blood Moon / Titania's Song, CR 613.1f) removes only PRINTED
+ *  activated abilities; the intrinsic basic-subtype options survive (CR 305.6),
+ *  matching `getBasicLandMana`. `battlefields` is required only to resolve
+ *  board-conditional outputs (Fellwar Stone's `getManaChoices`, the Urza land
+ *  trio's `manaAmount`); omit it (static resolution) where the board isn't
+ *  available — the planner's one-source model, as before, does not resolve
+ *  dynamic choosers. */
+export function getManaTapOptionsDetailed(
+    card: CardInstanceState,
+    controllerId?: string,
+    battlefields?: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>,
+    opts?: { requireTap?: boolean }
+): ManaTapOption[] {
+    const nonSacrifice: ManaTapOption[] = [];
+    const sacrifice: ManaTapOption[] = [];
+    const requireTap = opts?.requireTap ?? false;
+
+    const cardId = (card.card as { id?: string }).id;
+    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    const controllerBattlefield =
+        controllerId && battlefields
+            ? battlefields.find((b) => b.playerId === controllerId)?.battlefield
+            : undefined;
+
+    if (def?.activatedAbilities && !abilitiesSuppressed(card)) {
+        for (const ability of def.activatedAbilities) {
+            if (ability.useStack) continue;
+            // A one-shot mana ability activated by tapping AND/OR sacrificing the
+            // source (ADR 0039 — Lion's Eye Diamond sacrifices without tapping).
+            // A pure mana-COST ability (Farrelite Priest "{1}: Add {W}") is
+            // repeatable and routed through `activateManaAbility`, not a tap
+            // option. The affordability/auto-tap planner passes `requireTap` so
+            // it never auto-commits a sacrifice-only source (discarding the hand
+            // to LED is a strategic choice, never an auto-payment).
+            if (requireTap) {
+                if (!ability.cost.tap) continue;
+            } else if (!ability.cost.tap && !ability.cost.sacrifice) {
+                continue;
+            }
+            const target = ability.cost.sacrifice ? sacrifice : nonSacrifice;
+            // A choice ability (dual land, Talisman, Fellwar Stone, storage
+            // land): each option is one entry, tagged with its ability-local
+            // choice index so the counter-removal rider (Mana Battery / storage
+            // land) reads the right count.
+            const choices =
+                ability.getManaChoices && controllerId && battlefields
+                    ? getDynamicManaChoices(card, controllerId, battlefields)
+                    : (ability.manaChoices ?? null);
+            if (choices) {
+                choices.forEach((choice, index) => {
+                    target.push({
+                        mana: choice,
+                        source: {
+                            kind: "activated",
+                            abilityId: ability.id,
+                            choiceIndex: index,
+                        },
+                    });
+                });
+                continue;
+            }
+            if (ability.manaProduced) {
+                // CR 106.1 — resolve a board-conditional amount (Urza trio) when
+                // the board is available; else the static output is the snapshot.
+                const dynamic = controllerBattlefield
+                    ? getDynamicManaProduced(card, controllerBattlefield)
+                    : null;
+                target.push({
+                    mana: dynamic ?? ability.manaProduced,
+                    source: { kind: "activated", abilityId: ability.id },
+                });
+            }
+        }
+    }
+
+    // CR 305.6 — one intrinsic {T}: Add {C} option per DISTINCT basic land
+    // subtype (text-change aware, like `getBasicLandMana`). Always a
+    // non-destructive alternative. `?? []` tolerates a slim client
+    // `CardInstance` whose `subtypes` may be absent; the server always has it.
+    const { subtypes } = applySubstitution(card);
+    for (const subtype of subtypes ?? []) {
+        const color = LAND_SUBTYPE_MANA[subtype];
+        if (color) {
+            nonSacrifice.push({
+                mana: { [color]: 1 } as ManaCost,
+                source: { kind: "basic", subtype },
+            });
+        }
+    }
+
+    // Prefer non-destructive options; fall back to sacrifice abilities only when
+    // there is no other way to tap this source for mana (Lotus Petal).
+    const combined = nonSacrifice.length > 0 ? nonSacrifice : sacrifice;
+
+    // Dedup by produced `ManaCost`, keeping the first occurrence's provenance.
+    const out: ManaTapOption[] = [];
+    const seen = new Set<string>();
+    for (const opt of combined) {
+        const key = manaCostKey(opt.mana);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(opt);
+    }
+    return out;
+}
+
+/** The mana-cost list a player picks from when tapping a source for mana —
+ *  `getManaTapOptionsDetailed` without provenance. The index into this list is
+ *  the `manaChoiceIndex` the tap mutations expect. */
+export function getManaTapOptions(
+    card: CardInstanceState,
+    controllerId?: string,
+    battlefields?: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
+): ManaCost[] {
+    return getManaTapOptionsDetailed(card, controllerId, battlefields).map(
+        (o) => o.mana
+    );
 }
 
 /** Total mana count across all colours in a `ManaCost` (ignoring `X`). */

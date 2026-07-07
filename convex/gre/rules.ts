@@ -14,6 +14,7 @@ import {
     MANA_COLORS,
     PLACEHOLDER_CARD_ID,
     abilitiesSuppressed,
+    getManaTapOptionsDetailed,
     isLand,
     isTapLockedBySummoningSickness,
     manaValue,
@@ -192,63 +193,44 @@ function hasEnoughLegalTargets(
 
 /** Maps each color a permanent can produce when tapped to the
  *  `manaChoiceIndex` the payment mutations expect, or `undefined` when the
- *  source produces that color with no choice (basic land / fixed output).
- *  Considers basic land subtypes (CR 305.6), fixed mana abilities, and
- *  mana-choice abilities (e.g. dual lands, Talisman). Empty map means the card
- *  has no mana ability the engine knows about. When a color is reachable both
- *  intrinsically and via a choice, the choice-free form (undefined) wins so
- *  callers tap without supplying an index. */
+ *  source produces that color with no choice (single-option source). Reads the
+ *  unified `getManaTapOptionsDetailed` list (CR 605.1a / 305.6 — activated
+ *  abilities + one intrinsic option per basic land subtype) so the index this
+ *  planner emits references the exact list the tap mutations resolve against —
+ *  a land under Urborg advertises BOTH its own colour and {B}, each with the
+ *  index that produces it. Empty map means no mana ability the engine knows
+ *  about (dynamic board choosers like Fellwar Stone resolve at tap time, not
+ *  in the one-source planner). */
 export function getProducibleManaOptions(
     card: CardInstanceState
 ): Map<Color, number | undefined> {
     const options = new Map<Color, number | undefined>();
+    // requireTap: the auto-tap planner only ever taps for mana — it must never
+    // auto-commit a sacrifice-only source (Lion's Eye Diamond discards the hand).
+    const detailed = getManaTapOptionsDetailed(card, undefined, undefined, {
+        requireTap: true,
+    });
+    if (detailed.length === 0) return options;
 
-    // Activated mana abilities take precedence over intrinsic basic-land
-    // subtypes: `tapForPayment` keys off `getActivatedManaAbility`, so a card
-    // with a `manaChoices` ability (e.g. a dual land that also carries both
-    // basic land types for rules interactions) is always paid via that ability
-    // and therefore REQUIRES a `manaChoiceIndex`. Claiming its colors from the
-    // subtype path first (with `undefined`) would desync the planner from the
-    // handler and trip "Must choose a mana color". So resolve abilities first
-    // and let the CR 305.6 subtype path only fill colors no ability covers.
+    // Mirror `manaTapNeedsChoice`: the tap mutations require a `manaChoiceIndex`
+    // whenever 2+ options exist, or the source carries a choice-based ability
+    // (Talisman / Fellwar Stone). A single fixed/basic option taps index-free.
     const cardId = (card.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
-    // CR 613.1f — a permanent that has lost all abilities (Titania's Song,
-    // Blood Moon) exposes none of its PRINTED activated mana abilities. Keep
-    // this planner in sync with the payment handler (`getActivatedManaAbility`),
-    // which is likewise suppression-gated; otherwise a dual land under Blood
-    // Moon would still advertise its original colors here while the handler
-    // pays {R} from the intrinsic Mountain subtype, desyncing the two.
-    if (def?.activatedAbilities && !abilitiesSuppressed(card)) {
-        for (const ability of def.activatedAbilities) {
-            if (ability.useStack) continue;
-            if (!ability.cost.tap) continue;
-            if (ability.manaProduced) {
-                for (const c of MANA_COLORS) {
-                    if ((ability.manaProduced[c] ?? 0) > 0 && !options.has(c)) {
-                        options.set(c, undefined);
-                    }
-                }
-            }
-            if (ability.manaChoices) {
-                ability.manaChoices.forEach((choice, index) => {
-                    for (const c of MANA_COLORS) {
-                        // Don't overwrite a choice-free producer with an index.
-                        if ((choice[c] ?? 0) > 0 && !options.has(c)) {
-                            options.set(c, index);
-                        }
-                    }
-                });
+    const hasChoiceAbility =
+        !abilitiesSuppressed(card) &&
+        !!def?.activatedAbilities?.some(
+            (a) => !a.useStack && (a.manaChoices || a.getManaChoices)
+        );
+    const needIndex = detailed.length >= 2 || hasChoiceAbility;
+
+    detailed.forEach((opt, index) => {
+        for (const c of MANA_COLORS) {
+            if ((opt.mana[c] ?? 0) > 0 && !options.has(c)) {
+                options.set(c, needIndex ? index : undefined);
             }
         }
-    }
-
-    // CR 305.6: basic land subtypes grant intrinsic mana abilities. Only adds
-    // colors not already produced by an explicit activated ability above.
-    for (const subtype of card.subtypes) {
-        const c = LAND_SUBTYPE_MANA[subtype];
-        if (c && !options.has(c)) options.set(c, undefined);
-    }
+    });
 
     return options;
 }
@@ -260,10 +242,12 @@ export function getProducibleManaOptions(
  *
  *  A tap is a single shared cost, so only ONE mana ability can be used per
  *  activation — we take the ability producing the most mana (ties: first) and
- *  never sum across competing abilities. Falls back to the CR 305.6 basic-land
- *  subtype path (one mana of the subtype's color) when no activated mana
- *  ability applies. A choice ability (dual land / Talisman) is one mana whose
- *  color set is the union of its options. */
+ *  never sum across competing abilities. The intrinsic basic-land subtypes
+ *  (CR 305.6) are additional single-mana ALTERNATIVES to that ability (a land
+ *  under Urborg can tap for {B} instead of its own output), so their colours
+ *  are folded in as extra options on each unit — this errs toward affordable,
+ *  the documented bias of this planner. A choice ability (dual land / Talisman)
+ *  is one mana whose color set is the union of its options. */
 function getProducibleManaUnits(card: CardInstanceState): Set<Color>[] {
     const cardId = (card.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
@@ -297,15 +281,20 @@ function getProducibleManaUnits(card: CardInstanceState): Set<Color>[] {
         }
         if (units.length > best.length) best = units;
     }
-    if (best.length > 0) return best;
 
-    // CR 305.6: basic land subtypes grant an intrinsic one-mana ability.
+    // CR 305.6: basic land subtypes grant an intrinsic one-mana ability, a tap
+    // ALTERNATIVE to the source's own ability. Fold their colours into each
+    // unit (or seed the units when the source has no activated ability).
     const subtypeColors = new Set<Color>();
     for (const subtype of card.subtypes) {
         const c = LAND_SUBTYPE_MANA[subtype];
         if (c) subtypeColors.add(c);
     }
-    return subtypeColors.size > 0 ? [subtypeColors] : [];
+    if (subtypeColors.size > 0) {
+        if (best.length === 0) return [subtypeColors];
+        return best.map((u) => new Set<Color>([...u, ...subtypeColors]));
+    }
+    return best;
 }
 
 /** True if the player has enough mana — already in the pool plus what could

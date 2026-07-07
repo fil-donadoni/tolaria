@@ -127,7 +127,7 @@ import {
     getActivatedManaColor,
     getActivatedManaRestriction,
     getDynamicManaProduced,
-    getEffectiveManaChoices,
+    getManaTapOptionsDetailed,
     getFixedManaAmount,
     hasManaAbility,
     isLand,
@@ -638,6 +638,105 @@ export function markTapTriggerCommitment(
     }
 }
 
+/** CR 106.4 / 605.1a — snapshot how much life a tap-for-mana's inline self-
+ *  damage / life-cost riders (painland coloured-tap ping like Adarkar Wastes,
+ *  Ancient Tomb's unconditional ping, Mana Confluence's "Pay 1 life") took, so
+ *  a later reversal of the whole mana-ability activation can refund it — the
+ *  life-side sibling of the mana / charge-counter refund. `lifeBeforeTap` is
+ *  the controller's life captured before the riders ran; `lifeAfterTap` after.
+ *  Records the REAL delta (post CR 614 replacement / CR 615 prevention), so a
+ *  prevented or Lich-replaced ping refunds exactly what was paid, and clears
+ *  the field when nothing was paid so a stale value from an earlier tap can
+ *  never leak forward. Shared by both tap-for-mana paths (`tapUntap` priority
+ *  tap + `tapSourceIntoPayment` payment tap). */
+export function recordLifePaidOnTap(
+    card: CardInstanceState,
+    lifeBeforeTap: number,
+    lifeAfterTap: number
+): void {
+    const paid = lifeBeforeTap - lifeAfterTap;
+    card.lifePaidThisTap = paid > 0 ? paid : undefined;
+}
+
+/** CR 106.4 / 605.1a — restore the life recorded by `recordLifePaidOnTap` when
+ *  a tap-for-mana is reversed before its mana is spent (the `tapUntap` untap
+ *  toggle or `untapForPayment`). Symmetric with the mana / charge-counter
+ *  refund. Unlike City of Brass, whose becomes-tapped TRIGGER goes on the stack
+ *  and blocks the reversal (`tapTriggerCommitted`), painland-style inline riders
+ *  resolve with no stack, so the tap — life ping included — stays reversible.
+ *  No-op when the source paid no life. Shared by both untap paths. */
+export function restoreLifePaidOnUntap(
+    player: PlayerState,
+    card: CardInstanceState
+): void {
+    if (!card.lifePaidThisTap) return;
+    player.life += card.lifePaidThisTap;
+    card.lifePaidThisTap = undefined;
+}
+
+type ResolvedManaTapChoice = {
+    mana: ManaCost;
+    ability: ActivatedAbility | null;
+    choiceIndex: number | undefined;
+};
+
+/** Whether the source exposes 2+ mana-tap options (must prompt a choice) or a
+ *  single choice-based ability that still requires an index (Fellwar Stone with
+ *  one producible colour). Kept in lockstep with the client's picker gate. */
+function manaTapNeedsChoice(
+    card: CardInstanceState,
+    controllerId: string,
+    battlefields: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>,
+    ability: ActivatedAbility | null
+): boolean {
+    const options = getManaTapOptionsDetailed(card, controllerId, battlefields);
+    return (
+        options.length >= 2 ||
+        !!(ability?.manaChoices || ability?.getManaChoices)
+    );
+}
+
+/** Resolves the `manaChoiceIndex` the client submitted against the unified
+ *  option list (CR 605.1a / 305.6), returning the produced mana + its
+ *  provenance: `ability` is `null` for an intrinsic basic-land-subtype option
+ *  (no riders), and `choiceIndex` is the ability-LOCAL index a Mana Battery
+ *  reads as its counter-removal count. Null when the index is out of range. */
+function resolveManaTapChoice(
+    card: CardInstanceState,
+    controllerId: string,
+    battlefields: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>,
+    manaChoiceIndex: number
+): ResolvedManaTapChoice | null {
+    const options = getManaTapOptionsDetailed(card, controllerId, battlefields);
+    const opt = options[manaChoiceIndex];
+    if (!opt) return null;
+    const source = opt.source;
+    if (source.kind === "basic") {
+        return { mana: opt.mana, ability: null, choiceIndex: undefined };
+    }
+    const def = getDefinition(card.card.id as string);
+    const ability =
+        def.activatedAbilities?.find((a) => a.id === source.abilityId) ?? null;
+    return { mana: opt.mana, ability, choiceIndex: source.choiceIndex };
+}
+
+/** Battlefields shaped for the mana-tap resolvers (CR 106.1). */
+function manaTapBattlefields(state: GameState): {
+    playerId: string;
+    battlefield: readonly CardInstanceState[];
+}[] {
+    return state.players.map((p) => ({
+        playerId: p.id,
+        battlefield: p.battlefield,
+    }));
+}
+
 export function tapSourceIntoPayment(
     state: GameState,
     player: PlayerState,
@@ -653,23 +752,36 @@ export function tapSourceIntoPayment(
     }
     const ability = getActivatedManaAbility(card);
 
-    if (ability?.manaChoices || ability?.getManaChoices) {
+    // CR 106.4 / 605.1a — snapshot life before the mana ability's inline self-
+    // damage / life-cost riders run, so an untapForPayment that reverses this
+    // source restores exactly the life it took (painland ping, Ancient Tomb,
+    // Mana Confluence). City of Brass's becomes-tapped TRIGGER deals no life
+    // here — its PERMANENT_TAPPED event isn't flushed to the stack until the
+    // spell finishes casting, and untapForPayment discards that event first.
+    const lifeBeforeTap = player.life;
+
+    // CR 605.1a / 305.6 — a source with 2+ mana-tap options (its own ability
+    // AND/OR one per distinct basic land subtype it has, e.g. any land under
+    // Urborg) requires the activator to pick which ability to activate. A single
+    // choice-based ability (Fellwar Stone) also routes here.
+    if (
+        manaTapNeedsChoice(card, player.id, manaTapBattlefields(state), ability)
+    ) {
         if (manaChoiceIndex === undefined) {
             throw new Error("Must choose a mana color");
         }
-        // CR 106.1 — resolve the effective choice list (board-conditional
-        // `getManaChoices`, e.g. Fellwar Stone, takes precedence over the static
-        // `manaChoices`) so the index the client submitted indexes the same list.
-        const choices = getEffectiveManaChoices(
+        // CR 106.1 — resolve the submitted index against the unified option list
+        // (activated abilities + intrinsic basic-land subtypes), carrying the
+        // chosen option's provenance so riders fire only for the ability that
+        // actually produced the mana (a basic-subtype pick has none).
+        const resolved = resolveManaTapChoice(
             card,
             player.id,
-            state.players.map((p) => ({
-                playerId: p.id,
-                battlefield: p.battlefield,
-            }))
+            manaTapBattlefields(state),
+            manaChoiceIndex
         );
-        const rawChosen = choices?.[manaChoiceIndex];
-        if (!rawChosen) throw new Error("Invalid mana choice");
+        if (!resolved) throw new Error("Invalid mana choice");
+        const { ability: effAbility, choiceIndex } = resolved;
         // CR 614 — Deep Water rewrites a land's produced mana to {U} before it
         // reaches the pool, so the event and refund snapshot the {U} actually
         // added (no-op for non-lands / players without the effect).
@@ -677,24 +789,28 @@ export function tapSourceIntoPayment(
             state,
             player.id,
             card,
-            rawChosen
+            resolved.mana
         );
 
         // CR 122.6 / 605.1a — Mana Battery tapped as a payment source: the
-        // chosen index is the number of charge counters removed this activation.
-        const counterType = ability.manaChoiceRemovesCounters;
-        if (counterType !== undefined && manaChoiceIndex > 0) {
+        // ability-LOCAL choice index is the number of charge counters removed.
+        const counterType = effAbility?.manaChoiceRemovesCounters;
+        const removeCounters =
+            counterType !== undefined &&
+            choiceIndex !== undefined &&
+            choiceIndex > 0;
+        if (removeCounters) {
             const have = card.counters?.[counterType] ?? 0;
-            if (have < manaChoiceIndex) {
+            if (have < choiceIndex) {
                 throw new Error("Not enough counters for this choice");
             }
             payRemoveCounterCost(card, {
                 type: counterType,
-                count: manaChoiceIndex,
+                count: choiceIndex,
             });
         }
 
-        const isSacrifice = ability.cost.sacrifice === true;
+        const isSacrifice = effAbility?.cost.sacrifice === true;
         // CR 605.2 — emit "tapped for mana" before the sacrifice path moves
         // the card off the battlefield, so the event carries the permanent's
         // pre-sacrifice types/subtypes for trigger predicates.
@@ -704,10 +820,10 @@ export function tapSourceIntoPayment(
         } else {
             card.isTapped = true;
             card.chosenMana = chosen;
-            if (counterType !== undefined && manaChoiceIndex > 0) {
+            if (removeCounters) {
                 card.manaCounterRemoval = {
                     type: counterType,
-                    count: manaChoiceIndex,
+                    count: choiceIndex,
                 };
             }
         }
@@ -719,28 +835,38 @@ export function tapSourceIntoPayment(
         // CR 603.7a / ADR 0040 — arm a control-change-on-tap rider (Rainbow
         // Vale) when this source is tapped for mana during a payment.
         if (!isSacrifice)
-            armDelayedTriggerOnTap(state, ability, card, player.id);
+            armDelayedTriggerOnTap(state, effAbility, card, player.id);
         // CR 605.1a / 120 — painland coloured-tap self-damage rider (Adarkar
         // Wastes et al.): when a coloured option is chosen (not {C}), the source
         // deals N damage to its controller. Fires in the payment-tap path too,
         // so the ping applies whether the land is tapped for mana via priority
         // (`tapUntap`) or while paying a spell/ability cost (here).
-        applyColoredTapSelfDamage(state, ability, card, player.id, chosen);
+        applyColoredTapSelfDamage(state, effAbility, card, player.id, chosen);
+        // CR 605.1a / 120 — unconditional fixed-mana self-damage rider (Ancient
+        // Tomb): fires when the chosen option is the source's own fixed ability.
+        // A basic-subtype pick (effAbility null) carries no rider — Ancient Tomb
+        // under Urborg tapped for {B} via the Swamp ability deals no damage.
+        applyUnconditionalTapSelfDamage(state, effAbility, card, player.id);
         // CR 605.1a / 122.1 — depletion-dual tap-for-mana rider (Land Cap et
         // al.): every tap for mana puts one depletion counter on the source.
         // Fires in the payment-tap path too, so the land depletes whether
         // tapped via priority or while paying a spell/ability cost.
-        applyDepletionCounterOnTap(ability, card);
+        applyDepletionCounterOnTap(effAbility, card);
         // CR 605.1a / 118.4 — tap mana ability life-payment cost (Mana
         // Confluence et al.): fires in the payment-tap path too, so the life
         // is paid whether the land is tapped for mana via priority
         // (`tapUntap`) or while paying a spell/ability cost (here).
-        applyManaAbilityLifeCost(state, ability, player.id);
+        applyManaAbilityLifeCost(state, effAbility, player.id);
         // CR 605.1a / 118.3 — tap mana ability discard-at-random cost (Lion's
         // Eye Diamond): fires in the payment-tap path too, so the discard
         // applies whether the source is tapped via priority (`tapUntap`) or
         // while paying a spell/ability cost (here).
-        applyManaAbilityDiscardCost(state, ability, player.id);
+        applyManaAbilityDiscardCost(state, effAbility, player.id);
+        // CR 106.4 / 605.1a — record the life paid to the inline riders so
+        // untapForPayment can restore it. Real delta (post CR 614/615), and 0
+        // on the sacrifice path (the painland rider no-ops on a sacrificed
+        // source, and a sacrificed source has no untap branch anyway).
+        recordLifePaidOnTap(card, lifeBeforeTap, player.life);
         tappedLandIds.push(card.id);
         return;
     }
@@ -801,6 +927,10 @@ export function tapSourceIntoPayment(
     // the payment-tap path too, so the discard applies whether tapped via
     // priority (`tapUntap`) or while paying a spell/ability cost (here).
     applyManaAbilityDiscardCost(state, ability, player.id);
+    // CR 106.4 / 605.1a — record the life paid to the inline riders (Ancient
+    // Tomb, Mana Confluence) so untapForPayment can restore it. Skip on the
+    // sacrifice path: the source is gone and has no untap branch.
+    if (!isSacrifice) recordLifePaidOnTap(card, lifeBeforeTap, player.life);
 }
 
 /** Reverses a single tap recorded in `tappedLandIds` — refunds the mana and
@@ -839,6 +969,11 @@ function untapSourceFromPayment(
         card.counters = next;
         card.manaCounterRemoval = undefined;
     }
+    // CR 106.4 / 605.1a — reversing this payment tap undoes the whole mana
+    // ability, so restore the life its inline riders took (painland ping,
+    // Ancient Tomb, Mana Confluence). Symmetric with the mana / counter refund
+    // above.
+    restoreLifePaidOnUntap(player, card);
     card.isTapped = false;
 }
 
@@ -3622,33 +3757,40 @@ export const tapForPayment = mutation({
 
         const ability = getActivatedManaAbility(card);
 
-        if (ability?.manaChoices || ability?.getManaChoices) {
-            // Choice-based source (dual lands, Birds of Paradise, Black Lotus,
-            // or a board-conditional chooser like Fellwar Stone).
+        if (
+            manaTapNeedsChoice(
+                card,
+                player.id,
+                manaTapBattlefields(state),
+                ability
+            )
+        ) {
+            // 2+ mana-tap options — its own ability and/or one per basic land
+            // subtype (any land under Urborg), or a single board-conditional
+            // chooser (Fellwar Stone). The activator picks which to activate.
             if (args.manaChoiceIndex === undefined) {
                 throw new Error("Must choose a mana color");
             }
-            // CR 106.1 — board-conditional `getManaChoices` takes precedence so
-            // the client and server reference the same option list/index.
-            const choices = getEffectiveManaChoices(
+            // CR 106.1 / 305.6 — resolve the submitted index against the unified
+            // option list (activated abilities + intrinsic basic-land subtypes),
+            // carrying the chosen option's provenance so a basic-subtype pick
+            // taps (never sacrifices) regardless of the source's own ability.
+            const resolved = resolveManaTapChoice(
                 card,
                 player.id,
-                state.players.map((p) => ({
-                    playerId: p.id,
-                    battlefield: p.battlefield,
-                }))
+                manaTapBattlefields(state),
+                args.manaChoiceIndex
             );
-            const rawChosen = choices?.[args.manaChoiceIndex];
-            if (!rawChosen) throw new Error("Invalid mana choice");
+            if (!resolved) throw new Error("Invalid mana choice");
             // CR 614 — Deep Water rewrites a land's produced mana to {U}.
             const chosen = applyLandManaReplacement(
                 state,
                 player.id,
                 card,
-                rawChosen
+                resolved.mana
             );
 
-            const isSacrifice = ability.cost.sacrifice === true;
+            const isSacrifice = resolved.ability?.cost.sacrifice === true;
             // CR 605.2 — emit "tapped for mana" before any sacrifice path
             // moves the card off the battlefield, so the event still carries
             // the permanent's pre-sacrifice types/subtypes.
@@ -7104,51 +7246,85 @@ export const tapUntap = mutation({
         // matching color). Set on the tap branches, undefined on untap.
         let producedThisActivation: ManaCost | undefined;
 
+        // CR 106.4 / 605.1a — snapshot the controller's life before the mana
+        // ability resolves so a tap can record how much life its self-damage /
+        // life-cost riders (painland ping, Ancient Tomb, Mana Confluence) took.
+        // Every rider on the activator routes through `player.life`, so the
+        // post-rider delta is the real life paid (after CR 614 replacement /
+        // CR 615 prevention) — restored verbatim if the tap is later undone.
+        const lifeBeforeTap = player.life;
+
+        // CR 605.1a / 305.6 — the ability that actually produced the mana this
+        // tap. Defaults to the source's single activated mana ability (fixed
+        // branch); the multi-option branch overwrites it with the CHOSEN
+        // option's ability, or `null` when the player picked an intrinsic
+        // basic-land-subtype option (any land under Urborg). The shared tap
+        // riders below (unconditional self-damage, life/discard cost, delayed
+        // trigger) read this so they fire only for the ability that was used.
+        let tapAbility: ActivatedAbility | null = ability;
+
         // Determine mana to add/remove
-        if (ability?.manaChoices || ability?.getManaChoices) {
-            // Choice-based mana ability (e.g. Birds of Paradise, Black Lotus,
-            // or board-conditional Fellwar Stone)
+        if (
+            manaTapNeedsChoice(
+                card,
+                player.id,
+                manaTapBattlefields(state),
+                ability
+            )
+        ) {
+            // 2+ mana-tap options: the source's own ability and/or one per basic
+            // land subtype it has (Urborg), or a single board-conditional
+            // chooser (Fellwar Stone). The activator picks which to activate.
             if (!wasTapped) {
                 if (args.manaChoiceIndex === undefined) {
                     throw new Error("Must choose a mana color");
                 }
-                // CR 106.1 — board-conditional `getManaChoices` takes precedence.
-                const choices = getEffectiveManaChoices(
+                // CR 106.1 / 305.6 — resolve the submitted index against the
+                // unified option list (activated abilities + intrinsic basic-
+                // land subtypes), keeping the chosen option's provenance so the
+                // riders below (and the shared tap riders) fire only for the
+                // ability that produced the mana. A basic-subtype pick has none.
+                const resolved = resolveManaTapChoice(
                     card,
                     player.id,
-                    state.players.map((p) => ({
-                        playerId: p.id,
-                        battlefield: p.battlefield,
-                    }))
+                    manaTapBattlefields(state),
+                    args.manaChoiceIndex
                 );
-                const rawChosen = choices?.[args.manaChoiceIndex];
-                if (!rawChosen) throw new Error("Invalid mana choice");
+                if (!resolved) throw new Error("Invalid mana choice");
+                const effAbility = resolved.ability;
+                const choiceIndex = resolved.choiceIndex;
+                tapAbility = effAbility;
                 // CR 614 — Deep Water rewrites a land's produced mana to {U}.
                 const chosen = applyLandManaReplacement(
                     state,
                     player.id,
                     card,
-                    rawChosen
+                    resolved.mana
                 );
 
-                // CR 122.6 / 605.1a — Mana Battery: the chosen index N is the
-                // number of charge counters this activation removes ("Remove any
-                // number of charge counters: Add 1 + N mana"). Validate and pay
-                // the scaling counter cost up-front so we never half-apply the
-                // tap. Snapshotted on the instance so an untap (before the mana
+                // CR 122.6 / 605.1a — Mana Battery: the ability-LOCAL choice
+                // index is the number of charge counters this activation removes
+                // ("Remove any number of charge counters: Add 1 + N mana").
+                // Validate and pay the scaling counter cost up-front so we never
+                // half-apply the tap. Snapshotted so an untap (before the mana
                 // is spent) restores the counters.
-                const counterType = ability?.manaChoiceRemovesCounters;
-                if (counterType !== undefined && args.manaChoiceIndex > 0) {
+                const counterType = effAbility?.manaChoiceRemovesCounters;
+                const removeCounters =
+                    counterType !== undefined &&
+                    choiceIndex !== undefined &&
+                    choiceIndex > 0;
+                if (removeCounters) {
                     const have = card.counters?.[counterType] ?? 0;
-                    if (have < args.manaChoiceIndex) {
+                    if (have < choiceIndex) {
                         throw new Error("Not enough counters for this choice");
                     }
                     payRemoveCounterCost(card, {
                         type: counterType,
-                        count: args.manaChoiceIndex,
+                        count: choiceIndex,
                     });
                 }
 
+                const optIsSacrifice = effAbility?.cost.sacrifice === true;
                 // CR 605.2 — emit before any sacrifice path moves the card off
                 // the battlefield, so the event still carries the source's
                 // pre-sacrifice types/subtypes.
@@ -7156,17 +7332,17 @@ export const tapUntap = mutation({
                 producedThisActivation = chosen;
 
                 // Pay cost: tap (+ sacrifice if required)
-                if (isSacrifice) {
+                if (optIsSacrifice) {
                     moveCard(player, card.id, "battlefield", "graveyard");
                 } else {
                     card.isTapped = true;
                     // Remember the exact mana produced so untap can refund it.
                     // Fixed-color abilities use manaProduced and don't need this.
                     card.chosenMana = chosen;
-                    if (counterType !== undefined && args.manaChoiceIndex > 0) {
+                    if (removeCounters) {
                         card.manaCounterRemoval = {
                             type: counterType,
-                            count: args.manaChoiceIndex,
+                            count: choiceIndex,
                         };
                     }
                 }
@@ -7175,8 +7351,9 @@ export const tapUntap = mutation({
                 // ability with a `manaRestriction` (Adarkar Unicorn — "Spend
                 // this mana only to pay cumulative upkeep costs") floats its
                 // output in the parallel `restrictedMana` pool, not the fungible
-                // pool, so it pays only the costs the restriction permits.
-                const choiceRestriction = ability?.manaRestriction;
+                // pool, so it pays only the costs the restriction permits. A
+                // basic-subtype pick (effAbility null) has no restriction.
+                const choiceRestriction = effAbility?.manaRestriction;
                 for (const [color, amount] of Object.entries(chosen)) {
                     if (
                         color !== "X" &&
@@ -7202,21 +7379,19 @@ export const tapUntap = mutation({
                 }
                 // CR 605.1a / 120 — painland coloured-tap self-damage rider
                 // (Adarkar Wastes et al.): a coloured choice (not {C}) pings the
-                // controller for 1; the painless {C} choice does not. Shared with
-                // the payment-tap path so the ping fires regardless of how the
-                // land was tapped for mana.
+                // controller for 1; the painless {C} choice does not. Fires for
+                // the chosen ability only (a basic-subtype pick has no rider).
                 applyColoredTapSelfDamage(
                     state,
-                    ability,
+                    effAbility,
                     card,
                     player.id,
                     chosen
                 );
                 // CR 605.1a / 122.1 — depletion-dual tap-for-mana rider (Land
                 // Cap et al.): every tap for mana puts one depletion counter on
-                // the source. Shared with the payment-tap path so the land
-                // depletes however it was tapped for mana.
-                applyDepletionCounterOnTap(ability, card);
+                // the source. Fires for the chosen ability only.
+                applyDepletionCounterOnTap(effAbility, card);
             } else {
                 // Untap: refund exactly the mana that was chosen on tap.
                 // Falls back to manaProduced for legacy instances (pre-chosenMana).
@@ -7417,6 +7592,21 @@ export const tapUntap = mutation({
             }
         }
 
+        // CR 106.4 / 605.1a — untapping to refund unspent mana reverses the
+        // WHOLE mana-ability activation, so restore the life the controller
+        // paid on the tap (painland coloured-tap ping, Ancient Tomb, Mana
+        // Confluence). Symmetric with the mana / charge-counter refund in the
+        // untap branches above. Reachable only on an untap toggle (`wasTapped`,
+        // no `producedThisActivation`) that passed the `manaCommitted` and
+        // `tapTriggerCommitted` guards near the top — so the mana is unspent and
+        // no becomes-tapped trigger has committed, exactly the window where the
+        // whole tap (its life ping included) can still be undone. Unlike City of
+        // Brass, whose becomes-tapped trigger sets `tapTriggerCommitted` and is
+        // rejected before reaching here.
+        if (wasTapped && !producedThisActivation) {
+            restoreLifePaidOnUntap(player, card);
+        }
+
         // CR 603.7a / ADR 0040 — a tap mana ability may declare a delayed-
         // trigger rider (`armsDelayedTriggerOnTap`). When the source was just
         // tapped for mana (`producedThisActivation` is set, i.e. this was a tap,
@@ -7428,7 +7618,7 @@ export const tapUntap = mutation({
         // only exposes `addMana`, so this declarative seam carries the side
         // effect that needs the delayed-trigger machinery.
         if (producedThisActivation) {
-            armDelayedTriggerOnTap(state, ability, card, args.playerId);
+            armDelayedTriggerOnTap(state, tapAbility, card, args.playerId);
         }
 
         // CR 605.1a / 120 — unconditional fixed-mana self-damage rider
@@ -7440,7 +7630,7 @@ export const tapUntap = mutation({
         if (producedThisActivation) {
             applyUnconditionalTapSelfDamage(
                 state,
-                ability,
+                tapAbility,
                 card,
                 args.playerId
             );
@@ -7451,13 +7641,26 @@ export const tapUntap = mutation({
         // `producedThisActivation` gate as the rider above — paid on tap,
         // never refunded on untap.
         if (producedThisActivation) {
-            applyManaAbilityLifeCost(state, ability, args.playerId);
+            applyManaAbilityLifeCost(state, tapAbility, args.playerId);
         }
 
         // CR 605.1a / 118.3 — tap mana ability discard-at-random cost
         // (Lion's Eye Diamond). Same `producedThisActivation` gate as above.
         if (producedThisActivation) {
-            applyManaAbilityDiscardCost(state, ability, args.playerId);
+            applyManaAbilityDiscardCost(state, tapAbility, args.playerId);
+        }
+
+        // CR 106.4 / 605.1a — record the life the controller actually lost to
+        // this tap-for-mana's self-damage / life-cost riders (painland ping,
+        // Ancient Tomb, Mana Confluence). The trigger flush below never changes
+        // life (triggers go on the stack unresolved), so the delta captured
+        // here is complete. Snapshotted so an untap-toggle that reverses the
+        // whole activation (before the mana is spent, and only while no becomes-
+        // tapped trigger has committed) restores it — the life-side sibling of
+        // the mana / charge-counter refund. Always reassigned on a tap so a
+        // stale value from an earlier activation can never leak forward.
+        if (producedThisActivation) {
+            recordLifePaidOnTap(card, lifeBeforeTap, player.life);
         }
 
         // CR 603.2 — flush the PERMANENT_TAPPED event into a trigger pass so

@@ -186,6 +186,18 @@ export type CardInstanceState = {
      *  source before the produced mana is spent restores the removed counters.
      *  Cleared at untap / cleanup, like `chosenMana`. */
     manaCounterRemoval?: { type: string; count: number };
+    /** Life the controller actually lost to this tap-for-mana's self-damage /
+     *  life-cost riders (CR 605.1a — painlands' coloured-tap ping like Adarkar
+     *  Wastes, Ancient Tomb's unconditional ping, Mana Confluence's "Pay 1
+     *  life"). Snapshotted as the real life delta (after CR 614 replacement /
+     *  CR 615 prevention), not the raw rider amount, so an untap-toggle that
+     *  reverses the whole mana-ability activation before the mana is spent
+     *  restores exactly what was paid — the life-side sibling of `chosenMana`.
+     *  Unlike City of Brass (a becomes-tapped TRIGGER that goes on the stack
+     *  and blocks untap via `tapTriggerCommitted`), these riders resolve inside
+     *  the mana ability with no stack, so the tap stays reversible. Cleared at
+     *  untap step / on refund, like `chosenMana`. */
+    lifePaidThisTap?: number;
     /** Mode chosen at cast time for modal permanents (CR 700.2c). Survives
      *  from the stack to the battlefield so the layer system can read
      *  mode-specific static effects (e.g. Phantasmal Terrain). */
@@ -5023,6 +5035,7 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.animation;
     delete card.chosenMana;
     delete card.manaCounterRemoval;
+    delete card.lifePaidThisTap;
     delete card.manaCommitted;
     delete card.tapTriggerCommitted;
     delete card.counters;
