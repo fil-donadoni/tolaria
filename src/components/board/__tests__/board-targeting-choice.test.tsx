@@ -465,3 +465,152 @@ describe("board activation sacrifice-cost picker (#282, CR 602.1)", () => {
         expect(selectActivationCost).not.toHaveBeenCalled();
     });
 });
+
+describe("board activation tap-other-cost picker (#939, CR 602.1 / 118.8)", () => {
+    it("clicking a matching untapped permanent dispatches selectActivationCost with its id", () => {
+        const me = makePlayer("me", [creature("bear1"), creature("bear2")]);
+        const costCtx: Partial<React.ContextType<typeof GameContext>> = {
+            pendingActivation: {
+                playerId: "me",
+                cardInstanceId: "hand-of-justice",
+                abilityId: "hoj-pump",
+                manaCost: {},
+                tappedLandIds: [],
+                tapSource: false,
+                sacrificeSource: false,
+                tapOtherChoice: {
+                    filter: { types: "Creature" },
+                    count: 1,
+                    pickedIds: [],
+                },
+            } as never,
+        };
+
+        const { container } = renderSpatialBf(me, [me], costCtx);
+        fireEvent.click(spatialCard(container, "bear1"));
+
+        expect(selectActivationCost).toHaveBeenCalledTimes(1);
+        expect(selectActivationCost.mock.calls[0][0]).toMatchObject({
+            gameId: "game-id",
+            playerId: "me",
+            cardInstanceId: "bear1",
+        });
+    });
+
+    it("the ability's own source is NOT clickable for the tap-other cost", () => {
+        const me = makePlayer("me", [creature("hand-of-justice")]);
+        const costCtx: Partial<React.ContextType<typeof GameContext>> = {
+            pendingActivation: {
+                playerId: "me",
+                cardInstanceId: "hand-of-justice",
+                abilityId: "hoj-pump",
+                manaCost: {},
+                tappedLandIds: [],
+                tapSource: false,
+                sacrificeSource: false,
+                tapOtherChoice: {
+                    filter: { types: "Creature" },
+                    count: 1,
+                    pickedIds: [],
+                },
+            } as never,
+        };
+
+        const { container } = renderSpatialBf(me, [me], costCtx);
+        fireEvent.click(spatialCard(container, "hand-of-justice"));
+        expect(selectActivationCost).not.toHaveBeenCalled();
+    });
+
+    it("an already-tapped matching permanent is NOT clickable for the tap-other cost", () => {
+        const tapped = { ...creature("bear1"), isTapped: true };
+        const me = makePlayer("me", [tapped]);
+        const costCtx: Partial<React.ContextType<typeof GameContext>> = {
+            pendingActivation: {
+                playerId: "me",
+                cardInstanceId: "hand-of-justice",
+                abilityId: "hoj-pump",
+                manaCost: {},
+                tappedLandIds: [],
+                tapSource: false,
+                sacrificeSource: false,
+                tapOtherChoice: {
+                    filter: { types: "Creature" },
+                    count: 1,
+                    pickedIds: [],
+                },
+            } as never,
+        };
+
+        const { container } = renderSpatialBf(me, [me], costCtx);
+        fireEvent.click(spatialCard(container, "bear1"));
+        expect(selectActivationCost).not.toHaveBeenCalled();
+    });
+
+    it("once the count is already satisfied, no permanent is clickable for the tap-other cost", () => {
+        const me = makePlayer("me", [creature("bear1"), creature("bear2")]);
+        const costCtx: Partial<React.ContextType<typeof GameContext>> = {
+            pendingActivation: {
+                playerId: "me",
+                cardInstanceId: "hand-of-justice",
+                abilityId: "hoj-pump",
+                manaCost: {},
+                tappedLandIds: [],
+                tapSource: false,
+                sacrificeSource: false,
+                tapOtherChoice: {
+                    filter: { types: "Creature" },
+                    count: 1,
+                    pickedIds: ["bear2"],
+                },
+            } as never,
+        };
+
+        const { container } = renderSpatialBf(me, [me], costCtx);
+        fireEvent.click(spatialCard(container, "bear1"));
+        expect(selectActivationCost).not.toHaveBeenCalled();
+    });
+
+    // Hand of Justice shape: count 3, one creature already picked (deferred
+    // commit — the server does NOT tap picks until commit, #954 review). The
+    // already-picked creature must be excluded from the clickable set even
+    // though it isn't tapped yet, and a still-unpicked matching creature must
+    // remain clickable so the remaining picks can be made.
+    it("count > 1: an already-picked (but not yet tapped) permanent is NOT clickable again", () => {
+        const me = makePlayer("me", [
+            creature("bear1"),
+            creature("bear2"),
+            creature("bear3"),
+        ]);
+        const costCtx: Partial<React.ContextType<typeof GameContext>> = {
+            pendingActivation: {
+                playerId: "me",
+                cardInstanceId: "hand-of-justice",
+                abilityId: "hoj-pump",
+                manaCost: {},
+                tappedLandIds: [],
+                tapSource: false,
+                sacrificeSource: false,
+                tapOtherChoice: {
+                    filter: { types: "Creature" },
+                    count: 3,
+                    pickedIds: ["bear1"],
+                },
+            } as never,
+        };
+
+        const { container } = renderSpatialBf(me, [me], costCtx);
+
+        // Already picked, still untapped client-side — must not re-select.
+        fireEvent.click(spatialCard(container, "bear1"));
+        expect(selectActivationCost).not.toHaveBeenCalled();
+
+        // A different, not-yet-picked matching creature is still clickable.
+        fireEvent.click(spatialCard(container, "bear2"));
+        expect(selectActivationCost).toHaveBeenCalledTimes(1);
+        expect(selectActivationCost.mock.calls[0][0]).toMatchObject({
+            gameId: "game-id",
+            playerId: "me",
+            cardInstanceId: "bear2",
+        });
+    });
+});

@@ -82,13 +82,45 @@ export function useBattlefieldVisualState(player: Player) {
         !!pendingCast.additionalCost &&
         !pendingCast.additionalCost.pickedId;
 
-    // Activated-ability sacrifice-cost picker (CR 602.1 / 118.5).
+    // Activated-ability non-mana cost picker: "sacrifice a permanent matching
+    // <filter>" (CR 602.1 / 118.5) OR "tap N untapped permanents matching
+    // <filter>" (CR 602.1 / 118.8, Hand of Justice). Both route clicks to the
+    // same `selectActivationCost` mutation server-side (#939) — mirrored here
+    // so a mana-owed activation doesn't mask the cost picker's highlighting,
+    // and a mana-covered/mana-less activation still lets the player click the
+    // battlefield instead of a meaningless "Auto-tap" dialog.
     const isPickingActivationCost =
         isMe &&
         !!pendingActivation &&
         pendingActivation.playerId === playerId &&
-        !!pendingActivation.sacrificeChoice &&
-        !pendingActivation.sacrificeChoice.pickedId;
+        ((!!pendingActivation.sacrificeChoice &&
+            !pendingActivation.sacrificeChoice.pickedId) ||
+            (!!pendingActivation.tapOtherChoice &&
+                pendingActivation.tapOtherChoice.pickedIds.length <
+                    pendingActivation.tapOtherChoice.count));
+
+    /** Shared eligibility check for the activation cost picker above — one
+     *  permanent per call, gating BOTH `canInteract` (click-through) and the
+     *  gold ring highlight so the two surfaces never disagree. The tap-other
+     *  leg additionally excludes tapped permanents and the ability's own
+     *  source, mirroring the server's `selectActivationCost` validation. */
+    function matchesActivationCostPick(card: CardInstance): boolean {
+        if (!pendingActivation) return false;
+        const sc = pendingActivation.sacrificeChoice;
+        if (sc && !sc.pickedId) {
+            return matchesPermanentFilter(card, sc.filter);
+        }
+        const toc = pendingActivation.tapOtherChoice;
+        if (toc && toc.pickedIds.length < toc.count) {
+            return (
+                !card.isTapped &&
+                card.id !== pendingActivation.cardInstanceId &&
+                !toc.pickedIds.includes(card.id) &&
+                matchesPermanentFilter(card, toc.filter)
+            );
+        }
+        return false;
+    }
 
     const isSelectingAttackers =
         phase === "DECLARE_ATTACKERS" &&
@@ -187,11 +219,8 @@ export function useBattlefieldVisualState(player: Player) {
             );
         }
 
-        if (isPickingActivationCost && pendingActivation?.sacrificeChoice) {
-            return matchesPermanentFilter(
-                card,
-                pendingActivation.sacrificeChoice.filter
-            );
+        if (isPickingActivationCost) {
+            return matchesActivationCostPick(card);
         }
 
         if (isSelectingTarget) {
@@ -409,9 +438,10 @@ export function useBattlefieldVisualState(player: Player) {
             ringClass = "ring-2 ring-accent/40 rounded-sm";
         }
 
-        // Sacrifice-cost picker highlight (CR 117.9 spell additional cost /
-        // CR 602.1 activated-ability sacrifice cost). Same gold ring as a
-        // resolution choice so eligible permanents read as clickable.
+        // Non-mana cost picker highlight (CR 117.9 spell additional cost /
+        // CR 602.1 activated-ability sacrifice or tap-other cost). Same gold
+        // ring as a resolution choice so eligible permanents read as
+        // clickable.
         const isValidSacrificePick =
             (isPickingAdditionalCost &&
                 !!pendingCast?.additionalCost &&
@@ -419,12 +449,7 @@ export function useBattlefieldVisualState(player: Player) {
                     card,
                     pendingCast.additionalCost.filter
                 )) ||
-            (isPickingActivationCost &&
-                !!pendingActivation?.sacrificeChoice &&
-                matchesPermanentFilter(
-                    card,
-                    pendingActivation.sacrificeChoice.filter
-                ));
+            (isPickingActivationCost && matchesActivationCostPick(card));
         if (!ringClass && isValidSacrificePick) {
             ringClass = "ring-2 ring-accent/40 rounded-sm";
         }
