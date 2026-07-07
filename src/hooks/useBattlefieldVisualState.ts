@@ -233,7 +233,13 @@ export function useBattlefieldVisualState(player: Player) {
         if (isSelectingAttackers && isCreature(card)) {
             if (selectedAttackerIds.includes(card.id)) return true;
             if (card.staticAbilities?.includes("defender")) return false;
-            if (card.isTapped || card.isSummoningSick) return false;
+            if (card.isTapped) return false;
+            // CR 702.10b — haste lets a creature attack ignoring summoning
+            // sickness. Mirrors the server gate in
+            // `combat.ts` `validateAttackerEligibility` (#937); tapped-ness
+            // above is unaffected by haste.
+            const hasHaste = card.staticAbilities?.includes("haste") ?? false;
+            if (card.isSummoningSick && !hasHaste) return false;
             const attackDef = getDefinition(card.card.id);
             if (attackDef.staticEffects) {
                 const defender = allPlayers.find((p) => p.id !== player.id);
@@ -337,13 +343,16 @@ export function useBattlefieldVisualState(player: Player) {
 
         const enabled = canInteract(card);
 
+        // CR 702.10b — haste exempts a summoning-sick creature from the
+        // sickness gate, mirroring the `canInteract` check above (#937).
+        const hasHaste = card.staticAbilities?.includes("haste") ?? false;
         const dimmed: boolean =
             !!(
                 isSelectingAttackers &&
                 creature &&
                 !selectedAttackerIds.includes(card.id) &&
                 (card.isTapped ||
-                    card.isSummoningSick ||
+                    (card.isSummoningSick && !hasHaste) ||
                     card.staticAbilities?.includes("defender"))
             ) ||
             !!(

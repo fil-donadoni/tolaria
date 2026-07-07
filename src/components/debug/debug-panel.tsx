@@ -822,6 +822,32 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 3,
     },
     {
+        // Haste bypasses summoning sickness as an attacker (CR 702.10b,
+        // issue #937): Headliner Scarlett (3/3 Haste) just entered this turn
+        // but must still be clickable/selectable as an attacker. Grizzly
+        // Bears entered this turn WITHOUT haste and must stay grayed out for
+        // contrast. Move to DECLARE_ATTACKERS and confirm only Scarlett is
+        // selectable.
+        label: "Haste bypasses summoning sickness as attacker: Headliner Scarlett (#937)",
+        cards: [
+            {
+                name: "Headliner Scarlett",
+                owner: "me",
+                zone: "battlefield",
+                summoningSick: true,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me",
+                zone: "battlefield",
+                summoningSick: true,
+            },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "BEGINNING_OF_COMBAT",
+        landCount: 4,
+},
+        {
         // Filtered library-search allow-list UI (issue #933): Polluted Delta's
         // "Search your library for an Island or Swamp card" carries a
         // `candidateIds` allow-list. Before the fix, EVERY revealed library
