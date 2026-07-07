@@ -82,6 +82,27 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Unpayable additional-cost sacrifice (CR 117.9 / 601.2f, issue
+        // #944): Natural Order's additional cost is "sacrifice a green
+        // creature." With NO green creature under my control, the Cast
+        // action must be illegal — the card greyed out, not clickable —
+        // instead of announcing the spell and crashing when the
+        // additional-cost picker finds no candidate. Four Forests cover the
+        // {2}{G}{G} mana cost so mana affordability isn't what's gating the
+        // cast; only the unpayable sacrifice should. Put a green creature
+        // (e.g. Grizzly Bears) into play via the board to flip the scenario
+        // to the payable path and confirm Cast becomes legal + the
+        // sacrifice picker opens end to end.
+        label: "Unpayable additional-cost sacrifice: Natural Order, no green creature (#944)",
+        cards: [
+            { name: "Natural Order", owner: "me", zone: "hand" },
+            { name: "Forest", owner: "me", zone: "battlefield", count: 4 },
+            { name: "Grizzly Bears", owner: "me", zone: "library" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Look-at-top-N library dialog (CR 401.4 / 701.42, issue #942): both
         // "look at the top N of your library and pick among ONLY those N" cards
         // in hand. Cast Stock Up ({2}{U}) — the dialog reveals EXACTLY the top

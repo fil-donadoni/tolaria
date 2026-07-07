@@ -9,11 +9,14 @@ import {
     crusade,
     fireball,
     giantGrowth,
+    grizzlyBears,
     lightningBolt,
     mountain,
     plains,
     savannahLions,
 } from "../../cards/sets/lea";
+import { naturalOrder } from "../../cards/sets/vis";
+import { soulExchange } from "../../cards/sets/fem";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -390,6 +393,76 @@ describe("getLegalActions", () => {
             expect(actions).toContain("putToGraveyard");
             expect(actions).toContain("putToExile");
             expect(actions).toContain("putToLibrary");
+        });
+    });
+
+    // -------------------------------------------------------------------
+    // additional-cost (sacrifice/exile) payability (CR 117.9 / 601.2f) —
+    // issue #944: a spell whose additional cost is unpayable (no legal
+    // permanent to sacrifice/exile) must not be offered as castable.
+    // Class-wide: covers a `sacrificeFilter` card (Natural Order) AND an
+    // `exileFilter` card (Soul Exchange).
+    // -------------------------------------------------------------------
+    describe("additional-cost payability (CR 117.9 / 601.2f)", () => {
+        it('blocks "cast" for a sacrificeFilter spell with no legal permanent to sacrifice', () => {
+            const player = makePlayer({ battlefield: [] });
+            const state = makeGameState({
+                players: [player, makePlayer({ id: "p2" })],
+            });
+            const spell = card(naturalOrder.id);
+            // No green creature on the battlefield — Natural Order's
+            // "sacrifice a green creature" additional cost is unpayable.
+            expect(getLegalActions(state, player, spell)).not.toContain("cast");
+        });
+
+        it('allows "cast" for a sacrificeFilter spell once a legal permanent exists', () => {
+            const bears = card(grizzlyBears.id, { zone: "battlefield" });
+            const player = makePlayer({ battlefield: [bears] });
+            const state = makeGameState({
+                players: [player, makePlayer({ id: "p2" })],
+            });
+            const spell = card(naturalOrder.id);
+            expect(getLegalActions(state, player, spell)).toContain("cast");
+        });
+
+        it('does not block "cast" for a sacrificeFilter spell on an off-color permanent', () => {
+            // Savannah Lions is white, not green — doesn't satisfy Natural
+            // Order's "sacrifice a green creature" filter.
+            const lions = card(savannahLions.id, { zone: "battlefield" });
+            const player = makePlayer({ battlefield: [lions] });
+            const state = makeGameState({
+                players: [player, makePlayer({ id: "p2" })],
+            });
+            const spell = card(naturalOrder.id);
+            expect(getLegalActions(state, player, spell)).not.toContain("cast");
+        });
+
+        it('blocks "cast" for an exileFilter spell with no legal permanent to exile', () => {
+            const grave = card(grizzlyBears.id, { zone: "graveyard" });
+            const player = makePlayer({ battlefield: [], graveyard: [grave] });
+            const state = makeGameState({
+                players: [player, makePlayer({ id: "p2" })],
+            });
+            const spell = card(soulExchange.id);
+            // No creature on the battlefield to exile — Soul Exchange's
+            // additional cost is unpayable even though a legal
+            // (graveyard) target exists for the return-to-battlefield
+            // effect.
+            expect(getLegalActions(state, player, spell)).not.toContain("cast");
+        });
+
+        it('allows "cast" for an exileFilter spell once a legal permanent exists', () => {
+            const bears = card(grizzlyBears.id, { zone: "battlefield" });
+            const grave = card(grizzlyBears.id, { zone: "graveyard" });
+            const player = makePlayer({
+                battlefield: [bears],
+                graveyard: [grave],
+            });
+            const state = makeGameState({
+                players: [player, makePlayer({ id: "p2" })],
+            });
+            const spell = card(soulExchange.id);
+            expect(getLegalActions(state, player, spell)).toContain("cast");
         });
     });
 });

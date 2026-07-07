@@ -28,6 +28,7 @@ import { isProtectedFromColors } from "./protection";
 import { hasSupertypeLive } from "./snow";
 import { isGuardedAgainst } from "./permanentGuard";
 import { castProhibitionReason } from "../cards/castRestrictions";
+import { matchesPermanentFilter } from "../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import {
     landPlayLockActive,
@@ -143,13 +144,46 @@ export function getLegalActions(
             // "cast" is absent.
             castProhibitionReason(player.id, card, state) === undefined &&
             canPotentiallyPayCost(player, card) &&
-            hasEnoughLegalTargets(state, player, card)
+            hasEnoughLegalTargets(state, player, card) &&
+            hasPayableAdditionalCost(player, card)
         ) {
             actions.push("cast");
         }
     }
 
     return actions;
+}
+
+/** CR 117.9 / 601.2f: a spell whose additional cost is "sacrifice/exile a
+ *  permanent matching a filter" (Natural Order, Soul Exchange) can only be
+ *  cast if the caster controls at least one legal permanent to pay that
+ *  cost — you can't announce a spell whose additional cost is unpayable.
+ *  Suppressing "cast" here also blocks the server path, since
+ *  `assertLegalAction` rejects the cast mutation when "cast" is absent,
+ *  which keeps `buildAdditionalCostPicker` (convex/game.ts) — which throws
+ *  on zero candidates — unreachable from announceCast. Cards without a
+ *  sacrifice/exile additional cost are unaffected. Effective colours are
+ *  derived per-candidate via the layer system (mirrors `tapOtherCandidates`
+ *  in game.ts) so a `colors` filter (Natural Order's "a green creature")
+ *  reads the same colour the rest of the engine sees, not the raw instance
+ *  which carries no `colors` field of its own. */
+function hasPayableAdditionalCost(
+    player: PlayerState,
+    card: CardInstanceState
+): boolean {
+    const cardId = (card.card as { id?: string }).id;
+    if (!cardId) return true;
+    const def = tryGetDefinition(cardId);
+    const filter =
+        def?.additionalCosts?.sacrificeFilter ??
+        def?.additionalCosts?.exileFilter;
+    if (!filter) return true;
+    return player.battlefield.some((c) => {
+        const view = { ...c, colors: STATIC_EFFECT_CTX.getColors(c) };
+        return matchesPermanentFilter(view, filter, {
+            selfControllerId: player.id,
+        });
+    });
 }
 
 /** CR 601.2c: a spell with required targets can only be cast if enough legal
