@@ -2,6 +2,9 @@
 // ADR 0043. The registry's `import * as voc from "./sets/voc"` resolves through
 // voc/index.ts. Modern Scryfall oracle text is authoritative (ADR 0004).
 import type { CardDefinition, CardType, SpellContext } from "../../types";
+import { tokenPrintIdFor } from "../../tokenPrintLookup";
+
+const OCCULT_EPIPHANY_ID = "6920c895-bc98-4871-a53f-219fa27a74e5";
 
 // Occult Epiphany — {X}{U} Instant. "Draw X cards, then discard X cards. Create
 // a 1/1 white Spirit creature token with flying for each card type among cards
@@ -11,7 +14,7 @@ import type { CardDefinition, CardType, SpellContext } from "../../types";
 // from the hand BEFORE they move, and one flying Spirit is made per distinct
 // card type among them.
 export const occultEpiphany: CardDefinition = {
-    id: "6920c895-bc98-4871-a53f-219fa27a74e5",
+    id: OCCULT_EPIPHANY_ID,
     name: "Occult Epiphany",
     rarity: "rare",
     oracleText:
@@ -64,6 +67,10 @@ export const occultEpiphany: CardDefinition = {
                         power: 1,
                         toughness: 1,
                         staticAbilities: ["flying"],
+                        imagePrintId: tokenPrintIdFor(
+                            OCCULT_EPIPHANY_ID,
+                            "Spirit"
+                        ),
                     },
                     me,
                     distinctTypes.size,

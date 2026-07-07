@@ -472,7 +472,10 @@ export const borisDevilboon: CardDefinition = {
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #847): create one 1/1
             // black-and-red Demon token named Minor Demon on the controller's
-            // battlefield (CR 111 / 707.1).
+            // battlefield (CR 111 / 707.1). No `imagePrintId` — Scryfall has
+            // no printed Minor Demon token for Boris Devilboon (`all_parts`
+            // is empty), so this stays a placeholder-rendered token by
+            // design (issue #941 documented exception).
             effects: [
                 {
                     op: "createToken",

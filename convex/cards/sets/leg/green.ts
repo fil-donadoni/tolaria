@@ -708,7 +708,10 @@ export const masterOfTheHunt: CardDefinition = {
             // Migrated resolve()→effects[] (ADR 0045, #847): create one 1/1
             // green Wolf token named Wolves of the Hunt with "bands with other
             // creatures named Wolves of the Hunt" on the controller's
-            // battlefield (CR 111 / 707.1).
+            // battlefield (CR 111 / 707.1). No `imagePrintId` — Scryfall has
+            // no printed Wolves of the Hunt token for Master of the Hunt
+            // (`all_parts` is empty), so this stays a placeholder-rendered
+            // token by design (issue #941 documented exception).
             effects: [
                 {
                     op: "createToken",

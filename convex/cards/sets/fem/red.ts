@@ -16,6 +16,7 @@ import type {
     TokenSpec,
 } from "../../types";
 import { manaCostForCardId } from "../../manaCostLookup";
+import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 function colorsOfView(view: { card?: Record<string, unknown> }): string[] {
     const card = view.card ?? {};
@@ -29,6 +30,8 @@ function colorsOfView(view: { card?: Record<string, unknown> }): string[] {
     );
 }
 
+const GOBLIN_WARRENS_ID = "bbec4aa5-3319-43dc-8347-5633edbd7018"; // FEM 59
+
 const GOBLIN_TOKEN: TokenSpec = {
     name: "Goblin",
     types: ["Creature"],
@@ -36,6 +39,7 @@ const GOBLIN_TOKEN: TokenSpec = {
     power: 1,
     toughness: 1,
     colors: ["R"],
+    imagePrintId: tokenPrintIdFor(GOBLIN_WARRENS_ID, "Goblin"),
 };
 
 export const goblinWarDrums: CardDefinition = {
@@ -120,7 +124,7 @@ export const goblinGrenadeFemC: CardPrint = {
 };
 
 export const goblinWarrens: CardDefinition = {
-    id: "bbec4aa5-3319-43dc-8347-5633edbd7018", // FEM 59
+    id: GOBLIN_WARRENS_ID,
     rarity: "uncommon",
     name: "Goblin Warrens",
     oracleText:

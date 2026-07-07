@@ -12,6 +12,7 @@
 import type { CardDefinition, CardPrint, SpellContext } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 export const combatMedic: CardDefinition = {
     id: "9cfd96cb-03d6-4845-8595-50bf17b35726", // FEM 1a
@@ -677,8 +678,10 @@ export const icatianSkirmishers: CardDefinition = {
     staticAbilities: ["first strike", "banding"],
 };
 
+const ICATIAN_TOWN_ID = "cbb7c28d-0366-4d01-84a2-f1bc9f38aa4a"; // FEM 15
+
 export const icatianTown: CardDefinition = {
-    id: "cbb7c28d-0366-4d01-84a2-f1bc9f38aa4a", // FEM 15
+    id: ICATIAN_TOWN_ID,
     rarity: "uncommon",
     name: "Icatian Town",
     oracleText: "Create four 1/1 white Citizen creature tokens.",
@@ -696,6 +699,7 @@ export const icatianTown: CardDefinition = {
                 power: 1,
                 toughness: 1,
                 colors: ["W"],
+                imagePrintId: tokenPrintIdFor(ICATIAN_TOWN_ID, "Citizen"),
             },
             controller: "controller",
             count: 4,

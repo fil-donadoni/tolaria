@@ -1,4 +1,34 @@
 {
+    "13453abe-3f05-4956-8493-382d7d2af699": [
+        {
+            "scryfallId": "f4e87a11-b3b1-47b2-bd73-f4c78d6fbe6c",
+            "name": "Copy"
+        }
+    ],
+    "224d904a-5972-4152-878a-9a922e7a55b6": [
+        {
+            "scryfallId": "27440269-3b09-4010-8401-f159dc49a4cd",
+            "name": "Elemental"
+        }
+    ],
+    "40a9710e-b2f8-4746-8640-d450f58a6e49": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
+        }
+    ],
+    "4caaf31b-86a9-485b-8da7-d5b526ed1233": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
+        }
+    ],
+    "4cda6d18-d4b1-4b8a-a72e-f90115adf4c3": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
+        }
+    ],
     "544a7138-eae8-4ff9-9e17-680bfa717183": [
         {
             "scryfallId": "09921372-126f-4c81-b6d8-ea50b1d0eb44",
@@ -7,16 +37,70 @@
     ],
     "5da578b8-19e6-4068-9336-e7cd33c585f1": [
         {
-            "scryfallId": "6ec42fab-86b8-4479-90f2-a1690318d6d4",
-            "name": "Servo"
-        },
-        {
             "scryfallId": "8d502061-ca95-4067-a61f-bc5294c274dd",
             "name": "Thopter"
         },
         {
+            "scryfallId": "6ec42fab-86b8-4479-90f2-a1690318d6d4",
+            "name": "Servo"
+        },
+        {
             "scryfallId": "7fee6034-f0bb-49b9-ad75-67d3d6be1159",
             "name": "Construct"
+        }
+    ],
+    "6920c895-bc98-4871-a53f-219fa27a74e5": [
+        {
+            "scryfallId": "6bee4081-5d74-4cc2-ba2f-887bc8799513",
+            "name": "Spirit"
+        }
+    ],
+    "80c72839-0fa6-4b5f-83b7-6553ebf09bef": [
+        {
+            "scryfallId": "a41eb9df-d8b4-4697-a759-886faf16754d",
+            "name": "Rebel"
+        }
+    ],
+    "a0d7e85f-eba5-4fc5-9fc0-109109d368aa": [
+        {
+            "scryfallId": "b9f3042b-784c-4006-9bf1-60a323e60c5c",
+            "name": "Thrull"
+        }
+    ],
+    "aa533845-4c4b-4072-aa39-8e56ce7ec325": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
+        }
+    ],
+    "ae154e64-f626-45fb-bd52-840c1c27b2d3": [
+        {
+            "scryfallId": "a6f374bc-cd29-469f-808a-6a6c004ee8aa",
+            "name": "Blood"
+        }
+    ],
+    "b28f9e63-e5e4-44b5-a17e-8301ff17c623": [
+        {
+            "scryfallId": "b5489e26-6aec-4706-9c3e-8454878fa6c3",
+            "name": "Rukh"
+        }
+    ],
+    "b2f73f5d-1aad-48c2-9e74-5f7bdd87900f": [
+        {
+            "scryfallId": "f4e87a11-b3b1-47b2-bd73-f4c78d6fbe6c",
+            "name": "Copy"
+        }
+    ],
+    "bbec4aa5-3319-43dc-8347-5633edbd7018": [
+        {
+            "scryfallId": "09faad62-42ff-4e37-b8a5-d8e8a0f6d096",
+            "name": "Goblin"
+        }
+    ],
+    "cbb7c28d-0366-4d01-84a2-f1bc9f38aa4a": [
+        {
+            "scryfallId": "165164e7-5693-4d65-b789-8ed8a222365b",
+            "name": "Citizen"
         }
     ],
     "f1a21287-e244-4960-84fb-c4f6e5c346d9": [
