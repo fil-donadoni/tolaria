@@ -461,9 +461,10 @@ export function getManaTapOptionsDetailed(
 
     // CR 305.6 — one intrinsic {T}: Add {C} option per DISTINCT basic land
     // subtype (text-change aware, like `getBasicLandMana`). Always a
-    // non-destructive alternative.
+    // non-destructive alternative. `?? []` tolerates a slim client
+    // `CardInstance` whose `subtypes` may be absent; the server always has it.
     const { subtypes } = applySubstitution(card);
-    for (const subtype of subtypes) {
+    for (const subtype of subtypes ?? []) {
         const color = LAND_SUBTYPE_MANA[subtype];
         if (color) {
             nonSacrifice.push({
