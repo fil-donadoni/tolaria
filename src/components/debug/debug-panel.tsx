@@ -91,7 +91,11 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         // only their printed options — this exercises the multi-option picker.
         label: "Urborg: every land taps for its colour OR {B} (City of Traitors keeps {C}{C})",
         cards: [
-            { name: "Urborg, Tomb of Yawgmoth", owner: "me", zone: "battlefield" },
+            {
+                name: "Urborg, Tomb of Yawgmoth",
+                owner: "me",
+                zone: "battlefield",
+            },
             { name: "Mountain", owner: "me", zone: "battlefield" },
             { name: "City of Traitors", owner: "me", zone: "battlefield" },
             { name: "Tropical Island", owner: "me", zone: "battlefield" },
