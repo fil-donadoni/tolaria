@@ -3988,6 +3988,14 @@ export function dealDamageFromPermanentToPlayer(
             sourceStaticAbilities: desc.staticAbilities,
         },
     ];
+    // CR 702.15b — lifelink: the source's controller gains life equal to the
+    // damage just dealt, simultaneously with it (CR 119.3).
+    applyLifelinkLifeGain(
+        state,
+        sourceControllerId,
+        desc.staticAbilities,
+        reduced
+    );
 }
 
 /** Marks fight/redirect damage on a target permanent from an explicit
@@ -4067,6 +4075,14 @@ function markDamageFromPermanentSource(
                 sourceStaticAbilities: desc.staticAbilities,
             },
         ];
+        // CR 702.15b — lifelink on the source (damage was redirected to a
+        // player, but the source's lifelink still triggers on damage dealt).
+        applyLifelinkLifeGain(
+            state,
+            sourceControllerId,
+            desc.staticAbilities,
+            reduced
+        );
         return null;
     }
     const found = findOnBattlefield(state, finalTarget.id);
@@ -4103,6 +4119,14 @@ function markDamageFromPermanentSource(
             sourceStaticAbilities: desc.staticAbilities,
         },
     ];
+    // CR 702.15b — lifelink: the source's controller gains life equal to the
+    // damage marked on the permanent (CR 119.3, simultaneously with it).
+    applyLifelinkLifeGain(
+        state,
+        sourceControllerId,
+        desc.staticAbilities,
+        reduced
+    );
     return found.card.damageMarked >= getEffectiveToughness(state, found.card)
         ? finalTarget.id
         : null;
@@ -4772,6 +4796,74 @@ export function loseLifeEmitting(
     emitLifeLost(state, repl.playerId, repl.amount, false);
 }
 
+/** Emits a LIFE_GAINED event for a player whose life total just rose (CR
+ *  119.3). The seam for "whenever you gain life" triggers — the symmetric
+ *  counterpart of `emitLifeLost`. Emitted AFTER the life total has actually
+ *  increased, carrying the ACTUAL amount gained (post-replacement). No-op for a
+ *  zero-or-negative amount (a fully replaced-away gain is not a life gain). */
+export function emitLifeGained(
+    state: GameState,
+    playerId: string,
+    amount: number
+): void {
+    if (amount <= 0) return;
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "LIFE_GAINED",
+            playerId,
+            amount,
+        },
+    ];
+}
+
+/** Single choke point for a life GAIN (CR 119.3): the `gainLife` primitive and
+ *  the CR 702.15b lifelink life gain. Runs the CR 614 lifegain replacement
+ *  layer (Lich's "if you would gain life, draw cards instead" may consume the
+ *  event and run its own effect), applies the resulting life increase, and
+ *  emits LIFE_GAINED with the actual amount gained so "whenever you gain life"
+ *  triggers fire off every life-gain path. Mirrors `loseLifeEmitting`. No-op
+ *  for amount <= 0. */
+export function gainLifeEmitting(
+    state: GameState,
+    playerId: string,
+    amount: number
+): void {
+    if (amount <= 0) return;
+    // CR 614 — Lich's "if you would gain life, draw cards instead" intercepts
+    // here. The replacement consumes the event (no actual life gain) and runs
+    // `drawCards` via its apply ctx.
+    const repl = applyLifeChangeReplacements(state, {
+        kind: "lifegain",
+        playerId,
+        amount,
+    });
+    if (repl === null) return; // replacement consumed the gain (ran its own fx)
+    if (repl.amount <= 0) return;
+    getPlayer(state, repl.playerId).life += repl.amount;
+    emitLifeGained(state, repl.playerId, repl.amount);
+}
+
+/** CR 702.15b — Lifelink. Damage dealt by a source with lifelink also causes
+ *  that source's controller to gain that much life. The life gain happens as
+ *  part of the damage event (CR 119.3), simultaneously with the damage, for
+ *  BOTH combat and non-combat damage. Fed the source's EFFECTIVE static-ability
+ *  set (the layer-6-materialized `staticAbilities` array on the source's
+ *  battlefield/stack instance — reflects granted lifelink and, when an
+ *  ability-loss effect has stripped it, its absence), NOT the printed
+ *  CardDefinition array. `amount` is the actual damage dealt (post-replacement,
+ *  post-prevention). No-op when the source lacks lifelink or dealt no damage. */
+export function applyLifelinkLifeGain(
+    state: GameState,
+    sourceControllerId: string,
+    sourceStaticAbilities: ReadonlyArray<string>,
+    amount: number
+): void {
+    if (amount <= 0) return;
+    if (!sourceStaticAbilities.includes("lifelink")) return;
+    gainLifeEmitting(state, sourceControllerId, amount);
+}
+
 /** Emits a PERMANENT_TAPPED event for a permanent that just transitioned from
  *  untapped to tapped (CR 701.20a). `forMana: true` marks the canonical
  *  "tapped for mana" condition (CR 605) read by Manabarbs / Mana Flare /
@@ -5407,6 +5499,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                         sourceStaticAbilities: desc.staticAbilities,
                     },
                 ];
+                // CR 702.15b — lifelink: if the resolving source (a permanent's
+                // activated/triggered ability, LKI-snapshotted in `desc`) has
+                // lifelink, its controller gains life equal to the damage dealt.
+                applyLifelinkLifeGain(
+                    state,
+                    item.controllerId,
+                    desc.staticAbilities,
+                    reduced
+                );
             } else {
                 const found = findOnBattlefield(state, target.id);
                 if (!found) return;
@@ -5451,6 +5552,14 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                         sourceStaticAbilities: desc.staticAbilities,
                     },
                 ];
+                // CR 702.15b — lifelink: the resolving source's controller
+                // gains life equal to the damage marked on the permanent.
+                applyLifelinkLifeGain(
+                    state,
+                    item.controllerId,
+                    desc.staticAbilities,
+                    reduced
+                );
                 if (
                     found.card.damageMarked >=
                     getEffectiveToughness(state, found.card)
@@ -5661,17 +5770,11 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             return total;
         },
         gainLife(playerId: string, amount: number) {
-            if (amount <= 0) return;
-            // CR 614 — Lich's "if you would gain life, draw cards instead"
-            // intercepts here. The replacement consumes the event (no actual
-            // life gain) and runs `drawCards` via its apply ctx.
-            const repl = applyLifeChangeReplacements(state, {
-                kind: "lifegain",
-                playerId,
-                amount,
-            });
-            if (repl === null) return;
-            getPlayer(state, repl.playerId).life += repl.amount;
+            // CR 119.3 / 614 — routed through the single `gainLifeEmitting`
+            // choke point: runs the Lich lifegain replacement, applies the
+            // increase, and emits LIFE_GAINED so "whenever you gain life"
+            // triggers fire off this primitive too.
+            gainLifeEmitting(state, playerId, amount);
         },
         loseLife(playerId: string, amount: number) {
             if (amount <= 0) return;
