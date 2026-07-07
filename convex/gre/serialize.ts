@@ -92,6 +92,7 @@ function compactCard(
     if (card.chosenMana) out.chosenMana = card.chosenMana;
     if (card.manaCounterRemoval)
         out.manaCounterRemoval = card.manaCounterRemoval;
+    if (card.lifePaidThisTap) out.lifePaidThisTap = card.lifePaidThisTap;
     if (card.grantedStaticAbilities?.length) {
         out.grantedStaticAbilities = card.grantedStaticAbilities;
     }
@@ -273,6 +274,9 @@ function expandCard(
     if (compact.manaCounterRemoval) {
         result.manaCounterRemoval =
             compact.manaCounterRemoval as CardInstanceState["manaCounterRemoval"];
+    }
+    if (compact.lifePaidThisTap) {
+        result.lifePaidThisTap = compact.lifePaidThisTap as number;
     }
     if (compact.grantedStaticAbilities) {
         result.grantedStaticAbilities =

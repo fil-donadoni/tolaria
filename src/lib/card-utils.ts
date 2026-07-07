@@ -12,7 +12,7 @@ import {
     LAND_SUBTYPE_MANA,
     LANDWALK_KEYWORDS,
     LANDWALK_SUPERTYPE_KEYWORDS,
-    getEffectiveManaChoices,
+    getManaTapOptions,
 } from "@convex/gre/constants";
 import type { CardInstanceState } from "@convex/gre/state";
 import { getDefinition, tryGetDefinition } from "@convex/cards";
@@ -136,36 +136,38 @@ export function canRefundManaTap(
     return true;
 }
 
-/** Returns the mana choices for a card with a choice-based mana ability, or null.
+/** Returns the mana-tap options to prompt the player with, or null when the
+ *  source taps for mana with no choice (a single fixed/basic option).
  *
- *  For board-conditional choosers (Fellwar Stone — `getManaChoices`), the
- *  options depend on every player's battlefield, so the caller passes the
- *  current players. The client runs the SAME `getManaChoices` resolver the
- *  server validates against (`game.ts` → `getEffectiveManaChoices`), so the
- *  index the picker submits references the list the server reads (CR 106.1). */
+ *  Reads the SAME unified `getManaTapOptions` list the server resolves the
+ *  submitted index against (CR 605.1a / 305.6 — activated abilities + one
+ *  intrinsic option per basic land subtype), so a land under Urborg shows its
+ *  own colour AND {B}, and City of Traitors shows {C}{C} AND {B}. Board-
+ *  conditional choosers (Fellwar Stone) need every player's battlefield, so the
+ *  caller passes the current players (CR 106.1). Mirrors the server's
+ *  `manaTapNeedsChoice` gate: prompt when 2+ options exist, or the source
+ *  carries a choice-based ability. The slim `CardInstance` is a structurally
+ *  valid `CardInstanceState` here. */
 export function getManaChoices(
     card: CardInstance,
     players?: ReadonlyArray<{ id: string; battlefield: CardInstance[] }>
 ): ManaCost[] | null {
+    const options = getManaTapOptions(
+        card as unknown as CardInstanceState,
+        card.controllerId,
+        players?.map((p) => ({
+            playerId: p.id,
+            battlefield: p.battlefield as unknown as CardInstanceState[],
+        }))
+    );
     const cardDef = getDefinition(card.card.id);
-    const ability = cardDef.activatedAbilities?.find(
+    const hasChoiceAbility = !!cardDef.activatedAbilities?.some(
         (a) => !a.useStack && (a.manaChoices || a.getManaChoices)
     );
-    if (!ability) return null;
-    // Delegate to the shared engine resolver so the client computes the SAME
-    // (board-conditional) option list the server validates against (CR 106.1).
-    // The slim `CardInstance` is a structurally valid `CardInstanceState` here.
-    if (ability.getManaChoices && players) {
-        return getEffectiveManaChoices(
-            card as unknown as CardInstanceState,
-            card.controllerId,
-            players.map((p) => ({
-                playerId: p.id,
-                battlefield: p.battlefield as unknown as CardInstanceState[],
-            }))
-        );
+    if (options.length >= 2 || hasChoiceAbility) {
+        return options.length > 0 ? options : null;
     }
-    return ability.manaChoices ?? null;
+    return null;
 }
 
 /** Returns the mana color produced by an activated tap ability, or null. */
