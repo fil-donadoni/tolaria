@@ -205,7 +205,11 @@ export function getProducibleManaOptions(
     card: CardInstanceState
 ): Map<Color, number | undefined> {
     const options = new Map<Color, number | undefined>();
-    const detailed = getManaTapOptionsDetailed(card);
+    // requireTap: the auto-tap planner only ever taps for mana — it must never
+    // auto-commit a sacrifice-only source (Lion's Eye Diamond discards the hand).
+    const detailed = getManaTapOptionsDetailed(card, undefined, undefined, {
+        requireTap: true,
+    });
     if (detailed.length === 0) return options;
 
     // Mirror `manaTapNeedsChoice`: the tap mutations require a `manaChoiceIndex`

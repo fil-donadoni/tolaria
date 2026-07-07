@@ -394,10 +394,12 @@ export function getManaTapOptionsDetailed(
     battlefields?: ReadonlyArray<{
         playerId: string;
         battlefield: readonly CardInstanceState[];
-    }>
+    }>,
+    opts?: { requireTap?: boolean }
 ): ManaTapOption[] {
     const nonSacrifice: ManaTapOption[] = [];
     const sacrifice: ManaTapOption[] = [];
+    const requireTap = opts?.requireTap ?? false;
 
     const cardId = (card.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
@@ -409,7 +411,18 @@ export function getManaTapOptionsDetailed(
     if (def?.activatedAbilities && !abilitiesSuppressed(card)) {
         for (const ability of def.activatedAbilities) {
             if (ability.useStack) continue;
-            if (!ability.cost.tap) continue;
+            // A one-shot mana ability activated by tapping AND/OR sacrificing the
+            // source (ADR 0039 — Lion's Eye Diamond sacrifices without tapping).
+            // A pure mana-COST ability (Farrelite Priest "{1}: Add {W}") is
+            // repeatable and routed through `activateManaAbility`, not a tap
+            // option. The affordability/auto-tap planner passes `requireTap` so
+            // it never auto-commits a sacrifice-only source (discarding the hand
+            // to LED is a strategic choice, never an auto-payment).
+            if (requireTap) {
+                if (!ability.cost.tap) continue;
+            } else if (!ability.cost.tap && !ability.cost.sacrifice) {
+                continue;
+            }
             const target = ability.cost.sacrifice ? sacrifice : nonSacrifice;
             // A choice ability (dual land, Talisman, Fellwar Stone, storage
             // land): each option is one entry, tagged with its ability-local
