@@ -82,6 +82,27 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Look-at-top-N library dialog (CR 401.4 / 701.42, issue #942): both
+        // "look at the top N of your library and pick among ONLY those N" cards
+        // in hand. Cast Stock Up ({2}{U}) — the dialog reveals EXACTLY the top
+        // five (not the whole library); keep two, the rest go to the bottom.
+        // Cast Preordain ({U}) — the scry dialog reveals EXACTLY the top two
+        // (previously it rendered nothing); put any number on the bottom, then
+        // draw. Three Islands cover both costs; the seeded library cards give
+        // the peek recognizable contents.
+        label: "Look-at-top-N library dialog: Stock Up (5) + Preordain (scry 2) (#942)",
+        cards: [
+            { name: "Stock Up", owner: "me", zone: "hand" },
+            { name: "Preordain", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 3 },
+            { name: "Black Lotus", owner: "me", zone: "library" },
+            { name: "Grizzly Bears", owner: "me", zone: "library" },
+            { name: "Ancestral Recall", owner: "me", zone: "library" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // May-pay sacrifice VICTIM CHOICE (CR 701.16b, issue #940): Witherbloom
         // Charm's first mode is "You may sacrifice a permanent. If you do, draw
         // two cards." With MULTIPLE sacrificeable permanents (two Grizzly Bears)

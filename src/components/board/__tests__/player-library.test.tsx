@@ -208,6 +208,92 @@ describe("PlayerLibrary", () => {
         expect(toggle).toHaveBeenCalledWith("s1");
     });
 
+    it("renders exactly the looked-at top N as a face-up grid for a look-top pick (Stock Up, #942)", () => {
+        // Stock Up looks at the top five and keeps two. The projection exposes
+        // ONLY those five as `libraryPeek` (never the whole library), and the
+        // picker renders exactly them face-up with clicks routed to the buffer.
+        cardsPileSpy.mockClear();
+        const peek = [
+            makeCard("t1"),
+            makeCard("t2"),
+            makeCard("t3"),
+            makeCard("t4"),
+            makeCard("t5"),
+        ];
+        const player = makePlayer({ count: 7 }, {
+            libraryPeek: peek,
+        } as Partial<Player>);
+        const toggle = vi.fn();
+        renderWithContext(<PlayerLibrary player={player} />, "me", {
+            pendingChoices: [
+                {
+                    stackItemId: "stk",
+                    step: 0,
+                    choiceId: "stock-up",
+                    playerId: "me",
+                    kind: "look-top",
+                    zone: "library",
+                    candidateIds: ["t1", "t2", "t3", "t4", "t5"],
+                    count: 2,
+                    prompt: "Put up to two of these cards into your hand.",
+                },
+            ],
+            buffer: { ...noopBuffer, toggle },
+        });
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        // Exactly the five looked-at cards — not the seven-card library.
+        expect(pileProps.cards.map((c: CardInstance) => c.id)).toEqual([
+            "t1",
+            "t2",
+            "t3",
+            "t4",
+            "t5",
+        ]);
+        expect(pileProps.isFaceDown).toBe(false);
+        expect(pileProps.layout).toBe("grid");
+        expect(pileProps.forceOpen).toBe(true);
+        // Clicks route to the choice submission buffer.
+        pileProps.onCardClick({ id: "t3" });
+        expect(toggle).toHaveBeenCalledWith("t3");
+    });
+
+    it("renders the looked-at top N for a look-top pick with a range count (Preordain scry, #942)", () => {
+        // Preordain scries the top two (put 0..2 on the bottom). The picker
+        // renders exactly the two looked-at cards; a 0..2 range must not gate
+        // any of them out of the grid.
+        cardsPileSpy.mockClear();
+        const peek = [makeCard("s1"), makeCard("s2")];
+        const player = makePlayer({ count: 4 }, {
+            libraryPeek: peek,
+        } as Partial<Player>);
+        const toggle = vi.fn();
+        renderWithContext(<PlayerLibrary player={player} />, "me", {
+            pendingChoices: [
+                {
+                    stackItemId: "stk",
+                    step: 0,
+                    choiceId: "preordain-scry",
+                    playerId: "me",
+                    kind: "look-top",
+                    zone: "library",
+                    candidateIds: ["s1", "s2"],
+                    count: { min: 0, max: 2 },
+                    prompt: "Scry 2 — choose any number to put on the bottom.",
+                },
+            ],
+            buffer: { ...noopBuffer, toggle },
+        });
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        expect(pileProps.cards.map((c: CardInstance) => c.id)).toEqual([
+            "s1",
+            "s2",
+        ]);
+        expect(pileProps.isFaceDown).toBe(false);
+        expect(pileProps.layout).toBe("grid");
+        pileProps.onCardClick({ id: "s1" });
+        expect(toggle).toHaveBeenCalledWith("s1");
+    });
+
     it("gates clicks to the candidateIds allow-list on a filtered search (Transmute Artifact)", () => {
         // A filtered search ("an artifact card") carries `candidateIds`; only
         // those cards are pickable. Clicking an ineligible card is a no-op.
