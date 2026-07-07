@@ -16,6 +16,7 @@ import {
     getAnyPlayerStackAbilities,
     buildTriggerStateView,
     getAbilityOracleText,
+    getDelayedTriggerOracleText,
     getDisplayAbilities,
     resolvePreviewAbilities,
     getManaChoices,
@@ -708,6 +709,30 @@ describe("getAbilityOracleText", () => {
             "mox-emerald-mana"
         );
         expect(text).toBe("{T}: Add {G}.");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getDelayedTriggerOracleText (delayed triggered ability, CR 603.7a, #935)
+// ---------------------------------------------------------------------------
+
+describe("getDelayedTriggerOracleText", () => {
+    it("returns oracle text for Mishra's Bauble's next-upkeep draw", () => {
+        const text = getDelayedTriggerOracleText(
+            "8a720448-017f-4f4a-9501-678245eaed17",
+            "next-upkeep-cantrip"
+        );
+        expect(text).toBe(
+            "Draw a card at the beginning of the next turn's upkeep."
+        );
+    });
+
+    it("returns null for an unknown delayed trigger id", () => {
+        const text = getDelayedTriggerOracleText(
+            "8a720448-017f-4f4a-9501-678245eaed17",
+            "nonexistent"
+        );
+        expect(text).toBeNull();
     });
 });
 
