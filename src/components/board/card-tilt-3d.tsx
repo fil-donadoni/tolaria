@@ -108,6 +108,19 @@ export default function CardTilt3D({
             style={{ perspective: `${CARD_TILT.perspectivePx}px` }}
             onPointerMove={inert ? undefined : handlePointerMove}
             onPointerLeave={inert ? undefined : reset}
+            // Suppress the native "Save image…" menu for tilt-wrapped cards
+            // (hand + battlefield) at the ONE spot guaranteed to see the event.
+            // `transform-style: preserve-3d` here + the inner `overflow-hidden`/
+            // `contain: paint` art box flatten hit-testing, so the real
+            // `contextmenu` can land on the flattened box OUTSIDE the card's
+            // `CardPreview` handler subtree — a card-local `onContextMenu` then
+            // misses it intermittently and the native menu wins. This root is an
+            // ANCESTOR of every candidate target inside the tilt, so the bubbling
+            // `contextmenu` always reaches it. preventDefault only cancels the
+            // native menu — it does NOT stopPropagation, so a battlefield card's
+            // Base UI ability context menu (a JS-driven ancestor) still opens.
+            // Right-click preview stays a separate gesture on `CardPreview`.
+            onContextMenu={(e) => e.preventDefault()}
         >
             <div
                 ref={innerRef}

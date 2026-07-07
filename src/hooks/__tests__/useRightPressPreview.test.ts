@@ -123,4 +123,66 @@ describe("useRightPressPreview", () => {
             expect(result.current.phase).toBe("idle");
         });
     });
+
+    // The native "Save image…" menu must never win over the preview. A card
+    // React `onContextMenu` can't cancel it on the spatial board (CardTilt3D's
+    // preserve-3d flattening retargets the event; the preview is a body portal),
+    // so the hook eats the one contextmenu each right-press produces via a
+    // one-shot capture-phase document listener, regardless of its target.
+    describe("native context menu suppression", () => {
+        function fireContextMenu(): MouseEvent {
+            const ev = new MouseEvent("contextmenu", {
+                bubbles: true,
+                cancelable: true,
+            });
+            act(() => {
+                document.dispatchEvent(ev);
+            });
+            return ev;
+        }
+
+        it("eats the contextmenu that follows a right press, wherever it targets", () => {
+            const { result } = renderHook(() => useRightPressPreview());
+            act(() => result.current.handlers.onPointerDown(makePointer(2)));
+            // The native menu fires on document, not the card element.
+            const ev = fireContextMenu();
+            expect(ev.defaultPrevented).toBe(true);
+            act(() => releaseButton());
+        });
+
+        it("does not touch a contextmenu with no preceding right press", () => {
+            renderHook(() => useRightPressPreview());
+            const ev = fireContextMenu();
+            expect(ev.defaultPrevented).toBe(false);
+        });
+
+        it("suppresses only ONE contextmenu per right press", () => {
+            const { result } = renderHook(() => useRightPressPreview());
+            act(() => result.current.handlers.onPointerDown(makePointer(2)));
+            const first = fireContextMenu();
+            const second = fireContextMenu();
+            expect(first.defaultPrevented).toBe(true);
+            expect(second.defaultPrevented).toBe(false);
+            act(() => releaseButton());
+        });
+
+        it("drops the suppressor after the fallback window if no menu follows", () => {
+            const { result } = renderHook(() => useRightPressPreview());
+            act(() => result.current.handlers.onPointerDown(makePointer(2)));
+            act(() => {
+                releaseButton();
+                vi.advanceTimersByTime(700);
+            });
+            // A later, unrelated right-click's menu must NOT be swallowed.
+            const ev = fireContextMenu();
+            expect(ev.defaultPrevented).toBe(false);
+        });
+
+        it("a left press installs no suppressor", () => {
+            const { result } = renderHook(() => useRightPressPreview());
+            act(() => result.current.handlers.onPointerDown(makePointer(0)));
+            const ev = fireContextMenu();
+            expect(ev.defaultPrevented).toBe(false);
+        });
+    });
 });

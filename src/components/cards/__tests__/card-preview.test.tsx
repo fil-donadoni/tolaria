@@ -228,4 +228,92 @@ describe("CardPreview — Arena click model (#332)", () => {
         expect(overlay!.className).toContain("items-center");
         expect(overlay!.className).toContain("justify-center");
     });
+
+    // Spatial-board flattening: CardTilt3D wraps the card in
+    // `transform-style: preserve-3d` around an `overflow-hidden` box, which
+    // flattens the subtree so a real right-click hit-tests to the flattening
+    // wrapper — an ANCESTOR of the CardPreview container — never reaching a
+    // handler bound on the container. The gesture must therefore bind on the
+    // tilt root, to which the flattened event bubbles. jsdom has no 3D
+    // hit-testing, so we model the outcome: the event TARGETS an ancestor.
+    describe("board tilt flattening — right-press binds on the tilt root", () => {
+        function renderInTilt(inTrigger = false) {
+            const preview = (
+                <div data-card-tilt-root>
+                    <div data-card-tilt>
+                        <div className="overflow-hidden">
+                            <CardPreview
+                                cardId="bolt"
+                                cardName="Lightning Bolt"
+                            >
+                                <div>face</div>
+                            </CardPreview>
+                        </div>
+                    </div>
+                </div>
+            );
+            return render(
+                <GameContext value={GAME_CTX}>
+                    {inTrigger ? (
+                        <div data-slot="context-menu-trigger">{preview}</div>
+                    ) : (
+                        preview
+                    )}
+                </GameContext>
+            );
+        }
+
+        it("opens the preview from a right-click that targets the flattening wrapper (ancestor of the container)", () => {
+            const { container } = renderInTilt();
+            const tiltRoot = container.querySelector(
+                "[data-card-tilt-root]"
+            ) as HTMLElement;
+            const flatWrapper = container.querySelector(
+                ".overflow-hidden"
+            ) as HTMLElement;
+
+            // The event targets the flattening wrapper — NOT inside the
+            // CardPreview container — exactly as the real flattened board does.
+            act(() => {
+                fireEvent.pointerDown(flatWrapper, { button: 2 });
+            });
+            release();
+            expect(anchored()).toBeTruthy();
+
+            // The tilt root (not the container) is the "inside" boundary: a
+            // second right-click on the wrapper toggles it CLOSED instead of the
+            // outside-click listener racing it closed-then-reopened.
+            act(() => {
+                fireEvent.pointerDown(flatWrapper, { button: 2 });
+            });
+            release();
+            expect(anchored()).toBeNull();
+
+            // A pointerdown genuinely OUTSIDE the tilt root still closes it.
+            act(() => {
+                fireEvent.pointerDown(tiltRoot, { button: 2 });
+            });
+            release();
+            expect(anchored()).toBeTruthy();
+            act(() => {
+                fireEvent.pointerDown(document.body);
+            });
+            expect(anchored()).toBeNull();
+        });
+
+        it("leaves right-click to the activated-ability menu (no preview inside a context-menu trigger)", () => {
+            const { container } = renderInTilt(true);
+            const flatWrapper = container.querySelector(
+                ".overflow-hidden"
+            ) as HTMLElement;
+
+            act(() => {
+                fireEvent.pointerDown(flatWrapper, { button: 2 });
+            });
+            release();
+            // The Base UI ability ContextMenu owns this card's right-click; the
+            // preview gesture must stay out of its way.
+            expect(anchored()).toBeNull();
+        });
+    });
 });

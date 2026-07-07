@@ -162,6 +162,48 @@ describe("CardTilt3D hover interactions (#253)", () => {
         expect(glare().className).toContain("pointer-events-none");
     });
 
+    it("suppresses the native context menu for any descendant (bubbling to the tilt root)", () => {
+        // The board card's real `contextmenu` can land on the flattened art box
+        // OUTSIDE the card's CardPreview handler; the tilt root, as a common
+        // ancestor, cancels it deterministically so the native "Save image…"
+        // menu never wins. A card WITHOUT the tilt (stack/graveyard) is
+        // unaffected — this handler only exists here.
+        render(
+            <CardTilt3D>
+                <div data-testid="face">
+                    <span data-testid="deep" />
+                </div>
+            </CardTilt3D>
+        );
+        const deep = screen.getByTestId("deep");
+        const ev = new MouseEvent("contextmenu", {
+            bubbles: true,
+            cancelable: true,
+        });
+        deep.dispatchEvent(ev);
+        expect(ev.defaultPrevented).toBe(true);
+    });
+
+    it("does not stopPropagation the contextmenu (Base UI ability menu still opens)", () => {
+        const ancestorSaw = vi.fn();
+        render(
+            // Bubble-phase ancestor listener: it runs AFTER the tilt root's own
+            // bubble handler, so it fires only if the root did NOT stopPropagation.
+            <div onContextMenu={ancestorSaw}>
+                <CardTilt3D>
+                    <div data-testid="face" />
+                </CardTilt3D>
+            </div>
+        );
+        const face = screen.getByTestId("face");
+        face.dispatchEvent(
+            new MouseEvent("contextmenu", { bubbles: true, cancelable: true })
+        );
+        // The event still reaches the ancestor (Base UI's ContextMenu trigger
+        // relies on this to open the activated-ability menu).
+        expect(ancestorSaw).toHaveBeenCalled();
+    });
+
     it("renders its children (the card face) so text stays crisp DOM", () => {
         render(
             <CardTilt3D>

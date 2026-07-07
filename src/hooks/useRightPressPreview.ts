@@ -18,6 +18,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // draggable card. `pointerdown`/`pointerup` are the primitive dnd-kit itself
 // listens on and always fire. Release is listened on `window` (not the element)
 // because the pointer can be dragged off the card before the button comes up.
+//
+// NATIVE CONTEXT MENU SUPPRESSION. A React `onContextMenu` on the card element
+// is NOT reliable for board cards. On the spatial board the card is wrapped in
+// `CardTilt3D` (`transform-style: preserve-3d`) around an `overflow-hidden` /
+// `contain: paint` art box; the 3D flattening retargets the real `contextmenu`
+// onto an element OUTSIDE the card's handler subtree, and the just-opened
+// anchored preview is a `document.body` portal, so a card-local handler never
+// sees the event and the native "Save image…" menu wins. Cards WITHOUT the tilt
+// (stack, graveyard piles) are unaffected — their `contextmenu` targets the img
+// directly. Because THIS hook is the single owner of the right-press gesture and
+// its `pointerdown` always fires (proven: the preview opens even while the menu
+// races it), it eats the one `contextmenu` this right-click produces with a
+// one-shot capture-phase listener on `document`, wherever that event targets.
 export const RIGHT_HOLD_ZOOM_MS = 250;
 
 export type RightPressPhase = "idle" | "pressing" | "zoom";
@@ -75,11 +88,21 @@ export function useRightPressPreview(
         teardownRef.current = null;
     }, []);
 
+    // Detaches the pending one-shot `contextmenu` suppressor (see onPointerDown).
+    // It outlives the press itself (the native `contextmenu` fires AFTER
+    // `pointerup`), so it is NOT part of `teardown` — only cleared when it fires,
+    // its fallback elapses, a new press supersedes it, or the hook unmounts.
+    const ctxSuppressorRef = useRef<(() => void) | null>(null);
+    const clearCtxSuppressor = useCallback(() => {
+        ctxSuppressorRef.current?.();
+    }, []);
+
     const reset = useCallback(() => {
         clearHoldTimer();
         teardown();
+        clearCtxSuppressor();
         setPhaseSync("idle");
-    }, [clearHoldTimer, teardown, setPhaseSync]);
+    }, [clearHoldTimer, teardown, clearCtxSuppressor, setPhaseSync]);
 
     const onPointerDown = useCallback(
         (e: React.PointerEvent) => {
@@ -91,7 +114,31 @@ export function useRightPressPreview(
             // is superseded cleanly.
             clearHoldTimer();
             teardown();
+            clearCtxSuppressor();
             setPhaseSync("pressing");
+
+            // Eat the single `contextmenu` this right-click will fire, wherever
+            // it targets (see the file header). Capture phase + `document` so it
+            // runs before the browser opens the native menu and regardless of
+            // which element — card, tilt box, or the body-portal preview panel —
+            // ends up as the target. A short fallback timeout drops the listener
+            // if no menu follows (e.g. a blurred window swallowed it) so a later
+            // unrelated right-click is never silently eaten.
+            const onContextMenu = (ev: Event) => {
+                ev.preventDefault();
+                clearCtxSuppressor();
+            };
+            const ctxFallback = setTimeout(clearCtxSuppressor, 700);
+            ctxSuppressorRef.current = () => {
+                document.removeEventListener(
+                    "contextmenu",
+                    onContextMenu,
+                    true
+                );
+                clearTimeout(ctxFallback);
+                ctxSuppressorRef.current = null;
+            };
+            document.addEventListener("contextmenu", onContextMenu, true);
 
             const onUp = () => {
                 const current = phaseRef.current;
@@ -130,7 +177,7 @@ export function useRightPressPreview(
                 cbRef.current.onZoomStart?.();
             }, threshold);
         },
-        [threshold, clearHoldTimer, teardown, setPhaseSync]
+        [threshold, clearHoldTimer, teardown, clearCtxSuppressor, setPhaseSync]
     );
 
     // Cleanup on unmount: kill any pending timer + listeners.

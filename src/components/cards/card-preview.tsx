@@ -86,7 +86,19 @@ export default function CardPreview({
         if (!showAnchored) return;
         const onPointerDown = (e: PointerEvent) => {
             const el = containerRef.current;
-            if (el && e.target instanceof Node && el.contains(e.target)) return;
+            // The board flattens this card's subtree (CardTilt3D `preserve-3d`
+            // + `overflow-hidden`), so an INSIDE right-click hit-tests to the
+            // tilt root ABOVE this container. Use the tilt root (when present)
+            // as the "inside" boundary so the quick-click toggle can close the
+            // preview instead of this listener racing it closed-then-reopened.
+            const boundary =
+                el?.closest<HTMLElement>("[data-card-tilt-root]") ?? el;
+            if (
+                boundary &&
+                e.target instanceof Node &&
+                boundary.contains(e.target)
+            )
+                return;
             closeAnchored();
         };
         const onKeyDown = (e: KeyboardEvent) => {
@@ -121,11 +133,47 @@ export default function CardPreview({
         },
         onZoomEnd: () => setShowZoomDock(false),
     });
+    // Stable across renders (the hook memoises it), unlike the freshly-built
+    // `rightPress.handlers` object — depend on the function, not the wrapper.
+    const onRightPress = rightPress.handlers.onPointerDown;
 
-    const handleContextMenu = useCallback((e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-    }, []);
+    // Bind the desktop right-press gesture on the element that ACTUALLY receives
+    // the pointer event. On the spatial board the card is wrapped in CardTilt3D
+    // (`transform-style: preserve-3d`) around an `overflow-hidden` box; per CSS,
+    // `overflow:hidden` inside a preserve-3d context flattens the subtree into a
+    // single plane, so a real right-click on a (hover-)tilted card hit-tests to
+    // that flattening wrapper — an ANCESTOR of this container — and never reaches
+    // a handler bound on the container (this is exactly why a card-local
+    // `onPointerDown`/`onContextMenu` fired only intermittently on the board).
+    // Binding on the OUTERMOST tilt element, to which the flattened event
+    // bubbles, catches it deterministically. Off the board there is no tilt and
+    // we bind on the container itself. A battlefield permanent whose right-click
+    // is owned by the activated-ability menu (a Base UI ContextMenuTrigger
+    // ancestor, `data-slot="context-menu-trigger"`) is left to that menu.
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        const cardEl =
+            container.closest<HTMLElement>("[data-card-tilt-root]") ??
+            container;
+        if (cardEl.closest('[data-slot="context-menu-trigger"]')) return;
+        const onPointerDown = (e: PointerEvent) => {
+            // Desktop-only, right button only. A touch device sets sawTouchRef
+            // and must never trigger the mouse preview.
+            if (e.button !== 2 || sawTouchRef.current) return;
+            onRightPress(e as unknown as React.PointerEvent);
+        };
+        // Kill the native "Save image…" menu at the same guaranteed-ancestor
+        // spot (preventDefault only — no stopPropagation — so nothing above that
+        // legitimately wants the contextmenu is starved).
+        const onContextMenu = (e: MouseEvent) => e.preventDefault();
+        cardEl.addEventListener("pointerdown", onPointerDown);
+        cardEl.addEventListener("contextmenu", onContextMenu);
+        return () => {
+            cardEl.removeEventListener("pointerdown", onPointerDown);
+            cardEl.removeEventListener("contextmenu", onContextMenu);
+        };
+    }, [onRightPress]);
 
     const def = tryGetDefinition(cardId);
     const abilities = def
@@ -257,14 +305,6 @@ export default function CardPreview({
             ref={containerRef}
             className="w-full h-full"
             style={longPress.scaleStyle}
-            onPointerDown={(e) => {
-                // Right-button preview is a desktop-only gesture; a touch device
-                // must never trigger it. The hook also guards on button === 2,
-                // which no touch/pen primary press satisfies.
-                if (sawTouchRef.current) return;
-                rightPress.handlers.onPointerDown(e);
-            }}
-            onContextMenu={handleContextMenu}
             {...longPress.handlers}
             onTouchStart={(e) => {
                 sawTouchRef.current = true;
