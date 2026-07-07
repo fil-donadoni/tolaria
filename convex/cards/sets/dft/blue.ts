@@ -8,8 +8,10 @@ import type { CardDefinition, SpellContext } from "../../types";
 // order." (CR 401.4 look; the two kept cards move library→hand via
 // `moveCardById`, the Demonic Tutor primitive; the remaining looked-at cards go
 // to the bottom via `reorderLibraryTop`, CR 401.) A single `requestChoice`
-// (`search-library`) drives the kept-card pick — the resolve re-runs with the
-// answer once the player submits.
+// (`look-top`, #942) drives the kept-card pick over exactly the looked-at top
+// five — the projection exposes ONLY those five face-up (not the whole
+// library, the `search-library` over-exposure bug). The resolve re-runs with
+// the answer once the player submits.
 export const stockUp: CardDefinition = {
     id: "0a786855-6eb4-42c0-a528-4842db46809d",
     name: "Stock Up",
@@ -26,7 +28,7 @@ export const stockUp: CardDefinition = {
         const picks = ctx.requestChoice({
             playerId: me,
             choiceId: `stock-up-${ctx.sourceInstanceId}`,
-            kind: "search-library",
+            kind: "look-top",
             zone: "library",
             candidateIds: topIds,
             count: keep,

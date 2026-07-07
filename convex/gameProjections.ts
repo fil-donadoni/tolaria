@@ -343,16 +343,22 @@ function computeChoiceExposure(
     // CR 401.4: reorder-library exposes the top N cards of the zone owner's
     // library to the chooser so the UI can render them for reordering;
     // draw-look-keep (Aladdin's Lamp) exposes the looked-at top X so the
-    // chooser can pick the one to keep.
+    // chooser can pick the one to keep; look-top (Stock Up / Preordain, #942)
+    // exposes exactly the looked-at top N (`candidateIds`) — never the whole
+    // library, never nothing.
     const exposeLibraryPeek =
         isChooser &&
-        (head.kind === "reorder-library" || head.kind === "draw-look-keep") &&
+        (head.kind === "reorder-library" ||
+            head.kind === "draw-look-keep" ||
+            head.kind === "look-top") &&
         head.zone === "library";
+    // reorder-library shows `count` cards; draw-look-keep and look-top show all
+    // the looked-at cards named in `candidateIds`.
     const peekCount = !exposeLibraryPeek
         ? 0
-        : head.kind === "draw-look-keep"
-          ? (head.candidateIds?.length ?? 0)
-          : getPendingChoiceMax(head.count);
+        : head.kind === "reorder-library"
+          ? getPendingChoiceMax(head.count)
+          : (head.candidateIds?.length ?? 0);
     const peekZoneOwner = exposeLibraryPeek
         ? (head.zoneOwnerId ?? head.playerId)
         : undefined;
@@ -378,8 +384,9 @@ export function projectPublicState(
     allActions: boolean = false
 ): PublicGameState {
     // CR 401.4 / 701.19: while the viewer is the chooser of an active
-    // search-library / reorder-library / draw-look-keep / reveal-hand choice,
-    // expose the looked-at zone face-up so the UI can render its picker pile.
+    // search-library / reorder-library / draw-look-keep / look-top / reveal-hand
+    // choice, expose the looked-at zone face-up so the UI can render its picker
+    // pile.
     const { searchZoneOwner, peekZoneOwner, peekCount, revealZoneOwner } =
         computeChoiceExposure(state, viewerId);
     // Exiled-card → holding-permanent links (mechanism-agnostic), so the client
@@ -471,8 +478,9 @@ export function projectFullState(
     allActions: boolean = false
 ): FullGameState {
     // CR 401.4 / 701.19: an active search-library / reorder-library /
-    // draw-look-keep / reveal-hand choice exposes the looked-at zone face-up so
-    // the picker pile can open. The full debug view shows every zone, but the
+    // draw-look-keep / look-top / reveal-hand choice exposes the looked-at zone
+    // face-up so the picker pile can open. The full debug view shows every zone,
+    // but the
     // pickers still key off these fields — mirror the public projection so the
     // dialogs work in "show all cards" mode too, not only via getPublicState
     // (#239, #262). There is no single viewer here, so the chooser is the head

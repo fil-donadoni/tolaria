@@ -419,10 +419,16 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // Neutral pick of exactly `min` legal candidates in zone order. For the
         // range kinds `min` is 0 ("up to" partitions; optional Illusionary
         // Mask), so these resolve to an empty, always-legal submission.
+        // `look-top` (Stock Up / Preordain, #942): the picked subset means
+        // "keep" (Stock Up) or "bottom" (Preordain) — no single smart default
+        // spans both, so the first `min` in exposed (top) order is always a
+        // legal submission (ADR 0016); the engine never freezes. Smart
+        // keep/bottom selection is deferred.
         case "choose-permanents":
         case "pick-source":
         case "choose-hand-card":
         case "partition":
+        case "look-top":
             return candidates.slice(0, min).map((c) => c.id);
 
         // "Any target of an opponent's choice" (CR 115.4, Cuombajj Witches):

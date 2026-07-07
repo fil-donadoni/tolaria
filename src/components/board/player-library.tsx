@@ -54,12 +54,15 @@ export default function PlayerLibrary({
         player.id === searchZoneOwner &&
         !!player.librarySearch;
 
-    // Aladdin's Lamp (CR 614): the projection exposes the looked-at top X as
-    // `libraryPeek`; the chooser keeps one (count 1) to draw. Reuses the
-    // search picker's face-up grid + buffered-submit path.
+    // Aladdin's Lamp (CR 614, `draw-look-keep`) and the shared "look at top N"
+    // path (Stock Up / Preordain, `look-top`, #942): the projection exposes
+    // exactly the looked-at top cards as `libraryPeek` — never the whole
+    // library. The chooser picks a subset (count 1 for Aladdin's Lamp, a range
+    // for look-top). Reuses the search picker's face-up grid + buffered-submit
+    // path.
     const isLibraryPeekPick =
         !!head &&
-        head.kind === "draw-look-keep" &&
+        (head.kind === "draw-look-keep" || head.kind === "look-top") &&
         head.zone === "library" &&
         head.playerId === playerId &&
         player.id === playerId &&
@@ -138,7 +141,12 @@ export default function PlayerLibrary({
                 isLibrarySearchTarget
                     ? "Search your library"
                     : isLibraryPeekPick
-                      ? "Keep one card to draw"
+                      ? // look-top (#942) carries a card-specific prompt
+                        // (Stock Up keeps 2, Preordain bottoms 0..2); Aladdin's
+                        // Lamp (draw-look-keep) keeps a single card.
+                        head!.kind === "look-top"
+                          ? (head!.prompt ?? "Look at the top cards")
+                          : "Keep one card to draw"
                       : "Library"
             }
             onCardClick={onCardClick}

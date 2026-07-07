@@ -60,6 +60,18 @@ export type ZonePickKind =
     // random order. A phase-level choice (stackItemId === "") raised by the
     // draw step's replacement, committed by `finalizeDrawLookKeep`.
     | "draw-look-keep"
+    // "Look at the top N cards of your library, then pick a subset" (CR 401.4 /
+    // 701.42 scry, #942). A mid-resolution stack-coupled choice: `candidateIds`
+    // are exactly the looked-at top N (from `peekLibraryTop`), and the wire
+    // projection exposes ONLY those N face-up as `libraryPeek` — never the whole
+    // library (that is `search-library`) and never nothing (the gap `partition`
+    // left). `count` is the pickable range; the card's resolve step interprets
+    // the picked subset (Stock Up: the 2 to keep; Preordain: the ones to
+    // bottom). The single shared top-N look path — a third such card wires no
+    // new projection/UI. Validated + committed by the generic mid-resolution
+    // path in `applyPendingChoiceSubmit` (library-zone allow-list on
+    // `candidateIds`).
+    | "look-top"
     // Legend rule (CR 704.5j, #378): when a controller has 2+ legendary
     // permanents that share a name, they keep exactly one (`candidateIds` are
     // the same-name duplicates) and the rest go to their owners' graveyards.

@@ -4,8 +4,10 @@
 import type { CardDefinition, SpellContext } from "../../types";
 
 // Preordain — {U} Sorcery. "Scry 2, then draw a card." Scry has no dedicated
-// primitive (CR 701.42): it is composed from `peekLibraryTop` + a `partition`
-// choice (pick any subset of the looked-at cards to put on the bottom) + a
+// primitive (CR 701.42): it is composed from `peekLibraryTop` + a `look-top`
+// choice (#942 — pick any subset of the looked-at top two to put on the
+// bottom; the projection exposes exactly those two face-up as `libraryPeek`,
+// the fix for `partition` exposing nothing on the wire) + a
 // `reorderLibraryTop` that lays the kept cards back on top and the chosen ones
 // on the bottom, then the draw (CR 121.1). The kept cards retain their relative
 // order on top (the engine offers no further reorder for a 2-card scry — a
@@ -26,7 +28,7 @@ export const preordain: CardDefinition = {
             const toBottom = ctx.requestChoice({
                 playerId: me,
                 choiceId: `preordain-scry-${ctx.sourceInstanceId}`,
-                kind: "partition",
+                kind: "look-top",
                 zone: "library",
                 candidateIds: topIds,
                 count: { min: 0, max: topIds.length },

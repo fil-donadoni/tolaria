@@ -23,6 +23,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "choose-graveyard-card": "Return",
     "choose-damage-target": "Choose target",
     "draw-look-keep": "Keep",
+    // look-top (Stock Up / Preordain, #942) — look at the top N, pick a subset
+    "look-top": "Look",
     // legend rule (CR 704.5j)
     "legend-keep": "Legend rule",
     // yes-no family
