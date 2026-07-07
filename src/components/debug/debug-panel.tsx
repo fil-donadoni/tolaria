@@ -98,6 +98,27 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 8,
     },
     {
+        // Copy-on-ETB Bot cast prune (issue #938): a copy-on-ETB spell (Copy
+        // Artifact, Clone, Vesuvan Doppelganger, Dance of Many) enters as a copy
+        // of a permanent already in play. Casting one with NO permanent it could
+        // copy is legal but strictly wasteful — the vs-AI Bot must not offer it.
+        // Here Copy Artifact + Clone are in hand with a copyable artifact (Ankh
+        // of Mishra) and creature (Grizzly Bears) in play, so BOTH casts are
+        // enumerated (the working case). Remove the Ankh (or the Bears) via the
+        // board and the Bot stops offering the matching copy spell — the prune
+        // is keyed off the declarative `copySourceFilter`, not a card-id list.
+        // 8 Islands cover Clone's {3}{U} and Copy Artifact's {1}{U}.
+        label: "Copy-on-ETB Bot cast prune (Copy Artifact / Clone) (#938)",
+        cards: [
+            { name: "Copy Artifact", owner: "me", zone: "hand" },
+            { name: "Clone", owner: "me", zone: "hand" },
+            { name: "Ankh of Mishra", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 8,
+    },
+    {
         // Shock-land land-entry pay-choice (CR 614.12, ADR 0051): the RAV/GPT/
         // DIS "shock land" cycle. Play Steam Vents from hand — a "Pay 2 life"
         // prompt appears (a stackless land-entry choice). Pay to enter untapped

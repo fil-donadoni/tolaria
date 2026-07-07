@@ -5830,6 +5830,20 @@ export interface CardDefinition {
      *  the spell resolves. Set it on any mass-land-destruction card whose
      *  effect lives in an opaque `resolve()`/`destroyAll` body. */
     destroysAllLands?: boolean;
+    /** Bot move-enumeration constraint (issue #938): a "copy-on-ETB" spell that
+     *  enters the battlefield as — or creates a token that's — a copy of a
+     *  permanent already in play (Clone, Copy Artifact, Vesuvan Doppelganger,
+     *  Dance of Many). Such a cast is legal but strictly wasteful when no
+     *  permanent it could copy exists: it resolves into a do-nothing permanent
+     *  (a blank enchantment / a 0/0 that dies to SBA) while spending its mana
+     *  and a card. The vs-AI Bot's move enumerator (`enumerateCastMoves`)
+     *  prunes the cast while NO permanent on ANY battlefield matches this
+     *  filter, so the whole class inherits the prune declaratively rather than
+     *  via a hard-coded card-id list. It does NOT change CR legality: human /
+     *  server casts are unconstrained (a player may still cast into an empty
+     *  board). Keyed off the copiable-source description, e.g. `{ types:
+     *  "Artifact" }` for Copy Artifact, `{ types: "Creature" }` for Clone. */
+    copySourceFilter?: PermanentFilter;
     /** Multi-step resolve for spells that gather player choices mid-resolution
      *  (CR 608.2, 101.4). The engine runs steps in order; each step may call
      *  `SpellContext.requestChoice` to enqueue pending choices. When a step

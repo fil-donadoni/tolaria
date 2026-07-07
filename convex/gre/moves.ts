@@ -396,6 +396,26 @@ function enumerateCastMoves(
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     const rawCost = getInstanceManaCost(card) ?? {};
 
+    // Bot-only prune (#938): a copy-on-ETB spell (Clone, Copy Artifact, Vesuvan
+    // Doppelganger, Dance of Many) is a legal but strictly wasteful cast when no
+    // permanent it could copy exists — it resolves into a do-nothing permanent
+    // while spending its mana and a card. Skip enumerating the cast while NO
+    // permanent on ANY battlefield matches the declarative `copySourceFilter`
+    // (the copy is chosen "of any … on the battlefield", so all controllers
+    // count). CR legality is unchanged — this only constrains the Bot's move
+    // generation, never a human/server cast. Keyed off card data so the whole
+    // copy-on-ETB class inherits the guard without a card-id allowlist.
+    if (def?.copySourceFilter) {
+        const hasCopySource = state.players.some((p) =>
+            p.battlefield.some((c) =>
+                matchesPermanentFilter(c, def.copySourceFilter!, {
+                    supertypesOf: liveSupertypesOf,
+                })
+            )
+        );
+        if (!hasCopySource) return [];
+    }
+
     // Modal spells (CR 700.2): one variant per mode, each with its own targets.
     const modeVariants =
         def?.modes && def.modes.length > 0
