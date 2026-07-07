@@ -4,6 +4,7 @@ import { api } from "@convex/_generated/api";
 import type { StackItem } from "~/types/game";
 import {
     getAbilityOracleText,
+    getDelayedTriggerOracleText,
     getTriggeredAbilityOracleText,
     matchesSpellTypeFilter,
     matchesSpellExcludeTypeFilter,
@@ -72,12 +73,17 @@ export default function GameStack({ stack }: GameStackProps) {
                 <DragHandle label="Stack" handlers={dragHandlers} />
                 <div className="flex items-start p-3">
                     {reversed.map((item, i) => {
-                        const abilityKind: "activated" | "triggered" | null =
-                            item.abilityId
-                                ? "activated"
-                                : item.triggeredAbilityId
-                                  ? "triggered"
-                                  : null;
+                        const abilityKind:
+                            | "activated"
+                            | "triggered"
+                            | "delayed"
+                            | null = item.abilityId
+                            ? "activated"
+                            : item.triggeredAbilityId
+                              ? "triggered"
+                              : item.delayedTriggerId
+                                ? "delayed"
+                                : null;
                         const abilityText =
                             abilityKind === "activated"
                                 ? getAbilityOracleText(
@@ -90,7 +96,12 @@ export default function GameStack({ stack }: GameStackProps) {
                                         item.triggeredAbilityId!,
                                         item.grantedTriggeredAbilities
                                     )
-                                  : null;
+                                  : abilityKind === "delayed"
+                                    ? getDelayedTriggerOracleText(
+                                          item.card.id,
+                                          item.delayedTriggerId!
+                                      )
+                                    : null;
                         const isTargetable =
                             canTargetSpell &&
                             matchesSpellTypeFilter(

@@ -866,6 +866,25 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Mishra's Bauble persistent look + delayed-trigger stack render
+        // (issue #935, CR 701.18a / 603.7d). Activate Mishra's Bauble
+        // targeting "opp": {T}, sacrifice it to look at the top card of
+        // opp's library (a Forest) — it stays revealed in your view of
+        // opp's library pile until it changes zones or the library is
+        // shuffled — and schedule "draw a card at the beginning of the
+        // next turn's upkeep". Pass through to the opponent's next upkeep
+        // to see the delayed trigger go on the stack as an ability tile
+        // showing its oracle text, not the Bauble's card art.
+        label: "Mishra's Bauble persistent look + delayed-trigger tile (#935)",
+        cards: [
+            { name: "Mishra's Bauble", owner: "me", zone: "battlefield" },
+            { name: "Forest", owner: "opp", zone: "library" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+        turn: 2,
+    },
 ];
 
 type DebugPanelProps = {

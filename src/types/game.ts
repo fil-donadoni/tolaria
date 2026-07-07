@@ -224,6 +224,11 @@ export interface StackItem extends CardInstance {
     abilityId?: string;
     /** If set, this stack item is a triggered ability (CR 603). */
     triggeredAbilityId?: string;
+    /** If set, this stack item is a delayed triggered ability (CR 603.7a)
+     *  queued by an earlier spell/ability's resolution (e.g. Mishra's
+     *  Bauble's "draw a card at the beginning of the next turn's upkeep").
+     *  Oracle text lives on `cardDef.delayedTriggers`, looked up by this id. */
+    delayedTriggerId?: string;
 }
 
 export type {

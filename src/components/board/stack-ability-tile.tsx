@@ -10,7 +10,7 @@ import TokenPlaceholder from "../cards/token-placeholder";
 type StackAbilityTileProps = {
     cardId: string;
     abilityText: string;
-    kind: "activated" | "triggered";
+    kind: "activated" | "triggered" | "delayed";
 };
 
 export default function StackAbilityTile({
@@ -22,7 +22,12 @@ export default function StackAbilityTile({
     const name = def?.name ?? cardId;
     const imageId = resolveCardImageId(cardId);
     const imageSrc = imageId ? getArtCropImageUrl(imageId) : null;
-    const badgeLabel = kind === "triggered" ? "Trigger" : "Ability";
+    const badgeLabel =
+        kind === "triggered"
+            ? "Trigger"
+            : kind === "delayed"
+              ? "Delayed Trigger"
+              : "Ability";
 
     return (
         <div className="w-full flex flex-col rounded-lg shadow-lg bg-surface overflow-hidden ring-1 ring-border-accent">
