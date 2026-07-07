@@ -816,7 +816,15 @@ export function tapSourceIntoPayment(
         // pre-sacrifice types/subtypes for trigger predicates.
         emitPermanentTapped(state, card, true, chosen);
         if (isSacrifice) {
-            moveCard(player, card.id, "battlefield", "graveyard");
+            // CR 603.6 / 700.4 — sacrificing the source to pay its own mana
+            // ability puts it into the graveyard from the battlefield, which is
+            // the trigger condition for its leave-the-battlefield / dies trigger
+            // (Chromatic Star, Basal Thrull) regardless of WHY it left. Route
+            // through the `removePermanentTo` funnel so a `PERMANENT_LEFT` event
+            // is queued and the trigger scan (`processPendingActionTriggers`)
+            // puts the trigger on the stack after the mana ability resolves — a
+            // raw `moveCard` would silently skip the leave event.
+            removePermanentTo(state, card.id, "graveyard", "sacrifice");
         } else {
             card.isTapped = true;
             card.chosenMana = chosen;
@@ -905,8 +913,11 @@ export function tapSourceIntoPayment(
     // ADR 0039 / CR 605.1a — pay the "Sacrifice this" portion of a fixed-output
     // sacrifice mana ability (Basal Thrull). One-way: the sacrificed source is
     // never recorded in `tappedLandIds` (there is no untap/refund branch for it).
+    // CR 603.6 / 700.4 — route through `removePermanentTo` so the graveyard
+    // departure queues a `PERMANENT_LEFT` event and the source's leave-the-
+    // battlefield / dies trigger fires (a raw `moveCard` skips the event).
     if (isSacrifice) {
-        moveCard(player, card.id, "battlefield", "graveyard");
+        removePermanentTo(state, card.id, "graveyard", "sacrifice");
     } else {
         // CR 603.7a / ADR 0040 — arm a control-change-on-tap rider when a
         // fixed-output tap mana source is tapped during a payment.
@@ -3811,8 +3822,11 @@ export const tapForPayment = mutation({
             emitPermanentTapped(state, card, true, chosen);
             if (isSacrifice) {
                 // Move to graveyard instead of tapping. Cannot be undone via
-                // untapForPayment — sacrifice is a one-way payment.
-                moveCard(player, card.id, "battlefield", "graveyard");
+                // untapForPayment — sacrifice is a one-way payment. CR 603.6 /
+                // 700.4 — funnel through `removePermanentTo` so a leaving-the-
+                // battlefield / dies trigger on the sacrificed source fires
+                // (queues `PERMANENT_LEFT`; drained at cast commit).
+                removePermanentTo(state, card.id, "graveyard", "sacrifice");
             } else {
                 card.isTapped = true;
                 card.chosenMana = chosen;
@@ -3862,7 +3876,10 @@ export const tapForPayment = mutation({
             }
             emitPermanentTapped(state, card, true, added);
             if (isSacrifice) {
-                moveCard(player, card.id, "battlefield", "graveyard");
+                // CR 603.6 / 700.4 — funnel the sacrifice through
+                // `removePermanentTo` so a leave-the-battlefield / dies trigger
+                // on the sacrificed source fires (queues `PERMANENT_LEFT`).
+                removePermanentTo(state, card.id, "graveyard", "sacrifice");
             } else {
                 state.pendingCast.tappedLandIds.push(card.id);
             }
@@ -7353,9 +7370,14 @@ export const tapUntap = mutation({
                 emitPermanentTapped(state, card, true, chosen);
                 producedThisActivation = chosen;
 
-                // Pay cost: tap (+ sacrifice if required)
+                // Pay cost: tap (+ sacrifice if required). CR 603.6 / 700.4 —
+                // the sacrifice goes through `removePermanentTo` so the source's
+                // leave-the-battlefield / dies trigger (Chromatic Star's draw)
+                // fires: it queues `PERMANENT_LEFT`, which the trigger pass below
+                // (`processPendingActionTriggers`) drains onto the stack after
+                // the mana ability has resolved (mana already added).
                 if (optIsSacrifice) {
-                    moveCard(player, card.id, "battlefield", "graveyard");
+                    removePermanentTo(state, card.id, "graveyard", "sacrifice");
                 } else {
                     card.isTapped = true;
                     // Remember the exact mana produced so untap can refund it.
@@ -7609,8 +7631,11 @@ export const tapUntap = mutation({
             // the mana is produced and the PERMANENT_TAPPED event is emitted
             // (above), so leaves-the-battlefield triggers see the mana already
             // added. One-way: there is no untap branch for a sacrificed source.
+            // CR 603.6 / 700.4 — `removePermanentTo` queues `PERMANENT_LEFT` so
+            // the source's leave-the-battlefield / dies trigger fires (drained by
+            // the trigger pass below); a raw `moveCard` would skip it.
             if (isSacrifice && !wasTapped) {
-                moveCard(player, card.id, "battlefield", "graveyard");
+                removePermanentTo(state, card.id, "graveyard", "sacrifice");
             }
         }
 
