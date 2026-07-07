@@ -82,6 +82,26 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Sacrifice-for-mana dies trigger (CR 603.6 / 700.4 / 605.3a, issue
+        // #943): activating Chromatic Star's mana ability ("{1}, {T},
+        // Sacrifice this artifact: Add one mana of any color") sacrifices it
+        // to the graveyard, which fires its leave-the-battlefield trigger
+        // ("When this artifact is put into a graveyard from the battlefield,
+        // draw a card"). Tap the Star for mana and confirm the draw trigger
+        // goes on the stack (does NOT auto-resolve) — the mana is added
+        // immediately, the card is drawn once the trigger resolves. Two
+        // Islands cover the {1} activation cost; the library holds a card to
+        // draw so the effect is visible.
+        label: "Sacrifice-for-mana dies trigger: Chromatic Star draws on sac (#943)",
+        cards: [
+            { name: "Chromatic Star", owner: "me", zone: "battlefield" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+            { name: "Grizzly Bears", owner: "me", zone: "library" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Unpayable additional-cost sacrifice (CR 117.9 / 601.2f, issue
         // #944): Natural Order's additional cost is "sacrifice a green
         // creature." With NO green creature under my control, the Cast
