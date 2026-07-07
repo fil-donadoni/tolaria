@@ -821,6 +821,25 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "BEGINNING_OF_COMBAT",
         landCount: 3,
     },
+    {
+        // Filtered library-search allow-list UI (issue #933): Polluted Delta's
+        // "Search your library for an Island or Swamp card" carries a
+        // `candidateIds` allow-list. Before the fix, EVERY revealed library
+        // card drew the amber selectable ring; only the Island is actually
+        // pickable here. Activate the Delta ({T}, pay 1 life, sacrifice) — the
+        // picker should ring/enable only the Island and render the Mountain
+        // and Forest dimmed and inert. `libraryCount` is intentionally unset
+        // so the three named library cards (pushed to the top) survive.
+        label: "Filtered library search — ring gated to eligible cards (Polluted Delta) (#933)",
+        cards: [
+            { name: "Polluted Delta", owner: "me", zone: "battlefield" },
+            { name: "Forest", owner: "me", zone: "library" },
+            { name: "Mountain", owner: "me", zone: "library" },
+            { name: "Island", owner: "me", zone: "library" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
