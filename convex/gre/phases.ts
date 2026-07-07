@@ -17,6 +17,7 @@ import {
     applyTargetPrevention,
     bumpArtifactDamageToPlayer,
     bumpDamageDealtToPlayer,
+    markDeathtouchDamage,
     recordSourceDamagedOpponent,
     clearKnowledge,
     consumePreventionIfAny,
@@ -1096,6 +1097,11 @@ export function applyAllCombatDamage(
                 desc.staticAbilities,
                 reduced
             );
+            // CR 702.2b — deathtouch: any nonzero combat damage from a
+            // deathtouch source marks the creature for destruction as an SBA
+            // (CR 704.5h). Folded into this step's lethal scan below so the
+            // deathtouch death is simultaneous with normal combat deaths.
+            markDeathtouchDamage(targetCard, desc.staticAbilities, reduced);
             // CR 603.7 / 119 — Glyph of Life: if a turn-scoped lifegain effect
             // watches this permanent and the damage source is an ATTACKER
             // (CR 506.2 — its id is in the active combat's attacker list), the
@@ -1278,7 +1284,15 @@ export function applyAllCombatDamage(
             defender.battlefield.find((c) => c.id === cardId);
         if (!card) continue;
         card.damageMarked = (card.damageMarked ?? 0) + damage;
-        if (card.damageMarked >= getCardToughness(state, card)) {
+        // CR 704.5g lethal, OR CR 702.2b/704.5h deathtouch: a creature dealt any
+        // nonzero damage this step by a deathtouch source is destroyed here too,
+        // simultaneously with normal combat deaths (CR 510.4). The SBA is the
+        // general mechanism (non-combat damage); folding it in here keeps combat
+        // deaths simultaneous. `destroyWithReplacements` respects indestructible.
+        if (
+            card.damageMarked >= getCardToughness(state, card) ||
+            card.dealtDeathtouchDamage === true
+        ) {
             deadIds.add(cardId);
         }
     }
@@ -1784,6 +1798,11 @@ export function finalizeCleanup(state: GameState): void {
         for (const card of p.battlefield) {
             if (card.damageMarked !== undefined) {
                 card.damageMarked = undefined;
+            }
+            // CR 702.2b / 514.2 — the "dealt deathtouch damage this turn" mark
+            // is turn-scoped; cleared with marked damage.
+            if (card.dealtDeathtouchDamage !== undefined) {
+                card.dealtDeathtouchDamage = undefined;
             }
             // CR 508.1 / 514.2 — roll the per-creature attack history forward
             // for the player whose turn is ENDING. `attackedDuringLastTurn`

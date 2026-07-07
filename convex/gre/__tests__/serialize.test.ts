@@ -456,6 +456,9 @@ describe("game_state serialize round-trip", () => {
         // tap mutation and the later untap attempt.
         lion.tapTriggerCommitted = true;
         lion.damageMarked = 2;
+        // CR 702.2b / 704.5h (#957) — "dealt deathtouch damage this turn" mark:
+        // must survive a mid-turn save/load so the deathtouch SBA still fires.
+        lion.dealtDeathtouchDamage = true;
         lion.regenerationShields = 1;
         lion.chosenMana = { R: 1, G: 1 };
         // #482 — charge counters removed to pay a Mana Battery's scaling cost,
@@ -564,6 +567,7 @@ describe("game_state serialize round-trip", () => {
         expect(got.manaCommitted).toBe(true);
         expect(got.tapTriggerCommitted).toBe(true);
         expect(got.damageMarked).toBe(2);
+        expect(got.dealtDeathtouchDamage).toBe(true);
         expect(got.regenerationShields).toBe(1);
         expect(got.chosenMana).toEqual({ R: 1, G: 1 });
         expect(got.manaCounterRemoval).toEqual({ type: "charge", count: 2 });

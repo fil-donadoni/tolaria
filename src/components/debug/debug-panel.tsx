@@ -249,6 +249,21 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 8,
     },
     {
+        // Deathtouch (CR 702.2b / CR 704.5h, issue #957): my opponent has a
+        // 7/7 Griselbrand ready to attack; I have Baleful Strix (1/1 flying,
+        // deathtouch). Let Griselbrand attack and block it with the Strix — any
+        // nonzero damage from the deathtouch Strix is lethal, so the 7/7 is
+        // destroyed as a state-based action even though it took only 1 damage.
+        // The Strix dies to Griselbrand's 7. Both leave in the same combat step.
+        label: "Deathtouch destroys any blocker/attacker (Baleful Strix vs Griselbrand) (#957)",
+        cards: [
+            { name: "Baleful Strix", owner: "me", zone: "battlefield" },
+            { name: "Griselbrand", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "BEGINNING_OF_COMBAT",
+        landCount: 8,
+    },
+    {
         // Copy-on-ETB Bot cast prune (issue #938): a copy-on-ETB spell (Copy
         // Artifact, Clone, Vesuvan Doppelganger, Dance of Many) enters as a copy
         // of a permanent already in play. Casting one with NO permanent it could

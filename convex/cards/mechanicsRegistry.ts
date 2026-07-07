@@ -625,7 +625,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Deathtouch",
         kind: "keyword-ability",
         cr: "702.2",
-        status: "planned",
+        status: "implemented",
+        binding: "deathtouch",
+        note: "markDeathtouchDamage at every damage sink + checkDeathtouchDestroySBA (sba.ts)",
     },
     // 702.3 Defender
     {
