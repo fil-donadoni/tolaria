@@ -3222,8 +3222,10 @@ function payStaticAdditionalCost(
  *  the `sacrificeFilter` (sacrifice) and `exileFilter` (exile — Soul Exchange)
  *  forms route through the same picker; the `kind` decides whether the picked
  *  permanent is sacrificed or exiled at commit. Returns `undefined` when the
- *  card has no additional cost. */
-function buildAdditionalCostPicker(
+ *  card has no additional cost. Exported (not just used internally by
+ *  `announceCast`) so integration tests can drive the exact production
+ *  candidate-matching logic instead of a hand-mirrored copy (issue #944). */
+export function buildAdditionalCostPicker(
     spec:
         | { sacrificeFilter?: PermanentFilter; exileFilter?: PermanentFilter }
         | undefined,
@@ -3234,9 +3236,21 @@ function buildAdditionalCostPicker(
     const kind: "sacrifice" | "exile" = spec?.exileFilter
         ? "exile"
         : "sacrifice";
-    const candidates = player.battlefield.filter((c) =>
-        matchesPermanentFilter(c, filter, { selfControllerId: player.id })
-    );
+    // Effective colours are derived per-candidate via the layer system
+    // (mirrors `tapOtherCandidates` above) so a `colors` filter (Natural
+    // Order's "a green creature") reads the same colour the rest of the
+    // engine sees, not the raw instance which carries no `colors` field.
+    const candidates = player.battlefield.filter((c) => {
+        const view = { ...c, colors: STATIC_EFFECT_CTX.getColors(c) };
+        return matchesPermanentFilter(view, filter, {
+            selfControllerId: player.id,
+        });
+    });
+    // CR 117.9 / 601.2f — with `getLegalActions` (convex/gre/rules.ts)
+    // gating "cast" on additional-cost payability, `announceCast` never
+    // reaches this function with zero legal candidates (`assertLegalAction`
+    // rejects the mutation first). This throw is now an unreachable
+    // invariant guard, kept as defense in depth.
     if (candidates.length === 0) {
         throw new Error("No legal permanent to pay the additional cost");
     }
@@ -3980,8 +3994,16 @@ export const selectAdditionalCost = mutation({
         if (!candidate) {
             throw new Error("Selected permanent not on your battlefield");
         }
+        // Effective colours via the layer system, matching
+        // `buildAdditionalCostPicker` — a `colors` filter (Natural Order's
+        // "a green creature") must read the same colour the rest of the
+        // engine sees, not the raw instance which carries no `colors` field.
+        const candidateView = {
+            ...candidate,
+            colors: STATIC_EFFECT_CTX.getColors(candidate),
+        };
         if (
-            !matchesPermanentFilter(candidate, ac.filter, {
+            !matchesPermanentFilter(candidateView, ac.filter, {
                 selfControllerId: args.playerId,
             })
         ) {

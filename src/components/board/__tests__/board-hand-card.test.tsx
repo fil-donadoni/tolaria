@@ -200,6 +200,20 @@ describe("BoardHandCard drag-commit parity (seam 3, #254)", () => {
         expect(announceCast).not.toHaveBeenCalled();
     });
 
+    it("issue #944: a card with no legal actions (e.g. an unpayable additional-cost spell) is inert on click AND drag", () => {
+        // Mirrors the wire shape the server sends for a spell like Natural
+        // Order when the additional-cost sacrifice is unpayable (CR 117.9 /
+        // 601.2f, issue #944): `getLegalActions` omits "cast" entirely, so
+        // `legalActions` is empty — the card must not be clickable OR
+        // draggable-to-commit.
+        const card = makeCard("unpayable1", []);
+        renderCard(card);
+        fireEvent.click(el());
+        drag(120); // well past the commit line
+        expect(playCard).not.toHaveBeenCalled();
+        expect(announceCast).not.toHaveBeenCalled();
+    });
+
     it("a committed drag does NOT also fire the trailing click (single dispatch)", () => {
         const card = makeCard("land1", ["play"]);
         renderCard(card);
