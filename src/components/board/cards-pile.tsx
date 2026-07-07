@@ -42,6 +42,12 @@ type CardsPileProps = {
      *  distinct ring so multi-pick selections (e.g. a `search-library`
      *  choice) show per-card feedback instead of all-amber. */
     selectedIds?: string[];
+    /** Allow-list for a filtered search (issue #933). When provided, only
+     *  cards whose id is in the set render the selectable (amber) ring and
+     *  respond to clicks — every other revealed card renders dimmed and
+     *  inert. `undefined` means unfiltered: every card stays selectable, the
+     *  pre-#933 behavior. */
+    eligibleIds?: ReadonlySet<string>;
     /** Rendered inside the expanded dialog below the cards. Used by the
      *  `search-library` picker to host its confirm button: the dialog opens
      *  as a modal (`forceOpen`) and would otherwise cover the board-level
@@ -80,6 +86,16 @@ function selectionRing(isSelected: boolean): string {
         : "ring-2 ring-amber-400 hover:ring-amber-300";
 }
 
+/** Whether a revealed card is a legal pick under an (optional) filtered
+ *  search allow-list (issue #933). No `eligibleIds` means an unfiltered
+ *  search — every card stays selectable. */
+function isEligibleCard(
+    cardId: string,
+    eligibleIds?: ReadonlySet<string>
+): boolean {
+    return !eligibleIds || eligibleIds.has(cardId);
+}
+
 function FanLayout({
     cards,
     isFaceDown,
@@ -88,6 +104,7 @@ function FanLayout({
     renderCardAction,
     onClose,
     selectedIds,
+    eligibleIds,
 }: {
     cards: CardInstance[];
     isFaceDown: boolean;
@@ -99,6 +116,7 @@ function FanLayout({
     ) => React.ReactNode;
     onClose: () => void;
     selectedIds?: string[];
+    eligibleIds?: ReadonlySet<string>;
 }) {
     // A full library fans to many overlapping cards that overflow the dialog
     // width. Inertial drag-to-pan (Arena-like) makes browsing the reveal feel
@@ -134,7 +152,13 @@ function FanLayout({
                     ) : (
                         <CardImage card={cardInstance} />
                     );
-                    const clickable = !faceDown && !!onCardClick;
+                    const isEligible = isEligibleCard(
+                        cardInstance.id,
+                        eligibleIds
+                    );
+                    const clickable = !faceDown && !!onCardClick && isEligible;
+                    const isIneligible =
+                        !faceDown && !!onCardClick && !isEligible;
                     const isSelected =
                         selectedIds?.includes(cardInstance.id) ?? false;
                     const action = renderCardAction?.(cardInstance, onClose);
@@ -160,6 +184,10 @@ function FanLayout({
                                 >
                                     {inner}
                                 </button>
+                            ) : isIneligible ? (
+                                <div className="w-full h-full rounded opacity-40">
+                                    {inner}
+                                </div>
                             ) : (
                                 inner
                             )}
@@ -180,6 +208,7 @@ function GridLayout({
     renderCardAction,
     onClose,
     selectedIds,
+    eligibleIds,
 }: {
     cards: CardInstance[];
     isFaceDown: boolean;
@@ -191,6 +220,7 @@ function GridLayout({
     ) => React.ReactNode;
     onClose: () => void;
     selectedIds?: string[];
+    eligibleIds?: ReadonlySet<string>;
 }) {
     return (
         <div className="flex flex-wrap gap-2 justify-center py-4 px-2">
@@ -205,7 +235,9 @@ function GridLayout({
                 ) : (
                     <CardImage card={cardInstance} />
                 );
-                const clickable = !faceDown && !!onCardClick;
+                const isEligible = isEligibleCard(cardInstance.id, eligibleIds);
+                const clickable = !faceDown && !!onCardClick && isEligible;
+                const isIneligible = !faceDown && !!onCardClick && !isEligible;
                 const isSelected =
                     selectedIds?.includes(cardInstance.id) ?? false;
                 const action = renderCardAction?.(cardInstance, onClose);
@@ -225,6 +257,10 @@ function GridLayout({
                             >
                                 {inner}
                             </button>
+                        ) : isIneligible ? (
+                            <div className="w-full h-full rounded opacity-40">
+                                {inner}
+                            </div>
                         ) : (
                             inner
                         )}
@@ -248,6 +284,7 @@ export default function CardsPile({
     renderCardAction,
     forceOpen = false,
     selectedIds,
+    eligibleIds,
     footer,
     onMinimize,
     open,
@@ -349,6 +386,7 @@ export default function CardsPile({
                         renderCardAction={renderCardAction}
                         onClose={() => setIsOpen(false)}
                         selectedIds={selectedIds}
+                        eligibleIds={eligibleIds}
                     />
                 ) : (
                     <GridLayout
@@ -359,6 +397,7 @@ export default function CardsPile({
                         renderCardAction={renderCardAction}
                         onClose={() => setIsOpen(false)}
                         selectedIds={selectedIds}
+                        eligibleIds={eligibleIds}
                     />
                 )}
                 {footer && (
