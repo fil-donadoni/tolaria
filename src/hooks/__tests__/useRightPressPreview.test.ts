@@ -5,16 +5,17 @@ import {
     RIGHT_HOLD_ZOOM_MS,
 } from "../useRightPressPreview";
 
-function makeMouse(button: number): React.MouseEvent {
+function makePointer(button: number): React.PointerEvent {
     return {
         button,
+        pointerType: "mouse",
         preventDefault: vi.fn(),
         stopPropagation: vi.fn(),
-    } as unknown as React.MouseEvent;
+    } as unknown as React.PointerEvent;
 }
 
 function releaseButton() {
-    window.dispatchEvent(new MouseEvent("mouseup"));
+    window.dispatchEvent(new Event("pointerup"));
 }
 
 describe("useRightPressPreview", () => {
@@ -37,8 +38,8 @@ describe("useRightPressPreview", () => {
             useRightPressPreview({ onQuickClick, onZoomStart })
         );
 
-        const e = makeMouse(0); // left button
-        act(() => result.current.handlers.onMouseDown(e));
+        const e = makePointer(0); // left button
+        act(() => result.current.handlers.onPointerDown(e));
 
         expect(result.current.phase).toBe("idle");
         expect(e.preventDefault).not.toHaveBeenCalled();
@@ -48,8 +49,8 @@ describe("useRightPressPreview", () => {
 
     it("suppresses default + propagation on right press", () => {
         const { result } = renderHook(() => useRightPressPreview());
-        const e = makeMouse(2);
-        act(() => result.current.handlers.onMouseDown(e));
+        const e = makePointer(2);
+        act(() => result.current.handlers.onPointerDown(e));
         expect(e.preventDefault).toHaveBeenCalledOnce();
         expect(e.stopPropagation).toHaveBeenCalledOnce();
         act(() => releaseButton());
@@ -63,7 +64,7 @@ describe("useRightPressPreview", () => {
                 useRightPressPreview({ onQuickClick, onZoomStart })
             );
 
-            act(() => result.current.handlers.onMouseDown(makeMouse(2)));
+            act(() => result.current.handlers.onPointerDown(makePointer(2)));
             expect(result.current.phase).toBe("pressing");
 
             act(() => {
@@ -81,7 +82,7 @@ describe("useRightPressPreview", () => {
             const { result } = renderHook(() =>
                 useRightPressPreview({ onZoomStart })
             );
-            act(() => result.current.handlers.onMouseDown(makeMouse(2)));
+            act(() => result.current.handlers.onPointerDown(makePointer(2)));
             act(() => releaseButton());
             act(() => vi.advanceTimersByTime(RIGHT_HOLD_ZOOM_MS + 50));
             expect(onZoomStart).not.toHaveBeenCalled();
@@ -97,7 +98,7 @@ describe("useRightPressPreview", () => {
                 useRightPressPreview({ onQuickClick, onZoomStart, onZoomEnd })
             );
 
-            act(() => result.current.handlers.onMouseDown(makeMouse(2)));
+            act(() => result.current.handlers.onPointerDown(makePointer(2)));
             act(() => vi.advanceTimersByTime(RIGHT_HOLD_ZOOM_MS));
             expect(onZoomStart).toHaveBeenCalledOnce();
             expect(result.current.phase).toBe("zoom");
@@ -114,7 +115,7 @@ describe("useRightPressPreview", () => {
                 useRightPressPreview({ onZoomEnd })
             );
 
-            act(() => result.current.handlers.onMouseDown(makeMouse(2)));
+            act(() => result.current.handlers.onPointerDown(makePointer(2)));
             act(() => vi.advanceTimersByTime(RIGHT_HOLD_ZOOM_MS));
             act(() => window.dispatchEvent(new Event("blur")));
 

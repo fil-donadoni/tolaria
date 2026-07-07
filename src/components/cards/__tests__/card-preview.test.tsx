@@ -54,12 +54,12 @@ const dock = () => document.querySelector("[data-card-preview-dock]");
 
 function rightPress(root: HTMLElement) {
     act(() => {
-        fireEvent.mouseDown(root, { button: 2 });
+        fireEvent.pointerDown(root, { button: 2 });
     });
 }
 function release() {
     act(() => {
-        fireEvent(window, new MouseEvent("mouseup"));
+        fireEvent(window, new Event("pointerup"));
     });
 }
 function holdPastThreshold() {
@@ -84,7 +84,7 @@ describe("CardPreview — Arena click model (#332)", () => {
         const root = container.firstElementChild as HTMLElement;
 
         act(() => {
-            fireEvent.mouseDown(root, { button: 0 });
+            fireEvent.pointerDown(root, { button: 0 });
         });
         release();
 

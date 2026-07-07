@@ -257,11 +257,12 @@ export default function CardPreview({
             ref={containerRef}
             className="w-full h-full"
             style={longPress.scaleStyle}
-            onMouseDown={(e) => {
+            onPointerDown={(e) => {
                 // Right-button preview is a desktop-only gesture; a touch device
-                // (ghost mouse events) must never trigger it.
+                // must never trigger it. The hook also guards on button === 2,
+                // which no touch/pen primary press satisfies.
                 if (sawTouchRef.current) return;
-                rightPress.handlers.onMouseDown(e);
+                rightPress.handlers.onPointerDown(e);
             }}
             onContextMenu={handleContextMenu}
             {...longPress.handlers}

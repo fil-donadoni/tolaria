@@ -10,8 +10,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 //   pressing  right button down, hold timer running.
 //   zoom      threshold elapsed, `onZoomStart` fired; the big preview is up and
 //             stays up until release (`onZoomEnd`).
-// Release is listened on `window` (not the element) because the pointer can be
-// dragged off the card before the button comes up.
+//
+// Driven by POINTER events, not mouse events. Draggable ancestors (@dnd-kit's
+// pointer sensor in the deck-builder, and any element that calls
+// `preventDefault()` on `pointerdown`) suppress the legacy mouse-compat events
+// (`mousedown`/`mouseup`), so a `mousedown`-based gesture silently dies over a
+// draggable card. `pointerdown`/`pointerup` are the primitive dnd-kit itself
+// listens on and always fire. Release is listened on `window` (not the element)
+// because the pointer can be dragged off the card before the button comes up.
 export const RIGHT_HOLD_ZOOM_MS = 250;
 
 export type RightPressPhase = "idle" | "pressing" | "zoom";
@@ -29,7 +35,7 @@ export type UseRightPressPreviewOptions = {
 export type UseRightPressPreviewResult = {
     phase: RightPressPhase;
     handlers: {
-        onMouseDown: (e: React.MouseEvent) => void;
+        onPointerDown: (e: React.PointerEvent) => void;
     };
 };
 
@@ -75,14 +81,14 @@ export function useRightPressPreview(
         setPhaseSync("idle");
     }, [clearHoldTimer, teardown, setPhaseSync]);
 
-    const onMouseDown = useCallback(
-        (e: React.MouseEvent) => {
-            // Right button only; left-click stays a gameplay action.
+    const onPointerDown = useCallback(
+        (e: React.PointerEvent) => {
+            // Right button only; left-click / touch / pen stay gameplay actions.
             if (e.button !== 2) return;
             e.preventDefault();
             e.stopPropagation();
-            // A press already in flight (should not happen — mouseup resets) is
-            // superseded cleanly.
+            // A press already in flight (should not happen — pointerup resets)
+            // is superseded cleanly.
             clearHoldTimer();
             teardown();
             setPhaseSync("pressing");
@@ -98,8 +104,9 @@ export function useRightPressPreview(
                     cbRef.current.onZoomEnd?.();
                 }
             };
-            // Losing the window mid-hold must not leave the zoom stuck open.
-            const onBlur = () => {
+            // Pointer cancellation (browser gesture takeover) or losing the
+            // window mid-hold must not leave the zoom stuck open.
+            const onAbort = () => {
                 const current = phaseRef.current;
                 clearHoldTimer();
                 teardown();
@@ -108,11 +115,13 @@ export function useRightPressPreview(
                     cbRef.current.onZoomEnd?.();
                 }
             };
-            window.addEventListener("mouseup", onUp);
-            window.addEventListener("blur", onBlur);
+            window.addEventListener("pointerup", onUp);
+            window.addEventListener("pointercancel", onAbort);
+            window.addEventListener("blur", onAbort);
             teardownRef.current = () => {
-                window.removeEventListener("mouseup", onUp);
-                window.removeEventListener("blur", onBlur);
+                window.removeEventListener("pointerup", onUp);
+                window.removeEventListener("pointercancel", onAbort);
+                window.removeEventListener("blur", onAbort);
             };
 
             holdTimerRef.current = setTimeout(() => {
@@ -127,5 +136,5 @@ export function useRightPressPreview(
     // Cleanup on unmount: kill any pending timer + listeners.
     useEffect(() => reset, [reset]);
 
-    return { phase, handlers: { onMouseDown } };
+    return { phase, handlers: { onPointerDown } };
 }
