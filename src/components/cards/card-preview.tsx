@@ -11,6 +11,7 @@ import {
 import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
 import { GameContext } from "~/hooks/useGameContext";
 import { useLongPress } from "~/hooks/useLongPress";
+import { useRightPressPreview } from "~/hooks/useRightPressPreview";
 import type { CardInstance } from "~/types/game";
 import { getColorOverrideDisplay } from "~/lib/color-override";
 import { getCounterDisplays } from "~/lib/counters";
@@ -20,7 +21,6 @@ import CardPreviewDock from "./card-preview-dock";
 import CardPreviewAnchored from "./card-preview-anchored";
 
 const OVERLAY_WIDTH = 128 * 2;
-export const HOVER_DELAY_MS = 300;
 
 type CardPreviewProps = {
     cardId: string;
@@ -35,14 +35,20 @@ export default function CardPreview({
     cardInstance,
     children,
 }: CardPreviewProps) {
-    // Desktop hover preview (#332). On the in-game board it docks in the fixed
-    // right column (CardPreviewDock); in the lobby/deck-builder it floats next
-    // to the hovered card (CardPreviewAnchored). Mobile long-press overlay is a
-    // separate surface (`showOverlay`) and is unaffected.
-    const [showDock, setShowDock] = useState(false);
-    const [dockImgLoaded, setDockImgLoaded] = useState(false);
-    const isHovered = useRef(false);
-    const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // Desktop preview is CLICK-driven (Arena model, #332). The RIGHT button
+    // owns it — left-click stays a gameplay action. A quick right-click toggles
+    // an anchored preview beside the card (board + lobby alike); holding the
+    // right button past the threshold shows the big preview in the board's
+    // right-column dock while held. Mobile long-press overlay (`showOverlay`) is
+    // a separate, untouched surface.
+    const gameCtx = useContext(GameContext);
+    const [showAnchored, setShowAnchored] = useState(false);
+    const [showZoomDock, setShowZoomDock] = useState(false);
+    const [imgLoaded, setImgLoaded] = useState(false);
+    // Mirrors `showAnchored` for synchronous reads inside event handlers (the
+    // quick-click toggle and the outside-click listener run before React has
+    // committed the state update).
+    const anchoredOpenRef = useRef(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
     const longPress = useLongPress({});
@@ -52,101 +58,69 @@ export default function CardPreview({
         longPress.phase === "longPressed" || longPress.phase === "locked";
     const sawTouchRef = useRef(false);
 
-    // Latest closePreview, read by the singleton from a stable identity so
-    // openDock/cleanup don't need closePreview in their dep arrays.
+    // Latest close handle, read by the singleton (one-open-at-a-time) from a
+    // stable identity so open/close don't need it in their dep arrays.
     const closeRef = useRef<() => void>(() => {});
 
-    const openDock = useCallback(() => {
-        requestOpenPreview(closeRef.current);
-        setDockImgLoaded(false);
-        setShowDock(true);
-    }, []);
-
-    const clearHoverTimeout = useCallback(() => {
-        if (hoverTimeoutRef.current !== null) {
-            clearTimeout(hoverTimeoutRef.current);
-            hoverTimeoutRef.current = null;
-        }
-    }, []);
-
-    // While hovered, a document-level pointer watcher closes the preview the
-    // instant the pointer leaves the card's CURRENT (tilt-shifted) rect. This is
-    // the reliable close signal: a card under a live 3D tilt (board
-    // CardTilt3D) rewrites its transform on every move, so the element's own
-    // mouseleave fires spuriously (pointer still inside the moved rect) AND, once
-    // ignored, never fires again — leaving stale previews that overlap. Sampling
-    // the live geometry instead closes exactly when the cursor is truly outside.
-    const exitTeardownRef = useRef<(() => void) | null>(null);
-
-    const stopExitWatch = useCallback(() => {
-        exitTeardownRef.current?.();
-        exitTeardownRef.current = null;
-    }, []);
-
-    const closePreview = useCallback(() => {
-        isHovered.current = false;
-        clearHoverTimeout();
-        setShowDock(false);
-        stopExitWatch();
+    const closeAnchored = useCallback(() => {
+        anchoredOpenRef.current = false;
+        setShowAnchored(false);
         releasePreview(closeRef.current);
-    }, [clearHoverTimeout, stopExitWatch]);
+    }, []);
     useEffect(() => {
-        closeRef.current = closePreview;
-    }, [closePreview]);
+        closeRef.current = closeAnchored;
+    }, [closeAnchored]);
 
-    const startExitWatch = useCallback(() => {
-        stopExitWatch();
-        const onMove = (e: PointerEvent) => {
-            const r = containerRef.current?.getBoundingClientRect();
-            if (
-                !r ||
-                e.clientX < r.left ||
-                e.clientX > r.right ||
-                e.clientY < r.top ||
-                e.clientY > r.bottom
-            ) {
-                closePreview();
-            }
-        };
-        // The pointer can leave the card WITHOUT a sampled move landing outside
-        // the rect: the cursor exits the window, the tab loses focus, or the
-        // tilt churn swallows the mouseleave. These backstops guarantee the
-        // preview never gets stuck open in those gaps.
-        const onWindowLeave = () => closePreview();
-        document.addEventListener("pointermove", onMove);
-        document.addEventListener("pointerleave", onWindowLeave);
-        window.addEventListener("blur", onWindowLeave);
-        exitTeardownRef.current = () => {
-            document.removeEventListener("pointermove", onMove);
-            document.removeEventListener("pointerleave", onWindowLeave);
-            window.removeEventListener("blur", onWindowLeave);
-        };
-    }, [closePreview, stopExitWatch]);
+    const openAnchored = useCallback(() => {
+        requestOpenPreview(closeRef.current);
+        anchoredOpenRef.current = true;
+        setImgLoaded(false);
+        setShowAnchored(true);
+    }, []);
 
+    // While the anchored preview is open, a document pointerdown that lands
+    // OUTSIDE this card closes it, and Escape closes it. A pointerdown INSIDE
+    // the card is ignored here so the quick-click toggle (below) can shut it —
+    // otherwise a second right-click would close then immediately re-open.
     useEffect(() => {
+        if (!showAnchored) return;
+        const onPointerDown = (e: PointerEvent) => {
+            const el = containerRef.current;
+            if (el && e.target instanceof Node && el.contains(e.target)) return;
+            closeAnchored();
+        };
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") closeAnchored();
+        };
+        document.addEventListener("pointerdown", onPointerDown, true);
+        document.addEventListener("keydown", onKeyDown);
         return () => {
-            if (hoverTimeoutRef.current !== null) {
-                clearTimeout(hoverTimeoutRef.current);
-            }
-            stopExitWatch();
-            releasePreview(closeRef.current);
+            document.removeEventListener("pointerdown", onPointerDown, true);
+            document.removeEventListener("keydown", onKeyDown);
         };
-    }, [stopExitWatch]);
+    }, [showAnchored, closeAnchored]);
 
-    const handleMouseDown = useCallback(
-        (e: React.MouseEvent) => {
-            if (e.button !== 2) return;
-            e.preventDefault();
-            e.stopPropagation();
-            openDock();
-            const onUp = () => {
-                closeRef.current();
-                window.removeEventListener("mouseup", onUp);
-            };
-            window.addEventListener("mouseup", onUp);
+    // Release the singleton handle on unmount so a card that leaves the tree
+    // (zone change, cleanup) never leaves a dangling open handle.
+    useEffect(() => {
+        return () => releasePreview(closeRef.current);
+    }, []);
+
+    const rightPress = useRightPressPreview({
+        onQuickClick: () => {
+            if (anchoredOpenRef.current) closeAnchored();
+            else openAnchored();
         },
-        [openDock]
-    );
+        // Hold-zoom is a board feature (needs the right-column dock). In the
+        // lobby/deck-builder there is no dock, so the hold does nothing extra.
+        onZoomStart: () => {
+            if (!gameCtx) return;
+            if (anchoredOpenRef.current) closeAnchored();
+            setImgLoaded(false);
+            setShowZoomDock(true);
+        },
+        onZoomEnd: () => setShowZoomDock(false),
+    });
 
     const handleContextMenu = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
@@ -197,7 +171,6 @@ export default function CardPreview({
         : null;
     const basePower = def?.power;
     const baseToughness = def?.toughness;
-    const gameCtx = useContext(GameContext);
     // Effective P/T (CR 611, 613 — layer 7c static buffs + counters) only
     // computable when the preview is mounted under a game context with the
     // full battlefield. Outside (deck builder), fall back to printed P/T.
@@ -284,47 +257,12 @@ export default function CardPreview({
             ref={containerRef}
             className="w-full h-full"
             style={longPress.scaleStyle}
-            onMouseEnter={() => {
+            onMouseDown={(e) => {
+                // Right-button preview is a desktop-only gesture; a touch device
+                // (ghost mouse events) must never trigger it.
                 if (sawTouchRef.current) return;
-                // Skip only when an open is already in flight (timer pending) or
-                // the dock is already shown — this still defeats tilt-transform
-                // re-enter churn (the timer is pending throughout the 300ms, so
-                // churn enters are ignored). Do NOT gate on `isHovered` alone: a
-                // mouseleave swallowed by a distorted/animating rect (e.g. a card
-                // that grows on :hover) leaves `isHovered` stuck true with no
-                // timer and no dock, which would suppress the next genuine hover
-                // ("preview doesn't open on the first try").
-                if (hoverTimeoutRef.current !== null || showDock) return;
-                isHovered.current = true;
-                clearHoverTimeout();
-                hoverTimeoutRef.current = setTimeout(() => {
-                    hoverTimeoutRef.current = null;
-                    if (!isHovered.current) return;
-                    openDock();
-                }, HOVER_DELAY_MS);
-                // The document watcher owns the close — it samples live geometry
-                // and is immune to the tilt's spurious mouseleave churn.
-                startExitWatch();
+                rightPress.handlers.onMouseDown(e);
             }}
-            onMouseLeave={(e) => {
-                if (sawTouchRef.current) return;
-                // Backstop for the pointer leaving the window (no further
-                // pointermove for the watcher to sample): close only when the
-                // pointer is genuinely outside the card's current rect; otherwise
-                // a spurious tilt-churn leave is left to the watcher.
-                const r = containerRef.current?.getBoundingClientRect();
-                if (
-                    r &&
-                    e.clientX >= r.left &&
-                    e.clientX <= r.right &&
-                    e.clientY >= r.top &&
-                    e.clientY <= r.bottom
-                ) {
-                    return;
-                }
-                closePreview();
-            }}
-            onMouseDown={handleMouseDown}
             onContextMenu={handleContextMenu}
             {...longPress.handlers}
             onTouchStart={(e) => {
@@ -356,26 +294,29 @@ export default function CardPreview({
                     </div>,
                     document.body
                 )}
-            {/* Desktop hover preview (#332). On the board (GameContext present)
-                it docks in the fixed right column; in the lobby/deck-builder it
-                floats next to the hovered card. */}
-            {showDock &&
-                (gameCtx ? (
-                    <CardPreviewDock
-                        {...sharedBody}
-                        size="sm"
-                        imageLoaded={imageSrc ? dockImgLoaded : true}
-                        onImageLoaded={() => setDockImgLoaded(true)}
-                    />
-                ) : (
-                    <CardPreviewAnchored
-                        {...sharedBody}
-                        size="sm"
-                        imageLoaded={imageSrc ? dockImgLoaded : true}
-                        onImageLoaded={() => setDockImgLoaded(true)}
-                        anchorRef={containerRef}
-                    />
-                ))}
+            {/* Desktop hold-zoom (board only): the big preview in the fixed
+                right-column dock while the right button is held. It supersedes
+                the anchored preview — only one desktop surface shows at a time. */}
+            {showZoomDock && gameCtx && (
+                <CardPreviewDock
+                    {...sharedBody}
+                    size="md"
+                    imageLoaded={imageSrc ? imgLoaded : true}
+                    onImageLoaded={() => setImgLoaded(true)}
+                />
+            )}
+            {/* Desktop quick-click preview: anchored beside the card, board and
+                lobby alike, clamped fully inside the viewport. Hidden while the
+                hold-zoom dock is up. */}
+            {showAnchored && !showZoomDock && (
+                <CardPreviewAnchored
+                    {...sharedBody}
+                    size="sm"
+                    imageLoaded={imageSrc ? imgLoaded : true}
+                    onImageLoaded={() => setImgLoaded(true)}
+                    anchorRef={containerRef}
+                />
+            )}
         </div>
     );
 }

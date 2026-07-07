@@ -5,9 +5,12 @@ import {
     resetPreviewSingleton,
 } from "../card-preview-singleton";
 
-// The card-preview singleton enforces the user-facing rule: hovering a card
-// opens its preview and closes any other card's open preview; leaving closes
-// it. Each card's `close` callback doubles as its identity token.
+// The card-preview singleton enforces the one-open-at-a-time rule: opening a
+// card's preview closes any other card's open preview. Each card's `close`
+// callback doubles as its identity token. Outside-click / Escape dismissal is
+// NOT owned here (it moved into each open CardPreview when the model changed
+// from hover to click, #332) — this registry is purely the single-active
+// invariant.
 describe("card-preview singleton (single active preview)", () => {
     beforeEach(() => {
         resetPreviewSingleton();
@@ -101,25 +104,5 @@ describe("card-preview singleton (single active preview)", () => {
         expect(closeA).toHaveBeenCalledTimes(1);
         expect(closeB).toHaveBeenCalledTimes(1);
         expect(closeC).not.toHaveBeenCalled();
-    });
-
-    it("a pointerdown anywhere closes the open preview", () => {
-        const closeA = vi.fn(() => releasePreview(closeA));
-        requestOpenPreview(closeA);
-
-        document.dispatchEvent(new Event("pointerdown"));
-        expect(closeA).toHaveBeenCalledTimes(1);
-    });
-
-    it("no pointerdown listener leaks once every preview is closed", () => {
-        const closeA = vi.fn(() => releasePreview(closeA));
-        requestOpenPreview(closeA);
-        // Mouse-out releases the only open preview → listener detaches.
-        releasePreview(closeA);
-        closeA.mockClear();
-
-        // A later click must not reach the now-released handle.
-        document.dispatchEvent(new Event("pointerdown"));
-        expect(closeA).not.toHaveBeenCalled();
     });
 });

@@ -21,10 +21,10 @@ model that mirrors MTG Arena's desktop behavior.
 Left-click stays a **gameplay** action (play from hand, tap, select target) —
 unchanged. Preview is driven entirely by the **right** mouse button:
 
-| Gesture | Result |
-| --- | --- |
-| Quick right-click (press + release < threshold) | Toggle the **anchored** preview beside the card |
-| Right-button held past threshold | Show the **big** preview in the board's right-column dock while held; release closes it |
+| Gesture                                         | Result                                                                                  |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Quick right-click (press + release < threshold) | Toggle the **anchored** preview beside the card                                         |
+| Right-button held past threshold                | Show the **big** preview in the board's right-column dock while held; release closes it |
 
 ### Anchored preview (quick right-click)
 
@@ -91,15 +91,15 @@ intents.
   `startExitWatch`, `stopExitWatch`, `exitTeardownRef`, the `onMouseEnter` /
   `onMouseLeave` handlers).
 - Replace `handleMouseDown` with `useRightPressPreview`:
-  - `onQuickClick`: toggle a new `showAnchored` boolean (open → `requestOpenPreview`;
-    close → `releasePreview`), so a second right-click closes it and the singleton
-    closes it on outside click.
-  - `onZoomStart` (board only, i.e. `gameCtx` present): hide anchored, set
-    `showZoomDock`. `onZoomEnd`: clear `showZoomDock`.
+    - `onQuickClick`: toggle a new `showAnchored` boolean (open → `requestOpenPreview`;
+      close → `releasePreview`), so a second right-click closes it and the singleton
+      closes it on outside click.
+    - `onZoomStart` (board only, i.e. `gameCtx` present): hide anchored, set
+      `showZoomDock`. `onZoomEnd`: clear `showZoomDock`.
 - Render logic:
-  - `showAnchored && !showZoomDock` → `CardPreviewAnchored` beside the card.
-  - `showZoomDock` (board only) → `CardPreviewDock` at the larger size.
-  - Mobile `showOverlay` block unchanged.
+    - `showAnchored && !showZoomDock` → `CardPreviewAnchored` beside the card.
+    - `showZoomDock` (board only) → `CardPreviewDock` at the larger size.
+    - Mobile `showOverlay` block unchanged.
 - Keep `containerRef`, `closeRef`, `card-preview-singleton` wiring for the
   anchored toggle + click-outside close.
 
