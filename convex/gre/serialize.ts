@@ -86,6 +86,7 @@ function compactCard(
     if (card.manaCommitted) out.manaCommitted = true;
     if (card.tapTriggerCommitted) out.tapTriggerCommitted = true;
     if (card.damageMarked) out.damageMarked = card.damageMarked;
+    if (card.dealtDeathtouchDamage) out.dealtDeathtouchDamage = true;
     if (card.regenerationShields) {
         out.regenerationShields = card.regenerationShields;
     }
@@ -267,6 +268,7 @@ function expandCard(
     if (compact.damageMarked) {
         result.damageMarked = compact.damageMarked as number;
     }
+    if (compact.dealtDeathtouchDamage) result.dealtDeathtouchDamage = true;
     if (compact.regenerationShields) {
         result.regenerationShields = compact.regenerationShields as number;
     }

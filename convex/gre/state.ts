@@ -330,6 +330,15 @@ export type CardInstanceState = {
      *  damage events; checked against effective toughness for lethal damage
      *  (CR 704.5g). Removed at CLEANUP (CR 514.2). */
     damageMarked?: number;
+    /** CR 704.5h / 702.2b — set when this creature was dealt any nonzero damage
+     *  by a source with deathtouch since the last state-based-action check. Such
+     *  a creature is destroyed regardless of its marked-damage-vs-toughness math
+     *  (`hasLethalDamage`). Recorded at the damage sink via
+     *  `markDeathtouchIfApplicable`, and cleared together with `damageMarked`
+     *  whenever damage is healed (regeneration, destroy-replacement) or removed
+     *  at CLEANUP (CR 514.2), so the "since the last SBA check" window resets and
+     *  a regenerated creature is not re-destroyed by a stale marker. */
+    dealtDeathtouchDamage?: boolean;
     /** Regeneration shields stacked on this permanent (CR 701.15a). Each shield
      *  is consumed once: the next time the permanent would be destroyed, the
      *  shield replaces the destroy with "remove all damage, tap, remove from
@@ -4010,6 +4019,38 @@ export function dealDamageFromPermanentToPlayer(
     );
 }
 
+/** CR 702.2b / 704.5h — deathtouch marker. Records on the recipient that it
+ *  was dealt nonzero damage by a source with deathtouch, so the lethal check
+ *  destroys it regardless of toughness. Reads the source's EFFECTIVE static
+ *  ability set (the `sourceStaticAbilities` snapshot already carried on the
+ *  DAMAGE_DEALT event / `describeDamageSource`, which is layer-6 materialized),
+ *  so granted deathtouch counts and ability-loss-stripped deathtouch does not.
+ *  No-op for zero damage (a 0-power deathtouch creature deals no damage, so it
+ *  is not lethal). */
+export function markDeathtouchIfApplicable(
+    card: CardInstanceState,
+    sourceStaticAbilities: readonly string[] | undefined,
+    amount: number
+): void {
+    if (amount > 0 && sourceStaticAbilities?.includes("deathtouch")) {
+        card.dealtDeathtouchDamage = true;
+    }
+}
+
+/** CR 704.5g/h — a creature has lethal damage if its marked damage is at least
+ *  its effective toughness (704.5g, layer 7c) OR it was dealt damage by a
+ *  deathtouch source since the last SBA check (704.5h). The single predicate
+ *  every lethal-damage sink consults so the two conditions stay in lockstep. */
+export function hasLethalDamage(
+    state: GameState,
+    card: CardInstanceState
+): boolean {
+    return (
+        (card.damageMarked ?? 0) >= getEffectiveToughness(state, card) ||
+        card.dealtDeathtouchDamage === true
+    );
+}
+
 /** Marks fight/redirect damage on a target permanent from an explicit
  *  battlefield-permanent source (CR 120). Unlike `SpellContext.dealDamage`
  *  (whose source is always the resolving stack item, `item.id`), this routes
@@ -4139,9 +4180,10 @@ function markDamageFromPermanentSource(
         desc.staticAbilities,
         reduced
     );
-    return found.card.damageMarked >= getEffectiveToughness(state, found.card)
-        ? finalTarget.id
-        : null;
+    // CR 702.2b — deathtouch: mark the recipient so `hasLethalDamage` destroys
+    // it regardless of toughness (the caller runs the lethal check).
+    markDeathtouchIfApplicable(found.card, desc.staticAbilities, reduced);
+    return hasLethalDamage(state, found.card) ? finalTarget.id : null;
 }
 
 /** Generic Fight primitive (CR 701.12-style mutual damage). Two creatures
@@ -4272,6 +4314,9 @@ export function regenerateOrDestroy(
         if (found.card.damageMarked !== undefined) {
             delete found.card.damageMarked;
         }
+        // CR 702.2b — regeneration heals the deathtouch damage too, so a
+        // regenerated creature is not re-destroyed by a stale marker.
+        delete found.card.dealtDeathtouchDamage;
         found.card.isTapped = true;
         const wasInCombat =
             found.card.isAttacking === true || found.card.isBlocking === true;
@@ -5020,6 +5065,7 @@ export function markEnteredThisTurn(card: CardInstanceState): void {
 function resetBattlefieldTransientState(card: CardInstanceState): void {
     card.isTapped = false;
     delete card.damageMarked;
+    delete card.dealtDeathtouchDamage;
     delete card.regenerationShields;
     delete card.isSummoningSick;
     delete card.isAttacking;
@@ -5573,11 +5619,15 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     desc.staticAbilities,
                     reduced
                 );
-                if (
-                    found.card.damageMarked >=
-                    getEffectiveToughness(state, found.card)
-                ) {
-                    // CR 704.5g lethal → destroy replacement (CR 614, ADR
+                // CR 702.2b — deathtouch: a spell/ability source with
+                // deathtouch makes any nonzero damage lethal (CR 704.5h).
+                markDeathtouchIfApplicable(
+                    found.card,
+                    desc.staticAbilities,
+                    reduced
+                );
+                if (hasLethalDamage(state, found.card)) {
+                    // CR 704.5g/h lethal → destroy replacement (CR 614, ADR
                     // 0020) then regen shield gets a chance to replace the
                     // destroy (CR 614.5, 701.15a).
                     destroyWithReplacements(state, target.id);

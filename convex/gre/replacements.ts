@@ -316,6 +316,9 @@ function applyTransientDestroyShields(
     if (saved && saved.damageMarked !== undefined) {
         delete saved.damageMarked;
     }
+    // CR 702.2b — a destroy-replacement that removes marked damage also clears
+    // the deathtouch marker, so the same lethal hit doesn't re-destroy it.
+    if (saved) delete saved.dealtDeathtouchDamage;
     return null;
 }
 

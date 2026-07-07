@@ -183,6 +183,21 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 8,
     },
     {
+        // Deathtouch (CR 702.2b / CR 704.5h, issue #957): Baleful Strix (1/1
+        // flying, deathtouch) faces a fat Serra Angel (4/4 flying). Move to
+        // combat and let them trade blows — the 1 point of deathtouch damage
+        // destroys the Serra Angel regardless of its 4 toughness, while the
+        // Strix dies to the Angel's 4 normal damage. Swap the blocker for an
+        // indestructible/regenerating creature to see deathtouch respect those.
+        label: "Deathtouch: Baleful Strix kills a bigger creature (#957)",
+        cards: [
+            { name: "Baleful Strix", owner: "me", zone: "battlefield" },
+            { name: "Serra Angel", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "BEGINNING_OF_COMBAT",
+        landCount: 6,
+    },
+    {
         // Copy-on-ETB Bot cast prune (issue #938): a copy-on-ETB spell (Copy
         // Artifact, Clone, Vesuvan Doppelganger, Dance of Many) enters as a copy
         // of a permanent already in play. Casting one with NO permanent it could

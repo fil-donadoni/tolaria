@@ -625,7 +625,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Deathtouch",
         kind: "keyword-ability",
         cr: "702.2",
-        status: "planned",
+        status: "implemented",
+        binding: "deathtouch",
+        note: "CR 702.2b / 704.5h — any nonzero damage from a deathtouch source is lethal; the recipient is destroyed as an SBA regardless of toughness. Wired at every damage sink via markDeathtouchIfApplicable (state.ts): combat (phases.ts damage scan), permanent-source non-combat (markDamageFromPermanentSource), and stack-item damage (SpellContext.dealDamage). The lethal check consults hasLethalDamage (toughness OR deathtouch marker). Reads the source's effective (layer-6-materialized) staticAbilities. The marker is cleared with marked damage on regen / destroy-replacement / CLEANUP so the 'since last SBA check' window resets.",
     },
     // 702.3 Defender
     {

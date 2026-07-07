@@ -13,6 +13,8 @@ import type {
 import { MAX_HAND_SIZE } from "./constants";
 import {
     applyLifelinkLifeGain,
+    hasLethalDamage,
+    markDeathtouchIfApplicable,
     applyPlayerDamagePrevention,
     applyTargetPrevention,
     bumpArtifactDamageToPlayer,
@@ -1267,6 +1269,11 @@ export function applyAllCombatDamage(
             ...(hit.damagedBySources ?? []),
             ev.sourceInstanceId,
         ];
+        // CR 702.2b — deathtouch: combat damage from a deathtouch source marks
+        // the blocker/attacker for destruction regardless of toughness. Read
+        // off the DAMAGE_DEALT event, which snapshots the source's effective
+        // static abilities (granted deathtouch counts, stripped does not).
+        markDeathtouchIfApplicable(hit, ev.sourceStaticAbilities, ev.amount);
     }
 
     // CR 120.3: accumulate combat damage onto the creature's marked damage,
@@ -1278,7 +1285,9 @@ export function applyAllCombatDamage(
             defender.battlefield.find((c) => c.id === cardId);
         if (!card) continue;
         card.damageMarked = (card.damageMarked ?? 0) + damage;
-        if (card.damageMarked >= getCardToughness(state, card)) {
+        // CR 704.5g/h — lethal if marked damage >= toughness OR the creature
+        // took deathtouch damage this combat (flag set in the events loop).
+        if (hasLethalDamage(state, card)) {
             deadIds.add(cardId);
         }
     }
@@ -1784,6 +1793,11 @@ export function finalizeCleanup(state: GameState): void {
         for (const card of p.battlefield) {
             if (card.damageMarked !== undefined) {
                 card.damageMarked = undefined;
+            }
+            // CR 702.2b / 704.5h — the deathtouch destruction window is "since
+            // the last SBA check"; reset it whenever marked damage is removed.
+            if (card.dealtDeathtouchDamage) {
+                card.dealtDeathtouchDamage = undefined;
             }
             // CR 508.1 / 514.2 — roll the per-creature attack history forward
             // for the player whose turn is ENDING. `attackedDuringLastTurn`
