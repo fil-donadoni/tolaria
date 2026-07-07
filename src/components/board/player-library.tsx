@@ -154,6 +154,10 @@ export default function PlayerLibrary({
             // the buffered picks with a per-card ring.
             layout={isLibraryPick ? "grid" : "fan"}
             selectedIds={isLibraryPick ? bufferCtx.buffer : undefined}
+            // Filtered search (issue #933): gate the ring/click affordance to
+            // the allow-listed cards. `eligibleIds` is `undefined` for an
+            // unfiltered search, so every card stays selectable as before.
+            eligibleIds={isLibraryPick ? eligibleIds : undefined}
             footer={
                 isLibraryPick ? (
                     <LibrarySearchConfirm min={searchMin} max={searchMax} />

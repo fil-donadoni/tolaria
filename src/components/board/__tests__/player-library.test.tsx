@@ -25,6 +25,7 @@ vi.mock("../cards-pile", () => ({
         layout?: "fan" | "grid";
         forceOpen?: boolean;
         selectedIds?: string[];
+        eligibleIds?: ReadonlySet<string>;
         onCardClick?: (card: { id: string }) => void;
     }) => {
         cardsPileSpy(props);
@@ -196,6 +197,9 @@ describe("PlayerLibrary", () => {
         expect(pileProps.layout).toBe("grid");
         expect(pileProps.forceOpen).toBe(true);
         expect(pileProps.selectedIds).toEqual(["s2"]);
+        // Unfiltered search (no candidateIds): every card stays selectable,
+        // so no allow-list is forwarded (issue #933).
+        expect(pileProps.eligibleIds).toBeUndefined();
         // Confirm control is hosted inside the (modal) dialog, not the
         // board-level prompt the dialog would otherwise cover.
         expect(pileProps.footer).toBeTruthy();
@@ -234,5 +238,11 @@ describe("PlayerLibrary", () => {
         expect(toggle).not.toHaveBeenCalled();
         pileProps.onCardClick({ id: "artifact-1" }); // eligible
         expect(toggle).toHaveBeenCalledWith("artifact-1");
+        // The allow-list itself must reach CardsPile so it can gate the ring
+        // and click affordance per card, not just the click handler
+        // (issue #933 — every card rendered the amber ring before this fix).
+        expect(pileProps.eligibleIds).toBeInstanceOf(Set);
+        expect(pileProps.eligibleIds.has("artifact-1")).toBe(true);
+        expect(pileProps.eligibleIds.has("creature-2")).toBe(false);
     });
 });
