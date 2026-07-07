@@ -357,10 +357,6 @@ function manaCostKey(mana: ManaCost): string {
     return MANA_COLORS.map((c) => `${c}:${mana[c] ?? 0}`).join("|");
 }
 
-function manaHasOutput(mana: ManaCost): boolean {
-    return MANA_COLORS.some((c) => (mana[c] ?? 0) > 0);
-}
-
 /** CR 605.1a / 305.6 — the full set of mana-tap options a permanent exposes:
  *  every printed/granted activated tap mana ability (its fixed `manaProduced`,
  *  its static/board-conditional choices) AND one intrinsic option per DISTINCT
@@ -370,11 +366,20 @@ function manaHasOutput(mana: ManaCost): boolean {
  *  so the index they submit references one list (CR 106.1).
  *
  *  Ordering is stable: activated-ability options first (preserving the indices
- *  existing `manaChoices` cards already use), then basic-subtype options in
- *  subtype order. Duplicate outputs (a dual land whose basic subtypes reproduce
- *  its own choice colours) are dropped, keeping the first occurrence's
- *  provenance — so `getManaTapOptions` for a plain dual land is byte-identical
- *  to its old `manaChoices`.
+ *  existing `manaChoices` cards already use — including a storage land's
+ *  "remove N counters" list where the index IS the counter count, so the
+ *  zero-output "remove 0" entry is kept), then basic-subtype options in subtype
+ *  order. Duplicate outputs (a dual land whose basic subtypes reproduce its own
+ *  choice colours) are dropped, keeping the first occurrence's provenance — so
+ *  `getManaTapOptions` for a plain dual land is byte-identical to its old
+ *  `manaChoices`.
+ *
+ *  A SACRIFICE-cost mana ability (ADR 0039 — the FEM sac-land "Sacrifice this:
+ *  Add {X}{X}", Basal Thrull, Lotus Petal) is a deliberate destructive
+ *  activation, NOT folded into the routine tap-for-mana picker: it is offered
+ *  only when the source has no non-destructive tap option, so a land with both
+ *  a plain tap and a sacrifice ability taps plainly while a sacrifice-only
+ *  source (Lotus Petal) still surfaces its colours.
  *
  *  Suppression (Blood Moon / Titania's Song, CR 613.1f) removes only PRINTED
  *  activated abilities; the intrinsic basic-subtype options survive (CR 305.6),
@@ -391,15 +396,8 @@ export function getManaTapOptionsDetailed(
         battlefield: readonly CardInstanceState[];
     }>
 ): ManaTapOption[] {
-    const out: ManaTapOption[] = [];
-    const seen = new Set<string>();
-    const push = (mana: ManaCost, source: ManaTapOptionSource) => {
-        if (!manaHasOutput(mana)) return;
-        const key = manaCostKey(mana);
-        if (seen.has(key)) return;
-        seen.add(key);
-        out.push({ mana, source });
-    };
+    const nonSacrifice: ManaTapOption[] = [];
+    const sacrifice: ManaTapOption[] = [];
 
     const cardId = (card.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
@@ -412,19 +410,24 @@ export function getManaTapOptionsDetailed(
         for (const ability of def.activatedAbilities) {
             if (ability.useStack) continue;
             if (!ability.cost.tap) continue;
-            // A choice ability (dual land, Talisman, Fellwar Stone): each option
-            // is one entry, tagged with its ability-local choice index so the
-            // counter-removal rider (Mana Battery) reads the right count.
+            const target = ability.cost.sacrifice ? sacrifice : nonSacrifice;
+            // A choice ability (dual land, Talisman, Fellwar Stone, storage
+            // land): each option is one entry, tagged with its ability-local
+            // choice index so the counter-removal rider (Mana Battery / storage
+            // land) reads the right count.
             const choices =
                 ability.getManaChoices && controllerId && battlefields
                     ? getDynamicManaChoices(card, controllerId, battlefields)
                     : (ability.manaChoices ?? null);
             if (choices) {
                 choices.forEach((choice, index) => {
-                    push(choice, {
-                        kind: "activated",
-                        abilityId: ability.id,
-                        choiceIndex: index,
+                    target.push({
+                        mana: choice,
+                        source: {
+                            kind: "activated",
+                            abilityId: ability.id,
+                            choiceIndex: index,
+                        },
                     });
                 });
                 continue;
@@ -435,22 +438,41 @@ export function getManaTapOptionsDetailed(
                 const dynamic = controllerBattlefield
                     ? getDynamicManaProduced(card, controllerBattlefield)
                     : null;
-                push(dynamic ?? ability.manaProduced, {
-                    kind: "activated",
-                    abilityId: ability.id,
+                target.push({
+                    mana: dynamic ?? ability.manaProduced,
+                    source: { kind: "activated", abilityId: ability.id },
                 });
             }
         }
     }
 
     // CR 305.6 — one intrinsic {T}: Add {C} option per DISTINCT basic land
-    // subtype (text-change aware, like `getBasicLandMana`).
+    // subtype (text-change aware, like `getBasicLandMana`). Always a
+    // non-destructive alternative.
     const { subtypes } = applySubstitution(card);
     for (const subtype of subtypes) {
         const color = LAND_SUBTYPE_MANA[subtype];
-        if (color) push({ [color]: 1 } as ManaCost, { kind: "basic", subtype });
+        if (color) {
+            nonSacrifice.push({
+                mana: { [color]: 1 } as ManaCost,
+                source: { kind: "basic", subtype },
+            });
+        }
     }
 
+    // Prefer non-destructive options; fall back to sacrifice abilities only when
+    // there is no other way to tap this source for mana (Lotus Petal).
+    const combined = nonSacrifice.length > 0 ? nonSacrifice : sacrifice;
+
+    // Dedup by produced `ManaCost`, keeping the first occurrence's provenance.
+    const out: ManaTapOption[] = [];
+    const seen = new Set<string>();
+    for (const opt of combined) {
+        const key = manaCostKey(opt.mana);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(opt);
+    }
     return out;
 }
 
