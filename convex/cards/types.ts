@@ -3950,7 +3950,8 @@ export type GameEventType =
     | "ATTACKER_UNBLOCKED"
     | "CARD_DRAWN"
     | "CARD_DISCARDED"
-    | "LIFE_LOST";
+    | "LIFE_LOST"
+    | "LIFE_GAINED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -4304,6 +4305,24 @@ export interface LifeLostEvent {
     fromDamage: boolean;
 }
 
+/** Emitted whenever a player gains life (CR 119.3 — a player's life total
+ *  increasing from a "gain life" effect or the CR 702.15b lifelink life gain
+ *  that accompanies damage dealt by a lifelink source). One event per life
+ *  gain, emitted AFTER the life total has actually risen (and after any CR 614
+ *  lifegain replacement such as Lich's "if you would gain life, draw instead"),
+ *  carrying the ACTUAL amount gained (post-replacement). The symmetric
+ *  counterpart of `LifeLostEvent`: every life-gain path — the `gainLife`
+ *  primitive and lifelink (CR 702.15b) — flows through the single
+ *  `gainLifeEmitting` choke point so "whenever you gain life" triggers fire off
+ *  EVERY path. NOT emitted for a zero-amount gain (fully replaced away to 0). */
+export interface LifeGainedEvent {
+    type: "LIFE_GAINED";
+    /** Player whose life total increased. */
+    playerId: string;
+    /** Amount of life actually gained (>= 1, post-replacement). */
+    amount: number;
+}
+
 export type GameEvent =
     | DamageDealtEvent
     | PhaseBeginEvent
@@ -4321,7 +4340,8 @@ export type GameEvent =
     | AttackerUnblockedEvent
     | CardDrawnEvent
     | CardDiscardedEvent
-    | LifeLostEvent;
+    | LifeLostEvent
+    | LifeGainedEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can

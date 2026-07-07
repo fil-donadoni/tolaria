@@ -82,6 +82,22 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Lifelink (CR 702.15b / CR 119.3, issue #936): Griselbrand (7/7 flying,
+        // lifelink) is in play on my side, ready to attack. Move to combat,
+        // declare it as an attacker, and let combat damage resolve — the
+        // opponent takes 7 AND my life total rises by 7 in the same combat
+        // damage step. A Grizzly Bears sits opposite so the alternative
+        // "block it" line (lifelink still gains 7 for damage dealt to the
+        // blocker) can be exercised too.
+        label: "Lifelink life gain on combat damage (Griselbrand attacking) (#936)",
+        cards: [
+            { name: "Griselbrand", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "BEGINNING_OF_COMBAT",
+        landCount: 8,
+    },
+    {
         // Shock-land land-entry pay-choice (CR 614.12, ADR 0051): the RAV/GPT/
         // DIS "shock land" cycle. Play Steam Vents from hand — a "Pay 2 life"
         // prompt appears (a stackless land-entry choice). Pay to enter untapped

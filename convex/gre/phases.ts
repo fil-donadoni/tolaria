@@ -12,6 +12,7 @@ import type {
 } from "./state";
 import { MAX_HAND_SIZE } from "./constants";
 import {
+    applyLifelinkLifeGain,
     applyPlayerDamagePrevention,
     applyTargetPrevention,
     bumpArtifactDamageToPlayer,
@@ -1034,6 +1035,17 @@ export function applyAllCombatDamage(
                 sourceSubtypes: desc.subtypes,
                 sourceStaticAbilities: desc.staticAbilities,
             });
+            // CR 702.15b — lifelink: combat damage dealt to a player also gains
+            // the source's controller that much life, simultaneously with the
+            // damage (CR 119.3). Emitted into `pendingEvents`, which is flushed
+            // into this step's `events` batch before `collectTriggers` so a
+            // "whenever you gain life" trigger fires from combat lifelink too.
+            applyLifelinkLifeGain(
+                state,
+                source.controllerId,
+                desc.staticAbilities,
+                reduced
+            );
         } else if (finalTarget.type === "permanent") {
             const targetCard =
                 activePlayer.battlefield.find((c) => c.id === finalTarget.id) ??
@@ -1067,6 +1079,14 @@ export function applyAllCombatDamage(
                 sourceSubtypes: desc.subtypes,
                 sourceStaticAbilities: desc.staticAbilities,
             });
+            // CR 702.15b — lifelink: combat damage dealt to a blocking/attacking
+            // creature gains the source's controller that much life (CR 119.3).
+            applyLifelinkLifeGain(
+                state,
+                source.controllerId,
+                desc.staticAbilities,
+                reduced
+            );
             // CR 603.7 / 119 — Glyph of Life: if a turn-scoped lifegain effect
             // watches this permanent and the damage source is an ATTACKER
             // (CR 506.2 — its id is in the active combat's attacker list), the

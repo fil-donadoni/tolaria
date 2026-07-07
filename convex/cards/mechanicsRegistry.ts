@@ -751,8 +751,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Lifelink",
         kind: "keyword-ability",
         cr: "702.15",
-        status: "planned",
-        note: "no life-gain-on-damage-dealt check found anywhere in the engine",
+        status: "implemented",
+        binding: "lifelink",
+        note: "CR 702.15b — damage dealt by a lifelink source gains its controller that much life, simultaneously with the damage (CR 119.3). Wired at every damage sink via applyLifelinkLifeGain (state.ts): combat (phases.ts applyOneCombatDamage — player + permanent), permanent-source non-combat (dealDamageFromPermanentToPlayer, markDamageFromPermanentSource), and stack-item damage (SpellContext.dealDamage). Reads the source's effective (layer-6-materialized) staticAbilities. Life gain flows through gainLifeEmitting, emitting LIFE_GAINED.",
     },
     // 702.16 Protection
     {
