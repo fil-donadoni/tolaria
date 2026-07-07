@@ -7914,6 +7914,26 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 entry.manaRestriction = req.manaRestriction;
             if (routed.actingPlayerId)
                 entry.actingPlayerId = routed.actingPlayerId;
+            // CR 701.16b — when the may-pay's sacrifice leg admits a real victim
+            // choice (more matching permanents than the leg sacrifices), light up
+            // the payer's battlefield so the client can prompt WHICH permanent(s)
+            // to sacrifice before confirming. Reuses the standard battlefield
+            // pick machinery (`zone`/`filter`/`candidateIds`); the submit reads the
+            // picked ids back. With a single legal candidate (or `count` covering
+            // all) no fields are set and the pay auto-selects (Arena UX).
+            if (
+                req.cost &&
+                mayPaySacrificeChoiceRequired(state, routed.playerId, req.cost)
+            ) {
+                const norm = normalizeMayPayCost(req.cost);
+                entry.zone = "battlefield";
+                if (norm.sacrifice) entry.filter = norm.sacrifice.filter;
+                entry.candidateIds = getMayPaySacrificeCandidateIds(
+                    state,
+                    routed.playerId,
+                    req.cost
+                );
+            }
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },
@@ -9750,6 +9770,42 @@ function sacrificeCandidates(
     );
 }
 
+/** Instance ids of `playerId`'s permanents that could pay a `may-pay` cost's
+ *  sacrifice leg (CR 701.16b — the controller chooses which they sacrifice).
+ *  Returns `[]` when the cost has no sacrifice leg. Exported so the submit
+ *  boundary (`applyMayPaySubmit`) and the bot driver can validate / pick a
+ *  legal victim against the SAME candidate set `requestMayPay` computed. */
+export function getMayPaySacrificeCandidateIds(
+    state: GameState,
+    playerId: string,
+    cost: MayPayCost
+): string[] {
+    const norm = normalizeMayPayCost(cost);
+    if (!norm.sacrifice) return [];
+    return sacrificeCandidates(state, playerId, norm.sacrifice.filter).map(
+        (c) => c.id
+    );
+}
+
+/** Whether a `may-pay` sacrifice leg admits a real victim choice (CR 701.16b):
+ *  the payer controls MORE matching permanents than the leg sacrifices, so
+ *  which one(s) to sacrifice is the payer's decision, not an auto-pick. When
+ *  the filter matches exactly `count` (or fewer) permanents there is nothing to
+ *  choose — auto-selection stays and no prompt is shown (Arena UX auto-resolve).
+ *  Returns false for a cost with no sacrifice leg. */
+export function mayPaySacrificeChoiceRequired(
+    state: GameState,
+    playerId: string,
+    cost: MayPayCost
+): boolean {
+    const norm = normalizeMayPayCost(cost);
+    if (!norm.sacrifice) return false;
+    return (
+        getMayPaySacrificeCandidateIds(state, playerId, cost).length >
+        norm.sacrifice.count
+    );
+}
+
 /** Pool a `may-pay` payment may draw on: the fungible `manaPool` plus any
  *  restricted mana whose restriction equals `restriction` (CR 106.6, ADR 0022 /
  *  0042). Returns a plain `manaPool` copy when no restriction is given (the
@@ -9851,15 +9907,19 @@ export function canPayMayPayCost(
  *  `canPayMayPayCost` (the mana leg asserts coverage; the life and sacrifice
  *  legs are applied unconditionally). Mana is taken from the pool (lands must
  *  already be tapped, as for any `may-pay`); life is lost through the
- *  replacement chain; the sacrifice leg sacrifices the first `count` matching
- *  permanents (CR 701.16 — victim choice is the controller's, auto-selected
- *  here in author order; a per-permanent pick is a future refinement, ADR 0042
- *  ICE-scope). */
+ *  replacement chain; the sacrifice leg sacrifices the permanents the payer
+ *  CHOSE (CR 701.16b — the controller picks which of their matching permanents
+ *  are sacrificed). `sacrificeIds`, validated at the submit boundary, names the
+ *  victims; when absent (only one legal candidate, `count` covers all, or a
+ *  bot's minimal-legal default) the first `count` matching permanents are
+ *  auto-selected in author order — CR 701.16b is satisfied trivially when there
+ *  is nothing to choose. */
 export function payMayPayCost(
     state: GameState,
     playerId: string,
     cost: MayPayCost,
-    manaRestriction?: ManaRestriction
+    manaRestriction?: ManaRestriction,
+    sacrificeIds?: string[]
 ): void {
     const norm = normalizeMayPayCost(cost);
     const player = getPlayer(state, playerId);
@@ -9881,12 +9941,19 @@ export function payMayPayCost(
         loseLifeEmitting(state, playerId, norm.life);
     }
     if (norm.sacrifice) {
-        // CR 701.16 — sacrifice `count` matching permanents the payer controls.
-        const victims = sacrificeCandidates(
+        // CR 701.16b — the payer chooses which of their matching permanents to
+        // sacrifice. Honour the caller-supplied `sacrificeIds` (validated at the
+        // submit boundary) when present; otherwise fall back to author order.
+        const candidates = sacrificeCandidates(
             state,
             playerId,
             norm.sacrifice.filter
-        ).slice(0, norm.sacrifice.count);
+        );
+        const chosen =
+            sacrificeIds && sacrificeIds.length > 0
+                ? candidates.filter((c) => sacrificeIds.includes(c.id))
+                : candidates;
+        const victims = chosen.slice(0, norm.sacrifice.count);
         for (const v of victims) {
             removePermanentTo(state, v.id, "graveyard", "sacrifice");
         }

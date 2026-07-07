@@ -82,6 +82,27 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // May-pay sacrifice VICTIM CHOICE (CR 701.16b, issue #940): Witherbloom
+        // Charm's first mode is "You may sacrifice a permanent. If you do, draw
+        // two cards." With MULTIPLE sacrificeable permanents (two Grizzly Bears)
+        // the payer must CHOOSE which one dies — previously the engine auto-
+        // picked one arbitrarily. Cast the Charm ({B}{G} — a Swamp + Forest are
+        // in play), choose mode 1, then click the Bears you want to sacrifice
+        // before pressing Pay; only that one leaves and you draw two. A third
+        // permanent (Black Lotus) widens the choice set.
+        label: "May-pay sacrifice: choose which permanent (Witherbloom Charm) (#940)",
+        cards: [
+            { name: "Witherbloom Charm", owner: "me", zone: "hand" },
+            { name: "Swamp", owner: "me", zone: "battlefield" },
+            { name: "Forest", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            { name: "Black Lotus", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Lifelink (CR 702.15b / CR 119.3, issue #936): Griselbrand (7/7 flying,
         // lifelink) is in play on my side, ready to attack. Move to combat,
         // declare it as an attacker, and let combat damage resolve — the

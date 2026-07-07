@@ -23,6 +23,7 @@ import {
     hasManaAbility,
     isLandwalkUnblockable,
     mayPayCanAfford,
+    mayPayRequiredSacrifices,
     mayPayCostLabel,
     mayPaySacrificeCount,
     normalizeMayPayCost,
@@ -1649,5 +1650,21 @@ describe("may-pay cost union helpers (CR 117.3a / 118.4 / 702.24, #638)", () => 
         // No sacrifice leg → 0.
         expect(mayPaySacrificeCount({ U: 1 }, bf)).toBe(0);
         expect(mayPaySacrificeCount(undefined, bf)).toBe(0);
+    });
+
+    it("mayPayRequiredSacrifices reads the sacrifice leg's count (CR 701.16b)", () => {
+        expect(
+            mayPayRequiredSacrifices({
+                sacrifice: { filter: {}, count: 1 },
+            })
+        ).toBe(1);
+        expect(
+            mayPayRequiredSacrifices({
+                sacrifice: { filter: { types: "Land" as const }, count: 2 },
+            })
+        ).toBe(2);
+        // No sacrifice leg / cost-less → 0.
+        expect(mayPayRequiredSacrifices({ U: 1 })).toBe(0);
+        expect(mayPayRequiredSacrifices(undefined)).toBe(0);
     });
 });

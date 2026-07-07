@@ -1,7 +1,11 @@
 import { useCallback, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { mayPayCanAfford, mayPaySacrificeCount } from "~/lib/card-utils";
+import {
+    mayPayCanAfford,
+    mayPaySacrificeCount,
+    mayPayRequiredSacrifices,
+} from "~/lib/card-utils";
 import { isZonePickConfirmEnabled } from "~/lib/pending-choice-confirm";
 import { useGameContext } from "./useGameContext";
 import { usePendingChoiceBuffer } from "./usePendingChoiceBuffer";
@@ -44,7 +48,20 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
         if (choice.kind === "may-pay") {
             setIsBusy(true);
             try {
-                await submitMayPay({ gameId, playerId, accept: true });
+                // CR 701.16b — a sacrifice leg with a real victim choice sets
+                // `zone: "battlefield"`; the chosen victims are the picks the
+                // player accumulated in the shared choice buffer. A plain
+                // yes/no (or auto-resolving) may-pay carries no zone → no ids.
+                const sacrificeIds =
+                    choice.zone === "battlefield"
+                        ? bufferCtx.buffer
+                        : undefined;
+                await submitMayPay({
+                    gameId,
+                    playerId,
+                    accept: true,
+                    ...(sacrificeIds ? { sacrificeIds } : {}),
+                });
             } finally {
                 setIsBusy(false);
             }
@@ -89,8 +106,15 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                           return acc;
                       }, {})
                 : undefined;
+        // CR 701.16b — when the choice carries a battlefield sacrifice pick
+        // (`zone: "battlefield"`), Pay stays disabled until the chooser has
+        // selected exactly the required number of victims into the buffer.
+        const sacrificePickSatisfied =
+            choice.zone !== "battlefield" ||
+            bufferCtx.buffer.length === mayPayRequiredSacrifices(choice.cost);
         canConfirm =
             !isBusy &&
+            sacrificePickSatisfied &&
             (!choice.cost ||
                 (chooser
                     ? mayPayCanAfford(

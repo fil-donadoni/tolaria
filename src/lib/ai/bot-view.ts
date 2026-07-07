@@ -271,6 +271,14 @@ function buildOwedChoice(
             head.kind === "may-pay" || head.kind === "land-entry-tapped"
                 ? mayPayIsAffordable(state, head, botId)
                 : undefined,
+        // CR 701.16b — a may-pay sacrifice leg with a real victim choice sets
+        // `zone: "battlefield"` and lists the legal victims in `candidateIds`;
+        // surface the count the payer must pick so the bot supplies a legal
+        // `sacrificeIds`. Undefined for a plain yes/no or auto-resolving pay.
+        sacrificeCount:
+            head.kind === "may-pay" && head.zone === "battlefield" && head.cost
+                ? normalizeMayPayCost(head.cost).sacrifice?.count
+                : undefined,
         // issue #242 — the discard heuristic needs the board's mana picture to
         // protect scarce lands and rank spells by castability.
         manaSituation:
@@ -422,7 +430,13 @@ export function botActionToMove(
             if (!head || head.kind !== "may-pay" || head.playerId !== botId) {
                 return null;
             }
-            return { kind: "may-pay", accept: action.accept };
+            return {
+                kind: "may-pay",
+                accept: action.accept,
+                ...(action.sacrificeIds
+                    ? { sacrificeIds: action.sacrificeIds }
+                    : {}),
+            };
         }
         case "land-entry": {
             // CR 614.12 / ADR 0051 — shock land: routes through

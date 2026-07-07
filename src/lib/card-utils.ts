@@ -1041,6 +1041,15 @@ export function mayPaySacrificeCount(
     return battlefield.filter((c) => matchesPermanentFilter(c, filter)).length;
 }
 
+/** Number of permanents a `may-pay` cost's sacrifice leg makes the payer
+ *  sacrifice (CR 701.16b). Returns 0 when the cost has no sacrifice leg. Used by
+ *  the UI to gate the Pay button on the chooser having picked exactly this many
+ *  victims when the choice carries a battlefield sacrifice pick. */
+export function mayPayRequiredSacrifices(cost: MayPayCost | undefined): number {
+    if (!cost || !("sacrifice" in cost) || !cost.sacrifice) return 0;
+    return cost.sacrifice.count;
+}
+
 /** Human-readable label for a `may-pay` cost union, rendered after "Pay" on the
  *  prompt button. Mana renders as symbol tokens (formatOracleText-ready); life
  *  and sacrifice render as words, joined with " and " (Infernal Darkness:

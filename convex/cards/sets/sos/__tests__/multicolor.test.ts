@@ -209,6 +209,152 @@ describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or des
         ]);
     });
 
+    it("sacrifice-draw mode: single candidate auto-resolves (no pick prompt, CR 701.16b)", () => {
+        // Exactly one sacrificeable permanent → nothing to choose, so the
+        // may-pay choice stays a bare Pay/Skip (no battlefield pick fields).
+        const fodder = makeInstance(ARTIFACT_ID, {
+            id: "fodder",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [fodder] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, witherbloomCharm.id, "p1");
+        item.chosenModeId = "sacrifice-draw";
+        resolveTopOfStack(state);
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("may-pay");
+        // No real choice: no battlefield pick machinery is attached.
+        expect(head?.zone).toBeUndefined();
+        expect(head?.candidateIds).toBeUndefined();
+    });
+
+    it("sacrifice-draw mode: MULTIPLE candidates prompt a victim pick; only the chosen one dies (CR 701.16b)", () => {
+        // Two sacrificeable permanents → the payer must choose which to
+        // sacrifice; the other is untouched (the reported Witherbloom Charm bug).
+        const keep = makeInstance(ARTIFACT_ID, {
+            id: "keep",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const victim = makeInstance(ARTIFACT_ID, {
+            id: "victim",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const lib = [0, 1].map((i) =>
+            makeInstance(traumaticCritique.id, {
+                id: `lib${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [keep, victim],
+                    library: lib,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, witherbloomCharm.id, "p1");
+        item.chosenModeId = "sacrifice-draw";
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
+
+        // The choice lights up the battlefield with both permanents as candidates.
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("may-pay");
+        expect(head?.zone).toBe("battlefield");
+        expect((head?.candidateIds ?? []).sort()).toEqual(["keep", "victim"]);
+
+        // Wire format (mandatory for a board-visible effect): the pick fields
+        // survive the projection so the client can render the picker.
+        const projectedChoice = projectPublicState(state, 1, "p1")
+            .pendingChoices?.[0];
+        expect(projectedChoice?.zone).toBe("battlefield");
+        expect((projectedChoice?.candidateIds ?? []).sort()).toEqual([
+            "keep",
+            "victim",
+        ]);
+
+        applyMayPaySubmit(state, {
+            playerId: "p1",
+            accept: true,
+            sacrificeIds: ["victim"],
+        });
+
+        // Only the chosen permanent was sacrificed; the other stays.
+        expect(state.players[0].battlefield.map((c) => c.id).sort()).toEqual([
+            "keep",
+        ]);
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "lib0",
+            "lib1",
+        ]);
+    });
+
+    it("sacrifice-draw mode: accepting without a pick when one is required is rejected (CR 701.16b)", () => {
+        const a = makeInstance(ARTIFACT_ID, {
+            id: "a",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const b = makeInstance(ARTIFACT_ID, {
+            id: "b",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a, b] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, witherbloomCharm.id, "p1");
+        item.chosenModeId = "sacrifice-draw";
+        resolveTopOfStack(state);
+        expect(() =>
+            applyMayPaySubmit(state, { playerId: "p1", accept: true })
+        ).toThrow(/choose 1 permanent/i);
+        // Nothing was sacrificed by the rejected submission.
+        expect(state.players[0].battlefield).toHaveLength(2);
+    });
+
+    it("sacrifice-draw mode: an illegal victim id is rejected (CR 701.16b)", () => {
+        const a = makeInstance(ARTIFACT_ID, {
+            id: "a",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const b = makeInstance(ARTIFACT_ID, {
+            id: "b",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a, b] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, witherbloomCharm.id, "p1");
+        item.chosenModeId = "sacrifice-draw";
+        resolveTopOfStack(state);
+        expect(() =>
+            applyMayPaySubmit(state, {
+                playerId: "p1",
+                accept: true,
+                sacrificeIds: ["not-on-battlefield"],
+            })
+        ).toThrow(/illegal sacrifice/i);
+    });
+
     it("sacrifice-draw mode: declining draws nothing and sacrifices nothing", () => {
         const fodder = makeInstance(ARTIFACT_ID, {
             id: "fodder",

@@ -76,7 +76,9 @@ export type MoveMutations = {
             cardInstanceIds: string[];
         }
     ) => Promise<unknown>;
-    submitMayPay: (a: GP & { accept: boolean }) => Promise<unknown>;
+    submitMayPay: (
+        a: GP & { accept: boolean; sacrificeIds?: string[] }
+    ) => Promise<unknown>;
     submitLandEntryChoice: (a: GP & { accept: boolean }) => Promise<unknown>;
     submitNameCard: (a: GP & { cardName: string }) => Promise<unknown>;
     submitRandomRevealAck: (
@@ -128,8 +130,15 @@ export async function executeMove(
 
         case "may-pay":
             // Yes/no family (CR 117.3a / 118.4) — a SEPARATE entry point from
-            // submitResolutionChoice (ADR 0016).
-            await mutations.submitMayPay({ ...base, accept: move.accept });
+            // submitResolutionChoice (ADR 0016). CR 701.16b — a sacrifice-leg
+            // pick rides along as `sacrificeIds`.
+            await mutations.submitMayPay({
+                ...base,
+                accept: move.accept,
+                ...(move.sacrificeIds
+                    ? { sacrificeIds: move.sacrificeIds }
+                    : {}),
+            });
             return;
 
         case "land-entry":
