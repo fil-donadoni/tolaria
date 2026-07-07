@@ -177,6 +177,49 @@ describe("PaymentBanner activation routing (#939)", () => {
         expect(screen.getByText("tap a land")).toBeTruthy();
     });
 
+    it("tap-other cost with count > 1 (Hand of Justice shape) → subtitle pluralizes without a stray article", () => {
+        const pa = activation({
+            tapOtherChoice: {
+                filter: { types: "Creature" },
+                count: 3,
+                pickedIds: [],
+            },
+        });
+        render(
+            <PaymentBanner
+                kind="activation"
+                pendingActivation={pa}
+                me={player()}
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+
+        expect(screen.queryByText("Auto-tap")).toBeNull();
+        expect(screen.getByText("tap 3 more creatures")).toBeTruthy();
+    });
+
+    it("tap-other cost with count > 1, some already picked → subtitle counts only the remainder", () => {
+        const pa = activation({
+            tapOtherChoice: {
+                filter: { types: "Creature" },
+                count: 3,
+                pickedIds: ["c1"],
+            },
+        });
+        render(
+            <PaymentBanner
+                kind="activation"
+                pendingActivation={pa}
+                me={player()}
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+
+        expect(screen.getByText("tap 2 more creatures")).toBeTruthy();
+    });
+
     it("clicking Auto-tap still dispatches autoTapForPayment when mana is owed", () => {
         const pa = activation({ manaCost: { R: 1 } });
         render(

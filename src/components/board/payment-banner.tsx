@@ -44,9 +44,15 @@ function describeActivationCostChoice(pa: PendingActivation): string {
     if (toc && toc.pickedIds.length < toc.count) {
         const remaining = toc.count - toc.pickedIds.length;
         const label = formatFilterLabel(toc.filter);
-        return remaining > 1
-            ? `tap ${remaining} more ${label}s`
-            : `tap ${label}`;
+        if (remaining > 1) {
+            // Strip the leading article ("a"/"an") before pluralizing —
+            // formatFilterLabel returns "a creature", and "tap 3 more a
+            // creatures" reads as broken English (#954 review).
+            const bare = label.replace(/^an? /, "");
+            const plural = bare.endsWith("s") ? bare : `${bare}s`;
+            return `tap ${remaining} more ${plural}`;
+        }
+        return `tap ${label}`;
     }
     return "pay the activation costs";
 }

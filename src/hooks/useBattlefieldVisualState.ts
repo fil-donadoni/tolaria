@@ -115,6 +115,7 @@ export function useBattlefieldVisualState(player: Player) {
             return (
                 !card.isTapped &&
                 card.id !== pendingActivation.cardInstanceId &&
+                !toc.pickedIds.includes(card.id) &&
                 matchesPermanentFilter(card, toc.filter)
             );
         }
