@@ -6,7 +6,7 @@
 // integration test.
 
 import { describe, expect, it } from "vitest";
-import { getCardByName } from "../../cards";
+import { getAllCards, getCardByName } from "../../cards";
 import {
     makeInstance,
     makePlayer,
@@ -519,5 +519,144 @@ describe("enumerateMoves — self-animate guard (issue #546, CR 611.1)", () => {
         const moves = animateMoves(state);
         expect(moves).toHaveLength(1);
         expect(moves[0].kind).toBe("activate-ability");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Copy-on-ETB cast prune (issue #938)
+// ---------------------------------------------------------------------------
+//
+// A "copy-on-ETB" spell (Clone, Copy Artifact, Vesuvan Doppelganger, Dance of
+// Many) enters as / makes a token copy of a permanent already in play. Casting
+// one with no permanent it could copy is legal but strictly wasteful — it
+// resolves into a do-nothing permanent while spending mana + a card. The Bot's
+// move enumerator must not offer that cast. CR legality is unchanged; only Bot
+// enumeration is constrained. The guard is keyed off the declarative
+// `copySourceFilter`, so the whole class inherits it (no card-id allowlist).
+
+const ISLAND = getCardByName("Island").id; // {T}: Add {U}
+const COPY_ARTIFACT = getCardByName("Copy Artifact").id; // {1}{U} enchantment
+const CLONE = getCardByName("Clone").id; // {3}{U} creature
+const ANKH = getCardByName("Ankh of Mishra").id; // pure Artifact (noncreature)
+
+function castsFor(
+    state: GameState,
+    playerId: string,
+    cardInstanceId: string
+): Move[] {
+    return enumerateMoves(state, playerId).filter(
+        (m) => m.kind === "cast-spell" && m.cardInstanceId === cardInstanceId
+    );
+}
+
+describe("enumerateMoves — copy-on-ETB cast prune (issue #938)", () => {
+    it("does NOT offer Copy Artifact when no artifact is on the battlefield", () => {
+        const copyArtifact = makeInstance(COPY_ARTIFACT, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1", {
+            hand: [copyArtifact],
+            battlefield: [land(ISLAND, "p1"), land(ISLAND, "p1")], // {1}{U} payable
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        expect(castsFor(state, "p1", copyArtifact.id)).toHaveLength(0);
+    });
+
+    it("DOES offer Copy Artifact when an artifact is in play (no regression)", () => {
+        const copyArtifact = makeInstance(COPY_ARTIFACT, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1", {
+            hand: [copyArtifact],
+            battlefield: [
+                land(ISLAND, "p1"),
+                land(ISLAND, "p1"),
+                makeInstance(ANKH, { controllerId: "p1", ownerId: "p1" }),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        expect(castsFor(state, "p1", copyArtifact.id)).toHaveLength(1);
+    });
+
+    it("does NOT offer Clone when no creature is on the battlefield", () => {
+        const clone = makeInstance(CLONE, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1", {
+            hand: [clone],
+            // {3}{U} payable — four Islands, still no creature to copy.
+            battlefield: [
+                land(ISLAND, "p1"),
+                land(ISLAND, "p1"),
+                land(ISLAND, "p1"),
+                land(ISLAND, "p1"),
+            ],
+        });
+        const state = makeState({ players: [p1, makePlayer("p2")] });
+        expect(castsFor(state, "p1", clone.id)).toHaveLength(0);
+    });
+
+    it("DOES offer Clone when a creature is in play, even an opponent's", () => {
+        const clone = makeInstance(CLONE, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const p1 = makePlayer("p1", {
+            hand: [clone],
+            battlefield: [
+                land(ISLAND, "p1"),
+                land(ISLAND, "p1"),
+                land(ISLAND, "p1"),
+                land(ISLAND, "p1"),
+            ],
+        });
+        // "any creature on the battlefield" (allControllers) — opponent's counts.
+        const p2 = makePlayer("p2", {
+            battlefield: [
+                makeInstance(BEARS, { controllerId: "p2", ownerId: "p2" }),
+            ],
+        });
+        const state = makeState({ players: [p1, p2] });
+        expect(castsFor(state, "p1", clone.id)).toHaveLength(1);
+    });
+});
+
+describe("copy-on-ETB class — declarative copySourceFilter (issue #938)", () => {
+    it("marks exactly the copy-on-ETB catalogue with a copySourceFilter", () => {
+        const flagged = getAllCards()
+            .filter((c) => c.copySourceFilter !== undefined)
+            .map((c) => c.name)
+            .sort();
+        expect(flagged).toEqual(
+            [
+                "Clone",
+                "Copy Artifact",
+                "Dance of Many",
+                "Vesuvan Doppelganger",
+            ].sort()
+        );
+    });
+
+    it("keys each guard off the copiable source type (not a card-id list)", () => {
+        const byName = (name: string) =>
+            getAllCards().find((c) => c.name === name)!;
+        expect(byName("Copy Artifact").copySourceFilter).toEqual({
+            types: "Artifact",
+        });
+        expect(byName("Clone").copySourceFilter).toEqual({ types: "Creature" });
+        expect(byName("Vesuvan Doppelganger").copySourceFilter).toEqual({
+            types: "Creature",
+        });
+        expect(byName("Dance of Many").copySourceFilter).toEqual({
+            types: "Creature",
+            isToken: false,
+        });
     });
 });

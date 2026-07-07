@@ -769,6 +769,10 @@ export const danceOfMany: CardDefinition = {
         "When this enchantment enters, create a token that's a copy of target nontoken creature.\nWhen this enchantment leaves the battlefield, exile the token.\nWhen the token leaves the battlefield, sacrifice this enchantment.\nAt the beginning of your upkeep, sacrifice this enchantment unless you pay {U}{U}.",
     manaCost: { U: 2 },
     types: ["Enchantment"],
+    // Bot-only cast prune (#938): its ETB makes a token copy of a nontoken
+    // creature — a wasted cast (creates nothing, then self-sacrifices on the
+    // upkeep clock) when no nontoken creature is in play.
+    copySourceFilter: { types: "Creature", isToken: false },
     triggeredAbilities: [
         enteredTrigger({
             id: "dance-of-many-etb",

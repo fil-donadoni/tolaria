@@ -183,6 +183,9 @@ export const clone: CardDefinition = {
     subtypes: ["Shapeshifter"],
     power: 0,
     toughness: 0,
+    // Bot-only cast prune (#938): copies a creature on ETB — a wasted cast
+    // (enters a 0/0 that dies to SBA) when no creature is in play.
+    copySourceFilter: { types: "Creature" },
     resolveSteps: [
         (ctx: SpellContext) => {
             let candidates = 0;
@@ -248,6 +251,9 @@ export const copyArtifact: CardDefinition = {
         "You may have Copy Artifact enter the battlefield as a copy of any artifact on the battlefield, except it's an enchantment in addition to its other types.",
     manaCost: { X: 1, U: 1 },
     types: ["Enchantment"],
+    // Bot-only cast prune (#938): copies an artifact on ETB — a wasted cast
+    // (enters a blank enchantment) when no artifact is in play.
+    copySourceFilter: { types: "Artifact" },
     resolveSteps: [
         (ctx: SpellContext) => {
             let candidates = 0;
@@ -1203,6 +1209,9 @@ export const vesuvanDoppelganger: CardDefinition = {
     subtypes: ["Shapeshifter"],
     power: 0,
     toughness: 0,
+    // Bot-only cast prune (#938): copies a creature on ETB — a wasted cast
+    // (enters a 0/0 that dies to SBA) when no creature is in play.
+    copySourceFilter: { types: "Creature" },
     resolveSteps: [
         (ctx: SpellContext) => {
             let candidates = 0;
