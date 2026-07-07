@@ -90,6 +90,9 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
     // one of these back to "planned" or drop its binding.
     it.each([
         ["flying", "702.9", "flying"],
+        // #957 — deathtouch: nonzero damage from a deathtouch source destroys
+        // the creature as an SBA (CR 702.2b / 704.5h).
+        ["deathtouch", "702.2", "deathtouch"],
         ["defender", "702.3", "defender"],
         ["first-strike", "702.7", "first strike"],
         ["double-strike", "702.4", "double strike"],

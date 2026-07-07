@@ -1,5 +1,6 @@
 import type { CardInstanceState, GameState } from "./state";
 import {
+    destroyWithReplacements,
     getOpponentId,
     refreshLandPlayLock,
     removePermanentTo,
@@ -276,6 +277,47 @@ export function checkZeroToughnessSBA(state: GameState): boolean {
         if (!removed) break;
     }
     return removedAny;
+}
+
+/** CR 704.5h / 702.2b — a creature that has been dealt damage this turn by a
+ *  source with deathtouch is destroyed as a state-based action. Unlike the
+ *  zero-toughness sweep (a direct zone change), this IS a "destroy", so
+ *  indestructible and regeneration apply (routed through
+ *  `destroyWithReplacements`). The `dealtDeathtouchDamage` mark is set at every
+ *  damage sink (`markDeathtouchDamage`) off the source's EFFECTIVE static
+ *  abilities, so Humility-stripped deathtouch never marks anything. Loops until
+ *  stable because one death can trigger further SBAs. */
+export function checkDeathtouchDestroySBA(state: GameState): boolean {
+    let destroyedAny = false;
+    // Ids already attempted this sweep. An indestructible / regenerated marked
+    // creature survives `destroyWithReplacements` and keeps its mark (so it dies
+    // if it loses indestructible later this turn, CR 702.12), so tracking
+    // attempts here prevents an infinite loop on it while still restarting the
+    // scan after any actual removal (a death can cascade further SBAs).
+    const attempted = new Set<string>();
+    for (;;) {
+        let destroyed = false;
+        for (const player of state.players) {
+            const victim = player.battlefield.find(
+                (c) =>
+                    c.types.includes("Creature") &&
+                    c.dealtDeathtouchDamage === true &&
+                    !attempted.has(c.id)
+            );
+            if (victim) {
+                attempted.add(victim.id);
+                // Indestructible / regeneration survives (CR 702.12, 701.15a);
+                // the mark stays until CLEANUP.
+                if (destroyWithReplacements(state, victim.id)) {
+                    destroyedAny = true;
+                }
+                destroyed = true;
+                break; // battlefield arrays mutated — restart the scan
+            }
+        }
+        if (!destroyed) break;
+    }
+    return destroyedAny;
 }
 
 /** Runs every SBA once. Currently: aura attachments (CR 704.5m), zero
@@ -579,6 +621,10 @@ export function checkStateBasedActions(state: GameState): void {
     // zero-toughness death check reads the net P/T.
     checkCounterAnnihilationSBA(state);
     checkZeroToughnessSBA(state);
+    // CR 704.5h / 702.2b — a creature dealt damage by a deathtouch source this
+    // turn is destroyed. Runs after zero-toughness (a creature already at 0
+    // toughness leaves via the direct move first) and respects indestructible.
+    checkDeathtouchDestroySBA(state);
     checkTokenExistenceSBA(state);
     // CR 704.5m — world rule. Fully automatic (no player choice): keeps the
     // newest World permanent and graveyards the rest (all of them on a tie).

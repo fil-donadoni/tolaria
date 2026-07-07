@@ -330,6 +330,13 @@ export type CardInstanceState = {
      *  damage events; checked against effective toughness for lethal damage
      *  (CR 704.5g). Removed at CLEANUP (CR 514.2). */
     damageMarked?: number;
+    /** CR 702.2b / 704.5h — set true when this creature has been dealt nonzero
+     *  damage by a source with deathtouch this turn. `checkDeathtouchDestroySBA`
+     *  destroys any creature so marked as a state-based action (respecting
+     *  indestructible/regeneration via `destroyWithReplacements`). Marked by
+     *  `markDeathtouchDamage` at every damage sink (combat and non-combat) off
+     *  the source's EFFECTIVE static-ability set. Removed at CLEANUP (CR 514.2). */
+    dealtDeathtouchDamage?: boolean;
     /** Regeneration shields stacked on this permanent (CR 701.15a). Each shield
      *  is consumed once: the next time the permanent would be destroyed, the
      *  shield replaces the destroy with "remove all damage, tap, remove from
@@ -4139,6 +4146,9 @@ function markDamageFromPermanentSource(
         desc.staticAbilities,
         reduced
     );
+    // CR 702.2b — deathtouch: nonzero damage from a deathtouch source marks the
+    // creature for destruction as an SBA (CR 704.5h).
+    markDeathtouchDamage(found.card, desc.staticAbilities, reduced);
     return found.card.damageMarked >= getEffectiveToughness(state, found.card)
         ? finalTarget.id
         : null;
@@ -4876,6 +4886,25 @@ export function applyLifelinkLifeGain(
     gainLifeEmitting(state, sourceControllerId, amount);
 }
 
+/** CR 702.2b — Deathtouch. Any nonzero damage dealt by a source with deathtouch
+ *  to a creature marks that creature: it is destroyed as a state-based action
+ *  (CR 704.5h) by `checkDeathtouchDestroySBA`, which respects indestructible and
+ *  regeneration. Covers BOTH combat and non-combat damage. Fed the source's
+ *  EFFECTIVE static-ability set (the layer-6-materialized `staticAbilities`
+ *  array — reflects granted deathtouch and, when an ability-loss/removal effect
+ *  like Humility has stripped it, its absence), NOT the printed CardDefinition
+ *  array. `amount` is the actual damage dealt (post-replacement, post-prevention).
+ *  No-op when the source lacks deathtouch or dealt no damage. */
+export function markDeathtouchDamage(
+    recipient: CardInstanceState,
+    sourceStaticAbilities: ReadonlyArray<string>,
+    amount: number
+): void {
+    if (amount <= 0) return;
+    if (!sourceStaticAbilities.includes("deathtouch")) return;
+    recipient.dealtDeathtouchDamage = true;
+}
+
 /** Emits a PERMANENT_TAPPED event for a permanent that just transitioned from
  *  untapped to tapped (CR 701.20a). `forMana: true` marks the canonical
  *  "tapped for mana" condition (CR 605) read by Manabarbs / Mana Flare /
@@ -5020,6 +5049,7 @@ export function markEnteredThisTurn(card: CardInstanceState): void {
 function resetBattlefieldTransientState(card: CardInstanceState): void {
     card.isTapped = false;
     delete card.damageMarked;
+    delete card.dealtDeathtouchDamage;
     delete card.regenerationShields;
     delete card.isSummoningSick;
     delete card.isAttacking;
@@ -5573,6 +5603,10 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                     desc.staticAbilities,
                     reduced
                 );
+                // CR 702.2b — deathtouch: a resolving source (spell/ability)
+                // with deathtouch marks the damaged creature for destruction as
+                // an SBA (CR 704.5h) regardless of the damage total vs toughness.
+                markDeathtouchDamage(found.card, desc.staticAbilities, reduced);
                 if (
                     found.card.damageMarked >=
                     getEffectiveToughness(state, found.card)
