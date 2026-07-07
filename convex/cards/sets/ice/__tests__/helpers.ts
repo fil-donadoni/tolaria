@@ -128,10 +128,29 @@ export function fireCumulativeUpkeep(
     resolveTopOfStack(state);
 }
 
-/** Answer the head may-pay choice, auto-resuming the suspended resolution. */
-export function answerMayPay(state: GameState, accept: boolean): void {
+/** Answer the head may-pay choice, auto-resuming the suspended resolution.
+ *  When the choice carries a battlefield sacrifice pick (CR 701.16b — more
+ *  matching permanents than the leg sacrifices, e.g. Polar Kraken's "sacrifice 2
+ *  lands" with 3 in play), an explicit `sacrificeIds` set names the victims; when
+ *  omitted the first N candidate ids are auto-picked so the shim stays terse. */
+export function answerMayPay(
+    state: GameState,
+    accept: boolean,
+    sacrificeIds?: string[]
+): void {
     const head = state.pendingChoices![0];
-    applyMayPaySubmit(state, { playerId: head.playerId, accept });
+    let picks = sacrificeIds;
+    if (accept && picks === undefined && head.zone === "battlefield") {
+        const cost = head.cost;
+        const required =
+            cost && "sacrifice" in cost ? (cost.sacrifice?.count ?? 0) : 0;
+        picks = (head.candidateIds ?? []).slice(0, required);
+    }
+    applyMayPaySubmit(state, {
+        playerId: head.playerId,
+        accept,
+        sacrificeIds: picks,
+    });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

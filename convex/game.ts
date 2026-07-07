@@ -5995,6 +5995,10 @@ export const submitMayPay = mutation({
         gameId: v.id("games"),
         playerId: v.string(),
         accept: v.boolean(),
+        // CR 701.16b — the payer's chosen sacrifice victim id(s) when the
+        // may-pay's sacrifice leg admits a real choice. Omitted for a plain
+        // yes/no may-pay or an auto-resolving single-candidate sacrifice.
+        sacrificeIds: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -6010,6 +6014,7 @@ export const submitMayPay = mutation({
         applyMayPaySubmit(state, {
             playerId: args.playerId,
             accept: args.accept,
+            sacrificeIds: args.sacrificeIds,
         });
 
         const nextSeq = gameState.seq + 1;

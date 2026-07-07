@@ -10,6 +10,9 @@ import {
     resolveTopOfStack,
     canPayMayPayCost,
     payMayPayCost,
+    getMayPaySacrificeCandidateIds,
+    mayPaySacrificeChoiceRequired,
+    normalizeMayPayCost,
     type CardInstanceState,
     type GameState,
 } from "./state";
@@ -37,6 +40,12 @@ export type SubmitChoiceArgs = {
 export type SubmitMayPayArgs = {
     playerId: string;
     accept: boolean;
+    /** CR 701.16b — the payer's chosen sacrifice victim id(s) for a may-pay
+     *  whose sacrifice leg admits a real choice (more matching permanents than
+     *  the leg sacrifices). Required (exactly `count` ids) in that case; ignored
+     *  when the pick auto-resolves (single candidate / `count` covers all) or the
+     *  accepted cost has no sacrifice leg. */
+    sacrificeIds?: string[];
 };
 
 /** Validates and applies a yes/no `may-pay` submission (CR 117.3a / 118.4)
@@ -74,7 +83,42 @@ export function applyMayPaySubmit(
         ) {
             throw new Error("Cannot pay the cost");
         }
-        payMayPayCost(state, args.playerId, head.cost, head.manaRestriction);
+        // CR 701.16b — validate the payer's sacrifice pick when the leg admits a
+        // real choice. The candidate set is recomputed live (the board may have
+        // shifted since the choice was enqueued); the pick must name exactly
+        // `count` distinct, currently-legal candidates. When no choice is
+        // required the ids are ignored and the pay auto-selects.
+        let sacrificeIds = args.sacrificeIds;
+        if (mayPaySacrificeChoiceRequired(state, args.playerId, head.cost)) {
+            const norm = normalizeMayPayCost(head.cost);
+            const need = norm.sacrifice!.count;
+            const ids = args.sacrificeIds ?? [];
+            if (ids.length !== need) {
+                throw new Error(
+                    `Must choose ${need} permanent(s) to sacrifice`
+                );
+            }
+            if (new Set(ids).size !== ids.length) {
+                throw new Error("Duplicate sacrifice choice");
+            }
+            const legal = new Set(
+                getMayPaySacrificeCandidateIds(state, args.playerId, head.cost)
+            );
+            for (const id of ids) {
+                if (!legal.has(id)) {
+                    throw new Error("Illegal sacrifice choice");
+                }
+            }
+        } else {
+            sacrificeIds = undefined;
+        }
+        payMayPayCost(
+            state,
+            args.playerId,
+            head.cost,
+            head.manaRestriction,
+            sacrificeIds
+        );
     }
 
     const answer = [args.accept ? "yes" : "no"];

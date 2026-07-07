@@ -140,6 +140,12 @@ export type OwedChoice = {
     /** `may-pay` only: whether the optional cost is trivially affordable from the
      *  bot's available mana (ADR 0016 minimal policy: accept iff affordable). */
     affordable?: boolean;
+    /** `may-pay` only (CR 701.16b): the number of permanents the accepted cost's
+     *  sacrifice leg makes the payer choose, when the leg admits a real choice
+     *  (more matching permanents than sacrificed). `candidates` then holds the
+     *  legal victims and the bot picks `sacrificeCount` of them worst-first.
+     *  Undefined / 0 when no sacrifice pick is owed. */
+    sacrificeCount?: number;
     /** `discard-hand` only: the controller's mana picture, so the discard
      *  heuristic can protect scarce lands and rank spells by castability
      *  (issue #242). Undefined for every other choice kind. */
@@ -169,7 +175,7 @@ export type BotAction =
     | { kind: "mull" }
     | { kind: "mulligan-bottom"; cardInstanceIds: string[] }
     | { kind: "resolution-choice"; cardInstanceIds: string[] }
-    | { kind: "may-pay"; accept: boolean }
+    | { kind: "may-pay"; accept: boolean; sacrificeIds?: string[] }
     | { kind: "land-entry"; accept: boolean }
     | { kind: "name-card"; cardName: string }
     | { kind: "random-reveal-ack" }
@@ -529,7 +535,21 @@ export function decideBotAction(view: BotView): BotAction {
             // Yes/no family: accept only when the cost is trivially affordable
             // from the bot's mana pool, else decline (ADR 0016 minimal policy —
             // smart "should I pay?" is deferred). Both answers are legal.
-            return { kind: "may-pay", accept: choice.affordable === true };
+            const accept = choice.affordable === true;
+            // CR 701.16b — a sacrifice leg with a real victim choice needs a
+            // legal pick supplied alongside the accept, or the submit throws and
+            // the bot freezes. Pick `sacrificeCount` worst-first candidates (a
+            // minimal-legal default — smart victim choice is deferred).
+            if (accept && choice.sacrificeCount && choice.sacrificeCount > 0) {
+                return {
+                    kind: "may-pay",
+                    accept,
+                    sacrificeIds: worstFirst(choice.candidates)
+                        .slice(0, choice.sacrificeCount)
+                        .map((c) => c.id),
+                };
+            }
+            return { kind: "may-pay", accept };
         }
         if (choice.kind === "land-entry-tapped") {
             // CR 614.12 / ADR 0051 — shock land: pay iff affordable (life ≥

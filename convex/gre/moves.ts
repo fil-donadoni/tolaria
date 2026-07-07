@@ -77,9 +77,13 @@ export type Move =
            *  realised through the existing `submitMayPay` mutation — a separate
            *  executor entry point from `submitResolutionChoice` (ADR 0016). The
            *  choice identity is read from the active pending choice; only the
-           *  boolean travels on the Move. */
+           *  boolean (and, for a sacrifice-leg pick, the chosen victim ids)
+           *  travels on the Move. */
           kind: "may-pay";
           accept: boolean;
+          /** CR 701.16b — chosen sacrifice victim id(s) when the accepted cost's
+           *  sacrifice leg admits a real choice. Omitted otherwise. */
+          sacrificeIds?: string[];
       }
     | {
           /** Yes/no answer to a `land-entry-tapped` pending choice (shock lands,
