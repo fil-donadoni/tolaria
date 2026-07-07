@@ -138,6 +138,21 @@ export function useBattlefieldInteraction(player: Player) {
 
     const isInPayment = isPayingCast || isPayingActivation;
 
+    // A mana-choice picker opened to pay a cast/activation cost is anchored to
+    // that payment. If the payment ends by another route — the player presses
+    // Auto-tap (PaymentBanner), or the cost is cancelled/completed — the picker
+    // is stale and must close. Detect the payment window closing and drop the
+    // stale picker during render (the React-blessed "adjust state on prop
+    // change" pattern, not a setState-in-effect), covering all three cases
+    // without cross-component wiring to the Auto-tap button.
+    const [prevInPayment, setPrevInPayment] = useState(isInPayment);
+    if (isInPayment !== prevInPayment) {
+        setPrevInPayment(isInPayment);
+        if (!isInPayment && manaChoiceState?.inPayment) {
+            setManaChoiceState(null);
+        }
+    }
+
     const hasPriority = isMe && priorityPlayerId === playerId;
     // CR 113.3c — "any player may activate" abilities (Ifh-Bíff Efreet) can be
     // fired by the viewer even on an OPPONENT's permanent. Surface those on the

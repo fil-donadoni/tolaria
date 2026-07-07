@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { tryAutoCommitPendingCast, abandonPendingPayment } from "../../game";
+import {
+    tryAutoCommitPendingCast,
+    tryAutoCommitPendingActivation,
+    abandonPendingPayment,
+} from "../../game";
 import {
     makeInstance,
     makePlayer,
@@ -63,6 +67,38 @@ describe("payment priority guard (CR 601.2 / 601.2i)", () => {
         expect(state.players[0].hand).toHaveLength(1);
         // pendingCast is left for the abandon path to roll back, not committed.
         expect(state.pendingCast).toBeDefined();
+    });
+});
+
+describe("tryAutoCommitPendingActivation — double-tap source race", () => {
+    it("drops the payment silently when the source is already tapped", () => {
+        // A double-click on a land paying a {T}-cost ability re-enters commit
+        // after the source got tapped by the first click. This must be a silent
+        // no-op (drop the pending payment), not a thrown server error surfaced
+        // to the user for a misclick.
+        const source = makeInstance(PLAINS, { id: "src", isTapped: true });
+        const p1 = makePlayer("p1", { battlefield: [source] });
+        const state = makeState({
+            players: [p1, makePlayer("p2")],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            pendingActivation: {
+                playerId: "p1",
+                cardInstanceId: "src",
+                abilityId: "mana",
+                manaCost: {},
+                tappedLandIds: [],
+                tapSource: true,
+                sacrificeSource: false,
+            },
+        });
+
+        // Must not throw "Source became tapped during payment"; returns null.
+        const result = tryAutoCommitPendingActivation(state, "p1");
+        expect(result).toBeNull();
+        // Payment dropped; nothing reached the stack.
+        expect(state.pendingActivation).toBeUndefined();
+        expect(state.stack).toHaveLength(0);
     });
 });
 

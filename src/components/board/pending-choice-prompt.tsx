@@ -124,7 +124,7 @@ export default function PendingChoicePrompt({
                             </p>
                             <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-border-accent/40 to-transparent" />
                             <p className="text-text-muted text-xs">
-                                {choice.prompt}
+                                {formatOracleText(choice.prompt)}
                             </p>
                         </div>
                         {isOptionPick ? (

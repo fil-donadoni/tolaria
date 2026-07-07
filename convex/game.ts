@@ -1159,7 +1159,13 @@ export function tryAutoCommitPendingActivation(
     // the source untouched.
     if (pa.tapSource) {
         if (card.isTapped) {
-            throw new Error("Source became tapped during payment");
+            // Benign double-commit race: the source got tapped between the
+            // payment opening and this commit (e.g. the player double-clicked
+            // the land). A misclick must not surface a server error — drop the
+            // payment silently, same policy as a vanished source above (lands
+            // stay tapped).
+            state.pendingActivation = undefined;
+            return null;
         }
         card.isTapped = true;
     }
@@ -5851,7 +5857,11 @@ export const passPriority = mutation({
         }
 
         if (state.priorityPlayerId !== args.playerId) {
-            throw new Error("You don't have priority");
+            // A pass issued while this player does not hold priority is a
+            // harmless misclick — the player mashed Space/Pass while the
+            // opponent was acting (ADR 0047 "waiting for another player").
+            // Silent no-op instead of a server error surfaced to the console.
+            return;
         }
 
         // Passing priority while a mana payment is still open abandons it
