@@ -24,7 +24,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { shouldThink, budgetFor } from "@convex/gre";
 import { consultBrain } from "~/lib/ai/brain-client";
 import { setLatestAiTrace } from "~/lib/ai/trace-store";
-import { decideBotAction } from "~/lib/ai/brain";
+import { decideBotAction, botActionRealisation } from "~/lib/ai/brain";
 import { buildBotView, botActionToMove } from "~/lib/ai/bot-view";
 import { executeMove, type MoveMutations } from "~/lib/ai/executor";
 import { projectedToGameState } from "~/lib/ai/state-adapter";
@@ -131,14 +131,12 @@ export function useVsAiDriver(
         // mulligan keep / mull / bottom-N (issue #145, ISMCTS mulligan eval out
         // of scope) and any mid-resolution interactive choice default (ADR 0016 —
         // the GRE surfaces no move while a choice is pending, so the search can't
-        // make it).
-        if (
-            action.kind === "keep" ||
-            action.kind === "mull" ||
-            action.kind === "mulligan-bottom" ||
-            action.kind === "resolution-choice" ||
-            action.kind === "may-pay"
-        ) {
+        // make it). The set of executor-realised kinds is derived from the
+        // compile-time-exhaustive `botActionRealisation` (NOT a hand-maintained
+        // list): a new choice mechanic that adds a BotAction kind is a build
+        // error until classified, so it can never silently fall through to the
+        // Worker and freeze the bot (the recurring class this closes).
+        if (botActionRealisation(action.kind) === "executor") {
             if (inFlight.current) return;
             const move = botActionToMove(action, botState, botId);
             if (!move) return;

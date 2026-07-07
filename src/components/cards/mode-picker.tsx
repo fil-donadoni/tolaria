@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { SpellMode } from "@convex/cards/types";
 import GameDialog from "~/components/ui/game-dialog";
@@ -56,13 +56,34 @@ function ModePickerPortal({
         return () => window.removeEventListener("keydown", handler);
     }, [onCancel]);
 
+    // Clamp the portal inside the viewport (issue: hand cards sit at the bottom,
+    // so an anchor at `rect.top` grows the dialog off the bottom edge with no
+    // way to scroll or reach the lower modes). Measure after layout and shift up
+    // / left so the whole picker stays on-screen; `max-h` + scroll below is the
+    // safety net when even a fully-clamped dialog is taller than the viewport.
+    const ref = useRef<HTMLDivElement>(null);
+    const [clamped, setClamped] = useState(position);
+    useLayoutEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        const { width, height } = el.getBoundingClientRect();
+        const margin = 8;
+        const maxLeft = window.innerWidth - width - margin;
+        const maxTop = window.innerHeight - height - margin;
+        setClamped({
+            x: Math.max(margin, Math.min(position.x, maxLeft)),
+            y: Math.max(margin, Math.min(position.y, maxTop)),
+        });
+    }, [position.x, position.y, modes.length]);
+
     return createPortal(
         <>
             <div className="fixed inset-0 z-40" onMouseDown={onCancel} />
             <div
+                ref={ref}
                 data-slot="dialog-content"
-                className="fixed z-100 flex min-w-64 flex-col gap-1 rounded-sm bg-surface border border-border-subtle p-3 shadow-[0_0_50px_rgba(0,0,0,0.8)]"
-                style={{ left: position.x, top: position.y }}
+                className="fixed z-100 flex min-w-64 max-h-[calc(100vh-16px)] flex-col gap-1 overflow-y-auto rounded-sm bg-surface border border-border-subtle p-3 shadow-[0_0_50px_rgba(0,0,0,0.8)]"
+                style={{ left: clamped.x, top: clamped.y }}
             >
                 <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-border-accent/40" />
                 <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-border-accent/40" />

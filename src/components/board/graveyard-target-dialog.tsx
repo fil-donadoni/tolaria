@@ -6,7 +6,7 @@ import type { PendingTarget, Player } from "~/types/game";
 import { getDefinition } from "@convex/cards";
 import { getEligibleGraveyards } from "~/lib/graveyard-targets";
 import GameDialog from "~/components/ui/game-dialog";
-import GraveyardChoiceDialog from "./graveyard-choice-dialog";
+import GraveyardTabs from "./graveyard-tabs";
 import GraveyardCardPicker from "./graveyard-card-picker";
 
 /** Graveyard target dialog (issue #314). When a pending target lives in the
@@ -18,8 +18,10 @@ import GraveyardCardPicker from "./graveyard-card-picker";
  *     client mirror of the backend filter — `getLegalTargets` filtering is
  *     unchanged.
  *   - When ≥2 graveyards are eligible (`controller: "any"`, both non-empty), a
- *     graveyard-choice step ("My graveyard" / "Opponent's graveyard") precedes
- *     the card picker. With a single eligible graveyard the choice is skipped.
+ *     persistent tab strip ("My graveyard" / "Opponent's graveyard") stays above
+ *     the card picker so the chooser can switch graveyards at any time without
+ *     cancelling the spell (Arena parity). The first eligible graveyard is shown
+ *     by default. With a single eligible graveyard the tabs are omitted.
  *   - Picking a card submits the `graveyard-card` target with the owning
  *     player's id (unchanged `selectTarget` contract).
  *   - Dismissing the dialog cancels target selection (parity with the banner's
@@ -56,13 +58,13 @@ export default function GraveyardTargetDialog({
         ? getDefinition(cardInHand.card.id).name
         : "spell";
 
-    // A single eligible graveyard skips the choice step entirely; ≥2 requires
-    // the chooser to pick a graveyard first.
-    const needsChoice = eligible.length > 1 && chosenGraveyardId === null;
+    // The active graveyard defaults to the first eligible one so its cards show
+    // immediately; the tab strip (shown only when ≥2 are eligible) lets the
+    // chooser switch at will without cancelling.
     const activeGraveyard =
-        eligible.length === 1
-            ? eligible[0]
-            : (eligible.find((g) => g.playerId === chosenGraveyardId) ?? null);
+        eligible.find((g) => g.playerId === chosenGraveyardId) ??
+        eligible[0] ??
+        null;
 
     async function handleCancel() {
         if (isPending) return;
@@ -97,21 +99,21 @@ export default function GraveyardTargetDialog({
                 if (!open) void handleCancel();
             }}
             title={cardName}
-            subtitle={
-                needsChoice
-                    ? "Choose a graveyard"
-                    : "Choose a card from the graveyard"
-            }
+            subtitle="Choose a card from the graveyard"
             size="wide"
             dismissable={!isPending}
         >
-            {needsChoice ? (
-                <GraveyardChoiceDialog
-                    graveyards={eligible}
-                    isPending={isPending}
-                    onSelect={(id) => setChosenGraveyardId(id)}
-                />
-            ) : activeGraveyard ? (
+            {eligible.length > 1 && activeGraveyard && (
+                <div className="mb-3">
+                    <GraveyardTabs
+                        graveyards={eligible}
+                        activeId={activeGraveyard.playerId}
+                        onSelect={(id) => setChosenGraveyardId(id)}
+                        isPending={isPending}
+                    />
+                </div>
+            )}
+            {activeGraveyard ? (
                 <GraveyardCardPicker
                     cards={activeGraveyard.cards}
                     isPending={isPending}

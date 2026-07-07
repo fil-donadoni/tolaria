@@ -104,30 +104,40 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("GraveyardTargetDialog routing (#314)", () => {
-    it("single eligible graveyard → card picker opens directly (no choice step)", () => {
+    it("single eligible graveyard → card picker opens directly (no tab strip)", () => {
         const me = player("me", "Me", [gyCard("m1", "me")]);
         const opp = player("opp", "Opp", []);
         renderDialog(pending({ controller: "you" }), [me, opp], me);
 
-        // No graveyard-choice buttons; the card is directly pickable.
+        // No graveyard tabs; the card is directly pickable.
         expect(screen.queryByText("My graveyard")).toBeNull();
         expect(screen.getByTestId("card-img-m1")).toBeTruthy();
     });
 
-    it("two eligible graveyards (controller: any) → choice step precedes the picker", () => {
+    it("two eligible graveyards (controller: any) → persistent tabs, first shown by default", () => {
         const me = player("me", "Me", [gyCard("m1", "me")]);
         const opp = player("opp", "Opp", [gyCard("o1", "opp")]);
         renderDialog(pending({ controller: "any" }), [me, opp], me);
 
-        // Choice step shown; cards not yet listed.
+        // Both tabs are always visible AND the first graveyard's cards show
+        // immediately (Arena parity — no separate choice step).
         expect(screen.getByText("My graveyard")).toBeTruthy();
         expect(screen.getByText("Opponent's graveyard")).toBeTruthy();
-        expect(screen.queryByTestId("card-img-m1")).toBeNull();
+        expect(screen.getByTestId("card-img-m1")).toBeTruthy();
+        expect(screen.queryByTestId("card-img-o1")).toBeNull();
 
-        // Pick the opponent's graveyard → only its card appears.
+        // Switch to the opponent's graveyard → its card replaces the previous.
+        // The tabs stay visible so the chooser can switch back at any time.
         fireEvent.click(screen.getByText("Opponent's graveyard"));
         expect(screen.getByTestId("card-img-o1")).toBeTruthy();
         expect(screen.queryByTestId("card-img-m1")).toBeNull();
+        expect(screen.getByText("My graveyard")).toBeTruthy();
+
+        // Switch back — the first graveyard's card returns without any cancel.
+        fireEvent.click(screen.getByText("My graveyard"));
+        expect(screen.getByTestId("card-img-m1")).toBeTruthy();
+        expect(screen.queryByTestId("card-img-o1")).toBeNull();
+        expect(cancelTarget).not.toHaveBeenCalled();
     });
 
     it("picking a card submits selectTarget with the owning player's id", () => {

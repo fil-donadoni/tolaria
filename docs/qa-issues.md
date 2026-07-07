@@ -2,9 +2,7 @@ il bot ha castato Copy artifact senza alcun artefatto in gioco.
 
 Se ho aperto un box di scelta del mana per una terra che sto tappando, e poi premo auto-tap, il box di scelta deve chiudersi.
 
-Pagare il costo dell'abilità attivata di Goblin bombardment non deve mostrare il dialog di auto-tap, non c'è niente da tappare. devo vedere evidenziate le creature sul board che posso sacrificare.
-
-Ogni tanto draggo per sbaglio una carta in mano fuori dal viewport. Teoricamente dovrei poter cambiare l'ordine visuale delle carte in mano facendo drag&drop ma non devo poter andare oltre la prima e l'ultima carta della mano.
+Pagare il costo dell'abilità attivata di Goblin bombardment non deve mostrare il dialog di auto-tap, non c'è niente da tappare. devo vedere evidenziate le creature sul board che posso sacrificare. Idem per Sylvan Safekeeper.
 
 Witherbloom Charm mi ha fatto sacrificare un permanente random, non a mia scelta.
 
@@ -76,3 +74,21 @@ renderRootSync @ react-dom_client.js?v=7807a94e:8309
 performWorkOnRoot @ react-dom_client.js?v=7807a94e:7957
 performWorkOnRootViaSchedulerTask @ react-dom_client.js?v=7807a94e:9059
 performWorkUntilDeadline @ react-dom_client.js?v=7807a94e:36
+
+se per sbaglio clicco 2 volte su una terra per pagare il costo di una spell:
+[CONVEX M(game:tapForActivationPayment)] [Request ID: 6ba7b10498242b82] Server Error
+Uncaught Error: Source became tapped during payment
+at tryAutoCommitPendingActivation (../convex/game.ts:1163:13)
+at handler (../convex/game.ts:3938:12)
+
+Spellseeker castato dall'avversario non mi mostra la carta trovata nella library.
+
+installHook.js:1 [CONVEX M(game:passPriority)] [Request ID: aaee3425caf8b667] Server Error
+Uncaught Error: Illegal action (ADR 0047): the game is waiting for priority input from another player.
+at assertExpectedInput (../../convex/gre/expectedInput.ts:218:12)
+at handler (../convex/game.ts:5842:12)
+questo errore deve essere silente, se provo a passare priorità quando non ce l'ho è solo un misclick innocuo.
+
+Dance of the Dead: il prompt di pagamento per untap mostra {1}{b} invece dei simboli di mana (solo nel testo, il button è ok), e dovrebbe presentare anche l'opzione auto-tap.
+
+Headliner Scarlett: la carta esiliata può essere giocata, non solo castata, e solo nel turno in cui è stata esiliata. Invece ho potuto castare una carta esiliata il turno prima e non ho potuto giocare una terra esiliata in questo turno.

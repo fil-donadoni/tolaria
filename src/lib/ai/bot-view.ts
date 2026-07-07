@@ -371,87 +371,113 @@ export function botActionToMove(
     state: PublicGameState,
     botId: string
 ): Move | null {
-    if (action.kind === "keep" || action.kind === "mull") {
-        return { kind: "mulligan", decision: action.kind };
-    }
-    if (action.kind === "mulligan-bottom") {
-        const head = state.pendingChoices?.[0];
-        if (
-            !head ||
-            head.kind !== "mulligan-bottom" ||
-            head.playerId !== botId
-        ) {
-            return null;
+    // EXHAUSTIVE over `BotAction["kind"]` (`assertNever` default): every
+    // executor-realised kind (see `botActionRealisation`) MUST produce a Move
+    // here, so a new choice mechanic cannot compile while leaving its executor
+    // action untranslatable — the second half of the guard against the "bot
+    // freezes on a new choice mechanic" class. Worker/none/confirm kinds never
+    // reach this translator (the driver realises them elsewhere) and return null.
+    switch (action.kind) {
+        case "keep":
+        case "mull":
+            return { kind: "mulligan", decision: action.kind };
+        case "mulligan-bottom": {
+            const head = state.pendingChoices?.[0];
+            if (
+                !head ||
+                head.kind !== "mulligan-bottom" ||
+                head.playerId !== botId
+            ) {
+                return null;
+            }
+            return {
+                kind: "mulligan-bottom",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: action.cardInstanceIds,
+            };
         }
-        return {
-            kind: "mulligan-bottom",
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
-            cardInstanceIds: action.cardInstanceIds,
-        };
-    }
-    if (action.kind === "resolution-choice") {
-        const head = state.pendingChoices?.[0];
-        if (
-            !head ||
-            head.playerId !== botId ||
-            head.kind === "mulligan-bottom"
-        ) {
-            return null;
+        case "resolution-choice": {
+            const head = state.pendingChoices?.[0];
+            if (
+                !head ||
+                head.playerId !== botId ||
+                head.kind === "mulligan-bottom"
+            ) {
+                return null;
+            }
+            return {
+                kind: "resolution-choice",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: action.cardInstanceIds,
+            };
         }
-        return {
-            kind: "resolution-choice",
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
-            cardInstanceIds: action.cardInstanceIds,
-        };
-    }
-    if (action.kind === "may-pay") {
-        // Routes through `submitMayPay`, not `submitResolutionChoice`. The
-        // boolean is all the executor needs; the server reads the head choice.
-        const head = state.pendingChoices?.[0];
-        if (!head || head.kind !== "may-pay" || head.playerId !== botId) {
-            return null;
+        case "may-pay": {
+            // Routes through `submitMayPay`, not `submitResolutionChoice`. The
+            // boolean is all the executor needs; the server reads the head choice.
+            const head = state.pendingChoices?.[0];
+            if (!head || head.kind !== "may-pay" || head.playerId !== botId) {
+                return null;
+            }
+            return { kind: "may-pay", accept: action.accept };
         }
-        return { kind: "may-pay", accept: action.accept };
-    }
-    if (action.kind === "land-entry") {
-        // CR 614.12 / ADR 0051 — shock land: routes through
-        // `submitLandEntryChoice`. Only the boolean travels; the server reads
-        // the head choice.
-        const head = state.pendingChoices?.[0];
-        if (
-            !head ||
-            head.kind !== "land-entry-tapped" ||
-            head.playerId !== botId
-        ) {
-            return null;
+        case "land-entry": {
+            // CR 614.12 / ADR 0051 — shock land: routes through
+            // `submitLandEntryChoice`. Only the boolean travels; the server
+            // reads the head choice.
+            const head = state.pendingChoices?.[0];
+            if (
+                !head ||
+                head.kind !== "land-entry-tapped" ||
+                head.playerId !== botId
+            ) {
+                return null;
+            }
+            return { kind: "land-entry", accept: action.accept };
         }
-        return { kind: "land-entry", accept: action.accept };
-    }
-    if (action.kind === "name-card") {
-        // CR 202.3 — routes through `submitNameCard`. Only the name travels;
-        // the server reads the head choice and validates the name.
-        const head = state.pendingChoices?.[0];
-        if (!head || head.kind !== "name-card" || head.playerId !== botId) {
-            return null;
+        case "name-card": {
+            // CR 202.3 — routes through `submitNameCard`. Only the name travels;
+            // the server reads the head choice and validates the name.
+            const head = state.pendingChoices?.[0];
+            if (!head || head.kind !== "name-card" || head.playerId !== botId) {
+                return null;
+            }
+            return { kind: "name-card", cardName: action.cardName };
         }
-        return { kind: "name-card", cardName: action.cardName };
-    }
-    if (action.kind === "random-reveal-ack") {
-        // CR 705.2 / ADR 0023 — routes through `submitRandomRevealAck`. No
-        // data travels; the choice identity is read from the active head.
-        const head = state.pendingChoices?.[0];
-        if (!head || head.kind !== "random-reveal" || head.playerId !== botId) {
-            return null;
+        case "random-reveal-ack": {
+            // CR 705.2 / ADR 0023 — routes through `submitRandomRevealAck`. No
+            // data travels; the choice identity is read from the active head.
+            const head = state.pendingChoices?.[0];
+            if (
+                !head ||
+                head.kind !== "random-reveal" ||
+                head.playerId !== botId
+            ) {
+                return null;
+            }
+            return {
+                kind: "random-reveal-ack",
+                stackItemId: head.stackItemId,
+                choiceId: head.choiceId,
+            };
         }
-        return {
-            kind: "random-reveal-ack",
-            stackItemId: head.stackItemId,
-            choiceId: head.choiceId,
-        };
+        // Realised by the driver directly (Worker search / confirmDamage / no-op),
+        // never translated to a Move through this path.
+        case "pass":
+        case "declare-attackers":
+        case "declare-blockers":
+        case "confirm-combat-damage":
+        case "none":
+            return null;
+        default:
+            return assertNever(action);
     }
-    return null;
+}
+
+/** Compile-time exhaustiveness guard for the `botActionToMove` switch. */
+function assertNever(x: never): never {
+    throw new Error(`Unhandled BotAction: ${JSON.stringify(x)}`);
 }

@@ -36,7 +36,7 @@ import {
     manaFromPlan,
     solveSmartAutoTap,
 } from "./autoTap";
-import { applyPlayLand } from "./playLand";
+import { applyPlayLand, enqueueLandEntryChoice } from "./playLand";
 import { getExtraLandDrops, getLegalTargets } from "./rules";
 import { resolveEntersTapped } from "../cards/entersTapped";
 import { getAbilityEffectFn, getResolveFn } from "../cards/effectRegistry";
@@ -1179,6 +1179,10 @@ export type PendingActivation = {
     /** Counter-removal cost (CR 122.6 — "Remove a [type] counter from this
      *  creature"). Applied at commit. */
     removeCounterCost?: { type: string; count: number };
+    /** Life-payment cost (CR 118.4 — "Pay N life"). Validated up-front at
+     *  announcement (activateAbility); the life is deducted at commit so a
+     *  cancelled/dropped payment leaves the total untouched. */
+    lifeCost?: number;
     /** True iff the ability has a "discard the last card you drew this turn"
      *  cost (Jandor's Ring). The card is discarded at commit. */
     discardLastDrawnSource?: boolean;
@@ -2421,6 +2425,20 @@ function targetLegalityGate(
     return "resolve";
 }
 
+/** CR 614.12 / ADR 0051 — true when the current resolution must suspend for a
+ *  mid-resolution player choice. Every stack-coupled choice (search-library,
+ *  may-pay, `requestChoice`) belongs to the resolving item and suspends it. The
+ *  ONE exception is a stackless `land-entry-tapped` pay-choice (a shock land put
+ *  onto the battlefield by THIS effect, `stackItemId === ""`): it is answered in
+ *  the active player's priority window AFTER the resolution completes, exactly
+ *  like the play-land path, so it must NOT suspend/replay the resolution (which
+ *  would re-run the search/move that already committed the entry). */
+function resolutionSuspendedOnChoice(state: GameState): boolean {
+    return (state.pendingChoices ?? []).some(
+        (c) => !(c.kind === "land-entry-tapped" && c.stackItemId === "")
+    );
+}
+
 function resolveTopOfStackInner(state: GameState): StackItem | null {
     if (state.stack.length === 0) throw new Error("Stack is empty");
 
@@ -2477,7 +2495,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             top.resolutionStep = i;
             const ctx = buildSpellContext(state, top);
             cardDef.resolveSteps[i](ctx);
-            if ((state.pendingChoices?.length ?? 0) > 0) {
+            if (resolutionSuspendedOnChoice(state)) {
                 return null; // suspended — wait for selectResolutionChoice
             }
         }
@@ -2511,7 +2529,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             top.delayedEffects,
             top.delayedPayload ?? {}
         );
-        if ((state.pendingChoices?.length ?? 0) > 0) return null;
+        if (resolutionSuspendedOnChoice(state)) return null;
         delete top.collectedChoices;
         state.stack.pop();
         return top;
@@ -2534,7 +2552,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 ctx,
                 (top.delayedPayload ?? {}) as Record<string, string>
             );
-            if ((state.pendingChoices?.length ?? 0) > 0) return null;
+            if (resolutionSuspendedOnChoice(state)) return null;
         }
         delete top.collectedChoices;
         state.stack.pop();
@@ -2622,7 +2640,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                     top.resolutionStep = i;
                     const ctx = buildSpellContext(state, top);
                     ability.resolveSteps[i](ctx);
-                    if ((state.pendingChoices?.length ?? 0) > 0) {
+                    if (resolutionSuspendedOnChoice(state)) {
                         return null; // suspended — wait for the choice submit
                     }
                 }
@@ -2636,11 +2654,11 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 if (scriptFn) {
                     const ctx = buildSpellContext(state, top);
                     scriptFn(ctx);
-                    if ((state.pendingChoices?.length ?? 0) > 0) return null;
+                    if (resolutionSuspendedOnChoice(state)) return null;
                 } else if (ability.resolve) {
                     const ctx = buildSpellContext(state, top);
                     ability.resolve(ctx, top.triggerEvent);
-                    if ((state.pendingChoices?.length ?? 0) > 0) return null;
+                    if (resolutionSuspendedOnChoice(state)) return null;
                 }
             }
         }
@@ -2675,7 +2693,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                 top.resolutionStep = i;
                 const ctx = buildSpellContext(state, top);
                 ability.resolveSteps[i](ctx);
-                if ((state.pendingChoices?.length ?? 0) > 0) {
+                if (resolutionSuspendedOnChoice(state)) {
                     return null; // suspended — wait for selectResolutionChoice
                 }
             }
@@ -2687,11 +2705,11 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             if (scriptFn) {
                 const ctx = buildSpellContext(state, top);
                 scriptFn(ctx);
-                if ((state.pendingChoices?.length ?? 0) > 0) return null;
+                if (resolutionSuspendedOnChoice(state)) return null;
             } else if (ability.resolve) {
                 const ctx = buildSpellContext(state, top);
                 ability.resolve(ctx);
-                if ((state.pendingChoices?.length ?? 0) > 0) return null;
+                if (resolutionSuspendedOnChoice(state)) return null;
             }
         }
         delete top.collectedChoices;
@@ -2709,14 +2727,14 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             if (mode?.resolve) {
                 const ctx = buildSpellContext(state, top);
                 mode.resolve(ctx);
-                if ((state.pendingChoices?.length ?? 0) > 0) return null;
+                if (resolutionSuspendedOnChoice(state)) return null;
             }
         } else {
             const resolveFn = getResolveFn(cardDef);
             if (resolveFn) {
                 const ctx = buildSpellContext(state, top);
                 resolveFn(ctx);
-                if ((state.pendingChoices?.length ?? 0) > 0) return null;
+                if (resolutionSuspendedOnChoice(state)) return null;
             }
         }
     }
@@ -4971,6 +4989,32 @@ function putReanimatedOnBattlefield(
     // CR 302.6 — start the control-continuity clock for every reanimated /
     // put-onto-battlefield permanent (see `markEnteredThisTurn`).
     markEnteredThisTurn(card);
+    // CR 614.12 / ADR 0051 — a shock land put onto the battlefield by an EFFECT
+    // (library tutor / reanimation / put-onto-battlefield), not PLAYED from
+    // hand, still gets its "as it enters, you may pay 2 life" choice. Enter it
+    // provisionally TAPPED (the worst-case, unpaid outcome), apply continuous
+    // effects, then enqueue a stackless `land-entry-tapped` pay-choice and DEFER
+    // the ETB notification to `finalizeLandEntry`: the final tapped bit and the
+    // PERMANENT_ENTERED emission both wait until the controller answers, so no
+    // ETB trigger ever observes an intermediate tapped state (the resolution
+    // ignores this stackless choice — `resolutionSuspendedOnChoice` — and the
+    // active player's next priority window resolves it).
+    const putCardId = (card.card as { id?: string }).id;
+    const putDef = putCardId ? tryGetDefinition(putCardId) : undefined;
+    if (putDef?.entersTappedUnlessPay) {
+        card.isTapped = true;
+        getPlayer(state, controllerId).battlefield.push(card);
+        applyExistingGrantsTo(state, card);
+        applySourceStaticEffects(state, card);
+        enqueueLandEntryChoice(
+            state,
+            controllerId,
+            card.id,
+            putDef.entersTappedUnlessPay,
+            card.card
+        );
+        return;
+    }
     // CR 614.1c + 110.5b — Kismet-style replacement taps an opponent-controlled
     // artifact/creature/land as it enters via reanimation / put-onto-battlefield.
     if (shouldEnterTapped(state, card)) card.isTapped = true;

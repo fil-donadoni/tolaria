@@ -22,6 +22,7 @@ import {
     bloodCrypt,
 } from "../../cards/sets/dis/colorless";
 import { kismet } from "../../cards/sets/leg/white";
+import { seraph } from "../../cards/sets/ice/white";
 import {
     makeInstance,
     makePlayer,
@@ -29,7 +30,8 @@ import {
 } from "../../cards/__tests__/setup";
 import { applyPlayLand } from "../playLand";
 import { applyLandEntrySubmit } from "../pendingChoiceSubmit";
-import { getPlayer } from "../state";
+import { getPlayer, resolveTopOfStack } from "../state";
+import type { StackItem } from "../state";
 import { legalActions } from "../legalActions";
 import { projectPublicState } from "../../gameProjections";
 
@@ -201,6 +203,91 @@ describe("shock land entry: affordability gate (CR 118.4)", () => {
         expect(() =>
             applyLandEntrySubmit(state, { playerId: "p1", accept: true })
         ).toThrow(/Cannot pay/);
+    });
+});
+
+// CR 614.12 — the "as it enters" pay-choice applies at EVERY ETB, not only when
+// the land is PLAYED from hand. A shock land put onto the battlefield by an
+// effect (library tutor / reanimation / put-onto-battlefield) funnels through
+// `putReanimatedOnBattlefield`; it MUST offer the same pay-choice, never enter
+// untapped for free. Driven here via Seraph's `seraph-reanimate` delayed
+// trigger (`returnToBattlefield` — the identical funnel a fetch land uses).
+describe("shock land entry via effect — non-play ETB (CR 614.12)", () => {
+    function reanimateShock(life = 20) {
+        const shock = makeInstance(steamVents.id, {
+            id: "shock",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const seraphInst = makeInstance(seraph.id, {
+            id: "seraph",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    life,
+                    battlefield: [seraphInst],
+                    graveyard: [shock],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...seraphInst,
+            zone: "stack",
+            castById: "p1",
+            delayedTriggerId: "seraph-reanimate",
+            delayedPayload: { deadId: "shock", controllerId: "p1" },
+        } as unknown as StackItem);
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("enqueues the land-entry-tapped pay-choice — does NOT enter untapped for free", () => {
+        const state = reanimateShock(20);
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("land-entry-tapped");
+        expect(head?.playerId).toBe("p1");
+        expect(head?.landInstanceId).toBe("shock");
+        expect(head?.cost).toEqual({ life: 2 });
+        // Provisional: the land is on the battlefield but not settled untapped.
+        const land = getPlayer(state, "p1").battlefield.find(
+            (c) => c.id === "shock"
+        );
+        expect(land).toBeDefined();
+        expect(land!.isTapped).toBe(true);
+        expect(getPlayer(state, "p1").life).toBe(20); // not paid yet
+    });
+
+    it("pay 2 life → enters UNTAPPED, controller loses 2 life", () => {
+        const state = reanimateShock(20);
+        applyLandEntrySubmit(state, { playerId: "p1", accept: true });
+        const land = getPlayer(state, "p1").battlefield.find(
+            (c) => c.id === "shock"
+        );
+        expect(land!.isTapped).toBe(false);
+        expect(getPlayer(state, "p1").life).toBe(18);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    it("decline → enters TAPPED, life unchanged", () => {
+        const state = reanimateShock(20);
+        applyLandEntrySubmit(state, { playerId: "p1", accept: false });
+        const land = getPlayer(state, "p1").battlefield.find(
+            (c) => c.id === "shock"
+        );
+        expect(land!.isTapped).toBe(true);
+        expect(getPlayer(state, "p1").life).toBe(20);
+    });
+
+    it("does NOT count as a land drop (CR 305.2 — only PLAYING a land does)", () => {
+        const state = reanimateShock(20);
+        applyLandEntrySubmit(state, { playerId: "p1", accept: false });
+        expect(getPlayer(state, "p1").landsPlayedThisTurn ?? 0).toBe(0);
     });
 });
 

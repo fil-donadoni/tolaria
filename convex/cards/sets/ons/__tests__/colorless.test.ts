@@ -13,6 +13,10 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
+import {
+    buildPendingActivation,
+    tryAutoCommitPendingActivation,
+} from "../../../../game";
 
 describe("Polluted Delta (CR 701.19 / 400.7 / 701.20)", () => {
     it("fetches an Island or Swamp card onto the battlefield, then shuffles", () => {
@@ -77,5 +81,62 @@ describe("Polluted Delta (CR 701.19 / 400.7 / 701.20)", () => {
         expect(projected.players[0].battlefield.map((c) => c.id)).toContain(
             "island1"
         );
+    });
+
+    // CR 118.4 — the "Pay 1 life" leg of the activation cost. Regression for a
+    // bug where the life cost was declared on every fetchland but never paid:
+    // activateAbility's commit paths deducted tap/sacrifice but skipped life.
+    // Drives the REAL cost-commit seam (buildPendingActivation +
+    // tryAutoCommitPendingActivation) so a future regression in the commit
+    // order is caught, not a test-local mirror.
+    it("pays 1 life and sacrifices itself when the fetch ability is committed (CR 118.4)", () => {
+        const ability = pollutedDelta.activatedAbilities![0];
+        const land = makeInstance(pollutedDelta.id, {
+            id: "deltaLand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const libIsland = makeInstance(island.id, {
+            id: "island1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [land],
+                    library: [libIsland],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        state.priorityPlayerId = "p1";
+
+        // No mana cost → the pending payment is already covered and commits
+        // immediately through the real auto-commit path.
+        const pa = buildPendingActivation({
+            playerId: "p1",
+            cardInstanceId: "deltaLand",
+            abilityId: ability.id,
+            ability,
+            manaCost: undefined,
+        });
+        // The builder must carry the life cost forward to the commit step.
+        expect(pa.lifeCost).toBe(1);
+        state.pendingActivation = pa;
+
+        const committed = tryAutoCommitPendingActivation(state, "p1");
+        expect(committed).not.toBeNull();
+
+        // Life was paid (20 → 19), the land sacrificed to the graveyard, and
+        // the fetch ability is on the stack awaiting resolution.
+        expect(state.players[0].life).toBe(19);
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain(
+            "deltaLand"
+        );
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].abilityId).toBe("polluted-delta-fetch");
     });
 });

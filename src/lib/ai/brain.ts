@@ -181,6 +181,56 @@ export type BotAction =
 
 const NONE: BotAction = { kind: "none" };
 
+/** How the vs-AI driver (`useVsAiDriver`) must realise a decided {@link
+ *  BotAction}:
+ *   - `"executor"`      — a brain-resolved choice/mulligan window realised on
+ *                          the MAIN THREAD via `botActionToMove` → `executeMove`
+ *                          (the GRE surfaces no search move while a choice is
+ *                          pending, so the Worker cannot make it).
+ *   - `"worker"`        — a real decision that needs the Worker search
+ *                          (priority pass, combat declarations).
+ *   - `"confirm-damage"`— the multi-block damage confirmation, a direct mutation.
+ *   - `"none"`          — the bot owes nothing; do nothing.
+ *
+ *  This switch is COMPILE-TIME EXHAUSTIVE (`assertNever`): a new `BotAction`
+ *  kind cannot build until it is classified here. That is the structural guard
+ *  against the recurring "bot freezes on a new choice mechanic" class — every
+ *  prior freeze was a new kind silently absent from the driver's old
+ *  hand-maintained executor list, falling through to the Worker (which stalls
+ *  while a pending choice is active). The driver now branches on THIS result
+ *  instead of an ad-hoc list, so a forgotten kind is a build error, not a hang. */
+export type BotActionRealisation =
+    | "executor"
+    | "worker"
+    | "confirm-damage"
+    | "none";
+
+export function botActionRealisation(
+    kind: BotAction["kind"]
+): BotActionRealisation {
+    switch (kind) {
+        case "none":
+            return "none";
+        case "confirm-combat-damage":
+            return "confirm-damage";
+        case "keep":
+        case "mull":
+        case "mulligan-bottom":
+        case "resolution-choice":
+        case "may-pay":
+        case "land-entry":
+        case "name-card":
+        case "random-reveal-ack":
+            return "executor";
+        case "pass":
+        case "declare-attackers":
+        case "declare-blockers":
+            return "worker";
+        default:
+            return assertNever(kind);
+    }
+}
+
 /** Strategic mulligan floor: once the bot has taken this many mulligans it
  *  keeps whatever it draws rather than digging further into card disadvantage
  *  (CR 103.5 hard-locks at a 0-card hand; this is the bot's softer cap). */

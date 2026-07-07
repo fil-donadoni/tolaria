@@ -175,7 +175,7 @@ function payCostText(cost: MayPayCost): string {
  *  shock land currently in `playerId`'s hand. Freezes priority on the chooser.
  *  `landCardData` is the entering card's `.card` payload, forwarded onto the
  *  prompt so it can name the land. */
-function enqueueLandEntryChoice(
+export function enqueueLandEntryChoice(
     state: GameState,
     playerId: string,
     landInstanceId: string,
@@ -218,12 +218,45 @@ export function finalizeLandEntry(
     if (accept) payMayPayCost(state, playerId, cost);
 
     const handCard = player.hand.find((c) => c.id === landInstanceId);
-    // Kismet-style forced-tapped is read from the PRE-move board, like the
-    // normal path. A shock land declares no own `entersTapped(Unless)`, so
-    // `shouldEnterTapped` returns only the battlefield-scanned replacement.
-    const forcedTapped = handCard ? shouldEnterTapped(state, handCard) : false;
-    const willEnterTapped = forcedTapped || !accept;
+    if (handCard) {
+        // Play-land path (CR 305): the land is still in hand for the choice
+        // window; move it and run the full land-entry settlement (records the
+        // land drop). Kismet-style forced-tapped is read from the PRE-move board.
+        // A shock land declares no own `entersTapped(Unless)`, so
+        // `shouldEnterTapped` returns only the battlefield-scanned replacement.
+        const forcedTapped = shouldEnterTapped(state, handCard);
+        const willEnterTapped = forcedTapped || !accept;
+        const card = moveCard(player, landInstanceId, "hand", "battlefield");
+        return settleEnteredLand(state, player, card, willEnterTapped);
+    }
 
-    const card = moveCard(player, landInstanceId, "hand", "battlefield");
-    return settleEnteredLand(state, player, card, willEnterTapped);
+    // Effect-entry path (CR 614.12): the land was put onto the battlefield by an
+    // effect (tutor / reanimation) and is ALREADY there, entered provisionally
+    // tapped with its ETB deferred by `putReanimatedOnBattlefield`. Commit the
+    // final tapped bit (paying skips only the land's OWN clause; Kismet still
+    // applies independently, CR 616) and NOW emit the entry — but do NOT record
+    // a land drop: only PLAYING a land does (CR 305.2).
+    const card = findLandOnBattlefield(state, landInstanceId);
+    if (!card) {
+        throw new Error("land-entry target is no longer on the battlefield");
+    }
+    const forcedTapped = shouldEnterTapped(state, card);
+    card.isTapped = forcedTapped || !accept;
+    emitPermanentEntered(state, card);
+    processPendingActionTriggers(state);
+    checkStateBasedActions(state);
+    return card;
+}
+
+/** Locate a permanent by instance id across every player's battlefield. Used by
+ *  the effect-entry `finalizeLandEntry` path (the land is already in play). */
+function findLandOnBattlefield(
+    state: GameState,
+    instanceId: string
+): CardInstanceState | undefined {
+    for (const p of state.players) {
+        const found = p.battlefield.find((c) => c.id === instanceId);
+        if (found) return found;
+    }
+    return undefined;
 }

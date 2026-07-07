@@ -108,7 +108,7 @@ export default function PendingChoicePrompt({
         >
             <div
                 {...dragHandlers}
-                className="relative flex flex-col items-center gap-2 bg-surface border border-border-subtle backdrop-blur-md rounded-sm px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)] cursor-move select-none pointer-events-auto"
+                className="relative flex flex-col items-center gap-2 bg-surface border border-border-subtle backdrop-blur-md rounded-sm px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)] cursor-move select-none pointer-events-auto max-h-[90vh] overflow-y-auto"
             >
                 <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-border-accent/40" />
                 <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-border-accent/40" />

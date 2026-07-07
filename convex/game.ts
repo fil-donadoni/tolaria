@@ -1008,6 +1008,9 @@ export function buildPendingActivation(opts: {
         ...(ability.cost.removeCounter
             ? { removeCounterCost: { ...ability.cost.removeCounter } }
             : {}),
+        ...(ability.cost.life !== undefined
+            ? { lifeCost: ability.cost.life }
+            : {}),
         ...(ability.cost.discardLastDrawn
             ? { discardLastDrawnSource: true }
             : {}),
@@ -1182,6 +1185,11 @@ export function tryAutoCommitPendingActivation(
             return null;
         }
         payDiscardAtRandomCost(state, playerId, pa.discardAtRandomCount);
+    }
+    // CR 118.4 — pay the life cost at commit (deferred so a dropped/cancelled
+    // payment leaves the total untouched). Validated up-front at announcement.
+    if (pa.lifeCost !== undefined) {
+        player.life -= pa.lifeCost;
     }
     if (pa.sacrificeSource) {
         removePermanentTo(state, card.id, "graveyard", "sacrifice");
@@ -2833,6 +2841,11 @@ export function finalizeTargetSelection(
                 playerId,
                 ability.cost.discardAtRandom
             );
+        }
+        // CR 118.4 — pay the life cost as the targeted ability goes on the
+        // stack. Validated up-front in activateAbility before pendingTarget.
+        if (ability.cost.life !== undefined) {
+            player.life -= ability.cost.life;
         }
         if (ability.cost.sacrifice) {
             removePermanentTo(state, card.id, "graveyard", "sacrifice");
@@ -6528,6 +6541,15 @@ export const activateAbility = mutation({
                     );
                 }
             }
+            // CR 118.4 — a life-payment cost is illegal unless the player has
+            // at least that much life. Validated up-front on the targeted path
+            // too, before entering pendingTarget.
+            if (
+                ability.cost.life !== undefined &&
+                player.life < ability.cost.life
+            ) {
+                throw new Error("Not enough life");
+            }
             if (
                 ability.canActivate !== undefined &&
                 !ability.canActivate(card, state)
@@ -6732,6 +6754,16 @@ export const activateAbility = mutation({
         if (ability.cost.discardAtRandom && player.hand.length === 0) {
             throw new Error("No card in hand to discard");
         }
+        // CR 118.4 — a life-payment cost is illegal unless the player has at
+        // least that much life. Validated up-front so we never enter a
+        // pendingActivation that can't be paid (fetch lands: {T}, Pay 1 life,
+        // Sacrifice — the life leg was previously unpaid on the stack path).
+        if (
+            ability.cost.life !== undefined &&
+            player.life < ability.cost.life
+        ) {
+            throw new Error("Not enough life");
+        }
         // CR 602.1 / 118.5 — "sacrifice a permanent matching <filter>": the
         // activation is illegal if no matching permanent is on the activating
         // player's battlefield. Validated up-front so we never enter a
@@ -6895,6 +6927,11 @@ export const activateAbility = mutation({
                 player.id,
                 ability.cost.discardAtRandom
             );
+        }
+        // CR 118.4 — pay the life cost (fetch lands: "Pay 1 life"). Validated
+        // up-front; deducted here as the ability goes on the stack.
+        if (ability.cost.life !== undefined) {
+            player.life -= ability.cost.life;
         }
         if (ability.cost.sacrifice) {
             removePermanentTo(state, card.id, "graveyard", "sacrifice");
@@ -7928,6 +7965,7 @@ export const debugSetupScenario = mutation({
                     v.union(
                         v.literal("hand"),
                         v.literal("battlefield"),
+                        v.literal("library"),
                         v.literal("graveyard"),
                         v.literal("exile")
                     )
@@ -8050,6 +8088,13 @@ export const debugSetupScenario = mutation({
                 });
                 if (zone === "hand") {
                     player.hand.push(instance);
+                } else if (zone === "library") {
+                    // Placed on TOP of the existing deck so a tutor/fetch (e.g.
+                    // a fetch land searching for a specific shock land, CR
+                    // 614.12) can find a known target. `libraryCount` (if set)
+                    // resets the library AFTER this loop, so a scenario seeding
+                    // a specific library card must leave `libraryCount` unset.
+                    player.library.push(instance as CardInstanceState);
                 } else if (zone === "graveyard") {
                     player.graveyard.push(instance);
                 } else if (zone === "exile") {

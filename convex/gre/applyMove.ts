@@ -46,6 +46,38 @@ import { enumerateMoves, type Move } from "./moves";
 import { evaluate } from "./evaluate";
 import { tryGetDefinition } from "../cards";
 
+/** CR 614.12 / ADR 0051 — drain every pending stackless `land-entry-tapped`
+ *  pay-choice (a shock land played OR put onto the battlefield by an effect)
+ *  with the ADR 0016 minimal-legal default: pay iff affordable (life ≥ cost),
+ *  else enter tapped. Keeps the 1-ply search leaf deterministic and never
+ *  stalled — a rollout can't interactively answer a choice. Uses each choice's
+ *  own `playerId` (the entering land's controller), which for a reanimation may
+ *  differ from the acting player. */
+function autoFinalizeLandEntryChoices(state: GameState): void {
+    while (true) {
+        const head = state.pendingChoices?.[0];
+        if (
+            head?.kind !== "land-entry-tapped" ||
+            !head.landInstanceId ||
+            !head.cost
+        ) {
+            break;
+        }
+        const accept = canPayMayPayCost(state, head.playerId, head.cost);
+        state.pendingChoices =
+            state.pendingChoices!.length > 1
+                ? state.pendingChoices!.slice(1)
+                : undefined;
+        finalizeLandEntry(
+            state,
+            head.playerId,
+            head.landInstanceId,
+            head.cost,
+            accept
+        );
+    }
+}
+
 /** Tap the planned mana sources on the (already cloned) state. Coarse model:
  *  a source listed in the tap plan is marked tapped so the resulting position
  *  reflects the spent mana; exact pool accounting is unnecessary for eval. */
@@ -172,29 +204,8 @@ export function applyMoveForSearch(
             // the authoritative `playCard` mutation in game.ts. See playLand.ts.
             applyPlayLand(next, player, move.cardInstanceId);
             // CR 614.12 / ADR 0051 — a shock land suspends entry on a
-            // `land-entry-tapped` pending choice. Search must not stall on it;
-            // auto-resolve inline with the ADR 0016 minimal default (pay iff
-            // affordable, i.e. life ≥ cost) so the leaf stays deterministic.
-            const head = next.pendingChoices?.[0];
-            if (
-                head?.kind === "land-entry-tapped" &&
-                head.playerId === playerId &&
-                head.landInstanceId &&
-                head.cost
-            ) {
-                const accept = canPayMayPayCost(next, playerId, head.cost);
-                next.pendingChoices =
-                    next.pendingChoices!.length > 1
-                        ? next.pendingChoices!.slice(1)
-                        : undefined;
-                finalizeLandEntry(
-                    next,
-                    playerId,
-                    head.landInstanceId,
-                    head.cost,
-                    accept
-                );
-            }
+            // `land-entry-tapped` pending choice. Search must not stall on it.
+            autoFinalizeLandEntryChoices(next);
             return next;
         }
 
@@ -218,6 +229,11 @@ export function applyMoveForSearch(
             };
             next.stack.push(stackItem);
             resolveTopOfStack(next);
+            // CR 614.12 / ADR 0051 — a spell that puts a shock land onto the
+            // battlefield (tutor / reanimation) enqueues a stackless
+            // `land-entry-tapped` pay-choice; drain it so the search leaf never
+            // stalls on a choice a rollout can't interactively answer.
+            autoFinalizeLandEntryChoices(next);
             checkStateBasedActions(next);
             return next;
         }

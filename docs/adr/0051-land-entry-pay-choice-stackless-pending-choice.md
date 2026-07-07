@@ -87,3 +87,33 @@ replacement effect and not through the stack-coupled `may-pay` path.
 - The suicide edge (bot pays 2 life at exactly 2 life and loses to SBA) is
   inherited from the shared `may-pay` affordability rule, not shock-specific;
   a global fix belongs to the `may-pay` policy, not here.
+
+## Amendment — effect-driven entry (CR 614.12 at every ETB)
+
+The original decision anchored the pay-choice at `applyPlayLand` only, because
+that was the sole way a shock land reached the battlefield at the time. CR
+614.12's replacement applies at **every** entry, so a shock land put onto the
+battlefield by an EFFECT (library tutor → battlefield, reanimation,
+`putFromHandOntoBattlefield`) — all of which funnel through
+`putReanimatedOnBattlefield` — was silently entering **untapped and free** (the
+`shouldEnterTapped` oracle knows nothing about `entersTappedUnlessPay`). Fix:
+
+- `putReanimatedOnBattlefield` now branches on `entersTappedUnlessPay`: the land
+  enters **provisionally tapped** (worst case), continuous effects apply, and a
+  stackless `land-entry-tapped` choice is enqueued with the ETB emission
+  **deferred** to `finalizeLandEntry` — so no ETB trigger observes an
+  intermediate tapped state and no land drop is recorded (this is not _playing_
+  a land, CR 305.2).
+- Because this enqueue happens **mid-resolution**, the resolver's suspend gate
+  is refined (`resolutionSuspendedOnChoice`): a stackless land-entry choice
+  (`stackItemId === ""`) does **not** suspend/replay the resolution — it is
+  answered in the active player's next priority window, exactly like the
+  play-land path. Every stack-coupled choice still suspends as before.
+- `finalizeLandEntry` handles both shapes: a land still in hand (play-land →
+  move + full settle) or already on the battlefield (effect entry → set the
+  final tapped bit + emit the deferred entry). The bot/search path drains these
+  via `autoFinalizeLandEntryChoices` (ADR 0016 minimal default) so rollouts
+  never stall.
+- **Still out of scope:** a token _copy_ of a shock land (`create-token` path,
+  not the reanimation funnel) — no such card exists in the pool; flagged if one
+  is ever added.

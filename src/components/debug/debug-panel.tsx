@@ -34,7 +34,7 @@ type PresetScenario = {
     cards: {
         name: string;
         owner: "me" | "opp";
-        zone?: "hand" | "battlefield" | "graveyard" | "exile";
+        zone?: "hand" | "battlefield" | "library" | "graveyard" | "exile";
         tapped?: boolean;
         /** Number of copies to place in the zone. Default 1. */
         count?: number;
@@ -92,6 +92,24 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         cards: [
             { name: "Steam Vents", owner: "me", zone: "hand" },
             { name: "Blood Crypt", owner: "me", zone: "hand" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+    {
+        // Shock land entering via an EFFECT, not played from hand (CR 614.12 —
+        // "as it enters" applies at EVERY entry, ADR 0051 amendment). Steam Vents
+        // sits in the library; Polluted Delta is in play. Activate the Delta
+        // ({T}, pay 1 life, sacrifice; search Island/Swamp), fetch Steam Vents,
+        // and it is put onto the battlefield — the SAME "Pay 2 life or enter
+        // tapped" prompt now appears on the fetched land (previously it entered
+        // untapped for FREE, skipping the choice). Pay to enter untapped (−2
+        // more life) or Skip to enter tapped. `libraryCount` is intentionally
+        // unset so the seeded Steam Vents survives in the library.
+        label: "Shock land FETCHED onto battlefield — pay-choice on effect entry (Polluted Delta → Steam Vents) (ADR 0051)",
+        cards: [
+            { name: "Polluted Delta", owner: "me", zone: "battlefield" },
+            { name: "Steam Vents", owner: "me", zone: "library" },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 2,
