@@ -4463,6 +4463,118 @@ describe("Effect Script Op: choice (CR 608.2 / 101.4, issue #805)", () => {
     });
 });
 
+// issue #945 — the `reveal` Op's `cards`-shape: the tutor "search …, reveal
+// it, put it into your hand, then shuffle" clause (CR 701.20 — a reveal makes
+// the found card known to every player). Mirrors Spellseeker / Stoneforge
+// Mystic / Brightglass Gearhulk / Expedition Map: choice(search-library) →
+// reveal(cards) → moveZone(library→hand) → libraryLook(shuffle). The reveal
+// must survive the shuffle and cross the wire projection so the OPPONENT sees
+// the real card in the searcher's hand, not a nulled hidden slot.
+describe("Effect Script Op: reveal — searched card (issue #945, CR 701.20)", () => {
+    const libraryOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    const tutorScript = (scriptId: string): string =>
+        registerScript(scriptId, [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                count: { min: 0, max: 1 },
+                prompt: "Search your library for a card.",
+                bind: "$picked",
+            },
+            { op: "reveal", player: "controller", cards: { ref: "$picked" } },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "library",
+                to: "hand",
+            },
+            { op: "libraryLook", action: "shuffle", player: "controller" },
+        ]);
+
+    it("makes the found card known to EVERY player; the opponent's projection shows the real revealed card in the searcher's hand", () => {
+        const id = tutorScript("test-op-reveal-tutor");
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libraryOf("p1", ["found1", "other1", "other2"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the search
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["found1"],
+        });
+
+        // The card moved to the searcher's hand…
+        const inHand = state.players[0].hand.find((c) => c.id === "found1");
+        expect(inHand).toBeDefined();
+        // …and the reveal stamped it known to BOTH players (CR 701.20). It
+        // survived the trailing shuffle because it left the library first.
+        expect(inHand!.knownTo?.slice().sort()).toEqual(["p1", "p2"]);
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices).toBeUndefined();
+
+        // Wire format (mandatory, GRE testing convention): for VIEWER p2 the
+        // projection must surface the real revealed card in p1's hand, not a
+        // nulled hidden slot.
+        const projected = projectPublicState(state, 1, "p2");
+        const slot = projected.players[0].hand.find((c) => c?.id === "found1");
+        expect(slot).toBeTruthy();
+        // The rest of p1's hand stays hidden to the opponent (only the
+        // revealed card crosses).
+        expect(
+            projected.players[0].hand.filter((c) => c !== null)
+        ).toHaveLength(1);
+    });
+
+    it("reveals nothing and does not error when the optional (min:0) search finds nothing (CR 608.2b)", () => {
+        const id = tutorScript("test-op-reveal-tutor-empty");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libraryOf("p1", ["only1"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        // Decline the optional search (pick nothing).
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [],
+        });
+        // Nothing revealed, nothing moved, no lingering knowledge.
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(
+            state.players[0].library.every((c) => c.knownTo === undefined)
+        ).toBe(true);
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices).toBeUndefined();
+    });
+});
+
 // issue #920 / #682 — the `choice` Op's `zoneOwnerId` generalization: the
 // chooser (`player`) and the zone owner picked from can now differ. Paired
 // with the new `reveal` Op this is the Thoughtseize/Duress/Inquisition-of-

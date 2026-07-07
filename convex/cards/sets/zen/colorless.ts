@@ -205,9 +205,9 @@ export const verdantCatacombs: CardDefinition = {
 
 // Expedition Map — {1} Artifact. "{2}, {T}, Sacrifice this artifact: Search
 // your library for a land card, reveal it, put it into your hand, then
-// shuffle." The "reveal it" clause is dropped (CR 701.20 keyword action
-// "Reveal" is a `planned` Op, mechanicsRegistry.ts — no other game state reads
-// the reveal for this card, so the search-then-hand outcome is unaffected).
+// shuffle." The "reveal it" clause is a `reveal` Op on the picked card (issue
+// #945, CR 701.20): it makes the found land known to every player, placed
+// BEFORE the moveZone/shuffle so the knowledge rides the card into hand.
 export const expeditionMap: CardDefinition = {
     id: "c55bee97-593f-441f-b96c-a998d5212a55",
     name: "Expedition Map",
@@ -233,6 +233,11 @@ export const expeditionMap: CardDefinition = {
                     count: 1,
                     prompt: "Search your library for a land card.",
                     bind: "$picked",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$picked" },
                 },
                 {
                     op: "moveZone",

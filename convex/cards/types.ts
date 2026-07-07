@@ -5442,11 +5442,29 @@ export type EffectOp =
      *  `choice(zone: "hand", zoneOwnerId: <same player>)` for the
      *  Thoughtseize/Duress/Inquisition-of-Kozilek template ("target player
      *  reveals their hand, you choose a card from it"). No-op on an empty
-     *  hand (CR 608.2b — nothing to reveal). Scoped to `zone: "hand"` only for
-     *  now — a library-top reveal (Caustic Bronco-class) is a distinct
+     *  hand (CR 608.2b — nothing to reveal).
+     *
+     *  Two shapes, exactly one of `zone` / `cards` (mutually exclusive):
+     *   - `zone: "hand"` — the ALL-PLAYERS hand reveal above
+     *     (Thoughtseize/Duress/Inquisition of Kozilek/Grief).
+     *   - `cards: EffectRef` (issue #945) — reveal the SPECIFIC cards a
+     *     preceding `choice` (search-library) Op bound (a bare picks ref,
+     *     e.g. `{ ref: "$picked" }`), owned by `player`. This is the "search
+     *     …, reveal it, put it into your hand, then shuffle" tutor clause (CR
+     *     701.20 — a reveal makes the found card known to every player):
+     *     Spellseeker, Stoneforge Mystic, Brightglass Gearhulk, Expedition
+     *     Map. Same `markKnownToAll` primitive, arbitrary instance ids. Place
+     *     it BEFORE the `moveZone`/shuffle: the picked card is still in the
+     *     library when stamped, keeps its all-players `knownTo` through the
+     *     move to hand, and the trailing shuffle only clears knowledge of
+     *     cards still in the library (CR 701.20). No-op when the choice found
+     *     nothing (the binding was never captured, CR 608.2b).
+     *
+     *  A library-top reveal (Caustic Bronco-class) is a distinct
      *  positional-order case left for a future Op (`EFFECT_OP_BACKLOG`'s
      *  broader "reveal" note, `mechanicsRegistry.ts`). */
     | { op: "reveal"; player: EffectPlayerRef; zone: "hand" }
+    | { op: "reveal"; player: EffectPlayerRef; cards: EffectRef }
     /** CR 608.2 / 101.4 — a mid-resolution player choice (issue #805). Maps
      *  1:1 onto `SpellContext.requestChoice`: the interpreter enqueues a
      *  Pending Choice of the given `kind` and SUSPENDS the script (the stack
