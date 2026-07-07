@@ -741,6 +741,23 @@ export function getTriggeredAbilityOracleText(
     return null;
 }
 
+/** Returns the oracle text for a delayed triggered ability (CR 603.7a) by
+ *  source card id + delayed trigger id, or null when unknown. Mirrors
+ *  `getAbilityOracleText` / `getTriggeredAbilityOracleText` but looks up
+ *  `cardDef.delayedTriggers` — a delayed trigger has no granted-ability path
+ *  (it is always scheduled by its own source's resolve, never granted
+ *  cross-card), so there is no grant-template fallback to check. */
+export function getDelayedTriggerOracleText(
+    cardId: string,
+    delayedTriggerId: string
+): string | null {
+    const cardDef = getDefinition(cardId);
+    const trigger = cardDef.delayedTriggers?.find(
+        (t) => t.id === delayedTriggerId
+    );
+    return trigger?.oracleText ?? null;
+}
+
 /** Display state for a card ability in the zoom panel.
  *  - "native": present on the CardDefinition and still effective.
  *  - "granted": added at runtime by an aura/effect (not on the def).

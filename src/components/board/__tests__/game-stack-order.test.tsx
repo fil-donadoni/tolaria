@@ -76,6 +76,30 @@ describe("GameStack resolution order (slice #255)", () => {
     });
 });
 
+describe("GameStack ability-kind detection (#935)", () => {
+    it("renders a delayed triggered ability as an ability tile, not card art", () => {
+        // Mishra's Bauble's "Draw a card at the beginning of the next turn's
+        // upkeep" delayed trigger (CR 603.7a) must render via StackAbilityTile
+        // (a third ability kind alongside activated/triggered), not fall
+        // through to the source card image.
+        const item = {
+            ...makeStackItem("delayed-1"),
+            card: { id: "8a720448-017f-4f4a-9501-678245eaed17" }, // Mishra's Bauble
+            delayedTriggerId: "next-upkeep-cantrip",
+        } as StackItem;
+        const { container, queryByTestId } = renderStack([item]);
+
+        expect(
+            container.querySelector('[data-arrow-anchor-stack="delayed-1"]')
+        ).not.toBeNull();
+        // The ability-tile path renders — not the source card image mock.
+        expect(queryByTestId("stack-card")).toBeNull();
+        expect(container.textContent).toContain(
+            "Draw a card at the beginning of the next turn's upkeep."
+        );
+    });
+});
+
 describe("GameStack play-area anchor", () => {
     it("anchors to the right edge of the play area (left of the reserved strip)", () => {
         // Play-area layout rule: the floating stack panel anchors its right
