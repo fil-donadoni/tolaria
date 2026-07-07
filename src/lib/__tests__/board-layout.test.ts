@@ -6,6 +6,8 @@ import {
     fanLayout,
     mirrorVertical,
     reorderIndexForDragX,
+    clampDragOffsetX,
+    handGapPlacements,
     moveItem,
     reconcileHandOrder,
     stackFanOffset,
@@ -417,6 +419,99 @@ describe("reorderIndexForDragX (hand drag-reorder snap, #271 fix 2)", () => {
 
     it("returns the dragged index unchanged when it is out of range", () => {
         expect(reorderIndexForDragX(slots, 9, 300)).toBe(9);
+    });
+});
+
+describe("clampDragOffsetX (bound the dragged-card lift to the hand span)", () => {
+    // Five slots centered at 100, 200, 300, 400, 500.
+    const slots = centers([100, 200, 300, 400, 500]);
+
+    it("passes a small in-span offset through unchanged", () => {
+        // Card at slot 2 (center 300) nudged +80 → center 380, still in [100,500].
+        expect(clampDragOffsetX(slots, 2, 80)).toBe(80);
+        expect(clampDragOffsetX(slots, 2, -80)).toBe(-80);
+    });
+
+    it("pins the leftmost card at the first slot (can't go past it)", () => {
+        // Card at slot 0 (center 100) dragged far left: rendered center clamped
+        // to 100 → offset clamped to 0.
+        expect(clampDragOffsetX(slots, 0, -999)).toBe(0);
+    });
+
+    it("pins the rightmost card at the last slot (can't go past it)", () => {
+        // Card at slot 4 (center 500) dragged far right → offset clamped to 0.
+        expect(clampDragOffsetX(slots, 4, 999)).toBe(0);
+    });
+
+    it("clamps a mid-hand card to reach exactly the first / last slot", () => {
+        // Card at slot 2 (center 300): may travel down to 100 (dx -200) and up to
+        // 500 (dx +200), no further.
+        expect(clampDragOffsetX(slots, 2, -999)).toBe(-200);
+        expect(clampDragOffsetX(slots, 2, 999)).toBe(200);
+    });
+
+    it("is a no-op for a single-card hand (span is a point)", () => {
+        expect(clampDragOffsetX(centers([300]), 0, 999)).toBe(0);
+        expect(clampDragOffsetX(centers([300]), 0, -999)).toBe(0);
+    });
+
+    it("returns the raw offset when the dragged index is out of range", () => {
+        expect(clampDragOffsetX(slots, 9, 123)).toBe(123);
+        expect(clampDragOffsetX([], 0, 123)).toBe(123);
+    });
+});
+
+describe("handGapPlacements (deferred-commit drag gap, drag-reorder v2)", () => {
+    // Distinct, easily-identified fan slots.
+    const fan = centers([100, 200, 300, 400, 500]);
+
+    it("parks the dragged card on the drop slot", () => {
+        // Drag index 0 to drop slot 3.
+        const res = handGapPlacements(fan, 0, 3);
+        expect(res[0].x).toBe(fan[3].x);
+    });
+
+    it("shifts the run between source and target to open the gap (drag right)", () => {
+        // from=0 → dropIndex=4: others fill slots 0..3, dragged takes slot 4.
+        const res = handGapPlacements(fan, 0, 4).map((p) => p.x);
+        expect(res).toEqual([500, 100, 200, 300, 400]);
+    });
+
+    it("shifts the run the other way (drag left)", () => {
+        // from=4 → dropIndex=1: slots 1..3 shift right, dragged takes slot 1.
+        const res = handGapPlacements(fan, 4, 1).map((p) => p.x);
+        expect(res).toEqual([100, 300, 400, 500, 200]);
+    });
+
+    it("is the identity when the drop slot equals the source slot", () => {
+        const res = handGapPlacements(fan, 2, 2).map((p) => p.x);
+        expect(res).toEqual([100, 200, 300, 400, 500]);
+    });
+
+    it("matches the post-commit fan exactly, so the drop is seamless", () => {
+        // The visual gap layout during the drag must equal what the plain fan
+        // produces AFTER moveItem commits — otherwise the card jumps on release.
+        const order = ["a", "b", "c", "d", "e"];
+        const from = 0;
+        const dropIndex = 3;
+        const gap = handGapPlacements(fan, from, dropIndex);
+        const committed = moveItem(order, from, dropIndex);
+        // After commit, card i sits on fan slot i. The dragged card ("a") is now
+        // at committed index `dropIndex`; assert its slot matches the gap layout.
+        const committedDraggedIndex = committed.indexOf("a");
+        expect(gap[from].x).toBe(fan[committedDraggedIndex].x);
+        // And every other card's gap slot equals its committed fan slot.
+        for (let i = 0; i < order.length; i++) {
+            if (i === from) continue;
+            const committedIndex = committed.indexOf(order[i]);
+            expect(gap[i].x).toBe(fan[committedIndex].x);
+        }
+    });
+
+    it("returns an unchanged copy for out-of-range indices", () => {
+        expect(handGapPlacements(fan, 9, 1)).toEqual(fan);
+        expect(handGapPlacements(fan, 1, 9)).toEqual(fan);
+        expect(handGapPlacements(fan, 1, 9)).not.toBe(fan);
     });
 });
 

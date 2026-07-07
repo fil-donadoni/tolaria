@@ -22,6 +22,12 @@ type SpatialZoneProps = {
      *  This is the single source of truth for card positions — the same data
      *  anchors target arrows (PRD #249, #257). */
     layout: (count: number, width: number, height: number) => Placement[];
+    /** Explicit per-item placements that OVERRIDE {@link layout}. The hand passes
+     *  these while a card is being drag-reordered so it can open a gap at the drop
+     *  target without touching the item array (PRD #249, drag-reorder v2). One
+     *  entry per item, in item order; still mirrored for the opponent's side. When
+     *  omitted the zone computes placements from `layout` as usual. */
+    placements?: Placement[];
     /** Mirror placements vertically (opponent's side reuses the viewer math). */
     mirror?: boolean;
     /** Base card width/height in px (defaults to the shared card footprint). */
@@ -37,6 +43,11 @@ type SpatialZoneProps = {
      *  above the band rather than being clipped by `overflow-hidden` (#271,
      *  fix 4). Defaults to clipped. */
     overflowVisible?: boolean;
+    /** The slot id whose reflow spring should be disabled (it snaps straight to
+     *  its placement). The hand passes the currently-dragged card so its slot
+     *  lands on each reordered placement instantly while its neighbours spring —
+     *  the card's own lift then keeps it pinned under the pointer (no drift). */
+    snapSlotId?: string | null;
     className?: string;
     "data-testid"?: string;
 };
@@ -51,11 +62,13 @@ type SpatialZoneProps = {
 export default function SpatialZone({
     items,
     layout,
+    placements: placementsOverride,
     mirror = false,
     cardWidth = CARD_WIDTH,
     cardHeight = CARD_HEIGHT,
     anchorKind,
     overflowVisible = false,
+    snapSlotId,
     className,
     "data-testid": testId,
 }: SpatialZoneProps) {
@@ -63,7 +76,7 @@ export default function SpatialZone({
     const width = size.width || 0;
     const height = size.height || 0;
 
-    let placements = layout(items.length, width, height);
+    let placements = placementsOverride ?? layout(items.length, width, height);
     if (mirror) {
         placements = placements.map((p) => mirrorVertical(p, height));
     }
@@ -102,6 +115,7 @@ export default function SpatialZone({
                         placement={placed}
                         cardWidth={cardWidth}
                         cardHeight={cardHeight}
+                        snap={item.key === snapSlotId}
                     >
                         {item.node}
                     </SpatialSlot>

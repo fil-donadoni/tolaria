@@ -14,6 +14,14 @@ type SpatialSlotProps = {
     /** Base card footprint in px. */
     cardWidth: number;
     cardHeight: number;
+    /** Disable this slot's reflow spring so it lands on its placement instantly
+     *  (no tween), AND raise it above every sibling slot. Used for the card being
+     *  dragged: its own lift cancels the reordered placement, so any slot tween
+     *  would show as the card drifting away from the pointer, and its DOM node
+     *  stays in place (deferred-commit reorder) so a plain inner z-index can't
+     *  lift it over later siblings — the whole slot must be raised. Neighbours
+     *  keep springing at their resting stack level. */
+    snap?: boolean;
     children: ReactNode;
 };
 
@@ -47,6 +55,7 @@ export default function SpatialSlot({
     placement,
     cardWidth,
     cardHeight,
+    snap = false,
     children,
 }: SpatialSlotProps) {
     const reduceMotion = useReducedMotion();
@@ -60,9 +69,9 @@ export default function SpatialSlot({
     // no transition origin, so a permanent `transition: transform` never causes
     // a slide-in from the page origin on mount — it only springs when the
     // transform *changes* (reflow within a zone, or a card landing at a new
-    // placement). Disabled entirely for reduced-motion users (accessibility):
-    // cards snap to placement.
-    const animate = !reduceMotion;
+    // placement). Disabled entirely for reduced-motion users (accessibility) and
+    // for the dragged slot (`snap`): cards snap to placement.
+    const animate = !reduceMotion && !snap;
 
     return (
         <div
@@ -75,12 +84,18 @@ export default function SpatialSlot({
                 transition: animate
                     ? `transform ${SLOT_SPRING.cssDuration} ${SLOT_SPRING.cssEasing}`
                     : "none",
+                // The dragged slot rides above every sibling for the whole
+                // gesture (it never reorders in the DOM, so it needs an explicit
+                // lift over later-painted slots).
+                zIndex: snap ? 50 : undefined,
             }}
         >
             <motion.div
                 layout
                 layoutId={slotId}
-                transition={reduceMotion ? { duration: 0 } : SLOT_SPRING.motion}
+                transition={
+                    reduceMotion || snap ? { duration: 0 } : SLOT_SPRING.motion
+                }
                 className="w-full h-full"
             >
                 {children}

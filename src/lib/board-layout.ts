@@ -464,6 +464,84 @@ export function reorderIndexForDragX(
     return nearest;
 }
 
+/**
+ * Clamp the dragged hand card's horizontal lift so its rendered center never
+ * travels past the first or last slot center (issue: a card dragged sideways
+ * could be flung out of the viewport). The card follows the pointer freely
+ * within the hand span but is pinned at the ends — it can never go beyond the
+ * first or last card of the hand.
+ *
+ * `placements` are the slot centers in the CURRENT presentation order,
+ * `fromIndex` is the dragged card's slot, and `rawDx` is the pointer's raw
+ * horizontal offset from the press origin (the un-clamped visual lift). The
+ * card's rendered center is `slotCenter + dx`, so bounding that center to
+ * `[minCenter, maxCenter]` yields the clamped `dx`. Reorder (which snaps the
+ * card under the pointer) is unaffected — this only bounds the visual lift.
+ */
+export function clampDragOffsetX(
+    placements: Placement[],
+    fromIndex: number,
+    rawDx: number
+): number {
+    const count = placements.length;
+    if (count === 0 || fromIndex < 0 || fromIndex >= count) return rawDx;
+    const self = placements[fromIndex].x;
+    let min = placements[0].x;
+    let max = placements[0].x;
+    for (const p of placements) {
+        if (p.x < min) min = p.x;
+        if (p.x > max) max = p.x;
+    }
+    // Bound rendered center (self + dx) to [min, max].
+    return Math.min(max - self, Math.max(min - self, rawDx));
+}
+
+/**
+ * Open a GAP in the fan for a card being dragged, WITHOUT committing a reorder
+ * (PRD #249, drag-reorder v2). Returns one placement per card in the CURRENT
+ * (unchanged) order: the dragged card (`from`) is parked on the fan slot under
+ * the drop target (`dropIndex`) — its own pointer-lift then floats it to the
+ * cursor — while every other card fills the remaining slots in order, so the
+ * cards between the source and the target slide over to reveal an empty landing
+ * slot exactly where the card will drop.
+ *
+ * Crucially the ITEM ARRAY never changes during the drag (only these placements
+ * do): the dragged card's DOM node stays put, so its pointer capture is never
+ * dropped mid-gesture (a live array reorder moved the node and silently killed
+ * the drag after a single slot). The real reorder is applied once, on release,
+ * via {@link moveItem}(order, from, dropIndex) — and because this gap layout
+ * already matches the post-commit fan exactly, the commit is seamless (no jump).
+ *
+ * Pure: `fan` are the resting fan placements (from {@link fanLayout}); returns a
+ * new array. Out-of-range indices return a shallow copy unchanged.
+ */
+export function handGapPlacements(
+    fan: Placement[],
+    from: number,
+    dropIndex: number
+): Placement[] {
+    const n = fan.length;
+    if (from < 0 || from >= n || dropIndex < 0 || dropIndex >= n) {
+        return fan.slice();
+    }
+    const res: Placement[] = new Array(n);
+    // Dragged card parks on the drop-target slot (its lift floats it to cursor).
+    res[from] = fan[dropIndex];
+    // Every OTHER card fills the remaining slots (all except the drop slot) in
+    // ascending slot order, so the run between source and target shifts by one to
+    // open the gap.
+    const avail: Placement[] = [];
+    for (let s = 0; s < n; s++) {
+        if (s !== dropIndex) avail.push(fan[s]);
+    }
+    let k = 0;
+    for (let i = 0; i < n; i++) {
+        if (i === from) continue;
+        res[i] = avail[k++];
+    }
+    return res;
+}
+
 /** Move the item at `from` to index `to`, returning a new array. Out-of-range
  *  or no-op moves return a shallow copy unchanged. Pure — used to apply a
  *  {@link reorderIndexForDragX} result to the presentation hand order. */

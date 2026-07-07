@@ -22,6 +22,11 @@ type BoardHandCardProps = {
     /** Called once the drag gesture ends (release or cancel) so the hand can
      *  clear its drag-reorder bookkeeping. */
     onDragEnd?: () => void;
+    /** Horizontal lift (px) for the dragged card given the live pointer x, so its
+     *  center tracks the pointer even as its own slot reorders under it, bounded
+     *  to the hand span. Supplied by the hand (which owns the slot geometry).
+     *  When omitted the card falls back to the raw pointer offset. */
+    dragTranslateX?: (pointerX: number) => number;
 };
 
 /** Interactive hand card for the spatial board (PRD #249, slice #254; UX fixes
@@ -57,6 +62,7 @@ export default function BoardHandCard({
     card,
     onDragMove,
     onDragEnd,
+    dragTranslateX,
 }: BoardHandCardProps) {
     const { playerId, pendingChoices } = useGameContext();
     const bufferCtx = usePendingChoiceBuffer();
@@ -143,8 +149,16 @@ export default function BoardHandCard({
         );
     }
 
+    // The dragged card's center tracks the pointer via the hand-supplied lift
+    // (which cancels the reorder-induced slot shift and clamps to the hand span),
+    // so it stays under the finger and can never fly out of the viewport. Falls
+    // back to the raw pointer offset when the hand supplies no geometry.
+    const liftX =
+        state.dragging && dragTranslateX && state.pointerX !== null
+            ? dragTranslateX(state.pointerX)
+            : state.offset.x;
     const lift = state.dragging
-        ? `translate(${state.offset.x}px, ${state.offset.y}px) scale(1.06)`
+        ? `translate(${liftX}px, ${state.offset.y}px) scale(1.06)`
         : undefined;
 
     return (
