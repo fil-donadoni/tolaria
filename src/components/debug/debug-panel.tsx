@@ -846,8 +846,8 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         ],
         phase: "BEGINNING_OF_COMBAT",
         landCount: 4,
-},
-        {
+    },
+    {
         // Filtered library-search allow-list UI (issue #933): Polluted Delta's
         // "Search your library for an Island or Swamp card" carries a
         // `candidateIds` allow-list. Before the fix, EVERY revealed library

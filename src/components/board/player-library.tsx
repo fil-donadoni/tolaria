@@ -13,6 +13,7 @@ import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import CardsPile from "./cards-pile";
 import LibrarySearchConfirm from "./library-search-confirm";
 import { buildLibraryPileModel } from "~/lib/library-knowledge";
+import { orderLibrarySearchCards } from "~/lib/library-search-order";
 
 export default function PlayerLibrary({
     player,
@@ -69,8 +70,19 @@ export default function PlayerLibrary({
     // ADR 0026 — outside an active pick, the pile renders from the projected
     // library: known positions (`knownTo`) face-up, the rest as backs.
     const pileModel = buildLibraryPileModel(player.library, player.id);
+
+    // Filtered search (Transmute Artifact: "an artifact card"): the choice
+    // carries a `candidateIds` allow-list. Only those cards are pickable — a
+    // click on an ineligible card is a no-op (the server would reject it too).
+    const eligibleIds =
+        isLibrarySearchTarget && head!.candidateIds
+            ? new Set(head!.candidateIds)
+            : undefined;
+
     const libraryCards = isLibrarySearchTarget
-        ? player.librarySearch!
+        ? // Issue #933 follow-up: put eligible (allow-listed) cards first, then
+          // sort the whole pile by type line with name as the tiebreaker.
+          orderLibrarySearchCards(player.librarySearch!, eligibleIds)
         : isLibraryPeekPick
           ? player.libraryPeek!
           : pileModel.map((slot) => slot.card);
@@ -95,14 +107,6 @@ export default function PlayerLibrary({
         typeof searchCount === "number" ? searchCount : searchCount.min;
     const searchMax =
         typeof searchCount === "number" ? searchCount : searchCount.max;
-
-    // Filtered search (Transmute Artifact: "an artifact card"): the choice
-    // carries a `candidateIds` allow-list. Only those cards are pickable — a
-    // click on an ineligible card is a no-op (the server would reject it too).
-    const eligibleIds =
-        isLibrarySearchTarget && head!.candidateIds
-            ? new Set(head!.candidateIds)
-            : undefined;
 
     const onCardClick = isLibraryPick
         ? (card: { id: string }) => {
