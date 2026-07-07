@@ -1045,6 +1045,36 @@ describe("validateEffectScript — sacrifice Op (CR 701.16, issue #807)", () => 
     });
 });
 
+describe("validateEffectScript — reveal Op (CR 701.20a, issue #945)", () => {
+    it('requires exactly one of "zone" / "cards"', () => {
+        // Both shapes present — rejected (the XOR guard at validate.ts:1073).
+        const both = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "reveal",
+                        player: "controller",
+                        zone: "hand",
+                        cards: { ref: "$sac" },
+                    },
+                ] as never,
+            })
+        );
+        expect(
+            both.some((e) => /exactly one of "zone" or "cards"/.test(e))
+        ).toBe(true);
+        // Neither shape present — also rejected.
+        const neither = validateEffectScript(
+            host({
+                effects: [{ op: "reveal", player: "controller" }] as never,
+            })
+        );
+        expect(
+            neither.some((e) => /exactly one of "zone" or "cards"/.test(e))
+        ).toBe(true);
+    });
+});
+
 // delayedTrigger Op schema + capture/body scoping (CR 603.7, ADR 0048, issue
 // #838). The body is validated as a FRESH script (its only initial bindings
 // are the capture keys); capture sources resolve in the OUTER scope.

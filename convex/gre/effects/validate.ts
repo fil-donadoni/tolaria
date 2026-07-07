@@ -1057,12 +1057,24 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             return errors;
         },
     },
-    // CR 701.20a (issue #920, #682) — reveal `player`'s hand to every player.
-    // `zone` is frozen to `"hand"` (the only reveal shape a shipped card
-    // needs today); a library-top reveal is a distinct positional-order case
-    // left for a future Op.
+    // CR 701.20a (issue #920, #682, #945) — reveal to every player. Two
+    // mutually-exclusive shapes, exactly one of `zone` / `cards`:
+    //  - `zone: "hand"` — reveal `player`'s whole hand (Thoughtseize/Duress).
+    //  - `cards: <bare picks ref>` — reveal the SPECIFIC card(s) a preceding
+    //    search-library `choice` bound (issue #945, the "search …, reveal it,
+    //    put it into your hand" tutor clause). A library-top positional reveal
+    //    (Caustic Bronco-class) is still a distinct future Op.
     reveal: {
-        required: { player: isPlayerRef, zone: (v) => v === "hand" },
+        required: { player: isPlayerRef },
+        optional: { zone: (v) => v === "hand", cards: isBarePicksRef },
+        check: (entry) => {
+            const hasZone = "zone" in entry;
+            const hasCards = "cards" in entry;
+            if (hasZone === hasCards) {
+                return ['exactly one of "zone" or "cards" is required'];
+            }
+            return [];
+        },
     },
     // CR 608.2 / 101.4 (issue #805) — mid-resolution choice through the
     // existing Pending Choice pipeline. `bind` is REQUIRED: a choice whose

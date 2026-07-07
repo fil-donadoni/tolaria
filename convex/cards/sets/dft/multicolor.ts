@@ -28,8 +28,9 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // Enchantment, issue #677); `filter.manaValueAtMost: 1` is the fixed
 // mana-value ceiling (issue #677); `count: { min: 0, max: 2 }` is "up to two"
 // (issue #677) — the `moveZone` cards-shape moves every picked id (0, 1, or
-// 2). The "reveal them" clause is dropped (CR 701.20 "Reveal" is a `planned`
-// Op, no other game state reads it here).
+// 2). The "reveal them" clause is a `reveal` Op on the picked cards (issue
+// #945, CR 701.20): it makes the found cards known to every player, placed
+// BEFORE the moveZone/shuffle so the knowledge rides them into hand.
 export const brightglassGearhulk: CardDefinition = {
     id: "3dea5b45-925c-4732-8e9d-fa8232792736",
     name: "Brightglass Gearhulk",
@@ -61,6 +62,11 @@ export const brightglassGearhulk: CardDefinition = {
                     count: { min: 0, max: 2 },
                     prompt: "Search your library for up to two artifact, creature, and/or enchantment cards with mana value 1 or less.",
                     bind: "$picked",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$picked" },
                 },
                 {
                     op: "moveZone",

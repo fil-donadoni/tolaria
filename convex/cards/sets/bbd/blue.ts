@@ -11,8 +11,10 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // 701.20.) `filter.type` is an OR-array (Instant/Sorcery, issue #677);
 // `filter.manaValueAtMost: 2` is the fixed mana-value ceiling (issue #677);
 // `count: { min: 0, max: 1 }` makes the search optional ("you may"). The
-// "reveal it" clause is dropped (CR 701.20 "Reveal" is a `planned` Op, no
-// other game state reads it here).
+// "reveal it" clause is a `reveal` Op on the picked card (issue #945, CR
+// 701.20): it makes the found instant/sorcery known to every player, placed
+// BEFORE the moveZone/shuffle so the knowledge rides the card into hand and
+// survives the shuffle.
 export const spellseeker: CardDefinition = {
     id: "74b4c336-5d4c-4bc5-b82a-35084a6ad808",
     rarity: "rare",
@@ -43,6 +45,11 @@ export const spellseeker: CardDefinition = {
                     count: { min: 0, max: 1 },
                     prompt: "Search your library for an instant or sorcery card with mana value 2 or less (or none).",
                     bind: "$picked",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$picked" },
                 },
                 {
                     op: "moveZone",

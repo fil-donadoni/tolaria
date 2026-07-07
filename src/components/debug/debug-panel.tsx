@@ -148,6 +148,28 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Tutor reveal to the opponent (CR 701.20, issue #945): Spellseeker's
+        // ETB "search your library for an instant or sorcery with mana value 2
+        // or less, reveal it, put it into your hand, then shuffle." Cast
+        // Spellseeker ({2}{U} — three Islands cover it), let the ETB trigger
+        // resolve, and search up Ancestral Recall ({U} instant, mv 1). The
+        // `reveal` Op stamps the found card known to EVERY player, so — via the
+        // solo-mode auto-switch to the opponent's view — the tutored card shows
+        // face-up in Spellseeker's controller's hand instead of a hidden back.
+        // Lightning Bolt is a second legal target (mv 1 instant); Grizzly Bears
+        // (mv 2 creature) is a NON-match to confirm the filter.
+        label: "Tutor reveal to opponent (Spellseeker → Ancestral Recall) (#945)",
+        cards: [
+            { name: "Spellseeker", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 3 },
+            { name: "Ancestral Recall", owner: "me", zone: "library" },
+            { name: "Lightning Bolt", owner: "me", zone: "library" },
+            { name: "Grizzly Bears", owner: "me", zone: "library" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // May-pay sacrifice VICTIM CHOICE (CR 701.16b, issue #940): Witherbloom
         // Charm's first mode is "You may sacrifice a permanent. If you do, draw
         // two cards." With MULTIPLE sacrificeable permanents (two Grizzly Bears)

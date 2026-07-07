@@ -15,8 +15,9 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // `moveZone` shape (issue #677): `choice`(zone: "hand", filter: { subtype:
 // "Equipment" }, count: { min: 0, max: 1 }) + `moveZone(from: "hand", to:
 // "battlefield")`, routing through `putFromHandOntoBattlefield`. The "reveal
-// it" clause is dropped (CR 701.20 "Reveal" is a `planned` Op, no other game
-// state reads it here).
+// it" clause is a `reveal` Op on the picked card (issue #945, CR 701.20): it
+// makes the found Equipment known to every player, placed BEFORE the
+// moveZone/shuffle so the knowledge rides the card into hand.
 export const stoneforgeMystic: CardDefinition = {
     id: "19557351-b65f-4b04-b971-66abdc07000a",
     rarity: "rare",
@@ -44,6 +45,11 @@ export const stoneforgeMystic: CardDefinition = {
                     count: { min: 0, max: 1 },
                     prompt: "Search your library for an Equipment card (or none).",
                     bind: "$picked",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$picked" },
                 },
                 {
                     op: "moveZone",

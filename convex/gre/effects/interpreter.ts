@@ -986,6 +986,21 @@ export const OP_EXECUTORS: {
     reveal(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
+        // issue #945 — the tutor "search …, reveal it, put it into your hand"
+        // clause (CR 701.20): reveal the SPECIFIC card(s) a preceding
+        // search-library `choice` bound, not the whole hand. `markKnownToAll`
+        // takes arbitrary instance ids and scans library+hand, so stamping the
+        // picked card while it is still in the library (before the moveZone)
+        // makes it known to everyone; the knowledge rides the move into hand
+        // and survives the trailing shuffle (which only clears knowledge of
+        // cards still in the library). Nothing found ⇒ binding never captured
+        // ⇒ no-op (CR 608.2b).
+        if ("cards" in op) {
+            const ids = resolvePicks(ctx, op.cards);
+            if (!ids || ids.length === 0) return;
+            ctx.markKnownToAll(playerId, ids);
+            return;
+        }
         const ids = ctx.getHandIds(playerId);
         if (ids.length === 0) return; // CR 608.2b — nothing to reveal
         ctx.markKnownToAll(playerId, ids);

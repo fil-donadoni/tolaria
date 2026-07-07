@@ -2466,7 +2466,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         cr: "701.20",
         mechanicId: "reveal",
         binding: "SpellContext.markKnownToAll",
-        note: 'Reveal `player`\'s hand to every player (CR 701.20a, issue #920 / #682 — promoted from the `planned` backlog). A thin declarative skin over the single SpellContext primitive `markKnownToAll` (ADR 0026), one execution path (ADR 0045): every card currently in `player`\'s hand is stamped with every player in `knownTo`, so the wire projection (`convex/gameProjections.ts`) shows the real card instead of nulling the slot. Frozen to `zone: "hand"` — the only shape a shipped card needs today (Thoughtseize / Duress / Inquisition of Kozilek / Grief\'s "target player reveals their hand"). No-op on an empty hand (CR 608.2b). SCOPE: only the ALL-PLAYERS reveal is folded. A private "look" (ONE knower, e.g. Word of Command\'s "look at target opponent\'s hand") is a DIFFERENT, narrower primitive (`SpellContext.markKnown`) and stays resolve() — Word of Command\'s control-transfer protocol has other reasons to stay resolve() regardless (ADR 0037). A library-top reveal (Caustic Bronco-class, positional order matters) is also NOT folded — left for a future Op.',
+        note: 'Reveal to every player (CR 701.20a, issue #920 / #682 — promoted from the `planned` backlog; issue #945 — extended to a searched-and-found card). A thin declarative skin over the single SpellContext primitive `markKnownToAll` (ADR 0026), one execution path (ADR 0045): the named card(s) are stamped with every player in `knownTo`, so the wire projection (`convex/gameProjections.ts`) shows the real card instead of nulling the slot. TWO mutually-exclusive shapes: (a) `zone: "hand"` — reveal `player`\'s WHOLE hand (Thoughtseize / Duress / Inquisition of Kozilek / Grief\'s "target player reveals their hand"), no-op on an empty hand (CR 608.2b); (b) `cards: <bare picks ref>` (issue #945) — reveal the SPECIFIC card(s) a preceding search-library `choice` bound, the tutor "search …, reveal it, put it into your hand, then shuffle" clause (Spellseeker, Stoneforge Mystic, Brightglass Gearhulk, Expedition Map). `markKnownToAll` already accepts arbitrary instance ids and scans library+hand, so the reveal is placed BEFORE the moveZone/shuffle: the picked card is stamped while still in the library, keeps its all-players knowledge through the move into hand, and survives the trailing shuffle (which only clears knowledge of cards still in the library, CR 701.20). No-op when the choice found nothing (CR 608.2b). SCOPE: only the ALL-PLAYERS reveal is folded. A private "look" (ONE knower, e.g. Word of Command\'s "look at target opponent\'s hand") is a DIFFERENT, narrower primitive (`SpellContext.markKnown`) and stays resolve() — Word of Command\'s control-transfer protocol has other reasons to stay resolve() regardless (ADR 0037). A library-top reveal (Caustic Bronco-class, positional order matters) is also NOT folded — left for a future Op.',
     },
 ];
 
@@ -2575,10 +2575,13 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Low-frequency long-tail (surfaced by the classifier, PRD #826 §Out
     //     of Scope — recorded as reservations, filed as issues only on demand
     //     past wave-1). ---
-    // `reveal` SHIPPED (issue #920 / #682) — SpellContext.markKnownToAll is
-    // now COVERED live via EFFECT_OP_REGISTRY with status "implemented". Only
-    // the ALL-PLAYERS hand reveal is folded (Thoughtseize / Duress /
-    // Inquisition of Kozilek / Grief's "target player reveals their hand").
+    // `reveal` SHIPPED (issue #920 / #682, extended #945) —
+    // SpellContext.markKnownToAll is now COVERED live via EFFECT_OP_REGISTRY
+    // with status "implemented". The ALL-PLAYERS reveal is folded in two
+    // shapes: the whole-hand reveal (`zone: "hand"` — Thoughtseize / Duress /
+    // Inquisition of Kozilek / Grief) and the searched-and-found card reveal
+    // (`cards: <picks ref>` — the tutor "reveal it" clause, issue #945:
+    // Spellseeker, Stoneforge Mystic, Brightglass Gearhulk, Expedition Map).
     // A private single-knower "look" (Word of Command) and a library-top
     // reveal (Caustic Bronco-class) are NOT folded — see the registry note.
     {
