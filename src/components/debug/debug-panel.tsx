@@ -103,6 +103,30 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Created-token art (issue #941): Titania, Protector of Argoth's
+        // "whenever a land you control is put into a graveyard from the
+        // battlefield, create a 5/3 green Elemental creature token" produces
+        // a token whose `imagePrintId` is now resolved via
+        // `tokenPrintIdFor` (10E's printed Elemental token) — it should
+        // render real Scryfall art, not the placeholder. Activate Strip
+        // Mine's "{T}, Sacrifice this land: Destroy target land" (target the
+        // Forest, or Strip Mine itself) — the sacrifice-as-cost puts a land
+        // you control into the graveyard from the battlefield and fires
+        // Titania's trigger.
+        label: "Titania, Protector of Argoth: land dies → Elemental token has real art (#941)",
+        cards: [
+            {
+                name: "Titania, Protector of Argoth",
+                owner: "me",
+                zone: "battlefield",
+            },
+            { name: "Strip Mine", owner: "me", zone: "battlefield" },
+            { name: "Forest", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Look-at-top-N library dialog (CR 401.4 / 701.42, issue #942): both
         // "look at the top N of your library and pick among ONLY those N" cards
         // in hand. Cast Stock Up ({2}{U}) — the dialog reveals EXACTLY the top

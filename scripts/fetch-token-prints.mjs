@@ -49,16 +49,26 @@ const outPath = resolve(
 
 // ---------------------------------------------------------------------------
 // Collect every Scryfall UUID referenced by the input files (active defs and
-// commented-out stubs alike).
+// commented-out stubs alike). Cards reference their own id two ways: inline
+// as `id: "<uuid>"`, or via a hoisted `const FOO_ID = "<uuid>"` that's reused
+// both by the `id:` field and by `tokenPrintIdFor(FOO_ID, ...)` calls
+// (Retrofitter Foundry, Third Path Iconoclast, The Hive). Match both forms —
+// only matching the inline field drops the const form's id from the
+// mapping, silently regressing an already-working token's art on the next
+// regeneration (issue #941).
 // ---------------------------------------------------------------------------
 
-const UUID_RE =
-    /id:\s*"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"/g;
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+const ID_FIELD_RE = new RegExp(`id:\\s*"(${UUID})"`, "g");
+const ID_CONST_RE = new RegExp(`\\b[A-Z0-9_]+_ID\\s*=\\s*"(${UUID})"`, "g");
 
 const uuids = new Set();
 for (const input of inputs) {
     const src = readFileSync(resolve(repoRoot, input), "utf-8");
-    for (const m of src.matchAll(UUID_RE)) {
+    for (const m of src.matchAll(ID_FIELD_RE)) {
+        uuids.add(m[1]);
+    }
+    for (const m of src.matchAll(ID_CONST_RE)) {
         uuids.add(m[1]);
     }
 }

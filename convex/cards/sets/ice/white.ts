@@ -617,7 +617,10 @@ export const caribouRange: CardDefinition = {
             useStack: true,
             // Migrated resolve()→effects[] (ADR 0045, #847): create one 0/1
             // white Caribou token on the controller's battlefield (CR 111 /
-            // 707.1).
+            // 707.1). No `imagePrintId` — Scryfall has no printed Caribou
+            // token for Caribou Range (`all_parts` is empty), so this stays a
+            // placeholder-rendered token by design (issue #941 documented
+            // exception).
             effects: [
                 {
                     op: "createToken",

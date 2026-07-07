@@ -520,6 +520,10 @@ export const bottleOfSuleiman: CardDefinition = {
             // the controller (CR 705.2 / ADR 0023, the suspending reveal flip).
             // Self-sacrifice paid at activation commit (CR 117.9), so the source
             // is already gone by resolution; both branches act on the caster.
+            // No `imagePrintId` on the Djinn token — Scryfall has no printed
+            // counterpart for Bottle of Suleiman (`all_parts` is empty), so
+            // this stays a placeholder-rendered token by design (issue #941
+            // documented exception).
             effects: [
                 {
                     op: "coinFlip",

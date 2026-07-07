@@ -10,6 +10,7 @@ import type { CardDefinition, TargetSelection } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
+import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 export const birdMaiden: CardDefinition = {
     id: "5c1ba0b9-db01-447f-90cc-a2fc2c24146e",
@@ -52,8 +53,10 @@ export const aliBaba: CardDefinition = {
     ],
 };
 
+const RUKH_EGG_ID = "b28f9e63-e5e4-44b5-a17e-8301ff17c623";
+
 export const rukhEgg: CardDefinition = {
-    id: "b28f9e63-e5e4-44b5-a17e-8301ff17c623",
+    id: RUKH_EGG_ID,
     rarity: "common",
     name: "Rukh Egg",
     oracleText:
@@ -102,6 +105,11 @@ export const rukhEgg: CardDefinition = {
                         toughness: 4,
                         colors: ["R"],
                         staticAbilities: ["flying"],
+                        // Printed token is named "Rukh" (Scryfall), while our
+                        // spec keeps the current Oracle wording's "Bird" name
+                        // — look up by card id alone (single-token card, CR
+                        // 707.1) rather than by a name that wouldn't match.
+                        imagePrintId: tokenPrintIdFor(RUKH_EGG_ID),
                     },
                     payload.controller,
                     1

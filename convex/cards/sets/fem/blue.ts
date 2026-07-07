@@ -52,6 +52,9 @@ export const vodalianSoldiersFemD: CardPrint = {
     rarity: "common",
 };
 
+// No `imagePrintId` — Scryfall has no printed Camarid token for Homarid
+// Spawning Bed (`all_parts` is empty), so this stays a placeholder-rendered
+// token by design (issue #941 documented exception).
 const CAMARID_TOKEN: TokenSpec = {
     name: "Camarid",
     types: ["Creature"],

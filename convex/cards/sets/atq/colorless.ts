@@ -2010,7 +2010,10 @@ export const tawnossWand: CardDefinition = {
 
 // The Tetravite token spec (CR 707.2). 1/1 colorless flying artifact creature
 // that "can't be enchanted". The provenance link is stamped per-creation by
-// `createToken`'s `createdBy` argument, not by the spec.
+// `createToken`'s `createdBy` argument, not by the spec. No `imagePrintId` —
+// Scryfall has no printed Tetravite token for Tetravus (`all_parts` is
+// empty), so this stays a placeholder-rendered token by design (issue #941
+// documented exception).
 const TETRAVITE_TOKEN: TokenSpec = {
     name: "Tetravite",
     types: ["Artifact", "Creature"],
