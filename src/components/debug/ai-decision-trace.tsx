@@ -21,9 +21,14 @@ const TERM_LABELS: [keyof EvalTerms, string, string][] = [
     ["flexibility", "Fx", "Flexibility"],
 ];
 
+/** Round to at most 3 decimals, dropping float noise (252.39999999999998 → 252.4). */
+function r3(n: number): number {
+    return Math.round(n * 1000) / 1000;
+}
+
 function termLine(terms: EvalTerms): string {
     return TERM_LABELS.filter(([k]) => terms[k] !== 0)
-        .map(([k, label]) => `${label}${terms[k]}`)
+        .map(([k, label]) => `${label}${r3(terms[k])}`)
         .join(" ");
 }
 
@@ -32,7 +37,7 @@ function termLine(terms: EvalTerms): string {
  *  `termLine`, so each letter is recognisable without opening the legend. */
 function termTitle(side: string, terms: EvalTerms): string {
     const parts = TERM_LABELS.filter(([k]) => terms[k] !== 0).map(
-        ([k, , name]) => `${name} ${terms[k]}`
+        ([k, , name]) => `${name} ${r3(terms[k])}`
     );
     return parts.length ? `${side}: ${parts.join(" · ")}` : `${side}: —`;
 }
@@ -75,7 +80,7 @@ function CandidateRow({
                         margin < 0 ? "text-rose-400/80" : "text-emerald-400/80"
                     }
                 >
-                    Δ{margin}
+                    Δ{r3(margin)}
                 </span>{" "}
                 {danger !== 0 && (
                     <span
