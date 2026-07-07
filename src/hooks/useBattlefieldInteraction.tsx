@@ -198,15 +198,23 @@ export function useBattlefieldInteraction(player: Player) {
         !!pendingCast.additionalCost &&
         !pendingCast.additionalCost.pickedId;
 
-    // Activated-ability sacrifice-cost picker (CR 602.1 / 118.5). Active when
-    // this player's pendingActivation is waiting for them to pick a permanent
-    // to sacrifice. Routes clicks to selectActivationCost.
+    // Activated-ability non-mana cost picker: "sacrifice a permanent matching
+    // <filter>" (CR 602.1 / 118.5) OR "tap N untapped permanents matching
+    // <filter>" (CR 602.1 / 118.8, Hand of Justice). Active when this
+    // player's pendingActivation is waiting for them to pick a permanent.
+    // Routes clicks to selectActivationCost (which handles both cost shapes
+    // server-side — one call per picked permanent). Eligibility itself is
+    // enforced by `canInteract` (shared visual-state hook, #939); this flag
+    // only decides whether a click routes here at all.
     const isPickingActivationCost =
         isMe &&
         !!pendingActivation &&
         pendingActivation.playerId === playerId &&
-        !!pendingActivation.sacrificeChoice &&
-        !pendingActivation.sacrificeChoice.pickedId;
+        ((!!pendingActivation.sacrificeChoice &&
+            !pendingActivation.sacrificeChoice.pickedId) ||
+            (!!pendingActivation.tapOtherChoice &&
+                pendingActivation.tapOtherChoice.pickedIds.length <
+                    pendingActivation.tapOtherChoice.count));
 
     const isSelectingAttackers =
         phase === "DECLARE_ATTACKERS" &&

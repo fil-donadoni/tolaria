@@ -3,8 +3,53 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { PendingActivation, PendingCast, Player } from "~/types/game";
+import type { PermanentFilter } from "@convex/cards/filters";
 import { getDefinition } from "@convex/cards";
 import { useDraggable } from "~/hooks/useDraggable";
+import { isManaCostCovered } from "~/lib/card-utils";
+
+/** Minimal noun phrase for a permanent filter, e.g. "a creature" (types:
+ *  "Creature") or "a Swamp" (subtypes: ["Swamp"]). Subtypes win over types
+ *  when both are present (more specific). Deliberately terse — matches the
+ *  level of detail `TargetSelectionBanner`'s `TARGET_LABEL` gives for target
+ *  types; the exact legal set is already visible via battlefield
+ *  highlighting (`useBattlefieldVisualState`). */
+function formatFilterLabel(filter: PermanentFilter): string {
+    const subtypes = filter.subtypes
+        ? Array.isArray(filter.subtypes)
+            ? filter.subtypes
+            : [filter.subtypes]
+        : [];
+    if (subtypes.length > 0) return `a ${subtypes.join(" or ")}`;
+    const types = filter.types
+        ? Array.isArray(filter.types)
+            ? filter.types
+            : [filter.types]
+        : [];
+    if (types.length > 0) return `a ${types.join(" or ").toLowerCase()}`;
+    return "a permanent";
+}
+
+/** Subtitle for a pending activation whose mana leg is fully covered (or
+ *  absent) — the "Auto-tap" affordance below is hidden in that case, so this
+ *  describes the still-outstanding non-mana pick instead (#939). Falls back
+ *  to the generic phrasing if somehow called with nothing left to pick (the
+ *  activation would already have auto-committed server-side by then). */
+function describeActivationCostChoice(pa: PendingActivation): string {
+    const sc = pa.sacrificeChoice;
+    if (sc && !sc.pickedId) {
+        return `sacrifice ${formatFilterLabel(sc.filter)}`;
+    }
+    const toc = pa.tapOtherChoice;
+    if (toc && toc.pickedIds.length < toc.count) {
+        const remaining = toc.count - toc.pickedIds.length;
+        const label = formatFilterLabel(toc.filter);
+        return remaining > 1
+            ? `tap ${remaining} more ${label}s`
+            : `tap ${label}`;
+    }
+    return "pay the activation costs";
+}
 
 type Props = {
     gameId: Id<"games">;
@@ -29,6 +74,16 @@ export default function PaymentBanner(props: Props) {
 
     let cardName: string;
     let subtitle: string;
+    // Gates the "Auto-tap" affordance below. A cast's mana leg is always
+    // real — spells in the catalogue don't ship mana-less costs — so casts
+    // keep the affordance unconditionally. An activation can land here purely
+    // because of a sacrifice/tap-other cost picker (CR 602.1) with the mana
+    // leg already covered or altogether absent (Goblin Bombardment, Sylvan
+    // Safekeeper): Auto-tap would have nothing to do, so it's hidden and the
+    // subtitle instead names the outstanding non-mana pick (#939). The legal
+    // permanents themselves are highlighted/clickable on the battlefield via
+    // `useBattlefieldVisualState` regardless of this banner.
+    let manaOwed = true;
 
     if (props.kind === "cast") {
         const cardInHand = props.me?.hand.find(
@@ -43,7 +98,15 @@ export default function PaymentBanner(props: Props) {
             (c) => c.id === props.pendingActivation.cardInstanceId
         );
         cardName = source ? getDefinition(source.card.id).name : "ability";
-        subtitle = "pay the activation costs";
+        manaOwed =
+            Object.keys(props.pendingActivation.manaCost).length > 0 &&
+            !isManaCostCovered(
+                props.me?.manaPool ?? {},
+                props.pendingActivation.manaCost
+            );
+        subtitle = manaOwed
+            ? "pay the activation costs"
+            : describeActivationCostChoice(props.pendingActivation);
     }
 
     async function handleAutoTap() {
@@ -81,15 +144,17 @@ export default function PaymentBanner(props: Props) {
                 </p>
                 <div className="h-[1px] w-full bg-gradient-to-r from-border-accent via-border-accent/40 to-transparent my-1.5" />
                 <p className="text-text-muted text-xs">{subtitle}</p>
-                <button
-                    type="button"
-                    onClick={handleAutoTap}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    disabled={busy}
-                    className="mt-2 w-full rounded-sm border border-success bg-success-soft px-2 py-1 text-xs font-semibold uppercase tracking-wide text-success-strong hover:bg-success-soft/80 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                    Auto-tap
-                </button>
+                {manaOwed && (
+                    <button
+                        type="button"
+                        onClick={handleAutoTap}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        disabled={busy}
+                        className="mt-2 w-full rounded-sm border border-success bg-success-soft px-2 py-1 text-xs font-semibold uppercase tracking-wide text-success-strong hover:bg-success-soft/80 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        Auto-tap
+                    </button>
+                )}
             </div>
         </div>
     );

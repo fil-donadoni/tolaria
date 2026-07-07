@@ -465,3 +465,108 @@ describe("board activation sacrifice-cost picker (#282, CR 602.1)", () => {
         expect(selectActivationCost).not.toHaveBeenCalled();
     });
 });
+
+describe("board activation tap-other-cost picker (#939, CR 602.1 / 118.8)", () => {
+    it("clicking a matching untapped permanent dispatches selectActivationCost with its id", () => {
+        const me = makePlayer("me", [creature("bear1"), creature("bear2")]);
+        const costCtx: Partial<React.ContextType<typeof GameContext>> = {
+            pendingActivation: {
+                playerId: "me",
+                cardInstanceId: "hand-of-justice",
+                abilityId: "hoj-pump",
+                manaCost: {},
+                tappedLandIds: [],
+                tapSource: false,
+                sacrificeSource: false,
+                tapOtherChoice: {
+                    filter: { types: "Creature" },
+                    count: 1,
+                    pickedIds: [],
+                },
+            } as never,
+        };
+
+        const { container } = renderSpatialBf(me, [me], costCtx);
+        fireEvent.click(spatialCard(container, "bear1"));
+
+        expect(selectActivationCost).toHaveBeenCalledTimes(1);
+        expect(selectActivationCost.mock.calls[0][0]).toMatchObject({
+            gameId: "game-id",
+            playerId: "me",
+            cardInstanceId: "bear1",
+        });
+    });
+
+    it("the ability's own source is NOT clickable for the tap-other cost", () => {
+        const me = makePlayer("me", [creature("hand-of-justice")]);
+        const costCtx: Partial<React.ContextType<typeof GameContext>> = {
+            pendingActivation: {
+                playerId: "me",
+                cardInstanceId: "hand-of-justice",
+                abilityId: "hoj-pump",
+                manaCost: {},
+                tappedLandIds: [],
+                tapSource: false,
+                sacrificeSource: false,
+                tapOtherChoice: {
+                    filter: { types: "Creature" },
+                    count: 1,
+                    pickedIds: [],
+                },
+            } as never,
+        };
+
+        const { container } = renderSpatialBf(me, [me], costCtx);
+        fireEvent.click(spatialCard(container, "hand-of-justice"));
+        expect(selectActivationCost).not.toHaveBeenCalled();
+    });
+
+    it("an already-tapped matching permanent is NOT clickable for the tap-other cost", () => {
+        const tapped = { ...creature("bear1"), isTapped: true };
+        const me = makePlayer("me", [tapped]);
+        const costCtx: Partial<React.ContextType<typeof GameContext>> = {
+            pendingActivation: {
+                playerId: "me",
+                cardInstanceId: "hand-of-justice",
+                abilityId: "hoj-pump",
+                manaCost: {},
+                tappedLandIds: [],
+                tapSource: false,
+                sacrificeSource: false,
+                tapOtherChoice: {
+                    filter: { types: "Creature" },
+                    count: 1,
+                    pickedIds: [],
+                },
+            } as never,
+        };
+
+        const { container } = renderSpatialBf(me, [me], costCtx);
+        fireEvent.click(spatialCard(container, "bear1"));
+        expect(selectActivationCost).not.toHaveBeenCalled();
+    });
+
+    it("once the count is already satisfied, no permanent is clickable for the tap-other cost", () => {
+        const me = makePlayer("me", [creature("bear1"), creature("bear2")]);
+        const costCtx: Partial<React.ContextType<typeof GameContext>> = {
+            pendingActivation: {
+                playerId: "me",
+                cardInstanceId: "hand-of-justice",
+                abilityId: "hoj-pump",
+                manaCost: {},
+                tappedLandIds: [],
+                tapSource: false,
+                sacrificeSource: false,
+                tapOtherChoice: {
+                    filter: { types: "Creature" },
+                    count: 1,
+                    pickedIds: ["bear2"],
+                },
+            } as never,
+        };
+
+        const { container } = renderSpatialBf(me, [me], costCtx);
+        fireEvent.click(spatialCard(container, "bear1"));
+        expect(selectActivationCost).not.toHaveBeenCalled();
+    });
+});

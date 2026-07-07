@@ -922,6 +922,23 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 2,
         turn: 2,
     },
+    {
+        // Sacrifice-only activation cost must NOT surface the mana auto-tap
+        // dialog (#939). Goblin Bombardment's only activation cost is
+        // "Sacrifice a creature" — no mana component at all. Activate it,
+        // pick any target (e.g. the opponent), then confirm: the banner shows
+        // NO "Auto-tap" button (its subtitle instead reads "sacrifice a
+        // creature"), and Grizzly Bears is highlighted/clickable on the
+        // battlefield to pay the cost directly. Clicking it pays the cost and
+        // the 1-damage ability resolves.
+        label: "Sacrifice-only activation cost — no mana auto-tap dialog (Goblin Bombardment) (#939)",
+        cards: [
+            { name: "Goblin Bombardment", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
 ];
 
 type DebugPanelProps = {
