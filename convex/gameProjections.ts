@@ -2,6 +2,7 @@ import type {
     CardInstanceState,
     GameState,
     GrantedAbilityInstance,
+    PhasedOutBundle,
     PlayerState,
     StackItem,
 } from "./gre/state";
@@ -125,16 +126,32 @@ export type FullPlayer = Omit<
     grantedAbilities?: PublicGrantedAbility[];
 };
 
-export type PublicGameState = Omit<GameState, "players" | "stack"> & {
+/** CR 702.26 — a phased-out bundle projected to the wire: host + attachments
+ *  slimmed. Phasing is public information (the set-aside permanents stay
+ *  face-up), so identity is not hidden beyond the normal face-down rule that
+ *  `projectBattlefieldCard` already applies per card. */
+export type SlimPhasedOutBundle = Omit<PhasedOutBundle, "cards"> & {
+    cards: SlimCardInstance[];
+};
+
+export type PublicGameState = Omit<
+    GameState,
+    "players" | "stack" | "phasedOut"
+> & {
     seq: number;
     players: PublicPlayer[];
     stack: SlimStackItem[];
+    phasedOut?: SlimPhasedOutBundle[];
 };
 
-export type FullGameState = Omit<GameState, "players" | "stack"> & {
+export type FullGameState = Omit<
+    GameState,
+    "players" | "stack" | "phasedOut"
+> & {
     seq: number;
     players: FullPlayer[];
     stack: SlimStackItem[];
+    phasedOut?: SlimPhasedOutBundle[];
 };
 
 function slimCard<
@@ -478,6 +495,14 @@ export function projectPublicState(
         seq,
         players,
         stack: state.stack.map(slimCard),
+        // CR 702.26 — phased-out permanents are public (set aside face-up), so
+        // project them for the wire (the raw `...state` spread would leak the
+        // fat card defs). Per-card face-down hiding still applies via
+        // `projectBattlefieldCard`.
+        phasedOut: state.phasedOut?.map((b) => ({
+            ...b,
+            cards: b.cards.map((c) => projectBattlefieldCard(c, viewerId)),
+        })),
         // Reveal dialog — each viewer sees only the notifications addressed to
         // them (a private look never leaks to the other seat). Dropped entirely
         // when none apply so the field stays absent on the wire.
@@ -565,5 +590,11 @@ export function projectFullState(
         seq,
         players,
         stack: state.stack.map(slimCard),
+        // CR 702.26 — full debug view reveals everything; slim the phased-out
+        // bundle cards to match the battlefield treatment (line above).
+        phasedOut: state.phasedOut?.map((b) => ({
+            ...b,
+            cards: b.cards.map(slimCard),
+        })),
     };
 }

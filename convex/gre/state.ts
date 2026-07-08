@@ -2297,6 +2297,13 @@ export interface PhasedOutBundle {
     /** Applied to the HOST (cards[0]) on phase-in. Oubliette taps the
      *  creature "as it phases in this way". */
     onPhaseIn?: { tap?: boolean };
+    /** CR 702.26f — `GameState.turn` on which this permanent phased out. An
+     *  `untap-cycle` bundle does NOT phase in during the untap step of THIS
+     *  turn; it waits for the controller's NEXT untap step. The untap-step
+     *  phase-in (`phaseInUntapCycleBundles`) skips a bundle whose
+     *  `phasedOutTurn` equals the current turn. `undefined` on a `source-leaves`
+     *  bundle (whose return is not untap-driven). */
+    phasedOutTurn?: number;
 }
 
 /** CR 603.7a / ADR 0028 — an exile-and-return holding record. The host
@@ -4670,6 +4677,10 @@ export function phaseOutPermanent(
         cards,
         returnOn: opts.returnOn,
         ...(opts.onPhaseIn ? { onPhaseIn: opts.onPhaseIn } : {}),
+        // CR 702.26f — stamp the turn so `untap-cycle` phase-in skips the same
+        // turn's untap step (a permanent phased out this turn returns on the
+        // controller's NEXT untap step, not this one).
+        phasedOutTurn: state.turn,
     };
     state.phasedOut = [...(state.phasedOut ?? []), bundle];
     return bundle.id;
@@ -4692,6 +4703,30 @@ export function phaseInBundle(state: GameState, bundleId: string): boolean {
         bundle.cards[0].isTapped = true;
     }
     return true;
+}
+
+/** CR 702.26c/f — phase in every `untap-cycle` bundle controlled by
+ *  `controllerId` at the start of their untap step. Phasing never changes
+ *  control (CR 702.26g), so the controller is read off the host (`cards[0]`).
+ *  The skip-first-untap guard (CR 702.26f): a bundle phased out on the CURRENT
+ *  turn is not yet eligible — it returns on the controller's NEXT untap step,
+ *  not the same turn's — so a bundle whose `phasedOutTurn` is the current turn
+ *  is left phased out. Called from `untapStep` (once, at first entry, before
+ *  the active player untaps — CR 502.1). */
+export function phaseInUntapCycleBundles(
+    state: GameState,
+    controllerId: string
+): void {
+    for (const bundle of [...(state.phasedOut ?? [])]) {
+        if (
+            bundle.returnOn.kind === "untap-cycle" &&
+            bundle.cards[0]?.controllerId === controllerId &&
+            (bundle.phasedOutTurn === undefined ||
+                bundle.phasedOutTurn < state.turn)
+        ) {
+            phaseInBundle(state, bundle.id);
+        }
+    }
 }
 
 /** Phases in every bundle whose `source-leaves` return condition names

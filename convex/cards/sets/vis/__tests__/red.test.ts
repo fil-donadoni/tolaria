@@ -10,7 +10,11 @@ import { fireblast } from "..";
 import { mountain } from "../../lea";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { PendingTarget } from "../../../../gre/state";
-import { finalizeTargetSelection } from "../../../../game";
+import {
+    finalizeTargetSelection,
+    tryAutoCommitPendingCast,
+} from "../../../../game";
+import { isSacrificeSelectionComplete } from "../../../../gre/sacrificeChoice";
 import { getLegalActions } from "../../../../gre/rules";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 
@@ -108,6 +112,66 @@ describe("Fireblast ({4}{R}{R} instant — sacrifice two Mountains rather than p
         expect(state.players[0].battlefield).toHaveLength(0);
         expect(state.players[0].graveyard).toHaveLength(2);
         // Fireblast on the stack; resolving deals 4 to p2.
+        expect(state.stack[state.stack.length - 1].id).toBe("fb-1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(16);
+    });
+
+    it("parks for an explicit choice with a distinguishable extra Mountain, then resumes on the pick", () => {
+        const fbInHand = makeInstance(fireblast.id, {
+            id: "fb-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        // Three Mountains, one tapped → sacrificing 2 is a REAL choice, so the
+        // cast must park for the player's pick (CR 118.9 / 701.21a), not auto-pick.
+        const untapped = mountains("p1", 2);
+        const tapped = makeInstance(mountain.id, {
+            id: "p1-mountain-tapped",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [fbInHand],
+                    battlefield: [...untapped, tapped],
+                }),
+                makePlayer("p2"),
+            ],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+        });
+
+        const pt: PendingTarget = {
+            playerId: "p1",
+            cardInstanceId: "fb-1",
+            targetType: "any",
+            count: 1,
+            selected: [{ type: "player", id: "p2" }],
+            kind: "cast",
+            alternativeCostId: "sacrifice-two-mountains",
+        };
+        finalizeTargetSelection(state, pt, "p1");
+
+        // Parked: nothing sacrificed yet, Fireblast still in hand, choice awaits.
+        expect(state.stack.find((s) => s.id === "fb-1")).toBeUndefined();
+        expect(state.players[0].battlefield).toHaveLength(3);
+        const sel = state.pendingCast?.sacrificeSelection;
+        expect(sel).toBeDefined();
+        expect(sel!.action).toBe("sacrifice");
+        expect(isSacrificeSelectionComplete(sel!)).toBe(false);
+
+        // Player sacrifices the two untapped Mountains, keeping the tapped one.
+        sel!.picked.push(...untapped.map((c) => c.id));
+        tryAutoCommitPendingCast(state, "p1");
+
+        expect(state.players[0].graveyard).toHaveLength(2);
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "p1-mountain-tapped",
+        ]);
         expect(state.stack[state.stack.length - 1].id).toBe("fb-1");
         resolveTopOfStack(state);
         expect(state.players[1].life).toBe(16);
