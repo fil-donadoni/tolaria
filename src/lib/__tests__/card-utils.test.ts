@@ -527,7 +527,7 @@ describe("getStackAbilities — player-state canActivate predicates (#436)", () 
         expect(abilities.map((a) => a.id)).toContain("pestilence-damage");
     });
 
-    it("Pestilence: {B} damage ability absent when no creature is on the battlefield", () => {
+    it("Pestilence: {B} damage ability is still available with no creature on the battlefield (modern Oracle, #960)", () => {
         const card = makeCardInstance({
             id: "pest-1",
             card: { id: PESTILENCE_ID },
@@ -536,12 +536,16 @@ describe("getStackAbilities — player-state canActivate predicates (#436)", () 
             isTapped: false,
         });
         // Only Pestilence (an Enchantment) is on the battlefield — no creature.
+        // Modern Oracle removed the Alpha printing's "activate only if a
+        // creature is in play" gate on the {B} ability (issue #960); the sole
+        // creature-count check now lives on the end-step sacrifice trigger, not
+        // the activated ability. So the ability remains offerable here.
         const view = buildTriggerStateView(
             [makePlayerLike({ id: "p1", battlefield: [card] })],
             "p1"
         );
         const abilities = getStackAbilities(card, undefined, true, view);
-        expect(abilities.map((a) => a.id)).not.toContain("pestilence-damage");
+        expect(abilities.map((a) => a.id)).toContain("pestilence-damage");
     });
 
     it("Nettling Imp: ability NOT offered when activePlayerId equals controller (predicate false)", () => {

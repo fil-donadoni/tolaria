@@ -478,13 +478,17 @@ export const disenchant: CardDefinition = {
     effect: "destroy-target",
 };
 
-// Farmstead — "Enchant land (target a Plains). At the beginning of the upkeep
-// step of enchanted land's controller, that player gains 2 life." (CR 303.4
-// aura attachment, 603.6a beginning-of-step trigger). The trigger fires only
-// on the host's controller's upkeep; the resolver looks up the host via
-// `getAttachedTo` (no targeting at trigger time per CR 603.2) and reads its
-// current controller — so a Farmstead whose host has changed controllers
-// (Control Magic, etc.) follows the new controller automatically.
+// Farmstead — "Enchant land\nEnchanted land has \"At the beginning of your
+// upkeep, you may pay {W}{W}. If you do, you gain 1 life.\"" (modern Scryfall
+// Oracle; CR 303.4 aura attachment, 603.6a beginning-of-step trigger, 117.3a
+// optional cost). The granted ability triggers on the enchanted land's
+// controller's upkeep; that player MAY pay {W}{W} and, if they do, gains 1
+// life. Modeled on the Aura via a `host-controller`-scoped upkeep trigger: the
+// resolver looks up the host via `getAttachedTo` (no targeting at trigger time
+// per CR 603.2) and reads its current controller — so a Farmstead whose host
+// changed controllers (Control Magic, etc.) follows the new controller
+// automatically. (The pre-Oracle Alpha printing gained 2 life unconditionally
+// with no cost — issue #960 corrected it to the modern optional-{W}{W} gain 1.)
 export const farmstead: CardDefinition = {
     id: "3455b006-9ea5-4aef-8ad2-d0701eb0cacf",
     rarity: "rare",
@@ -503,7 +507,7 @@ export const farmstead: CardDefinition = {
         phaseTrigger({
             id: "farmstead-upkeep",
             oracleText:
-                "At the beginning of the upkeep step of enchanted land's controller, that player gains 2 life.",
+                "At the beginning of your upkeep, you may pay {W}{W}. If you do, you gain 1 life.",
             phase: "UPKEEP",
             scope: "host-controller",
             // NOT DSL-migratable (ADR 0045, issue #831): the affected player is
@@ -511,7 +515,15 @@ export const farmstead: CardDefinition = {
             // EffectPlayerRef expresses ("controller" is the Aura's controller).
             // Blocked on: host-controller player ref.
             resolve: (ctx, _event, hostController) => {
-                ctx.gainLife(hostController, 2);
+                // CR 117.3a optional cost — may pay {W}{W}; gain 1 life on pay.
+                const accept = ctx.requestMayPay({
+                    playerId: hostController,
+                    choiceId: hostController,
+                    cost: { W: 2 },
+                    prompt: "Pay {W}{W} to gain 1 life? (Farmstead)",
+                });
+                if (accept === undefined) return;
+                if (accept) ctx.gainLife(hostController, 1);
             },
         }),
     ],

@@ -1830,7 +1830,7 @@ describe("Deathgrip ({B}, Sacrifice: counter target Green spell)", () => {
     });
 });
 
-describe("Pestilence (upkeep sacrifice unless {B} + {B}: 1 dmg to each creature/player)", () => {
+describe("Pestilence (end-step sac if no creatures + {B}: 1 dmg to each creature/player, modern Oracle)", () => {
     function setup() {
         const enchant = makeInstance(pestilence.id, {
             id: "pest",
@@ -1881,7 +1881,26 @@ describe("Pestilence (upkeep sacrifice unless {B} + {B}: 1 dmg to each creature/
         expect(state.players[1].life).toBe(beforeP2 - 1);
     });
 
-    it("canActivate returns false when no creature is on the battlefield", () => {
+    it("activated ability has no activation restriction (modern Oracle removed the creature gate)", () => {
+        const ability = pestilence.activatedAbilities?.[0];
+        expect(ability?.canActivate).toBeUndefined();
+    });
+
+    it("end-step trigger does NOT fire while a creature is on the battlefield", () => {
+        const { state } = setup(); // two bears present
+        state.activePlayerId = "p1";
+        state.priorityPlayerId = "p1";
+        state.phase = "POSTCOMBAT_MAIN";
+        advancePhase(state); // → END_STEP
+        expect(state.phase).toBe("END_STEP");
+        // Intervening-if (CR 603.4d) is false — the sacrifice never enters the stack.
+        expect(state.stack).toHaveLength(0);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "pest")
+        ).toBeDefined();
+    });
+
+    it("end-step trigger sacrifices Pestilence when no creatures are on the battlefield", () => {
         const enchant = makeInstance(pestilence.id, {
             id: "pest",
             controllerId: "p1",
@@ -1892,32 +1911,17 @@ describe("Pestilence (upkeep sacrifice unless {B} + {B}: 1 dmg to each creature/
                 makePlayer("p1", { battlefield: [enchant] }),
                 makePlayer("p2"),
             ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            phase: "POSTCOMBAT_MAIN",
         });
-        const ability = pestilence.activatedAbilities?.[0];
-        expect(ability?.canActivate).toBeDefined();
-        const self = state.players[0].battlefield[0];
-        expect(ability!.canActivate!(self, state)).toBe(false);
-    });
-
-    it("upkeep trigger queues a may-pay then sacrifices on decline", () => {
-        const { state } = setup();
-        state.activePlayerId = "p1";
-        state.priorityPlayerId = "p1";
-        state.phase = "UNTAP";
-        advancePhase(state); // → UPKEEP
+        advancePhase(state); // → END_STEP
+        expect(state.phase).toBe("END_STEP");
         expect(state.stack).toHaveLength(1);
-        expect(state.stack[0].triggeredAbilityId).toBe("pestilence-upkeep");
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "pestilence-end-step-sac"
+        );
         resolveTopOfStack(state);
-        const head = state.pendingChoices?.[0];
-        expect(head?.playerId).toBe("p1");
-        const item = state.stack.find((s) => s.id === head!.stackItemId)!;
-        item.collectedChoices = {
-            ...(item.collectedChoices ?? {}),
-            [`${head!.step}:${head!.choiceId}`]: ["decline"],
-        };
-        state.pendingChoices = undefined;
-        resolveTopOfStack(state);
-        // Pestilence sacrificed → moved to graveyard.
         expect(
             state.players[0].battlefield.find((c) => c.id === "pest")
         ).toBeUndefined();

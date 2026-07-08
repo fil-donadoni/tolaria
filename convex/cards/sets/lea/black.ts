@@ -24,7 +24,6 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { makeLace } from "./white";
-import { makeUpkeepPayOrElse } from "./white";
 
 // Animate Dead — "Enchant creature card in a graveyard. Return enchanted
 // creature card to the battlefield under your control and attach Animate Dead
@@ -982,12 +981,16 @@ export const paralyze: CardDefinition = {
     ],
 };
 
-// Pestilence — "At the beginning of the upkeep of Pestilence's controller,
-// sacrifice Pestilence unless that player pays {B}. {B}: Pestilence deals 1
-// damage to each creature and each player." (CR 603.6a phase trigger, 117.3a
-// optional cost, 120.3 damage to each). The "sacrifice unless pay" clause
-// uses requestMayPay with sacrifice as the fail branch. Activated ability
-// can only be activated while a creature is on the battlefield (CR 605.2).
+// Pestilence — "At the beginning of the end step, if no creatures are on the
+// battlefield, sacrifice this enchantment.\n{B}: This enchantment deals 1
+// damage to each creature and each player." (modern Scryfall Oracle; CR 603.6a
+// phase trigger, 603.4d intervening-if, 120.3 damage to each). The pre-Oracle
+// Alpha printing had an upkeep "sacrifice unless pay {B}" clause and gated the
+// activated ability on a creature being in play — both removed in the modern
+// Oracle (issue #960). The end-step trigger fires on EVERY end step (unqualified
+// "the end step" → scope "each") and its intervening-if re-checks "no creatures
+// on the battlefield" at trigger AND resolve time (CR 603.4d); the activated
+// ability now has no activation restriction (CR 602.5a).
 export const pestilence: CardDefinition = {
     id: "d42a6350-b16b-4e10-a273-e6cbb55dcb7a",
     rarity: "common",
@@ -997,13 +1000,26 @@ export const pestilence: CardDefinition = {
     manaCost: { X: 2, B: 2 },
     types: ["Enchantment"],
     triggeredAbilities: [
-        makeUpkeepPayOrElse({
-            id: "pestilence-upkeep",
+        phaseTrigger({
+            id: "pestilence-end-step-sac",
             oracleText:
-                "At the beginning of the upkeep of Pestilence's controller, sacrifice Pestilence unless that player pays {B}.",
-            cost: { B: 1 },
-            prompt: "Pay {B} to keep Pestilence?",
-            onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+                "At the beginning of the end step, if no creatures are on the battlefield, sacrifice this enchantment.",
+            phase: "END_STEP",
+            scope: "each",
+            // CR 603.4d intervening-if — the "if no creatures are on the
+            // battlefield" condition is re-checked at trigger time (mirrored
+            // into matches by the factory) and again immediately before
+            // resolve. A creature entering between trigger and resolve fizzles
+            // the sacrifice.
+            interveningIf: (_event, _self, state) =>
+                state
+                    ? !state.players.some((p) =>
+                          p.battlefield.some((c) =>
+                              c.types.includes("Creature")
+                          )
+                      )
+                    : true,
+            resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
     ],
     activatedAbilities: [
@@ -1013,12 +1029,6 @@ export const pestilence: CardDefinition = {
                 "{B}: Pestilence deals 1 damage to each creature and each player.",
             cost: { mana: { B: 1 } },
             useStack: true,
-            canActivate: (_source, state) => {
-                for (const p of state.players)
-                    for (const c of p.battlefield)
-                        if (c.types.includes("Creature")) return true;
-                return false;
-            },
             // dealDamageToEach(1, creatures+players) → forEach-per-set
             // (CR 120.3). Deal 1 to each creature, then 1 to each player.
             effects: [
