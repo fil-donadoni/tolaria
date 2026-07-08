@@ -199,7 +199,15 @@ function payCostText(cost: MayPayCost): string {
             (norm.mana.C ?? 0);
         if (generic > 0 && !norm.mana.C) parts.unshift(`{${generic}}`);
     }
-    if (norm.sacrifice) parts.push(`sacrifice ${norm.sacrifice.count}`);
+    if (norm.sacrifice) {
+        // CR 118 threshold mode ("sacrifice any number … total power ≥ N") vs.
+        // the fixed-cardinal "sacrifice N" (shock lands, cumulative upkeep).
+        parts.push(
+            typeof norm.sacrifice.count === "object"
+                ? `sacrifice creatures with total power ${norm.sacrifice.count.minTotalPower}`
+                : `sacrifice ${norm.sacrifice.count}`
+        );
+    }
     return parts.join(", ") || "the cost";
 }
 

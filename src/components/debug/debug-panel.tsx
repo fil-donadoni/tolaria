@@ -841,6 +841,47 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Phyrexian Dreadnought — summed-power THRESHOLD sacrifice cost (#977).
+        // Cast the Dreadnought ({1}); its self-ETB (CR 603.6a) asks you to
+        // sacrifice any number of creatures with TOTAL POWER 12 or greater
+        // (CR 118 / 701.16) or sacrifice it. GOLDEN PATH: six Grizzly Bears
+        // (2 power each = 12) are in play, so clicking them until "12 / 12
+        // power selected" enables Pay keeps the 12/12. Over-payment is legal.
+        // The bot pays greedily (highest power first) when it controls the
+        // Dreadnought.
+        label: "Phyrexian Dreadnought: threshold sacrifice (total power ≥ 12) (#977)",
+        cards: [
+            { name: "Phyrexian Dreadnought", owner: "me", zone: "hand" },
+            {
+                name: "Grizzly Bears",
+                owner: "me",
+                zone: "battlefield",
+                count: 6,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
+    {
+        // Phyrexian Dreadnought — EDGE (#977): the controller can't reach 12
+        // total power (only four Grizzly Bears = 8 < 12), so the punisher cost
+        // is unpayable and the ETB sacrifices the Dreadnought itself
+        // (CR 118 "sacrifice it unless …"). Add creatures via the board to
+        // cross the threshold and keep it.
+        label: "Phyrexian Dreadnought: threshold shortfall (< 12 power) (#977)",
+        cards: [
+            { name: "Phyrexian Dreadnought", owner: "me", zone: "hand" },
+            {
+                name: "Grizzly Bears",
+                owner: "me",
+                zone: "battlefield",
+                count: 4,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
 ];
 
 type DebugPanelProps = {

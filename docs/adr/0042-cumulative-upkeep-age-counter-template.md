@@ -104,3 +104,37 @@ tagged usable only for cumulative upkeep costs; no new mana machinery.
 - Grantable CU means the keyword must be readable from layer-6 ability grants,
   not just printed triggers — a small amount of extra indirection that pays off
   immediately (three ICE granters) rather than a future refactor.
+
+## Amendment (issue #977): summed-power threshold on the sacrifice leg
+
+The `MayPayCost` sacrifice leg introduced above (`{ filter, count }`) originally
+carried a **fixed cardinal** `count` — "sacrifice N matching permanents". Mirage
+adds Phyrexian Dreadnought, whose self-ETB punisher is _"sacrifice it unless you
+sacrifice any number of creatures with total power 12 or greater"_ (CR 118 /
+701.16). That is not a fixed count but a **variable-size set gated on summed
+power**. Rather than add a new Effect Script Op (the mechanic is already a
+`mayPay` punisher — the counter/consequence shape the interpreter runs), the
+`count` field is widened in place to a union:
+
+```ts
+sacrifice?: {
+    filter: PermanentFilter;
+    count: number | { minTotalPower: number };
+};
+```
+
+- **`number`** — the unchanged fixed cardinal (shock lands, cumulative upkeep).
+- **`{ minTotalPower: N }`** — "sacrifice any number of matching permanents
+  whose summed EFFECTIVE power (CR 613 layer pipeline) is ≥ N". Over-payment is
+  legal; minimality is not required. Affordability sums the matching candidates
+  with power `> 0`; the submit boundary validates the payer's chosen set reaches
+  the threshold; the bot / auto-pick default takes candidates highest-power-first
+  until the running total reaches `N`.
+
+The threshold deliberately rides the **cost leg** (a `mayPay` punisher) rather
+than a generic `choice`-Op rider: Phyrexian Dreadnought's decision is
+cost-or-lose-the-permanent, exactly what `mayPay` + `if !$paid` already models.
+A general "sacrifice things totalling power N" rider OUTSIDE a cost context is
+deferred until a card needs it (YAGNI). No new `GameState` field is added — the
+threshold rides the existing `may-pay` PendingChoice's `cost`, so no
+`PERSISTED_OPTIONAL_KEYS` change is required.

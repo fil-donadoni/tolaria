@@ -594,6 +594,21 @@ function isManaPool(value: unknown): boolean {
     return true;
 }
 
+/** A `mayPay` sacrifice leg's `count`: a fixed cardinal (positive int) or a
+ *  summed-power threshold `{ minTotalPower: positive int }` (CR 118, Phyrexian
+ *  Dreadnought — "sacrifice any number … total power ≥ N"). */
+function isSacrificeCount(value: unknown): boolean {
+    if (isPositiveInt(value)) return true;
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const obj = value as Record<string, unknown>;
+    if (Object.keys(obj).length !== 1 || !("minTotalPower" in obj)) {
+        return false;
+    }
+    return isPositiveInt(obj.minTotalPower);
+}
+
 /** A `mayPay` cost (CR 117.3a / 118.4 / 702.24): a bare `ManaCost`, or the
  *  `{ mana?, life?, sacrifice? }` union. At least one leg must be present. */
 function isMayPayCost(value: unknown): boolean {
@@ -620,7 +635,10 @@ function isMayPayCost(value: unknown): boolean {
             if (typeof s !== "object" || s === null) return false;
             const sac = s as Record<string, unknown>;
             if (!("filter" in sac) || !("count" in sac)) return false;
-            if (!isPositiveInt(sac.count)) return false;
+            // `count` is either a fixed cardinal (positive int) or a
+            // summed-power threshold `{ minTotalPower: positive int }` (CR 118,
+            // Phyrexian Dreadnought). JSON-pure either way (ADR 0046).
+            if (!isSacrificeCount(sac.count)) return false;
         }
         return true;
     }

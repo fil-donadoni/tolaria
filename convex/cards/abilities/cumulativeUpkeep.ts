@@ -84,7 +84,14 @@ function scaleCost(cost: MayPayCost, n: number): MayPayCost {
             ? {
                   sacrifice: {
                       filter: norm.sacrifice.filter,
-                      count: norm.sacrifice.count * n,
+                      // Cumulative upkeep scales a FIXED sacrifice count ×n (CR
+                      // 702.24c). The summed-power threshold shape
+                      // (`{ minTotalPower }`, Phyrexian Dreadnought) is never a
+                      // cumulative-upkeep cost, so it passes through unscaled.
+                      count:
+                          typeof norm.sacrifice.count === "number"
+                              ? norm.sacrifice.count * n
+                              : norm.sacrifice.count,
                   },
               }
             : {}),
