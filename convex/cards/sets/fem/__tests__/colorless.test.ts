@@ -383,11 +383,18 @@ describe("Implements of Sacrifice — sac-self mana with colour choice (REUSE C,
             controllerId: "p1",
             ownerId: "p1",
         });
-        const player = makePlayer("p1", { battlefield: [impl] });
+        // CR 605.1a / 601.2f — the ability costs {1}; float one generic (a
+        // red) so the activation is payable. Net output is +1 (pay 1, add 2).
+        const player = makePlayer("p1", {
+            battlefield: [impl],
+            manaPool: { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 },
+        });
         const state = makeState({ players: [player, makePlayer("p2")] });
         // Choose index 4 = {G}{G}.
         tapSourceIntoPayment(state, player, impl, 4, []);
         expect(player.manaPool.G).toBe(2);
+        // The {1} was spent from the floated red.
+        expect(player.manaPool.R).toBe(0);
         // Sacrificed: gone from the battlefield, now in the graveyard.
         expect(
             state.players[0].battlefield.find((c) => c.id === "impl")

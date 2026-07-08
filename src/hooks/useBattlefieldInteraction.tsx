@@ -524,32 +524,49 @@ export function useBattlefieldInteraction(player: Player) {
         // not yet committed to a cost), the same entry flips to a refund —
         // `tapUntap` toggles in both directions so reusing the ability id is
         // sufficient on the server side; only the label changes here.
-        // CR 605.1a / 605.3c — a NON-tap mana ability whose cost is mana
-        // (Farrelite Priest "{1}: Add {W}") is not a tap toggle: a plain click
-        // can't activate it, so surface it as an explicit menu entry routed to
-        // `activateManaAbility`. Independent of `stack`/`getActivatedManaMenuEntry`
-        // (which only handle tap mana abilities). Repeatable, so always offered.
-        const nonTapMana = getDefinition(card.card.id).activatedAbilities?.find(
-            (a) => !a.useStack && !a.cost.tap && !!a.cost.mana && a.oracleText
+        // CR 605.1a / 601.2f — a mana ability whose cost includes MANA (Chromatic
+        // Star "{1}, {T}, Sacrifice: Add any", Farrelite Priest "{1}: Add {W}")
+        // must NOT be a silent left-click tap-for-mana: the player has to choose
+        // to activate it and pay the {1}. Surface it as an explicit menu entry —
+        // tap AND non-tap alike. Selecting it routes through the colour picker +
+        // `tapUntap` (tap) or `activateManaAbility` (non-tap) in
+        // `handleActivateAbility`, so the mana cost is charged. Independent of the
+        // plain `getActivatedManaMenuEntry` tap toggle below (which is for
+        // free-to-activate mana sources). Repeatable, so always offered.
+        const manaCostAbility = getDefinition(
+            card.card.id
+        ).activatedAbilities?.find(
+            (a) => !a.useStack && !!a.cost.mana && a.oracleText
         );
-        const nonTapManaEntry: ActivatableAbility[] = nonTapMana
-            ? [{ id: nonTapMana.id, oracleText: nonTapMana.oracleText }]
+        const manaCostEntry: ActivatableAbility[] = manaCostAbility
+            ? [
+                  {
+                      id: manaCostAbility.id,
+                      oracleText: manaCostAbility.oracleText,
+                  },
+              ]
             : [];
-        if (stack.length === 0) return nonTapManaEntry;
+        // The plain tap-for-mana toggle (Basalt Monolith / Mana Vault: surfaced
+        // as a menu entry only when a stack ability co-exists, so a click isn't
+        // ambiguous). A cost-bearing mana ability is already in `manaCostEntry`,
+        // so never double-list it here.
         const mana = getActivatedManaMenuEntry(card, stateView);
-        if (!mana) return [...nonTapManaEntry, ...stack];
+        const manaToggle =
+            mana && mana.id !== manaCostAbility?.id ? mana : null;
+        if (stack.length === 0) return manaCostEntry;
+        if (!manaToggle) return [...manaCostEntry, ...stack];
         if (card.isTapped) {
             if (!canRefundManaTap(card, player.manaPool))
-                return [...nonTapManaEntry, ...stack];
+                return [...manaCostEntry, ...stack];
             return [
-                { id: mana.id, oracleText: "Untap and refund mana" },
-                ...nonTapManaEntry,
+                { id: manaToggle.id, oracleText: "Untap and refund mana" },
+                ...manaCostEntry,
                 ...stack,
             ];
         }
         if (isTapLockedBySummoningSickness(card))
-            return [...nonTapManaEntry, ...stack];
-        return [mana, ...nonTapManaEntry, ...stack];
+            return [...manaCostEntry, ...stack];
+        return [manaToggle, ...manaCostEntry, ...stack];
     }
 
     function handleActivateAbility(

@@ -117,11 +117,30 @@ const ANY_DEF = {
         },
     ],
 };
+// MANA_COST_DEF: a mana ability whose cost includes MANA (Chromatic Star
+// "{1}, {T}, Sacrifice: Add one mana of any color"). It must surface as an
+// explicit menu entry — never a silent left-click tap — so the player pays the
+// {1} (issue: the ability used to bypass the menu and open the picker directly).
+const MANA_COST_DEF = {
+    id: "mana-cost-def",
+    name: "Chromatic Star",
+    activatedAbilities: [
+        {
+            id: "cs-mana",
+            useStack: false,
+            oracleText:
+                "{1}, {T}, Sacrifice this artifact: Add one mana of any color.",
+            cost: { mana: { X: 1 }, tap: true, sacrifice: true },
+            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
+        },
+    ],
+};
 const DEFS: Record<string, unknown> = {
     "stack-def": STACK_DEF,
     "x-def": X_DEF,
     "dual-def": DUAL_DEF,
     "any-def": ANY_DEF,
+    "mana-cost-def": MANA_COST_DEF,
 };
 vi.mock("@convex/cards", () => ({
     getDefinition: (id: string) => DEFS[id] ?? { id, name: id },
@@ -411,5 +430,35 @@ describe("board battlefield activated-ability parity with the classic board (#27
         expect(
             within(document.body).queryAllByRole("menuitem").length
         ).toBeGreaterThan(0);
+    });
+
+    it("(h) a mana ability with a {1} cost is surfaced as a menu entry (not a silent tap) and is not treated as a stack ability", () => {
+        // Regression: Chromatic Star's "{1}, {T}, Sacrifice: Add any" used to
+        // bypass the ability menu entirely — `getActivatable` returned [], so a
+        // bare left click opened the colour picker and resolved the ability
+        // without the player deciding to activate it or paying the {1}. It must
+        // now appear as an explicit menu entry (CR 605.1a / 601.2f) so the
+        // player chooses to activate it; the mana-ability flow then charges the
+        // {1} server-side. It is never the stack-ability mutation.
+        const me = makePlayer("me", [permanent("cs1", "mana-cost-def")]);
+        const { container } = renderSpatial(me, [me]);
+
+        // The menu opens on a left click and lists the cost-bearing ability.
+        // Pre-fix the menu was empty (no entry), so this item was absent.
+        const trigger = container.querySelector<HTMLElement>(
+            '[data-arrow-anchor-permanent="cs1"]'
+        )!;
+        fireEvent.click(trigger);
+        const item = within(document.body)
+            .getAllByRole("menuitem")
+            .find((el) =>
+                (el.textContent ?? "").includes("Add one mana of any color")
+            );
+        expect(item).toBeDefined();
+
+        // Selecting it must NOT dispatch the stack-ability mutation — it is a
+        // mana ability, routed to the mana flow (colour picker → tapUntap).
+        fireEvent.click(item!, { ctrlKey: false, metaKey: false });
+        expect(activateAbility).not.toHaveBeenCalled();
     });
 });

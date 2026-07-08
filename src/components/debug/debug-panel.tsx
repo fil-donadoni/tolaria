@@ -86,26 +86,6 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
-        // Sacrifice-for-mana dies trigger (CR 603.6 / 700.4 / 605.3a, issue
-        // #943): activating Chromatic Star's mana ability ("{1}, {T},
-        // Sacrifice this artifact: Add one mana of any color") sacrifices it
-        // to the graveyard, which fires its leave-the-battlefield trigger
-        // ("When this artifact is put into a graveyard from the battlefield,
-        // draw a card"). Tap the Star for mana and confirm the draw trigger
-        // goes on the stack (does NOT auto-resolve) — the mana is added
-        // immediately, the card is drawn once the trigger resolves. Two
-        // Islands cover the {1} activation cost; the library holds a card to
-        // draw so the effect is visible.
-        label: "Sacrifice-for-mana dies trigger: Chromatic Star draws on sac (#943)",
-        cards: [
-            { name: "Chromatic Star", owner: "me", zone: "battlefield" },
-            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
-            { name: "Grizzly Bears", owner: "me", zone: "library" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
         // Look-at-top-N library dialog (CR 401.4 / 701.42, issue #942): both
         // "look at the top N of your library and pick among ONLY those N" cards
         // in hand. Cast Stock Up ({2}{U}) — the dialog reveals EXACTLY the top
@@ -127,102 +107,6 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
-        // Tutor reveal to the opponent (CR 701.20, issue #945): Spellseeker's
-        // ETB "search your library for an instant or sorcery with mana value 2
-        // or less, reveal it, put it into your hand, then shuffle." Cast
-        // Spellseeker ({2}{U} — three Islands cover it), let the ETB trigger
-        // resolve, and search up Ancestral Recall ({U} instant, mv 1). The
-        // `reveal` Op stamps the found card known to EVERY player, so — via the
-        // solo-mode auto-switch to the opponent's view — the tutored card shows
-        // face-up in Spellseeker's controller's hand instead of a hidden back.
-        // Lightning Bolt is a second legal target (mv 1 instant); Grizzly Bears
-        // (mv 2 creature) is a NON-match to confirm the filter.
-        label: "Tutor reveal to opponent (Spellseeker → Ancestral Recall) (#945)",
-        cards: [
-            { name: "Spellseeker", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield", count: 3 },
-            { name: "Ancestral Recall", owner: "me", zone: "library" },
-            { name: "Lightning Bolt", owner: "me", zone: "library" },
-            { name: "Grizzly Bears", owner: "me", zone: "library" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // May-pay sacrifice VICTIM CHOICE (CR 701.16b, issue #940): Witherbloom
-        // Charm's first mode is "You may sacrifice a permanent. If you do, draw
-        // two cards." With MULTIPLE sacrificeable permanents (two Grizzly Bears)
-        // the payer must CHOOSE which one dies — previously the engine auto-
-        // picked one arbitrarily. Cast the Charm ({B}{G} — a Swamp + Forest are
-        // in play), choose mode 1, then click the Bears you want to sacrifice
-        // before pressing Pay; only that one leaves and you draw two. A third
-        // permanent (Black Lotus) widens the choice set.
-        label: "May-pay sacrifice: choose which permanent (Witherbloom Charm) (#940)",
-        cards: [
-            { name: "Witherbloom Charm", owner: "me", zone: "hand" },
-            { name: "Swamp", owner: "me", zone: "battlefield" },
-            { name: "Forest", owner: "me", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-            { name: "Black Lotus", owner: "me", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Urborg unified mana-tap options (CR 605.1a / 305.6): Urborg makes
-        // every land a Swamp IN ADDITION to its own types, so each land's
-        // {T}: Add {B} STACKS with its other abilities as a separate choice.
-        // Tap the Mountain → pick {R} or {B}. Tap City of Traitors → pick
-        // {C}{C} or {B} (its own ability is kept, not shadowed). Tap Tropical
-        // Island → pick {G}, {U}, or {B}. Without Urborg the same lands offer
-        // only their printed options — this exercises the multi-option picker.
-        label: "Urborg: every land taps for its colour OR {B} (City of Traitors keeps {C}{C})",
-        cards: [
-            {
-                name: "Urborg, Tomb of Yawgmoth",
-                owner: "me",
-                zone: "battlefield",
-            },
-            { name: "Mountain", owner: "me", zone: "battlefield" },
-            { name: "City of Traitors", owner: "me", zone: "battlefield" },
-            { name: "Tropical Island", owner: "me", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Lifelink (CR 702.15b / CR 119.3, issue #936): Griselbrand (7/7 flying,
-        // lifelink) is in play on my side, ready to attack. Move to combat,
-        // declare it as an attacker, and let combat damage resolve — the
-        // opponent takes 7 AND my life total rises by 7 in the same combat
-        // damage step. A Grizzly Bears sits opposite so the alternative
-        // "block it" line (lifelink still gains 7 for damage dealt to the
-        // blocker) can be exercised too.
-        label: "Lifelink life gain on combat damage (Griselbrand attacking) (#936)",
-        cards: [
-            { name: "Griselbrand", owner: "me", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "BEGINNING_OF_COMBAT",
-        landCount: 8,
-    },
-    {
-        // Deathtouch (CR 702.2b / CR 704.5h, issue #957): my opponent has a
-        // 7/7 Griselbrand ready to attack; I have Baleful Strix (1/1 flying,
-        // deathtouch). Let Griselbrand attack and block it with the Strix — any
-        // nonzero damage from the deathtouch Strix is lethal, so the 7/7 is
-        // destroyed as a state-based action even though it took only 1 damage.
-        // The Strix dies to Griselbrand's 7. Both leave in the same combat step.
-        label: "Deathtouch destroys any blocker/attacker (Baleful Strix vs Griselbrand) (#957)",
-        cards: [
-            { name: "Baleful Strix", owner: "me", zone: "battlefield" },
-            { name: "Griselbrand", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "BEGINNING_OF_COMBAT",
-        landCount: 8,
-    },
-    {
         // Copy-on-ETB Bot cast prune (issue #938): a copy-on-ETB spell (Copy
         // Artifact, Clone, Vesuvan Doppelganger, Dance of Many) enters as a copy
         // of a permanent already in play. Casting one with NO permanent it could
@@ -235,10 +119,11 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         // 8 Islands cover Clone's {3}{U} and Copy Artifact's {1}{U}.
         label: "Copy-on-ETB Bot cast prune (Copy Artifact / Clone) (#938)",
         cards: [
-            { name: "Copy Artifact", owner: "me", zone: "hand" },
-            { name: "Clone", owner: "me", zone: "hand" },
+            { name: "Copy Artifact", owner: "opp", zone: "hand" },
+            { name: "Clone", owner: "opp", zone: "hand" },
+            { name: "Island", owner: "opp", zone: "battlefield", count: 7 },
             { name: "Ankh of Mishra", owner: "me", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 8,
