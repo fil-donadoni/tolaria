@@ -301,7 +301,7 @@ describe("CardPreview — Arena click model (#332)", () => {
             expect(anchored()).toBeNull();
         });
 
-        it("leaves right-click to the activated-ability menu (no preview inside a context-menu trigger)", () => {
+        it("opens the preview from a right-click even inside a context-menu trigger (ability card)", () => {
             const { container } = renderInTilt(true);
             const flatWrapper = container.querySelector(
                 ".overflow-hidden"
@@ -311,9 +311,11 @@ describe("CardPreview — Arena click model (#332)", () => {
                 fireEvent.pointerDown(flatWrapper, { button: 2 });
             });
             release();
-            // The Base UI ability ContextMenu owns this card's right-click; the
-            // preview gesture must stay out of its way.
-            expect(anchored()).toBeNull();
+            // Right-click is reserved for the preview even on an ability card:
+            // the ability ContextMenu opens on LEFT click (a synthesized,
+            // untrusted `contextmenu`), so the real right-press no longer
+            // collides with it. See ui/context-menu.tsx.
+            expect(anchored()).toBeTruthy();
         });
     });
 });

@@ -158,7 +158,7 @@ export default function BattlefieldCard({
 
     // The clickable element binds tap/pay `onClick` normally; when the permanent
     // has activatable abilities it instead binds the ability gesture handlers
-    // (touch → affordance, desktop → right-click menu) and the shared
+    // (touch → affordance, desktop → left-click menu) and the shared
     // `ActivatableAbilityMenu` wraps it with the context menu + action-sheet.
     const clickHandlers = hasAbilities
         ? { onClick: ability.onClick, onTouchStart: ability.onTouchStart }

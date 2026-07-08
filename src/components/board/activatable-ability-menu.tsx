@@ -14,8 +14,11 @@ import type { ActivatableAbility } from "./battlefield-card";
  *  ({@link BattlefieldCard}) and the spatial ({@link BoardBattlefieldCard})
  *  battlefield cards (PRD #249, slice #278).
  *
- *  Owns the desktop right-click context menu and the mobile touch action-sheet
- *  listing a permanent's activatable abilities (from `useBattlefieldInteraction`'s
+ *  Owns the desktop left-click context menu (the trigger synthesizes a
+ *  `contextmenu` from the click; a genuine right-click / long-press is reserved
+ *  for the card preview — see ui/context-menu.tsx) and the mobile touch
+ *  action-sheet listing a permanent's activatable abilities (from
+ *  `useBattlefieldInteraction`'s
  *  `getActivatable`). Selecting an entry dispatches through `onActivate`, which
  *  the consumer wires to the hook's `handleActivateAbility` — so the X-cost
  *  prompt (CR 601.2b), the keep-priority modifier (Ctrl/Cmd) and the dual

@@ -30,7 +30,7 @@ type BoardBattlefieldCardProps = {
     onClick?: (e: React.MouseEvent) => void;
     /** Activated abilities the viewer may fire on this permanent, from the
      *  shared `useBattlefieldInteraction` hook's `getActivatable` (#278). When
-     *  non-empty, the card gains the same right-click context menu / touch
+     *  non-empty, the card gains the same left-click context menu / touch
      *  action-sheet affordance as the classic board via the shared
      *  {@link ActivatableAbilityMenu}.
      *
@@ -199,7 +199,7 @@ export default function BoardBattlefieldCard({
 
     // The clickable element binds tap/pay `onClick` normally; when the permanent
     // has activatable abilities it instead binds the ability gesture handlers
-    // (touch → affordance, desktop → right-click menu) and the shared
+    // (touch → affordance, desktop → left-click menu) and the shared
     // `ActivatableAbilityMenu` wraps it — identical affordance to the classic
     // board (#278).
     const clickHandlers = hasAbilities

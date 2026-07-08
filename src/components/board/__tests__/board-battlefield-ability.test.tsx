@@ -390,4 +390,27 @@ describe("board battlefield activated-ability parity with the classic board (#27
         expect(spatialArgs!.keepPriority).toBeUndefined();
         expect(tapUntap).not.toHaveBeenCalled();
     });
+
+    it("(g) a real (trusted) right-click does NOT open the ability menu — it belongs to the preview", () => {
+        const me = makePlayer("me", [permanent("tim1", "stack-def")]);
+        const { container } = renderSpatial(me, [me]);
+        const trigger = container.querySelector<HTMLElement>(
+            '[data-arrow-anchor-permanent="tim1"]'
+        )!;
+
+        // A genuine right-click has `isTrusted: true`; jsdom always dispatches
+        // untrusted events, so force the flag to model the real browser gesture.
+        const ev = new MouseEvent("contextmenu", { bubbles: true });
+        Object.defineProperty(ev, "isTrusted", { value: true });
+        fireEvent(trigger, ev);
+
+        const items = within(document.body).queryAllByRole("menuitem");
+        expect(items).toHaveLength(0);
+
+        // The synthesized LEFT-click contextmenu (untrusted) still opens it.
+        fireEvent.contextMenu(trigger);
+        expect(
+            within(document.body).queryAllByRole("menuitem").length
+        ).toBeGreaterThan(0);
+    });
 });

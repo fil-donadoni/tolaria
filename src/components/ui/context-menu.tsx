@@ -17,11 +17,28 @@ function ContextMenuPortal({ ...props }: ContextMenuPrimitive.Portal.Props) {
     );
 }
 
+// Base UI's Trigger opens on a real `contextmenu` (right-click) and on touch
+// long-press. In this app both gestures belong to the CARD PREVIEW (Arena click
+// model — right button / long-press peek the card; see card-preview.tsx). The
+// menu is a LEFT-click affordance instead: the `onClick` below synthesizes a
+// `contextmenu` MouseEvent to open it. So we let ONLY that self-synthesized
+// contextmenu through and stop Base UI from opening on a genuine right-click or
+// on touch long-press, leaving both to the preview.
+type PreventableEvent = { preventBaseUIHandler?: () => void };
+
 function ContextMenuTrigger({
     className,
     onClick,
+    onContextMenu,
+    onTouchStart,
     ...props
 }: ContextMenuPrimitive.Trigger.Props) {
+    // True only for the synchronous window of our own synthesized dispatch
+    // below — the one `contextmenu` a left click is allowed to open the menu
+    // with. Any other `contextmenu` is a genuine right-click and belongs to the
+    // preview. (`dispatchEvent` runs the handler synchronously, so a boolean
+    // flag cleanly brackets the self-triggered event.)
+    const synthesizingRef = React.useRef(false);
     return (
         <ContextMenuPrimitive.Trigger
             data-slot="context-menu-trigger"
@@ -29,6 +46,7 @@ function ContextMenuTrigger({
             onClick={(e) => {
                 onClick?.(e);
                 if (e.defaultPrevented) return;
+                synthesizingRef.current = true;
                 e.currentTarget.dispatchEvent(
                     new MouseEvent("contextmenu", {
                         bubbles: true,
@@ -36,6 +54,22 @@ function ContextMenuTrigger({
                         clientY: e.clientY,
                     })
                 );
+                synthesizingRef.current = false;
+            }}
+            onContextMenu={(e) => {
+                // Genuine right-click is the preview gesture — block Base UI's
+                // open. Our self-synthesized left-click contextmenu falls
+                // through and opens the menu.
+                if (!synthesizingRef.current)
+                    (e as typeof e & PreventableEvent).preventBaseUIHandler?.();
+                onContextMenu?.(e);
+            }}
+            onTouchStart={(e) => {
+                // Touch long-press is the preview gesture — block Base UI's
+                // long-press-to-open. Touch TAP is routed to the menu/action
+                // sheet by the consumer's own handler, unaffected here.
+                (e as typeof e & PreventableEvent).preventBaseUIHandler?.();
+                onTouchStart?.(e);
             }}
             {...props}
         />

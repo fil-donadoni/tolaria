@@ -147,16 +147,17 @@ export default function CardPreview({
     // `onPointerDown`/`onContextMenu` fired only intermittently on the board).
     // Binding on the OUTERMOST tilt element, to which the flattened event
     // bubbles, catches it deterministically. Off the board there is no tilt and
-    // we bind on the container itself. A battlefield permanent whose right-click
-    // is owned by the activated-ability menu (a Base UI ContextMenuTrigger
-    // ancestor, `data-slot="context-menu-trigger"`) is left to that menu.
+    // we bind on the container itself. A battlefield permanent with an
+    // activated-ability menu still binds here: right-click / long-press is the
+    // preview (Arena click model), and the menu opens on LEFT click instead
+    // (a synthesized, untrusted `contextmenu` — see ui/context-menu.tsx), so
+    // the two gestures no longer collide.
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
         const cardEl =
             container.closest<HTMLElement>("[data-card-tilt-root]") ??
             container;
-        if (cardEl.closest('[data-slot="context-menu-trigger"]')) return;
         const onPointerDown = (e: PointerEvent) => {
             // Desktop-only, right button only. A touch device sets sawTouchRef
             // and must never trigger the mouse preview.
