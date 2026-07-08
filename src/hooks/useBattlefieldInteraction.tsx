@@ -21,6 +21,7 @@ import {
     isTapLockedBySummoningSickness,
 } from "~/lib/card-utils";
 import { isUntargetableByPending } from "~/lib/targeting";
+import { activeSacrificeSelection } from "~/lib/sacrifice-selection";
 import { outstandingDamageAssigner } from "~/lib/priority";
 import { extractMutationError, type MutationError } from "~/lib/mutation-error";
 import type { ActivatableAbility } from "~/components/board/battlefield-card";
@@ -100,6 +101,7 @@ export function useBattlefieldInteraction(player: Player) {
     const selectTarget = useMutation(api.game.selectTarget);
     const selectAdditionalCost = useMutation(api.game.selectAdditionalCost);
     const selectActivationCost = useMutation(api.game.selectActivationCost);
+    const selectSacrifice = useMutation(api.game.selectSacrifice);
     const activateAbility = useMutation(api.game.activateAbility);
     const activateManaAbility = useMutation(api.game.activateManaAbility);
     const bufferCtx = usePendingChoiceBuffer();
@@ -188,9 +190,24 @@ export function useBattlefieldInteraction(player: Player) {
         (activeChoice!.allControllers === true ||
             choiceZoneOwnerId === player.id);
 
-    // Additional-cost picker (CR 117.9 / 601.2f). Active when this player's
-    // pendingCast is waiting for them to pick a permanent on their own
-    // battlefield. Routes clicks to selectAdditionalCost.
+    // Unified sacrifice picker (CR 701.21a). Active whenever a SacrificeSelection
+    // for this viewer is parked and incomplete — the same structure for a cast
+    // additional cost / Drought, an activated-ability sacrifice cost, and the
+    // attack-declaration land tax. Routes clicks to selectSacrifice.
+    const sacrificeSelection = isMe
+        ? activeSacrificeSelection(
+              pendingCast,
+              pendingActivation,
+              combat,
+              playerId
+          )
+        : undefined;
+    const isPickingSacrifice = !!sacrificeSelection;
+
+    // Exile additional-cost picker (CR 117.9 / 406, Soul Exchange). Active when
+    // this player's pendingCast is waiting for them to exile a permanent.
+    // `additionalCost` is exile-only now (the sacrifice branch migrated to the
+    // unified sacrifice picker above). Routes clicks to selectAdditionalCost.
     const isPickingAdditionalCost =
         isMe &&
         !!pendingCast &&
@@ -198,23 +215,18 @@ export function useBattlefieldInteraction(player: Player) {
         !!pendingCast.additionalCost &&
         !pendingCast.additionalCost.pickedId;
 
-    // Activated-ability non-mana cost picker: "sacrifice a permanent matching
-    // <filter>" (CR 602.1 / 118.5) OR "tap N untapped permanents matching
-    // <filter>" (CR 602.1 / 118.8, Hand of Justice). Active when this
-    // player's pendingActivation is waiting for them to pick a permanent.
-    // Routes clicks to selectActivationCost (which handles both cost shapes
-    // server-side — one call per picked permanent). Eligibility itself is
+    // Activated-ability tap-other cost picker: "tap N untapped permanents
+    // matching <filter>" (CR 602.1 / 118.8, Hand of Justice). The sacrifice
+    // branch migrated to the unified sacrifice picker above. Eligibility is
     // enforced by `canInteract` (shared visual-state hook, #939); this flag
     // only decides whether a click routes here at all.
     const isPickingActivationCost =
         isMe &&
         !!pendingActivation &&
         pendingActivation.playerId === playerId &&
-        ((!!pendingActivation.sacrificeChoice &&
-            !pendingActivation.sacrificeChoice.pickedId) ||
-            (!!pendingActivation.tapOtherChoice &&
-                pendingActivation.tapOtherChoice.pickedIds.length <
-                    pendingActivation.tapOtherChoice.count));
+        !!pendingActivation.tapOtherChoice &&
+        pendingActivation.tapOtherChoice.pickedIds.length <
+            pendingActivation.tapOtherChoice.count;
 
     const isSelectingAttackers =
         phase === "DECLARE_ATTACKERS" &&
@@ -269,6 +281,17 @@ export function useBattlefieldInteraction(player: Player) {
 
         if (isSelectingChoice) {
             bufferCtx.toggle(card.id);
+            return;
+        }
+
+        if (isPickingSacrifice) {
+            guardMutation(
+                selectSacrifice({
+                    gameId,
+                    playerId,
+                    cardInstanceId: card.id,
+                })
+            );
             return;
         }
 

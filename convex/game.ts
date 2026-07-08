@@ -1283,7 +1283,10 @@ export function tryAutoCommitPendingActivation(
     // CR 602.1 / 118.5 — commit is blocked until the "sacrifice a permanent
     // matching <filter>" cost has been picked (selectActivationCost). Mirrors
     // pendingCast.additionalCost gating.
-    if (pa.sacrificeSelection && !isSacrificeSelectionComplete(pa.sacrificeSelection)) {
+    if (
+        pa.sacrificeSelection &&
+        !isSacrificeSelectionComplete(pa.sacrificeSelection)
+    ) {
         return null;
     }
     // CR 602.1 / 118.5 — commit is blocked until the "exile N cards from a
@@ -1641,7 +1644,10 @@ export function tryAutoCommitPendingCast(
     // getAdditionalCostSubtypes.
     let additionalSacrificeSnapshot: StackItem["additionalSacrificeSnapshot"];
     if (castSel) {
-        additionalSacrificeSnapshot = sacrificeSnapshotFromSelection(castSel, state);
+        additionalSacrificeSnapshot = sacrificeSnapshotFromSelection(
+            castSel,
+            state
+        );
     }
     // CR 406 — the exile additional cost (Soul Exchange). Snapshot the exiled
     // permanent's mv/subtypes ("+2/+2 if the exiled creature was a Thrull"),
@@ -2961,9 +2967,7 @@ export function finalizeTargetSelection(
                 ...(ability.cost.removeCounter
                     ? { removeCounterCost: { ...ability.cost.removeCounter } }
                     : {}),
-                ...(activationSac
-                    ? { sacrificeSelection: activationSac }
-                    : {}),
+                ...(activationSac ? { sacrificeSelection: activationSac } : {}),
                 ...(ability.cost.exileFromGraveyard
                     ? {
                           exileFromGraveyardChoice: {
@@ -4194,11 +4198,7 @@ export function findActiveSacrificeSelection(
         return { sel: pa.sacrificeSelection, container: "activation" };
     }
     const at = state.combat?.pendingAttackSacrifice;
-    if (
-        at &&
-        at.playerId === playerId &&
-        !isSacrificeSelectionComplete(at)
-    ) {
+    if (at && at.playerId === playerId && !isSacrificeSelectionComplete(at)) {
         return { sel: at, container: "attack" };
     }
     return null;
@@ -4713,37 +4713,10 @@ export const selectActivationCost = mutation({
             return;
         }
 
-        const sc = pa.sacrificeChoice;
-        if (!sc) {
-            throw new Error("This ability has no sacrifice cost picker");
-        }
-        if (sc.pickedId) {
-            throw new Error("Sacrifice cost already paid");
-        }
-        if (
-            !matchesPermanentFilter(candidate, sc.filter, {
-                supertypesOf: liveSupertypesOf,
-            })
-        ) {
-            throw new Error(
-                "Selected permanent does not match the sacrifice cost filter"
-            );
-        }
-        sc.pickedId = args.cardInstanceId;
-
-        // tryAutoCommitPendingActivation pushes the ability on the stack and
-        // clears pendingActivation when the mana is also covered. If mana is
-        // still owed, the activation stays pending and the player completes
-        // payment via tapForActivationPayment.
-        tryAutoCommitPendingActivation(state, args.playerId);
-
-        await saveGameState(
-            ctx,
-            args.gameId,
-            gameState.seq + 1,
-            state,
-            gameState
-        );
+        // CR 701.21a — the ability's sacrifice cost migrated to the unified
+        // sacrifice picker (selectSacrifice). selectActivationCost now handles
+        // only the tap-other cost above.
+        throw new Error("This ability has no tap cost picker");
     },
 });
 
@@ -5823,7 +5796,10 @@ export const confirmAttackers = mutation({
                 playerId: payerId,
                 reason: charges[0].reason,
                 requirements: buildSacrificeRequirements(
-                    charges.map((ch) => ({ filter: landFilter, count: ch.count }))
+                    charges.map((ch) => ({
+                        filter: landFilter,
+                        count: ch.count,
+                    }))
                 ),
                 picked: [],
             };

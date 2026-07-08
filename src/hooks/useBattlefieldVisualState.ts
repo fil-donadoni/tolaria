@@ -19,6 +19,10 @@ import {
     buildTriggerStateView,
 } from "~/lib/card-utils";
 import { isUntargetableByPending } from "~/lib/targeting";
+import {
+    activeSacrificeSelection,
+    nextSacrificeRequirement,
+} from "~/lib/sacrifice-selection";
 import { COMBAT_GROUP_RING, COMBAT_GROUP_BG } from "~/lib/combat-colors";
 import type { CardVisualState } from "~/components/board/battlefield-card";
 
@@ -82,6 +86,31 @@ export function useBattlefieldVisualState(player: Player) {
         (activeChoice!.allControllers === true ||
             choiceZoneOwnerId === player.id);
 
+    // Unified sacrifice picker (CR 701.21a) — cast additional cost / Drought,
+    // activated-ability sacrifice cost, and the attack-declaration land tax all
+    // share one SacrificeSelection. Highlights the candidates of the next unmet
+    // requirement.
+    const sacrificeSelection = isMe
+        ? activeSacrificeSelection(
+              pendingCast,
+              pendingActivation,
+              combat,
+              playerId
+          )
+        : undefined;
+    const isPickingSacrifice = !!sacrificeSelection;
+
+    function matchesSacrificePick(card: CardInstance): boolean {
+        if (!sacrificeSelection) return false;
+        const req = nextSacrificeRequirement(sacrificeSelection);
+        if (!req) return false;
+        if (sacrificeSelection.picked.includes(card.id)) return false;
+        return matchesPermanentFilter(card, req.filter);
+    }
+
+    // Exile additional-cost picker (CR 117.9 / 406, Soul Exchange). The
+    // sacrifice branch migrated to the unified sacrifice picker above;
+    // `additionalCost` is exile-only now.
     const isPickingAdditionalCost =
         isMe &&
         !!pendingCast &&
@@ -89,34 +118,24 @@ export function useBattlefieldVisualState(player: Player) {
         !!pendingCast.additionalCost &&
         !pendingCast.additionalCost.pickedId;
 
-    // Activated-ability non-mana cost picker: "sacrifice a permanent matching
-    // <filter>" (CR 602.1 / 118.5) OR "tap N untapped permanents matching
-    // <filter>" (CR 602.1 / 118.8, Hand of Justice). Both route clicks to the
-    // same `selectActivationCost` mutation server-side (#939) — mirrored here
-    // so a mana-owed activation doesn't mask the cost picker's highlighting,
-    // and a mana-covered/mana-less activation still lets the player click the
-    // battlefield instead of a meaningless "Auto-tap" dialog.
+    // Activated-ability tap-other cost picker: "tap N untapped permanents
+    // matching <filter>" (CR 602.1 / 118.8, Hand of Justice). The sacrifice
+    // branch migrated to the unified sacrifice picker above.
     const isPickingActivationCost =
         isMe &&
         !!pendingActivation &&
         pendingActivation.playerId === playerId &&
-        ((!!pendingActivation.sacrificeChoice &&
-            !pendingActivation.sacrificeChoice.pickedId) ||
-            (!!pendingActivation.tapOtherChoice &&
-                pendingActivation.tapOtherChoice.pickedIds.length <
-                    pendingActivation.tapOtherChoice.count));
+        !!pendingActivation.tapOtherChoice &&
+        pendingActivation.tapOtherChoice.pickedIds.length <
+            pendingActivation.tapOtherChoice.count;
 
-    /** Shared eligibility check for the activation cost picker above — one
-     *  permanent per call, gating BOTH `canInteract` (click-through) and the
-     *  gold ring highlight so the two surfaces never disagree. The tap-other
-     *  leg additionally excludes tapped permanents and the ability's own
-     *  source, mirroring the server's `selectActivationCost` validation. */
+    /** Eligibility check for the tap-other cost picker — one permanent per call,
+     *  gating BOTH `canInteract` (click-through) and the gold ring highlight so
+     *  the two surfaces never disagree. Excludes tapped permanents and the
+     *  ability's own source, mirroring the server's selectActivationCost
+     *  validation. */
     function matchesActivationCostPick(card: CardInstance): boolean {
         if (!pendingActivation) return false;
-        const sc = pendingActivation.sacrificeChoice;
-        if (sc && !sc.pickedId) {
-            return matchesPermanentFilter(card, sc.filter);
-        }
         const toc = pendingActivation.tapOtherChoice;
         if (toc && toc.pickedIds.length < toc.count) {
             return (
@@ -217,6 +236,10 @@ export function useBattlefieldVisualState(player: Player) {
                 }
             }
             return true;
+        }
+
+        if (isPickingSacrifice) {
+            return matchesSacrificePick(card);
         }
 
         if (isPickingAdditionalCost && pendingCast?.additionalCost) {
@@ -453,6 +476,7 @@ export function useBattlefieldVisualState(player: Player) {
         // ring as a resolution choice so eligible permanents read as
         // clickable.
         const isValidSacrificePick =
+            (isPickingSacrifice && matchesSacrificePick(card)) ||
             (isPickingAdditionalCost &&
                 !!pendingCast?.additionalCost &&
                 matchesPermanentFilter(

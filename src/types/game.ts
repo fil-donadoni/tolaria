@@ -1,6 +1,7 @@
 import type { Color } from "./cards";
 import type { Zone, CardAction } from "@convex/gre/types";
 import type { RestrictedMana } from "@convex/gre/state";
+import type { SacrificeSelection } from "@convex/gre/sacrificeChoice";
 import type { PublicGrantedAbility } from "@convex/gameProjections";
 
 // Re-export from convex (single source of truth)
@@ -207,6 +208,9 @@ export interface Combat {
     confirmed: boolean;
     blockerAssignments: Record<string, string[]>;
     pendingBlockerId?: string;
+    /** Parked land-sacrifice attack tax awaiting the attacking player's choice
+     *  (CR 508.1c/1g, 701.21a — Flooded Woodlands). */
+    pendingAttackSacrifice?: SacrificeSelection;
     blockersConfirmed: boolean;
     damageAssignments?: Record<string, Record<string, number>>;
     damageConfirmed?: boolean;
@@ -247,6 +251,10 @@ export type {
     PendingTarget,
 } from "@convex/gre/state";
 export type { RestrictedMana };
+export type {
+    SacrificeSelection,
+    SacrificeRequirement,
+} from "@convex/gre/sacrificeChoice";
 
 export interface GameOver {
     winnerId: string;

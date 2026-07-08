@@ -1175,22 +1175,14 @@ export type PendingActivation = {
     tapSource: boolean;
     /** True iff the ability has a sacrifice cost — applied at commit. */
     sacrificeSource: boolean;
-    /** In-progress "sacrifice a permanent matching <filter>" cost picker
-     *  (CR 602.1, 118.5 — Antiquities sacrifice-for-value engines). Set when
-     *  the ability has `cost.sacrificeFilter`. `pickedId` is undefined until
-     *  the player calls `selectActivationCost`; commit is blocked while it is
-     *  undefined regardless of mana coverage. On commit the picked permanent
-     *  is sacrificed and its mana value is snapshotted onto the resulting
-     *  stack item (read at resolve via getAdditionalSacrificeMv — Priest of
-     *  Yawgmoth). Mirrors PendingCast.additionalCost. */
-    sacrificeChoice?: {
-        filter: PermanentFilter;
-        pickedId?: string;
-    };
-    /** Unified filtered-sacrifice choice for this activation (CR 701.21a):
-     *  the ability's own sacrifice cost AND any board-wide static additional
-     *  sacrifice, folded into one selection. Replaces the legacy single-pick
-     *  `sacrificeChoice`. */
+    /** Unified filtered-sacrifice choice for this activation (CR 602.1 / 118.5 /
+     *  701.21a): the ability's own "sacrifice a permanent matching <filter>"
+     *  cost AND any board-wide static additional sacrifice (Drought), folded
+     *  into one selection. Commit is blocked while it is incomplete regardless
+     *  of mana coverage; on commit the picked permanents are sacrificed and the
+     *  snapshot-flagged victim's mv/subtypes/power ride on the stack item (read
+     *  at resolve via getAdditionalSacrificeMv/Power — Priest of Yawgmoth,
+     *  Freyalise Supplicant). */
     sacrificeSelection?: SacrificeSelection;
     /** In-progress "exile N cards from a single graveyard" cost picker
      *  (CR 602.1, 118.5, 406 — Night Soil). Set when the ability has
@@ -1199,7 +1191,7 @@ export type PendingActivation = {
      *  player calls `selectActivationCost`, and commit is blocked while they
      *  are unset regardless of mana coverage. On commit the chosen cards move
      *  from that graveyard to its owner's exile zone. Mirrors
-     *  `sacrificeChoice`. */
+     *  `sacrificeSelection`. */
     exileFromGraveyardChoice?: {
         count: number;
         cardType?: CardType;
