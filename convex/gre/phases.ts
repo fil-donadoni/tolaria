@@ -188,6 +188,50 @@ export function collectUntapRestrictions(state: GameState): {
                     const view = effectivePermanentView(state, card);
                     if (!effect.condition(view)) continue;
                 }
+                // CR 502.1 — a restriction whose target set depends on
+                // characteristics `PermanentFilter` can't carry (Tsabo's Web:
+                // "each land with an activated ability that isn't a mana
+                // ability") resolves per-candidate here. Test every permanent
+                // that passes the cheap base filter against `dynamicMatch`
+                // (which reads the candidate's card definition), then hand the
+                // dispatcher a plain instance-id filter — the same shape the
+                // `appliesToHost` branch produces.
+                if (effect.dynamicMatch) {
+                    const ids: string[] = [];
+                    for (const candidate of order) {
+                        if (
+                            !matchesPermanentFilter(
+                                effectivePermanentView(state, candidate),
+                                effect.filter
+                            )
+                        ) {
+                            continue;
+                        }
+                        const candidateId = (candidate.card as { id?: string })
+                            .id;
+                        const candidateDef = candidateId
+                            ? tryGetDefinition(candidateId)
+                            : undefined;
+                        if (!candidateDef) continue;
+                        if (
+                            !effect.dynamicMatch(
+                                effectivePermanentView(state, candidate),
+                                candidateDef
+                            )
+                        ) {
+                            continue;
+                        }
+                        ids.push(candidate.id);
+                    }
+                    out.push({
+                        source: card,
+                        restriction: {
+                            ...effect,
+                            filter: { instanceIds: ids },
+                        },
+                    });
+                    continue;
+                }
                 out.push({ source: card, restriction: effect });
             }
         }

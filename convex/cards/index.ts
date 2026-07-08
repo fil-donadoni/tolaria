@@ -179,6 +179,9 @@ import * as scg from "./sets/scg";
 // deck-legal in Premodern.
 import * as fourthEdition from "./sets/4ed";
 import * as beatdown from "./sets/btd";
+// Premodern utility-land hoser (issue #998) — Tsabo's Web's home set is its
+// earliest paper printing, Invasion (ADR 0041).
+import * as inv from "./sets/inv";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -351,6 +354,8 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     // Premodern-legal reprint box sets (issue #980).
     { code: "4ed", exports: fourthEdition },
     { code: "btd", exports: beatdown },
+    // Premodern utility-land hoser — Tsabo's Web (issue #998).
+    { code: "inv", exports: inv },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>
