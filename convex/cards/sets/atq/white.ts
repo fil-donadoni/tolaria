@@ -57,7 +57,7 @@ export const argivianArchaeologist: CardDefinition = {
 // uses `.some()`), and there is no AND-of-types filter. The target is scoped to
 // `type: "Creature"` here, so it can prevent damage to a non-artifact creature
 // too — a loosening of the printed restriction. Closing this needs an
-// AND-types target filter (engine/rules change) and is deferred.
+// AND-types target filter (engine/rules change) and is deferred (tracked #974).
 export const argivianBlacksmith: CardDefinition = {
     id: "5f604338-5ee4-4c47-ad5a-5c805c96c8de",
     rarity: "common",

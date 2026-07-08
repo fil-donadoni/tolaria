@@ -326,7 +326,7 @@ const IS_NONCREATURE_ARTIFACT: (
 // between the Song leaving and the cleanup step; the common play pattern keeps
 // the Song in play, so the simplification is acceptable for ATQ scope. A
 // general "linger this continuous effect until EOT on source-leave" duration is
-// deferred to a later tranche.
+// deferred to a later tranche (tracked #974).
 export const titaniasSong: CardDefinition = {
     id: "583a53af-2e2a-4f3f-8eab-bd874c6ed80a",
     rarity: "uncommon",

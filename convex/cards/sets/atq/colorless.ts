@@ -1189,8 +1189,9 @@ export const rakalite: CardDefinition = {
 // board-dominant, fully testable effect) and omits the permanent artifact-type
 // grant. A resolve-time `addCardType` primitive is needed to close this and is
 // flagged for a feature tranche.
-// TODO #277: needs a resolve-time `addCardType` primitive for the permanent
-// "becomes an artifact in addition to its other types" clause.
+// DIVERGENCE (tracked #974; supersedes the closed #277): needs a resolve-time
+// `addCardType` primitive for the permanent "becomes an artifact in addition to
+// its other types" clause.
 export const ashnodsTransmogrant: CardDefinition = {
     id: "2aa5b289-36ba-49b1-a5ac-f23bf71f8241",
     rarity: "uncommon",

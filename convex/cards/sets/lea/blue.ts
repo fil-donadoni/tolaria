@@ -1190,20 +1190,43 @@ export const twiddle: CardDefinition = {
     manaCost: { U: 1 },
     types: ["Instant"],
     targetRequirement: TARGET_ACL_PERMANENT,
-    // NOT DSL-migratable (ADR 0045): toggles tap state by reading the target's
-    // current tapped status (the modal "tap OR untap" collapsed to a toggle
-    // until modal cast lands). The `if` predicate grammar has no tap-state
-    // test, so the branch on `getIsTapped` cannot be expressed.
-    // Blocked on: an isTapped EffectPredicate (value/predicate grammar gap).
-    resolve: (ctx: SpellContext) => {
-        const target = ctx.targets[0];
-        if (!target) return;
-        if (ctx.getIsTapped(target)) {
-            ctx.untap(target);
-        } else {
-            ctx.tap(target);
-        }
-    },
+    // Migrated resolve()→effects[] (ADR 0045, issue #961): the printed
+    // "You may tap OR untap" is a genuine caster CHOICE (CR 701.26), restored
+    // here as an `optionChoice` (#849) over two modes — Tap / Untap — each a
+    // `tapUntap` Op (#842) on the announced target (`{ target: 0 }`). This drops
+    // the earlier tap-state toggle, which silently collapsed the choice to
+    // whichever direction changed the target's state. A gone target no-ops
+    // per-mode (CR 608.2b).
+    effects: [
+        {
+            op: "optionChoice",
+            prompt: "Tap or untap the target permanent?",
+            modes: [
+                {
+                    id: "tap",
+                    label: "Tap",
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "tap",
+                            target: { target: 0 },
+                        },
+                    ],
+                },
+                {
+                    id: "untap",
+                    label: "Untap",
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "untap",
+                            target: { target: 0 },
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
 };
 
 export const unsummon: CardDefinition = {

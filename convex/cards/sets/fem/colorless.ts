@@ -495,7 +495,10 @@ export const delifsCone: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             resolve: () => {
-                // Deferred: arm-on-target unblocked-attack rider not yet built.
+                // DIVERGENCE (tracked #974): the "this turn, when target creature you control
+                // attacks and isn't blocked, …" armed unblocked-attack rider is NOT
+                // modelled — no delayed combat trigger arms off a chosen creature's
+                // unblocked-attack event this turn (CR 603.7a). Deferred, not silent.
             },
         },
     ],
@@ -518,7 +521,10 @@ export const delifsCube: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             resolve: () => {
-                // Deferred: arm-on-target unblocked-attack rider not yet built.
+                // DIVERGENCE (tracked #974): the "this turn, when target creature you control
+                // attacks and isn't blocked, …" armed unblocked-attack rider is NOT
+                // modelled — no delayed combat trigger arms off a chosen creature's
+                // unblocked-attack event this turn (CR 603.7a). Deferred, not silent.
             },
         },
         {
