@@ -477,17 +477,27 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Ponder + Thought Scour + Millstone leaving the closure census) stack
         // ON TOP of #993 + #991: total 646→642 (−4), FREE 401→403 (+2),
         // AFK-ready 368→370 (+2), Op-blocked 231→225 (−6), X-only unchanged.
-        // Values below are the true post-merge totals, reconciled by re-running
-        // `bun scripts/migration-classifier.mjs` against the combined tree,
-        // never hand-added.
-        // #994 (Dominate — targeted control change filtered by mana value)
-        // net-ADDED one protocol resolve() closure blocked on a control-change
-        // Op, landing Op-blocked: total 642→643, Op-blocked 225→226.
+        // MERGE (#984 digToHand onto the advanced main carrying #986 + #994):
+        // — main side: #994 (Dominate) net-ADDED one protocol resolve() closure
+        //   blocked on a control-change Op, and the #986 union carried one more
+        //   resolve() closure than the branch base — total 642→643 (+1),
+        //   Op-blocked 225→226 (+1); FREE / AFK-ready / X-only unchanged.
+        // — this PR: #984 (digToHand Op SHIPPED) added NO closure (Impulse ships
+        //   as effects[], not a resolve()). But its binding folds the
+        //   `reorderLibraryTop` primitive — now a Covered Op — the last blocker
+        //   of three still-resolve() closures (Drafna's Restoration + two
+        //   others) whose only uncovered primitive was `reorderLibraryTop`.
+        //   Those three flip Op-blocked → FREE / AFK-ready: FREE 403→406 (+3),
+        //   AFK-ready 370→373 (+3), Op-blocked 226→223 (−3).
+        // Merged tree: total 643, FREE 406, AFK-ready 373, X-only 14,
+        // Op-blocked 223. Values below are the true post-merge totals,
+        // reconciled by re-running `bun scripts/migration-classifier.mjs`
+        // against the combined tree, never hand-added.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(643);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(403);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(370);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(406);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(373);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(226);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(223);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
@@ -517,16 +527,17 @@ describe("migration classifier — known-card routing (PRD #826)", () => {
         expect(free).toMatch(/Night's Whisper/);
     });
 
-    it("does NOT route an Op-blocked card (Drafna's Restoration) to the FREE tranche", () => {
-        // Drafna's Restoration calls ctx.reorderLibraryTop directly (a
-        // reorder-FROM-a-count, not the choice-driven `orderTop` picker) —
-        // still blocked on the unshipped `reorderLibraryTop` primitive, so it
-        // belongs to that Op's cluster, not the free tranche. (Canary swapped
-        // from Millstone, whose `mill` Op shipped — issue #885 — so it migrated
-        // to effects[] and is no longer a resolve() closure the classifier
-        // counts; the swap keeps the canary pointed at a genuinely Op-blocked
-        // card, and specifically at the reorder half `scryReorder`/`orderTop`
-        // did NOT fold.)
-        expect(free).not.toMatch(/Drafna's Restoration/);
+    it("does NOT route an Op-blocked card (Word of Command) to the FREE tranche", () => {
+        // Word of Command is a PROTOCOL card (ADR 0037): its resolution takes
+        // over an opponent's decisions ("look at their hand, choose a card,
+        // they cast/play it") through a control-transfer protocol that no Op
+        // vocabulary can express — it is permanently resolve() by design, never
+        // a migration candidate. That makes it the most STABLE canary: unlike a
+        // primitive-blocked card, it can never flip to FREE by an Op shipping.
+        // (Canary swapped from Drafna's Restoration, whose sole blocker
+        // `reorderLibraryTop` shipped with the `digToHand` Op — issue #984 — so
+        // the classifier now routes it to FREE; the swap keeps the canary
+        // pointed at a card that stays genuinely Op-blocked.)
+        expect(free).not.toMatch(/Word of Command/);
     });
 });

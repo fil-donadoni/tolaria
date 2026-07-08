@@ -786,6 +786,44 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Sacrifice-for-effect activated ability (issue #986): Seal of Fire
+        // ({R} enchantment) and Mogg Fanatic ({R} 1/1 Goblin) both carry
+        // "Sacrifice this: deal N damage to any target" — a self-sacrifice
+        // activation cost (CR 602.1 / 701.21) with no mana and no tap,
+        // activatable any time you have priority. The Seal starts on the
+        // battlefield ready to pop; the Mogg is also in play (summoning
+        // sickness never gates a sacrifice ability — it is not a tap ability).
+        // A spare Mogg Fanatic sits in hand to recast. Opponent creatures
+        // (Grizzly Bears 2/2, Balduvian Bears 2/2) plus the opponent's face
+        // are legal any-target sinks — sacrifice the Seal for 2 or the Mogg
+        // for 1 (CR 120.1 damage).
+        label: "Sacrifice-for-effect (Seal of Fire / Mogg Fanatic) (#986)",
+        cards: [
+            { name: "Seal of Fire", owner: "me", zone: "battlefield" },
+            { name: "Mogg Fanatic", owner: "me", zone: "battlefield" },
+            { name: "Mogg Fanatic", owner: "me", zone: "hand" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
+    {
+        // digToHand Effect Script Op (#984). Impulse ({1}{U} instant): "Look at
+        // the top four cards of your library. Put one of them into your hand and
+        // the rest on the bottom of your library in any order." Cast it and the
+        // look-top picker shows exactly the top four face-up — keep one (it goes
+        // to hand), the other three drop to the bottom of the library. 3 Islands
+        // cover the {1}{U}; the library is the shared draw pile.
+        label: "digToHand Effect Script Op (Impulse) (#984)",
+        cards: [
+            { name: "Impulse", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+    },
 ];
 
 type DebugPanelProps = {

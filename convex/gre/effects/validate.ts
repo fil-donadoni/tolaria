@@ -1068,6 +1068,19 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             count: isEffectValue,
         },
     },
+    // CR 401.4 (issue #984) — dig to hand: look at the top `look` cards, put
+    // `take` (default 1) into hand, the rest on the bottom. Suspends on a
+    // `look-top` choice over the looked-at ids. `player` names whose library;
+    // `look` is how many top cards to look at; `take` (optional, default 1) is
+    // how many to keep; `prompt` is an optional choice header. No `bind` — the
+    // pick is consumed internally, not by a later Op.
+    digToHand: {
+        required: {
+            player: isPlayerRef,
+            look: isEffectValue,
+        },
+        optional: { take: isEffectValue, prompt: isNonEmptyString },
+    },
     // CR 615 (issue #845) — establish a damage-prevention shield. `mode`
     // discriminates the three folded prevention primitives, each with its own
     // required fields (enforced by `check`): `"next-n"` needs `to` (a damage
