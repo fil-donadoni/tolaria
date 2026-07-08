@@ -6,7 +6,7 @@ import type { GameState, CardInstanceState, PlayerState } from "./state";
 import { getPlayer, removePermanentTo } from "./state";
 import type { PermanentFilter } from "../cards/filters";
 import { matchesPermanentFilter } from "../cards/filters";
-import { STATIC_EFFECT_CTX } from "./layers";
+import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
 import { tryGetDefinition } from "../cards/index";
 
 export type SacrificeRequirement = {
@@ -32,6 +32,9 @@ export type SacrificeResult = {
     id: string;
     mv: number;
     subtypes?: string[];
+    /** CR 613 layer 7c / 608.2h — effective power captured before the creature
+     *  left play (Freyalise Supplicant reads it at resolve). Creatures only. */
+    power?: number;
     snapshot: boolean;
 };
 
@@ -233,10 +236,14 @@ export function applySacrificeSelection(
             victim.subtypes && victim.subtypes.length > 0
                 ? [...victim.subtypes]
                 : undefined;
+        const power = victim.types.includes("Creature")
+            ? getEffectivePower(state, victim)
+            : undefined;
         results.push({
             id,
             mv: manaValueOf(victim),
             ...(subtypes ? { subtypes } : {}),
+            ...(power !== undefined ? { power } : {}),
             snapshot,
         });
         removePermanentTo(state, id, "graveyard", "sacrifice");

@@ -9661,46 +9661,6 @@ export function getStaticAdditionalSacrifices(
     return out;
 }
 
-/** Auto-pick the instance ids `player` must sacrifice to pay all the static
- *  additional-cost requirements (CR 601.2f / 118.5, Drought). Victims are
- *  chosen deterministically in battlefield order and never double-counted
- *  across overlapping requirements (two Droughts drawing from the same Swamp
- *  pool). Throws — the cast/activation is illegal (CR 601.2f) — when the
- *  requirements can't all be met.
- *
- *  The pick is auto-resolved (no UI picker) — a deliberate simplification vs.
- *  strict "the player chooses which permanent to sacrifice", tactically
- *  irrelevant for the fungible-land case the effect targets. */
-export function planStaticAdditionalSacrifices(
-    requirements: StaticAdditionalSacrifice[],
-    player: PlayerState
-): string[] {
-    const reserved = new Set<string>();
-    for (const req of requirements) {
-        let need = req.count;
-        for (const c of player.battlefield) {
-            if (need <= 0) break;
-            if (reserved.has(c.id)) continue;
-            if (
-                matchesPermanentFilter(
-                    { ...c, colors: STATIC_EFFECT_CTX.getColors(c) },
-                    req.filter,
-                    { selfControllerId: player.id }
-                )
-            ) {
-                reserved.add(c.id);
-                need -= 1;
-            }
-        }
-        if (need > 0) {
-            throw new Error(
-                "Can't pay the additional cost (not enough permanents to sacrifice)"
-            );
-        }
-    }
-    return [...reserved];
-}
-
 /** Scan the battlefield for `mana-substitution` static effects whose source
  *  is controlled by `playerId` and return the active "spend `from` as though
  *  `to`" rules (CR 609.4b). Derived fresh per payment so the substitution

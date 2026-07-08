@@ -43,7 +43,6 @@ import {
     getCostModifiers,
     applyCostModifiers,
     getStaticAdditionalSacrifices,
-    planStaticAdditionalSacrifices,
     emitSpellCastEvent,
     emitPermanentTapped,
     emitAbilityActivated,
@@ -1066,19 +1065,6 @@ function untapSourceFromPayment(
     card.isTapped = false;
 }
 
-/** Look up a sacrifice-cost candidate on the activator's own battlefield by
- *  instance id (CR 602.1 — costs are paid from the activating player's
- *  resources). Returns undefined if it has vanished between selection and
- *  commit. */
-function findSacrificeCandidate(
-    state: GameState,
-    playerId: string,
-    cardInstanceId: string
-): CardInstanceState | undefined {
-    const player = getPlayer(state, playerId);
-    return player.battlefield.find((c) => c.id === cardInstanceId);
-}
-
 /** True iff a card sitting in a graveyard satisfies the exile-from-graveyard
  *  cost's optional card-type filter (CR 118.5 / 406 — Night Soil: "creature
  *  cards"). The card's printed types are read from its instance (graveyard
@@ -1132,20 +1118,6 @@ function tapOtherCandidates(
             supertypesOf: liveSupertypesOf,
         });
     });
-}
-
-/** Pre-sacrifice mana value of a permanent (CR 202.3). Read at commit so a
- *  mana-value-derived effect (Priest of Yawgmoth) sees the sacrificed
- *  permanent's printed cost. X in a printed cost counts as 0. */
-function sacrificedManaValue(perm: CardInstanceState): number {
-    const cardId = (perm.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
-    return def?.manaCost
-        ? Object.entries(def.manaCost).reduce<number>(
-              (acc, [, v]) => acc + (typeof v === "number" ? v : 0),
-              0
-          )
-        : 0;
 }
 
 /** Cast-from-exile lookup (CR 601.3e — Ice Cauldron: "You may cast that card
@@ -1218,6 +1190,9 @@ export function buildPendingActivation(opts: {
     keepPriority?: boolean;
     grantedSourceCardId?: string;
     fromGraveyard?: boolean;
+    /** Unified filtered-sacrifice choice (own cost + static Drought), built by
+     *  the caller which has `state` (CR 701.21a). */
+    sacrificeSelection?: SacrificeSelection;
 }): PendingActivation {
     const { ability } = opts;
     return {
@@ -1241,8 +1216,8 @@ export function buildPendingActivation(opts: {
         ...(ability.cost.discardAtRandom
             ? { discardAtRandomCount: ability.cost.discardAtRandom }
             : {}),
-        ...(ability.cost.sacrificeFilter
-            ? { sacrificeChoice: { filter: ability.cost.sacrificeFilter } }
+        ...(opts.sacrificeSelection
+            ? { sacrificeSelection: opts.sacrificeSelection }
             : {}),
         ...(ability.cost.exileFromGraveyard
             ? {
@@ -1309,7 +1284,7 @@ export function tryAutoCommitPendingActivation(
     // CR 602.1 / 118.5 — commit is blocked until the "sacrifice a permanent
     // matching <filter>" cost has been picked (selectActivationCost). Mirrors
     // pendingCast.additionalCost gating.
-    if (pa.sacrificeChoice && !pa.sacrificeChoice.pickedId) {
+    if (pa.sacrificeSelection && !isSacrificeSelectionComplete(pa.sacrificeSelection)) {
         return null;
     }
     // CR 602.1 / 118.5 — commit is blocked until the "exile N cards from a
@@ -1424,38 +1399,14 @@ export function tryAutoCommitPendingActivation(
     if (pa.sacrificeSource) {
         removePermanentTo(state, card.id, "graveyard", "sacrifice");
     }
-    // CR 602.1 / 118.5 — sacrifice the chosen filtered permanent and snapshot
-    // its pre-sacrifice mana value for the stack item (Priest of Yawgmoth).
-    let activationSacrificeSnapshot: StackItem["additionalSacrificeSnapshot"];
-    if (pa.sacrificeChoice?.pickedId) {
-        const sacrificed = findSacrificeCandidate(
-            state,
-            playerId,
-            pa.sacrificeChoice.pickedId
-        );
-        if (!sacrificed) {
-            // Picked permanent vanished between selection and commit — drop
-            // the activation silently (lands stay tapped, mirroring the
-            // vanished-source policy above and cancelCast).
-            state.pendingActivation = undefined;
-            return null;
-        }
-        activationSacrificeSnapshot = {
-            cardInstanceId: sacrificed.id,
-            mv: sacrificedManaValue(sacrificed),
-            ...(sacrificed.subtypes && sacrificed.subtypes.length > 0
-                ? { subtypes: [...sacrificed.subtypes] }
-                : {}),
-            // CR 613 layer 7c / 608.2h — capture the EFFECTIVE power before the
-            // permanent leaves play so `getAdditionalSacrificePower` reads it at
-            // resolve (Freyalise Supplicant: "damage equal to half the
-            // sacrificed creature's power"). Only creatures have power.
-            ...(sacrificed.types.includes("Creature")
-                ? { power: getEffectivePower(state, sacrificed) }
-                : {}),
-        };
-        removePermanentTo(state, sacrificed.id, "graveyard", "sacrifice");
-    }
+    // CR 602.1 / 118.5 / 701.21a — execute the player-chosen filtered
+    // sacrifice(s) (own cost + Drought) through the unified layer. The own-cost
+    // requirement is snapshot-flagged: its mv/subtypes/effective power ride on
+    // the stack item (Priest of Yawgmoth, Freyalise Supplicant).
+    const activationSacrificeSnapshot = sacrificeSnapshotFromSelection(
+        pa.sacrificeSelection,
+        state
+    );
     // CR 602.1 / 118.5 / 406 — pay the "exile N cards from a single graveyard"
     // cost: move each picked card from that owner's graveyard to their exile.
     // Re-check presence at commit (vanished-card policy): if any picked card
@@ -1498,16 +1449,8 @@ export function tryAutoCommitPendingActivation(
         }
     }
 
-    // CR 601.2f / 118.5 — pay the board-wide static NON-mana additional cost
-    // (Drought) as the ability goes on the stack. Pip count comes from the
-    // ability's PRINTED activation cost. No-op unless a static applies.
-    payStaticAdditionalCost(
-        state,
-        resolveActivatedAbility(card, pa.abilityId)?.ability.cost.mana,
-        card,
-        player,
-        "ability"
-    );
+    // CR 601.2f / 701.21a — the filtered sacrifice(s) were executed above via
+    // the unified layer (pa.sacrificeSelection); nothing more to pay here.
     const stackItem: StackItem = {
         ...structuredClone(card),
         zone: "stack" as const,
@@ -1699,7 +1642,7 @@ export function tryAutoCommitPendingCast(
     // getAdditionalCostSubtypes.
     let additionalSacrificeSnapshot: StackItem["additionalSacrificeSnapshot"];
     if (castSel) {
-        additionalSacrificeSnapshot = castSacrificeSnapshot(castSel, state);
+        additionalSacrificeSnapshot = sacrificeSnapshotFromSelection(castSel, state);
     }
     // CR 406 — the exile additional cost (Soul Exchange). Snapshot the exiled
     // permanent's mv/subtypes ("+2/+2 if the exiled creature was a Thrull"),
@@ -2990,9 +2933,21 @@ export function finalizeTargetSelection(
                 manaCost,
                 getManaSubstitutions(state, player.id)
             );
+        // CR 602.1 / 118.5 / 701.21a — unified filtered sacrifice (own cost +
+        // Drought). A non-fungible board defers so the player chooses.
+        const activationSac = buildActivationSacrificeSelection(
+            state,
+            ability,
+            card,
+            player,
+            tryGetDefinition((card.card as { id?: string }).id ?? "")?.name ??
+                "Sacrifice"
+        );
+        const needsSacrificeChoice =
+            !!activationSac && !isSacrificeSelectionComplete(activationSac);
         if (
             manaUncovered ||
-            ability.cost.sacrificeFilter ||
+            needsSacrificeChoice ||
             ability.cost.exileFromGraveyard ||
             ability.cost.tapOtherFilter
         ) {
@@ -3007,12 +2962,8 @@ export function finalizeTargetSelection(
                 ...(ability.cost.removeCounter
                     ? { removeCounterCost: { ...ability.cost.removeCounter } }
                     : {}),
-                ...(ability.cost.sacrificeFilter
-                    ? {
-                          sacrificeChoice: {
-                              filter: ability.cost.sacrificeFilter,
-                          },
-                      }
+                ...(activationSac
+                    ? { sacrificeSelection: activationSac }
                     : {}),
                 ...(ability.cost.exileFromGraveyard
                     ? {
@@ -3092,15 +3043,11 @@ export function finalizeTargetSelection(
         if (ability.cost.sacrifice) {
             removePermanentTo(state, card.id, "graveyard", "sacrifice");
         }
-        // CR 601.2f / 118.5 — pay the board-wide static NON-mana additional cost
-        // (Drought) as the ability goes on the stack. No-op unless a static
-        // applies.
-        payStaticAdditionalCost(
-            state,
-            ability.cost.mana,
-            card,
-            player,
-            "ability"
+        // CR 601.2f / 118.5 / 701.21a — apply the auto-resolved filtered
+        // sacrifice (Drought / fungible own cost) as the ability commits.
+        const targetedSacSnapshot = sacrificeSnapshotFromSelection(
+            activationSac,
+            state
         );
 
         const stackItem: StackItem = {
@@ -3113,6 +3060,9 @@ export function finalizeTargetSelection(
                 ? { chosenX: abilityChosenX }
                 : {}),
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
+            ...(targetedSacSnapshot
+                ? { additionalSacrificeSnapshot: targetedSacSnapshot }
+                : {}),
             ...(notedManaSpent ? { notedManaSpent } : {}),
         };
         state.stack.push(stackItem);
@@ -3243,7 +3193,7 @@ export function finalizeTargetSelection(
         const card = removeFromZone(player, cardInstanceId, castZone);
         // CR 601.2f / 118.5 / 701.21a — pay the auto-resolved filtered sacrifice
         // (Drought / fungible own cost) as the spell hits the stack.
-        const additionalSacrificeSnapshot = castSacrificeSnapshot(
+        const additionalSacrificeSnapshot = sacrificeSnapshotFromSelection(
             castSac,
             state
         );
@@ -3317,33 +3267,6 @@ function assertStaticAdditionalCostAffordable(
         throw new Error(
             "Can't pay the additional cost (not enough permanents to sacrifice)"
         );
-    }
-}
-
-/** CR 601.2f / 118.5 — pay the board-wide static NON-mana additional costs
- *  (Drought) by sacrificing the auto-chosen victims as the spell/ability is put
- *  on the stack. No-op when no `additional-cost` static applies. Called at each
- *  commit site (immediate and deferred), so exactly one payment happens per
- *  cast/activation. Affordability was validated at announcement and the board
- *  is stable through the caster's own payment window, so the plan never throws
- *  here in practice. */
-function payStaticAdditionalCost(
-    state: GameState,
-    rawManaCost: ManaCost | undefined,
-    announced: CardInstanceState,
-    player: PlayerState,
-    kind: "spell" | "ability"
-): void {
-    const reqs = getStaticAdditionalSacrifices(
-        state,
-        rawManaCost,
-        announced,
-        kind
-    );
-    if (reqs.length === 0) return;
-    const ids = planStaticAdditionalSacrifices(reqs, player);
-    for (const id of ids) {
-        removePermanentTo(state, id, "graveyard", "sacrifice");
     }
 }
 
@@ -3434,10 +3357,10 @@ function buildCastSacrificeSelection(
     return { selection, exilePicker };
 }
 
-/** Extract the own-cast additional-sacrifice snapshot (mv/subtypes) from an
- *  applied selection, for the resulting stack item (CR 117.9 — Priest of
- *  Yawgmoth, Freyalise Supplicant). */
-function castSacrificeSnapshot(
+/** Apply a selection and extract the snapshot-flagged victim's mv/subtypes/power
+ *  for the resulting stack item (CR 117.9 / 602.1 — Priest of Yawgmoth,
+ *  Freyalise Supplicant). Shared by the cast and activation commit paths. */
+function sacrificeSnapshotFromSelection(
     selection: SacrificeSelection | undefined,
     state: GameState
 ): StackItem["additionalSacrificeSnapshot"] | undefined {
@@ -3449,7 +3372,50 @@ function castSacrificeSnapshot(
         cardInstanceId: snap.id,
         mv: snap.mv,
         ...(snap.subtypes ? { subtypes: snap.subtypes } : {}),
+        ...(snap.power !== undefined ? { power: snap.power } : {}),
     };
+}
+
+/** CR 602.1 / 118.5 / 701.21a — assemble every filtered sacrifice an activation
+ *  owes into one player-chosen selection: the ability's own "sacrifice a
+ *  <filter>" cost (snapshot-flagged) plus any board-wide static additional
+ *  sacrifice (Drought — activated-ability form). Auto-resolves fungible boards
+ *  inline. Returns undefined when the ability owes no filtered sacrifice. The
+ *  ability's fixed self-sacrifice (`cost.sacrifice`) is NOT folded — it has no
+ *  choice and stays on `sacrificeSource`. */
+function buildActivationSacrificeSelection(
+    state: GameState,
+    ability: ActivatedAbility,
+    source: CardInstanceState,
+    player: PlayerState,
+    reason: string
+): SacrificeSelection | undefined {
+    const specs: SacrificeRequirement[] = [];
+    if (ability.cost.sacrificeFilter) {
+        specs.push({
+            filter: ability.cost.sacrificeFilter,
+            count: 1,
+            snapshot: true,
+        });
+    }
+    for (const req of getStaticAdditionalSacrifices(
+        state,
+        ability.cost.mana,
+        source,
+        "ability"
+    )) {
+        specs.push({ filter: req.filter, count: req.count });
+    }
+    const requirements = buildSacrificeRequirements(specs);
+    if (requirements.length === 0) return undefined;
+    const selection: SacrificeSelection = {
+        playerId: player.id,
+        reason,
+        requirements,
+        picked: [],
+    };
+    autoResolveFungible(state, selection);
+    return selection;
 }
 
 /** CR 107.3 / 608.2g — counts cards of the given types in the casting player's
@@ -3900,7 +3866,7 @@ export const announceCast = mutation({
             );
             // CR 601.2f / 118.5 / 701.21a — pay the auto-resolved filtered
             // sacrifice (Drought / fungible own cost) as the spell commits.
-            const additionalSacrificeSnapshot = castSacrificeSnapshot(
+            const additionalSacrificeSnapshot = sacrificeSnapshotFromSelection(
                 castSac,
                 state
             );
@@ -7304,7 +7270,19 @@ export const activateAbility = mutation({
                 manaCost,
                 getManaSubstitutions(state, player.id)
             );
-        const needsSacrificeChoice = !!ability.cost.sacrificeFilter;
+        // CR 602.1 / 118.5 / 701.21a — unified filtered sacrifice (own cost +
+        // Drought). A non-fungible board defers so the player chooses; a
+        // fungible board auto-resolves and commits inline.
+        const activationSac = buildActivationSacrificeSelection(
+            state,
+            ability,
+            card,
+            player,
+            tryGetDefinition((card.card as { id?: string }).id ?? "")?.name ??
+                "Sacrifice"
+        );
+        const needsSacrificeChoice =
+            !!activationSac && !isSacrificeSelectionComplete(activationSac);
         const needsExileChoice = !!ability.cost.exileFromGraveyard;
         const needsTapOtherChoice = !!ability.cost.tapOtherFilter;
         if (
@@ -7323,6 +7301,7 @@ export const activateAbility = mutation({
                 keepPriority: args.keepPriority,
                 grantedSourceCardId,
                 fromGraveyard,
+                ...(activationSac ? { sacrificeSelection: activationSac } : {}),
             });
             state.pendingActivation = pending;
             // CR 302.1 — a {T}-cost ability still needs the source untapped at
@@ -7382,15 +7361,11 @@ export const activateAbility = mutation({
         if (ability.cost.sacrifice) {
             removePermanentTo(state, card.id, "graveyard", "sacrifice");
         }
-        // CR 601.2f / 118.5 — pay the board-wide static NON-mana additional cost
-        // (Drought) as the ability goes on the stack. No-op unless a static
-        // applies.
-        payStaticAdditionalCost(
-            state,
-            ability.cost.mana,
-            card,
-            player,
-            "ability"
+        // CR 601.2f / 118.5 / 701.21a — apply the auto-resolved filtered
+        // sacrifice (Drought / fungible own cost) as the ability commits.
+        const immediateSacSnapshot = sacrificeSnapshotFromSelection(
+            activationSac,
+            state
         );
 
         // Put ability on stack (clone card state as a virtual stack item)
@@ -7401,6 +7376,9 @@ export const activateAbility = mutation({
             abilityId: args.abilityId,
             ...(chosenX !== undefined ? { chosenX } : {}),
             ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
+            ...(immediateSacSnapshot
+                ? { additionalSacrificeSnapshot: immediateSacSnapshot }
+                : {}),
             ...(notedManaSpent ? { notedManaSpent } : {}),
         };
         state.stack.push(stackItem);
