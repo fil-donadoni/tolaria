@@ -824,6 +824,27 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 3,
     },
+    {
+        // Annul ({U} instant, #996): "Counter target artifact or enchantment
+        // spell." The opponent holds an artifact (Black Lotus) and an
+        // enchantment (Crusade) to cast, plus a creature (Grizzly Bears) and a
+        // burn instant (Lightning Bolt) that Annul CANNOT target — the
+        // spellTypeFilter exhaustive-over-the-union check. Let the opponent put
+        // one on the stack, then respond with Annul: only the artifact /
+        // enchantment spell is a legal (clickable) target. 1 Island covers {U}.
+        label: "Annul — counter artifact/enchantment spell (#996)",
+        cards: [
+            { name: "Annul", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield" },
+            { name: "Black Lotus", owner: "opp", zone: "hand" },
+            { name: "Crusade", owner: "opp", zone: "hand" },
+            { name: "Grizzly Bears", owner: "opp", zone: "hand" },
+            { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+            { name: "Island", owner: "opp", zone: "battlefield", count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 1,
+    },
 ];
 
 type DebugPanelProps = {
