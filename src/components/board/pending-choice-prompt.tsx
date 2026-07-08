@@ -115,6 +115,21 @@ export default function PendingChoicePrompt({
     // Done would submit an empty (illegal) selection.
     if (choice.kind === "order-top") return null;
 
+    // A `choose-hand-card` pick from ANOTHER player's hand (Thoughtseize /
+    // Duress / Hymn to Tourach) owns its own modal picker (`HandCardPick`,
+    // mounted by the board), which reuses the search-library surface + a
+    // reachable Done. Suppress this generic banner so it doesn't double up with
+    // a "0 / max selected" counter over cards the viewer can't reach here (the
+    // opponent's hand is not clickable in-place). Own-hand picks keep the
+    // banner + in-hand toggle.
+    if (
+        choice.kind === "choose-hand-card" &&
+        !!choice.zoneOwnerId &&
+        choice.zoneOwnerId !== playerId
+    ) {
+        return null;
+    }
+
     return (
         <div
             className="absolute top-1/2 left-1/2 z-100 pointer-events-none"

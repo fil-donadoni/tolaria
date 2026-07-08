@@ -2183,14 +2183,16 @@ describe("cleanup discard (CR 514.1)", () => {
             ).toBeUndefined();
         });
 
-        // ADR 0026 / PRD #338 (slice 4), clear trigger #2 — the CR 514.1 cleanup
-        // discard is chosen-and-witnessed by the OWNER (p1) but not by a non-owner
-        // knower (p2). The whole remaining hand reverts to hidden for p2; the
-        // owner's own knowledge is untouched.
-        it("clears non-owner knownTo over the whole remaining hand (ADR 0026 slice 4)", () => {
+        // ADR 0026 (revised) — the CR 514.1 cleanup discard does NOT clear a
+        // non-owner knower's knowledge of the REMAINING hand. Knowledge is
+        // per-instance and the discarded cards go to the public graveyard, so
+        // every card left in hand stays identifiable to the prior knower (p2).
+        // Only a genuine uncertainty event (shuffle) revokes hand knowledge.
+        it("keeps non-owner knownTo over the remaining hand after a cleanup discard (ADR 0026 revised)", () => {
             const hand = handOf(9);
             // p2 legitimately learned p1's hand (e.g. via Glasses of Urza).
             for (const c of hand) c.knownTo = ["p2"];
+            const discardedIds = [hand[0].id, hand[1].id];
             const state = makeGameState({
                 phase: "END_STEP",
                 turn: 1,
@@ -2202,15 +2204,19 @@ describe("cleanup discard (CR 514.1)", () => {
             });
             advancePhase(state);
             // Discard down to 7 — p1 chooses two cards.
-            finalizeCleanupDiscard(state, [
-                state.players[0].hand[0].id,
-                state.players[0].hand[1].id,
-            ]);
+            finalizeCleanupDiscard(state, discardedIds);
 
-            // Every card still in p1's hand is no longer known to p2.
+            // Every card still in p1's hand remains known to p2 — the discard of
+            // two other cards introduced no uncertainty about the rest.
             expect(state.players[0].hand.length).toBe(7);
             for (const c of state.players[0].hand) {
-                expect(c.knownTo).toBeUndefined();
+                expect(c.knownTo).toEqual(["p2"]);
+            }
+            // Sanity: the two discarded instances actually left the hand.
+            for (const id of discardedIds) {
+                expect(
+                    state.players[0].hand.some((c) => c.id === id)
+                ).toBe(false);
             }
         });
     });

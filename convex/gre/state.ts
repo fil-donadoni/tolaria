@@ -8340,15 +8340,15 @@ export function buildSpellContext(
             // discardToGraveyard; on a real discard it emits CARD_DISCARDED
             // (CR 701.8) so "whenever you discard" triggers fire (Necropotence).
             if (!discardToGraveyard(state, playerId, cardInstanceId)) return;
-            // ADR 0026 / PRD #338 (slice 4), clear trigger #2: an owner-chosen
-            // discard (Disrupting Scepter, Wheel of Fortune, Balance, cleanup)
-            // is a change the OWNER chose-and-witnessed but a non-owner knower
-            // did not. Conservatively revert the whole remaining hand to hidden
-            // for every non-owner viewer — the knower can no longer trust their
-            // identity→card mapping. `selectorId = playerId` keeps only the
-            // owner's knowledge, but the owner never appears in their own hand
-            // `knownTo`, so in practice this clears all non-owner knowers.
-            clearKnowledge(player.hand, playerId);
+            // ADR 0026 (revised): a discard does NOT clear a non-owner knower's
+            // knowledge of the REMAINING hand. Knowledge is tracked per card
+            // INSTANCE, and the discarded card goes to the public graveyard —
+            // removing it leaves every other known instance still identifiable
+            // (its identity→instance mapping is unchanged). Only a genuine
+            // uncertainty event (shuffle / hidden return to library) revokes
+            // hand knowledge. Before the revision this over-conservatively
+            // reverted the whole hand to hidden, which hid the cards a full
+            // reveal (Thoughtseize) had legitimately exposed.
         },
         // CR 701.15a: stacks one regeneration shield on the target permanent.
         // The shield is consumed by the next destroy event on that permanent
@@ -9286,12 +9286,11 @@ export function discardCardsAtRandom(
         // it emits CARD_DISCARDED (CR 701.8 — Necropotence).
         discardToGraveyard(state, playerId, cardId);
     }
-    // ADR 0026 / PRD #338 (slice 3), clear trigger #2: a random discard is an
-    // event the knower did not choose-and-witness — a player who knew this hand
-    // can no longer trust their identity→card mapping. Conservatively revert the
-    // WHOLE remaining hand to hidden for every non-owner viewer (the owner never
-    // appears in their own hand `knownTo`, so `null` leaves it untouched).
-    clearKnowledge(player.hand, null);
+    // ADR 0026 (revised): a random discard does NOT clear knowledge of the
+    // remaining hand. Each discarded card is revealed into the public graveyard
+    // and knowledge is per-instance, so the cards left behind stay identifiable
+    // to any prior knower — no uncertainty is introduced. Only shuffle / hidden
+    // return to library revokes hand knowledge.
 }
 
 /** Pays a "discard N cards at random" activation cost (CR 118.3 / 701.8 —

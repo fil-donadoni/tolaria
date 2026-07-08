@@ -19,7 +19,7 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "reveal-hand": "Reveal",
     "choose-permanents": "Choose",
     partition: "Divide",
-    "choose-hand-card": "Cast face down",
+    "choose-hand-card": "Choose",
     "choose-graveyard-card": "Return",
     "choose-damage-target": "Choose target",
     "draw-look-keep": "Keep",

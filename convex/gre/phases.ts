@@ -19,7 +19,6 @@ import {
     bumpDamageDealtToPlayer,
     markDeathtouchDamage,
     recordSourceDamagedOpponent,
-    clearKnowledge,
     consumePreventionIfAny,
     destroyWithReplacements,
     drawCard,
@@ -1767,12 +1766,11 @@ export function finalizeCleanupDiscard(
         // discardToGraveyard; a real discard emits CARD_DISCARDED (CR 701.8).
         discardToGraveyard(state, player.id, cardInstanceId);
     }
-    // ADR 0026 / PRD #338 (slice 4), clear trigger #2: the cleanup discard
-    // (CR 514.1) is chosen-and-witnessed by the hand's OWNER but not by any
-    // non-owner knower. Conservatively revert the whole remaining hand to
-    // hidden for every non-owner viewer (the owner never appears in their own
-    // hand `knownTo`, so `selectorId = player.id` leaves the owner untouched).
-    clearKnowledge(player.hand, player.id);
+    // ADR 0026 (revised): the cleanup discard (CR 514.1) does NOT clear a
+    // non-owner knower's knowledge of the remaining hand. Discarded cards go to
+    // the public graveyard and knowledge is per-instance, so every card left in
+    // hand stays identifiable to any prior knower. Only a genuine uncertainty
+    // event (shuffle / hidden return to library) revokes hand knowledge.
     queue.shift();
     state.pendingChoices = queue.length > 0 ? queue : undefined;
     state.pendingCleanupDiscard = undefined;

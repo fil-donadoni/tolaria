@@ -49,6 +49,7 @@ import ExileCostDialog from "./exile-cost-dialog";
 import { isGraveyardTargetForViewer } from "~/lib/graveyard-targets";
 import PaymentBanner from "./payment-banner";
 import PendingChoicePrompt from "./pending-choice-prompt";
+import HandCardPick from "./hand-card-pick";
 import MinimizedChoiceIndicator from "./minimized-choice-indicator";
 import MulliganPrompt from "./mulligan-prompt";
 import ErrorToast from "./error-toast";
@@ -577,6 +578,8 @@ export default function Board({
                                         gameId={gameId}
                                     />
                                 ))}
+                            <HandCardPick />
+
                             {mulligan && !mulligan.bottoming && (
                                 <MulliganPrompt
                                     gameId={gameId}

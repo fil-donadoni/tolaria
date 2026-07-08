@@ -644,13 +644,13 @@ export function getStackAbilities(
         // least N life. Hidden as a UI hint so the ability is never offered
         // when unpayable; the server throw ("Not enough life") is
         // authoritative. Skipped when `payerLife` is unknown (undefined).
-        // if (
-        //     a.cost.life !== undefined &&
-        //     payerLife !== undefined &&
-        //     payerLife < a.cost.life
-        // ) {
-        //     return false;
-        // }
+        if (
+            a.cost.life !== undefined &&
+            payerLife !== undefined &&
+            payerLife < a.cost.life
+        ) {
+            return false;
+        }
         if (
             a.activationPhaseRestriction &&
             phase !== undefined &&
