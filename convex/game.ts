@@ -109,6 +109,11 @@ import {
     getEffectiveToughness,
 } from "./gre/layers";
 import { projectFullState, projectPublicState } from "./gameProjections";
+import {
+    canPayAlternativeCost,
+    getAlternativeCost,
+    payAlternativeCost,
+} from "./gre/alternativeCost";
 import { hasSupertypeLive, liveSupertypesOf } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
 import { compactState, expandState } from "./gre/serialize";
@@ -3114,13 +3119,25 @@ export function finalizeTargetSelection(
     if (!cardInHand) throw new Error("Card not in hand");
     const cardDef = getDefinition((cardInHand.card as { id: string }).id);
 
+    // CR 118.9 — the caster opted into an ALTERNATIVE casting cost at
+    // announcement (Thwart returns Islands, Fireblast sacrifices Mountains); it
+    // rode along on `pendingTarget` and is paid at this commit (601.2h),
+    // replacing the mana cost entirely.
+    const chosenAltCost = pt.alternativeCostId
+        ? getAlternativeCost(cardDef, pt.alternativeCostId)
+        : undefined;
+
     const rawCost = getInstanceManaCost(cardInHand);
     const extraPer = cardDef.additionalGenericPerExtraTarget ?? 0;
     const additionalGeneric =
         extraPer > 0 ? Math.max(0, targets.length - 1) * extraPer : 0;
-    const manaCost = rawCost
-        ? normalizeManaCost(rawCost, { chosenX, additionalGeneric })
-        : {};
+    // An alternative cost zeroes the mana cost (CR 118.9) so the immediate
+    // commit branch fires and the land cost is paid there instead.
+    const manaCost = chosenAltCost
+        ? {}
+        : rawCost
+          ? normalizeManaCost(rawCost, { chosenX, additionalGeneric })
+          : {};
     applyCostModifiers(manaCost, getCostModifiers(state, cardInHand, "spell"));
     // CR 601.2f / 118.5 — board-wide static NON-mana additional cost (Drought:
     // "Spells cost an additional 'Sacrifice a Swamp' for each black mana
@@ -3211,6 +3228,11 @@ export function finalizeTargetSelection(
                 : undefined;
             commitLandsForCost(player, manaCost);
         }
+        // CR 118.9 — pay the chosen ALTERNATIVE cost (return / sacrifice lands,
+        // Thwart / Fireblast) as the spell moves hand → stack, in place of the
+        // (zeroed) mana cost. Affordability was validated at announcement;
+        // re-checked here since the board may have changed during targeting.
+        if (chosenAltCost) payAlternativeCost(state, playerId, chosenAltCost);
         // CR 601.2b / 118.4 — pay the "pay X life" additional cost as the spell
         // moves hand → stack (Fire Covenant). Affordability validated at
         // announcement; SBA handles a fatal payment.
@@ -3491,6 +3513,11 @@ export const announceCast = mutation({
         /** Mode chosen for modal spells (CR 700.2 / 700.2c). Required when
          *  the card defines `modes`. */
         chosenModeId: v.optional(v.string()),
+        /** CR 118.9 — id of a chosen ALTERNATIVE casting cost
+         *  (`CardDefinition.alternativeCosts`). When set, the spell is cast by
+         *  returning / sacrificing the named lands INSTEAD of paying its mana
+         *  cost (Gush, Thwart, Fireblast). */
+        alternativeCostId: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -3535,6 +3562,27 @@ export const announceCast = mutation({
             : "exile";
 
         const cardDef = getDefinition((cardInHand.card as { id: string }).id);
+
+        // CR 118.9 — the caster opted into an ALTERNATIVE casting cost (return /
+        // sacrifice lands, Gush/Thwart/Fireblast). Validate the variant exists
+        // and is affordable at announcement; it is PAID at cast commit (in the
+        // no-target branch here, or in finalizeTargetSelection for a targeted
+        // spell), replacing the mana cost entirely. Illegal when the lands
+        // aren't available.
+        const chosenAltCost = args.alternativeCostId
+            ? getAlternativeCost(cardDef, args.alternativeCostId)
+            : undefined;
+        if (args.alternativeCostId && !chosenAltCost) {
+            throw new Error("Unknown alternative cost for this spell");
+        }
+        if (
+            chosenAltCost &&
+            !canPayAlternativeCost(state, args.playerId, chosenAltCost)
+        ) {
+            throw new Error(
+                "Can't pay the alternative cost (not enough permanents)"
+            );
+        }
 
         // Validate X is provided iff the cost contains a string X (CR 107.3).
         const hasX =
@@ -3713,6 +3761,11 @@ export const announceCast = mutation({
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
+                // CR 118.9 — carry the chosen alternative cost through target
+                // selection so it is paid at cast commit (finalizeTargetSelection).
+                ...(args.alternativeCostId
+                    ? { alternativeCostId: args.alternativeCostId }
+                    : {}),
                 ...pendingTargetFiltersFromRequirement(
                     activeTargetRequirement,
                     chosenX
@@ -3733,6 +3786,44 @@ export const announceCast = mutation({
                 gameState
             );
 
+            return;
+        }
+
+        // CR 118.9 — no targets AND an alternative cost was chosen (Gush): pay
+        // the land cost INSTEAD of mana and commit immediately. This wholly
+        // replaces the mana / additional-cost path below (these cards have no
+        // additional cost of their own).
+        if (chosenAltCost) {
+            payAlternativeCost(state, args.playerId, chosenAltCost);
+            const card = removeFromZone(
+                player,
+                args.cardInstanceId,
+                castFromZone
+            );
+            const stackItem: StackItem = {
+                ...card,
+                castById: args.playerId,
+                ...(chosenX !== undefined ? { chosenX } : {}),
+                ...(args.chosenModeId
+                    ? { chosenModeId: args.chosenModeId }
+                    : {}),
+            };
+            state.stack.push(stackItem);
+            state.passCount = 0;
+            state.priorityPlayerId = getOpponentId(state, args.playerId);
+            state.singleShotAutoPass = args.keepPriority
+                ? undefined
+                : args.playerId;
+            drainAutoPasses(state);
+            emitSpellCastEvent(state, stackItem);
+            processPendingActionTriggers(state);
+            await saveGameState(
+                ctx,
+                args.gameId,
+                gameState.seq + 1,
+                state,
+                gameState
+            );
             return;
         }
 

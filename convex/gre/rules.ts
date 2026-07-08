@@ -30,6 +30,7 @@ import { isGuardedAgainst } from "./permanentGuard";
 import { castProhibitionReason } from "../cards/castRestrictions";
 import { matchesPermanentFilter } from "../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
+import { affordableAlternativeCosts } from "./alternativeCost";
 import {
     landPlayLockActive,
     normalizeManaCost,
@@ -143,7 +144,11 @@ export function getLegalActions(
             // path, since `assertLegalAction` rejects the cast mutation when
             // "cast" is absent.
             castProhibitionReason(player.id, card, state) === undefined &&
-            canPotentiallyPayCost(player, card) &&
+            // CR 118.9 — the mana cost is payable, OR the caster can afford an
+            // ALTERNATIVE cost (Gush/Thwart return Islands, Fireblast sacrifices
+            // Mountains) that replaces the mana cost entirely.
+            (canPotentiallyPayCost(player, card) ||
+                affordableAlternativeCosts(player, card).length > 0) &&
             hasEnoughLegalTargets(state, player, card) &&
             hasPayableAdditionalCost(player, card)
         ) {

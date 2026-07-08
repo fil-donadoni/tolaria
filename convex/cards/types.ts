@@ -5917,6 +5917,43 @@ export interface AiCombatHint {
     removal?: boolean;
 }
 
+/** CR 118.9 — an ALTERNATIVE casting cost that REPLACES the spell's mana cost
+ *  entirely with a land-interaction cost the caster may choose at announcement
+ *  (`announceCast.alternativeCostId`). Unlike an `additionalCosts` entry (paid
+ *  ON TOP of mana), an alternative cost is paid INSTEAD of the mana cost:
+ *  choosing it zeroes the mana cost for that cast. These variants pay by
+ *  returning permanents to their owner's hand (Gush "return two Islands you
+ *  control to their owner's hand rather than pay this spell's mana cost",
+ *  Thwart "return three Islands") or by sacrificing them (Fireblast "sacrifice
+ *  two Mountains").
+ *
+ *  The chosen permanents are auto-selected from the caster's matching
+ *  permanents at cast commit (CR 601.2h) — for the fungible basics these cards
+ *  name (any two Islands, any two Mountains) the choice is immaterial, matching
+ *  the project's "auto-resolve a choice with no real option" policy. The
+ *  on-resolution effect is authored DSL-first and is independent of which cost
+ *  was paid (ADR 0045). This is CR 118.9 alternative cost — a rules concept
+ *  with no keyword name, so it carries no Mechanics Registry row (the registry
+ *  censuses named keywords/Ops; the resolution Ops here — draw / counter /
+ *  dealDamage — are already censused). */
+export interface AlternativeCost {
+    /** Stable id referenced by `announceCast.alternativeCostId` to pick this
+     *  variant. Unique within a card's `alternativeCosts`. */
+    id: string;
+    /** Player-facing label for the cast-option picker (e.g. "Return two
+     *  Islands"). */
+    description: string;
+    /** How the matching permanents leave the battlefield: `"return"` bounces
+     *  them to their owner's hand (CR 701.24), `"sacrifice"` moves them to the
+     *  graveyard as a sacrifice (CR 701.16). */
+    action: "return" | "sacrifice";
+    /** How many matching permanents the caster must return / sacrifice. */
+    count: number;
+    /** Which of the caster's permanents qualify (matched against the caster's
+     *  own battlefield; "you control" is implicit). */
+    filter: PermanentFilter;
+}
+
 /** Full card definition used by the GRE. */
 export interface CardDefinition {
     id: CardId;
@@ -6175,6 +6212,12 @@ export interface CardDefinition {
          *  counted. */
         xFromOpponentGraveyard?: { cardTypes: CardType[] };
     };
+    /** CR 118.9 — alternative casting costs the caster may choose at
+     *  announcement INSTEAD of paying this spell's mana cost. Each entry pays
+     *  by returning or sacrificing N matching permanents the caster controls.
+     *  See {@link AlternativeCost}. Used by Gush, Thwart (return Islands) and
+     *  Fireblast (sacrifice Mountains). */
+    alternativeCosts?: AlternativeCost[];
     /** Adds this many generic mana to the total cost for each target beyond
      *  the first (CR 601.2f). Used by Fireball ("costs {1} more to cast for
      *  each target beyond the first"). */

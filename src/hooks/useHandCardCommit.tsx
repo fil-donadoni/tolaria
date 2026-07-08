@@ -5,8 +5,15 @@ import { getDefinition } from "@convex/cards";
 import { useGameContext } from "~/hooks/useGameContext";
 import type { CardInstance } from "~/types/game";
 import ModePicker from "~/components/cards/mode-picker";
+import AltCostPicker from "~/components/cards/alt-cost-picker";
 
 type ModePickerState = {
+    chosenX: number | undefined;
+    keepPriority: boolean | undefined;
+    position: { x: number; y: number };
+};
+
+type AltCostPickerState = {
     chosenX: number | undefined;
     keepPriority: boolean | undefined;
     position: { x: number; y: number };
@@ -34,6 +41,8 @@ export function useHandCardCommit(cardInstance: CardInstance) {
 
     const [modePickerState, setModePickerState] =
         useState<ModePickerState | null>(null);
+    const [altCostPickerState, setAltCostPickerState] =
+        useState<AltCostPickerState | null>(null);
 
     const onPlayClick = () => {
         playCard({
@@ -48,6 +57,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         chosenX: number | undefined;
         keepPriority: boolean | undefined;
         chosenModeId: string | undefined;
+        alternativeCostId?: string | undefined;
     }) {
         announceCast({
             gameId,
@@ -56,6 +66,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
             keepPriority: args.keepPriority,
             chosenX: args.chosenX,
             chosenModeId: args.chosenModeId,
+            alternativeCostId: args.alternativeCostId,
         });
     }
 
@@ -88,6 +99,20 @@ export function useHandCardCommit(cardInstance: CardInstance) {
             setModePickerState({ chosenX, keepPriority, position });
             return;
         }
+        // CR 118.9 — a spell with alternative casting costs (Gush, Thwart,
+        // Fireblast): pick between paying mana and each alternative before
+        // announcement. Not composed with modal spells (none of the alt-cost
+        // cards are modal).
+        if (def.alternativeCosts && def.alternativeCosts.length > 0) {
+            const anchor = e.currentTarget as HTMLElement | null;
+            const rect = anchor?.getBoundingClientRect();
+            const position =
+                rect && rect.width > 0 && rect.height > 0
+                    ? { x: rect.right + 8, y: rect.top }
+                    : { x: e.clientX + 8, y: e.clientY + 8 };
+            setAltCostPickerState({ chosenX, keepPriority, position });
+            return;
+        }
         commitAnnounceCast({
             chosenX,
             keepPriority,
@@ -116,5 +141,30 @@ export function useHandCardCommit(cardInstance: CardInstance) {
             />
         ) : null;
 
-    return { onPlayClick, onCastClick, modePickerOverlay };
+    const altCostPickerOverlay =
+        altCostPickerState && def.alternativeCosts ? (
+            <AltCostPicker
+                altCosts={def.alternativeCosts}
+                cardName={def.name}
+                position={altCostPickerState.position}
+                onSelect={(altCostId) => {
+                    const { chosenX, keepPriority } = altCostPickerState;
+                    setAltCostPickerState(null);
+                    commitAnnounceCast({
+                        chosenX,
+                        keepPriority,
+                        chosenModeId: undefined,
+                        alternativeCostId: altCostId,
+                    });
+                }}
+                onCancel={() => setAltCostPickerState(null)}
+            />
+        ) : null;
+
+    return {
+        onPlayClick,
+        onCastClick,
+        modePickerOverlay,
+        altCostPickerOverlay,
+    };
 }

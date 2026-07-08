@@ -37,8 +37,12 @@ export default function SelectableCard({
     // Shared commit pipeline — click and drag-to-cast (#254) invoke the same
     // handlers, so the X prompt, mode picker, keep-priority modifier and the
     // dispatched mutation are provably identical across both gestures.
-    const { onPlayClick, onCastClick, modePickerOverlay } =
-        useHandCardCommit(cardInstance);
+    const {
+        onPlayClick,
+        onCastClick,
+        modePickerOverlay,
+        altCostPickerOverlay,
+    } = useHandCardCommit(cardInstance);
 
     // Mid-resolution hand pick (CR 608.2, ADR 0007). Clicks toggle the
     // local buffer; submit fires atomically via the Done button.
@@ -92,6 +96,7 @@ export default function SelectableCard({
             <>
                 <CardImage card={cardInstance} />
                 {modePickerOverlay}
+                {altCostPickerOverlay}
             </>
         );
     }
@@ -140,6 +145,7 @@ export default function SelectableCard({
                     <CardImage card={cardInstance} />
                 </div>
                 {modePickerOverlay}
+                {altCostPickerOverlay}
             </>
         );
     }
@@ -187,6 +193,7 @@ export default function SelectableCard({
                 items={sheetItems}
             />
             {modePickerOverlay}
+            {altCostPickerOverlay}
         </>
     );
 }
