@@ -227,9 +227,10 @@ function clearAll() {
     for (const m of Object.values(MUTATIONS)) m.mockClear();
 }
 
-// The context menu opens via a synthetic `contextmenu` dispatch on the trigger
-// (see ui/context-menu.tsx). Right-click the card, then click the menu item by
-// its visible label.
+// The context menu opens on a LEFT click: the trigger synthesizes a
+// `contextmenu` from the click (see ui/context-menu.tsx). A genuine right-click
+// is reserved for the card preview and no longer opens the menu. Click the
+// card, then click the menu item by its visible label.
 function openMenuAndClick(
     root: HTMLElement,
     cardId: string,
@@ -239,7 +240,7 @@ function openMenuAndClick(
     const trigger = root.querySelector<HTMLElement>(
         `[data-arrow-anchor-permanent="${cardId}"]`
     )!;
-    fireEvent.contextMenu(trigger);
+    fireEvent.click(trigger);
     // Mana symbols render as <img alt="{C}">, so an item's label is split
     // across text + image nodes. Match on the item container's textContent
     // (which includes the <img alt>) rather than a single text node.
@@ -357,7 +358,7 @@ describe("board battlefield activated-ability parity with the classic board (#27
         const trigger = noPriority.container.querySelector<HTMLElement>(
             '[data-arrow-anchor-permanent="efreet1"]'
         )!;
-        fireEvent.contextMenu(trigger);
+        fireEvent.click(trigger);
         const items = within(document.body).queryAllByText((t) =>
             t.includes("prevent combat")
         );
@@ -391,24 +392,22 @@ describe("board battlefield activated-ability parity with the classic board (#27
         expect(tapUntap).not.toHaveBeenCalled();
     });
 
-    it("(g) a real (trusted) right-click does NOT open the ability menu — it belongs to the preview", () => {
+    it("(g) a genuine right-click does NOT open the ability menu — it belongs to the preview; a left click does", () => {
         const me = makePlayer("me", [permanent("tim1", "stack-def")]);
         const { container } = renderSpatial(me, [me]);
         const trigger = container.querySelector<HTMLElement>(
             '[data-arrow-anchor-permanent="tim1"]'
         )!;
 
-        // A genuine right-click has `isTrusted: true`; jsdom always dispatches
-        // untrusted events, so force the flag to model the real browser gesture.
-        const ev = new MouseEvent("contextmenu", { bubbles: true });
-        Object.defineProperty(ev, "isTrusted", { value: true });
-        fireEvent(trigger, ev);
-
-        const items = within(document.body).queryAllByRole("menuitem");
-        expect(items).toHaveLength(0);
-
-        // The synthesized LEFT-click contextmenu (untrusted) still opens it.
+        // A raw `contextmenu` (right-click) is NOT the trigger's own synthesized
+        // event, so it must be left to the preview — the menu stays closed.
         fireEvent.contextMenu(trigger);
+        expect(within(document.body).queryAllByRole("menuitem")).toHaveLength(
+            0
+        );
+
+        // A left click synthesizes the one contextmenu that opens the menu.
+        fireEvent.click(trigger);
         expect(
             within(document.body).queryAllByRole("menuitem").length
         ).toBeGreaterThan(0);

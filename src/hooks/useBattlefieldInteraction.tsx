@@ -115,7 +115,7 @@ export function useBattlefieldInteraction(player: Player) {
     const [manaChoiceState, setManaChoiceState] = useState<{
         cardId: string;
         choices: ManaCost[];
-        position: { x: number; y: number };
+        position?: { x: number; y: number };
         inPayment: boolean;
     } | null>(null);
 
@@ -396,7 +396,6 @@ export function useBattlefieldInteraction(player: Player) {
                 setManaChoiceState({
                     cardId: card.id,
                     choices,
-                    position: { x: 0, y: 0 },
                     inPayment: true,
                 });
             } else {
@@ -412,12 +411,11 @@ export function useBattlefieldInteraction(player: Player) {
             // Check for mana choices (e.g. Black Lotus) — show picker
             const choices = getManaChoices(card, allPlayers);
             if (choices && !card.isTapped) {
-                // We don't have mouse event coords here, so we use a fixed position
-                // The event is passed from the card component
+                // No mouse event here — omit `position` so the picker centres
+                // on screen instead of pinning to the top-left corner.
                 setManaChoiceState({
                     cardId: card.id,
                     choices,
-                    position: { x: 0, y: 0 },
                     inPayment: false,
                 });
             } else {
@@ -589,7 +587,6 @@ export function useBattlefieldInteraction(player: Player) {
                 setManaChoiceState({
                     cardId: card.id,
                     choices,
-                    position: { x: 0, y: 0 },
                     inPayment: false,
                 });
                 return;
