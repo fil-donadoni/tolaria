@@ -70,6 +70,16 @@ export const mishrasBauble: CardDefinition = {
                     // it changes zones or the library is shuffled.
                     const top = ctx.peekLibraryTop(t.id, 1);
                     ctx.markKnown(t.id, top, ctx.controller);
+                    // Reveal dialog: show the looked-at card to the controller
+                    // in a transient popup (persistent visibility is the
+                    // `markKnown` grant above). A private look → audience is the
+                    // controller alone.
+                    ctx.notifyReveal(
+                        [ctx.controller],
+                        top,
+                        mishrasBauble.id,
+                        "look"
+                    );
                 }
                 scheduleNextUpkeepDraw(ctx, mishrasBauble.id);
             },

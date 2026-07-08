@@ -478,6 +478,12 @@ export function projectPublicState(
         seq,
         players,
         stack: state.stack.map(slimCard),
+        // Reveal dialog — each viewer sees only the notifications addressed to
+        // them (a private look never leaks to the other seat). Dropped entirely
+        // when none apply so the field stays absent on the wire.
+        pendingReveals: state.pendingReveals?.filter((r) =>
+            r.audience.includes(viewerId)
+        ),
     };
 }
 

@@ -9,7 +9,8 @@ import { v } from "convex/values";
 const formatValidator = v.union(
     v.literal("freeform"),
     v.literal("alpha-40"),
-    v.literal("old-school")
+    v.literal("old-school"),
+    v.literal("premodern")
 );
 
 export default defineSchema({

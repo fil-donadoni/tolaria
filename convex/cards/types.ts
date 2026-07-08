@@ -2582,6 +2582,22 @@ export interface SpellContext {
      *  for ids not currently in that owner's library or hand. */
     markKnownToAll: (zoneOwnerId: string, cardInstanceIds: string[]) => void;
 
+    /** Reveal dialog — enqueue a one-shot notification that shows `cards` to the
+     *  players in `audience` in a transient client dialog (10s / manual close).
+     *  Separate from the persistent `markKnown` / `markKnownToAll` knowledge
+     *  grant (which the caller still performs): this only drives the momentary
+     *  "here is what was revealed" popup. Opt-in for pure look/peek/reveal cards
+     *  (Mishra's Bauble, Gitaxian Probe) so scry / surveil / impulse-exile never
+     *  pop a dialog. `kind` is `"look"` for a private look (audience = one
+     *  player) or `"reveal"` for a public reveal (audience = all). No-op for an
+     *  empty audience or an empty/unresolvable card set. */
+    notifyReveal: (
+        audience: string[],
+        cardInstanceIds: string[],
+        source: string,
+        kind: "look" | "reveal"
+    ) => void;
+
     /** Impulse-draw (ADR 0026, PRD #338 — slice 6). Exiles `cardInstanceId`
      *  (owned by `ownerId`) FACE DOWN from `from`, granting knowledge to
      *  `knowerId` alone (the controller of the effect). The card moves to its

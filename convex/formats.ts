@@ -21,7 +21,7 @@ import { resolveDeckCardMeta, type DeckCardMeta } from "./cards";
  * three literals — the schema types it as a `v.union` of exactly these values,
  * so a non-conforming string is rejected at the DB boundary.
  */
-export type FormatId = "freeform" | "alpha-40" | "old-school";
+export type FormatId = "freeform" | "alpha-40" | "old-school" | "premodern";
 
 /** Every valid `FormatId`, in display order. The single source of truth the
  *  schema union, the create-flow select, and the validators all key off. */
@@ -29,6 +29,7 @@ export const FORMAT_IDS: readonly FormatId[] = [
     "freeform",
     "alpha-40",
     "old-school",
+    "premodern",
 ] as const;
 
 /** Type guard: is an arbitrary string a known `FormatId`? Used by the schema
@@ -622,6 +623,95 @@ function alpha40Validate(
     ];
 }
 
+// --- Premodern legality (ADR 0036) ----------------------------------------
+//
+// Premodern is the community eternal format for cards printed from 4th Edition
+// (1995) through Scourge (2003), plus the Portal sets — 60-card constructed,
+// 15-card sideboard, 4-copy limit, a single Banned list and NO restricted list.
+// As with the other formats, both the legal-set pool and the banlist are
+// INTERSECTED with the implemented card pool: a Premodern-legal set or a banned
+// card that isn't built yet simply never appears here.
+
+/**
+ * Premodern LEGAL SETS — the official pool (4th Edition → Scourge + Portal),
+ * intersected with the sets Tolaria actually implements. A card whose only
+ * built printing is in a non-Premodern set (e.g. an Alpha-only Counterspell)
+ * is out-of-pool until a Premodern-legal printing ships. Kept as a named const
+ * so the intent is documented and the intersection is auditable at a glance.
+ */
+export const PREMODERN_LEGAL_SETS: readonly string[] = [
+    "ice", // Ice Age
+    "hml", // Homelands
+    "mir", // Mirage
+    "vis", // Visions
+    "wth", // Weatherlight
+    "tmp", // Tempest
+    "sth", // Stronghold
+    "exo", // Exodus
+    "usg", // Urza's Saga
+    "ulg", // Urza's Legacy
+    "mmq", // Mercadian Masques
+    "nem", // Nemesis
+    "apc", // Apocalypse
+    "ody", // Odyssey
+    "jud", // Judgment
+    "ons", // Onslaught
+    "scg", // Scourge
+    "ptk", // Portal Three Kingdoms
+];
+
+/**
+ * Premodern BANNED list — the official banlist INTERSECTED with the implemented
+ * pool, keyed by canonical `CardDefinition.id` so every printing (including a
+ * reprint into a Premodern-legal set) is caught. Cards whose only built printing
+ * is already out-of-pool by set (e.g. Balance, lea) are still banned by id, so
+ * they stay illegal even if a legal-set printing is added later. Officially
+ * banned cards not yet built (Force of Will, Windfall, Yawgmoth's Will, …) are
+ * no-ops until they ship; the three currently-stubbed guards below become active
+ * the moment their stub is uncommented.
+ */
+export const PREMODERN_BANNED: ReadonlySet<string> = new Set([
+    "6f9ea46a-411f-40ce-a873-a905180093f4", // Balance (lea)
+    "8d42d7aa-7f53-4cfc-842a-086aab2448d1", // Brainstorm (ice) — legal-set printing, real guard
+    "c1862c47-71cc-45a3-8805-a5ddc62e55ea", // Channel (lea)
+    "8d727b9b-6114-414d-9172-16b6e1db41cc", // Demonic Consultation (ice) — legal-set printing
+    "711d4d54-5520-4de8-9b93-79902ed8e562", // Demonic Tutor (lea)
+    "f60a2091-fb97-4f04-911b-fce9b6351044", // Entomb (ody) — legal-set printing
+    "9ddc9fe1-17c8-4e1d-aeb8-c4214e881280", // Grim Monolith (ulg) — legal-set printing
+    "19499cb7-eccb-4e69-af32-6002d447a160", // Mana Vault (lea)
+    "60b70b7f-6f24-4c00-947a-b109f302205b", // Memory Jar (ulg) — legal-set printing
+    "eee9e106-a248-49d2-b8c8-6bbcd56ce739", // Mind Twist (lea)
+    "54d7a0c1-efb4-4a8d-ad92-a96d43835052", // Necropotence (ice) — legal-set printing
+    "e7880157-7f27-4f1b-9cdc-ab36a6252376", // Strip Mine (atq)
+    "ad7ac9a5-340f-4509-826c-7b9416d47887", // Tolarian Academy (usg) — legal-set printing
+    // Stubbed guards (add the id when the stub is uncommented):
+    // Amulet of Quoz (ice/colorless.ts), Mystical Tutor (mir/blue.ts),
+    // Vampiric Tutor (vis/black.ts).
+]);
+
+/** Standard constructed copy ceiling for non-basic cards in Premodern. */
+const PREMODERN_COPY_LIMIT = 4;
+
+/**
+ * The full Premodern validator (ADR 0036): size (≥60 main, ≤15 side) + set
+ * membership (the 4th-Edition→Scourge + Portal pool) + the 4-copy limit + the
+ * Banned list. Premodern has NO restricted list, so none is applied. Composed
+ * from the shared helpers; counting for copy/banned is by Card ID across
+ * printings, with basics exempt.
+ */
+function premodernValidate(
+    deck: ValidatableDeck,
+    resolve: ResolveCard
+): Reason[] {
+    const meta = FORMAT_RULES["premodern"];
+    return [
+        ...checkSize(deck, meta),
+        ...checkSets(deck, meta, resolve),
+        ...checkCopyLimit(deck, PREMODERN_COPY_LIMIT, resolve),
+        ...checkBanned(deck, PREMODERN_BANNED, resolve),
+    ];
+}
+
 // Freeform: no constraints, ever (ADR 0036).
 const noReasons = (): Reason[] => [];
 
@@ -660,6 +750,17 @@ export const FORMAT_RULES: Record<FormatId, FormatMeta> = {
         // Full legality (issue #516): size + sets + 4-copy limit + EC Restricted
         // (1-copy) + Banned (0, guard) — see oldSchoolValidate.
         validate: oldSchoolValidate,
+    },
+    premodern: {
+        label: "Premodern",
+        // 4th Edition → Scourge + Portal, intersected with the built pool,
+        // >=60 maindeck, <=15 sideboard. See PREMODERN_LEGAL_SETS.
+        allowedSets: [...PREMODERN_LEGAL_SETS],
+        minMain: 60,
+        maxSide: 15,
+        // Full legality: size + sets + 4-copy limit + Banned (0), no restricted
+        // list — see premodernValidate.
+        validate: premodernValidate,
     },
 };
 

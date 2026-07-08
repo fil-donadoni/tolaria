@@ -1705,6 +1705,24 @@ export type MulliganState = {
     bottoming: boolean;
 };
 
+/** A one-shot "these cards were just revealed to you" notification (Reveal
+ *  dialog). `kind` distinguishes a private look (`look` — Mishra's Bauble,
+ *  Gitaxian Probe) from a public reveal (`reveal`); the UI title/wording keys
+ *  off it. `cards` is a self-contained snapshot (instance id + card def id) so
+ *  the dialog renders even after the cards move. `id` is deterministic
+ *  (resolution-derived, never wall-clock) so the client can dedup and the
+ *  engine stays replay-stable. */
+export type RevealNotification = {
+    id: string;
+    /** Player ids that see the dialog: the looker for a private look, every
+     *  player for a public reveal. */
+    audience: string[];
+    /** Source card def id (art / title). */
+    source: string;
+    kind: "look" | "reveal";
+    cards: { instanceId: string; cardId: string }[];
+};
+
 export type GameState = {
     players: PlayerState[];
     stack: StackItem[];
@@ -1731,6 +1749,17 @@ export type GameState = {
      *  front entry is active. Non-empty blocks priority and further actions —
      *  the engine is suspended between resolve steps of the top stack item. */
     pendingChoices?: PendingChoice[];
+    /** ADR 0026 (Reveal dialog) — one-shot notifications produced when a pure
+     *  look/peek/reveal effect resolves (Mishra's Bauble, Gitaxian Probe, …).
+     *  Each entry drives a transient client dialog that shows the revealed
+     *  cards to the players in `audience`; persistent visibility afterward is
+     *  the separate per-card `knownTo` mechanism. Populated during a resolution
+     *  via `SpellContext.notifyReveal` and cleared at the top of the next
+     *  `resolveTopOfStack`, so it rides exactly one stable snapshot to the
+     *  client (which dedups by `id` and auto-dismisses). NOT emitted by the
+     *  `reveal` Op automatically — it is an explicit opt-in, so a reveal tied to
+     *  a choice (Thoughtseize) shows its picker, not a redundant timed dialog. */
+    pendingReveals?: RevealNotification[];
     /** Player IDs that auto-pass priority for the rest of this turn. Resets on new turn. */
     autoPassPlayers?: string[];
     /** Player ID that auto-passes the very next time priority lands on them, then
@@ -2510,6 +2539,14 @@ function resolutionSuspendedOnChoice(state: GameState): boolean {
 
 function resolveTopOfStackInner(state: GameState): StackItem | null {
     if (state.stack.length === 0) throw new Error("Stack is empty");
+
+    // Reveal dialog (one-shot): a prior resolution's reveal notifications have
+    // already ridden a stable snapshot to the client (which dedups + auto-
+    // dismisses), so clear them before this resolution so `notifyReveal` starts
+    // a fresh batch. Safe because `notifyReveal` is opt-in on pure look/reveal
+    // cards that resolve in a single pass (never mid-choice), so a resumed
+    // resolution never loses a reveal produced before a suspension.
+    state.pendingReveals = undefined;
 
     const top = state.stack[state.stack.length - 1];
     const cardId = (top.card as { id?: string }).id;
@@ -8543,6 +8580,55 @@ export function buildSpellContext(
         // cards' knownTo so they are face-up to all until a shuffle clears them.
         markKnownToAll(zoneOwnerId: string, cardInstanceIds: string[]): void {
             grantKnowledgeToAll(state, zoneOwnerId, cardInstanceIds);
+        },
+        // Reveal dialog — enqueue a one-shot "these cards were just revealed to
+        // you" notification (separate from the persistent `markKnown` /
+        // `markKnownToAll` knowledge grant, which the caller still does). Opt-in
+        // for pure look/reveal cards (Mishra's Bauble, Gitaxian Probe): NOT
+        // wired into the knowledge primitives, so scry / surveil / impulse-exile
+        // never pop a dialog. Snapshots the cards by scanning every zone so the
+        // entry is self-contained (renders even after the cards move). The id is
+        // resolution-derived (replay-stable, never wall-clock). No-op when the
+        // audience or the resolved card set is empty (CR 608.2b).
+        notifyReveal(
+            audience: string[],
+            cardInstanceIds: string[],
+            source: string,
+            kind: "look" | "reveal"
+        ): void {
+            if (audience.length === 0 || cardInstanceIds.length === 0) return;
+            const wanted = new Set(cardInstanceIds);
+            const found = new Map<string, string>();
+            for (const p of state.players) {
+                for (const zone of [
+                    p.library,
+                    p.hand,
+                    p.graveyard,
+                    p.exile,
+                    p.battlefield,
+                ]) {
+                    for (const c of zone) {
+                        if (!wanted.has(c.id)) continue;
+                        const cid = (c.card as { id?: string }).id;
+                        if (cid) found.set(c.id, cid);
+                    }
+                }
+            }
+            // Preserve the caller's order (top-of-library first, etc.).
+            const cards = cardInstanceIds
+                .filter((id) => found.has(id))
+                .map((id) => ({ instanceId: id, cardId: found.get(id)! }));
+            if (cards.length === 0) return;
+            const step = item.resolutionStep ?? 0;
+            const index = state.pendingReveals?.length ?? 0;
+            const entry: RevealNotification = {
+                id: `${item.id}:${step}:${index}`,
+                audience: [...new Set(audience)],
+                source,
+                kind,
+                cards,
+            };
+            state.pendingReveals = [...(state.pendingReveals ?? []), entry];
         },
         // ADR 0026 / PRD #338 (slice 6) — impulse-draw: exile a card face down
         // for `knowerId` alone to look at (CR 406.3). Reuses `knownTo` (NOT a

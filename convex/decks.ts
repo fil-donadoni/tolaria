@@ -14,7 +14,8 @@ import { type FormatId, type Reason, validateDeck } from "./formats";
 const formatValidator = v.union(
     v.literal("freeform"),
     v.literal("alpha-40"),
-    v.literal("old-school")
+    v.literal("old-school"),
+    v.literal("premodern")
 );
 
 // Preset Decks now live in the `presetDecks` DB table (PRD #466, ADR 0033).

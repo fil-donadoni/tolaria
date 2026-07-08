@@ -37,3 +37,31 @@ export const lionsEyeDiamond: CardDefinition = {
         },
     ],
 };
+
+// TODO(issue #977 stub — Phyrexian Dreadnought's ETB "sacrifice it unless you
+// sacrifice any number of creatures with total power 12 or greater" needs two
+// general Effect Script capabilities the frozen Op grammar lacks: (1) a
+// non-mana "may pay" punisher cost — `mayPay` only takes a mana cost, so
+// "sacrifice this UNLESS you pay [a sacrifice cost]" is inexpressible; and
+// (2) an aggregate-power-threshold selection constraint — `choice.count` is
+// cardinal, `EffectCount` counts cardinality, and no `EffectValue`/`if`
+// predicate can read the SUMMED power of a picks binding, so "total power 12
+// or greater" can't gate the pick. Both are general/orthogonal (many cards
+// want "sacrifice creatures with total X N"), so they belong as registry
+// additions, NOT a card-shaped resolve() (`.claude/rules/gre-development.md`
+// § DSL-first authoring: "the Op I need doesn't exist yet" is stop-and-issue,
+// not the escape hatch). Trample + the ETB trigger shape are fine; only the
+// cost is blocked. Tracked stub.
+// export const phyrexianDreadnought: CardDefinition = {
+//     id: "7b8197b9-0cd1-4fa1-9668-d1b5f1759151",
+//     rarity: "rare",
+//     name: "Phyrexian Dreadnought",
+//     oracleText:
+//         "Trample\nWhen this creature enters, sacrifice it unless you sacrifice any number of creatures with total power 12 or greater.",
+//     manaCost: { X: 1 },
+//     types: ["Artifact", "Creature"],
+//     subtypes: ["Phyrexian", "Dreadnought"],
+//     power: 12,
+//     toughness: 12,
+//     staticAbilities: ["trample"],
+// };

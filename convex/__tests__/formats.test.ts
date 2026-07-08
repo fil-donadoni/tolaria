@@ -110,8 +110,13 @@ const sampleDeck: ValidatableDeck = {
 };
 
 describe("FORMAT_IDS / FORMAT_RULES registry (ADR 0036)", () => {
-    it("exposes exactly the three shipped Formats", () => {
-        expect([...FORMAT_IDS]).toEqual(["freeform", "alpha-40", "old-school"]);
+    it("exposes exactly the four shipped Formats", () => {
+        expect([...FORMAT_IDS]).toEqual([
+            "freeform",
+            "alpha-40",
+            "old-school",
+            "premodern",
+        ]);
     });
 
     it("has a registry entry with a label for every FormatId", () => {
@@ -135,6 +140,14 @@ describe("FORMAT_IDS / FORMAT_RULES registry (ADR 0036)", () => {
         expect(FORMAT_RULES["old-school"].minMain).toBe(60);
         expect(FORMAT_RULES["old-school"].maxSide).toBe(15);
         expect(FORMAT_RULES["old-school"].allowedSets).toContain("arn");
+        // Premodern: 4th Edition → Scourge + Portal, >=60 main, <=15 sideboard.
+        expect(FORMAT_RULES["premodern"].minMain).toBe(60);
+        expect(FORMAT_RULES["premodern"].maxSide).toBe(15);
+        expect(FORMAT_RULES["premodern"].allowedSets).toContain("scg");
+        expect(FORMAT_RULES["premodern"].allowedSets).toContain("tmp");
+        // Pre-4th-Edition sets are OUT of the Premodern pool.
+        expect(FORMAT_RULES["premodern"].allowedSets).not.toContain("lea");
+        expect(FORMAT_RULES["premodern"].allowedSets).not.toContain("arn");
     });
 });
 
@@ -147,6 +160,73 @@ describe("isFormatId — typed boundary guard (ADR 0036)", () => {
         expect(isFormatId("Freeform")).toBe(false); // legacy capitalized value
         expect(isFormatId("vintage")).toBe(false);
         expect(isFormatId("")).toBe(false);
+    });
+});
+
+describe("Premodern validator (ADR 0036)", () => {
+    // A Premodern-scoped pool: a legal-set card, a pre-4th (out-of-pool) card,
+    // a basic, and a banned-by-id card printed in a Premodern-legal set.
+    const PM_POOL: Record<string, DeckCardMeta> = {
+        "scg-card": {
+            cardId: "scg-card",
+            setCode: "scg",
+            rarity: "common",
+            isBasic: false,
+        },
+        "lea-card": {
+            cardId: "lea-card",
+            setCode: "lea", // pre-4th: out of the Premodern pool
+            rarity: "common",
+            isBasic: false,
+        },
+        island: {
+            cardId: "island",
+            setCode: "scg",
+            rarity: "common",
+            isBasic: true,
+        },
+        // Necropotence's canonical id — on PREMODERN_BANNED, printed in ice.
+        "necro-print": {
+            cardId: "54d7a0c1-efb4-4a8d-ad92-a96d43835052",
+            setCode: "ice",
+            rarity: "rare",
+            isBasic: false,
+        },
+    };
+    const pmResolve: ResolveCard = (id) => PM_POOL[id] ?? null;
+
+    it("passes a legal 60-card Premodern deck", () => {
+        const deck: ValidatableDeck = {
+            cards: [...repeat("scg-card", 4), ...repeat("island", 56)],
+        };
+        expect(validateDeck(deck, "premodern", pmResolve).isLegal).toBe(true);
+    });
+
+    it("rejects a pre-4th-Edition (out-of-pool) card by set", () => {
+        const deck: ValidatableDeck = {
+            cards: [...repeat("lea-card", 4), ...repeat("island", 56)],
+        };
+        const { isLegal, reasons } = validateDeck(deck, "premodern", pmResolve);
+        expect(isLegal).toBe(false);
+        expect(reasons.some((r) => r.code === "set-not-allowed")).toBe(true);
+    });
+
+    it("bans a card on the banlist by Card ID across printings", () => {
+        const deck: ValidatableDeck = {
+            cards: [...repeat("necro-print", 1), ...repeat("island", 59)],
+        };
+        const { isLegal, reasons } = validateDeck(deck, "premodern", pmResolve);
+        expect(isLegal).toBe(false);
+        expect(reasons.some((r) => r.code === "banned")).toBe(true);
+    });
+
+    it("enforces the 4-copy limit and has no restricted list", () => {
+        const deck: ValidatableDeck = {
+            cards: [...repeat("scg-card", 5), ...repeat("island", 55)],
+        };
+        const { reasons } = validateDeck(deck, "premodern", pmResolve);
+        expect(reasons.some((r) => r.code === "copy-limit")).toBe(true);
+        expect(reasons.some((r) => r.code === "restricted")).toBe(false);
     });
 });
 
