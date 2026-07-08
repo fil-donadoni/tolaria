@@ -2292,6 +2292,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Fireblast",
+        "scryfallId": "b1eb5b2c-1f02-48a6-a287-88eb189d6780",
+        "oracleId": "9dd7f27a-e862-47d7-9158-034cf4d353b8",
+        "firstSet": "vis"
+    },
+    {
         "name": "Firebreathing",
         "scryfallId": "3eb27381-505d-4e47-bf66-9e7ba91a5075",
         "oracleId": "8603bf74-faab-4910-8e45-0f2e3b318efb",
@@ -3016,6 +3022,12 @@
         "scryfallId": "9941f83b-2903-4eab-ac6d-5313e3978fa3",
         "oracleId": "34c3aebe-a224-426a-ae06-f3145193313e",
         "firstSet": "arn"
+    },
+    {
+        "name": "Gush",
+        "scryfallId": "e755bbef-bf34-49c0-ae72-d70e3599de52",
+        "oracleId": "16d8ee99-8ec8-429f-9ba7-818a74b6f910",
+        "firstSet": "mmq"
     },
     {
         "name": "Gwendlyn Di Corci",
@@ -7030,6 +7042,12 @@
         "scryfallId": "4fc5d510-c4f7-4a09-bf86-83c3fa3f8928",
         "oracleId": "904b9056-ad76-4805-b14f-c426e4a57bae",
         "firstSet": "ice"
+    },
+    {
+        "name": "Thwart",
+        "scryfallId": "c12a0717-e9ea-4be3-a29f-179671ed4489",
+        "oracleId": "615a149a-2869-4b18-bbbe-9ec1825049d7",
+        "firstSet": "mmq"
     },
     {
         "name": "Tidal Flats",

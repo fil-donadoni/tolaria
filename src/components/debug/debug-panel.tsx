@@ -866,6 +866,29 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Alternative casting cost — return / sacrifice lands (CR 118.9, #983).
+        // Gush ("return two Islands rather than pay {4}{U}, draw two") and Thwart
+        // ("return three Islands rather than pay {2}{U}{U}, counter target
+        // spell") are in "me"'s hand with five Islands in play but NO other
+        // mana — so both are castable ONLY via their land alt cost. Fireblast
+        // ("sacrifice two Mountains rather than pay {4}{R}{R}, deal 4 to any
+        // target") sits alongside two Mountains. Cast a card and pick the
+        // alternative in the picker; the lands are returned / sacrificed and the
+        // spell resolves. The opponent's Grizzly Bears is a target for Fireblast;
+        // cast an opponent spell first (from their hand) to exercise Thwart.
+        label: "Alt cost: return/sacrifice lands (Gush / Thwart / Fireblast) (#983)",
+        cards: [
+            { name: "Gush", owner: "me", zone: "hand" },
+            { name: "Thwart", owner: "me", zone: "hand" },
+            { name: "Fireblast", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 5 },
+            { name: "Mountain", owner: "me", zone: "battlefield", count: 2 },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
