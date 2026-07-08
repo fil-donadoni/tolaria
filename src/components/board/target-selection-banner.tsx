@@ -19,14 +19,28 @@ const TARGET_LABEL: Record<string, string> = {
     card: "a card",
 };
 
+// A `spell`-type requirement that opts into an ability kind (Stifle,
+// Brown Ouphe — CR 113 / 701.5a) targets an ability on the stack, never a
+// spell. Reword the generic "a spell on the stack" so the prompt matches
+// what's actually clickable.
+const STACK_KIND_LABEL: Record<string, string> = {
+    ability: "an ability on the stack",
+    "activated-ability": "an activated ability on the stack",
+};
+
 function formatTargetLabel(
     targetType: string | string[],
     zone: PendingTarget["zone"],
-    controller: PendingTarget["controller"]
+    controller: PendingTarget["controller"],
+    spellStackKind: PendingTarget["spellStackKind"]
 ): string {
     const types = Array.isArray(targetType) ? targetType : [targetType];
     const labels = types
-        .map((t) => TARGET_LABEL[t] ?? t.toLowerCase())
+        .map((t) =>
+            t === "spell" && spellStackKind && STACK_KIND_LABEL[spellStackKind]
+                ? STACK_KIND_LABEL[spellStackKind]
+                : (TARGET_LABEL[t] ?? t.toLowerCase())
+        )
         .filter(Boolean);
     let head: string;
     if (labels.length === 0) head = "a target";
@@ -114,7 +128,8 @@ export default function TargetSelectionBanner({
     const targetLabel = formatTargetLabel(
         pendingTarget.targetType,
         pendingTarget.zone,
-        pendingTarget.controller
+        pendingTarget.controller,
+        pendingTarget.spellStackKind
     );
     const { hint, minReached, maxReached } = describeTargetProgress(
         pendingTarget.count,

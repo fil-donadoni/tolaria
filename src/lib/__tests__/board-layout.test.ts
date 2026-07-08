@@ -11,6 +11,7 @@ import {
     moveItem,
     reconcileHandOrder,
     stackFanOffset,
+    stackFootprintWidth,
     isDepthPile,
     stackDepthOffset,
     STACK_DEPTH_PILE_THRESHOLD,
@@ -154,6 +155,90 @@ describe("rowLayout maxScale cap (band-height fit)", () => {
     });
 });
 
+describe("rowLayout per-item widths (issue #977 — fanned stacks reserve their footprint)", () => {
+    // Footprint span of item `i`: the box is `cardWidth·scale` wide centred on
+    // `x`, and the extra width grows RIGHTWARD from the box's left edge.
+    function footprint(p: Placement, width: number, cardWidth = CARD_WIDTH) {
+        const left = p.x - (cardWidth * p.scale) / 2;
+        return { left, right: left + width * p.scale };
+    }
+
+    it("reduces to the uniform layout when every width equals cardWidth", () => {
+        const uniform = rowLayout({ count: 4, width: WIDTH, centerY: 30 });
+        const explicit = rowLayout({
+            count: 4,
+            width: WIDTH,
+            centerY: 30,
+            widths: [CARD_WIDTH, CARD_WIDTH, CARD_WIDTH, CARD_WIDTH],
+        });
+        expect(explicit).toEqual(uniform);
+    });
+
+    it("shifts the neighbour so a wide fan never overlaps the next card", () => {
+        // Item 0 is a 6-card fan (~290px), item 1 a singleton. With room to
+        // spare the singleton must start to the RIGHT of the fan's far edge.
+        const fanW = stackFootprintWidth(6);
+        const placed = rowLayout({
+            count: 2,
+            width: WIDTH,
+            centerY: 0,
+            widths: [fanW, CARD_WIDTH],
+        });
+        const fan = footprint(placed[0], fanW);
+        const singleton = footprint(placed[1], CARD_WIDTH);
+        // No overlap: the singleton's left edge is at/after the fan's right edge.
+        expect(singleton.left).toBeGreaterThanOrEqual(fan.right - 1e-6);
+    });
+
+    it("keeps a full gap between footprints while the row fits", () => {
+        const gap = 12;
+        const fanW = stackFootprintWidth(4);
+        const placed = rowLayout({
+            count: 3,
+            width: WIDTH,
+            centerY: 0,
+            gap,
+            widths: [fanW, CARD_WIDTH, fanW],
+        });
+        const f0 = footprint(placed[0], fanW);
+        const f1 = footprint(placed[1], CARD_WIDTH);
+        const f2 = footprint(placed[2], fanW);
+        expect(f1.left - f0.right).toBeCloseTo(gap, 4);
+        expect(f2.left - f1.right).toBeCloseTo(gap, 4);
+    });
+
+    it("centres the run of footprints (equal margin on both sides)", () => {
+        const fanW = stackFootprintWidth(5);
+        const placed = rowLayout({
+            count: 3,
+            width: WIDTH,
+            centerY: 0,
+            widths: [fanW, CARD_WIDTH, CARD_WIDTH],
+        });
+        const leftMargin = footprint(placed[0], fanW).left;
+        const rightMargin =
+            WIDTH - footprint(placed[placed.length - 1], CARD_WIDTH).right;
+        expect(leftMargin).toBeCloseTo(rightMargin, 4);
+    });
+
+    it("keeps every footprint on the board when wide fans overflow", () => {
+        // Many wide fans force overlap + scale; nothing may cross the edges.
+        const fanW = stackFootprintWidth(8);
+        const widths = Array.from({ length: 8 }, () => fanW);
+        const placed = rowLayout({
+            count: 8,
+            width: WIDTH,
+            centerY: 0,
+            widths,
+        });
+        for (let i = 0; i < placed.length; i++) {
+            const fp = footprint(placed[i], widths[i]);
+            expect(fp.left).toBeGreaterThanOrEqual(-0.5);
+            expect(fp.right).toBeLessThanOrEqual(WIDTH + 0.5);
+        }
+    });
+});
+
 describe("splitRowLayout (two-block back row: lands left, others right)", () => {
     it("clusters the left block flush-left and the right block flush-right", () => {
         const placed = splitRowLayout({
@@ -196,6 +281,54 @@ describe("splitRowLayout (two-block back row: lands left, others right)", () => 
         expect(
             splitRowLayout({ left: 0, right: 0, width: WIDTH, centerY: 0 })
         ).toEqual([]);
+    });
+
+    it("reduces to the uniform layout when every width equals cardWidth", () => {
+        const uniform = splitRowLayout({
+            left: 2,
+            right: 2,
+            width: WIDTH,
+            centerY: 0,
+        });
+        const explicit = splitRowLayout({
+            left: 2,
+            right: 2,
+            width: WIDTH,
+            centerY: 0,
+            leftWidths: [CARD_WIDTH, CARD_WIDTH],
+            rightWidths: [CARD_WIDTH, CARD_WIDTH],
+        });
+        expect(explicit).toEqual(uniform);
+    });
+
+    it("reserves a fan's footprint in the flush-left land block", () => {
+        // A 4-Island fan flush-left must not overlap the second land.
+        const fanW = stackFootprintWidth(4);
+        const placed = splitRowLayout({
+            left: 2,
+            right: 1,
+            width: WIDTH,
+            centerY: 0,
+            leftWidths: [fanW, CARD_WIDTH],
+        });
+        const fanRight = placed[0].x - CARD_WIDTH / 2 + fanW;
+        const nextLeft = placed[1].x - CARD_WIDTH / 2;
+        expect(nextLeft).toBeGreaterThanOrEqual(fanRight - 1e-6);
+    });
+
+    it("pins the rightmost noncreature footprint at the right boundary", () => {
+        const fanW = stackFootprintWidth(3);
+        const placed = splitRowLayout({
+            left: 1,
+            right: 2,
+            width: WIDTH,
+            centerY: 0,
+            rightWidths: [CARD_WIDTH, fanW],
+        });
+        // Last item is the rightmost; its footprint's far edge lands at `width`.
+        const last = placed[placed.length - 1];
+        const lastRight = last.x - CARD_WIDTH / 2 + fanW;
+        expect(lastRight).toBeCloseTo(WIDTH, 3);
     });
 });
 
@@ -648,6 +781,35 @@ describe("stackFanOffset — fanned permanent stack reveal (PRD #621, #623)", ()
             const total = CARD_WIDTH + (n - 1) * stackFanOffset(n);
             expect(total).toBeLessThanOrEqual(STACK_FAN_MAX_WIDTH + 0.001);
         }
+    });
+});
+
+describe("stackFootprintWidth — reserved row width per group (issue #977)", () => {
+    it("is exactly one card for a singleton", () => {
+        expect(stackFootprintWidth(1)).toBe(CARD_WIDTH);
+        expect(stackFootprintWidth(0)).toBe(CARD_WIDTH);
+    });
+
+    it("matches the fan's true width for a 2–8 stack", () => {
+        for (let n = 2; n <= 8; n++) {
+            expect(stackFootprintWidth(n)).toBeCloseTo(
+                CARD_WIDTH + (n - 1) * stackFanOffset(n),
+                5
+            );
+        }
+        // The 6-Bears case from the bug report: ~290px, far wider than one card.
+        expect(stackFootprintWidth(6)).toBeCloseTo(
+            CARD_WIDTH + 5 * STACK_FAN_REVEAL,
+            5
+        );
+    });
+
+    it("keeps a compact ~one-card footprint for a depth-pile (>8)", () => {
+        // A depth-pile's wide form is a hover-only overlay, so it reserves only
+        // its tight resting spread — never the full fan width.
+        const w = stackFootprintWidth(40);
+        expect(w).toBe(CARD_WIDTH + stackDepthOffset(39));
+        expect(w).toBeLessThan(stackFootprintWidth(8));
     });
 });
 

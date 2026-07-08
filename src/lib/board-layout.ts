@@ -85,6 +85,27 @@ export function stackDepthOffset(i: number): number {
     return Math.min(i, STACK_DEPTH_MAX_VISIBLE_EDGES) * STACK_DEPTH_OFFSET;
 }
 
+/** The horizontal footprint (px) a permanent group occupies on the battlefield
+ *  row (issue #977). A singleton is one card wide; a fanned stack (2–8, PRD #621
+ *  issue #623) grows RIGHTWARD from its box left edge by `(n-1)·offset`, so its
+ *  true footprint is `cardWidth + (n-1)·stackFanOffset(n)`; a depth-pile (>8,
+ *  issue #624) keeps a compact resting footprint (`cardWidth + stackDepthOffset`)
+ *  because its wide form is a hover-only high-z overlay that floats over
+ *  neighbours by design and never reflows the row.
+ *
+ *  The row layout ({@link rowLayout} / {@link splitRowLayout}) reserves this
+ *  width per item so an always-shown fan never overlaps — and steals the clicks
+ *  of — the next permanent (the "fixed one-card footprint" simplification broke
+ *  exactly here: a 6-card fan is ~290px, far wider than one 120px slot). */
+export function stackFootprintWidth(
+    n: number,
+    cardWidth: number = CARD_WIDTH
+): number {
+    if (n <= 1) return cardWidth;
+    if (isDepthPile(n)) return cardWidth + stackDepthOffset(n - 1);
+    return cardWidth + (n - 1) * stackFanOffset(n);
+}
+
 /** Default gap between full-size cards before any overlap kicks in. */
 const DEFAULT_GAP = 12;
 
@@ -113,7 +134,36 @@ type RowOptions = {
      *  The inter-card step is recomputed at the capped scale so spacing stays
      *  tight rather than leaving the cards sparse. */
     maxScale?: number;
+    /** Per-item horizontal footprint in px (issue #977). Length must equal
+     *  `count`; entry `i` is how wide item `i` actually is on the board (a fanned
+     *  permanent stack is wider than one card — {@link stackFootprintWidth}). The
+     *  row reserves each item's own width so a wide fan never overlaps its
+     *  neighbour's click target. Omitted (or any missing entry) → `cardWidth`,
+     *  reproducing the pre-#977 uniform layout EXACTLY. A card's box stays
+     *  `cardWidth` wide and centred on the returned `x`; the extra footprint
+     *  grows rightward from the box's left edge (the fan's own overlay), so
+     *  `x` is always the LEAD (leftmost) member's centre. */
+    widths?: number[];
 };
+
+/** Fill a per-item width array to length `count`, defaulting any missing entry
+ *  to `cardWidth`. A uniform result (every entry `cardWidth`) makes the
+ *  variable-width row math reduce to the original uniform layout. */
+function normalizeWidths(
+    widths: number[] | undefined,
+    count: number,
+    cardWidth: number
+): number[] {
+    return Array.from({ length: count }, (_, i) => widths?.[i] ?? cardWidth);
+}
+
+/** Overlap floor as an effective inter-item gap: at the tightest overlap a
+ *  uniform card still reveals {@link MIN_STEP_FRACTION} of its width, i.e. the
+ *  gap goes to `(MIN_STEP_FRACTION − 1)·cardWidth` (negative — the cards
+ *  overlap). Shared by {@link rowLayout} / {@link splitRowLayout}. */
+function gapFloor(cardWidth: number): number {
+    return (MIN_STEP_FRACTION - 1) * cardWidth;
+}
 
 /**
  * Auto-sizing row layout (battlefield zones).
@@ -135,49 +185,57 @@ export function rowLayout(opts: RowOptions): Placement[] {
         cardWidth = CARD_WIDTH,
         gap = DEFAULT_GAP,
         maxScale,
+        widths,
     } = opts;
     if (count <= 0) return [];
 
-    const idealStep = cardWidth + gap;
-    const minStep = cardWidth * MIN_STEP_FRACTION;
+    // Per-item footprints (issue #977): a fanned stack is wider than one card.
+    // When every entry is `cardWidth` this whole computation reduces ALGEBRAICALLY
+    // to the pre-#977 uniform layout (the `step`/`scale` values are identical).
+    const w = normalizeWidths(widths, count, cardWidth);
+    const sumW = w.reduce((a, b) => a + b, 0);
+    const gapEffFloor = gapFloor(cardWidth);
 
-    // Largest step that still fits `count` cards within `width` (the last
-    // card's far edge must not cross the right boundary).
-    const fitStep = count > 1 ? (width - cardWidth) / (count - 1) : 0;
-
-    // Keep full gap while it fits; otherwise shrink the step down to the
-    // overlap floor (`minStep`). The step never exceeds the ideal.
-    let step = Math.min(idealStep, Math.max(fitStep, minStep));
+    // The whole row's span from the first footprint's left edge to the last
+    // footprint's right edge is `sumW + gapEff·(count−1)` for a shared
+    // inter-item gap `gapEff`. Keep the full gap while it fits; otherwise shrink
+    // it toward the overlap floor (may go negative — the cards overlap).
+    const fitGapEff = count > 1 ? (width - sumW) / (count - 1) : gap;
+    const gapEff = Math.min(gap, Math.max(fitGapEff, gapEffFloor));
 
     // If even the overlap floor overflows the zone, shrink scale to fit —
-    // clamped at the floor so cards never become unreadably small.
-    const naturalWidth = cardWidth + minStep * (count - 1);
+    // clamped at the readability floor so cards never become unreadably small.
+    const floorSpan = sumW + gapEffFloor * (count - 1);
     const fitScale =
-        naturalWidth > width ? Math.max(MIN_SCALE, width / naturalWidth) : 1;
+        floorSpan > width ? Math.max(MIN_SCALE, width / floorSpan) : 1;
     // A band-height cap trumps the readability floor — a clipped card is worse
     // than a small one.
     const scale =
         maxScale !== undefined ? Math.min(fitScale, maxScale) : fitScale;
 
-    // After clamping scale, the scaled overlap row may still overflow at truly
-    // extreme counts. In that regime tighten the step below the overlap floor
-    // so the placed (scaled) row always fits the zone — nothing is clipped.
+    // On-screen inter-item gap. After clamping scale, the scaled overlap row may
+    // still overflow at truly extreme counts; tighten the gap (below the floor,
+    // even negative) so the placed row always fits — nothing is clipped.
+    let onScreenGap = gapEff * scale;
     if (count > 1) {
-        const maxScaledStep = (width - cardWidth * scale) / (count - 1);
-        const maxStep = maxScaledStep / scale;
-        if (step > maxStep) step = Math.max(0, maxStep);
+        const maxGap = (width - scale * sumW) / (count - 1);
+        if (onScreenGap > maxGap) onScreenGap = maxGap;
     }
 
-    const totalWidth = (cardWidth + step * (count - 1)) * scale;
-    const startX = (width - totalWidth) / 2 + (cardWidth * scale) / 2;
-    const scaledStep = step * scale;
+    // Centre the run of on-screen footprints; each card's box (always
+    // `cardWidth·scale` wide) is centred on `x`, and its footprint's left edge
+    // is `x − cardWidth·scale/2` — the extra fan width grows rightward from
+    // there. So the box centre sits half a card-width right of the footprint
+    // left edge, exactly as the uniform layout placed it.
+    const scaledSpan = sumW * scale + onScreenGap * (count - 1);
+    let leftEdge = (width - scaledSpan) / 2;
+    const halfBox = (cardWidth * scale) / 2;
 
-    return Array.from({ length: count }, (_, i) => ({
-        x: startX + scaledStep * i,
-        y: centerY,
-        rotation: 0,
-        scale,
-    }));
+    return Array.from({ length: count }, (_, i) => {
+        const x = leftEdge + halfBox;
+        leftEdge += w[i] * scale + onScreenGap;
+        return { x, y: centerY, rotation: 0, scale };
+    });
 }
 
 /**
@@ -199,6 +257,11 @@ export function splitRowLayout(opts: {
     cardWidth?: number;
     gap?: number;
     maxScale?: number;
+    /** Per-item footprints for the left block (issue #977); missing/omitted
+     *  entries default to `cardWidth`. See {@link RowOptions.widths}. */
+    leftWidths?: number[];
+    /** Per-item footprints for the right block (issue #977). */
+    rightWidths?: number[];
 }): Placement[] {
     const {
         left,
@@ -208,49 +271,74 @@ export function splitRowLayout(opts: {
         cardWidth = CARD_WIDTH,
         gap = DEFAULT_GAP,
         maxScale,
+        leftWidths,
+        rightWidths,
     } = opts;
     const total = left + right;
     if (total <= 0) return [];
+    const lw = normalizeWidths(leftWidths, left, cardWidth);
+    const rw = normalizeWidths(rightWidths, right, cardWidth);
     // One block (or a single card) → just center it.
     if (left === 0 || right === 0) {
-        return rowLayout({ count: total, width, centerY, cardWidth, maxScale });
+        return rowLayout({
+            count: total,
+            width,
+            centerY,
+            cardWidth,
+            maxScale,
+            widths: left === 0 ? rw : lw,
+        });
     }
 
-    const minStep = cardWidth * MIN_STEP_FRACTION;
-    const naturalWidth = cardWidth + minStep * (total - 1);
+    const gapEffFloor = gapFloor(cardWidth);
+    const sumW = [...lw, ...rw].reduce((a, b) => a + b, 0);
+    const floorSpan = sumW + gapEffFloor * (total - 1);
     const fitScale =
-        naturalWidth > width ? Math.max(MIN_SCALE, width / naturalWidth) : 1;
+        floorSpan > width ? Math.max(MIN_SCALE, width / floorSpan) : 1;
     const scale =
         maxScale !== undefined ? Math.min(fitScale, maxScale) : fitScale;
 
     const half = (cardWidth * scale) / 2;
-    const step = cardWidth * scale + gap;
-    const leftEdgeOfRightBlock = width - half - (right - 1) * step - half;
-    const rightEdgeOfLeftBlock = half + (left - 1) * step + half;
-    // Blocks collide → fall back to a single centered packed row.
+    // Left block packs flush-left: each item's footprint left edge follows the
+    // previous item's footprint (+ gap); the box centre is half a card-width
+    // right of that edge. Right block packs flush-right the same way, built from
+    // the right boundary inward so the rightmost footprint ends at `width`.
+    const leftPlacements: Placement[] = [];
+    let edge = 0;
+    for (let i = 0; i < left; i++) {
+        leftPlacements.push({ x: edge + half, y: centerY, rotation: 0, scale });
+        edge += lw[i] * scale + gap;
+    }
+    const rightEdgeOfLeftBlock = edge - gap;
+
+    const rightPlacements: Placement[] = new Array(right);
+    let rEdge = width; // right edge of the current (rightmost-first) footprint
+    for (let j = right - 1; j >= 0; j--) {
+        const leftOfFootprint = rEdge - rw[j] * scale;
+        rightPlacements[j] = {
+            x: leftOfFootprint + half,
+            y: centerY,
+            rotation: 0,
+            scale,
+        };
+        rEdge = leftOfFootprint - gap;
+    }
+    const leftEdgeOfRightBlock = rEdge + gap;
+
+    // Blocks collide → fall back to a single centered packed row that reserves
+    // every item's footprint (order: left block then right block).
     if (rightEdgeOfLeftBlock + gap > leftEdgeOfRightBlock) {
-        return rowLayout({ count: total, width, centerY, cardWidth, maxScale });
+        return rowLayout({
+            count: total,
+            width,
+            centerY,
+            cardWidth,
+            maxScale,
+            widths: [...lw, ...rw],
+        });
     }
 
-    const placements: Placement[] = [];
-    for (let i = 0; i < left; i++) {
-        placements.push({
-            x: half + i * step,
-            y: centerY,
-            rotation: 0,
-            scale,
-        });
-    }
-    for (let j = 0; j < right; j++) {
-        const fromRight = right - 1 - j;
-        placements.push({
-            x: width - half - fromRight * step,
-            y: centerY,
-            rotation: 0,
-            scale,
-        });
-    }
-    return placements;
+    return [...leftPlacements, ...rightPlacements];
 }
 
 /** A single band (row) for {@link bandedRowsLayout}, vertically centered at
@@ -264,6 +352,12 @@ export type LayoutBand = {
     count?: number;
     /** Two-block row: `left` cards flush-left, `right` cards flush-right. */
     split?: { left: number; right: number };
+    /** Per-item footprints for a `count` band (issue #977). Length = `count`;
+     *  missing entries default to `cardWidth`. See {@link RowOptions.widths}. */
+    widths?: number[];
+    /** Per-item footprints for a `split` band's left / right blocks (issue #977). */
+    leftWidths?: number[];
+    rightWidths?: number[];
 };
 
 /** Vertical padding (px) kept above+below each band's cards so adjacent rows
@@ -345,6 +439,8 @@ export function bandedRowsLayout(opts: {
                 centerY,
                 cardWidth,
                 maxScale,
+                leftWidths: band.leftWidths,
+                rightWidths: band.rightWidths,
             });
         }
         return rowLayout({
@@ -353,6 +449,7 @@ export function bandedRowsLayout(opts: {
             centerY,
             cardWidth,
             maxScale,
+            widths: band.widths,
         });
     });
 }

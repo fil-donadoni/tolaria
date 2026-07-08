@@ -2646,22 +2646,76 @@ function finalizeDivideAmounts(
     return out;
 }
 
+/** The requirement-derived target FILTER fields, as a partial `PendingTarget`
+ *  carrying ONLY the fields the requirement actually sets (no `undefined`
+ *  keys). This is the single source of truth for BOTH pending-target builders:
+ *  the `announceCast` primary-group literal spreads it, and
+ *  `applyRequirementToPendingTarget` (the additional-group re-application)
+ *  assigns it. Keeping one builder means the two can never drift — the
+ *  divergence that once dropped `spellStackKind` from the announce path (and
+ *  left Stifle's on-stack ability target un-clickable, CR 113 / 701.5a) is
+ *  structurally impossible now.
+ *
+ *  Only requirement-derived filters live here; the count/target-type/selected
+ *  fields and the divide-as-you-choose bookkeeping are owned by each caller. */
+export function pendingTargetFiltersFromRequirement(
+    req: TargetRequirement,
+    chosenX: number | undefined
+): Partial<PendingTarget> {
+    const toArr = (v: string | string[] | undefined): string[] | undefined =>
+        v === undefined ? undefined : Array.isArray(v) ? v : [v];
+    const out: Partial<PendingTarget> = {};
+    if (req.colorFilter !== undefined) out.colorFilter = req.colorFilter;
+    if (req.colorFilterAny) out.colorFilterAny = req.colorFilterAny;
+    const sub = toArr(req.subtypeFilter);
+    if (sub) out.subtypeFilter = sub;
+    const sup = toArr(req.supertypeFilter);
+    if (sup) out.supertypeFilter = sup;
+    const exSub = toArr(req.excludeSubtypes);
+    if (exSub) out.excludeSubtypes = exSub;
+    const exSup = toArr(req.excludeSupertypes);
+    if (exSup) out.excludeSupertypes = exSup;
+    if (req.powerFilter) out.powerFilter = req.powerFilter;
+    if (req.toughnessFilter) out.toughnessFilter = req.toughnessFilter;
+    const mv = resolveMvFilter(req.mvFilter, chosenX);
+    if (mv) out.mvFilter = mv;
+    const spellType = toArr(req.spellTypeFilter);
+    if (spellType) out.spellTypeFilter = spellType as CardType[];
+    const spellExcludeType = toArr(req.spellExcludeTypeFilter);
+    if (spellExcludeType)
+        out.spellExcludeTypeFilter = spellExcludeType as CardType[];
+    if (req.spellCreaturePtFilter)
+        out.spellCreaturePtFilter = req.spellCreaturePtFilter;
+    if (req.spellSingleTargetingController)
+        out.spellSingleTargetingController = true;
+    if (req.spellWouldDestroyLandYouControl)
+        out.spellWouldDestroyLandYouControl = true;
+    if (req.spellStackKind) out.spellStackKind = req.spellStackKind;
+    const stackSrc = toArr(req.stackSourceTypeFilter);
+    if (stackSrc) out.stackSourceTypeFilter = stackSrc as CardType[];
+    if (req.spellTargetsInstanceIds)
+        out.spellTargetsInstanceIds = [...req.spellTargetsInstanceIds];
+    if (req.playerAttackedThisTurn) out.playerAttackedThisTurn = true;
+    if (req.zone) out.zone = req.zone;
+    if (req.controller) out.controller = req.controller;
+    return out;
+}
+
 /** Loads the next INDEPENDENT target group of a multi-group spell (CR 601.2c —
  *  Fumarole) into `pt` in place: clears every group-specific filter field and
  *  re-derives them from `req`, resetting `selected` for the fresh group. The
- *  primary group's build in `announceCast` is the single-group analogue; this
- *  is its per-group re-application. */
+ *  primary group's build in `announceCast` is the single-group analogue; both
+ *  derive their filters from `pendingTargetFiltersFromRequirement`. */
 function applyRequirementToPendingTarget(
     pt: PendingTarget,
     req: TargetRequirement,
     chosenX: number | undefined
 ): void {
-    const toArr = (v: string | string[] | undefined): string[] | undefined =>
-        v === undefined ? undefined : Array.isArray(v) ? v : [v];
     pt.targetType = req.type;
     pt.count = resolveTargetCount(req.count, chosenX);
     pt.selected = [];
-    // Clear every optional filter so a prior group's constraint never leaks.
+    // Clear every optional filter so a prior group's constraint never leaks,
+    // then re-apply from the shared builder.
     pt.colorFilter = undefined;
     pt.colorFilterAny = undefined;
     pt.subtypeFilter = undefined;
@@ -2684,39 +2738,7 @@ function applyRequirementToPendingTarget(
     pt.controller = undefined;
     pt.divideTotal = undefined;
     pt.divideAmounts = undefined;
-    if (req.colorFilter !== undefined) pt.colorFilter = req.colorFilter;
-    if (req.colorFilterAny) pt.colorFilterAny = req.colorFilterAny;
-    const sub = toArr(req.subtypeFilter);
-    if (sub) pt.subtypeFilter = sub;
-    const sup = toArr(req.supertypeFilter);
-    if (sup) pt.supertypeFilter = sup;
-    const exSub = toArr(req.excludeSubtypes);
-    if (exSub) pt.excludeSubtypes = exSub;
-    const exSup = toArr(req.excludeSupertypes);
-    if (exSup) pt.excludeSupertypes = exSup;
-    if (req.powerFilter) pt.powerFilter = req.powerFilter;
-    if (req.toughnessFilter) pt.toughnessFilter = req.toughnessFilter;
-    const mv = resolveMvFilter(req.mvFilter, chosenX);
-    if (mv) pt.mvFilter = mv;
-    const spellType = toArr(req.spellTypeFilter);
-    if (spellType) pt.spellTypeFilter = spellType as CardType[];
-    const spellExcludeType = toArr(req.spellExcludeTypeFilter);
-    if (spellExcludeType)
-        pt.spellExcludeTypeFilter = spellExcludeType as CardType[];
-    if (req.spellCreaturePtFilter)
-        pt.spellCreaturePtFilter = req.spellCreaturePtFilter;
-    if (req.spellSingleTargetingController)
-        pt.spellSingleTargetingController = true;
-    if (req.spellWouldDestroyLandYouControl)
-        pt.spellWouldDestroyLandYouControl = true;
-    if (req.spellStackKind) pt.spellStackKind = req.spellStackKind;
-    const stackSrc = toArr(req.stackSourceTypeFilter);
-    if (stackSrc) pt.stackSourceTypeFilter = stackSrc as CardType[];
-    if (req.spellTargetsInstanceIds)
-        pt.spellTargetsInstanceIds = [...req.spellTargetsInstanceIds];
-    if (req.playerAttackedThisTurn) pt.playerAttackedThisTurn = true;
-    if (req.zone) pt.zone = req.zone;
-    if (req.controller) pt.controller = req.controller;
+    Object.assign(pt, pendingTargetFiltersFromRequirement(req, chosenX));
 }
 
 /** After a target group's selection completes (CR 601.2c): if the spell has
@@ -3670,31 +3692,15 @@ export const announceCast = mutation({
                     throw new Error("Not enough legal targets");
                 }
             }
-            const subtypeFilter = activeTargetRequirement.subtypeFilter
-                ? Array.isArray(activeTargetRequirement.subtypeFilter)
-                    ? activeTargetRequirement.subtypeFilter
-                    : [activeTargetRequirement.subtypeFilter]
-                : undefined;
-            const supertypeFilter = activeTargetRequirement.supertypeFilter
-                ? Array.isArray(activeTargetRequirement.supertypeFilter)
-                    ? activeTargetRequirement.supertypeFilter
-                    : [activeTargetRequirement.supertypeFilter]
-                : undefined;
-            const excludeSubtypes = activeTargetRequirement.excludeSubtypes
-                ? Array.isArray(activeTargetRequirement.excludeSubtypes)
-                    ? activeTargetRequirement.excludeSubtypes
-                    : [activeTargetRequirement.excludeSubtypes]
-                : undefined;
-            const excludeSupertypes = activeTargetRequirement.excludeSupertypes
-                ? Array.isArray(activeTargetRequirement.excludeSupertypes)
-                    ? activeTargetRequirement.excludeSupertypes
-                    : [activeTargetRequirement.excludeSupertypes]
-                : undefined;
-            const resolvedMvFilter = resolveMvFilter(
-                activeTargetRequirement.mvFilter,
-                chosenX
-            );
-            // Enter target selection phase before mana payment
+            // Enter target selection phase before mana payment. The
+            // requirement-derived filters come from the SAME builder the
+            // additional-group path uses (`pendingTargetFiltersFromRequirement`
+            // — also invoked by `applyRequirementToPendingTarget`), so the two
+            // pending-target builders can never drift. The omission that once
+            // dropped `spellStackKind` here — leaving Stifle's trigger target
+            // un-clickable because the client saw `spellStackKind: undefined`
+            // and treated a "target ability" as "target spell" (CR 113 /
+            // 701.5a) — is now structurally impossible.
             state.pendingTarget = {
                 playerId: args.playerId,
                 cardInstanceId: args.cardInstanceId,
@@ -3707,55 +3713,10 @@ export const announceCast = mutation({
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
-                ...(activeTargetRequirement.zone
-                    ? { zone: activeTargetRequirement.zone }
-                    : {}),
-                ...(activeTargetRequirement.controller
-                    ? { controller: activeTargetRequirement.controller }
-                    : {}),
-                ...(subtypeFilter ? { subtypeFilter } : {}),
-                ...(supertypeFilter ? { supertypeFilter } : {}),
-                ...(activeTargetRequirement.powerFilter
-                    ? { powerFilter: activeTargetRequirement.powerFilter }
-                    : {}),
-                ...(activeTargetRequirement.toughnessFilter
-                    ? {
-                          toughnessFilter:
-                              activeTargetRequirement.toughnessFilter,
-                      }
-                    : {}),
-                ...(excludeSubtypes ? { excludeSubtypes } : {}),
-                ...(excludeSupertypes ? { excludeSupertypes } : {}),
-                ...(resolvedMvFilter ? { mvFilter: resolvedMvFilter } : {}),
-                ...(activeTargetRequirement.spellTypeFilter
-                    ? {
-                          spellTypeFilter: Array.isArray(
-                              activeTargetRequirement.spellTypeFilter
-                          )
-                              ? activeTargetRequirement.spellTypeFilter
-                              : [activeTargetRequirement.spellTypeFilter],
-                      }
-                    : {}),
-                ...(activeTargetRequirement.spellExcludeTypeFilter
-                    ? {
-                          spellExcludeTypeFilter: Array.isArray(
-                              activeTargetRequirement.spellExcludeTypeFilter
-                          )
-                              ? activeTargetRequirement.spellExcludeTypeFilter
-                              : [
-                                    activeTargetRequirement.spellExcludeTypeFilter,
-                                ],
-                      }
-                    : {}),
-                ...(activeTargetRequirement.spellCreaturePtFilter
-                    ? {
-                          spellCreaturePtFilter:
-                              activeTargetRequirement.spellCreaturePtFilter,
-                      }
-                    : {}),
-                ...(activeTargetRequirement.playerAttackedThisTurn
-                    ? { playerAttackedThisTurn: true }
-                    : {}),
+                ...pendingTargetFiltersFromRequirement(
+                    activeTargetRequirement,
+                    chosenX
+                ),
                 // CR 601.2c — queue the additional independent target groups
                 // (Fumarole). selectTarget loads the next one when the current
                 // group completes instead of finalizing.
@@ -7144,39 +7105,11 @@ export const activateAbility = mutation({
                 effectiveTargetReq.count,
                 targetChosenX
             );
-            const abilitySubtypeFilter = effectiveTargetReq.subtypeFilter
-                ? Array.isArray(effectiveTargetReq.subtypeFilter)
-                    ? effectiveTargetReq.subtypeFilter
-                    : [effectiveTargetReq.subtypeFilter]
-                : undefined;
-            const abilityExcludeSubtypes = effectiveTargetReq.excludeSubtypes
-                ? Array.isArray(effectiveTargetReq.excludeSubtypes)
-                    ? effectiveTargetReq.excludeSubtypes
-                    : [effectiveTargetReq.excludeSubtypes]
-                : undefined;
-            const abilitySupertypeFilter = effectiveTargetReq.supertypeFilter
-                ? Array.isArray(effectiveTargetReq.supertypeFilter)
-                    ? effectiveTargetReq.supertypeFilter
-                    : [effectiveTargetReq.supertypeFilter]
-                : undefined;
-            const abilityExcludeSupertypes =
-                effectiveTargetReq.excludeSupertypes
-                    ? Array.isArray(effectiveTargetReq.excludeSupertypes)
-                        ? effectiveTargetReq.excludeSupertypes
-                        : [effectiveTargetReq.excludeSupertypes]
-                    : undefined;
             state.pendingTarget = {
                 playerId: args.playerId,
                 cardInstanceId: card.id,
                 targetType: effectiveTargetReq.type,
                 count: abilityCount,
-                colorFilter: effectiveTargetReq.colorFilter,
-                // CR 202.2 — OR-over-colors choice (Greater Realm of
-                // Preservation: "a black or red source"). Propagated so
-                // selectTarget can enforce the multi-color restriction.
-                ...(effectiveTargetReq.colorFilterAny
-                    ? { colorFilterAny: effectiveTargetReq.colorFilterAny }
-                    : {}),
                 selected: [],
                 keepPriority: args.keepPriority,
                 kind: "ability",
@@ -7185,86 +7118,15 @@ export const activateAbility = mutation({
                     ? { chosenX: targetChosenX }
                     : {}),
                 ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
-                ...(effectiveTargetReq.zone
-                    ? { zone: effectiveTargetReq.zone }
-                    : {}),
-                ...(effectiveTargetReq.controller
-                    ? { controller: effectiveTargetReq.controller }
-                    : {}),
-                ...(abilitySubtypeFilter
-                    ? { subtypeFilter: abilitySubtypeFilter }
-                    : {}),
-                ...(abilitySupertypeFilter
-                    ? { supertypeFilter: abilitySupertypeFilter }
-                    : {}),
-                ...(abilityExcludeSupertypes
-                    ? { excludeSupertypes: abilityExcludeSupertypes }
-                    : {}),
-                ...(effectiveTargetReq.powerFilter
-                    ? { powerFilter: effectiveTargetReq.powerFilter }
-                    : {}),
-                ...(effectiveTargetReq.toughnessFilter
-                    ? { toughnessFilter: effectiveTargetReq.toughnessFilter }
-                    : {}),
-                ...(abilityExcludeSubtypes
-                    ? { excludeSubtypes: abilityExcludeSubtypes }
-                    : {}),
-                ...(effectiveTargetReq.spellTypeFilter
-                    ? {
-                          spellTypeFilter: Array.isArray(
-                              effectiveTargetReq.spellTypeFilter
-                          )
-                              ? effectiveTargetReq.spellTypeFilter
-                              : [effectiveTargetReq.spellTypeFilter],
-                      }
-                    : {}),
-                ...(effectiveTargetReq.spellExcludeTypeFilter
-                    ? {
-                          spellExcludeTypeFilter: Array.isArray(
-                              effectiveTargetReq.spellExcludeTypeFilter
-                          )
-                              ? effectiveTargetReq.spellExcludeTypeFilter
-                              : [effectiveTargetReq.spellExcludeTypeFilter],
-                      }
-                    : {}),
-                ...(effectiveTargetReq.spellCreaturePtFilter
-                    ? {
-                          spellCreaturePtFilter:
-                              effectiveTargetReq.spellCreaturePtFilter,
-                      }
-                    : {}),
-                ...(effectiveTargetReq.spellSingleTargetingController
-                    ? { spellSingleTargetingController: true }
-                    : {}),
-                ...(effectiveTargetReq.spellWouldDestroyLandYouControl
-                    ? { spellWouldDestroyLandYouControl: true }
-                    : {}),
-                ...(effectiveTargetReq.spellStackKind
-                    ? { spellStackKind: effectiveTargetReq.spellStackKind }
-                    : {}),
-                ...(effectiveTargetReq.stackSourceTypeFilter
-                    ? {
-                          stackSourceTypeFilter: Array.isArray(
-                              effectiveTargetReq.stackSourceTypeFilter
-                          )
-                              ? effectiveTargetReq.stackSourceTypeFilter
-                              : [effectiveTargetReq.stackSourceTypeFilter],
-                      }
-                    : {}),
-                ...(effectiveTargetReq.spellTargetsInstanceIds
-                    ? {
-                          spellTargetsInstanceIds: [
-                              ...effectiveTargetReq.spellTargetsInstanceIds,
-                          ],
-                      }
-                    : {}),
-                ...(() => {
-                    const resolved = resolveMvFilter(
-                        effectiveTargetReq.mvFilter,
-                        targetChosenX
-                    );
-                    return resolved ? { mvFilter: resolved } : {};
-                })(),
+                // Same shared filter builder as the spell-cast path
+                // (`pendingTargetFiltersFromRequirement`), so the three
+                // pending-target builders can never drift (CR 601.2c) — this
+                // includes `spellStackKind` for a "counter target ability"
+                // activated ability (CR 113 / 701.5a).
+                ...pendingTargetFiltersFromRequirement(
+                    effectiveTargetReq,
+                    targetChosenX
+                ),
             };
 
             const nextSeq = gameState.seq + 1;

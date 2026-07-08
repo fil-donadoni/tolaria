@@ -4,7 +4,11 @@ import { useGameContext } from "~/hooks/useGameContext";
 import { useBattlefieldInteraction } from "~/hooks/useBattlefieldInteraction";
 import { useIsPortrait } from "~/hooks/useIsPortrait";
 import { isCreature, isLand } from "~/lib/card-utils";
-import { bandedRowsLayout, RIGHT_GUTTER } from "~/lib/board-layout";
+import {
+    bandedRowsLayout,
+    stackFootprintWidth,
+    RIGHT_GUTTER,
+} from "~/lib/board-layout";
 import { groupBattlefield } from "~/lib/battlefield-stacks";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
 import BoardBattlefieldCard from "./board-battlefield-card";
@@ -193,50 +197,59 @@ export default function BoardBattlefield({
     // layout closure below can place each row. The back row is ordered lands
     // first, then other noncreature permanents — lands cluster left, others
     // right (a two-block split row).
-    const { orderedItems, creatureCount, landCount, otherCount } =
-        useMemo(() => {
-            const creatures: CardInstance[] = [];
-            const lands: CardInstance[] = [];
-            const others: CardInstance[] = [];
-            for (const card of player.battlefield) {
-                if (
-                    card.attachedTo &&
-                    hostExistsAnywhere.has(card.attachedTo)
-                ) {
-                    continue;
-                }
-                if (bandOf(card) === "creatures") creatures.push(card);
-                else if (backRowRank(card) === 0) lands.push(card);
-                else others.push(card);
+    const {
+        orderedItems,
+        creatureCount,
+        landCount,
+        otherCount,
+        creatureWidths,
+        landWidths,
+        otherWidths,
+    } = useMemo(() => {
+        const creatures: CardInstance[] = [];
+        const lands: CardInstance[] = [];
+        const others: CardInstance[] = [];
+        for (const card of player.battlefield) {
+            if (card.attachedTo && hostExistsAnywhere.has(card.attachedTo)) {
+                continue;
             }
-            // Collapse identical, interchangeable permanents into fanned
-            // permanent stacks BEFORE layout (PRD #621, #623). Group each band
-            // independently so a stack never spans the creature/back-row split;
-            // each resulting group (singleton OR stack) takes exactly one layout
-            // slot, so the row math is unchanged — only the slot COUNT shrinks.
-            const creatureGroups = groupBattlefield(
-                creatures,
-                attachedAurasByHost
-            );
-            const landGroups = groupBattlefield(lands, attachedAurasByHost);
-            const otherGroups = groupBattlefield(others, attachedAurasByHost);
-            // Order: creatures, then back row = lands (left block) then others (right).
-            const ordered: SpatialItem[] = [
-                ...creatureGroups,
-                ...landGroups,
-                ...otherGroups,
-            ].map(groupToItem);
-            return {
-                orderedItems: ordered,
-                creatureCount: creatureGroups.length,
-                landCount: landGroups.length,
-                otherCount: otherGroups.length,
-            };
-            // `groupToItem`/`renderCard` close over the per-render interaction
-            // handlers; they are intentionally recomputed each render (cheap) —
-            // the heavy grouping deps are the battlefield and host set.
-            // eslint-disable-next-line react-hooks/exhaustive-deps
-        }, [player.battlefield, hostExistsAnywhere, attachedAurasByHost]);
+            if (bandOf(card) === "creatures") creatures.push(card);
+            else if (backRowRank(card) === 0) lands.push(card);
+            else others.push(card);
+        }
+        // Collapse identical, interchangeable permanents into fanned
+        // permanent stacks BEFORE layout (PRD #621, #623). Group each band
+        // independently so a stack never spans the creature/back-row split;
+        // each resulting group (singleton OR stack) takes exactly one layout
+        // slot.
+        const creatureGroups = groupBattlefield(creatures, attachedAurasByHost);
+        const landGroups = groupBattlefield(lands, attachedAurasByHost);
+        const otherGroups = groupBattlefield(others, attachedAurasByHost);
+        // A fanned stack is wider than one card, so each group reserves its own
+        // footprint width in the row (issue #977) — otherwise a 6-card fan
+        // overflows its slot and covers the next permanent's click target.
+        const widthsOf = (groups: { members: CardInstance[] }[]) =>
+            groups.map((g) => stackFootprintWidth(g.members.length));
+        // Order: creatures, then back row = lands (left block) then others (right).
+        const ordered: SpatialItem[] = [
+            ...creatureGroups,
+            ...landGroups,
+            ...otherGroups,
+        ].map(groupToItem);
+        return {
+            orderedItems: ordered,
+            creatureCount: creatureGroups.length,
+            landCount: landGroups.length,
+            otherCount: otherGroups.length,
+            creatureWidths: widthsOf(creatureGroups),
+            landWidths: widthsOf(landGroups),
+            otherWidths: widthsOf(otherGroups),
+        };
+        // `groupToItem`/`renderCard` close over the per-render interaction
+        // handlers; they are intentionally recomputed each render (cheap) —
+        // the heavy grouping deps are the battlefield and host set.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [player.battlefield, hostExistsAnywhere, attachedAurasByHost]);
 
     // One full-height zone; the layout stacks the creature row (centered) over
     // the back row (lands flush-left, other noncreatures flush-right) so nothing
@@ -251,10 +264,13 @@ export default function BoardBattlefield({
                 {
                     count: creatureCount,
                     centerYFrac: CREATURES_CENTER_Y_FRAC,
+                    widths: creatureWidths,
                 },
                 {
                     split: { left: landCount, right: otherCount },
                     centerYFrac: BACK_CENTER_Y_FRAC,
+                    leftWidths: landWidths,
+                    rightWidths: otherWidths,
                 },
             ],
             width,
