@@ -28,19 +28,22 @@ export function formatFilterLabel(filter: PermanentFilter): string {
     return "a permanent";
 }
 
-/** Subtitle for an outstanding sacrifice choice (CR 701.21a) — names the next
- *  unmet requirement's filter, with progress when more than one is owed.
+/** Subtitle for an outstanding permanent-cost choice (CR 701.21a / 118.9) —
+ *  names the next unmet requirement's filter, with progress when more than one
+ *  is owed. The verb matches the selection's terminal action: "sacrifice"
+ *  (default) or "return" (the return-N-lands alternative cost, Gush / Thwart).
  *  Shared by the payment banner (cast/activation) and the sacrifice banner
  *  (attack-declaration land tax). */
 export function describeSacrificeChoice(sel: SacrificeSelection): string {
+    const verb = sel.action === "return" ? "return" : "sacrifice";
     const req = nextSacrificeRequirement(sel);
-    if (!req) return "sacrifice a permanent";
+    if (!req) return `${verb} a permanent`;
     const label = formatFilterLabel(req.filter);
     const total = sel.requirements.reduce((a, r) => a + r.count, 0);
     if (total > 1) {
-        return `sacrifice ${label} (${sel.picked.length}/${total})`;
+        return `${verb} ${label} (${sel.picked.length}/${total})`;
     }
-    return `sacrifice ${label}`;
+    return `${verb} ${label}`;
 }
 
 /** The next requirement still awaiting picks (greedy in-order allocation —
