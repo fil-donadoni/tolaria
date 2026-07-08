@@ -4166,6 +4166,101 @@ export const untapForPayment = mutation({
     },
 });
 
+/** The single sacrifice selection currently awaiting `playerId`'s choice, and
+ *  which in-flight container holds it (CR 701.21a). At most one is active. */
+export function findActiveSacrificeSelection(
+    state: GameState,
+    playerId: string
+): {
+    sel: SacrificeSelection;
+    container: "cast" | "activation" | "attack";
+} | null {
+    const pc = state.pendingCast;
+    if (
+        pc &&
+        pc.playerId === playerId &&
+        pc.sacrificeSelection &&
+        !isSacrificeSelectionComplete(pc.sacrificeSelection)
+    ) {
+        return { sel: pc.sacrificeSelection, container: "cast" };
+    }
+    const pa = state.pendingActivation;
+    if (
+        pa &&
+        pa.playerId === playerId &&
+        pa.sacrificeSelection &&
+        !isSacrificeSelectionComplete(pa.sacrificeSelection)
+    ) {
+        return { sel: pa.sacrificeSelection, container: "activation" };
+    }
+    const at = state.combat?.pendingAttackSacrifice;
+    if (
+        at &&
+        at.playerId === playerId &&
+        !isSacrificeSelectionComplete(at)
+    ) {
+        return { sel: at, container: "attack" };
+    }
+    return null;
+}
+
+/** CR 701.21a — the sacrificing player picks one permanent to sacrifice. Routes
+ *  to whichever in-flight action is awaiting this player's sacrifice choice
+ *  (cast, activation, or attack-declaration tax — exactly one is active). When
+ *  the choice completes, resumes the parked action. */
+export const selectSacrifice = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
+
+        const active = findActiveSacrificeSelection(state, args.playerId);
+        if (!active) throw new Error("No sacrifice choice awaiting you");
+        const { sel, container } = active;
+        if (!isSacrificeCandidateLegal(state, sel, args.cardInstanceId)) {
+            throw new Error("Selected permanent is not a legal sacrifice");
+        }
+        sel.picked.push(args.cardInstanceId);
+
+        if (isSacrificeSelectionComplete(sel)) {
+            if (container === "cast") {
+                // tryAutoCommitPendingCast applies the selection + finalizes when
+                // mana is also covered (else the player keeps tapping lands).
+                tryAutoCommitPendingCast(state, args.playerId);
+            } else if (container === "activation") {
+                tryAutoCommitPendingActivation(state, args.playerId);
+            } else {
+                // Attack tax: apply and finalize the declaration (the cast /
+                // activation resume paths apply internally; this one does not).
+                applySacrificeSelection(state, sel);
+                if (state.combat) {
+                    state.combat.pendingAttackSacrifice = undefined;
+                }
+                finalizeConfirmAttackers(state);
+            }
+        }
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
 /** Cancel a pending cast: rollback all taps (CR 601.2 reversal). */
 /** Picks a permanent to pay the spell's additional cost (CR 117.9 /
  *  601.2f). Only valid while pendingCast is in its additional-cost picker
@@ -5615,7 +5710,7 @@ export const removeBand = mutation({
  *  "when creatures attack" triggers, and hand priority to the active player.
  *  Shared by the inline path (fungible/no tax) and the selectSacrifice resume
  *  path (attack sacrifice tax chosen). */
-function finalizeConfirmAttackers(state: GameState): void {
+export function finalizeConfirmAttackers(state: GameState): void {
     const player = getPlayer(state, state.activePlayerId);
     const combat = state.combat;
     if (!combat) return;
