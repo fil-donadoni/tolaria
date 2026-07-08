@@ -720,10 +720,24 @@ export const pirateShip: CardDefinition = {
     ],
 };
 
-// Power Leak — "Enchant enchantment. At the beginning of the upkeep of
-// enchanted enchantment's controller, that player loses 1 life unless they
-// pay {U}." (CR 303.4 aura, 603.6a phase trigger, 117.3a optional cost).
-// Same upkeep-on-host-controller pattern as Feedback.
+// Power Leak — "Enchant enchantment\nAt the beginning of the upkeep of
+// enchanted enchantment's controller, that player may pay any amount of mana.
+// This Aura deals 2 damage to that player. Prevent X of that damage, where X
+// is the amount of mana that player paid this way." (modern Scryfall Oracle;
+// CR 303.4 aura, 603.6a phase trigger, 117.3a optional cost, 615 prevention).
+// The pre-Oracle Alpha printing was "lose 1 life unless pay {U}" — a wholly
+// different effect; issue #960 corrected it to the modern damage/prevention.
+//
+// "Pay any amount of mana … prevent X of that [2] damage" is decomposed into
+// two sequential {1} optional payments (CR 117.3a), each preventing one of the
+// two points of damage: paying more than {2} prevents nothing further, so the
+// game-observable outcome (take 0, 1, or 2 damage) is faithful across the whole
+// legal range without needing a variable-amount payment primitive. This is a
+// primitive-reuse decomposition, NOT the {2}-lump cap-hack that conflates the
+// two points into one all-or-nothing may-pay (rejected for Errant Minion, ICE
+// #628) — each point is offered independently, so partial (pay {1}) prevention
+// is expressible. The final `dealDamage` runs only after BOTH choices are
+// collected, so a single `resolve` re-run on resume never double-applies it.
 export const powerLeak: CardDefinition = {
     id: "ccc982b6-35b2-4e33-ace2-86cb79123e4f",
     rarity: "common",
@@ -738,18 +752,34 @@ export const powerLeak: CardDefinition = {
         phaseTrigger({
             id: "power-leak-upkeep",
             oracleText:
-                "At the beginning of the upkeep of enchanted enchantment's controller, that player loses 1 life unless they pay {U}.",
+                "At the beginning of the upkeep of enchanted enchantment's controller, that player may pay any amount of mana. This Aura deals 2 damage to that player. Prevent X of that damage, where X is the amount of mana that player paid this way.",
             phase: "UPKEEP",
             scope: "host-controller",
             resolve: (ctx, _event, hostController) => {
-                const accept = ctx.requestMayPay({
+                let prevented = 0;
+                const first = ctx.requestMayPay({
                     playerId: hostController,
-                    choiceId: hostController,
-                    cost: { U: 1 },
-                    prompt: "Pay {U} to avoid losing 1 life from Power Leak?",
+                    choiceId: "power-leak-prevent-1",
+                    cost: { X: 1 },
+                    prompt: "Pay {1} to prevent 1 damage from Power Leak?",
                 });
-                if (accept === undefined) return;
-                if (!accept) ctx.loseLife(hostController, 1);
+                if (first === undefined) return; // suspended
+                if (first) prevented++;
+                const second = ctx.requestMayPay({
+                    playerId: hostController,
+                    choiceId: "power-leak-prevent-2",
+                    cost: { X: 1 },
+                    prompt: "Pay {1} to prevent 1 more damage from Power Leak?",
+                });
+                if (second === undefined) return; // suspended
+                if (second) prevented++;
+                const damage = 2 - prevented;
+                if (damage > 0) {
+                    ctx.dealDamage(
+                        { type: "player", id: hostController },
+                        damage
+                    );
+                }
             },
         }),
     ],

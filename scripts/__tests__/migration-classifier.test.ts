@@ -428,13 +428,20 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // landing FREE + AFK-ready; the set-pt mode reuses the
         // already-`resolve()`-only `setBasePT` primitive, landing Op-blocked.
         // Net from #683: total 640→643, FREE 398→400, AFK-ready 365→367,
-        // Op-blocked 228→229, X-only unchanged. Values below are the true
-        // post-rebase totals, reconciled by re-running
-        // `bun scripts/migration-classifier.mjs` against the merged tree
-        // rather than hand-added.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(643);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(400);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(367);
+        // Op-blocked 228→229, X-only unchanged.
+        // #960 (LEA Oracle-text reimplementation — Farmstead, Power Leak,
+        // Pestilence) net-ADDED one protocol resolve() closure: Pestilence's
+        // modern end-step "sacrifice if no creatures" phase trigger carries an
+        // intervening-if + `resolve` (CR 603.4d), while Farmstead/Power Leak
+        // stayed closure-neutral. The added closure is FREE + AFK-ready (its
+        // per-card test lives in sets/lea/__tests__/black.test.ts). Net from
+        // #960: total 643→644, FREE 400→401, AFK-ready 367→368, Op-blocked and
+        // X-only unchanged. Values below are the true post-change totals,
+        // reconciled by re-running `bun scripts/migration-classifier.mjs`
+        // against the merged tree rather than hand-added.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(644);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(401);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(368);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(229);
     });

@@ -2337,13 +2337,27 @@ describe("Power Leak (Aura on Enchantment — host's controller pays {U} or lose
         });
     }
 
-    it("queues at host's controller's upkeep and asks them to pay {U}", () => {
+    // Answer the next enqueued may-pay ("yes"/"no") and resume resolution.
+    function answerMayPay(state: ReturnType<typeof setup>, accept: boolean) {
+        const head = state.pendingChoices?.[0];
+        expect(head).toBeDefined();
+        expect(head?.kind).toBe("may-pay");
+        const item = state.stack.find((s) => s.id === head!.stackItemId)!;
+        item.collectedChoices = {
+            ...(item.collectedChoices ?? {}),
+            [`${head!.step}:${head!.choiceId}`]: [accept ? "yes" : "no"],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+    }
+
+    it("queues at host's controller's upkeep and offers the first prevention may-pay", () => {
         const state = setup("p1");
         advancePhase(state);
         expect(state.phase).toBe("UPKEEP");
         expect(state.stack).toHaveLength(1);
         expect(state.stack[0].triggeredAbilityId).toBe("power-leak-upkeep");
-        // First call enqueues a may-pay choice for p1.
+        // First call enqueues the first prevent-1 may-pay choice for p1.
         resolveTopOfStack(state);
         expect(state.pendingChoices?.[0]?.playerId).toBe("p1");
         expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
@@ -2355,23 +2369,34 @@ describe("Power Leak (Aura on Enchantment — host's controller pays {U} or lose
         expect(state.stack).toHaveLength(0);
     });
 
-    it("declining the may-pay loses 1 life", () => {
+    it("paying nothing takes the full 2 damage", () => {
         const state = setup("p1");
         advancePhase(state);
-        // First resolve enqueues the choice; commit "decline" then resolve again.
-        resolveTopOfStack(state);
-        const head = state.pendingChoices?.[0];
-        expect(head).toBeDefined();
-        const item = state.stack.find((s) => s.id === head!.stackItemId);
-        expect(item).toBeDefined();
-        item!.collectedChoices = {
-            ...(item!.collectedChoices ?? {}),
-            [`${head!.step}:${head!.choiceId}`]: ["decline"],
-        };
-        state.pendingChoices = undefined;
         const before = state.players[0].life;
-        resolveTopOfStack(state);
+        resolveTopOfStack(state); // enqueue prevent-1
+        answerMayPay(state, false); // decline → enqueue prevent-2
+        answerMayPay(state, false); // decline → deal 2
+        expect(state.players[0].life).toBe(before - 2);
+    });
+
+    it("paying {1} once prevents 1 of the 2 damage", () => {
+        const state = setup("p1");
+        advancePhase(state);
+        const before = state.players[0].life;
+        resolveTopOfStack(state); // enqueue prevent-1
+        answerMayPay(state, true); // pay 1 → prevent 1, enqueue prevent-2
+        answerMayPay(state, false); // decline → deal 1
         expect(state.players[0].life).toBe(before - 1);
+    });
+
+    it("paying {1} twice prevents all damage", () => {
+        const state = setup("p1");
+        advancePhase(state);
+        const before = state.players[0].life;
+        resolveTopOfStack(state); // enqueue prevent-1
+        answerMayPay(state, true); // pay 1 → prevent 1
+        answerMayPay(state, true); // pay 1 → prevent 1, all 2 prevented
+        expect(state.players[0].life).toBe(before);
     });
 });
 

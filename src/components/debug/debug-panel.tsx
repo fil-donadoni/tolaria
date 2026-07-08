@@ -145,6 +145,28 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Pestilence modern-Oracle board-wipe engine (CR 120.3 / 603.4d,
+        // issue #960): "{B}: Pestilence deals 1 damage to each creature and
+        // each player." Repeatedly activate the {B} ability (four Swamps for
+        // mana) to ping every creature AND both players — the 1-toughness
+        // creatures on both sides die after one activation. Once no creatures
+        // remain on the battlefield, the "At the beginning of the end step, if
+        // no creatures are on the battlefield, sacrifice this enchantment"
+        // trigger fires at the next end step and sacrifices Pestilence. The
+        // pre-Oracle Alpha printing (upkeep sacrifice-unless-{B}, creature-
+        // gated activation) is gone — this scenario exercises the corrected
+        // behavior end-to-end.
+        label: "Pestilence board-wipe engine: {B} pings all, end-step self-sac when boardless (#960)",
+        cards: [
+            { name: "Pestilence", owner: "me", zone: "battlefield" },
+            { name: "Swamp", owner: "me", zone: "battlefield", count: 4 },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Sacrifice-for-mana dies trigger (CR 603.6 / 700.4 / 605.3a, issue
         // #943): activating Chromatic Star's mana ability ("{1}, {T},
         // Sacrifice this artifact: Add one mana of any color") sacrifices it

@@ -1810,7 +1810,7 @@ describe("Death Ward (instant — regenerate target creature, CR 701.15a)", () =
     });
 });
 
-describe("Farmstead (Aura on Plains — controller gains 2 life at upkeep, CR 603.6a)", () => {
+describe("Farmstead (Aura on Plains — host controller may pay {W}{W} to gain 1 life at upkeep, CR 603.6a/117.3a)", () => {
     function setup(activePlayerId: string = "p1") {
         const land = makeInstance(plains.id, {
             id: "host-plains",
@@ -1843,12 +1843,39 @@ describe("Farmstead (Aura on Plains — controller gains 2 life at upkeep, CR 60
         expect(state.stack[0].triggeredAbilityId).toBe("farmstead-upkeep");
     });
 
-    it("resolves into +2 life for the host's controller", () => {
+    it("gains 1 life for the host's controller when they pay {W}{W}", () => {
+        const state = setup("p1");
+        const lifeBefore = state.players[0].life;
+        advancePhase(state);
+        resolveTopOfStack(state); // enqueues the optional {W}{W} may-pay
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("may-pay");
+        expect(head?.playerId).toBe("p1");
+        const item = state.stack.find((s) => s.id === head!.stackItemId)!;
+        item.collectedChoices = {
+            ...(item.collectedChoices ?? {}),
+            [`${head!.step}:${head!.choiceId}`]: ["yes"],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(lifeBefore + 1);
+    });
+
+    it("gains no life when the controller declines to pay {W}{W}", () => {
         const state = setup("p1");
         const lifeBefore = state.players[0].life;
         advancePhase(state);
         resolveTopOfStack(state);
-        expect(state.players[0].life).toBe(lifeBefore + 2);
+        const head = state.pendingChoices?.[0];
+        expect(head?.kind).toBe("may-pay");
+        const item = state.stack.find((s) => s.id === head!.stackItemId)!;
+        item.collectedChoices = {
+            ...(item.collectedChoices ?? {}),
+            [`${head!.step}:${head!.choiceId}`]: ["no"],
+        };
+        state.pendingChoices = undefined;
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(lifeBefore);
     });
 
     it("does NOT fire on the opponent's upkeep (only the host's controller)", () => {
