@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CardInstance } from "~/types/game";
 import { useInertialScroll } from "~/hooks/useInertialScroll";
 import GameDialog from "~/components/ui/game-dialog";
@@ -18,6 +18,13 @@ type CardsPileProps = {
      *  Lets a hidden pile (library) reveal only the positions the viewer
      *  legitimately knows (`knownTo`) while the rest stay backs. */
     faceUpIds?: ReadonlySet<string>;
+    /** Face-up override for the COLLAPSED board stack only (the dialog keeps
+     *  using `faceUpIds`). The library passes a top-only set here so the small
+     *  zone peek reveals just the topmost known card (scry / Mishra's Bauble),
+     *  never a deeper known position, while the browse dialog still shows every
+     *  known card. Defaults to `faceUpIds` when omitted (other zones render the
+     *  same face-up cards in both surfaces). */
+    collapsedFaceUpIds?: ReadonlySet<string>;
     emptyLabel?: string;
     /** Zone glyph shown (centered) in place of the text label when the pile is
      *  empty — e.g. a `Skull` for the graveyard, `Sparkles` for exile. Falls
@@ -84,6 +91,12 @@ function isCardFaceDown(
     return isFaceDown;
 }
 
+/** Fraction of a card's width that each fanned card overlaps its left
+ *  neighbour. The visible step per card is `1 - FAN_OVERLAP`, and the whole
+ *  fan's width is derived from it so the flex container hugs the cards with no
+ *  empty trailing space. */
+const FAN_OVERLAP = 0.8;
+
 /** Ring class for a selectable card: emerald once picked, amber otherwise. */
 function selectionRing(isSelected: boolean): string {
     return isSelected
@@ -134,6 +147,15 @@ function FanLayout({
     // physical; native wheel + keyboard scroll stay intact (#255).
     const scrollRef = useInertialScroll<HTMLDivElement>("x");
     const ordered = topOnRight ? [...cards].reverse() : cards;
+
+    // When the fan overflows, open scrolled to the far RIGHT — the end of the
+    // fan, whose cards paint last and sit on top. For a library (topOnRight)
+    // that end is the top of the deck; for any pile it's the visually on-top
+    // side, so browsing always starts at the most-relevant edge.
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (el) el.scrollLeft = el.scrollWidth;
+    }, [scrollRef, cards.length]);
     return (
         <div
             ref={scrollRef}
@@ -149,7 +171,10 @@ function FanLayout({
             <div
                 className="flex mx-auto"
                 style={{
-                    width: `calc(var(--pile-card-w) * ${(cards.length + 1) / 2})`,
+                    // First card is full width; each subsequent card adds only
+                    // its visible step (1 - FAN_OVERLAP), matching the negative
+                    // marginLeft below so the container has no empty trailing gap.
+                    width: `calc(var(--pile-card-w) * ${1 + (1 - FAN_OVERLAP) * (cards.length - 1)})`,
                     minWidth: "min-content",
                 }}
             >
@@ -182,7 +207,7 @@ function FanLayout({
                                 marginLeft:
                                     cardIndex === 0
                                         ? "0"
-                                        : "calc(var(--pile-card-w) * -0.5)",
+                                        : `calc(var(--pile-card-w) * -${FAN_OVERLAP})`,
                             }}
                         >
                             {clickable ? (
@@ -288,6 +313,7 @@ export default function CardsPile({
     cards,
     isFaceDown = false,
     faceUpIds,
+    collapsedFaceUpIds,
     emptyLabel,
     zoneIcon,
     title,
@@ -344,14 +370,23 @@ export default function CardsPile({
         );
     }
 
+    // The collapsed stack reveals only `collapsedFaceUpIds` (falls back to the
+    // shared `faceUpIds`). The library passes a top-only set so the board zone
+    // shows a single top-card peek; the dialog below keeps the full `faceUpIds`.
+    const stackFaceUpIds = collapsedFaceUpIds ?? faceUpIds;
+
     const pileCards = cards.map((cardInstance: CardInstance, cardIndex) => {
         // Library (topOnRight): in the small collapsed board slot a full-library
-        // horizontal fan would overflow, so here we only lift the known top cards
+        // horizontal fan would overflow, so here we only lift the known top card
         // in the stacking order — the topmost (index 0) sits highest and face-up,
         // so a scried / peeked top card is the one you see on the board. The full
         // top-on-the-right fan happens in the expanded dialog below. Every other
         // zone keeps the plain rotated stack (later card on top).
-        const faceUpHere = !isCardFaceDown(cardInstance, isFaceDown, faceUpIds);
+        const faceUpHere = !isCardFaceDown(
+            cardInstance,
+            isFaceDown,
+            stackFaceUpIds
+        );
         const cardStyle: React.CSSProperties = topOnRight
             ? {
                   transform: `rotate(${rotations[cardIndex]}deg)`,
@@ -367,7 +402,11 @@ export default function CardsPile({
         // gameProjections) into a `<div onClick={play}>`, so the single pile click
         // both PLAYS the card and opens the dialog. Per-card actions belong in the
         // dialog only, surfaced via `renderCardAction` (Exile → ExileCastButton).
-        const image = isCardFaceDown(cardInstance, isFaceDown, faceUpIds) ? (
+        const image = isCardFaceDown(
+            cardInstance,
+            isFaceDown,
+            stackFaceUpIds
+        ) ? (
             <CardBack />
         ) : (
             <CardImage card={cardInstance} />

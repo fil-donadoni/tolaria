@@ -86,31 +86,6 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
-        // Ordered top-of-library drag picker (CR 701.22 Scry / 401.4 look,
-        // #942). Cast Preordain ({U}) — the Arena-style drag picker reveals the
-        // top two: drag to order the kept cards on top or send them to the
-        // bottom, then draw. Cast Ponder ({U}) — the same picker in order-only
-        // mode (top three, no second zone). Kept cards stay face-up in your
-        // library afterwards (ADR 0026 — you know your top cards). Stock Up
-        // ({2}{U}) still uses the click-buffer grid (keep two → hand), so both
-        // library-dialog styles are exercised side by side. Islands cover the
-        // costs; the seeded library cards give the peek recognizable contents.
-        label: "Scry / Ponder drag picker + Stock Up grid (#942)",
-        cards: [
-            { name: "Stock Up", owner: "me", zone: "hand" },
-            { name: "Mishra's Bauble", owner: "me", zone: "battlefield" },
-            { name: "Preordain", owner: "me", zone: "hand" },
-            { name: "Ponder", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield", count: 6 },
-            { name: "Island", owner: "opp", zone: "battlefield", count: 3 },
-            { name: "Black Lotus", owner: "me", zone: "library" },
-            { name: "Grizzly Bears", owner: "me", zone: "library" },
-            { name: "Ancestral Recall", owner: "me", zone: "library" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
         // Copy-on-ETB Bot cast prune (issue #938): a copy-on-ETB spell (Copy
         // Artifact, Clone, Vesuvan Doppelganger, Dance of Many) enters as a copy
         // of a permanent already in play. Casting one with NO permanent it could
@@ -149,6 +124,8 @@ const PRESET_SCENARIOS: PresetScenario[] = [
                 zone: "battlefield",
                 count: 2,
             },
+            { name: "Forest", owner: "me", zone: "battlefield", count: 3 },
+            { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 4,

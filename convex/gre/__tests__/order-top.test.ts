@@ -178,6 +178,95 @@ describe("orderTop primitive (CR 701.22 / 701.44 / 401.4)", () => {
         expect(opp.library.known).toEqual([]);
     });
 
+    it("hides a known card once a later reorder pushes it below the top (ADR 0026)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: lib(["a", "b", "c", "d"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushItem(state);
+        // A prior scry left "a" (and "b") known on top.
+        buildSpellContext(state, item).orderTop("p1", 2, {
+            destination: "none",
+        });
+        item.collectedChoices = { [`0:order-top-s1`]: ["a", "b"] };
+        buildSpellContext(state, item).orderTop("p1", 2, {
+            destination: "none",
+        });
+        expect(
+            projectPublicState(state, 1, "p1").players[0].library.known.map(
+                (k) => k.card.id
+            )
+        ).toEqual(["a", "b"]);
+
+        // A later reorder (Stock Up: bottom the scried cards under the rest)
+        // pushes the still-known "a","b" below the now-top unknown "c","d". They
+        // are no longer on top, so the projection exposes NONE — the flag
+        // disappears in the UI even though `knownTo` survives on the instance.
+        buildSpellContext(state, item).reorderLibraryTop("p1", [
+            "c",
+            "d",
+            "a",
+            "b",
+        ]);
+        expect(
+            projectPublicState(state, 1, "p1").players[0].library.known
+        ).toEqual([]);
+    });
+
+    it("keeps known cards visible when a reorder leaves them on top (Diabolic Vision, ADR 0026)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: lib(["a", "b", "c", "d"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushItem(state);
+        // Look at + keep a,b,c known on top.
+        buildSpellContext(state, item).orderTop("p1", 3, {
+            destination: "none",
+        });
+        item.collectedChoices = { [`0:order-top-s1`]: ["a", "b", "c"] };
+        buildSpellContext(state, item).orderTop("p1", 3, {
+            destination: "none",
+        });
+        // Reorder the known top run among itself — every card stays on top.
+        buildSpellContext(state, item).reorderLibraryTop("p1", ["c", "a", "b"]);
+        expect(
+            projectPublicState(state, 1, "p1").players[0].library.known.map(
+                (k) => k.card.id
+            )
+        ).toEqual(["c", "a", "b"]);
+    });
+
+    it("hides a card a prior scry left known once a new scry bottoms it (ADR 0026)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: lib(["a", "b", "c", "d"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushItem(state);
+        // "a" is known to the controller from an earlier look.
+        buildSpellContext(state, item).markKnown("p1", ["a"], "p1");
+        // A new scry looks at the top 2 and sends "a" to the bottom.
+        buildSpellContext(state, item).orderTop("p1", 2, {
+            destination: "library-bottom",
+        });
+        item.collectedChoices = {
+            [`0:order-top-s1`]: ["b"],
+            [`0:order-top-s1:second`]: ["a"],
+        };
+        buildSpellContext(state, item).orderTop("p1", 2, {
+            destination: "library-bottom",
+        });
+        // "a" is now at the bottom and no longer known; only kept "b" is known.
+        const known = projectPublicState(state, 1, "p1").players[0].library
+            .known;
+        expect(known.map((k) => k.card.id)).toEqual(["b"]);
+    });
+
     it("rejects a submission that does not partition the looked-at cards", () => {
         const state = makeState({
             players: [

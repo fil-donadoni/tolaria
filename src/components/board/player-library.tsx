@@ -110,6 +110,17 @@ export default function PlayerLibrary({
     const faceUpIds = isLibraryPick
         ? undefined
         : new Set(pileModel.filter((s) => s.faceUp).map((s) => s.card.id));
+    // The collapsed board zone shows ONLY the top card, and only while it is
+    // still on top and known (scry-to-top / Mishra's Bauble peek) — a known
+    // card that a later reorder pushed below index 0 stays hidden there. The
+    // browse dialog keeps the full `faceUpIds` (every known position).
+    const topSlot = pileModel[0];
+    const collapsedFaceUpIds =
+        !isLibraryPick && topSlot?.faceUp
+            ? new Set([topSlot.card.id])
+            : isLibraryPick
+              ? undefined
+              : new Set<string>();
     const hasCards = libraryCards.length > 0;
 
     const handleDraw = () => draw({ gameId, playerId });
@@ -152,6 +163,7 @@ export default function PlayerLibrary({
             cards={libraryCards}
             isFaceDown={!isLibraryPick}
             faceUpIds={faceUpIds}
+            collapsedFaceUpIds={collapsedFaceUpIds}
             emptyLabel="Library is empty"
             title={
                 isLibrarySearchTarget
