@@ -108,6 +108,13 @@ export default function PendingChoicePrompt({
         );
     }
 
+    // order-top (scry / surveil / ponder) owns its own full-screen drag picker
+    // (`LibraryOrderPicker`, mounted by `PlayerLibrary`), which carries the
+    // prompt, the ordering and the submit. Suppress this generic banner so it
+    // doesn't double up with a stale "N / max selected" counter whose buffered
+    // Done would submit an empty (illegal) selection.
+    if (choice.kind === "order-top") return null;
+
     return (
         <div
             className="absolute top-1/2 left-1/2 z-100 pointer-events-none"

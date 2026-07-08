@@ -96,11 +96,21 @@ export default function TargetSelectionBanner({
     const cardInHand = me?.hand.find(
         (c) => c !== null && c.id === pendingTarget.cardInstanceId
     );
+    // For an activated ability the source is a permanent on the battlefield,
+    // not a card in hand (CR 602.1) — `cardInstanceId` is the permanent's id.
+    // Resolve its name from the battlefield so the banner shows the ability's
+    // source rather than the generic "spell" fallback.
+    const sourcePermanent =
+        pendingTarget.kind === "ability"
+            ? me?.battlefield.find((c) => c.id === pendingTarget.cardInstanceId)
+            : undefined;
     const cardName = cardInHand
         ? getDefinition(cardInHand.card.id).name
-        : isCopyRetarget
-          ? "Copy"
-          : "spell";
+        : sourcePermanent
+          ? getDefinition(sourcePermanent.card.id).name
+          : isCopyRetarget
+            ? "Copy"
+            : "spell";
     const targetLabel = formatTargetLabel(
         pendingTarget.targetType,
         pendingTarget.zone,

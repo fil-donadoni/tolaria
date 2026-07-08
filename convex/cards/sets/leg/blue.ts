@@ -9,6 +9,7 @@ import type {
     SpellContext,
     TargetSelection,
 } from "../../types";
+import { PERMANENT_TYPES } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
@@ -529,7 +530,10 @@ export const boomerang: CardDefinition = {
     oracleText: "Return target permanent to its owner's hand.",
     manaCost: { U: 2 },
     types: ["Instant"],
-    targetRequirement: { type: "any", count: 1 },
+    // "target permanent" of any type — `type: "any"` matches only the CR 115.4
+    // damageable types (creature/planeswalker/battle), so use the full CR 300.1
+    // permanent-type set (incl. Land) instead.
+    targetRequirement: { type: [...PERMANENT_TYPES], count: 1 },
     // Migrated resolve()→effects[] (ADR 0045, #839): return the targeted
     // permanent to its owner's hand (CR 701.10 / 400.7).
     effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],

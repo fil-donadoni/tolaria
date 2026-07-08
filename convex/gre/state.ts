@@ -52,7 +52,7 @@ import {
     LAND_DROPS_PER_TURN,
     manaValue,
     MANA_COLORS,
-    PERMANENT_TYPES,
+    CASTABLE_PERMANENT_TYPES,
 } from "./constants";
 import {
     STATIC_EFFECT_CTX,
@@ -1274,6 +1274,7 @@ import type {
     RealizedOutcome,
     PendingChoiceKind,
     ManaRestriction,
+    LibraryDestination,
 } from "./types";
 export type {
     ZonePickKind,
@@ -1287,6 +1288,17 @@ export type {
     RealizedOutcome,
     PendingChoiceKind,
     ManaRestriction,
+    LibraryDestination,
+};
+
+/** Default prompts for an `order-top` choice keyed by destination — used when a
+ *  caller of `SpellContext.orderTop` doesn't supply its own. */
+const DEFAULT_ORDER_TOP_PROMPT: Record<LibraryDestination, string> = {
+    "library-bottom":
+        "Scry — drag cards to keep on top or send to the bottom, then order the top.",
+    graveyard:
+        "Surveil — drag cards to keep on top or put into your graveyard, then order the top.",
+    none: "Put these cards back on top of your library in any order.",
 };
 
 /** A unit of restricted mana floating in a player's pool (CR 106.6). Produced
@@ -1407,6 +1419,12 @@ export type PendingChoice = {
      *  validates it against this list. The frontend renders one button per
      *  option. Used by Primal Clay / Shapeshifter (choose-body-on-entry). */
     options?: { id: string; label: string }[];
+    /** For `kind: "order-top"` only — the second zone the un-kept looked-at
+     *  cards are sent to (`library-bottom` scry / `graveyard` surveil / `none`
+     *  order-only Ponder). Set when the choice is raised; read by the resolve
+     *  step (`SpellContext.orderTop`) to apply the split. See
+     *  {@link LibraryDestination}. */
+    destination?: LibraryDestination;
     /** For `kind: "name-card"` only — the chosen card name once the chooser has
      *  submitted it (CR 202.3 / 701.x "chooses a card name"). The candidate set
      *  is the whole card registry (no zone, no `options` allow-list); the
@@ -2835,7 +2853,9 @@ function finalizeSpellResolution(
         | undefined
 ): void {
     const isPermanent = item.types.some((t) =>
-        PERMANENT_TYPES.includes(t as (typeof PERMANENT_TYPES)[number])
+        CASTABLE_PERMANENT_TYPES.includes(
+            t as (typeof CASTABLE_PERMANENT_TYPES)[number]
+        )
     );
     const controller = getPlayer(state, item.castById);
 
@@ -5315,7 +5335,10 @@ function cloneSpellOntoStack(
 }
 
 /** Builds a SpellContext with primitives bound to the current game state. */
-function buildSpellContext(state: GameState, item: StackItem): SpellContext {
+export function buildSpellContext(
+    state: GameState,
+    item: StackItem
+): SpellContext {
     function requirePermanent(target: TargetSelection): CardInstanceState {
         const found = findOnBattlefield(state, target.id);
         if (!found) throw new Error(`Creature ${target.id} not on battlefield`);
@@ -7988,6 +8011,7 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (req.candidatePlayerIds) {
                 entry.candidatePlayerIds = req.candidatePlayerIds;
             }
+            if (req.destination) entry.destination = req.destination;
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },
@@ -8421,6 +8445,91 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
                 return card;
             });
             player.library.unshift(...reordered);
+        },
+        // CR 701.22 Scry / 701.44 Surveil / "put them back in any order" (Ponder,
+        // Index) — the single reusable ordered-top primitive behind the drag
+        // picker. Looks at the top `n` cards, raises an `order-top` PendingChoice
+        // (candidateIds = those n, projected face-up as `libraryPeek`), and on
+        // resume applies the player's two ordered lists: the KEPT cards return to
+        // the top in the chosen order, the rest go to `destination`
+        // (`library-bottom` scry / `graveyard` surveil / `none` order-only). The
+        // kept cards are marked known to the controller (ADR 0026 — you know your
+        // own top cards after a scry). Returns `false` while suspended on the
+        // choice (the caller must `return`), `true` once applied (resolution
+        // continues — e.g. Preordain's "then draw a card").
+        orderTop(
+            playerId: string,
+            n: number,
+            opts: {
+                destination: LibraryDestination;
+                prompt?: string;
+                choiceId?: string;
+            }
+        ): boolean {
+            const player = getPlayer(state, playerId);
+            const topIds = player.library.slice(0, n).map((c) => c.id);
+            if (topIds.length === 0) return true;
+            const step = item.resolutionStep ?? 0;
+            const choiceId = opts.choiceId ?? `order-top-${item.id}`;
+            const key = `${step}:${choiceId}`;
+            const storedTop = item.collectedChoices?.[key];
+            if (!storedTop) {
+                const entry: PendingChoice = {
+                    stackItemId: item.id,
+                    step,
+                    choiceId,
+                    playerId,
+                    kind: "order-top",
+                    zone: "library",
+                    destination: opts.destination,
+                    candidateIds: topIds,
+                    count: { min: 0, max: topIds.length },
+                    prompt:
+                        opts.prompt ??
+                        DEFAULT_ORDER_TOP_PROMPT[opts.destination],
+                };
+                state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+                return false;
+            }
+            // Resume — `storedTop` is the kept order (topmost first), the un-kept
+            // cards live under the sibling `:second` key (submit-time split).
+            const second = item.collectedChoices?.[`${key}:second`] ?? [];
+            if (opts.destination === "graveyard") {
+                for (const id of second) {
+                    moveCard(player, id, "library", "graveyard");
+                }
+            } else if (opts.destination === "library-bottom") {
+                for (const id of second) {
+                    const idx = player.library.findIndex((c) => c.id === id);
+                    if (idx !== -1) {
+                        const [c] = player.library.splice(idx, 1);
+                        player.library.push(c); // true bottom (CR 701.22)
+                    }
+                }
+            }
+            // After removing the un-kept cards, the kept cards are exactly the top
+            // `storedTop.length` of the library — reorder them to the chosen order.
+            const m = storedTop.length;
+            if (m > 0) {
+                const topCards = player.library.splice(0, m);
+                const reordered = storedTop.map((id) => {
+                    const card = topCards.find((c) => c.id === id);
+                    if (!card) {
+                        throw new Error(
+                            `Card ${id} not in kept top of library`
+                        );
+                    }
+                    return card;
+                });
+                player.library.unshift(...reordered);
+                // ADR 0026 — the controller has seen and arranged these cards;
+                // they stay known (face-up in the controller's library view) until
+                // a shuffle or a draw moves them. Bottomed / graveyard'd cards are
+                // NOT marked (bottomed = lost into the library; graveyard is
+                // public anyway).
+                grantKnowledge(state, playerId, storedTop, playerId);
+            }
+            return true;
         },
         // ADR 0026 / PRD #338 — stamp persistent knowledge on hidden-zone cards.
         markKnown(

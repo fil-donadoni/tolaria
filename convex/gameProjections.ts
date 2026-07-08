@@ -158,7 +158,15 @@ function hasNonOwnerKnower(card: CardInstanceState): boolean {
  *  viewer: `count` is the full size, `known` carries only the cards where
  *  `viewer ∈ knownTo`, each at its top-relative `index` (0 = top). The owner
  *  does NOT auto-know their own order; gating is purely by `knownTo`. Raw
- *  `knownTo` never crosses the wire (each card is slimmed). */
+ *  `knownTo` never crosses the wire (each card is slimmed).
+ *
+ *  Only the CONTIGUOUS known run from the top is exposed: iteration stops at the
+ *  first position the viewer doesn't know. A card whose `knownTo` survived on
+ *  the instance but which a later reorder/bottoming pushed BELOW an unknown card
+ *  (e.g. a scry-known card sent to the bottom by a subsequent Stock Up) is no
+ *  longer "still on top", so it reads as a face-down back again — the flag
+ *  effectively disappears in the UI without mutating the instance. Cards kept on
+ *  top and merely reordered (Diabolic Vision) stay in the run and stay known. */
 function projectLibrary(
     library: CardInstanceState[],
     viewerId: string
@@ -166,9 +174,8 @@ function projectLibrary(
     const known: KnownLibraryCard[] = [];
     for (let index = 0; index < library.length; index++) {
         const card = library[index];
-        if (card.knownTo?.includes(viewerId)) {
-            known.push({ index, card: slimCard(card) });
-        }
+        if (!card.knownTo?.includes(viewerId)) break;
+        known.push({ index, card: slimCard(card) });
     }
     return { count: library.length, known };
 }
@@ -350,10 +357,13 @@ function computeChoiceExposure(
         isChooser &&
         (head.kind === "reorder-library" ||
             head.kind === "draw-look-keep" ||
-            head.kind === "look-top") &&
+            head.kind === "look-top" ||
+            // order-top (scry/surveil/ponder drag picker, #942) — exposes the
+            // looked-at top N (`candidateIds`) so the picker can render them.
+            head.kind === "order-top") &&
         head.zone === "library";
-    // reorder-library shows `count` cards; draw-look-keep and look-top show all
-    // the looked-at cards named in `candidateIds`.
+    // reorder-library shows `count` cards; draw-look-keep, look-top and
+    // order-top show all the looked-at cards named in `candidateIds`.
     const peekCount = !exposeLibraryPeek
         ? 0
         : head.kind === "reorder-library"

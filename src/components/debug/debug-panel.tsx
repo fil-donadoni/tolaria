@@ -86,27 +86,6 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
-        // Look-at-top-N library dialog (CR 401.4 / 701.42, issue #942): both
-        // "look at the top N of your library and pick among ONLY those N" cards
-        // in hand. Cast Stock Up ({2}{U}) — the dialog reveals EXACTLY the top
-        // five (not the whole library); keep two, the rest go to the bottom.
-        // Cast Preordain ({U}) — the scry dialog reveals EXACTLY the top two
-        // (previously it rendered nothing); put any number on the bottom, then
-        // draw. Three Islands cover both costs; the seeded library cards give
-        // the peek recognizable contents.
-        label: "Look-at-top-N library dialog: Stock Up (5) + Preordain (scry 2) (#942)",
-        cards: [
-            { name: "Stock Up", owner: "me", zone: "hand" },
-            { name: "Preordain", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield", count: 3 },
-            { name: "Black Lotus", owner: "me", zone: "library" },
-            { name: "Grizzly Bears", owner: "me", zone: "library" },
-            { name: "Ancestral Recall", owner: "me", zone: "library" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
         // Copy-on-ETB Bot cast prune (issue #938): a copy-on-ETB spell (Copy
         // Artifact, Clone, Vesuvan Doppelganger, Dance of Many) enters as a copy
         // of a permanent already in play. Casting one with NO permanent it could
@@ -145,6 +124,8 @@ const PRESET_SCENARIOS: PresetScenario[] = [
                 zone: "battlefield",
                 count: 2,
             },
+            { name: "Forest", owner: "me", zone: "battlefield", count: 3 },
+            { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 4,
@@ -197,43 +178,6 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
-        // ICE forced-attack requirement (issue #738): Arcum's Whistle ({3},{T})
-        // targets a non-Wall creature the active player controls. Its
-        // controller may pay {X} (X = the creature's mana value); if they
-        // decline, the creature must attack this turn if able and is destroyed
-        // at the next end step if it didn't. Activate before attackers are
-        // declared. Grizzly Bears is a ready target you control; 4 lands cover
-        // the {3} activation cost. Move to combat and activate the Whistle.
-        label: "ICE forced-attack (Arcum's Whistle) (#738)",
-        cards: [
-            { name: "Arcum's Whistle", owner: "me", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 4,
-    },
-    {
-        // ICE attacker-side blocker reassignment (issue #739): General Jarkeld
-        // ({T}, declare-blockers only) chooses two blocked attacking creatures
-        // and, if each could be blocked by all the other's blockers, moves each
-        // blocker blocking exactly one of them onto the other attacker (CR
-        // 509.1). Solo flow: with the opponent, attack with both opposing
-        // Balduvian Bears; with you (defender), block one Bear with each of your
-        // Balduvian Bears; then in the declare-blockers step activate Jarkeld
-        // targeting the two attackers to swap the blockers. Jarkeld is untapped
-        // and not summoning-sick so its {T} is available.
-        label: "ICE reassign blockers (General Jarkeld) (#739)",
-        cards: [
-            { name: "General Jarkeld", owner: "me", zone: "battlefield" },
-            { name: "Balduvian Bears", owner: "me", zone: "battlefield" },
-            { name: "Balduvian Bears", owner: "me", zone: "battlefield" },
-            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
-            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 4,
-    },
-    {
         // ICE instance leave-watch delayed trigger (issue #731): Kjeldoran
         // Elite Guard's "{T}: Target creature gets +2/+2 until end of turn. When
         // that creature leaves the battlefield this turn, sacrifice this
@@ -254,24 +198,6 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Balduvian Bears", owner: "me", zone: "battlefield" },
         ],
         phase: "BEGINNING_OF_COMBAT",
-        landCount: 4,
-    },
-    {
-        // ICE static per-pip non-mana additional cost (issue #907): Drought
-        // imposes "Sacrifice a Swamp" per BLACK mana symbol on every spell and
-        // activated ability (CR 601.2f / 118.5). Cast Hypnotic Specter
-        // ({1}{B}{B}, two black pips) from hand — you must sacrifice two of your
-        // Swamps to pay, and the cast is illegal if you control too few. Four
-        // Swamps let the tax bite twice with one to spare; extra basics cover
-        // the {1}. (Drought's own upkeep "sacrifice unless you pay {W}{W}" tax
-        // fires on your next upkeep.)
-        label: "ICE static per-pip additional cost (Drought) (#907)",
-        cards: [
-            { name: "Drought", owner: "me", zone: "battlefield" },
-            { name: "Swamp", owner: "me", zone: "battlefield", count: 4 },
-            { name: "Hypnotic Specter", owner: "me", zone: "hand" },
-        ],
-        phase: "PRECOMBAT_MAIN",
         landCount: 4,
     },
     {
@@ -332,22 +258,6 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 5,
-    },
-    {
-        // Gain-control-until-EOT rider (issue #730): Ray of Command steals an
-        // opponent's creature until end of turn (it untaps, gains haste so it
-        // can attack this turn, and taps when control reverts at cleanup).
-        // Magus of the Unseen does the same for an opponent's artifact via a
-        // repeatable {1}{U},{T} ability. Islands cover the {U}/{3}{U} costs.
-        label: "ICE steal-until-EOT (Ray of Command / Magus of the Unseen) (#730)",
-        cards: [
-            { name: "Ray of Command", owner: "me", zone: "hand" },
-            { name: "Magus of the Unseen", owner: "me", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-            { name: "Icy Manipulator", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 4,
     },
     {
         // Filtered counter abilities (issue #736): Mistfolk ("{U}: Counter
@@ -963,30 +873,6 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             },
             { name: "Stifle", owner: "me", zone: "hand" },
             { name: "Island", owner: "me", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Mana ability canActivate gate (CR 602.5b, issue #947): a mana
-        // ability whose own `canActivate` precondition is false must not be
-        // offered as a tappable mana source, and tapping it must never throw
-        // "Invalid mana choice". The un-imprinted Chrome Mox has no
-        // imprinted colour, so `canActivate` is false — confirm it is NOT
-        // highlighted/clickable as a mana source and clicking it does
-        // nothing (no error toast). The imprinted Chrome Mox (seeded with an
-        // `imprint-G` counter, as if a green card had been exiled on ETB) IS
-        // a live mana source — click it to add {G} to the pool.
-        label: "Chrome Mox mana-ability gate: un-imprinted not tappable, imprinted taps for {G} (#947)",
-        cards: [
-            { name: "Chrome Mox", owner: "me", zone: "battlefield" },
-            {
-                name: "Chrome Mox",
-                owner: "me",
-                zone: "battlefield",
-                counters: { "imprint-G": 1 },
-            },
-            { name: "Forest", owner: "me", zone: "library" },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,

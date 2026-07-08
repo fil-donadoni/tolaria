@@ -4,6 +4,7 @@ import type {
     ManaRestriction,
     PhaseReturnCondition,
     PhaseInRider,
+    LibraryDestination,
 } from "../gre/types";
 
 type CardId = string;
@@ -103,6 +104,27 @@ export const DAMAGEABLE_PERMANENT_TYPES = [
     "Creature",
     "Planeswalker",
     "Battle",
+] as const satisfies readonly CardType[];
+
+/** The complete set of permanent card types (CR 300.1) — the card types that
+ *  represent a permanent on the battlefield: artifact, battle, creature,
+ *  enchantment, land, and planeswalker. This is the correct target set for
+ *  "target permanent" of any type (Boomerang, Vindicate, Obelisk of Undoing)
+ *  and for a "permanent card" zone-change test (ECL Moonshadow). Lives in the
+ *  leaf `types` module (no runtime imports) so card sets can reference it
+ *  without forming a registry import cycle. Re-exported from `gre/constants`.
+ *
+ *  NOTE: distinct from `CASTABLE_PERMANENT_TYPES` in `gre/constants`, which
+ *  deliberately EXCLUDES Land because it scopes "types a resolving STACK ITEM
+ *  can become" — lands are never cast (CR 305.1), so never appear on the
+ *  stack. Use this full list wherever CR 300.1 permanence is meant. */
+export const PERMANENT_TYPES = [
+    "Artifact",
+    "Battle",
+    "Creature",
+    "Enchantment",
+    "Land",
+    "Planeswalker",
 ] as const satisfies readonly CardType[];
 
 export type CardSupertype =
@@ -2227,6 +2249,11 @@ export interface SpellContext {
          *  (from `candidateIds`) OR one of these player ids. Used by Cuombajj
          *  Witches ("1 damage to any target of an opponent's choice"). */
         candidatePlayerIds?: string[];
+        /** For `kind: "order-top"` only — the second zone the un-kept looked-at
+         *  cards go to (`library-bottom` scry / `graveyard` surveil / `none`
+         *  order-only). Prefer the higher-level {@link SpellContext.orderTop},
+         *  which raises this choice and applies the split for you. */
+        destination?: LibraryDestination;
     }) => string[] | undefined;
 
     /** Requests an optional yes/no decision with an optional mana cost
@@ -2512,6 +2539,27 @@ export interface SpellContext {
     /** Reorders the top cards of `playerId`'s library so they match the order
      *  given by `orderedIds` (CR 401). All ids must already be in the top N. */
     reorderLibraryTop: (playerId: string, orderedIds: string[]) => void;
+
+    /** The reusable ordered-top primitive behind the drag picker — Scry
+     *  (CR 701.22), Surveil (CR 701.44) and order-only "put them back in any
+     *  order" (Ponder / Index). Looks at the top `n` cards and raises an
+     *  `order-top` `PendingChoice` (projected face-up as `libraryPeek`); on
+     *  resume it puts the KEPT cards back on top in the player's chosen order and
+     *  sends the rest to `destination` (`library-bottom` / `graveyard` / `none`),
+     *  marking the kept cards known to the controller (ADR 0026). Suspend-aware
+     *  like `requestChoice`: returns `false` while waiting for the choice (the
+     *  caller must `return`) and `true` once applied so resolution continues
+     *  (e.g. Preordain's "then draw a card"). Pass a distinct `choiceId` if a
+     *  single step raises more than one. */
+    orderTop: (
+        playerId: string,
+        n: number,
+        opts: {
+            destination: LibraryDestination;
+            prompt?: string;
+            choiceId?: string;
+        }
+    ) => boolean;
 
     /** Grants persistent card knowledge (ADR 0026, PRD #338): adds `knowerId`
      *  to the `knownTo` set of each library/hand card in `cardInstanceIds`

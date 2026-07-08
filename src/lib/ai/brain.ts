@@ -459,6 +459,14 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "reorder-library":
             return bestFirst(candidates).map((c) => c.id);
 
+        // Scry / surveil / ponder ordered-top (CR 701.22/701.44, drag picker):
+        // minimal-legal default (ADR 0016) — keep EVERY looked-at card on top,
+        // best projected value first, so the bot draws its best card next and
+        // sends nothing to the bottom/graveyard (empty `secondZoneIds`). Smart
+        // "bottom the dead cards" scrying is deferred.
+        case "order-top":
+            return bestFirst(candidates).map((c) => c.id);
+
         // Aladdin's Lamp (CR 614): look at the top X, keep the single best
         // card to draw — the rest are bottomed at random by the engine.
         case "draw-look-keep":

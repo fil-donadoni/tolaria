@@ -257,41 +257,44 @@ describe("PlayerLibrary", () => {
         expect(toggle).toHaveBeenCalledWith("t3");
     });
 
-    it("renders the looked-at top N for a look-top pick with a range count (Preordain scry, #942)", () => {
-        // Preordain scries the top two (put 0..2 on the bottom). The picker
-        // renders exactly the two looked-at cards; a 0..2 range must not gate
-        // any of them out of the grid.
+    it("routes an order-top pick (Preordain scry) to the drag picker overlay, not the grid", () => {
+        // Preordain scries the top two via the ordered-top drag picker
+        // (`order-top`, destination `library-bottom`). The picker is a
+        // full-screen overlay — deliberately NOT the click-buffer grid — so the
+        // library pile stays a normal (non-pick) browse pile underneath.
         cardsPileSpy.mockClear();
         const peek = [makeCard("s1"), makeCard("s2")];
         const player = makePlayer({ count: 4 }, {
             libraryPeek: peek,
         } as Partial<Player>);
-        const toggle = vi.fn();
-        renderWithContext(<PlayerLibrary player={player} />, "me", {
-            pendingChoices: [
-                {
-                    stackItemId: "stk",
-                    step: 0,
-                    choiceId: "preordain-scry",
-                    playerId: "me",
-                    kind: "look-top",
-                    zone: "library",
-                    candidateIds: ["s1", "s2"],
-                    count: { min: 0, max: 2 },
-                    prompt: "Scry 2 — choose any number to put on the bottom.",
-                },
-            ],
-            buffer: { ...noopBuffer, toggle },
-        });
+        const { getByText } = renderWithContext(
+            <PlayerLibrary player={player} />,
+            "me",
+            {
+                pendingChoices: [
+                    {
+                        stackItemId: "stk",
+                        step: 0,
+                        choiceId: "preordain-scry",
+                        playerId: "me",
+                        kind: "order-top",
+                        zone: "library",
+                        destination: "library-bottom",
+                        candidateIds: ["s1", "s2"],
+                        count: { min: 0, max: 2 },
+                        prompt: "Scry 2 — keep on top or send to the bottom.",
+                    },
+                ],
+            }
+        );
+        // The drag picker overlay is shown, with the scry (bottom/top) chrome.
+        expect(getByText("Done")).toBeTruthy();
+        expect(getByText("BOTTOM")).toBeTruthy();
+        expect(getByText("TOP")).toBeTruthy();
+        // The library pile is NOT in grid-pick mode for order-top.
         const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
-        expect(pileProps.cards.map((c: CardInstance) => c.id)).toEqual([
-            "s1",
-            "s2",
-        ]);
-        expect(pileProps.isFaceDown).toBe(false);
-        expect(pileProps.layout).toBe("grid");
-        pileProps.onCardClick({ id: "s1" });
-        expect(toggle).toHaveBeenCalledWith("s1");
+        expect(pileProps.forceOpen).toBeFalsy();
+        expect(pileProps.layout).toBe("fan");
     });
 
     it("gates clicks to the candidateIds allow-list on a filtered search (Transmute Artifact)", () => {

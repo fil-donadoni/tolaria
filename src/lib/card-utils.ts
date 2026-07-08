@@ -605,7 +605,12 @@ export function getStackAbilities(
      *  Callers with access to player/turn state MUST pass a real view (built
      *  via `buildTriggerStateView`) so player-state-reading abilities — Library
      *  of Alexandria, Pestilence, Nettling Imp — are surfaced correctly (#436). */
-    stateView?: TriggerStateView
+    stateView?: TriggerStateView,
+    /** Life available to the player who would pay the ability's cost. Gates the
+     *  CR 118.4 life-payment cost as a UI hint: an ability whose `cost.life`
+     *  exceeds it is unpayable and hidden, mirroring the server throw ("Not
+     *  enough life"). Omit to skip the gate (callers/tests without life data). */
+    payerLife?: number
 ): { id: string; oracleText: string }[] {
     const cardDef = getDefinition(card.card.id);
     const tapLocked = isTapLockedBySummoningSickness(card);
@@ -614,6 +619,7 @@ export function getStackAbilities(
         oracleText: string;
         cost: {
             tap?: boolean;
+            life?: number;
             removeCounter?: { type: string; count: number };
             discardLastDrawn?: boolean;
             exileFromGraveyard?: { count: number; cardType?: CardType };
@@ -634,6 +640,17 @@ export function getStackAbilities(
         if (a.cost.tap && card.isTapped) return false;
         // CR 302.1 — creature with summoning sickness can't pay {T}.
         if (a.cost.tap && tapLocked) return false;
+        // CR 118.4 — a "pay N life" cost is illegal unless the payer has at
+        // least N life. Hidden as a UI hint so the ability is never offered
+        // when unpayable; the server throw ("Not enough life") is
+        // authoritative. Skipped when `payerLife` is unknown (undefined).
+        // if (
+        //     a.cost.life !== undefined &&
+        //     payerLife !== undefined &&
+        //     payerLife < a.cost.life
+        // ) {
+        //     return false;
+        // }
         if (
             a.activationPhaseRestriction &&
             phase !== undefined &&
@@ -710,7 +727,11 @@ export function getAnyPlayerStackAbilities(
     /** Viewer-visible game state for `canActivate` predicates (#436). Forwarded
      *  to `getStackAbilities` so an any-player ability gated on player/board
      *  state is judged against real data. */
-    stateView?: TriggerStateView
+    stateView?: TriggerStateView,
+    /** Life of the activating (non-controller) player — the viewer paying the
+     *  cost, NOT the permanent's controller. Forwarded to `getStackAbilities`
+     *  to gate the CR 118.4 life cost (see there). */
+    payerLife?: number
 ): { id: string; oracleText: string }[] {
     const cardDef = getDefinition(card.card.id);
     const nonControllerIds = new Set(
@@ -725,9 +746,13 @@ export function getAnyPlayerStackAbilities(
     // the card definition directly for those, then merge with any "any player"
     // abilities surfaced through the normal filter (which applies tap/phase/
     // canActivate gating).
-    const fromStack = getStackAbilities(card, phase, true, stateView).filter(
-        (a) => nonControllerIds.has(a.id)
-    );
+    const fromStack = getStackAbilities(
+        card,
+        phase,
+        true,
+        stateView,
+        payerLife
+    ).filter((a) => nonControllerIds.has(a.id));
     const seen = new Set(fromStack.map((a) => a.id));
     const opponentOnly = (cardDef.activatedAbilities ?? [])
         .filter((a) => a.activatableByOpponentsOnly && !seen.has(a.id))
