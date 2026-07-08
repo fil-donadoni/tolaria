@@ -2433,6 +2433,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Mill: move the top `count` cards of a player\'s library into their graveyard (CR 701.17, issue #885). A thin declarative skin over the existing `peekLibraryTop` + `moveCardById` primitives (the Millstone / Thought Scour composition), one execution path (ADR 0045): the loop re-reads the LIVE top id each pass and moves it library → graveyard, stopping early when the library empties (CR 701.17a). Deterministic — no player choice, so unlike `scryReorder` it does not suspend. `player` names whose library is milled (an announced target slot — "target player mills N"; the resolving controller; or a forEach `$each`); `count` is the number milled. Split from the `scryReorder` backlog note, which bundled the mill loop with the peek/reorder; the two are orthogonal Ops (one suspends for a choice, one does not).',
     },
     {
+        op: "digToHand",
+        status: "implemented",
+        cr: "401.4",
+        binding:
+            "SpellContext.peekLibraryTop / requestChoice / moveCardById / reorderLibraryTop",
+        note: 'Dig to hand (CR 401.4 "look at", issue #984): look at the top `look` cards of a library, put `take` of them (default 1) into hand, and put the rest on the BOTTOM. A thin declarative skin composed of existing primitives (the Stock Up composition generalized), one execution path (ADR 0045): `peekLibraryTop(look)` reveals the top cards; a single suspending `look-top` `requestChoice` over exactly those ids (candidateIds = the looked-at top N, projected face-up as `libraryPeek` — never the whole hidden library, the `search-library` over-exposure) drives the kept-card pick; the kept cards move library→hand via `moveCardById`; the remaining looked-at cards are bottomed via `reorderLibraryTop`. SUSPENDS like `choice`/`scryReorder` — the pick is consumed internally, no `bind` read by a later Op. The bottom ORDER of the un-kept cards is auto-resolved in look order: Impulse\'s "in any order" (CR 401.4) is a formality — the cards go face-down into the library, unknown, so no arrangement carries strategic value (the auto-resolve-zero-value-choice convention). `player` names whose library; `look` is how many to look at; `take` is how many kept (default 1, clamped to the number looked at). DISTINCT from the exile-and-may-play "impulse draw" (#791): the chosen card enters HAND and the rest go to the bottom — no exile, no play window. Impulse (MMQ) = look 4, take 1.',
+    },
+    {
         op: "preventDamage",
         status: "implemented",
         cr: "615.1",
