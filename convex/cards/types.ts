@@ -1451,21 +1451,31 @@ export interface SpellContext {
      *  (Jeweled Amulet) or instance-restricted to the noted card (Ice Cauldron).
      *  No-op if the source isn't on the battlefield or has no noted mana. */
     addNotedMana: (cardInstanceId: string, playerId: string) => void;
-    /** Cast-from-exile grant (CR 601.3e — Ice Cauldron: "You may cast that card
+    /** Play-from-exile grant (CR 601.3e — Ice Cauldron: "You may cast that card
      *  for as long as it remains exiled"). Flags the card `cardInstanceId` as
-     *  castable from exile by `playerId`; the cast pipeline then accepts it as
-     *  a cast source. Looks the card up in `zoneOwnerId`'s exile (defaults to
+     *  playable from exile by `playerId`; the play/cast pipeline then accepts it
+     *  as a source — casting it if it's a spell, or playing it as a land if it's
+     *  a land (CR 305.2). Looks the card up in `zoneOwnerId`'s exile (defaults to
      *  `playerId` — the historical same-player shape used by Ice
      *  Cauldron/Elkin Bottle/Chrome Mox/Headliner Scarlett's own-zone
      *  impulse-draw). Set `zoneOwnerId` explicitly for a CROSS-PLAYER grant
      *  where the exiled card is owned by someone other than the grantee
      *  (Robber of the Rich: the card is exiled from — and stays owned by —
      *  the defending player, CR 400.7, but the attacking player is granted
-     *  cast permission). No-op if the id isn't in that zone owner's exile. */
+     *  cast permission). No-op if the id isn't in that zone owner's exile.
+     *
+     *  `window` (CR 514.2 / 608.2g) declares the expiry:
+     *    - "while-exiled" (default): open-ended — the permission persists as
+     *      long as the card remains exiled (Ice Cauldron, Robber of the Rich).
+     *    - "this-turn": an impulse window ("play that card this turn" —
+     *      Headliner Scarlett, Expressive Iteration). The permission is revoked
+     *      at the CLEANUP step of the turn it was granted, while the card stays
+     *      exiled. */
     grantCastFromExile: (
         cardInstanceId: string,
         playerId: string,
-        zoneOwnerId?: string
+        zoneOwnerId?: string,
+        window?: "this-turn" | "while-exiled"
     ) => void;
     /** Value chosen for X at cast-time (CR 107.3, 601.2b). 0 if the spell
      *  has no X in its cost. Read by spells like Fireball on resolution. */

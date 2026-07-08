@@ -206,6 +206,12 @@ function compactCard(
     if (card.castableFromExileBy) {
         out.castableFromExileBy = card.castableFromExileBy;
     }
+    // CR 514.2 / 608.2g — the turn-scoped expiry marker for an impulse play
+    // grant (Headliner Scarlett / Expressive Iteration) must survive a save/load
+    // so the cleanup revocation fires on the right turn.
+    if (card.castableFromExileUntilTurn !== undefined) {
+        out.castableFromExileUntilTurn = card.castableFromExileUntilTurn;
+    }
     return out;
 }
 
@@ -417,6 +423,10 @@ function expandCard(
     }
     if (compact.castableFromExileBy) {
         result.castableFromExileBy = compact.castableFromExileBy as string;
+    }
+    if (compact.castableFromExileUntilTurn !== undefined) {
+        result.castableFromExileUntilTurn =
+            compact.castableFromExileUntilTurn as number;
     }
     return result;
 }

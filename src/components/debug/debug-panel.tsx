@@ -46,6 +46,10 @@ type PresetScenario = {
         /** Exile face down (impulse-draw, CR 406.3, ADR 0026 slice 6): a card
          *  in the exile pile known only to its controller. Exile zone only. */
         faceDownExile?: boolean;
+        /** Grant "me" a this-turn play-from-exile permission on an exiled card
+         *  (CR 601.3e / 608.2g, #946): a Play (land) / Cast (spell) affordance
+         *  appears, revoked at the next cleanup. Exile zone only. */
+        castableFromExile?: boolean;
         /** Pre-seed counters (CR 122) on a battlefield permanent — e.g.
          *  `{ "+1/+1": 3 }` (Triskelion) or `{ doom: 2 }` (Armageddon Clock). */
         counters?: Record<string, number>;
@@ -81,6 +85,43 @@ type PresetScenario = {
 };
 
 const PRESET_SCENARIOS: PresetScenario[] = [
+    {
+        // Play-from-exile permission: expiry + land-play (CR 601.3e / 514.2 /
+        // 608.2g / 305.2, issue #946). Headliner Scarlett is in play; a Forest
+        // sits already exiled with an impulse "you may play that card this turn"
+        // grant (as if her upkeep trigger had fired). Two things to verify:
+        //  (1) LAND-PLAY — the exiled Forest shows a "Play" button (not "Cast");
+        //      clicking it plays it as a land (CR 305.2), consuming the land
+        //      drop and entering the battlefield. Previously an exiled land had
+        //      no legal action at all.
+        //  (2) EXPIRY — instead of playing it, pass to your next cleanup: the
+        //      grant lapses (CR 514.2) and the Play button disappears while the
+        //      Forest stays exiled. Previously the grant persisted forever.
+        // The exiled Mountain (a persisted grant — no expiry) stays playable to
+        // contrast the two windows.
+        label: "Play-from-exile: land plays + this-turn grant expires (Headliner Scarlett) (#946)",
+        cards: [
+            {
+                name: "Headliner Scarlett",
+                owner: "me",
+                zone: "battlefield",
+            },
+            {
+                name: "Forest",
+                owner: "me",
+                zone: "exile",
+                faceDownExile: true,
+                castableFromExile: true,
+            },
+            {
+                name: "Grizzly Bears",
+                owner: "me",
+                zone: "library",
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
     {
         // Sacrifice-for-mana dies trigger (CR 603.6 / 700.4 / 605.3a, issue
         // #943): activating Chromatic Star's mana ability ("{1}, {T},

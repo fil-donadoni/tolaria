@@ -186,6 +186,13 @@ export interface CardInstance {
      *  controller — who is in `knownTo` — sees the real identity and this flag,
      *  and may cast it. */
     castableFromExileBy?: string;
+    /** Turn-scoped expiry marker for `castableFromExileBy` (CR 514.2 / 608.2g).
+     *  Present on an impulse "play that card this turn" grant (Headliner
+     *  Scarlett, Expressive Iteration); the grant is revoked at that turn's
+     *  cleanup. Absent for open-ended grants (Ice Cauldron, Robber). Crosses the
+     *  wire via `slimCard`; not read by the client (the projection drops
+     *  `castableFromExileBy` once the grant expires), kept for type parity. */
+    castableFromExileUntilTurn?: number;
     /** Instance id of the battlefield permanent this exiled card is associated
      *  with (the permanent that exiled / holds it). Mechanism-agnostic — set by
      *  the projection for exile-and-return bundles (Banishing Light / Tawnos's

@@ -157,7 +157,7 @@ import {
     applyMeleeUnblockedRider,
 } from "./gre/banding";
 import { checkStateBasedActions } from "./gre/sba";
-import { applyPlayLand } from "./gre/playLand";
+import { applyPlayLand, applyPlayLandFromExile } from "./gre/playLand";
 import {
     applyPendingChoiceSubmit,
     applyMayPaySubmit,
@@ -2421,13 +2421,24 @@ export const playCard = mutation({
         assertNoPendingChoices(state);
         const player = getPlayer(state, args.playerId);
 
-        // Validate: card must be in hand and "play" must be legal
+        // Validate: card must be a legal "play" source. The normal source is a
+        // hand card; CR 601.3e — a LAND in exile carrying a play-from-exile
+        // permission (Headliner Scarlett / Expressive Iteration exiling a land,
+        // "you may play that card this turn") is also a legal play source.
         const cardInHand = player.hand.find(
             (c) => c.id === args.cardInstanceId
         );
-        if (!cardInHand) throw new Error("Card not in hand");
+        const exileLand = cardInHand
+            ? undefined
+            : findCastableExileCard(player, args.cardInstanceId);
+        const playSource = cardInHand ?? exileLand;
+        if (!playSource) throw new Error("Card not in hand");
+        if (exileLand && !exileLand.types.includes("Land")) {
+            // A non-land exile card is cast (announceCast), never played here.
+            throw new Error("Card not in hand");
+        }
         if (!args.skipValidation) {
-            assertLegalAction(state, player, cardInHand, "play");
+            assertLegalAction(state, player, playSource, "play");
         }
 
         // Shared canonical play-land core (CR 305.2 land-drop tracking,
@@ -2437,7 +2448,11 @@ export const playCard = mutation({
         // simulated paths cannot drift. (Pre-fix this mutation skipped
         // `markEnteredThisTurn`, so a Mishra's Factory played and animated the
         // same turn could illegally attack — issue: manland summoning sickness.)
-        applyPlayLand(state, player, args.cardInstanceId);
+        if (exileLand) {
+            applyPlayLandFromExile(state, player, args.cardInstanceId);
+        } else {
+            applyPlayLand(state, player, args.cardInstanceId);
+        }
 
         const nextSeq = gameState.seq + 1;
 
@@ -8248,6 +8263,14 @@ export const debugSetupScenario = mutation({
                  *  is known only to its controller (`knownTo`). Exile zone
                  *  only. */
                 faceDownExile: v.optional(v.boolean()),
+                /** Grant "me" a play-from-exile permission on this exiled card
+                 *  (CR 601.3e / 608.2g, #946): an impulse "you may play that
+                 *  card this turn" window (Headliner Scarlett / Expressive
+                 *  Iteration). Sets `castableFromExileBy` + a this-turn expiry so
+                 *  a Play (land) / Cast (spell) affordance appears, revoked at
+                 *  the next cleanup. Exile zone only; combine with
+                 *  `faceDownExile` for the true impulse look. */
+                castableFromExile: v.optional(v.boolean()),
                 /** Pre-seed counters (CR 122) on a battlefield permanent —
                  *  e.g. `{ "+1/+1": 3 }` for Triskelion or `{ doom: 2 }` for
                  *  Armageddon Clock. Keyed by counter type. Battlefield only. */
@@ -8374,6 +8397,15 @@ export const debugSetupScenario = mutation({
                             "exile",
                             player.id
                         );
+                    }
+                    // #946 (CR 601.3e / 608.2g) — grant "me" a this-turn play-
+                    // from-exile permission so a Play (land) / Cast (spell)
+                    // affordance appears; the current turn stamps the expiry so
+                    // it lapses at cleanup.
+                    if (entry.castableFromExile) {
+                        const exiled = instance as CardInstanceState;
+                        exiled.castableFromExileBy = player.id;
+                        exiled.castableFromExileUntilTurn = state.turn;
                     }
                 } else {
                     if (entry.damageMarked && entry.damageMarked > 0) {

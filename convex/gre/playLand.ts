@@ -114,6 +114,38 @@ export function applyPlayLand(
     return settleEnteredLand(state, player, card, willEnterTapped);
 }
 
+/** CR 305 / 601.3e — play a LAND from exile under a play-from-exile permission
+ *  (Headliner Scarlett / Expressive Iteration exiling a land, "you may play that
+ *  card this turn"). Moves `cardInstanceId` from the player's exile to the
+ *  battlefield and runs the identical land-entry settlement as {@link
+ *  applyPlayLand} (records the CR 305.2 land drop, ETB triggers, SBAs). The
+ *  caller (`playCard`) has already validated the permission (`findCastableExileCard`)
+ *  and the "play" legality (land-drop count, sorcery timing). The stale
+ *  cast-from-exile flags are dropped as the card leaves exile.
+ *
+ *  Scope: the interactive `entersTappedUnlessPay` pay-choice (shock lands, CR
+ *  614.12) is NOT wired for the exile origin — its finalizer sources from hand.
+ *  No shipped impulse card exiles a shock land; a land's own `entersTapped` and
+ *  board replacements (Kismet) still apply via `shouldEnterTapped`. */
+export function applyPlayLandFromExile(
+    state: GameState,
+    player: PlayerState,
+    cardInstanceId: string
+): CardInstanceState | null {
+    const exileCard = player.exile.find((c) => c.id === cardInstanceId);
+    if (!exileCard) return null;
+
+    // CR 614.1c — tapped-on-entry is decided from the PRE-move board.
+    const willEnterTapped = shouldEnterTapped(state, exileCard);
+
+    const card = moveCard(player, cardInstanceId, "exile", "battlefield");
+    // The play-from-exile permission is consumed the moment the card leaves
+    // exile for the battlefield (CR 601.3e); drop the stale flags.
+    delete card.castableFromExileBy;
+    delete card.castableFromExileUntilTurn;
+    return settleEnteredLand(state, player, card, willEnterTapped);
+}
+
 /** Post-move land-entry bookkeeping (steps 2–7 of `applyPlayLand`), shared by
  *  the normal path and the land-entry-choice finalizer so a shock land and a
  *  plain land settle through byte-identical logic. Assumes `card` is already

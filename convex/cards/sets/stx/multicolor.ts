@@ -63,8 +63,10 @@ export const expressiveIteration: CardDefinition = {
         if (handId) ctx.moveCardById(me, handId, "library", "hand");
         if (exileId) {
             ctx.moveCardById(me, exileId, "library", "exile");
-            // CR 601.3e / 608.2g — playable from exile for the rest of the turn.
-            ctx.grantCastFromExile(exileId, me);
+            // CR 601.3e / 608.2g — playable from exile until end of turn: the
+            // "this-turn" window is revoked at CLEANUP (CR 514.2). A land is
+            // played as a land (CR 305.2), a spell is cast.
+            ctx.grantCastFromExile(exileId, me, undefined, "this-turn");
         }
         if (bottomId) {
             // Place the chosen card at the very bottom (CR 401): reorder the

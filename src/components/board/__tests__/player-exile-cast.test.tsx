@@ -30,11 +30,19 @@ vi.mock("@convex/_generated/api", () => ({
         },
     },
 }));
-// Vanilla def — no X, no modes — so the cast commits in one click with no prompt.
-vi.mock("@convex/cards", () => ({
-    getDefinition: () => ({ name: "Brainstorm" }),
-    tryGetDefinition: () => ({ name: "Brainstorm" }),
-}));
+// Vanilla def — no X, no modes — so the cast commits in one click with no
+// prompt. Types drive the Play-vs-Cast affordance (#946): a land def id yields
+// a Land type so ExileCastButton renders "Play" and dispatches playCard.
+vi.mock("@convex/cards", () => {
+    const defFor = (id: string) =>
+        id.includes("land")
+            ? { name: "Forest", types: ["Land"] }
+            : { name: "Brainstorm", types: ["Instant"] };
+    return {
+        getDefinition: (id: string) => defFor(id),
+        tryGetDefinition: (id: string) => defFor(id),
+    };
+});
 // Inert card visuals so the reveal renders without image plumbing.
 vi.mock("../../cards/card-image", () => ({
     default: () => <div data-testid="card-image" />,
@@ -59,6 +67,23 @@ function makeExiledCard(
         castableFromExileBy: "me",
         // The projection attaches legalActions to the viewer's own castable
         // exile card; "cast" present iff the cast is legal+affordable right now.
+        legalActions,
+    };
+}
+
+// #946 — a LAND exiled with play permission (Headliner Scarlett / Expressive
+// Iteration) is PLAYED, not cast. Its projected legalActions carry "play".
+function makeExiledLand(
+    legalActions: CardInstance["legalActions"] = ["play"]
+): CardInstance {
+    return {
+        id: "exiled-land",
+        card: { id: "forest-land-def" },
+        controllerId: "me",
+        ownerId: "me",
+        zone: "exile",
+        isTapped: false,
+        castableFromExileBy: "me",
         legalActions,
     };
 }
@@ -151,6 +176,34 @@ describe("PlayerExile cast-from-exile (#754, CR 601.3e)", () => {
         card.exiledByPermanentId = "cauldron";
         renderExile(makePlayer(card), "me");
         expect(screen.queryByRole("button", { name: "Cast" })).toBeNull();
+    });
+
+    it("offers a Play button (not Cast) on a land exiled with play permission (#946)", () => {
+        renderExile(makePlayer(makeExiledLand()), "me");
+        expect(screen.getByRole("button", { name: "Play" })).toBeTruthy();
+        expect(screen.queryByRole("button", { name: "Cast" })).toBeNull();
+    });
+
+    it("playing a land from exile dispatches playCard via the public mutation (#946)", () => {
+        renderExile(makePlayer(makeExiledLand()), "me");
+        fireEvent.click(screen.getByRole("button", { name: "Play" }));
+        expect(playCard).toHaveBeenCalledTimes(1);
+        expect(playCard.mock.calls[0][0]).toMatchObject({
+            gameId: "game-id",
+            playerId: "me",
+            cardInstanceId: "exiled-land",
+        });
+        expect(announceCast).not.toHaveBeenCalled();
+    });
+
+    it("disables the Play button and dispatches nothing when 'play' is not legal (land drop spent) (#946)", () => {
+        renderExile(makePlayer(makeExiledLand([])), "me");
+        const playBtn = screen.getByRole("button", {
+            name: "Play",
+        }) as HTMLButtonElement;
+        expect(playBtn.disabled).toBe(true);
+        fireEvent.click(playBtn);
+        expect(playCard).not.toHaveBeenCalled();
     });
 
     it("keeps a face-down (opponent-hidden) card castable by its controller", () => {

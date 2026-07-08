@@ -551,6 +551,9 @@ describe("game_state serialize round-trip", () => {
         lion.notedMana = { mana: { R: 1, U: 2 }, castableCardId: "noted-card" };
         // #666 (CR 601.3e) — Ice Cauldron's cast-from-exile permission flag.
         lion.castableFromExileBy = "p1";
+        // #946 (CR 514.2 / 608.2g) — the turn-scoped impulse-play expiry marker
+        // must survive a save/load so cleanup revokes it on the right turn.
+        lion.castableFromExileUntilTurn = 7;
 
         const expanded = expandState(compactState(state));
         const got = expanded.players[1].battlefield[0];
@@ -646,6 +649,7 @@ describe("game_state serialize round-trip", () => {
             castableCardId: "noted-card",
         });
         expect(got.castableFromExileBy).toBe("p1");
+        expect(got.castableFromExileUntilTurn).toBe(7);
     });
 
     it("preserves phasedOut bundles across the round trip (CR 702.26)", () => {

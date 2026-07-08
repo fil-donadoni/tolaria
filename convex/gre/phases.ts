@@ -1875,6 +1875,24 @@ export function finalizeCleanup(state: GameState): void {
         }
     }
 
+    // CR 514.2 / 608.2g — a turn-scoped "play that card from exile this turn"
+    // impulse grant (Headliner Scarlett, Expressive Iteration) expires at the
+    // cleanup step: the card stays exiled but is no longer playable. Revoke it
+    // once the current turn has reached the marked expiry turn. Open-ended
+    // grants (no `castableFromExileUntilTurn` — Ice Cauldron "as long as it
+    // remains exiled"; Robber of the Rich while-source-lives) are untouched.
+    for (const p of state.players) {
+        for (const card of p.exile) {
+            if (
+                card.castableFromExileUntilTurn !== undefined &&
+                state.turn >= card.castableFromExileUntilTurn
+            ) {
+                delete card.castableFromExileBy;
+                delete card.castableFromExileUntilTurn;
+            }
+        }
+    }
+
     // CR 603.7a / 514.2 (issue #731) — an instance leave-watch delayed trigger
     // ("when that creature leaves the battlefield THIS TURN, …") that never
     // fired expires here. Every `leaves-battlefield` instance is this-turn
