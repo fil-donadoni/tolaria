@@ -52,6 +52,31 @@ function freshState(): GameState {
 }
 
 describe("game_state serialize round-trip", () => {
+    // CR 701.21a — a parked SacrificeSelection nests under the already-persisted
+    // pendingCast key, so it must survive the compact/expand round trip intact.
+    it("preserves a parked sacrificeSelection on pendingCast", () => {
+        const state = freshState();
+        const forestId = state.players[0].battlefield[0]?.id ?? "x";
+        state.pendingCast = {
+            playerId: "p1",
+            cardInstanceId: "cast-inst",
+            manaCost: {},
+            sacrificeSelection: {
+                playerId: "p1",
+                reason: "Drought",
+                requirements: [{ filter: { subtypes: ["Swamp"] }, count: 2 }],
+                picked: [forestId],
+            },
+        } as unknown as NonNullable<GameState["pendingCast"]>;
+        const expanded = expandState(compactState(state));
+        expect(expanded.pendingCast?.sacrificeSelection).toEqual({
+            playerId: "p1",
+            reason: "Drought",
+            requirements: [{ filter: { subtypes: ["Swamp"] }, count: 2 }],
+            picked: [forestId],
+        });
+    });
+
     it("re-expands a fresh state to a deeply-equal GameState", () => {
         const state = freshState();
         const compact = compactState(state);

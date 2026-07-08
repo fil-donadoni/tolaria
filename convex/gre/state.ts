@@ -43,6 +43,7 @@ import { getAbilityEffectFn, getResolveFn } from "../cards/effectRegistry";
 import { runDelayedTriggerBody } from "./effects/interpreter";
 import { matchesPermanentFilter } from "../cards/filters";
 import type { Phase, Zone, PhaseReturnCondition } from "./types";
+import type { SacrificeSelection } from "./sacrificeChoice";
 import {
     getActivatedManaColor,
     getBasicLandMana,
@@ -1144,6 +1145,11 @@ export type PendingCast = {
         filter: PermanentFilter;
         pickedId?: string;
     };
+    /** Unified filtered-sacrifice choice for this cast (CR 701.21a): the card's
+     *  own additional sacrifice cost AND any board-wide static additional
+     *  sacrifice (Drought), folded into one selection. `additionalCost` remains
+     *  for the exile branch only. */
+    sacrificeSelection?: SacrificeSelection;
 };
 
 /** Tracks an in-progress activated-ability payment (CR 602.1, 602.2b).
@@ -1181,6 +1187,11 @@ export type PendingActivation = {
         filter: PermanentFilter;
         pickedId?: string;
     };
+    /** Unified filtered-sacrifice choice for this activation (CR 701.21a):
+     *  the ability's own sacrifice cost AND any board-wide static additional
+     *  sacrifice, folded into one selection. Replaces the legacy single-pick
+     *  `sacrificeChoice`. */
+    sacrificeSelection?: SacrificeSelection;
     /** In-progress "exile N cards from a single graveyard" cost picker
      *  (CR 602.1, 118.5, 406 — Night Soil). Set when the ability has
      *  `cost.exileFromGraveyard`. `count`/`cardType` mirror the cost; both
@@ -1740,6 +1751,11 @@ export type GameState = {
         blockedAttackerIds?: string[];
         /** Blocker currently being assigned by the defending player (visible to both clients). */
         pendingBlockerId?: string;
+        /** Parked land-sacrifice attack tax awaiting the attacking player's
+         *  choice (CR 508.1c/1g, 701.21a — Flooded Woodlands, Reclamation).
+         *  Present only while the tax is non-fungible; confirmAttackers
+         *  finalizes once complete. */
+        pendingAttackSacrifice?: SacrificeSelection;
         blockersConfirmed: boolean;
         /** sourceId → { targetId/defenderId: damage } for damage distribution.
          *  A source is any combat-damage dealer: an attacker (targets are its
