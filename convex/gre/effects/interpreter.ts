@@ -297,6 +297,7 @@ function toPermanentFilter(
         supertypes: filter.supertype,
         colors: filter.color,
         isToken: filter.isToken,
+        name: filter.name,
     };
 }
 
@@ -319,6 +320,7 @@ function asFilterArray<T>(value: T | T[] | undefined): T[] | undefined {
  *  `FilterMatchContext.supertypesOf`'s fail-closed default). */
 function matchesCardFilter(
     card: {
+        name?: string;
         types: readonly string[];
         subtypes: readonly string[];
         supertypes?: readonly string[];
@@ -327,6 +329,11 @@ function matchesCardFilter(
     },
     filter: EffectCardFilter
 ): boolean {
+    // CR 201.2 — exact printed-name match ("each other card named Accumulated
+    // Knowledge", issue #985). Fail-closed when the card shape carries no name.
+    if (filter.name !== undefined && card.name !== filter.name) {
+        return false;
+    }
     const types = asFilterArray(filter.type);
     const excludeTypes = asFilterArray(filter.excludeType);
     const subtypes = asFilterArray(filter.subtype);
@@ -373,8 +380,26 @@ function matchesCardFilter(
 /** Counts a declaratively-selected set of cards (ADR 0045 `count` construct,
  *  CR 122 counting). Returns 0 when the controlling player cannot be resolved. */
 function countSet(ctx: SpellContext, spec: EffectCountSpec): number {
-    const playerId = resolvePlayerRef(ctx, spec.controller);
+    // CR 122 — "in all graveyards" (Accumulated Knowledge, issue #985): sum
+    // each player's matching cards. `controller` is ignored in this mode.
+    if (spec.acrossAllPlayers) {
+        return ctx.allPlayerIds.reduce(
+            (sum, pid) => sum + countZoneForPlayer(ctx, pid, spec),
+            0
+        );
+    }
+    const playerId = resolvePlayerRef(ctx, spec.controller!);
     if (playerId === undefined) return 0;
+    return countZoneForPlayer(ctx, playerId, spec);
+}
+
+/** Counts one player's matching cards in the spec's zone (CR 122). Shared by
+ *  the single-player and `acrossAllPlayers` branches of `countSet`. */
+function countZoneForPlayer(
+    ctx: SpellContext,
+    playerId: string,
+    spec: EffectCountSpec
+): number {
     if (spec.zone === "battlefield") {
         return ctx.getBattlefieldIds(playerId, toPermanentFilter(spec.filter))
             .length;

@@ -350,6 +350,147 @@ describe("Effect Script Op: draw (CR 121.1)", () => {
     });
 });
 
+// issue #985 — the `count` value construct generalized with a `name` filter
+// (CR 201.2) and an `acrossAllPlayers` scope (CR 122 "in all graveyards"),
+// consumed by `draw` for a dynamic count (Accumulated Knowledge). This is the
+// new construct usage's permanent test: the interpreter unit path + a
+// wire-format assertion through `projectPublicState`.
+describe("Effect Script value grammar: count by name across all graveyards (CR 122 / 201.2, issue #985)", () => {
+    // A card whose registry NAME is "Accumulated Knowledge", so graveyard
+    // copies are counted by the name filter (getGraveyardCards reads the def).
+    const AK_NAME = "Accumulated Knowledge";
+    const AK_CARD_ID = "test-count-ak-named";
+    registerTokenDefinition({
+        id: AK_CARD_ID,
+        name: AK_NAME,
+        rarity: "common",
+        manaCost: { X: 1, U: 1 },
+        types: ["Instant"],
+    });
+    // A differently-named card that must NOT inflate the count.
+    const OTHER_ID = "test-count-other-named";
+    registerTokenDefinition({
+        id: OTHER_ID,
+        name: "Some Other Instant",
+        rarity: "common",
+        manaCost: { X: 1, U: 1 },
+        types: ["Instant"],
+    });
+
+    const gyCopies = (owner: "p1" | "p2", cardId: string, n: number) =>
+        Array.from({ length: n }, (_, i) =>
+            makeInstance(cardId, {
+                id: `gy-${cardId.slice(-3)}-${owner}-${i}`,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "graveyard",
+            })
+        );
+
+    const bigLibrary = (owner: "p1" | "p2", n: number) =>
+        Array.from({ length: n }, (_, i) =>
+            makeInstance(BEAR_ID, {
+                id: `aklib-${owner}-${i}`,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    // The Accumulated Knowledge script: draw 1, then draw one per copy in ANY
+    // graveyard (name-filtered, all-players scope).
+    const akEffects: EffectOp[] = [
+        { op: "draw", player: "controller", count: 1 },
+        {
+            op: "draw",
+            player: "controller",
+            count: {
+                count: {
+                    zone: "graveyard",
+                    acrossAllPlayers: true,
+                    filter: { name: AK_NAME },
+                },
+            },
+        },
+    ];
+
+    it("draws 1 with no matching cards in any graveyard", () => {
+        const id = registerScript("test-count-ak-zero", akEffects);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: bigLibrary("p1", 5) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.length).toBe(1);
+    });
+
+    it("draws 2 with one copy in the controller's graveyard", () => {
+        const id = registerScript("test-count-ak-one", akEffects);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: bigLibrary("p1", 5),
+                    graveyard: gyCopies("p1", AK_CARD_ID, 1),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.length).toBe(2);
+    });
+
+    it("sums copies across ALL graveyards (CR 122), ignoring other names", () => {
+        const id = registerScript("test-count-ak-all", akEffects);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: bigLibrary("p1", 6),
+                    // 1 AK + 1 non-AK (the non-AK must not count).
+                    graveyard: [
+                        ...gyCopies("p1", AK_CARD_ID, 1),
+                        ...gyCopies("p1", OTHER_ID, 1),
+                    ],
+                }),
+                makePlayer("p2", {
+                    // 2 AK in the OPPONENT's graveyard also count.
+                    graveyard: gyCopies("p2", AK_CARD_ID, 2),
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // draw 1 + (1 + 2) matching copies = 4.
+        expect(state.players[0].hand.length).toBe(4);
+    });
+
+    it("the dynamic-count draw survives projection (wire format)", () => {
+        const id = registerScript("test-count-ak-wire", akEffects);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: bigLibrary("p1", 6),
+                    graveyard: gyCopies("p1", AK_CARD_ID, 1),
+                }),
+                makePlayer("p2", {
+                    graveyard: gyCopies("p2", AK_CARD_ID, 1),
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // draw 1 + 2 matching copies = 3 on the fat state…
+        expect(state.players[0].hand.length).toBe(3);
+        // …and the same count survives the wire projection (the caster sees
+        // their own hand).
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].hand.length).toBe(3);
+    });
+});
+
 describe("Effect Script Op: gainLife (CR 119.3a)", () => {
     it("the selected player gains life", () => {
         const id = registerScript("test-op-gain", [
