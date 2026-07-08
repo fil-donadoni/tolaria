@@ -655,6 +655,7 @@ export const PREMODERN_LEGAL_SETS: readonly string[] = [
     "nem", // Nemesis
     "apc", // Apocalypse
     "ody", // Odyssey
+    "tor", // Torment
     "jud", // Judgment
     "ons", // Onslaught
     "scg", // Scourge

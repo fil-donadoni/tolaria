@@ -3012,6 +3012,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Grim Lavamancer",
+        "scryfallId": "5dd72697-24be-42c7-a6d9-a837bdbd4662",
+        "oracleId": "37445e06-88a1-4e2e-a432-383736c9b977",
+        "firstSet": "tor"
+    },
+    {
         "name": "Grim Monolith",
         "scryfallId": "9ddc9fe1-17c8-4e1d-aeb8-c4214e881280",
         "oracleId": "229d6627-1292-4ae1-8849-b0f956fa6540",
