@@ -398,6 +398,49 @@ describe("getStackAbilities", () => {
         expect(abilities).toHaveLength(1);
         expect(abilities[0].id).toBe("night-soil-make-saproling");
     });
+
+    // CR 118.4 — a "pay N life" activation cost is unpayable when the payer has
+    // fewer than N life. The menu must hide the ability rather than offer it and
+    // let the server throw "Not enough life" at commit time. Griselbrand's
+    // "Pay 7 life: Draw seven cards."
+    describe("life-payment cost affordability (CR 118.4)", () => {
+        const griselbrandId = "b51666ae-2aef-4cb1-9cd4-44aec81530f8";
+        const makeGriselbrand = () =>
+            makeCardInstance({
+                card: { id: griselbrandId },
+                types: ["Creature"],
+            });
+
+        it("hides the ability when the payer has fewer life than the cost", () => {
+            expect(
+                getStackAbilities(
+                    makeGriselbrand(),
+                    undefined,
+                    true,
+                    undefined,
+                    6
+                )
+            ).toHaveLength(0);
+        });
+
+        it("surfaces the ability when the payer has exactly the cost in life", () => {
+            const abilities = getStackAbilities(
+                makeGriselbrand(),
+                undefined,
+                true,
+                undefined,
+                7
+            );
+            expect(abilities).toHaveLength(1);
+            expect(abilities[0].id).toBe("griselbrand-pay-life-draw");
+        });
+
+        it("surfaces the ability when payer life is unknown (gate skipped)", () => {
+            const abilities = getStackAbilities(makeGriselbrand());
+            expect(abilities).toHaveLength(1);
+            expect(abilities[0].id).toBe("griselbrand-pay-life-draw");
+        });
+    });
 });
 
 // ---------------------------------------------------------------------------

@@ -504,7 +504,15 @@ export function useBattlefieldInteraction(player: Player) {
         // Controller-only abilities and mana abilities stay hidden there.
         if (!isMe) {
             if (!viewerHasPriority) return [];
-            return getAnyPlayerStackAbilities(card, phase, stateView);
+            // CR 118.4 — the viewer (not the permanent's controller) pays an
+            // any-player ability's life cost, so gate on the viewer's own life.
+            const viewerLife = allPlayers.find((p) => p.id === playerId)?.life;
+            return getAnyPlayerStackAbilities(
+                card,
+                phase,
+                stateView,
+                viewerLife
+            );
         }
         if (!hasPriority) {
             return [];
@@ -535,7 +543,10 @@ export function useBattlefieldInteraction(player: Player) {
             card,
             phase,
             canDiscardLastDrawn,
-            stateView
+            stateView,
+            // CR 118.4 — controller's own ability: the controller (this `player`,
+            // the viewer on the isMe path) pays the life cost.
+            player.life
         );
         // When a card carries BOTH a mana ability and at least one stack
         // ability (Basalt Monolith, Mana Vault), surface the mana ability as

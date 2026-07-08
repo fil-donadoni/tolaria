@@ -178,22 +178,6 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
-        // ICE forced-attack requirement (issue #738): Arcum's Whistle ({3},{T})
-        // targets a non-Wall creature the active player controls. Its
-        // controller may pay {X} (X = the creature's mana value); if they
-        // decline, the creature must attack this turn if able and is destroyed
-        // at the next end step if it didn't. Activate before attackers are
-        // declared. Grizzly Bears is a ready target you control; 4 lands cover
-        // the {3} activation cost. Move to combat and activate the Whistle.
-        label: "ICE forced-attack (Arcum's Whistle) (#738)",
-        cards: [
-            { name: "Arcum's Whistle", owner: "me", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 4,
-    },
-    {
         // ICE instance leave-watch delayed trigger (issue #731): Kjeldoran
         // Elite Guard's "{T}: Target creature gets +2/+2 until end of turn. When
         // that creature leaves the battlefield this turn, sacrifice this
@@ -274,22 +258,6 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 5,
-    },
-    {
-        // Gain-control-until-EOT rider (issue #730): Ray of Command steals an
-        // opponent's creature until end of turn (it untaps, gains haste so it
-        // can attack this turn, and taps when control reverts at cleanup).
-        // Magus of the Unseen does the same for an opponent's artifact via a
-        // repeatable {1}{U},{T} ability. Islands cover the {U}/{3}{U} costs.
-        label: "ICE steal-until-EOT (Ray of Command / Magus of the Unseen) (#730)",
-        cards: [
-            { name: "Ray of Command", owner: "me", zone: "hand" },
-            { name: "Magus of the Unseen", owner: "me", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-            { name: "Icy Manipulator", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 4,
     },
     {
         // Filtered counter abilities (issue #736): Mistfolk ("{U}: Counter
