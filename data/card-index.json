@@ -234,6 +234,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Annul",
+        "scryfallId": "3f8c73ff-be92-41ca-93a7-76f9823adb38",
+        "oracleId": "d08e9784-75f7-4164-ac48-d06160f8c56b",
+        "firstSet": "usg"
+    },
+    {
         "name": "Anti-Magic Aura",
         "scryfallId": "ff78eef1-efaa-4a12-bf5d-fec83c14aff8",
         "oracleId": "6f78c1e2-e38f-431b-8864-8aad982e9912",
