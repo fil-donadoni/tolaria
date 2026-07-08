@@ -3,7 +3,11 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { ActivatedAbilityContext, CardDefinition } from "../../types";
+import type {
+    ActivatedAbilityContext,
+    CardDefinition,
+    SpellContext,
+} from "../../types";
 import { makeTapForMana } from "../../abilities";
 
 // Ancient Tomb — "{T}: Add {C}{C}. This land deals 2 damage to you."
@@ -93,6 +97,65 @@ export const wasteland: CardDefinition = {
                 excludeSupertypes: "Basic",
             },
             effects: [{ op: "destroy", target: { target: 0 } }],
+        },
+    ],
+};
+
+// Cursed Scroll — {1} Artifact. "{3}, {T}: Choose a card name, then reveal a
+// card at random from your hand. If that card has the chosen name, this
+// artifact deals 2 damage to any target." (CR 201.3 name-a-card, CR 701.20a
+// random reveal, CR 119 damage.) With a one-card hand the random reveal is
+// forced, so the ability reliably deals 2; with more cards the outcome is
+// probabilistic per the random pick.
+//
+// PROTOCOL CARD — resolve() justified (DSL-first exception, ADR 0045): the
+// effect chains an open name-a-card choice (`requestNameCard`; the DSL
+// `nameCard` Op is only `planned`), a RANDOM reveal from hand
+// (`revealRandomHandCard`), and a RUNTIME name comparison
+// (`getCardName === named`) that gates the damage. Reading a randomly-revealed
+// card's name back into a conditional is not expressible with the current Op
+// vocabulary (mirrors Petra Sphinx, which stays resolve() for the same
+// name-choice-then-compare reason). The random reveal draws from the seeded
+// PRNG exactly once, in this final non-suspending segment (after the
+// requestNameCard suspension), so it is replay-safe.
+export const cursedScroll: CardDefinition = {
+    id: "31415b9b-fb30-4132-a9a3-795b4573a901",
+    rarity: "rare",
+    name: "Cursed Scroll",
+    oracleText:
+        "{3}, {T}: Choose a card name, then reveal a card at random from your hand. If that card has the chosen name, this artifact deals 2 damage to any target.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "cursed-scroll-ping",
+            oracleText:
+                "{3}, {T}: Choose a card name, then reveal a card at random from your hand. If that card has the chosen name, this artifact deals 2 damage to any target.",
+            cost: { tap: true, mana: { X: 3 } },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const target = ctx.targets[0];
+                // CR 201.3 — the controller names a card. Suspends until the
+                // name is submitted via `submitNameCard`; the closure re-runs
+                // from the top on resume with the stored name.
+                const named = ctx.requestNameCard({
+                    playerId: ctx.controller,
+                    choiceId: "cursed-scroll-name",
+                    prompt: "Choose a card name.",
+                });
+                if (named === undefined) return; // suspended on the name choice
+                // CR 701.20a — reveal a card at random from your hand. Drawn
+                // once here, after the suspension, so it is not re-rolled on
+                // the replayed step. Empty hand → nothing revealed (CR 608.2b).
+                const revealedId = ctx.revealRandomHandCard(ctx.controller);
+                if (revealedId === undefined) return;
+                // CR 201.2 — exact name match (registry-canonical casing).
+                if (ctx.getCardName(revealedId) === named && target) {
+                    // CR 119 — 2 damage to the announced any-target.
+                    ctx.dealDamage(target, 2);
+                }
+            },
         },
     ],
 };

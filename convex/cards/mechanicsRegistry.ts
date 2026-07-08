@@ -216,7 +216,9 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         name: "Mill",
         kind: "keyword-action",
         cr: "701.17",
-        status: "planned",
+        status: "implemented",
+        binding:
+            "EFFECT_OP_REGISTRY `mill` Op → SpellContext.peekLibraryTop + moveCardById (library → graveyard loop, issue #885)",
     },
     // 701.18 Play
     {
@@ -897,7 +899,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Echo",
         kind: "keyword-ability",
         cr: "702.30",
-        status: "planned",
+        status: "implemented",
+        binding: "echo",
+        note: 'convex/cards/abilities/echo.ts (CR 702.30) + `echoPending` instance flag (state.ts); cards declare `staticAbilities: ["echo"]` (ETB flag) and `echoTrigger(...)`. Used in usg/red.ts (Goblin Patrol).',
     },
     // 702.31 Horsemanship
     {
@@ -2413,6 +2417,22 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Shuffle a player\'s library (CR 701.20, issue #844). A thin declarative skin over the SpellContext primitive `shuffleLibrary`, one execution path (ADR 0045): `action: "shuffle"` → shuffleLibrary (the seeded PRNG reorder that also clears every card\'s persistent knowledge, ADR 0026 — the "then shuffle" tail of a tutor, Winds of Change / Timetwister-style whole-deck randomization). `player` names whose library: the resolving controller (`"controller"`), an announced target-slot player (`{ target: N }`), or a forEach `$each` (a per-player shuffle). SCOPE (issue #844): only the `shuffle` primitive is folded — it is the one CR 401 / 701.20 library primitive expressible as a pure declarative Op (no runtime value read back into the effect). The classifier proposed folding `peekLibraryTop` / `reorderLibraryTop` too, but every closure that calls them either reads an opaque `choice` result back into `reorderLibraryTop` (Ponder, Preordain, Portent, Drafna\'s Restoration — a reorder-FROM-choice the DSL can\'t yet express) or drives a mill loop off the live top id (Millstone, Thought Scour, Ray of Erasure, Deep Spawn — needs a `mill` Op). Those two primitives stay a `planned` backlog Op (`scryReorder`) until a choice-driven reorder / mill construct exists. See `scripts/migration-classifier.mjs` OP_SEQUENCE.',
     },
     {
+        op: "scryReorder",
+        status: "implemented",
+        cr: "701.22",
+        mechanicId: "scry",
+        binding: "SpellContext.orderTop",
+        note: "Look at / reorder the top of a library (CR 401.4 look, CR 701.22 Scry, CR 701.44 Surveil, order-only; issue #885). A thin declarative skin over the single SpellContext primitive `orderTop` — the reusable drag-picker the imperative scry/surveil/put-back cards already share — one execution path (ADR 0045). SUSPENDS like `choice`/`mayPay`: the first execution raises the `order-top` PendingChoice on the top `count` cards (projected face-up as `libraryPeek`); on resume the KEPT cards return to the top in the chooser's order and the un-kept cards go to `destination` (`library-bottom` = Scry, Preordain; `graveyard` = Surveil; `none` = order-only, Ponder). The reorder-FROM-choice half deferred out of libraryLook (issue #844): its pick is consumed internally by `orderTop`, so there is no `bind` read by a later Op. The mill loop the same backlog note bundled ships as the separate `mill` Op below (a deterministic move, no choice).",
+    },
+    {
+        op: "mill",
+        status: "implemented",
+        cr: "701.17",
+        mechanicId: "mill",
+        binding: "SpellContext.peekLibraryTop / moveCardById",
+        note: 'Mill: move the top `count` cards of a player\'s library into their graveyard (CR 701.17, issue #885). A thin declarative skin over the existing `peekLibraryTop` + `moveCardById` primitives (the Millstone / Thought Scour composition), one execution path (ADR 0045): the loop re-reads the LIVE top id each pass and moves it library → graveyard, stopping early when the library empties (CR 701.17a). Deterministic — no player choice, so unlike `scryReorder` it does not suspend. `player` names whose library is milled (an announced target slot — "target player mills N"; the resolving controller; or a forEach `$each`); `count` is the number milled. Split from the `scryReorder` backlog note, which bundled the mill loop with the peek/reorder; the two are orthogonal Ops (one suspends for a choice, one does not).',
+    },
+    {
         op: "preventDamage",
         status: "implemented",
         cr: "615.1",
@@ -2524,14 +2544,11 @@ export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // libraryLook SHIPPED (issue #844) — shuffleLibrary is now COVERED live
     // via EFFECT_OP_REGISTRY; row moved there with status "implemented". Only
     // the shuffle primitive was folded (the one pure declarative library
-    // primitive); peekLibraryTop / reorderLibraryTop stay backlogged as
-    // scryReorder below.
-    {
-        op: "scryReorder",
-        status: "planned",
-        cr: "701.22",
-        note: "Look at / reorder the top of a library (CR 401.4 look, CR 701.22 Scry, mill). Folds SpellContext.peekLibraryTop / reorderLibraryTop (~20 blocked closures). Deferred out of libraryLook (issue #844): every current caller reads an opaque `choice` result back into `reorderLibraryTop` (a reorder-FROM-choice — Ponder, Preordain, Portent, Drafna's Restoration) or drives a mill loop off the live top id (Millstone, Thought Scour, Ray of Erasure, Deep Spawn). Needs a choice-driven reorder construct and/or a `mill` Op before it is a pure declarative skin.",
-    },
+    // primitive); peekLibraryTop / reorderLibraryTop stayed backlogged as
+    // scryReorder — which SHIPPED (issue #885) as TWO orthogonal Ops now live
+    // in EFFECT_OP_REGISTRY: `scryReorder` (the choice-driven look/reorder skin
+    // over SpellContext.orderTop — Ponder, Preordain, Surveil) and `mill` (the
+    // deterministic library→graveyard loop — Millstone, Thought Scour).
     // preventDamage SHIPPED (issue #845) — preventNextNDamageToTarget /
     // preventAllCombatDamage / preventAllCombatDamageToAndBy are now COVERED
     // live via EFFECT_OP_REGISTRY; row moved there with status "implemented".

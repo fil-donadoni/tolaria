@@ -332,10 +332,11 @@ export const feldonsCane: CardDefinition = {
 };
 
 // Millstone — {2} Artifact. "{2}, {T}: Target player mills two cards." (CR
-// 701.13a mill — put the top N cards of a library into its owner's graveyard;
-// CR 400.7 zone change.) Composition: move the top card library → graveyard,
-// twice (moveCardById on the live top id each iteration), via the {2}+tap
-// activated ability. Mill stops naturally when the library empties.
+// 701.17 mill — put the top N cards of a library into its owner's graveyard.)
+// Authored DSL-first as an Effect Script (ADR 0045, issue #885): the {2}+tap
+// activated ability's `mill` Op mills the announced target player two cards
+// (re-reading the live top id each pass; stops naturally when the library
+// empties, CR 701.17a).
 export const millstone: CardDefinition = {
     id: "107646bc-2181-49f4-8821-1eaa46291855",
     rarity: "uncommon",
@@ -350,17 +351,7 @@ export const millstone: CardDefinition = {
             cost: { tap: true, mana: { X: 2 } },
             useStack: true,
             targetRequirement: { type: "player", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const target = ctx.targets[0];
-                if (target?.type !== "player") return;
-                // Mill two: move the current top card to the graveyard twice
-                // (CR 701.13a). Re-read the top id each pass; no-op once empty.
-                for (let i = 0; i < 2; i++) {
-                    const top = ctx.peekLibraryTop(target.id, 1);
-                    if (top.length === 0) break;
-                    ctx.moveCardById(target.id, top[0], "library", "graveyard");
-                }
-            },
+            effects: [{ op: "mill", player: { target: 0 }, count: 2 }],
         },
     ],
 };

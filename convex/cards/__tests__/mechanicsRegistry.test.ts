@@ -104,6 +104,9 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
         ["indestructible", "702.12", "indestructible"],
         ["banding", "702.22", "banding"],
         ["cumulative-upkeep", "702.24", "cumulative-upkeep"],
+        // #990 — echo: at the controller's first upkeep after it comes under
+        // control, sacrifice it unless the echo cost is paid (CR 702.30a).
+        ["echo", "702.30", "echo"],
         ["haste", "702.10", "haste"],
         // #958 — hexproof: a permanent can't be targeted by spells/abilities its
         // controller's opponents control (CR 702.11b), bridged from the keyword
@@ -278,7 +281,11 @@ describe("Effect Script Op census (ADR 0045/0046, PRD #826)", () => {
         // repeat/doubling loops stay resolve()). Migrating Goblin Kites surfaced
         // a new gap: `sacrificeObject` (sacrifice a single bound object) is a
         // planned backlog stub.
-        const named = ["scryReorder", "createTokenCopy", "sacrificeObject"];
+        // `scryReorder` (issue #885) SHIPPED — moved to EFFECT_OP_REGISTRY as
+        // two orthogonal Ops (`scryReorder` = the choice-driven look/reorder
+        // skin over orderTop; `mill` = the deterministic library→graveyard
+        // loop); no longer a backlog reservation.
+        const named = ["createTokenCopy", "sacrificeObject"];
         const backlog = new Set(EFFECT_OP_BACKLOG.map((r) => r.op));
         for (const op of named) expect(backlog.has(op), op).toBe(true);
         // …plus low-frequency long-tail reservations beyond the named set.

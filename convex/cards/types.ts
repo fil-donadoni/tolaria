@@ -2357,6 +2357,20 @@ export interface SpellContext {
      *  Used to compare a revealed card against a named card (Petra Sphinx). */
     getCardName: (cardInstanceId: string) => string | undefined;
 
+    /** Reveals ONE card chosen uniformly at random from `playerId`'s hand
+     *  (CR 701.20a reveal), using the game's seeded PRNG so replays reproduce
+     *  the same pick, exactly like `flipCoin` / `discardAtRandom`. The picked
+     *  card is stamped known-to-all (`markKnownToAll`) so the wire projection
+     *  shows the real card, and a one-shot reveal notification is enqueued for
+     *  both players. Returns the revealed instance id (compare its name with
+     *  `getCardName`), or undefined when the hand is empty (CR 608.2b — nothing
+     *  is revealed). MUST be called only in the final, non-suspending segment
+     *  of a resolution (draw the bit exactly once): call it AFTER any
+     *  `requestNameCard` / `requestChoice` suspension so the random draw is not
+     *  re-rolled on the replayed step. Used by Cursed Scroll ("reveal a card at
+     *  random from your hand"). */
+    revealRandomHandCard: (playerId: string) => string | undefined;
+
     /** Reads back an answer collected by an EARLIER resolution step of the same
      *  stack item (CR 608.2 stepped resolution). `requestChoice` /
      *  `requestMayPay` key their answers under `${step}:${choiceId}`, so a later
@@ -2504,6 +2518,12 @@ export interface SpellContext {
     /** Sacrifices a permanent controlled by its current controller (CR 701.16).
      *  No-op if the id is not on the battlefield. */
     sacrifice: (cardInstanceId: string) => void;
+    /** CR 702.30a — Echo: clears the resolving trigger source's `echoPending`
+     *  flag once its echo cost has been paid, so the echo trigger's
+     *  intervening-if never fires again on a later upkeep. No-op if the source
+     *  has left the battlefield. Called only by the echo trigger template
+     *  (`abilities/echo.ts`). */
+    markEchoPaid: () => void;
 
     /** Discards a specific card from `playerId`'s hand (CR 701.8). No-op if
      *  the card is no longer in hand. */
@@ -2955,6 +2975,12 @@ export interface PermanentView {
      *  The trigger system passes the raw `CardInstanceState` as `self`, so this
      *  flag is populated for trigger predicates. */
     isSummoningSick?: boolean;
+    /** CR 702.30a — Echo: true while this permanent still owes its echo cost
+     *  (it came under its controller's control and has not yet had its first
+     *  upkeep under that control). Read by the echo trigger's CR 603.4d
+     *  intervening-if; the trigger system passes the raw `CardInstanceState`
+     *  as `self`, so this flag is populated for trigger predicates. */
+    echoPending?: boolean;
     /** One-shot P/T modifications scoped to a phase boundary (CR 611.1, 611.2).
      *  Each entry adds to `power`/`toughness` at read time; the engine purges
      *  entries whose `duration` has expired during phase-boundary cleanup
@@ -5389,6 +5415,44 @@ export type EffectOp =
           op: "libraryLook";
           action: "shuffle";
           player: EffectPlayerRef;
+      }
+    /** CR 401.4 look / CR 701.22 Scry / 701.44 Surveil / order-only (issue
+     *  #885) — look at the top `count` cards of a library, then reorder / place
+     *  them per `destination`. A thin declarative skin over the single
+     *  SpellContext primitive `orderTop` (the reusable drag-picker behind Scry /
+     *  Surveil / "put them back in any order"), one execution path (ADR 0045).
+     *  Like `choice` / `mayPay` this Op SUSPENDS: the first execution raises the
+     *  `order-top` PendingChoice (projected face-up as `libraryPeek`), and on
+     *  resume `orderTop` puts the KEPT cards back on top in the chooser's order
+     *  and sends the un-kept cards to `destination`, marking the kept cards
+     *  known to the controller (ADR 0026). The reorder-FROM-choice construct the
+     *  scryReorder backlog Op reserved (Ponder = `"none"`, Preordain = Scry 2 =
+     *  `"library-bottom"`, a Surveil = `"graveyard"`). `player` names whose
+     *  library (the resolving controller, an announced target slot, or a forEach
+     *  `$each`); `count` is how many top cards to look at (a non-positive count
+     *  or an empty library is a no-op, CR 608.2b). No `bind` — the pick is
+     *  consumed internally by `orderTop`, not read by a later Op. */
+    | {
+          op: "scryReorder";
+          player: EffectPlayerRef;
+          count: EffectValue;
+          destination: LibraryDestination;
+          prompt?: string;
+      }
+    /** CR 701.17 (issue #885) — mill: move the top `count` cards of a player's
+     *  library into their graveyard. A thin declarative skin over the existing
+     *  `peekLibraryTop` + `moveCardById` primitives, one execution path (ADR
+     *  0045): the mill loop reads the LIVE top id each pass and moves it library
+     *  → graveyard, stopping early when the library empties (CR 701.17a — mill
+     *  fewer if not enough cards). `player` names whose library is milled (an
+     *  announced target slot — "target player mills N", Thought Scour /
+     *  Millstone; the resolving controller; or a forEach `$each`); `count` is
+     *  how many cards to mill (a non-positive count is a no-op, CR 608.2b).
+     *  Deterministic — no player choice, unlike `scryReorder`. */
+    | {
+          op: "mill";
+          player: EffectPlayerRef;
+          count: EffectValue;
       }
     /** CR 615 (issue #845) — establish a damage-prevention shield. A thin
      *  declarative skin over three SpellContext prevention primitives, one

@@ -7221,3 +7221,395 @@ describe("Effect Script: reveal→discard keeps knowledge of the remaining hand 
         expect(slim).toBeTruthy();
     });
 });
+
+// --- scryReorder Op: look / reorder the top of a library (CR 401.4 / 701.22 /
+// 701.44, issue #885) ---------------------------------------------------------
+// scryReorder is the declarative skin over `SpellContext.orderTop`. Like
+// `choice` it SUSPENDS: the first resolution raises the `order-top`
+// PendingChoice on the top `count` cards; the generic `submitResolutionChoice`
+// path (`applyPendingChoiceSubmit`) commits the kept order + the un-kept split,
+// and resolution resumes AT the Op (later Ops — e.g. the draw — then run).
+
+describe("Effect Script Op: scryReorder (CR 401.4 / 701.22 / 701.44, issue #885)", () => {
+    const libOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    it("scry (library-bottom): suspends with an order-top choice, then keeps/bottoms and continues to the draw", () => {
+        const id = registerScript("test-op-scry-bottom", [
+            {
+                op: "scryReorder",
+                player: "controller",
+                count: 2,
+                destination: "library-bottom",
+                prompt: "Scry 2.",
+            },
+            { op: "draw", player: "controller", count: 1 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", ["a", "b", "c", "d"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the scry
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("order-top");
+        expect(head.destination).toBe("library-bottom");
+        expect(head.playerId).toBe("p1");
+        expect(head.candidateIds).toEqual(["a", "b"]);
+        expect(head.prompt).toBe("Scry 2.");
+        // CR 608.3 — the spell stays on the stack while suspended.
+        expect(state.stack).toHaveLength(1);
+
+        // Keep "b" on top, send "a" to the bottom.
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["b"],
+            secondZoneIds: ["a"],
+        });
+        // "b" was on top → it is drawn; "a" is now at the true bottom.
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["b"]);
+        const libIds = state.players[0].library.map((c) => c.id);
+        expect(libIds[libIds.length - 1]).toBe("a");
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices).toBeUndefined();
+    });
+
+    it("order-only (none): reorders the kept cards on top, all staying in the library (Ponder shape)", () => {
+        const id = registerScript("test-op-scry-none", [
+            {
+                op: "scryReorder",
+                player: "controller",
+                count: 3,
+                destination: "none",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", ["a", "b", "c", "d"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.destination).toBe("none");
+        expect(head.candidateIds).toEqual(["a", "b", "c"]);
+        // Put them back reversed (c, b, a); nothing leaves the top.
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["c", "b", "a"],
+            secondZoneIds: [],
+        });
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "c",
+            "b",
+            "a",
+            "d",
+        ]);
+        // The looked-at cards are known to the controller (ADR 0026).
+        expect(state.players[0].library[0].knownTo).toContain("p1");
+    });
+
+    it("surveil (graveyard): the un-kept cards go to the graveyard, kept stay on top", () => {
+        const id = registerScript("test-op-scry-gy", [
+            {
+                op: "scryReorder",
+                player: "controller",
+                count: 2,
+                destination: "graveyard",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b", "c"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.destination).toBe("graveyard");
+        // Keep "a", surveil "b" into the graveyard.
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["a"],
+            secondZoneIds: ["b"],
+        });
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("b");
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["a", "c"]);
+    });
+
+    it("targets an announced player (player: { target })", () => {
+        const id = registerScript(
+            "test-op-scry-target",
+            [
+                {
+                    op: "scryReorder",
+                    player: { target: 0 },
+                    count: 2,
+                    destination: "library-bottom",
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { library: libOf("p2", ["x", "y", "z"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p2");
+        expect(head.candidateIds).toEqual(["x", "y"]);
+    });
+
+    it("no-ops on an empty library and on count <= 0 (CR 608.2b) — never suspends", () => {
+        const idEmpty = registerScript("test-op-scry-empty", [
+            {
+                op: "scryReorder",
+                player: "controller",
+                count: 2,
+                destination: "library-bottom",
+            },
+            { op: "gainLife", player: "controller", amount: 3 },
+        ]);
+        const empty = makeState();
+        pushSpell(empty, idEmpty, "p1");
+        expect(resolveTopOfStack(empty)).not.toBeNull(); // no suspension
+        expect(empty.pendingChoices ?? []).toHaveLength(0);
+        // The following Op still ran.
+        expect(empty.players[0].life).toBe(23);
+
+        const idZero = registerScript("test-op-scry-zero", [
+            {
+                op: "scryReorder",
+                player: "controller",
+                count: 0,
+                destination: "none",
+            },
+        ]);
+        const zero = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(zero, idZero, "p1");
+        expect(resolveTopOfStack(zero)).not.toBeNull();
+        expect(zero.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    it("an Op before the scryReorder never re-runs on resume (CR 608.3 checkpoint)", () => {
+        const id = registerScript("test-op-scry-checkpoint", [
+            { op: "draw", player: "controller", count: 1 },
+            {
+                op: "scryReorder",
+                player: "controller",
+                count: 1,
+                destination: "library-bottom",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b", "c"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state); // draws "a", then suspends on the scry of "b"
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["a"]);
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["b"],
+            secondZoneIds: [],
+        });
+        // The draw did NOT run a second time — still exactly one card in hand.
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["a"]);
+    });
+
+    it("wire format: the chooser sees exactly the looked-at cards as libraryPeek; the outcome survives projection", () => {
+        const id = registerScript("test-op-scry-wire", [
+            {
+                op: "scryReorder",
+                player: "controller",
+                count: 2,
+                destination: "library-bottom",
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", ["a", "b", "c", "d"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state); // suspends
+
+        // Chooser's projected view: exactly the top two are face-up.
+        const chooserView = projectPublicState(state, 1, "p1");
+        expect(chooserView.players[0].libraryPeek?.map((c) => c.id)).toEqual([
+            "a",
+            "b",
+        ]);
+        // Opponent's projected view: no leak.
+        const oppView = projectPublicState(state, 1, "p2");
+        expect(oppView.players[0].libraryPeek).toBeUndefined();
+
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["b"],
+            secondZoneIds: ["a"],
+        });
+        // The library reshuffle survives projection: "a" is on the bottom.
+        const post = projectPublicState(state, 1, "p1");
+        expect(post.players[0].library.count).toBe(4);
+    });
+});
+
+// --- mill Op: move top-of-library cards to the graveyard (CR 701.17, issue
+// #885) ------------------------------------------------------------------------
+// mill is deterministic (no choice, no suspension): it re-reads the live top id
+// each pass and moves it library → graveyard, stopping when the library empties.
+
+describe("Effect Script Op: mill (CR 701.17, issue #885)", () => {
+    const libOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    it("mills N cards off the top of an announced target player's library", () => {
+        const id = registerScript(
+            "test-op-mill-target",
+            [{ op: "mill", player: { target: 0 }, count: 2 }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    library: libOf("p2", ["a", "b", "c", "d"]),
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["a", "b"]);
+        expect(state.players[1].library.map((c) => c.id)).toEqual(["c", "d"]);
+    });
+
+    it("mills the resolving controller's own library", () => {
+        const id = registerScript("test-op-mill-controller", [
+            { op: "mill", player: "controller", count: 1 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // "a" was milled into p1's graveyard (the resolved sorcery lands there
+        // too, CR 608.2k — so assert containment, not exact equality).
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain("a");
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["b"]);
+    });
+
+    it("mills fewer than requested when the library runs out (CR 701.17a)", () => {
+        const id = registerScript(
+            "test-op-mill-short",
+            [{ op: "mill", player: { target: 0 }, count: 5 }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { library: libOf("p2", ["a", "b"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["a", "b"]);
+        expect(state.players[1].library).toHaveLength(0);
+    });
+
+    it("no-ops on count <= 0 and on a non-player target (CR 608.2b)", () => {
+        const idZero = registerScript(
+            "test-op-mill-zero",
+            [{ op: "mill", player: { target: 0 }, count: 0 }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { library: libOf("p2", ["a", "b"]) }),
+            ],
+        });
+        pushSpell(state, idZero, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].graveyard).toHaveLength(0);
+        expect(state.players[1].library).toHaveLength(2);
+    });
+
+    it("wire format: the milled cards land in the graveyard and the library count drops after projection", () => {
+        const id = registerScript(
+            "test-op-mill-wire",
+            [{ op: "mill", player: { target: 0 }, count: 2 }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { library: libOf("p2", ["a", "b", "c"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        // Graveyard is a public zone — the milled cards are face-up on the wire.
+        expect(projected.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "a",
+            "b",
+        ]);
+        expect(projected.players[1].library.count).toBe(1);
+    });
+});

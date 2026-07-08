@@ -449,28 +449,56 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // sets/lea/__tests__/red.test.ts). Consecrate Land's "can't be
         // enchanted" clause is data (a permanent-guard staticEffect) — no
         // closure change. Net from the fixup: total 643→644, FREE 400→401,
-        // AFK-ready 367→368, Op-blocked and X-only unchanged. Values below are
-        // the true post-change totals, reconciled by re-running
+        // AFK-ready 367→368, Op-blocked and X-only unchanged.
+        // #885 (scryReorder / mill Ops SHIPPED) MIGRATED four resolve() /
+        // resolveSteps closures to effects[] — Preordain + Ponder (the
+        // `scryReorder` skin over orderTop) and Thought Scour + Millstone (the
+        // `mill` library→graveyard loop) all leave the closure census. All four
+        // were Op-blocked on the (then-planned) scryReorder Op, so the drop
+        // lands in Op-blocked (229→223, minus the six closures those four cards'
+        // multi-step bodies contributed — reconciled by re-running the
+        // classifier, not hand-added); FREE rose 401→403 / AFK-ready 368→370 as
+        // peekLibraryTop / orderTop became Covered Ops and unblocked their
+        // dependents. Net from #885: total 644→640. Values below are the true
+        // post-change totals, reconciled by re-running
         // `bun scripts/migration-classifier.mjs` against the merged tree rather
         // than hand-added.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(644);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(401);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(368);
+        // #993 (Chain of Vapor — ons/blue.ts) net-ADDED one protocol
+        // resolveSteps closure: its "return target nonland permanent, then that
+        // permanent's controller may sacrifice a land to copy this spell and
+        // retarget" chain has no DSL Op (the copy-resolving-spell primitive,
+        // shared with Chain Lightning), so it lands Op-blocked.
+        // #991 (Cursed Scroll) net-ADDED one more protocol resolve() closure —
+        // a name-a-card + random-reveal-from-hand + runtime-name-compare
+        // ability blocked on the `nameCard` planned Op, also landing in the
+        // Op-blocked bucket. BOTH #993 and #991 add one Op-blocked closure:
+        // over the base that is total 644→646, Op-blocked 229→231.
+        // MERGE (rebase of #885 onto main): #885's four migrations (Preordain +
+        // Ponder + Thought Scour + Millstone leaving the closure census) stack
+        // ON TOP of #993 + #991: total 646→642 (−4), FREE 401→403 (+2),
+        // AFK-ready 368→370 (+2), Op-blocked 231→225 (−6), X-only unchanged.
+        // Values below are the true post-merge totals, reconciled by re-running
+        // `bun scripts/migration-classifier.mjs` against the combined tree,
+        // never hand-added.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(642);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(403);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(370);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(229);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(225);
     });
 
-    it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {
-        // pump (#840), counters (#841), tapUntap (#842), grantAbility (#843)
-        // and now regenerate (#846) SHIPPED: addTemporaryPTBuff, addCounter /
-        // removeCounter, tap / untap, grantStaticAbility and
-        // applyRegenerationShield are now COVERED Ops (they appear in the
-        // "Covered Ops" line, no longer in the backlog). The most-blocking
-        // remaining primitive is peekLibraryTop (the scryReorder backlog Op) —
-        // a stable signal that the Op backlog is being read.
+    it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
+        // pump (#840), counters (#841), tapUntap (#842), grantAbility (#843),
+        // regenerate (#846) and now scryReorder / mill (#885) SHIPPED:
+        // addTemporaryPTBuff, addCounter / removeCounter, tap / untap,
+        // grantStaticAbility, applyRegenerationShield and now
+        // peekLibraryTop / orderTop are COVERED Ops (they appear in the "Covered
+        // Ops" line, no longer in the backlog). peekLibraryTop was the top
+        // blocker before #885; the backlog still surfaces the next primitives
+        // (moveZone / markKnown / …), a stable signal that it is being read.
         expect(summary).toMatch(/New-Op backlog/);
-        expect(summary).toMatch(/peekLibraryTop/);
         expect(summary).toMatch(/Covered Ops[^\n]*applyRegenerationShield/);
+        expect(summary).toMatch(/Covered Ops[^\n]*peekLibraryTop/);
     });
 });
 
@@ -486,13 +514,16 @@ describe("migration classifier — known-card routing (PRD #826)", () => {
         expect(free).toMatch(/Night's Whisper/);
     });
 
-    it("does NOT route an Op-blocked card (Millstone) to the FREE tranche", () => {
-        // Millstone calls ctx.reorderLibraryTop / peekLibraryTop — blocked on the
-        // unshipped `scryReorder` Op (a choice-driven reorder / mill construct),
-        // so it belongs to that Op's cluster issue, not the free tranche.
-        // (Canary swapped from Bottle of Suleiman, whose `coinFlip` Op shipped —
-        // issue #851 — so it migrated to effects[] and is no longer a resolve()
-        // closure the classifier counts.)
-        expect(free).not.toMatch(/Millstone/);
+    it("does NOT route an Op-blocked card (Drafna's Restoration) to the FREE tranche", () => {
+        // Drafna's Restoration calls ctx.reorderLibraryTop directly (a
+        // reorder-FROM-a-count, not the choice-driven `orderTop` picker) —
+        // still blocked on the unshipped `reorderLibraryTop` primitive, so it
+        // belongs to that Op's cluster, not the free tranche. (Canary swapped
+        // from Millstone, whose `mill` Op shipped — issue #885 — so it migrated
+        // to effects[] and is no longer a resolve() closure the classifier
+        // counts; the swap keeps the canary pointed at a genuinely Op-blocked
+        // card, and specifically at the reorder half `scryReorder`/`orderTop`
+        // did NOT fold.)
+        expect(free).not.toMatch(/Drafna's Restoration/);
     });
 });
