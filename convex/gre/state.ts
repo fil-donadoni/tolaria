@@ -9981,7 +9981,14 @@ function formatManaCost(cost: ManaCost): string {
 export interface NormalizedMayPayCost {
     mana?: CardManaCost;
     life?: number;
-    sacrifice?: { filter: PermanentFilter; count: number };
+    /** Typed sacrifice leg (CR 701.16). `count` is either a fixed cardinal
+     *  ("sacrifice N matching permanents") or a summed-power threshold
+     *  (`{ minTotalPower }` — "sacrifice any number of matching permanents with
+     *  total EFFECTIVE power ≥ N", Phyrexian Dreadnought, CR 118). */
+    sacrifice?: {
+        filter: PermanentFilter;
+        count: number | { minTotalPower: number };
+    };
 }
 
 /** Distinguishes the union shape `{ mana?, life?, sacrifice? }` from a bare
@@ -9990,7 +9997,10 @@ export interface NormalizedMayPayCost {
 function isMayPayUnion(cost: MayPayCost): cost is {
     mana?: CardManaCost;
     life?: number;
-    sacrifice?: { filter: PermanentFilter; count: number };
+    sacrifice?: {
+        filter: PermanentFilter;
+        count: number | { minTotalPower: number };
+    };
 } {
     return "mana" in cost || "life" in cost || "sacrifice" in cost;
 }
@@ -10043,12 +10053,53 @@ export function getMayPaySacrificeCandidateIds(
     );
 }
 
+/** The summed-power threshold of a `may-pay` sacrifice leg (`{ minTotalPower }`
+ *  mode), or `undefined` when the leg uses a fixed cardinal `count` (or has no
+ *  sacrifice leg). Threshold mode means "sacrifice any number of matching
+ *  permanents with total EFFECTIVE power ≥ N" (Phyrexian Dreadnought, CR 118). */
+export function mayPaySacrificeThreshold(cost: MayPayCost): number | undefined {
+    const count = normalizeMayPayCost(cost).sacrifice?.count;
+    return typeof count === "object" ? count.minTotalPower : undefined;
+}
+
+/** Summed EFFECTIVE power (CR 613 layer pipeline) of the given permanents. The
+ *  literal "total power" of CR 118 — a chosen set's contribution toward a
+ *  `minTotalPower` threshold. */
+export function sumEffectivePower(
+    state: GameState,
+    permanents: CardInstanceState[]
+): number {
+    let total = 0;
+    for (const c of permanents) total += getEffectivePower(state, c);
+    return total;
+}
+
+/** Summed EFFECTIVE power of the payer's battlefield permanents named by `ids`
+ *  (CR 118 threshold validation). Ids not currently on the payer's battlefield
+ *  contribute nothing. Used by the submit boundary to verify a threshold-mode
+ *  sacrifice pick reaches its `minTotalPower`. */
+export function mayPaySacrificeSetPower(
+    state: GameState,
+    playerId: string,
+    ids: string[]
+): number {
+    const player = getPlayer(state, playerId);
+    const set = new Set(ids);
+    return sumEffectivePower(
+        state,
+        player.battlefield.filter((c) => set.has(c.id))
+    );
+}
+
 /** Whether a `may-pay` sacrifice leg admits a real victim choice (CR 701.16b):
  *  the payer controls MORE matching permanents than the leg sacrifices, so
  *  which one(s) to sacrifice is the payer's decision, not an auto-pick. When
  *  the filter matches exactly `count` (or fewer) permanents there is nothing to
  *  choose — auto-selection stays and no prompt is shown (Arena UX auto-resolve).
- *  Returns false for a cost with no sacrifice leg. */
+ *  Threshold mode (`{ minTotalPower }`, Phyrexian Dreadnought) ALWAYS admits a
+ *  choice when any candidate exists — the payer picks a variable-size set, so
+ *  there is never a trivial auto-pick. Returns false for a cost with no
+ *  sacrifice leg. */
 export function mayPaySacrificeChoiceRequired(
     state: GameState,
     playerId: string,
@@ -10056,10 +10107,17 @@ export function mayPaySacrificeChoiceRequired(
 ): boolean {
     const norm = normalizeMayPayCost(cost);
     if (!norm.sacrifice) return false;
-    return (
-        getMayPaySacrificeCandidateIds(state, playerId, cost).length >
-        norm.sacrifice.count
-    );
+    const candidateCount = getMayPaySacrificeCandidateIds(
+        state,
+        playerId,
+        cost
+    ).length;
+    if (typeof norm.sacrifice.count === "object") {
+        // Threshold mode: any candidate at all makes the variable-size victim
+        // set the payer's decision (CR 118 / 701.16b).
+        return candidateCount > 0;
+    }
+    return candidateCount > norm.sacrifice.count;
 }
 
 /** Pool a `may-pay` payment may draw on: the fungible `manaPool` plus any
@@ -10148,12 +10206,28 @@ export function canPayMayPayCost(
     }
     if (norm.life !== undefined && player.life < norm.life) return false;
     if (norm.sacrifice) {
-        const have = sacrificeCandidates(
+        const candidates = sacrificeCandidates(
             state,
             playerId,
             norm.sacrifice.filter
-        ).length;
-        if (have < norm.sacrifice.count) return false;
+        );
+        if (typeof norm.sacrifice.count === "object") {
+            // CR 118 / 701.16 threshold mode — affordable iff the best-case set
+            // (every matching candidate with EFFECTIVE power > 0; a 0-or-less
+            // creature can never help reach the threshold) sums to ≥ the
+            // required total power.
+            const best = candidates.filter(
+                (c) => getEffectivePower(state, c) > 0
+            );
+            if (
+                sumEffectivePower(state, best) <
+                norm.sacrifice.count.minTotalPower
+            ) {
+                return false;
+            }
+        } else if (candidates.length < norm.sacrifice.count) {
+            return false;
+        }
     }
     return true;
 }
@@ -10205,11 +10279,41 @@ export function payMayPayCost(
             playerId,
             norm.sacrifice.filter
         );
-        const chosen =
-            sacrificeIds && sacrificeIds.length > 0
-                ? candidates.filter((c) => sacrificeIds.includes(c.id))
-                : candidates;
-        const victims = chosen.slice(0, norm.sacrifice.count);
+        let victims: CardInstanceState[];
+        if (typeof norm.sacrifice.count === "object") {
+            // CR 118 / 701.16 threshold mode ("sacrifice any number … total
+            // power ≥ N"). When the payer named a set, sacrifice ALL of it (the
+            // whole caller-supplied `sacrificeIds`, already validated at the
+            // submit boundary to meet the threshold — over-payment is legal).
+            // When absent (a bot's minimal-legal default), greedily take the
+            // highest-EFFECTIVE-power candidates first until the running total
+            // reaches the threshold — the smallest-bodied legal set.
+            const threshold = norm.sacrifice.count.minTotalPower;
+            if (sacrificeIds && sacrificeIds.length > 0) {
+                victims = candidates.filter((c) => sacrificeIds.includes(c.id));
+            } else {
+                const greedy = [...candidates].sort(
+                    (a, b) =>
+                        getEffectivePower(state, b) -
+                        getEffectivePower(state, a)
+                );
+                victims = [];
+                let running = 0;
+                for (const c of greedy) {
+                    if (running >= threshold) break;
+                    victims.push(c);
+                    running += getEffectivePower(state, c);
+                }
+            }
+        } else {
+            // Fixed cardinal — the payer chose `count` victims (or author order
+            // when there was nothing to choose).
+            const chosen =
+                sacrificeIds && sacrificeIds.length > 0
+                    ? candidates.filter((c) => sacrificeIds.includes(c.id))
+                    : candidates;
+            victims = chosen.slice(0, norm.sacrifice.count);
+        }
         for (const v of victims) {
             removePermanentTo(state, v.id, "graveyard", "sacrifice");
         }

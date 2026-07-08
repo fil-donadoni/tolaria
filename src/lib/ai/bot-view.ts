@@ -79,6 +79,12 @@ function toCandidate(card: SlimCardInstance): ChoiceCandidate {
         manaValue: manaValue(def?.manaCost),
         // CR 202.2 — colors the cost demands; empty for lands / colorless.
         colors: getColorsFromCost(def?.manaCost),
+        // CR 118 — PRINTED power, the minimal-legal proxy the threshold-mode
+        // may-pay sacrifice greedy uses ("total power ≥ N", Phyrexian
+        // Dreadnought). Layer-modified effective power isn't reachable from the
+        // projected client state; printed power is exact for the vanilla bodies
+        // this path targets (ADR 0016 minimal-legal default).
+        power: def?.power,
     };
 }
 
@@ -223,12 +229,65 @@ function mayPayIsAffordable(
     }
     if (norm.life !== undefined && bot.life < norm.life) return false;
     if (norm.sacrifice) {
-        const have = bot.battlefield.filter((c) =>
+        const matching = bot.battlefield.filter((c) =>
             matchesPermanentFilter(c, norm.sacrifice!.filter)
-        ).length;
-        if (have < norm.sacrifice.count) return false;
+        );
+        if (typeof norm.sacrifice.count === "object") {
+            // CR 118 threshold mode — affordable iff the payer's matching
+            // permanents sum to ≥ the required total power. Uses PRINTED power
+            // (the same proxy the accept-side greedy uses); layer-modified
+            // effective power isn't reachable client-side. The ability's own
+            // source is excluded (see `mayPaySourceInstanceId`): a rational bot
+            // never self-sacrifices the very permanent the payment keeps, so it
+            // must reach the threshold from the OTHER creatures alone — else it
+            // declines and lets the "sacrifice it unless …" clause take the
+            // source (CR 118). This keeps affordability consistent with the
+            // accept-side greedy's candidate set.
+            const sourceId = mayPaySourceInstanceId(state, head);
+            const total = matching.reduce(
+                (sum, c) =>
+                    c.id === sourceId
+                        ? sum
+                        : sum + (tryGetDefinition(c.card.id)?.power ?? 0),
+                0
+            );
+            if (total < norm.sacrifice.count.minTotalPower) return false;
+        } else if (matching.length < norm.sacrifice.count) {
+            return false;
+        }
     }
     return true;
+}
+
+/** The instance id of the ability SOURCE behind a pending may-pay — the stack
+ *  item's trigger source (`triggerSourceId`). Used to exclude the source from a
+ *  CR 118 threshold-mode sacrifice pool: a "sacrifice it unless you sacrifice
+ *  creatures with total power ≥ N" punisher (Phyrexian Dreadnought) lists its
+ *  own source among the legal victims, but sacrificing it to pay is self-
+ *  defeating — it destroys the permanent the payment is meant to keep, board-
+ *  equivalent to declining. Undefined when no source is identifiable. */
+function mayPaySourceInstanceId(
+    state: PublicGameState,
+    head: PendingChoice
+): string | undefined {
+    return state.stack.find((s) => s.id === head.stackItemId)?.triggerSourceId;
+}
+
+/** Surfaces the may-pay sacrifice pick shape for the bot's OwedChoice: a fixed
+ *  `sacrificeCount` (CR 701.16b) or a summed-power `sacrificeThreshold` (CR 118,
+ *  Phyrexian Dreadnought). Both absent for a non-sacrifice may-pay. */
+function mayPaySacrificePick(head: PendingChoice): {
+    sacrificeCount?: number;
+    sacrificeThreshold?: number;
+} {
+    if (head.kind !== "may-pay" || head.zone !== "battlefield" || !head.cost) {
+        return {};
+    }
+    const count = normalizeMayPayCost(head.cost).sacrifice?.count;
+    if (count === undefined) return {};
+    return typeof count === "object"
+        ? { sacrificeThreshold: count.minTotalPower }
+        : { sacrificeCount: count };
 }
 
 /** Project the active bot-owed `PendingChoice` into the {@link OwedChoice} the
@@ -262,23 +321,36 @@ function buildOwedChoice(
             candidates.push({ id: opt.id, value: 0 });
         }
     }
+    // CR 118 — for a threshold-mode may-pay sacrifice (Phyrexian Dreadnought),
+    // drop the ability's own source from the pool the bot reasons over so the
+    // greedy never self-sacrifices the permanent the payment keeps. The same
+    // exclusion runs in `mayPayIsAffordable`, so accept/decline and the greedy
+    // pick see one consistent candidate set.
+    const sacrificePick = mayPaySacrificePick(head);
+    const candidatesForChoice =
+        head.kind === "may-pay" &&
+        sacrificePick.sacrificeThreshold !== undefined
+            ? candidates.filter(
+                  (c) => c.id !== mayPaySourceInstanceId(state, head)
+              )
+            : candidates;
+
     return {
         kind: head.kind,
         min: getPendingChoiceMin(head.count),
         max: getPendingChoiceMax(head.count),
-        candidates,
+        candidates: candidatesForChoice,
         affordable:
             head.kind === "may-pay" || head.kind === "land-entry-tapped"
                 ? mayPayIsAffordable(state, head, botId)
                 : undefined,
         // CR 701.16b — a may-pay sacrifice leg with a real victim choice sets
         // `zone: "battlefield"` and lists the legal victims in `candidateIds`;
-        // surface the count the payer must pick so the bot supplies a legal
-        // `sacrificeIds`. Undefined for a plain yes/no or auto-resolving pay.
-        sacrificeCount:
-            head.kind === "may-pay" && head.zone === "battlefield" && head.cost
-                ? normalizeMayPayCost(head.cost).sacrifice?.count
-                : undefined,
+        // surface EITHER the fixed count the payer must pick (`sacrificeCount`)
+        // OR the summed-power threshold (`sacrificeThreshold`, CR 118, Phyrexian
+        // Dreadnought) so the bot supplies a legal `sacrificeIds`. Both undefined
+        // for a plain yes/no or auto-resolving pay.
+        ...sacrificePick,
         // issue #242 — the discard heuristic needs the board's mana picture to
         // protect scarce lands and rank spells by castability.
         manaSituation:

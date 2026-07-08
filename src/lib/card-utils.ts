@@ -1038,7 +1038,10 @@ export function manaCostToString(cost?: ManaCost): string {
 export interface NormalizedMayPayCost {
     mana?: ManaCost;
     life?: number;
-    sacrifice?: { count: number };
+    /** `count` is either a fixed cardinal ("sacrifice N") or a summed-power
+     *  threshold `{ minTotalPower }` (CR 118, Phyrexian Dreadnought —
+     *  "sacrifice any number of matching permanents with total power ≥ N"). */
+    sacrifice?: { count: number | { minTotalPower: number } };
 }
 
 function isMayPayUnion(
@@ -1076,7 +1079,12 @@ export function mayPayCanAfford(
      *  cumulative-upkeep mana from Adarkar Unicorn / Snowfall). Already filtered
      *  to the eligible restriction by the caller and merged here so the Pay
      *  button enables when restricted + fungible mana together cover the cost. */
-    extraMana?: ManaPool
+    extraMana?: ManaPool,
+    /** Summed PRINTED power of the chooser's matching sacrifice candidates
+     *  (CR 118). Required only for a threshold-mode sacrifice leg
+     *  (`{ minTotalPower }`, Phyrexian Dreadnought); ignored for a fixed-count
+     *  leg, which gates on `sacrificeCandidateCount` instead. */
+    sacrificeCandidatePower?: number
 ): boolean {
     if (!cost) return true;
     const norm = normalizeMayPayCost(cost);
@@ -1088,8 +1096,19 @@ export function mayPayCanAfford(
     }
     if (norm.mana && !isManaCostCovered(effectivePool, norm.mana)) return false;
     if (norm.life !== undefined && chooserLife < norm.life) return false;
-    if (norm.sacrifice && sacrificeCandidateCount < norm.sacrifice.count) {
-        return false;
+    if (norm.sacrifice) {
+        if (typeof norm.sacrifice.count === "object") {
+            // CR 118 threshold mode — affordable iff the matching candidates'
+            // summed printed power reaches the required total.
+            if (
+                (sacrificeCandidatePower ?? 0) <
+                norm.sacrifice.count.minTotalPower
+            ) {
+                return false;
+            }
+        } else if (sacrificeCandidateCount < norm.sacrifice.count) {
+            return false;
+        }
     }
     return true;
 }
@@ -1111,13 +1130,77 @@ export function mayPaySacrificeCount(
     return battlefield.filter((c) => matchesPermanentFilter(c, filter)).length;
 }
 
-/** Number of permanents a `may-pay` cost's sacrifice leg makes the payer
- *  sacrifice (CR 701.16b). Returns 0 when the cost has no sacrifice leg. Used by
- *  the UI to gate the Pay button on the chooser having picked exactly this many
- *  victims when the choice carries a battlefield sacrifice pick. */
+/** Number of permanents a FIXED-count `may-pay` sacrifice leg makes the payer
+ *  sacrifice (CR 701.16b). Returns 0 when the cost has no sacrifice leg OR uses
+ *  a summed-power threshold (`{ minTotalPower }`, which has no fixed cardinal —
+ *  gate that shape with {@link mayPaySacrificePickSatisfied} instead). */
 export function mayPayRequiredSacrifices(cost: MayPayCost | undefined): number {
     if (!cost || !("sacrifice" in cost) || !cost.sacrifice) return 0;
-    return cost.sacrifice.count;
+    return typeof cost.sacrifice.count === "number" ? cost.sacrifice.count : 0;
+}
+
+/** The summed-power threshold of a `may-pay` sacrifice leg (`{ minTotalPower }`
+ *  mode, CR 118, Phyrexian Dreadnought), or `undefined` for a fixed-count leg
+ *  or a cost with no sacrifice leg. */
+export function mayPaySacrificeThreshold(
+    cost: MayPayCost | undefined
+): number | undefined {
+    if (!cost || !("sacrifice" in cost) || !cost.sacrifice) return undefined;
+    const count = cost.sacrifice.count;
+    return typeof count === "object" ? count.minTotalPower : undefined;
+}
+
+/** Summed PRINTED power (CR 208.2) of a `may-pay` cost's matching sacrifice
+ *  candidates on `battlefield`. Feeds the threshold-mode affordability gate
+ *  (CR 118). Returns 0 when the cost has no sacrifice leg. */
+export function mayPaySacrificePower(
+    cost: MayPayCost | undefined,
+    battlefield: CardInstance[]
+): number {
+    if (!cost || !("sacrifice" in cost) || !cost.sacrifice) return 0;
+    const filter = cost.sacrifice.filter as Parameters<
+        typeof matchesPermanentFilter
+    >[1];
+    return battlefield
+        .filter((c) => matchesPermanentFilter(c, filter))
+        .reduce((sum, c) => sum + (tryGetDefinition(c.card.id)?.power ?? 0), 0);
+}
+
+/** Summed PRINTED power (CR 208.2) of the chooser's currently-selected
+ *  sacrifice victims. Drives the threshold-mode pick-progress display
+ *  ("N / minTotalPower power selected"). */
+export function mayPaySacrificeSelectionPower(
+    selectedIds: string[],
+    battlefield: CardInstance[]
+): number {
+    const selected = new Set(selectedIds);
+    return battlefield
+        .filter((c) => selected.has(c.id))
+        .reduce((sum, c) => sum + (tryGetDefinition(c.card.id)?.power ?? 0), 0);
+}
+
+/** Whether the chooser's current sacrifice pick satisfies a battlefield
+ *  `may-pay` sacrifice leg (CR 701.16b / 118). Fixed-count legs require exactly
+ *  `count` picks; threshold legs (`{ minTotalPower }`, Phyrexian Dreadnought)
+ *  require the selected permanents' summed PRINTED power to reach the threshold
+ *  (over-payment allowed). A cost with no sacrifice leg is trivially satisfied. */
+export function mayPaySacrificePickSatisfied(
+    cost: MayPayCost | undefined,
+    selectedIds: string[],
+    battlefield: CardInstance[]
+): boolean {
+    const threshold = mayPaySacrificeThreshold(cost);
+    if (threshold !== undefined) {
+        const selected = new Set(selectedIds);
+        const power = battlefield
+            .filter((c) => selected.has(c.id))
+            .reduce(
+                (sum, c) => sum + (tryGetDefinition(c.card.id)?.power ?? 0),
+                0
+            );
+        return selectedIds.length > 0 && power >= threshold;
+    }
+    return selectedIds.length === mayPayRequiredSacrifices(cost);
 }
 
 /** Human-readable label for a `may-pay` cost union, rendered after "Pay" on the
@@ -1137,7 +1220,14 @@ export function mayPayCostLabel(cost?: MayPayCost): string {
     }
     if (norm.sacrifice) {
         const n = norm.sacrifice.count;
-        parts.push(n === 1 ? "sacrifice" : `sacrifice ${n}`);
+        if (typeof n === "object") {
+            // CR 118 threshold mode (Phyrexian Dreadnought).
+            parts.push(
+                `sacrifice creatures with total power ${n.minTotalPower}`
+            );
+        } else {
+            parts.push(n === 1 ? "sacrifice" : `sacrifice ${n}`);
+        }
     }
     return parts.join(" and ");
 }

@@ -1896,9 +1896,15 @@ export function finalizeCleanup(state: GameState): void {
     // fired expires here. Every `leaves-battlefield` instance is this-turn
     // scoped, so the whole class is purged at CLEANUP; the phase-boundary
     // timings are left untouched (they fire on a future step, not this turn).
+    // Same bound applies to `this-turn-creature-blocks` (CR 603.7d, issue
+    // #884, Battle Cry): unlike `leaves-battlefield` it is REPEATING (never
+    // dequeued by firing, `triggers.ts`), so it is purged here unconditionally
+    // regardless of how many times — including zero — it fired this turn.
     if (state.delayedTriggers?.length) {
         const kept = state.delayedTriggers.filter(
-            (t) => t.timing !== "leaves-battlefield"
+            (t) =>
+                t.timing !== "leaves-battlefield" &&
+                t.timing !== "this-turn-creature-blocks"
         );
         state.delayedTriggers = kept.length > 0 ? kept : undefined;
     }

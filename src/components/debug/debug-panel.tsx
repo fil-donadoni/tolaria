@@ -131,6 +131,31 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 4,
     },
     {
+        // ICE repeating combat-event delayed trigger (issue #884): Battle Cry
+        // ("Untap all white creatures you control. Whenever a creature blocks
+        // this turn, it gets +0/+1 until end of turn."). Shield Bearer starts
+        // TAPPED to show the untap clause; Balduvian Bears is a ready attacker.
+        // Cast Battle Cry in PRECOMBAT_MAIN (untaps Shield Bearer immediately
+        // and schedules the repeating "this-turn-creature-blocks" watch),
+        // attack with the Bears, then block with the opponent's Bears — the
+        // blocker gets +0/+1 until end of turn, and the watch stays queued for
+        // any further block this turn (unlike a one-shot delayed trigger).
+        label: "ICE repeating combat-event delayed trigger (Battle Cry) (#884)",
+        cards: [
+            { name: "Battle Cry", owner: "me", zone: "hand" },
+            {
+                name: "Shield Bearer",
+                owner: "me",
+                zone: "battlefield",
+                tapped: true,
+            },
+            { name: "Balduvian Bears", owner: "me", zone: "battlefield" },
+            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+    },
+    {
         // Cumulative-upkeep global-lock permanents (issue #727): Glacial Chasm
         // and Halls of Mist enter the battlefield, Energy Storm sits in hand.
         // Glacial Chasm's ETB asks you to sacrifice a land; on the battlefield
@@ -840,6 +865,47 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
+    },
+    {
+        // Phyrexian Dreadnought — summed-power THRESHOLD sacrifice cost (#977).
+        // Cast the Dreadnought ({1}); its self-ETB (CR 603.6a) asks you to
+        // sacrifice any number of creatures with TOTAL POWER 12 or greater
+        // (CR 118 / 701.16) or sacrifice it. GOLDEN PATH: six Grizzly Bears
+        // (2 power each = 12) are in play, so clicking them until "12 / 12
+        // power selected" enables Pay keeps the 12/12. Over-payment is legal.
+        // The bot pays greedily (highest power first) when it controls the
+        // Dreadnought.
+        label: "Phyrexian Dreadnought: threshold sacrifice (total power ≥ 12) (#977)",
+        cards: [
+            { name: "Phyrexian Dreadnought", owner: "me", zone: "hand" },
+            {
+                name: "Grizzly Bears",
+                owner: "me",
+                zone: "battlefield",
+                count: 6,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
+    {
+        // Phyrexian Dreadnought — EDGE (#977): the controller can't reach 12
+        // total power (only four Grizzly Bears = 8 < 12), so the punisher cost
+        // is unpayable and the ETB sacrifices the Dreadnought itself
+        // (CR 118 "sacrifice it unless …"). Add creatures via the board to
+        // cross the threshold and keep it.
+        label: "Phyrexian Dreadnought: threshold shortfall (< 12 power) (#977)",
+        cards: [
+            { name: "Phyrexian Dreadnought", owner: "me", zone: "hand" },
+            {
+                name: "Grizzly Bears",
+                owner: "me",
+                zone: "battlefield",
+                count: 4,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
     },
 ];
 

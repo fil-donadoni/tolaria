@@ -407,17 +407,55 @@ export const armorOfFaith: CardDefinition = {
         },
     ],
 };
-// TODO(#884): Battle Cry — split out of #739 as a buildable-now DSL card
-// (forEach + tapUntap untap-group + a turn-scoped "whenever a creature blocks"
-// delayedTrigger whose body pumps +0/+1). Tracked separately in #884.
-// export const battleCry: CardDefinition = {
-//     id: "c558a8c4-035c-464e-9ff8-c188c1bb619e",
-//     name: "Battle Cry",
-//     rarity: "uncommon",
-//     oracleText: "Untap all white creatures you control.\nWhenever a creature blocks this turn, it gets +0/+1 until end of turn.",
-//     manaCost: { X: 2, W: 1 },
-//     types: ["Instant"],
-// };
+// Battle Cry — {2}{W} Instant (issue #884, split out of #739). Two clauses:
+//  • "Untap all white creatures you control." — a forEach over your
+//    battlefield creatures filtered to white (CR 701.26b untap).
+//  • "Whenever a creature blocks this turn, it gets +0/+1 until end of turn."
+//    — CR 603.7d: a REPEATING delayed triggered ability, not the usual
+//    single-shot kind (`timing: "this-turn-creature-blocks"`, issue #884).
+//    Unlike a one-shot delayedTrigger, this one re-fires once per
+//    BLOCKERS_CONFIRMED event for the rest of the turn; because the firing
+//    event is still live at fire time (triggers.ts threads it onto the
+//    delayed StackItem exactly like a normal trigger), the body reads
+//    `$event.blockerId` directly — no `capture` map needed.
+export const battleCry: CardDefinition = {
+    id: "c558a8c4-035c-464e-9ff8-c188c1bb619e",
+    name: "Battle Cry",
+    rarity: "uncommon",
+    oracleText:
+        "Untap all white creatures you control.\nWhenever a creature blocks this turn, it gets +0/+1 until end of turn.",
+    manaCost: { X: 2, W: 1 },
+    types: ["Instant"],
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                controller: "controller",
+                filter: { type: "Creature", color: "W" },
+            },
+            effects: [
+                { op: "tapUntap", action: "untap", target: { ref: "$each" } },
+            ],
+        },
+        {
+            op: "delayedTrigger",
+            timing: "this-turn-creature-blocks",
+            oracleText:
+                "Whenever a creature blocks this turn, it gets +0/+1 until end of turn.",
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$event.blockerId" },
+                    power: 0,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
 export const blackScarab: CardDefinition = makeScarab({
     id: "5bfd4ee1-05f9-45ae-a31d-1225b271dbe6",
     name: "Black Scarab",

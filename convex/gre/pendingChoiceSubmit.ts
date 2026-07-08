@@ -12,6 +12,8 @@ import {
     payMayPayCost,
     getMayPaySacrificeCandidateIds,
     mayPaySacrificeChoiceRequired,
+    mayPaySacrificeThreshold,
+    mayPaySacrificeSetPower,
     normalizeMayPayCost,
     type CardInstanceState,
     type GameState,
@@ -93,19 +95,18 @@ export function applyMayPaySubmit(
         }
         // CR 701.16b — validate the payer's sacrifice pick when the leg admits a
         // real choice. The candidate set is recomputed live (the board may have
-        // shifted since the choice was enqueued); the pick must name exactly
-        // `count` distinct, currently-legal candidates. When no choice is
-        // required the ids are ignored and the pay auto-selects.
+        // shifted since the choice was enqueued). Two shapes:
+        //   - fixed cardinal (`count: number`): the pick must name exactly
+        //     `count` distinct, currently-legal candidates.
+        //   - threshold (`count: { minTotalPower }`, CR 118, Phyrexian
+        //     Dreadnought): the pick may be any number of distinct, currently
+        //     legal candidates whose summed EFFECTIVE power ≥ the threshold.
+        //     Over-payment is allowed; no upper bound, no minimality.
+        // When no choice is required the ids are ignored and the pay auto-selects.
         let sacrificeIds = args.sacrificeIds;
         if (mayPaySacrificeChoiceRequired(state, args.playerId, head.cost)) {
             const norm = normalizeMayPayCost(head.cost);
-            const need = norm.sacrifice!.count;
             const ids = args.sacrificeIds ?? [];
-            if (ids.length !== need) {
-                throw new Error(
-                    `Must choose ${need} permanent(s) to sacrifice`
-                );
-            }
             if (new Set(ids).size !== ids.length) {
                 throw new Error("Duplicate sacrifice choice");
             }
@@ -115,6 +116,29 @@ export function applyMayPaySubmit(
             for (const id of ids) {
                 if (!legal.has(id)) {
                     throw new Error("Illegal sacrifice choice");
+                }
+            }
+            const threshold = mayPaySacrificeThreshold(head.cost);
+            if (threshold !== undefined) {
+                if (ids.length === 0) {
+                    throw new Error("Must choose permanents to sacrifice");
+                }
+                const total = mayPaySacrificeSetPower(
+                    state,
+                    args.playerId,
+                    ids
+                );
+                if (total < threshold) {
+                    throw new Error(
+                        `Chosen permanents' total power (${total}) is below the required ${threshold}`
+                    );
+                }
+            } else {
+                const need = norm.sacrifice!.count as number;
+                if (ids.length !== need) {
+                    throw new Error(
+                        `Must choose ${need} permanent(s) to sacrifice`
+                    );
                 }
             }
         } else {

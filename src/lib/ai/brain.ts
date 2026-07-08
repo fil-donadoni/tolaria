@@ -98,6 +98,10 @@ export type ChoiceCandidate = {
      *  controller cannot currently produce is "uncastable" and ranked first to
      *  shed. Empty / undefined for colorless or cost-less cards. */
     colors?: Color[];
+    /** PRINTED power (CR 208.2), used by the threshold-mode may-pay sacrifice
+     *  greedy (CR 118, "total power ≥ N", Phyrexian Dreadnought). Undefined for
+     *  non-creatures / cards the bot doesn't need it for. */
+    power?: number;
 };
 
 /** The controller's mana picture at the moment of a `discard-hand` choice
@@ -146,6 +150,13 @@ export type OwedChoice = {
      *  legal victims and the bot picks `sacrificeCount` of them worst-first.
      *  Undefined / 0 when no sacrifice pick is owed. */
     sacrificeCount?: number;
+    /** `may-pay` only (CR 118, Phyrexian Dreadnought): the summed-power
+     *  threshold the accepted cost's sacrifice leg must reach ("sacrifice any
+     *  number of matching permanents with total power ≥ N"). `candidates` holds
+     *  the legal victims and the bot greedily takes the highest-power ones until
+     *  the running total reaches the threshold. Mutually exclusive with
+     *  `sacrificeCount`; undefined when no threshold pick is owed. */
+    sacrificeThreshold?: number;
     /** `discard-hand` only: the controller's mana picture, so the discard
      *  heuristic can protect scarce lands and rank spells by castability
      *  (issue #242). Undefined for every other choice kind. */
@@ -312,6 +323,30 @@ function bestFirst(candidates: ChoiceCandidate[]): ChoiceCandidate[] {
 }
 function worstFirst(candidates: ChoiceCandidate[]): ChoiceCandidate[] {
     return [...candidates].sort((a, b) => a.value - b.value);
+}
+
+/** CR 118 threshold-mode may-pay sacrifice (Phyrexian Dreadnought): greedily
+ *  take the highest-power candidates until the running total reaches
+ *  `threshold`, returning their ids. Highest-power-first minimizes the number of
+ *  bodies given up; over-payment on the final pick is legal (the server
+ *  validates only that the summed EFFECTIVE power ≥ threshold). Falls back to
+ *  every candidate when the running total never reaches the threshold (a
+ *  best-effort legal set — affordability was already gated upstream). */
+function thresholdSacrifice(
+    candidates: ChoiceCandidate[],
+    threshold: number
+): string[] {
+    const byPower = [...candidates].sort(
+        (a, b) => (b.power ?? 0) - (a.power ?? 0)
+    );
+    const chosen: string[] = [];
+    let running = 0;
+    for (const c of byPower) {
+        if (running >= threshold) break;
+        chosen.push(c.id);
+        running += c.power ?? 0;
+    }
+    return chosen;
 }
 
 /** Mana-aware discard priority (issue #242). Higher score = shed sooner. The
@@ -561,6 +596,23 @@ export function decideBotAction(view: BotView): BotAction {
                     sacrificeIds: worstFirst(choice.candidates)
                         .slice(0, choice.sacrificeCount)
                         .map((c) => c.id),
+                };
+            }
+            // CR 118 threshold mode (Phyrexian Dreadnought) — greedily take the
+            // highest-power candidates until the running total reaches the
+            // threshold (fewest bodies given up; over-payment is legal).
+            if (
+                accept &&
+                choice.sacrificeThreshold &&
+                choice.sacrificeThreshold > 0
+            ) {
+                return {
+                    kind: "may-pay",
+                    accept,
+                    sacrificeIds: thresholdSacrifice(
+                        choice.candidates,
+                        choice.sacrificeThreshold
+                    ),
                 };
             }
             return { kind: "may-pay", accept };
