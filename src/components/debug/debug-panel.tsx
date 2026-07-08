@@ -904,9 +904,14 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Island", owner: "me", zone: "battlefield", count: 5 },
             { name: "Mountain", owner: "me", zone: "battlefield", count: 2 },
             { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-        ]
-        },
-        {
+        ],
+        // The scenario places its own 5 Islands + 2 Mountains and wants NO
+        // other mana (both alt costs must be the ONLY way to cast) — add no
+        // extra basics.
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Echo keyword (Goblin Patrol) — CR 702.30, #990. Goblin Patrol ({R}
         // 2/1, Echo {R}) starts in hand with three untapped Mountains. Cast it
         // (it enters with the echo debt flagged), then pass to your NEXT upkeep:
@@ -958,7 +963,30 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 3,
-         }
+    },
+    {
+        // Sacrifice-for-effect activated ability (issue #986): Seal of Fire
+        // ({R} enchantment) and Mogg Fanatic ({R} 1/1 Goblin) both carry
+        // "Sacrifice this: deal N damage to any target" — a self-sacrifice
+        // activation cost (CR 602.1 / 701.21) with no mana and no tap,
+        // activatable any time you have priority. The Seal starts on the
+        // battlefield ready to pop; the Mogg is also in play (summoning
+        // sickness never gates a sacrifice ability — it is not a tap ability).
+        // A spare Mogg Fanatic sits in hand to recast. Opponent creatures
+        // (Grizzly Bears 2/2, Balduvian Bears 2/2) plus the opponent's face
+        // are legal any-target sinks — sacrifice the Seal for 2 or the Mogg
+        // for 1 (CR 120.1 damage).
+        label: "Sacrifice-for-effect (Seal of Fire / Mogg Fanatic) (#986)",
+        cards: [
+            { name: "Seal of Fire", owner: "me", zone: "battlefield" },
+            { name: "Mogg Fanatic", owner: "me", zone: "battlefield" },
+            { name: "Mogg Fanatic", owner: "me", zone: "hand" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
 ];
 
 type DebugPanelProps = {
