@@ -48,6 +48,8 @@ import GraveyardTargetDialog from "./graveyard-target-dialog";
 import ExileCostDialog from "./exile-cost-dialog";
 import { isGraveyardTargetForViewer } from "~/lib/graveyard-targets";
 import PaymentBanner from "./payment-banner";
+import SacrificeBanner from "./sacrifice-banner";
+import { isSacrificeComplete } from "~/lib/sacrifice-selection";
 import PendingChoicePrompt from "./pending-choice-prompt";
 import MinimizedChoiceIndicator from "./minimized-choice-indicator";
 import MulliganPrompt from "./mulligan-prompt";
@@ -563,6 +565,23 @@ export default function Board({
                                         playerId={viewerId}
                                     />
                                 ))}
+                            {/* CR 508.1c/1g / 701.21a — the attack-declaration
+                                land tax (Flooded Woodlands) suspends the
+                                declaration on a parked sacrifice choice. Without
+                                a prompt the board looks frozen, so surface the
+                                pick the same way casts/activations do. */}
+                            {combat?.pendingAttackSacrifice &&
+                                combat.pendingAttackSacrifice.playerId ===
+                                    viewerId &&
+                                !isSacrificeComplete(
+                                    combat.pendingAttackSacrifice
+                                ) && (
+                                    <SacrificeBanner
+                                        selection={
+                                            combat.pendingAttackSacrifice
+                                        }
+                                    />
+                                )}
                             {pendingChoices &&
                                 pendingChoices.length > 0 &&
                                 (minimizedChoice.isMinimized &&

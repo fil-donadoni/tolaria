@@ -35,6 +35,7 @@ import {
 } from "../legalActions";
 
 const MOUNTAIN = getCardByName("Mountain").id;
+const FOREST = getCardByName("Forest").id;
 const BOLT = getCardByName("Lightning Bolt").id; // R, target any
 const BEARS = getCardByName("Grizzly Bears").id; // 1G 2/2
 
@@ -811,5 +812,60 @@ describe("legalActions — combat damage confirmation (CR 510.1c)", () => {
         // gate request (anyPlayer) is admitted even though p2 isn't the
         // priority holder.
         expect(gateAccepts(state, gateRequestFor(actions[0]))).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Attack-declaration land tax (CR 508.1c/1g / 701.21a — Flooded Woodlands)
+// ---------------------------------------------------------------------------
+
+describe("legalActions — parked attack-tax sacrifice (CR 508.1c/1g)", () => {
+    it("holds gate parity and enumerates one select-sacrifice per legal land", () => {
+        const forest = makeInstance(FOREST, {
+            id: "forest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const mountain = makeInstance(MOUNTAIN, {
+            id: "mountain",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", { battlefield: [forest, mountain] }),
+                makePlayer("p2"),
+            ],
+            combat: {
+                attackerIds: ["atk1"],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+                pendingAttackSacrifice: {
+                    playerId: "p1",
+                    reason: "Flooded Woodlands",
+                    requirements: [{ filter: { types: ["Land"] }, count: 1 }],
+                    picked: [],
+                },
+            },
+        });
+
+        const actions = assertGateParity(state);
+        // Every enumerated action is a sacrifice pick for the attacking player,
+        // one per candidate land (both distinct basics are legal).
+        expect(actions.every((a) => a.expect === "sacrifice")).toBe(true);
+        expect(
+            actions
+                .map((a) =>
+                    a.action.kind === "select-sacrifice"
+                        ? a.action.cardInstanceId
+                        : null
+                )
+                .filter(Boolean)
+                .sort()
+        ).toEqual(["forest", "mountain"]);
     });
 });

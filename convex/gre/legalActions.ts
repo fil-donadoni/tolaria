@@ -38,6 +38,11 @@ import {
 } from "./state";
 import { computeExpectedInput, type GateRequest } from "./expectedInput";
 import {
+    sacrificeCandidates,
+    nextUnmetRequirement,
+    isSacrificeCandidateLegal,
+} from "./sacrificeChoice";
+import {
     getLegalTargets,
     getPendingTargetSourceColors,
     getPendingTargetSourceSubtypes,
@@ -145,6 +150,15 @@ export type BlockersAction = {
     assignments: { blockerId: string; attackerId: string }[];
 };
 
+/** Actions legal while the game waits for `sacrifice` input — the parked
+ *  attack-declaration land tax (CR 508.1c/1g / 701.21a, Flooded Woodlands).
+ *  One action per legal land the attacking player may sacrifice next; realised
+ *  through `selectSacrifice`. */
+export type SacrificeAction = {
+    kind: "select-sacrifice";
+    cardInstanceId: string;
+};
+
 /** One legal action at the current decision point, tagged with the Expected
  *  Input variant (`expect`) and acting player (`playerId`) it belongs to — the
  *  exact class the gate (`assertExpectedInput`) authorizes. Build the gate
@@ -153,7 +167,8 @@ export type LegalAction =
     | { expect: "priority"; playerId: string; action: PriorityAction }
     | { expect: "choice"; playerId: string; action: ChoiceAction }
     | { expect: "target"; playerId: string; action: TargetAction }
-    | { expect: "blockers"; playerId: string; action: BlockersAction };
+    | { expect: "blockers"; playerId: string; action: BlockersAction }
+    | { expect: "sacrifice"; playerId: string; action: SacrificeAction };
 
 /** The {@link GateRequest} the action's mutation would submit to the Expected
  *  Input gate. Combat-damage confirmation folds into a priority window whose
@@ -194,6 +209,8 @@ export function legalActions(state: GameState): LegalAction[] {
             return targetActions(state, expected);
         case "blockers":
             return blockersActions(state, expected);
+        case "sacrifice":
+            return sacrificeActions(state, expected);
         case "priority":
             return priorityActions(state, expected);
         default: {
@@ -518,6 +535,30 @@ const PRIORITY_MOVE_KINDS: ReadonlySet<Move["kind"]> = new Set([
     "activate-ability",
     "declare-attackers",
 ]);
+
+// ---------------------------------------------------------------------------
+// sacrifice variant (CR 508.1c/1g / 701.21a — attack-declaration land tax)
+// ---------------------------------------------------------------------------
+
+/** One `select-sacrifice` action per legal land the attacking player may
+ *  sacrifice next for the parked attack tax (Flooded Woodlands). Keyed on the
+ *  next unmet requirement's filter, filtered to legal candidates. */
+function sacrificeActions(
+    state: GameState,
+    expected: Extract<ExpectedInput, { kind: "sacrifice" }>
+): LegalAction[] {
+    const sel = state.combat?.pendingAttackSacrifice;
+    if (!sel) return [];
+    const req = nextUnmetRequirement(sel);
+    if (!req) return [];
+    return sacrificeCandidates(state, sel.playerId, req.filter)
+        .filter((c) => isSacrificeCandidateLegal(state, sel, c.id))
+        .map((c) => ({
+            expect: "sacrifice" as const,
+            playerId: expected.playerId,
+            action: { kind: "select-sacrifice" as const, cardInstanceId: c.id },
+        }));
+}
 
 function priorityActions(
     state: GameState,

@@ -17,6 +17,7 @@
 
 import type { ExpectedInput, GameState } from "./state";
 import { getOpponentId } from "./state";
+import { isSacrificeSelectionComplete } from "./sacrificeChoice";
 
 /** Pure, total derivation of the Expected Input from a settled GameState
  *  (ADR 0047). Precedence — highest first — reflects the CR's nesting of
@@ -79,6 +80,19 @@ export function computeExpectedInput(
         return { kind: "blockers", playerId: declarer };
     }
 
+    // CR 508.1c/1g / 701.21a — the attack-declaration land tax (Flooded
+    // Woodlands) parks mid declare-attackers on `combat.pendingAttackSacrifice`
+    // until the attacking player picks which land(s) to sacrifice. This is a
+    // turn-based action, NOT a priority window, so it outranks the priority
+    // default: only `selectSacrifice` makes progress, and endTurn / passPriority
+    // / casting must be rejected until it clears. (Cast/activation sacrifice
+    // costs are different — the payer genuinely holds priority there, so those
+    // fall through to `priority` below.)
+    const attackSac = state.combat?.pendingAttackSacrifice;
+    if (attackSac && !isSacrificeSelectionComplete(attackSac)) {
+        return { kind: "sacrifice", playerId: attackSac.playerId };
+    }
+
     // CR 117 — default: the game is waiting for the priority player to act.
     // A spell/ability payment in progress (pendingCast / pendingActivation)
     // falls through here: the payer holds priority while paying.
@@ -130,6 +144,7 @@ export const EXPECTED_INPUT_KINDS = [
     "choice",
     "target",
     "blockers",
+    "sacrifice",
     "priority",
 ] as const satisfies readonly ExpectedInputKind[];
 
@@ -249,6 +264,8 @@ function expectedInputEquals(
             );
         case "blockers":
             return b.kind === "blockers" && a.playerId === b.playerId;
+        case "sacrifice":
+            return b.kind === "sacrifice" && a.playerId === b.playerId;
         case "priority":
             return b.kind === "priority" && a.playerId === b.playerId;
     }

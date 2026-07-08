@@ -2103,6 +2103,17 @@ export type ExpectedInput =
           playerId: string;
       }
     | {
+          /** CR 508.1c/1g / 701.21a — the attacking player is choosing which
+           *  land(s) to sacrifice for the attack-declaration tax (Flooded
+           *  Woodlands, Reclamation). Parked mid declare-attackers on
+           *  `combat.pendingAttackSacrifice`; unlike a cast/activation payment
+           *  this is NOT a priority window (CR 508.1 is a turn-based action),
+           *  so it gets its own waiting state and only `selectSacrifice` makes
+           *  progress — endTurn / passPriority / casting must NOT bypass it. */
+          kind: "sacrifice";
+          playerId: string;
+      }
+    | {
           /** CR 117 — `playerId` holds priority. The default waiting state,
            *  and also the state during an in-progress cast/activation payment
            *  (pendingCast / pendingActivation), where the payer holds

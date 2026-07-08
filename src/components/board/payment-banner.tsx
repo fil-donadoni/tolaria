@@ -2,61 +2,21 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import type {
-    PendingActivation,
-    PendingCast,
-    Player,
-    SacrificeSelection,
-} from "~/types/game";
-import type { PermanentFilter } from "@convex/cards/filters";
+import type { PendingActivation, PendingCast, Player } from "~/types/game";
 import { getDefinition } from "@convex/cards";
 import { useDraggable } from "~/hooks/useDraggable";
 import { isManaCostCovered } from "~/lib/card-utils";
 import {
+    describeSacrificeChoice,
+    formatFilterLabel,
     isSacrificeComplete,
-    nextSacrificeRequirement,
 } from "~/lib/sacrifice-selection";
-
-/** Minimal noun phrase for a permanent filter, e.g. "a creature" (types:
- *  "Creature") or "a Swamp" (subtypes: ["Swamp"]). Subtypes win over types
- *  when both are present (more specific). Deliberately terse — matches the
- *  level of detail `TargetSelectionBanner`'s `TARGET_LABEL` gives for target
- *  types; the exact legal set is already visible via battlefield
- *  highlighting (`useBattlefieldVisualState`). */
-function formatFilterLabel(filter: PermanentFilter): string {
-    const subtypes = filter.subtypes
-        ? Array.isArray(filter.subtypes)
-            ? filter.subtypes
-            : [filter.subtypes]
-        : [];
-    if (subtypes.length > 0) return `a ${subtypes.join(" or ")}`;
-    const types = filter.types
-        ? Array.isArray(filter.types)
-            ? filter.types
-            : [filter.types]
-        : [];
-    if (types.length > 0) return `a ${types.join(" or ").toLowerCase()}`;
-    return "a permanent";
-}
 
 /** Subtitle for a pending activation whose mana leg is fully covered (or
  *  absent) — the "Auto-tap" affordance below is hidden in that case, so this
  *  describes the still-outstanding non-mana pick instead (#939). Falls back
  *  to the generic phrasing if somehow called with nothing left to pick (the
  *  activation would already have auto-committed server-side by then). */
-/** Subtitle for an outstanding sacrifice choice (CR 701.21a) — names the next
- *  unmet requirement's filter, with progress when more than one is owed. */
-function describeSacrificeChoice(sel: SacrificeSelection): string {
-    const req = nextSacrificeRequirement(sel);
-    if (!req) return "sacrifice a permanent";
-    const label = formatFilterLabel(req.filter);
-    const total = sel.requirements.reduce((a, r) => a + r.count, 0);
-    if (total > 1) {
-        return `sacrifice ${label} (${sel.picked.length}/${total})`;
-    }
-    return `sacrifice ${label}`;
-}
-
 function describeActivationCostChoice(pa: PendingActivation): string {
     const toc = pa.tapOtherChoice;
     if (toc && toc.pickedIds.length < toc.count) {

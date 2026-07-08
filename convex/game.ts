@@ -4220,14 +4220,22 @@ export const selectSacrifice = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
-        assertExpectedInput(state, {
-            playerId: args.playerId,
-            expect: "priority",
-        });
 
+        // The container decides the Expected Input this pick belongs to
+        // (ADR 0047). A cast/activation sacrifice is paid inside a priority
+        // window (the payer holds priority), so it expects `priority`. The
+        // attack-declaration land tax (CR 508.1c/1g) is a parked turn-based
+        // action, not a priority window, so it expects `sacrifice` — the gate
+        // then rejects any competing priority action (endTurn / passPriority /
+        // casting) until the pick clears. Determining the container is
+        // read-only, so it may precede the gate.
         const active = findActiveSacrificeSelection(state, args.playerId);
         if (!active) throw new Error("No sacrifice choice awaiting you");
         const { sel, container } = active;
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: container === "attack" ? "sacrifice" : "priority",
+        });
         if (!isSacrificeCandidateLegal(state, sel, args.cardInstanceId)) {
             throw new Error("Selected permanent is not a legal sacrifice");
         }
@@ -6708,6 +6716,19 @@ export const endTurn = mutation({
         }
 
         assertNoPendingChoices(state);
+
+        // CR 508.1c/1g / 701.21a — a parked attack-declaration land tax
+        // (Flooded Woodlands) is a turn-based action mid-flight, not a priority
+        // window: endTurn must NOT sail past it (it would auto-pass through the
+        // rest of the turn, silently abandoning the mandatory sacrifice and
+        // letting the attack proceed unpaid — the exact bug this guards). The
+        // attacking player must finish the pick via selectSacrifice first.
+        const attackSac = state.combat?.pendingAttackSacrifice;
+        if (attackSac && !isSacrificeSelectionComplete(attackSac)) {
+            throw new Error(
+                "Finish paying the attack cost (sacrifice a land) before ending the turn"
+            );
+        }
 
         // Ending the turn while a mana payment is still open abandons it
         // (the exact bug this guards: pressing Enter with the PaymentBanner up
