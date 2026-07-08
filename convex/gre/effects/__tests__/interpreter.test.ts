@@ -7140,3 +7140,84 @@ describe("Effect Script Op: counter + destination (CR 701.5a, issue #683)", () =
         );
     });
 });
+
+// ADR 0026 (revised) — a reveal→discard (Thoughtseize / Duress / Hymn to
+// Tourach) must NOT hide the cards it revealed. `reveal` stamps the whole
+// target hand `knownTo` all players; discarding the chosen card leaves the
+// REMAINING hand still known to the caster (knowledge is per-instance and the
+// discard is public), so the exposed cards persist face-up after resolution.
+// Regression for the over-conservative discard-clear that reverted them.
+describe("Effect Script: reveal→discard keeps knowledge of the remaining hand (ADR 0026 revised)", () => {
+    it("the caster still knows the cards left in the opponent's hand after the discard", () => {
+        const id = registerScript(
+            "test-reveal-discard-knowledge",
+            [
+                { op: "reveal", player: { target: 0 }, zone: "hand" },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zoneOwnerId: { target: 0 },
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Choose a card from that player's hand.",
+                    bind: "$picked",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$picked" },
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+
+        const c1 = makeInstance(BEAR_ID, {
+            id: "p2-c1",
+            ownerId: "p2",
+            controllerId: "p2",
+            zone: "hand",
+        });
+        const c2 = makeInstance(BEAR_ID, {
+            id: "p2-c2",
+            ownerId: "p2",
+            controllerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            players: [makePlayer("p1"), makePlayer("p2", { hand: [c1, c2] })],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+
+        // Resolution suspends at the hand-pick choice (CR 608.2).
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        // The reveal already made both cards known to the caster.
+        for (const c of state.players[1].hand) {
+            expect(c.knownTo).toContain("p1");
+        }
+
+        // The caster picks c1; c1 is discarded.
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["p2-c1"],
+        });
+
+        const p2 = state.players[1];
+        expect(p2.graveyard.some((c) => c.id === "p2-c1")).toBe(true);
+        // The card left in hand is STILL known to the caster — the discard of
+        // the other card introduced no uncertainty about it.
+        expect(p2.hand.map((c) => c.id)).toEqual(["p2-c2"]);
+        expect(p2.hand[0].knownTo).toContain("p1");
+
+        // Wire format: the surviving card crosses the projection face-up to the
+        // caster (its identity carried by `knownTo`, not nulled).
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].hand.find((c) => c?.id === "p2-c2");
+        expect(slim).toBeTruthy();
+    });
+});

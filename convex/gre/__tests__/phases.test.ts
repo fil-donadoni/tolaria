@@ -2214,9 +2214,9 @@ describe("cleanup discard (CR 514.1)", () => {
             }
             // Sanity: the two discarded instances actually left the hand.
             for (const id of discardedIds) {
-                expect(
-                    state.players[0].hand.some((c) => c.id === id)
-                ).toBe(false);
+                expect(state.players[0].hand.some((c) => c.id === id)).toBe(
+                    false
+                );
             }
         });
     });

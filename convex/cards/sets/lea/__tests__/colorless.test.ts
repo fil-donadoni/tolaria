@@ -3828,10 +3828,10 @@ describe("Glasses of Urza (reveal hand, CR 401.4)", () => {
         expect(forP2.players[1].hand[0]!.seenByOpponent).toBe(true);
     });
 
-    // ADR 0026 clear trigger #2 — a random discard is unwitnessed: the knower's
-    // identity→card map can no longer be trusted, so the WHOLE remaining hand
-    // reverts to hidden for non-owners. (Knowledge-clearing leg of the mandate.)
-    it("a random discard clears the controller's knowledge of the whole hand", () => {
+    // ADR 0026 (revised) — a discard does NOT clear knowledge of the remaining
+    // hand. The discarded card goes to the public graveyard and knowledge is
+    // per-instance, so the cards left behind stay known to the prior knower (p1).
+    it("keeps the controller's knowledge of the remaining hand after a random discard", () => {
         const state = setup();
         activateGlasses(state);
         resolveTopOfStack(state);
@@ -3842,24 +3842,26 @@ describe("Glasses of Urza (reveal hand, CR 401.4)", () => {
         // p2 discards one card at random (e.g. Hymn to Tourach style).
         discardCardsAtRandom(state, "p2", 1);
 
-        // The remaining hand card is no longer known to p1.
+        // The remaining hand card is STILL known to p1 — the random discard of
+        // the other (publicly revealed into the graveyard) introduced no
+        // uncertainty about it.
+        expect(state.players[1].hand.length).toBe(1);
         for (const c of state.players[1].hand) {
-            expect(c.knownTo).toBeUndefined();
+            expect(c.knownTo).toEqual(["p1"]);
         }
-        // And the eye flag is gone from p2's own view.
+        // The eye flag persists on p2's own view.
         const forP2 = projectPublicState(state, 1, "p2");
         for (const c of forP2.players[1].hand) {
-            expect(c!.seenByOpponent).toBeUndefined();
+            expect(c!.seenByOpponent).toBe(true);
         }
     });
 
-    // ADR 0026 / PRD #338 (slice 4), clear trigger #2 — an OWNER-CHOSEN discard
-    // (Disrupting Scepter: the target picks the card) is witnessed by the owner
-    // but NOT by the knower (p1). The knower's identity→card map can no longer
-    // be trusted, so the WHOLE remaining hand reverts to hidden for p1 while p2
-    // (the owner) is untouched. End-to-end through the mutation primitive so the
-    // GRE → game.ts → projection path is exercised. (Clearing leg of the mandate.)
-    it("an owner-chosen discard clears the controller's knowledge of the whole hand", () => {
+    // ADR 0026 (revised) — an OWNER-CHOSEN discard (Disrupting Scepter: the
+    // target picks the card) does NOT clear the knower's knowledge of the
+    // remaining hand. h1 leaves to the public graveyard; h2 stays known to p1
+    // (its identity→instance mapping is unchanged). End-to-end through the
+    // mutation primitive so the GRE → game.ts → projection path is exercised.
+    it("keeps the controller's knowledge of the remaining hand after an owner-chosen discard", () => {
         const state = setup();
         activateGlasses(state);
         resolveTopOfStack(state);
@@ -3894,22 +3896,21 @@ describe("Glasses of Urza (reveal hand, CR 401.4)", () => {
             cardInstanceIds: ["h1"],
         });
 
-        // h1 is in p2's graveyard; the remaining hand card (h2) is no longer
-        // known to p1 — the whole hand reverted to hidden for the non-owner.
+        // h1 is in p2's graveyard; the remaining hand card (h2) is STILL known
+        // to p1 — removing h1 introduced no uncertainty about h2.
         expect(state.players[1].graveyard.map((c) => c.id)).toContain("h1");
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["h2"]);
         for (const c of state.players[1].hand) {
-            expect(c.knownTo).toBeUndefined();
+            expect(c.knownTo).toEqual(["p1"]);
         }
 
-        // Projection: p1 no longer sees p2's hand face-up; p2's own view loses
+        // Projection: p1 still sees h2 face-up in p2's hand; p2's own view keeps
         // the eye flag. The owner's own knowledge is never affected.
         const forP1 = projectPublicState(state, 1, "p1");
-        for (const c of forP1.players[1].hand) {
-            expect(c).toBeNull();
-        }
+        expect(forP1.players[1].hand.map((c) => c?.id)).toEqual(["h2"]);
         const forP2 = projectPublicState(state, 1, "p2");
         for (const c of forP2.players[1].hand) {
-            expect(c!.seenByOpponent).toBeUndefined();
+            expect(c!.seenByOpponent).toBe(true);
         }
     });
 });

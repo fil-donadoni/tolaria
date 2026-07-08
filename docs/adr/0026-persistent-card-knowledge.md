@@ -51,8 +51,12 @@ make projection a pure function of it.
 - **Clear triggers** (the single principle: knowledge of viewer V over hidden
   zone Z is cleared when Z changes in a way V did not choose-and-witness):
     1. **Shuffle library** → clear all viewers, whole library (CR 701.20).
-    2. **Random or owner-chosen discard** (Hymn-style, and any discard the
-       knower did not select) → clear all non-owner viewers, whole hand.
+    2. ~~**Random or owner-chosen discard** → clear all non-owner viewers, whole
+       hand.~~ **Revised (2026-07, see below): discards no longer clear
+       knowledge of the remaining hand.** A discard moves one instance to the
+       public graveyard; because knowledge is per-INSTANCE, every card left in
+       hand stays identifiable to any prior knower. A discard is therefore NOT
+       an uncertainty event for the cards it leaves behind.
     3. **Entering a public zone** (stack/battlefield/graveyard/exile-face-up) →
        empty that instance's `knownTo`. The zone makes identity universally
        known anyway; emptying ensures a later return to a hidden zone is hidden
@@ -102,10 +106,19 @@ make projection a pure function of it.
   would break the witnessed draw case (opponent legitimately keeps knowing a
   card they saw you draw). Clearing specifically at the public-zone boundary
   is the minimal rule that prevents stale knowledge from resurrecting.
-- **Conservative whole-hand clear on unwitnessed discard.** Even though
-  discarded cards are publicly visible in the graveyard, the chosen rule
-  reverts the whole hand to hidden for non-owners — the user's intended
-  behavior (you can no longer trust your mapping of identities to held cards).
+- **~~Conservative whole-hand clear on unwitnessed discard.~~ Revised
+  (2026-07): discards do NOT clear knowledge of the remaining hand.** The
+  original rule reverted the whole hand to hidden on any discard the knower did
+  not choose. In practice this hid cards a full reveal (Thoughtseize, Duress,
+  Hymn to Tourach) had legitimately exposed: the reveal stamps the whole hand
+  `knownTo`, the caster picks one to discard, and the remaining cards then
+  vanished from view the instant the spell finished resolving. Because
+  knowledge is tracked per card INSTANCE and every discarded card is publicly
+  visible in the graveyard, removing one card introduces no uncertainty about
+  the others — the identity→instance mapping of the survivors is unchanged.
+  Only a genuine uncertainty event (shuffle, or a hidden return to the library)
+  now clears hand knowledge. `discardCard`, `discardAtRandom`, and the CR 514.1
+  cleanup discard dropped their `clearKnowledge` calls accordingly.
 
 ## Consequences
 
