@@ -152,9 +152,19 @@ function FanLayout({
     // fan, whose cards paint last and sit on top. For a library (topOnRight)
     // that end is the top of the deck; for any pile it's the visually on-top
     // side, so browsing always starts at the most-relevant edge.
+    //
+    // Deferred to a rAF and jumped INSTANTLY: on open the dialog auto-focuses
+    // its content, which resets this scroller to 0 AFTER a synchronous effect
+    // runs, and the container's `scroll-behavior: smooth` turns a same-tick set
+    // into an animation that focus then cancels. Running past the focus reset
+    // and bypassing smooth makes the end-of-fan position stick.
     useEffect(() => {
         const el = scrollRef.current;
-        if (el) el.scrollLeft = el.scrollWidth;
+        if (!el) return;
+        const raf = requestAnimationFrame(() => {
+            el.scrollTo({ left: el.scrollWidth, behavior: "instant" });
+        });
+        return () => cancelAnimationFrame(raf);
     }, [scrollRef, cards.length]);
     return (
         <div
