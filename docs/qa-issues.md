@@ -2,8 +2,6 @@ frantic search deve evidenziare con un ring le carte selezionate per lo stap. co
 
 quando una carta tipo Copy artifact diventa una copia, la card-preview deve mostrare accanto allo stato attuale anche la carta originale. vedi ui arena.
 
-Con cursed scroll non posso nominare terre base
-
 installHook.js:1 [CONVEX M(game:passPriority)] [Request ID: e8655af353f53a01] Server Error
 Uncaught Error: Field name $guard starts with a '$', which is reserved.
 at validateObjectField (../../node_modules/convex/src/values/value.ts:163:11)

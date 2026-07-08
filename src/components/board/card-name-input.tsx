@@ -31,20 +31,25 @@ export default function CardNameInput({
     const canonical = canonicalByLower.get(trimmed.toLowerCase());
     const isValid = canonical !== undefined;
 
-    // Top suggestions: prefix matches first, then substring, capped for the UI.
+    // Exact match first, then prefix matches, then substring, capped for the UI.
+    // The exact match MUST NOT be dropped: many card names are substrings of
+    // longer ones (every basic land is a substring of its "Snow-Covered …"
+    // variant; "Island" ⊂ "Island Sanctuary"). Skipping it hid the very card
+    // the chooser typed, leaving only the longer superset in the list.
     const suggestions = useMemo(() => {
         const q = trimmed.toLowerCase();
         if (q.length === 0) return [];
+        const exact: string[] = [];
         const prefix: string[] = [];
         const substring: string[] = [];
         for (const n of allNames) {
             const lower = n.toLowerCase();
-            if (lower === q) continue;
-            if (lower.startsWith(q)) prefix.push(n);
+            if (lower === q) exact.push(n);
+            else if (lower.startsWith(q)) prefix.push(n);
             else if (lower.includes(q)) substring.push(n);
             if (prefix.length >= 6) break;
         }
-        return [...prefix, ...substring].slice(0, 6);
+        return [...exact, ...prefix, ...substring].slice(0, 6);
     }, [allNames, trimmed]);
 
     const submit = () => {

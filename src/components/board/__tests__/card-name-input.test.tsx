@@ -50,6 +50,23 @@ describe("CardNameInput (name-card UI, #489)", () => {
         expect(input.value).toBe("Petra Sphinx");
     });
 
+    it("keeps the exact match in the suggestions even when a longer name is a superset", () => {
+        // Regression: typing a basic land name fully (e.g. "Plains") used to
+        // drop the exact match, leaving only substring supersets like
+        // "Snow-Covered Plains" — so the chooser could not pick the card they
+        // typed. The exact match must appear (and first).
+        const { getByLabelText, getAllByRole } = render(
+            <CardNameInput disabled={false} onSubmit={() => {}} />
+        );
+        const input = getByLabelText("Card name");
+        fireEvent.change(input, { target: { value: "Plains" } });
+        const labels = getAllByRole("button")
+            .map((b) => b.textContent)
+            .filter((t): t is string => t !== null && t !== "Name it");
+        expect(labels).toContain("Plains");
+        expect(labels[0]).toBe("Plains");
+    });
+
     it("does not submit while disabled (in-flight gate)", () => {
         const onSubmit = vi.fn();
         const { getByLabelText, getByText } = render(
