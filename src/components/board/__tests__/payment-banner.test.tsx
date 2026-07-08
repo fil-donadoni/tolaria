@@ -84,7 +84,12 @@ afterEach(cleanup);
 describe("PaymentBanner activation routing (#939)", () => {
     it("sacrifice-only cost (no mana) → no Auto-tap button, subtitle names the sacrifice", () => {
         const pa = activation({
-            sacrificeChoice: { filter: { types: "Creature" } },
+            sacrificeSelection: {
+                playerId: "me",
+                reason: "Ability",
+                requirements: [{ filter: { types: "Creature" }, count: 1 }],
+                picked: [],
+            },
         });
         render(
             <PaymentBanner
@@ -119,7 +124,12 @@ describe("PaymentBanner activation routing (#939)", () => {
     it("mixed mana + sacrifice, mana still uncovered → Auto-tap shown (sacrifice highlighting is a separate battlefield affordance)", () => {
         const pa = activation({
             manaCost: { R: 1 },
-            sacrificeChoice: { filter: { types: "Creature" } },
+            sacrificeSelection: {
+                playerId: "me",
+                reason: "Ability",
+                requirements: [{ filter: { types: "Creature" }, count: 1 }],
+                picked: [],
+            },
         });
         render(
             <PaymentBanner
@@ -138,7 +148,12 @@ describe("PaymentBanner activation routing (#939)", () => {
     it("mana cost already covered by the pool + sacrifice still pending → no Auto-tap, sacrifice subtitle", () => {
         const pa = activation({
             manaCost: { R: 1 },
-            sacrificeChoice: { filter: { types: "Land" } },
+            sacrificeSelection: {
+                playerId: "me",
+                reason: "Ability",
+                requirements: [{ filter: { types: "Land" }, count: 1 }],
+                picked: [],
+            },
         });
         const me = player({ manaPool: { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 } });
         render(

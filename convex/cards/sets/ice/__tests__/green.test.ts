@@ -1976,9 +1976,17 @@ describe("Freyalise Supplicant ({T}, Sac R/W creature: damage = floor(power/2), 
             tappedLandIds: [],
             tapSource: true,
             sacrificeSource: false,
-            sacrificeChoice: {
-                filter: { types: "Creature", colors: ["R", "W"] },
-                pickedId: "fuel",
+            sacrificeSelection: {
+                playerId: "p1",
+                reason: "Freyalise Supplicant",
+                requirements: [
+                    {
+                        filter: { types: "Creature", colors: ["R", "W"] },
+                        count: 1,
+                        snapshot: true,
+                    },
+                ],
+                picked: ["fuel"],
             },
             targets: [{ type: "player", id: "p2" }],
         };

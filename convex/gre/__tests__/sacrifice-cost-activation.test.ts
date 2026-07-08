@@ -25,6 +25,7 @@ import {
 } from "../state";
 import { getDefinition, tryGetDefinition } from "../../cards";
 import { matchesPermanentFilter } from "../../cards/filters";
+import { isSacrificeSelectionComplete } from "../sacrificeChoice";
 import {
     atog,
     ashnodsAltar,
@@ -96,7 +97,20 @@ function activateWithSacrificeCost(
         tapSource: !!ability.cost.tap,
         sacrificeSource: !!ability.cost.sacrifice,
         ...(ability.cost.sacrificeFilter
-            ? { sacrificeChoice: { filter: ability.cost.sacrificeFilter } }
+            ? {
+                  sacrificeSelection: {
+                      playerId,
+                      reason: def.name,
+                      requirements: [
+                          {
+                              filter: ability.cost.sacrificeFilter,
+                              count: 1,
+                              snapshot: true,
+                          },
+                      ],
+                      picked: [],
+                  },
+              }
             : {}),
         ...(targets.length > 0 ? { targets } : {}),
     };
@@ -112,7 +126,11 @@ function commitActivation(state: GameState, playerId: string): boolean {
     if (!pa || pa.playerId !== playerId) return false;
     const player = getPlayer(state, playerId);
     if (!isManaCostCovered(player.manaPool, pa.manaCost)) return false;
-    if (pa.sacrificeChoice && !pa.sacrificeChoice.pickedId) return false;
+    if (
+        pa.sacrificeSelection &&
+        !isSacrificeSelectionComplete(pa.sacrificeSelection)
+    )
+        return false;
 
     const card = player.battlefield.find((c) => c.id === pa.cardInstanceId)!;
     payManaCost(player.manaPool, pa.manaCost);
@@ -121,10 +139,9 @@ function commitActivation(state: GameState, playerId: string): boolean {
     if (pa.sacrificeSource) removePermanentTo(state, card.id, "graveyard");
 
     let snapshot: StackItem["additionalSacrificeSnapshot"];
-    if (pa.sacrificeChoice?.pickedId) {
-        const sacrificed = player.battlefield.find(
-            (c) => c.id === pa.sacrificeChoice!.pickedId
-        )!;
+    const pickedId = pa.sacrificeSelection?.picked[0];
+    if (pickedId) {
+        const sacrificed = player.battlefield.find((c) => c.id === pickedId)!;
         snapshot = {
             cardInstanceId: sacrificed.id,
             mv: sacrificedManaValue(sacrificed),
@@ -156,16 +173,18 @@ function selectActivationCost(
 ): void {
     const pa = state.pendingActivation;
     if (!pa) throw new Error("No ability being activated");
-    const sc = pa.sacrificeChoice;
-    if (!sc) throw new Error("No sacrifice cost picker");
-    if (sc.pickedId) throw new Error("Sacrifice cost already paid");
+    const sel = pa.sacrificeSelection;
+    if (!sel) throw new Error("No sacrifice cost picker");
+    if (isSacrificeSelectionComplete(sel))
+        throw new Error("Sacrifice cost already paid");
     const player = getPlayer(state, playerId);
     const candidate = player.battlefield.find((c) => c.id === cardInstanceId);
     if (!candidate) throw new Error("Not on your battlefield");
-    if (!matchesPermanentFilter(candidate, sc.filter)) {
+    const req = sel.requirements[0];
+    if (!matchesPermanentFilter(candidate, req.filter)) {
         throw new Error("Does not match the sacrifice cost filter");
     }
-    sc.pickedId = cardInstanceId;
+    sel.picked.push(cardInstanceId);
     commitActivation(state, playerId);
 }
 
@@ -199,7 +218,10 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
             "atog-1",
             "atog-pump"
         );
-        expect(pa.sacrificeChoice).toEqual({ filter: { types: "Artifact" } });
+        expect(pa.sacrificeSelection?.requirements).toEqual([
+            { filter: { types: "Artifact" }, count: 1, snapshot: true },
+        ]);
+        expect(pa.sacrificeSelection?.picked).toEqual([]);
         // Mana already covered, but commit is BLOCKED until the pick.
         expect(commitActivation(state, "p1")).toBe(false);
         expect(state.stack).toHaveLength(0);

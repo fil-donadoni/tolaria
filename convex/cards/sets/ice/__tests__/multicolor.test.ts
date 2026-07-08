@@ -34,7 +34,14 @@ import {
 } from "../../ice";
 import { mountain, grizzlyBears, scatheZombies } from "../../lea";
 import { collectAttackSacrificeTax } from "../../../../gre/combat";
-import { removePermanentTo } from "../../../../gre/state";
+import {
+    sacrificeCandidates,
+    autoResolveFungible,
+    isSacrificeSelectionComplete,
+    applySacrificeSelection,
+    type SacrificeSelection,
+} from "../../../../gre/sacrificeChoice";
+import type { PermanentFilter } from "../../../filters";
 import { isLand } from "../../../../gre/constants";
 import { getDefinition, getCardByName } from "../../../index";
 import { resolveTopOfStack } from "../../../../gre/state";
@@ -1341,17 +1348,43 @@ describe("Fumarole ({3}{B}{R} — destroy target creature AND target land, pay 3
 // suffice, and untaxed attackers pay nothing.
 // ===========================================================================
 
-/** Mirror of the confirmAttackers tax enforcement (game.ts): collect the
- *  charges, reject if a payer has too few lands, else auto-sacrifice `count`
- *  lands per charge. Returns nothing; throws the oracle reason on shortfall. */
+const LAND_FILTER: PermanentFilter = { types: ["Land"] };
+
+/** Mirror of the confirmAttackers tax logic (game.ts, CR 701.21a): collect the
+ *  charges, reject if the payer has too few lands, else build the unified
+ *  land-sacrifice selection and auto-resolve a fungible board. Returns the
+ *  selection (undefined when no tax applies); throws the oracle reason on
+ *  shortfall. */
+function buildAttackSacrificeSelection(
+    state: GameState
+): SacrificeSelection | undefined {
+    const charges = collectAttackSacrificeTax(state);
+    if (charges.length === 0) return undefined;
+    const payerId = charges[0].controllerId;
+    const totalNeeded = charges.reduce((a, ch) => a + ch.count, 0);
+    if (sacrificeCandidates(state, payerId, LAND_FILTER).length < totalNeeded) {
+        throw new Error(charges[0].reason);
+    }
+    const sel: SacrificeSelection = {
+        playerId: payerId,
+        reason: charges[0].reason,
+        requirements: charges.map((ch) => ({
+            filter: LAND_FILTER,
+            count: ch.count,
+        })),
+        picked: [],
+    };
+    autoResolveFungible(state, sel);
+    return sel;
+}
+
+/** Apply the tax as confirmAttackers does when the board is fungible: build the
+ *  selection and, only if it auto-resolved to completion, execute it. A
+ *  non-fungible board leaves the selection parked (nothing sacrificed here). */
 function applyAttackSacrificeTax(state: GameState): void {
-    for (const charge of collectAttackSacrificeTax(state)) {
-        const payer = state.players.find((p) => p.id === charge.controllerId)!;
-        const lands = payer.battlefield.filter((c) => isLand(c));
-        if (lands.length < charge.count) throw new Error(charge.reason);
-        for (let i = 0; i < charge.count; i++) {
-            removePermanentTo(state, lands[i].id, "graveyard", "sacrifice");
-        }
+    const sel = buildAttackSacrificeSelection(state);
+    if (sel && isSacrificeSelectionComplete(sel)) {
+        applySacrificeSelection(state, sel);
     }
 }
 
@@ -1483,6 +1516,55 @@ describe("Flooded Woodlands (CR 508.1c/1g — green-creature attack tax, #733)",
             landCount: 3,
         });
         expect(collectAttackSacrificeTax(state)).toEqual([]);
+    });
+
+    it("does not auto-pick when the lands are non-fungible (parks the choice, CR 701.21a)", () => {
+        // One green attacker → one land to sacrifice; two lands, one tapped, so
+        // which land to sacrifice is a real choice.
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "g1",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const untapped = makeInstance(mountain.id, {
+            id: "land-u",
+            controllerId: "p1",
+        });
+        const tapped = makeInstance(mountain.id, {
+            id: "land-t",
+            controllerId: "p1",
+            isTapped: true,
+        });
+        const tax = makeInstance(floodedWoodlands.id, {
+            id: "tax",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [attacker, untapped, tapped, tax],
+                }),
+                makePlayer("p2"),
+            ],
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            combat: {
+                attackerIds: ["g1"],
+                blockerAssignments: {},
+                confirmed: false,
+                blockersConfirmed: false,
+            },
+        });
+        const sel = buildAttackSacrificeSelection(state);
+        expect(sel).toBeDefined();
+        expect(isSacrificeSelectionComplete(sel!)).toBe(false);
+        // applyAttackSacrificeTax leaves both lands in play (parked, awaiting
+        // selectSacrifice).
+        applyAttackSacrificeTax(state);
+        expect(
+            state.players[0].battlefield.filter((c) => isLand(c)).length
+        ).toBe(2);
     });
 });
 

@@ -2,11 +2,20 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import type { PendingActivation, PendingCast, Player } from "~/types/game";
+import type {
+    PendingActivation,
+    PendingCast,
+    Player,
+    SacrificeSelection,
+} from "~/types/game";
 import type { PermanentFilter } from "@convex/cards/filters";
 import { getDefinition } from "@convex/cards";
 import { useDraggable } from "~/hooks/useDraggable";
 import { isManaCostCovered } from "~/lib/card-utils";
+import {
+    isSacrificeComplete,
+    nextSacrificeRequirement,
+} from "~/lib/sacrifice-selection";
 
 /** Minimal noun phrase for a permanent filter, e.g. "a creature" (types:
  *  "Creature") or "a Swamp" (subtypes: ["Swamp"]). Subtypes win over types
@@ -35,11 +44,20 @@ function formatFilterLabel(filter: PermanentFilter): string {
  *  describes the still-outstanding non-mana pick instead (#939). Falls back
  *  to the generic phrasing if somehow called with nothing left to pick (the
  *  activation would already have auto-committed server-side by then). */
-function describeActivationCostChoice(pa: PendingActivation): string {
-    const sc = pa.sacrificeChoice;
-    if (sc && !sc.pickedId) {
-        return `sacrifice ${formatFilterLabel(sc.filter)}`;
+/** Subtitle for an outstanding sacrifice choice (CR 701.21a) — names the next
+ *  unmet requirement's filter, with progress when more than one is owed. */
+function describeSacrificeChoice(sel: SacrificeSelection): string {
+    const req = nextSacrificeRequirement(sel);
+    if (!req) return "sacrifice a permanent";
+    const label = formatFilterLabel(req.filter);
+    const total = sel.requirements.reduce((a, r) => a + r.count, 0);
+    if (total > 1) {
+        return `sacrifice ${label} (${sel.picked.length}/${total})`;
     }
+    return `sacrifice ${label}`;
+}
+
+function describeActivationCostChoice(pa: PendingActivation): string {
     const toc = pa.tapOtherChoice;
     if (toc && toc.pickedIds.length < toc.count) {
         const remaining = toc.count - toc.pickedIds.length;
@@ -98,7 +116,21 @@ export default function PaymentBanner(props: Props) {
         cardName = cardInHand
             ? getDefinition(cardInHand.card.id).name
             : "spell";
-        subtitle = "pay the casting costs";
+        // CR 701.21a — when the cast is parked on a sacrifice choice, hide the
+        // Auto-tap affordance once the mana leg is covered and name the pick.
+        const castSac = props.pendingCast.sacrificeSelection;
+        const castManaCovered =
+            Object.keys(props.pendingCast.manaCost).length === 0 ||
+            isManaCostCovered(
+                props.me?.manaPool ?? {},
+                props.pendingCast.manaCost
+            );
+        if (castSac && !isSacrificeComplete(castSac) && castManaCovered) {
+            manaOwed = false;
+            subtitle = describeSacrificeChoice(castSac);
+        } else {
+            subtitle = "pay the casting costs";
+        }
     } else {
         const source = props.me?.battlefield.find(
             (c) => c.id === props.pendingActivation.cardInstanceId
@@ -110,9 +142,12 @@ export default function PaymentBanner(props: Props) {
                 props.me?.manaPool ?? {},
                 props.pendingActivation.manaCost
             );
+        const actSac = props.pendingActivation.sacrificeSelection;
         subtitle = manaOwed
             ? "pay the activation costs"
-            : describeActivationCostChoice(props.pendingActivation);
+            : actSac && !isSacrificeComplete(actSac)
+              ? describeSacrificeChoice(actSac)
+              : describeActivationCostChoice(props.pendingActivation);
     }
 
     async function handleAutoTap() {

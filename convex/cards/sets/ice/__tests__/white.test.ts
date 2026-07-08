@@ -74,10 +74,15 @@ import {
     runDamageReplacement,
     applyTargetPrevention,
     getStaticAdditionalSacrifices,
-    planStaticAdditionalSacrifices,
     removePermanentTo,
     processPendingActionTriggers,
 } from "../../../../gre/state";
+import {
+    canAffordSacrifice,
+    autoResolveFungible,
+    applySacrificeSelection,
+    type SacrificeSelection,
+} from "../../../../gre/sacrificeChoice";
 import {
     buildAutoTapSources,
     solveSmartAutoTap,
@@ -2308,11 +2313,9 @@ describe("Drought (CR 601.2f / 118.5 — static per-pip non-mana additional cost
             zombiesInHand(),
             "spell"
         );
-        // The announcement gate wraps exactly this plan call — an unpayable
-        // requirement throws, making the cast/activation illegal.
-        expect(() =>
-            planStaticAdditionalSacrifices(reqs, state.players[0])
-        ).toThrow();
+        // The announcement gate wraps exactly this affordability check — an
+        // unpayable requirement makes the cast/activation illegal (CR 601.2f).
+        expect(canAffordSacrifice(state, "p1", reqs)).toBe(false);
     });
 
     it("picks distinct victims and never double-counts across two Droughts (CR 118.5)", () => {
@@ -2342,9 +2345,20 @@ describe("Drought (CR 601.2f / 118.5 — static per-pip non-mana additional cost
             "spell"
         );
         expect(reqs).toHaveLength(2);
-        const ids = planStaticAdditionalSacrifices(reqs, state.players[0]);
-        expect(new Set(ids).size).toBe(2); // distinct victims
-        expect([...ids].sort()).toEqual(["sw1", "sw2"]);
+        // Auto-resolve reserves distinct victims across the two requirements
+        // (fungible Swamps → no prompt, but never double-counts — CR 118.5).
+        const sel: SacrificeSelection = {
+            playerId: "p1",
+            reason: "Drought",
+            requirements: reqs.map((r) => ({
+                filter: r.filter,
+                count: r.count,
+            })),
+            picked: [],
+        };
+        autoResolveFungible(state, sel);
+        expect(new Set(sel.picked).size).toBe(2); // distinct victims
+        expect([...sel.picked].sort()).toEqual(["sw1", "sw2"]);
         // With only ONE Swamp, the two requirements can't both be paid.
         const stateB = makeState({
             players: [
@@ -2360,9 +2374,7 @@ describe("Drought (CR 601.2f / 118.5 — static per-pip non-mana additional cost
             zombiesInHand(),
             "spell"
         );
-        expect(() =>
-            planStaticAdditionalSacrifices(reqsB, stateB.players[0])
-        ).toThrow();
+        expect(canAffordSacrifice(stateB, "p1", reqsB)).toBe(false);
     });
 
     it("sacrifices the Swamp when the spell is put on the stack (full commit path, CR 601.2h)", () => {
@@ -2389,11 +2401,26 @@ describe("Drought (CR 601.2f / 118.5 — static per-pip non-mana additional cost
             priorityPlayerId: "p1",
             activePlayerId: "p1",
         });
+        // The selection is built at announce; with a single Swamp it
+        // auto-resolves, so the deferred commit applies it (CR 601.2f / 701.21a).
+        const sel: SacrificeSelection = {
+            playerId: "p1",
+            reason: "Drought",
+            requirements: getStaticAdditionalSacrifices(
+                state,
+                zombies.manaCost,
+                zInst,
+                "spell"
+            ).map((r) => ({ filter: r.filter, count: r.count })),
+            picked: [],
+        };
+        autoResolveFungible(state, sel);
         state.pendingCast = {
             playerId: "p1",
             cardInstanceId: "z1",
             manaCost: normalizeManaCost(zombies.manaCost ?? {}),
             tappedLandIds: [],
+            sacrificeSelection: sel,
         };
         const committed = tryAutoCommitPendingCast(state, "p1");
         expect(committed).not.toBeNull();
@@ -2445,9 +2472,9 @@ describe("Drought (CR 601.2f / 118.5 — static per-pip non-mana additional cost
         expect(after[0].count).toBe(1);
     });
 
-    // Also exercise the sacrifice via removePermanentTo (mirrors the exact
-    // payStaticAdditionalCost commit loop the mutation sites call).
-    it("removePermanentTo pays the planned sacrifice (mirrors payStaticAdditionalCost)", () => {
+    // Also exercise the sacrifice via applySacrificeSelection (the unified
+    // executor the commit sites call — CR 701.21a).
+    it("applySacrificeSelection pays the chosen static sacrifice", () => {
         const droughtInst = makeInstance(drought.id, {
             controllerId: "p1",
             ownerId: "p1",
@@ -2467,12 +2494,17 @@ describe("Drought (CR 601.2f / 118.5 — static per-pip non-mana additional cost
             zombiesInHand(),
             "spell"
         );
-        for (const id of planStaticAdditionalSacrifices(
-            reqs,
-            state.players[0]
-        )) {
-            removePermanentTo(state, id, "graveyard", "sacrifice");
-        }
+        const sel: SacrificeSelection = {
+            playerId: "p1",
+            reason: "Drought",
+            requirements: reqs.map((r) => ({
+                filter: r.filter,
+                count: r.count,
+            })),
+            picked: [],
+        };
+        autoResolveFungible(state, sel);
+        applySacrificeSelection(state, sel);
         expect(state.players[0].battlefield.some((c) => c.id === "swX")).toBe(
             false
         );

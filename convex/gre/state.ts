@@ -43,6 +43,7 @@ import { getAbilityEffectFn, getResolveFn } from "../cards/effectRegistry";
 import { runDelayedTriggerBody } from "./effects/interpreter";
 import { matchesPermanentFilter } from "../cards/filters";
 import type { Phase, Zone, PhaseReturnCondition } from "./types";
+import type { SacrificeSelection } from "./sacrificeChoice";
 import {
     getActivatedManaColor,
     getBasicLandMana,
@@ -1144,6 +1145,11 @@ export type PendingCast = {
         filter: PermanentFilter;
         pickedId?: string;
     };
+    /** Unified filtered-sacrifice choice for this cast (CR 701.21a): the card's
+     *  own additional sacrifice cost AND any board-wide static additional
+     *  sacrifice (Drought), folded into one selection. `additionalCost` remains
+     *  for the exile branch only. */
+    sacrificeSelection?: SacrificeSelection;
 };
 
 /** Tracks an in-progress activated-ability payment (CR 602.1, 602.2b).
@@ -1169,18 +1175,15 @@ export type PendingActivation = {
     tapSource: boolean;
     /** True iff the ability has a sacrifice cost — applied at commit. */
     sacrificeSource: boolean;
-    /** In-progress "sacrifice a permanent matching <filter>" cost picker
-     *  (CR 602.1, 118.5 — Antiquities sacrifice-for-value engines). Set when
-     *  the ability has `cost.sacrificeFilter`. `pickedId` is undefined until
-     *  the player calls `selectActivationCost`; commit is blocked while it is
-     *  undefined regardless of mana coverage. On commit the picked permanent
-     *  is sacrificed and its mana value is snapshotted onto the resulting
-     *  stack item (read at resolve via getAdditionalSacrificeMv — Priest of
-     *  Yawgmoth). Mirrors PendingCast.additionalCost. */
-    sacrificeChoice?: {
-        filter: PermanentFilter;
-        pickedId?: string;
-    };
+    /** Unified filtered-sacrifice choice for this activation (CR 602.1 / 118.5 /
+     *  701.21a): the ability's own "sacrifice a permanent matching <filter>"
+     *  cost AND any board-wide static additional sacrifice (Drought), folded
+     *  into one selection. Commit is blocked while it is incomplete regardless
+     *  of mana coverage; on commit the picked permanents are sacrificed and the
+     *  snapshot-flagged victim's mv/subtypes/power ride on the stack item (read
+     *  at resolve via getAdditionalSacrificeMv/Power — Priest of Yawgmoth,
+     *  Freyalise Supplicant). */
+    sacrificeSelection?: SacrificeSelection;
     /** In-progress "exile N cards from a single graveyard" cost picker
      *  (CR 602.1, 118.5, 406 — Night Soil). Set when the ability has
      *  `cost.exileFromGraveyard`. `count`/`cardType` mirror the cost; both
@@ -1188,7 +1191,7 @@ export type PendingActivation = {
      *  player calls `selectActivationCost`, and commit is blocked while they
      *  are unset regardless of mana coverage. On commit the chosen cards move
      *  from that graveyard to its owner's exile zone. Mirrors
-     *  `sacrificeChoice`. */
+     *  `sacrificeSelection`. */
     exileFromGraveyardChoice?: {
         count: number;
         cardType?: CardType;
@@ -1758,6 +1761,11 @@ export type GameState = {
         blockedAttackerIds?: string[];
         /** Blocker currently being assigned by the defending player (visible to both clients). */
         pendingBlockerId?: string;
+        /** Parked land-sacrifice attack tax awaiting the attacking player's
+         *  choice (CR 508.1c/1g, 701.21a — Flooded Woodlands, Reclamation).
+         *  Present only while the tax is non-fungible; confirmAttackers
+         *  finalizes once complete. */
+        pendingAttackSacrifice?: SacrificeSelection;
         blockersConfirmed: boolean;
         /** sourceId → { targetId/defenderId: damage } for damage distribution.
          *  A source is any combat-damage dealer: an attacker (targets are its
@@ -9752,46 +9760,6 @@ export function getStaticAdditionalSacrifices(
         }
     }
     return out;
-}
-
-/** Auto-pick the instance ids `player` must sacrifice to pay all the static
- *  additional-cost requirements (CR 601.2f / 118.5, Drought). Victims are
- *  chosen deterministically in battlefield order and never double-counted
- *  across overlapping requirements (two Droughts drawing from the same Swamp
- *  pool). Throws — the cast/activation is illegal (CR 601.2f) — when the
- *  requirements can't all be met.
- *
- *  The pick is auto-resolved (no UI picker) — a deliberate simplification vs.
- *  strict "the player chooses which permanent to sacrifice", tactically
- *  irrelevant for the fungible-land case the effect targets. */
-export function planStaticAdditionalSacrifices(
-    requirements: StaticAdditionalSacrifice[],
-    player: PlayerState
-): string[] {
-    const reserved = new Set<string>();
-    for (const req of requirements) {
-        let need = req.count;
-        for (const c of player.battlefield) {
-            if (need <= 0) break;
-            if (reserved.has(c.id)) continue;
-            if (
-                matchesPermanentFilter(
-                    { ...c, colors: STATIC_EFFECT_CTX.getColors(c) },
-                    req.filter,
-                    { selfControllerId: player.id }
-                )
-            ) {
-                reserved.add(c.id);
-                need -= 1;
-            }
-        }
-        if (need > 0) {
-            throw new Error(
-                "Can't pay the additional cost (not enough permanents to sacrifice)"
-            );
-        }
-    }
-    return [...reserved];
 }
 
 /** Scan the battlefield for `mana-substitution` static effects whose source

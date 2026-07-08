@@ -41,10 +41,8 @@ import {
     bumpDamageDealtToPlayer,
     emitLifeLost,
     getPlayer,
-    matchesPermanentFilter,
     moveCard,
     putHandCardOnTopOfLibrary,
-    removePermanentTo,
 } from "./state";
 
 function collectReplacements(
@@ -163,22 +161,6 @@ function buildApplyCtx(
                     drawn.id,
                 ];
             }
-        },
-        autoSacrifice: (playerId, count, filter) => {
-            if (count <= 0) return 0;
-            const player = getPlayer(state, playerId);
-            const candidateIds: string[] = [];
-            for (const c of player.battlefield) {
-                if (c.isToken) continue;
-                if (c.id === source.id) continue;
-                if (filter && !matchesPermanentFilter(c, filter)) continue;
-                candidateIds.push(c.id);
-                if (candidateIds.length >= count) break;
-            }
-            for (const id of candidateIds) {
-                removePermanentTo(state, id, "graveyard", "sacrifice");
-            }
-            return candidateIds.length;
         },
         moveHandCardToLibraryTop: (playerId, cardInstanceId) =>
             putHandCardOnTopOfLibrary(
