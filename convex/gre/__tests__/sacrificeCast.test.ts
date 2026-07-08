@@ -1,16 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../cards/__tests__/setup";
-import { getCardByName } from "../../cards/index";
 import {
-    getStaticAdditionalSacrifices,
-    normalizeManaCost,
-} from "../state";
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup";
+import { getCardByName } from "../../cards/index";
+import { getStaticAdditionalSacrifices, normalizeManaCost } from "../state";
 import { tryAutoCommitPendingCast } from "../../game";
 import {
     autoResolveFungible,
     isSacrificeSelectionComplete,
     type SacrificeSelection,
 } from "../sacrificeChoice";
+import { projectPublicState } from "../../gameProjections";
 import type { GameState, CardInstanceState } from "../state";
 
 // CR 601.2f / 118.5 / 701.21a — Drought's board-wide "sacrifice a Swamp per
@@ -93,9 +95,10 @@ describe("Drought additional sacrifice at commit (CR 701.21a)", () => {
         expect(committed).toBeNull();
         expect(state.stack).toHaveLength(0);
         // Neither Swamp was sacrificed.
-        expect(
-            state.players[0].battlefield.map((c) => c.id).sort()
-        ).toEqual(["swT", "swU"]);
+        expect(state.players[0].battlefield.map((c) => c.id).sort()).toEqual([
+            "swT",
+            "swU",
+        ]);
     });
 
     it("auto-resolves and commits when Swamps are fungible", () => {
@@ -117,8 +120,36 @@ describe("Drought additional sacrifice at commit (CR 701.21a)", () => {
             c.subtypes?.includes("Swamp")
         );
         expect(swampsLeft).toHaveLength(1);
-        expect(state.players[0].graveyard.filter((c) =>
-            c.subtypes?.includes("Swamp")
-        )).toHaveLength(1);
+        expect(
+            state.players[0].graveyard.filter((c) =>
+                c.subtypes?.includes("Swamp")
+            )
+        ).toHaveLength(1);
+    });
+
+    it("the parked sacrificeSelection survives the wire projection intact", () => {
+        const state = scenario([
+            makeSwamp("swU"),
+            makeSwamp("swT", { isTapped: true }),
+        ]);
+        const sel = droughtSelection(state);
+        state.pendingCast = {
+            playerId: "p1",
+            cardInstanceId: "z1",
+            manaCost: normalizeManaCost(zombies.manaCost ?? {}),
+            tappedLandIds: [],
+            sacrificeSelection: sel,
+        };
+        // The client reads pendingCast.sacrificeSelection to light up the
+        // picker; the projection must carry filter + picked verbatim.
+        const projected = projectPublicState(
+            state,
+            1,
+            "p1"
+        ) as unknown as GameState;
+        expect(
+            projected.pendingCast?.sacrificeSelection?.requirements
+        ).toEqual([{ filter: { subtypes: ["Swamp"] }, count: 1 }]);
+        expect(projected.pendingCast?.sacrificeSelection?.picked).toEqual([]);
     });
 });

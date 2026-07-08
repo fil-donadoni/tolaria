@@ -4636,15 +4636,6 @@ export interface ReplacementApplyContext {
     /** Player ids in active-then-non-active order (CR 101.4). */
     apNapOrder: () => string[];
     drawCards: (playerId: string, amount: number) => void;
-    /** Sacrifices the first `count` non-token permanents on `playerId`'s
-     *  battlefield matching `filter`, in battlefield-declaration order. Used
-     *  by Lich's "sacrifice X nontoken permanents". Returns the number
-     *  actually sacrificed (clamped to availability). */
-    autoSacrifice: (
-        playerId: string,
-        count: number,
-        filter?: PermanentFilter
-    ) => number;
     /** Moves a hand card to the top of the player's library. Used by Library
      *  of Leng's discard replacement. */
     moveHandCardToLibraryTop: (
