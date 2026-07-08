@@ -112,7 +112,7 @@ import { projectFullState, projectPublicState } from "./gameProjections";
 import {
     canPayAlternativeCost,
     getAlternativeCost,
-    payAlternativeCost,
+    buildAlternativeCostChoice,
 } from "./gre/alternativeCost";
 import { hasSupertypeLive, liveSupertypesOf } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
@@ -190,6 +190,7 @@ import {
     forfeitMatch as computeForfeitMatch,
     matchBelongsToUser,
     nextGameActivePlayerId,
+    pickCoinTossWinner,
     recordGameResult,
     snapshotDeck,
     type MatchPlayer,
@@ -1989,13 +1990,18 @@ export const createSoloGame = mutation({
         const allPlayers = [player1, player2];
         const now = Date.now();
 
-        // Solo/vs-AI: both seats exist immediately, so the Match is "playing"
-        // and Game 1 is built up front (PRD #387). Bo1 by default.
+        // Solo/vs-AI: both seats exist immediately, but G1 opens on the coin-toss
+        // gate (CR 103.2-103.4) rather than building the Game up front. The toss
+        // winner (`playDrawChooserId`) picks play/draw; `chooseFirstPlayer` then
+        // builds Game 1 with the resolved active player. Bo1 by default.
+        const matchPlayers = buildMatchPlayers(allPlayers);
+        const tossWinnerId = pickCoinTossWinner(matchPlayers, Math.random());
         const matchId = await ctx.db.insert("matches", {
             bestOf: args.bestOf ?? 1,
-            status: "playing",
-            players: buildMatchPlayers(allPlayers),
+            status: "pregame",
+            players: matchPlayers,
             currentGameNumber: 1,
+            playDrawChooserId: tossWinnerId,
             solo: true,
             vsAi: args.vsAi === true ? true : undefined,
             createdAt: now,
@@ -2006,7 +2012,7 @@ export const createSoloGame = mutation({
             name: args.name,
             matchId,
             gameNumber: 1,
-            status: "playing",
+            status: "pregame",
             players: toGamePlayers(allPlayers),
             solo: true,
             vsAi: args.vsAi === true ? true : undefined,
@@ -2016,10 +2022,63 @@ export const createSoloGame = mutation({
 
         await ctx.db.patch(matchId, { currentGameId: gameId });
 
-        const initialState = buildInitialGameState(allPlayers);
+        return gameId;
+    },
+});
+
+/**
+ * Resolve the G1 coin toss into the first Game (CR 103.2-103.4). The Match must
+ * be in the "pregame" gate opened by `joinGame` / `createSoloGame`, with the
+ * toss winner recorded as `playDrawChooserId`. That winner's `choice` sets the
+ * turn-1 active player via `nextGameActivePlayerId`; a vs-AI bot chooser
+ * auto-chooses "play" (mirrors `buildNextGameForMatch`). Builds the deferred G1
+ * state onto the EXISTING pregame Game row (`currentGameId`) — the client's
+ * stored session id must stay valid — and flips Match + Game to "playing".
+ * Idempotent: once "playing" the built Game is returned without rebuilding.
+ */
+export const chooseFirstPlayer = mutation({
+    args: {
+        matchId: v.id("matches"),
+        choice: v.optional(v.union(v.literal("play"), v.literal("draw"))),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        const match = await ctx.db.get(args.matchId);
+        if (!match) throw new Error("Match not found");
+        if (!matchBelongsToUser(match, user._id))
+            throw new Error("You are not part of this match");
+
+        // Idempotent on double-click / OCC retry: G1 already built.
+        if (match.status === "playing" && match.currentGameId)
+            return { gameId: match.currentGameId };
+        if (match.status !== "pregame")
+            throw new Error("Match is not in the coin-toss step");
+        const gameId = match.currentGameId;
+        if (!gameId) throw new Error("Match has no pregame Game to build");
+
+        const now = Date.now();
+        const seats = buildNextGameSeats(match);
+        // The toss winner (`playDrawChooserId`) chooses; a bot chooser is forced
+        // to "play" server-side with no human prompt (CR 103.4, #394).
+        const resolvedChoice: PlayDrawChoice = botIsChooser(match)
+            ? "play"
+            : (args.choice ?? "play");
+        const activePlayerId = nextGameActivePlayerId(match, resolvedChoice);
+
+        await ctx.db.patch(gameId, { status: "playing", updatedAt: now });
+        await ctx.db.patch(args.matchId, {
+            status: "playing",
+            playDrawChooserId: undefined,
+            updatedAt: now,
+        });
+
+        // CR 103.5: opening hands are drawn only after the starting player is
+        // decided. The on-the-play skip-first-draw rule (CR 103.8) is already
+        // handled by the engine (turn === 1).
+        const initialState = buildInitialGameState(seats, activePlayerId);
         await saveGameState(ctx, gameId, 0, initialState, null);
 
-        return gameId;
+        return { gameId };
     },
 });
 
@@ -2054,28 +2113,36 @@ export const joinGame = mutation({
         const allPlayers = [...game.players, player];
         const now = Date.now();
 
-        // Complete the owning Match: add the joiner's deck snapshot and flip it
-        // to "playing" (PRD #387). The waiting Match was created by createGame.
+        // Complete the owning Match and open the G1 coin-toss gate (CR
+        // 103.2-103.4): add the joiner's deck snapshot, flip the Match to
+        // "pregame", and record the toss winner as the play/draw chooser. Game 1
+        // is NOT built yet — `chooseFirstPlayer` builds it once the choice lands.
         if (game.matchId) {
             const match = await ctx.db.get(game.matchId);
             if (match) {
+                const matchPlayers = [
+                    ...match.players,
+                    ...buildMatchPlayers([player]),
+                ];
+                const tossWinnerId = pickCoinTossWinner(
+                    matchPlayers,
+                    Math.random()
+                );
                 await ctx.db.patch(game.matchId, {
-                    status: "playing",
-                    players: [...match.players, ...buildMatchPlayers([player])],
+                    status: "pregame",
+                    players: matchPlayers,
+                    playDrawChooserId: tossWinnerId,
                     updatedAt: now,
                 });
             }
         }
 
-        // Update game record
+        // Update game record (no game_states row until the toss is resolved).
         await ctx.db.patch(args.gameId, {
-            status: "playing",
+            status: "pregame",
             players: toGamePlayers(allPlayers),
             updatedAt: now,
         });
-
-        const initialState = buildInitialGameState(allPlayers);
-        await saveGameState(ctx, args.gameId, 0, initialState, null);
     },
 });
 
@@ -2114,7 +2181,10 @@ export const leaveGame = mutation({
         if (!game) return; // already gone — nothing to free
         if (!gameBelongsToUser(game, user._id))
             throw new Error("You are not part of this game");
-        if (game.status !== "waiting")
+        // "pregame" (G1 coin-toss gate) has no game_states row and no moves
+        // played, so it abandons like a waiting room; "playing" must be
+        // conceded instead.
+        if (game.status !== "waiting" && game.status !== "pregame")
             throw new Error("Cannot leave a game in progress; concede instead");
         // Delete any state snapshots first, then the orphan waiting room and its
         // owning waiting Match (ADR 0029) so the user is free to start another.
@@ -2126,7 +2196,10 @@ export const leaveGame = mutation({
         await ctx.db.delete(args.gameId);
         if (game.matchId) {
             const match = await ctx.db.get(game.matchId);
-            if (match && match.status === "waiting")
+            if (
+                match &&
+                (match.status === "waiting" || match.status === "pregame")
+            )
                 await ctx.db.delete(game.matchId);
         }
     },
@@ -3171,14 +3244,30 @@ export function finalizeTargetSelection(
     // still rides on `pendingCast.additionalCost`. A spell with an exile cost or
     // a non-fungible sacrifice choice parks BEFORE mana so the cost is chosen
     // and paid before the spell commits (Soul Exchange carries its targets too).
-    const { selection: castSac, exilePicker } = buildCastSacrificeSelection(
-        state,
-        rawCost,
-        cardInHand,
-        player,
-        cardDef.additionalCosts,
-        cardDef.name ?? "Sacrifice"
-    );
+    const { selection: additionalSac, exilePicker } =
+        buildCastSacrificeSelection(
+            state,
+            rawCost,
+            cardInHand,
+            player,
+            cardDef.additionalCosts,
+            cardDef.name ?? "Sacrifice"
+        );
+    // CR 118.9 — the chosen alternative cost (return/sacrifice N lands) is a
+    // player-chosen filtered give-up, built as a `SacrificeSelection` and paid
+    // through the SAME unified layer as every other cost sacrifice, so WHICH
+    // permanents pay it is the caster's explicit choice (parks when real,
+    // auto-resolves when forced/fungible). The alt-cost cards carry no
+    // additional cost of their own, so the two selections never coexist — the
+    // alt choice takes the cast's single `sacrificeSelection` slot.
+    const castSac = chosenAltCost
+        ? buildAlternativeCostChoice(
+              state,
+              playerId,
+              chosenAltCost,
+              cardDef.name ?? "Alternative cost"
+          )
+        : additionalSac;
     const parkForSacrifice =
         !!exilePicker ||
         (castSac !== undefined && !isSacrificeSelectionComplete(castSac));
@@ -3228,18 +3317,16 @@ export function finalizeTargetSelection(
                 : undefined;
             commitLandsForCost(player, manaCost);
         }
-        // CR 118.9 — pay the chosen ALTERNATIVE cost (return / sacrifice lands,
-        // Thwart / Fireblast) as the spell moves hand → stack, in place of the
-        // (zeroed) mana cost. Affordability was validated at announcement;
-        // re-checked here since the board may have changed during targeting.
-        if (chosenAltCost) payAlternativeCost(state, playerId, chosenAltCost);
         // CR 601.2b / 118.4 — pay the "pay X life" additional cost as the spell
         // moves hand → stack (Fire Covenant). Affordability validated at
         // announcement; SBA handles a fatal payment.
         if (payLife > 0) player.life -= payLife;
         const card = removeFromZone(player, cardInstanceId, castZone);
-        // CR 601.2f / 118.5 / 701.21a — pay the auto-resolved filtered sacrifice
-        // (Drought / fungible own cost) as the spell hits the stack.
+        // CR 601.2f / 118.5 / 118.9 / 701.21a — pay the filtered give-up cost as
+        // the spell hits the stack: the fungible/forced additional sacrifice
+        // (Drought / own cost) OR the chosen alternative cost (return / sacrifice
+        // lands, Thwart / Fireblast), whichever this cast owes. A non-fungible
+        // choice already parked above; here it is complete and applied.
         const additionalSacrificeSnapshot = sacrificeSnapshotFromSelection(
             castSac,
             state
@@ -3790,11 +3877,47 @@ export const announceCast = mutation({
         }
 
         // CR 118.9 — no targets AND an alternative cost was chosen (Gush): pay
-        // the land cost INSTEAD of mana and commit immediately. This wholly
-        // replaces the mana / additional-cost path below (these cards have no
-        // additional cost of their own).
+        // the land cost INSTEAD of mana. This wholly replaces the mana /
+        // additional-cost path below (these cards have no additional cost of
+        // their own). WHICH permanents pay is the caster's choice: the cost is a
+        // `SacrificeSelection` routed through the unified layer — it parks the
+        // cast when the choice is real (more matching lands than the count) and
+        // resumes via `selectSacrifice`, or auto-resolves + commits immediately
+        // when the choice is forced/fungible.
         if (chosenAltCost) {
-            payAlternativeCost(state, args.playerId, chosenAltCost);
+            const altChoice = buildAlternativeCostChoice(
+                state,
+                args.playerId,
+                chosenAltCost,
+                cardDef.name ?? "Alternative cost"
+            );
+            if (!isSacrificeSelectionComplete(altChoice)) {
+                // Park with a zeroed mana cost (the alt cost replaces mana): the
+                // commit gate in tryAutoCommitPendingCast fires once the pick is
+                // complete, applying the return/sacrifice through the same path.
+                state.pendingCast = {
+                    playerId: args.playerId,
+                    cardInstanceId: args.cardInstanceId,
+                    manaCost: {},
+                    tappedLandIds: [],
+                    keepPriority: args.keepPriority,
+                    chosenX,
+                    ...(args.chosenModeId
+                        ? { chosenModeId: args.chosenModeId }
+                        : {}),
+                    sacrificeSelection: altChoice,
+                };
+                await saveGameState(
+                    ctx,
+                    args.gameId,
+                    gameState.seq + 1,
+                    state,
+                    gameState
+                );
+                return;
+            }
+            // Forced/fungible choice: apply it now and commit.
+            sacrificeSnapshotFromSelection(altChoice, state);
             const card = removeFromZone(
                 player,
                 args.cardInstanceId,

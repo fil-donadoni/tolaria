@@ -41,7 +41,26 @@ export type MatchPlayer = {
     ready: boolean;
 };
 
-export type MatchStatus = "waiting" | "playing" | "sideboarding" | "finished";
+export type MatchStatus =
+    | "waiting"
+    | "pregame"
+    | "playing"
+    | "sideboarding"
+    | "finished";
+
+/**
+ * Resolve the G1 coin toss (CR 103.2-103.3): a random method determines the
+ * starting-player *chooser*, who then decides play/draw (CR 103.4). `roll` is a
+ * uniform value in [0, 1) supplied by the mutation (`Math.random()`) — kept out
+ * of this pure helper so the winner selection is deterministically testable.
+ * Returns the winning seat's id; the caller records it as `playDrawChooserId`.
+ */
+export function pickCoinTossWinner(
+    players: { id: string }[],
+    roll: number
+): string {
+    return players[roll < 0.5 ? 0 : 1].id;
+}
 
 /** The mutable subset of a `matches` row the pure transitions operate on. */
 export type MatchCore = {
@@ -357,6 +376,7 @@ export function nextGameActivePlayerId(
 
 export const ACTIVE_MATCH_STATUSES = [
     "waiting",
+    "pregame",
     "playing",
     "sideboarding",
 ] as const;

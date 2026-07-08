@@ -477,21 +477,27 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Ponder + Thought Scour + Millstone leaving the closure census) stack
         // ON TOP of #993 + #991: total 646→642 (−4), FREE 401→403 (+2),
         // AFK-ready 368→370 (+2), Op-blocked 231→225 (−6), X-only unchanged.
-        // #984 (digToHand Op SHIPPED) added NO closure (Impulse ships as
-        // effects[], not a resolve()), so total is unchanged at 642. But its
-        // binding folds the `reorderLibraryTop` primitive — the last blocker of
-        // three still-resolve() closures (Drafna's Restoration + two others)
-        // whose only uncovered primitive was `reorderLibraryTop`. With that
-        // primitive now Covered, those three flip Op-blocked → FREE / AFK-ready:
-        // FREE 403→406 (+3), AFK-ready 370→373 (+3), Op-blocked 225→222 (−3),
-        // X-only unchanged. Values below are the true post-change totals,
+        // MERGE (#984 digToHand onto the advanced main carrying #986 + #994):
+        // — main side: #994 (Dominate) net-ADDED one protocol resolve() closure
+        //   blocked on a control-change Op, and the #986 union carried one more
+        //   resolve() closure than the branch base — total 642→643 (+1),
+        //   Op-blocked 225→226 (+1); FREE / AFK-ready / X-only unchanged.
+        // — this PR: #984 (digToHand Op SHIPPED) added NO closure (Impulse ships
+        //   as effects[], not a resolve()). But its binding folds the
+        //   `reorderLibraryTop` primitive — now a Covered Op — the last blocker
+        //   of three still-resolve() closures (Drafna's Restoration + two
+        //   others) whose only uncovered primitive was `reorderLibraryTop`.
+        //   Those three flip Op-blocked → FREE / AFK-ready: FREE 403→406 (+3),
+        //   AFK-ready 370→373 (+3), Op-blocked 226→223 (−3).
+        // Merged tree: total 643, FREE 406, AFK-ready 373, X-only 14,
+        // Op-blocked 223. Values below are the true post-merge totals,
         // reconciled by re-running `bun scripts/migration-classifier.mjs`
-        // against the tree, never hand-added.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(642);
+        // against the combined tree, never hand-added.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(643);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(406);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(373);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(222);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(223);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

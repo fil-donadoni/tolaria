@@ -1716,6 +1716,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Dominate",
+        "scryfallId": "63b2dcb1-8c3e-434c-865a-196d4d799706",
+        "oracleId": "77db8db4-9fe4-478e-b919-5348b0b87b0d",
+        "firstSet": "nem"
+    },
+    {
         "name": "Draconian Cylix",
         "scryfallId": "a419c9e3-5615-44f9-9256-94a3022bb69f",
         "oracleId": "0880b36a-6141-4955-b532-cf88daca0869",
@@ -4680,6 +4686,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Mogg Fanatic",
+        "scryfallId": "ca2ecfd4-c874-4468-8601-87aa110d5a00",
+        "oracleId": "7efd5d62-6da2-428a-98e3-5b842f668656",
+        "firstSet": "tmp"
+    },
+    {
         "name": "Mold Demon",
         "scryfallId": "649a33aa-7eac-4161-ae1a-fcbc758abccf",
         "oracleId": "7ce9513e-50f3-4d36-889b-b180a8a16252",
@@ -6052,6 +6064,12 @@
         "scryfallId": "66641d88-b3f0-4bcd-8d2d-29aa2de69e30",
         "oracleId": "f71f01bc-caae-426b-a25a-bfbfeb9feb67",
         "firstSet": "leg"
+    },
+    {
+        "name": "Seal of Fire",
+        "scryfallId": "37eaf1f6-4bdc-4669-9a15-50b65e016ccf",
+        "oracleId": "348a345e-4639-41ca-b015-a5d43459eb64",
+        "firstSet": "nem"
     },
     {
         "name": "Sear",
@@ -7504,6 +7522,12 @@
         "scryfallId": "2a1bfefd-dae8-49e9-9d56-cc852e3dc93b",
         "oracleId": "63c1ac21-e3d8-40c2-8c09-3f31c52992ef",
         "firstSet": "apc"
+    },
+    {
+        "name": "Vision Charm",
+        "scryfallId": "78b384d3-3adf-493a-8b89-bfe68fd1c3e2",
+        "oracleId": "c56d2c5b-c3e3-4236-bc38-286e250aa4f7",
+        "firstSet": "vis"
     },
     {
         "name": "Visions",

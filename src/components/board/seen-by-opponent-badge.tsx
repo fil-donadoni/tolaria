@@ -10,7 +10,7 @@ export default function SeenByOpponentBadge() {
     return (
         <div
             data-seen-by-opponent="true"
-            className="absolute top-1 right-1 z-30 pointer-events-none rounded-full bg-black/70 p-1 ring-1 ring-white/30 drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]"
+            className="absolute top-1 left-1 z-30 pointer-events-none rounded-full bg-black/70 p-1 ring-1 ring-white/30 drop-shadow-[0_0_2px_rgba(0,0,0,0.9)]"
             title="An opponent knows this card"
             aria-label="An opponent knows this card"
         >

@@ -4,19 +4,23 @@
 // that cast, and the chosen permanents are returned / sacrificed at cast commit
 // (CR 601.2h). See `AlternativeCost` in convex/cards/types.ts.
 //
-// The permanents paid are AUTO-SELECTED from the caster's matching permanents.
-// The cards that use these variants name fungible basics (any two Islands,
-// any two Mountains), so which specific permanents are chosen is immaterial —
-// this follows the project's "auto-resolve a choice with no real option"
-// policy. If a future card attaches a per-permanent decision to the cost, this
-// is the seam to grow into an interactive picker.
+// WHICH permanents pay the cost is the player's choice (CR 118.9 — "return two
+// Islands you control", "sacrifice two Mountains"): the cost is built as a
+// `SacrificeSelection` and routed through the one unified choice layer
+// (`sacrificeChoice.ts`), exactly like every other filtered sacrifice/return.
+// `autoResolveFungible` collapses it inline only when the choice isn't real
+// (the caster controls exactly the required count, or the candidates are
+// indistinguishable); otherwise it parks for an explicit pick. This module NEVER
+// silently slices the first N — that seam was the bug (#983 follow-up).
 import type { AlternativeCost, CardDefinition } from "../cards/types";
 import { matchesPermanentFilter } from "../cards/filters";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
-import { getPlayer, removePermanentTo } from "./state";
+import { getPlayer } from "./state";
 import { liveSupertypesOf } from "./snow";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { tryGetDefinition } from "../cards";
+import type { SacrificeSelection } from "./sacrificeChoice";
+import { autoResolveFungible } from "./sacrificeChoice";
 
 /** The caster's own permanents that satisfy an alternative cost's filter
  *  (CR 118.9 — "permanents you control"). Derived colours are folded in via
@@ -72,33 +76,26 @@ export function affordableAlternativeCosts(
     );
 }
 
-/** Pay an alternative cost at cast commit (CR 601.2h) by auto-selecting the
- *  required number of matching permanents and returning / sacrificing them.
- *  Throws if the caster no longer controls enough matching permanents (the
- *  cost is checked for affordability at announcement, but the world can change
- *  between announcement and commit for a targeted spell). */
-export function payAlternativeCost(
+/** Build the player-chosen permanent-cost selection for an alternative cost at
+ *  cast commit (CR 601.2h / 118.9). The single requirement is the alt cost's
+ *  filter × count, tagged with its terminal `action` (return → hand /
+ *  sacrifice → graveyard). `autoResolveFungible` pre-fills the picks when the
+ *  choice isn't real; otherwise the returned selection is incomplete and the
+ *  caller parks the cast until the player picks (via `selectSacrifice`).
+ *  Affordability is validated at announcement and re-checked by the caller. */
+export function buildAlternativeCostChoice(
     state: GameState,
     playerId: string,
-    altCost: AlternativeCost
-): void {
-    const player = getPlayer(state, playerId);
-    const candidates = matchingPermanentsForAltCost(player, altCost);
-    if (candidates.length < altCost.count) {
-        throw new Error(
-            "Can't pay the alternative cost (not enough permanents)"
-        );
-    }
-    // Auto-select the first N matching permanents (fungible — the choice is
-    // immaterial for the basics these cards name; CR 118.9).
-    const chosen = candidates.slice(0, altCost.count);
-    for (const perm of chosen) {
-        if (altCost.action === "return") {
-            // CR 701.24 — return to owner's hand (a bounce, not a sacrifice).
-            removePermanentTo(state, perm.id, "hand");
-        } else {
-            // CR 701.16 — sacrifice to the graveyard.
-            removePermanentTo(state, perm.id, "graveyard", "sacrifice");
-        }
-    }
+    altCost: AlternativeCost,
+    reason: string
+): SacrificeSelection {
+    const selection: SacrificeSelection = {
+        playerId,
+        reason,
+        requirements: [{ filter: altCost.filter, count: altCost.count }],
+        picked: [],
+        action: altCost.action === "return" ? "return" : "sacrifice",
+    };
+    autoResolveFungible(state, selection);
+    return selection;
 }

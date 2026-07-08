@@ -30,6 +30,7 @@ import {
     type DisplayAbilities,
 } from "../card-utils";
 import type { CardInstance } from "~/types/game";
+import { dominate } from "@convex/cards/sets/nem";
 import { fellwarStone, deepWater, gaeasTouch } from "@convex/cards/sets/drk";
 import {
     redManaBattery,
@@ -235,6 +236,22 @@ describe("matchesTargetRequirement", () => {
         expect(
             matchesTargetRequirement(enchantment, "spell-or-permanent")
         ).toBe(true);
+    });
+
+    // Dominate ({X}{1}{U}{U}, NEM): "target creature with mana value X or
+    // less". The `mvFilter` ceiling is enforced server-side (getLegalTargets),
+    // so the client marks ANY creature clickable under the "Creature"
+    // requirement and lets the server reject an over-MV pick (CR 202.3, #994).
+    it("marks a creature clickable for Dominate's 'Creature' requirement (mvFilter is server-side)", () => {
+        expect(dominate.targetRequirement?.type).toBe("Creature");
+        const creature = makeCardInstance({ types: ["Creature"] });
+        const land = makeCardInstance({ types: ["Land"] });
+        expect(
+            matchesTargetRequirement(creature, dominate.targetRequirement!.type)
+        ).toBe(true);
+        expect(
+            matchesTargetRequirement(land, dominate.targetRequirement!.type)
+        ).toBe(false);
     });
 });
 

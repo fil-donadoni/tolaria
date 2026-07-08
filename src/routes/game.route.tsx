@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import Board from "~/components/board/board";
+import PregameDialog from "~/components/board/pregame-dialog";
 import DebugPanel from "~/components/debug/debug-panel";
 import AiDecisionTraceBox from "~/components/debug/ai-decision-trace-box";
 import LoadingScreen from "~/components/ui/loading-screen";
@@ -57,6 +58,17 @@ export default function GameRoute() {
                 >
                     Leave
                 </button>
+            </div>
+        );
+    }
+
+    if (game && game.status === "pregame" && game.matchId) {
+        // G1 coin-toss + play/draw gate (CR 103.2-103.4). No game_states row
+        // exists yet; the board mounts only once the toss resolves and the game
+        // flips to "playing" (reactive re-query).
+        return (
+            <div className="flex h-dvh flex-col items-center justify-center text-white">
+                <PregameDialog matchId={game.matchId} viewerId={playerId} />
             </div>
         );
     }
