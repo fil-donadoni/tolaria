@@ -112,7 +112,7 @@ import { projectFullState, projectPublicState } from "./gameProjections";
 import {
     canPayAlternativeCost,
     getAlternativeCost,
-    payAlternativeCost,
+    buildAlternativeCostChoice,
 } from "./gre/alternativeCost";
 import { hasSupertypeLive, liveSupertypesOf } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
@@ -3171,14 +3171,30 @@ export function finalizeTargetSelection(
     // still rides on `pendingCast.additionalCost`. A spell with an exile cost or
     // a non-fungible sacrifice choice parks BEFORE mana so the cost is chosen
     // and paid before the spell commits (Soul Exchange carries its targets too).
-    const { selection: castSac, exilePicker } = buildCastSacrificeSelection(
-        state,
-        rawCost,
-        cardInHand,
-        player,
-        cardDef.additionalCosts,
-        cardDef.name ?? "Sacrifice"
-    );
+    const { selection: additionalSac, exilePicker } =
+        buildCastSacrificeSelection(
+            state,
+            rawCost,
+            cardInHand,
+            player,
+            cardDef.additionalCosts,
+            cardDef.name ?? "Sacrifice"
+        );
+    // CR 118.9 — the chosen alternative cost (return/sacrifice N lands) is a
+    // player-chosen filtered give-up, built as a `SacrificeSelection` and paid
+    // through the SAME unified layer as every other cost sacrifice, so WHICH
+    // permanents pay it is the caster's explicit choice (parks when real,
+    // auto-resolves when forced/fungible). The alt-cost cards carry no
+    // additional cost of their own, so the two selections never coexist — the
+    // alt choice takes the cast's single `sacrificeSelection` slot.
+    const castSac = chosenAltCost
+        ? buildAlternativeCostChoice(
+              state,
+              playerId,
+              chosenAltCost,
+              cardDef.name ?? "Alternative cost"
+          )
+        : additionalSac;
     const parkForSacrifice =
         !!exilePicker ||
         (castSac !== undefined && !isSacrificeSelectionComplete(castSac));
@@ -3228,18 +3244,16 @@ export function finalizeTargetSelection(
                 : undefined;
             commitLandsForCost(player, manaCost);
         }
-        // CR 118.9 — pay the chosen ALTERNATIVE cost (return / sacrifice lands,
-        // Thwart / Fireblast) as the spell moves hand → stack, in place of the
-        // (zeroed) mana cost. Affordability was validated at announcement;
-        // re-checked here since the board may have changed during targeting.
-        if (chosenAltCost) payAlternativeCost(state, playerId, chosenAltCost);
         // CR 601.2b / 118.4 — pay the "pay X life" additional cost as the spell
         // moves hand → stack (Fire Covenant). Affordability validated at
         // announcement; SBA handles a fatal payment.
         if (payLife > 0) player.life -= payLife;
         const card = removeFromZone(player, cardInstanceId, castZone);
-        // CR 601.2f / 118.5 / 701.21a — pay the auto-resolved filtered sacrifice
-        // (Drought / fungible own cost) as the spell hits the stack.
+        // CR 601.2f / 118.5 / 118.9 / 701.21a — pay the filtered give-up cost as
+        // the spell hits the stack: the fungible/forced additional sacrifice
+        // (Drought / own cost) OR the chosen alternative cost (return / sacrifice
+        // lands, Thwart / Fireblast), whichever this cast owes. A non-fungible
+        // choice already parked above; here it is complete and applied.
         const additionalSacrificeSnapshot = sacrificeSnapshotFromSelection(
             castSac,
             state
@@ -3790,11 +3804,47 @@ export const announceCast = mutation({
         }
 
         // CR 118.9 — no targets AND an alternative cost was chosen (Gush): pay
-        // the land cost INSTEAD of mana and commit immediately. This wholly
-        // replaces the mana / additional-cost path below (these cards have no
-        // additional cost of their own).
+        // the land cost INSTEAD of mana. This wholly replaces the mana /
+        // additional-cost path below (these cards have no additional cost of
+        // their own). WHICH permanents pay is the caster's choice: the cost is a
+        // `SacrificeSelection` routed through the unified layer — it parks the
+        // cast when the choice is real (more matching lands than the count) and
+        // resumes via `selectSacrifice`, or auto-resolves + commits immediately
+        // when the choice is forced/fungible.
         if (chosenAltCost) {
-            payAlternativeCost(state, args.playerId, chosenAltCost);
+            const altChoice = buildAlternativeCostChoice(
+                state,
+                args.playerId,
+                chosenAltCost,
+                cardDef.name ?? "Alternative cost"
+            );
+            if (!isSacrificeSelectionComplete(altChoice)) {
+                // Park with a zeroed mana cost (the alt cost replaces mana): the
+                // commit gate in tryAutoCommitPendingCast fires once the pick is
+                // complete, applying the return/sacrifice through the same path.
+                state.pendingCast = {
+                    playerId: args.playerId,
+                    cardInstanceId: args.cardInstanceId,
+                    manaCost: {},
+                    tappedLandIds: [],
+                    keepPriority: args.keepPriority,
+                    chosenX,
+                    ...(args.chosenModeId
+                        ? { chosenModeId: args.chosenModeId }
+                        : {}),
+                    sacrificeSelection: altChoice,
+                };
+                await saveGameState(
+                    ctx,
+                    args.gameId,
+                    gameState.seq + 1,
+                    state,
+                    gameState
+                );
+                return;
+            }
+            // Forced/fungible choice: apply it now and commit.
+            sacrificeSnapshotFromSelection(altChoice, state);
             const card = removeFromZone(
                 player,
                 args.cardInstanceId,

@@ -11,11 +11,18 @@ import { gush, thwart } from "..";
 import { island, lightningBolt } from "../../lea";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { PendingTarget } from "../../../../gre/state";
-import { finalizeTargetSelection } from "../../../../game";
+import {
+    finalizeTargetSelection,
+    tryAutoCommitPendingCast,
+} from "../../../../game";
 import {
     canPayAlternativeCost,
-    payAlternativeCost,
+    buildAlternativeCostChoice,
 } from "../../../../gre/alternativeCost";
+import {
+    applySacrificeSelection,
+    isSacrificeSelectionComplete,
+} from "../../../../gre/sacrificeChoice";
 import { getLegalActions } from "../../../../gre/rules";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 
@@ -65,7 +72,7 @@ describe("Gush ({4}{U} instant — return two Islands rather than pay mana, draw
         );
     });
 
-    it("pays the alt cost (returns two Islands) and draws two on resolution", () => {
+    it("pays the alt cost (player chooses which Islands to return) and draws two on resolution", () => {
         const alt = gush.alternativeCosts![0];
         const state = makeState({
             players: [
@@ -88,8 +95,12 @@ describe("Gush ({4}{U} instant — return two Islands rather than pay mana, draw
             ],
         });
         expect(canPayAlternativeCost(state, "p1", alt)).toBe(true);
-        // Cast commit pays the alt cost first (CR 601.2h) …
-        payAlternativeCost(state, "p1", alt);
+        // CR 118.9 / 701.21a — WHICH Islands to return is the caster's choice,
+        // routed through the unified layer. Three indistinguishable Islands
+        // returning 2 auto-resolves (no real choice), then the picks are applied.
+        const choice = buildAlternativeCostChoice(state, "p1", alt, "Gush");
+        expect(choice.action).toBe("return");
+        applySacrificeSelection(state, choice);
         expect(state.players[0].battlefield).toHaveLength(1); // 3 − 2 returned
         expect(state.players[0].hand).toHaveLength(2);
         // … then the spell resolves and draws two.
@@ -171,6 +182,87 @@ describe("Thwart ({2}{U}{U} instant — return three Islands rather than pay man
         expect(state.stack[state.stack.length - 1].id).toBe("thwart-1");
 
         // Thwart resolves → Bolt countered (removed from the stack).
+        resolveTopOfStack(state);
+        expect(state.stack.find((s) => s.id === "bolt-1")).toBeUndefined();
+    });
+
+    it("parks for an explicit choice when more Islands than the cost are distinguishable, then resumes on the pick", () => {
+        const thwartInHand = makeInstance(thwart.id, {
+            id: "thwart-1",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        // Four Islands, one tapped → returning 3 is a REAL choice (the tapped
+        // one is distinguishable), so the cast must park rather than auto-pick.
+        const untapped = islands("p1", 3);
+        const tapped = makeInstance(island.id, {
+            id: "p1-island-tapped",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [thwartInHand],
+                    battlefield: [...untapped, tapped],
+                }),
+                makePlayer("p2"),
+            ],
+            priorityPlayerId: "p1",
+            activePlayerId: "p1",
+        });
+        const bolt = {
+            ...makeInstance(lightningBolt.id, {
+                id: "bolt-1",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "hand",
+            }),
+            castById: "p2",
+            targets: [{ type: "player" as const, id: "p1" }],
+        };
+        state.stack.push(bolt);
+
+        const pt: PendingTarget = {
+            playerId: "p1",
+            cardInstanceId: "thwart-1",
+            targetType: "spell",
+            count: 1,
+            selected: [{ type: "spell", id: "bolt-1" }],
+            kind: "cast",
+            alternativeCostId: "return-three-islands",
+        };
+        finalizeTargetSelection(state, pt, "p1");
+
+        // Parked: Thwart is still in hand, no Islands moved yet, and a return
+        // choice awaits the player (CR 118.9 / 701.21a).
+        expect(state.stack.find((s) => s.id === "thwart-1")).toBeUndefined();
+        expect(state.players[0].hand.some((c) => c.id === "thwart-1")).toBe(
+            true
+        );
+        expect(state.players[0].battlefield).toHaveLength(4);
+        const sel = state.pendingCast?.sacrificeSelection;
+        expect(sel).toBeDefined();
+        expect(sel!.action).toBe("return");
+        expect(isSacrificeSelectionComplete(sel!)).toBe(false);
+
+        // Player picks the three UNTAPPED Islands, leaving the tapped one.
+        sel!.picked.push(...untapped.map((c) => c.id));
+        expect(isSacrificeSelectionComplete(sel!)).toBe(true);
+
+        // Resume the parked cast: the chosen Islands return, Thwart hits the
+        // stack (mana cost zeroed), and resolving counters the Bolt.
+        tryAutoCommitPendingCast(state, "p1");
+        expect(
+            state.players[0].hand.filter((c) => c.subtypes.includes("Island"))
+        ).toHaveLength(3);
+        // The tapped Island stayed on the battlefield (the player's choice).
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "p1-island-tapped",
+        ]);
+        expect(state.stack[state.stack.length - 1].id).toBe("thwart-1");
         resolveTopOfStack(state);
         expect(state.stack.find((s) => s.id === "bolt-1")).toBeUndefined();
     });

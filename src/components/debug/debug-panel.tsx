@@ -86,25 +86,6 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
-        // Chain of Vapor land-sacrifice copy chain (issue #993): Chain of Vapor
-        // ({U} instant) sits in hand with an opponent Grizzly Bears to bounce.
-        // Cast it targeting the Bears — it returns to the opponent's hand, then
-        // the Bears' controller (the opponent) may SACRIFICE A LAND to copy the
-        // spell and choose a new target. Each copy can chain again. You control
-        // a second Grizzly Bears as a legal new target for a copy, and both
-        // players have spare Islands to feed the sacrifice cost (CR 701.10
-        // bounce, CR 701.16 sacrifice, CR 707.12 "copy this spell").
-        label: "Chain of Vapor land-sac copy chain (#993)",
-        cards: [
-            { name: "Chain of Vapor", owner: "me", zone: "hand" },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-            { name: "Island", owner: "opp", zone: "battlefield", count: 3 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 4,
-    },
-    {
         // Copy-on-ETB Bot cast prune (issue #938): a copy-on-ETB spell (Copy
         // Artifact, Clone, Vesuvan Doppelganger, Dance of Many) enters as a copy
         // of a permanent already in play. Casting one with NO permanent it could
@@ -203,7 +184,7 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         cards: [
             { name: "Illusionary Terrain", owner: "me", zone: "hand" },
             { name: "Forest", owner: "me", zone: "battlefield", count: 3 },
-            { name: "Island", owner: "me", zone: "battlefield", count: 1 },
+            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 3,
@@ -252,160 +233,6 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 5,
-    },
-    {
-        // Effect Script tracer bullet (ADR 0045, issue #800): Lava Spike is
-        // the first DSL-only card — cast it at a player to exercise the
-        // effects[] interpreter end-to-end. Two copies in hand + one for the
-        // opponent so both seats can fire the script; 2 lands cover the {R}.
-        label: "Lava Spike — Effect Script DSL (#800)",
-        cards: [
-            { name: "Lava Spike", owner: "me", zone: "hand", count: 2 },
-            { name: "Lava Spike", owner: "opp", zone: "hand" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 2,
-    },
-    {
-        // Effect Script bind + ref (ADR 0045, issue #802): Swords to Plowshares
-        // is the first DSL card using bind-on-Op + ref-on-bound-object — `exile`
-        // snapshots the creature's power/controller, then `gainLife` reads that
-        // snapshot after the creature has changed zone (CR 608.2h). Cast it at
-        // the opponent's Serra Angel: the Angel is exiled and its controller
-        // gains 4 life. One {W} land covers the cost.
-        label: "Swords to Plowshares — bind + ref DSL (#802)",
-        cards: [
-            { name: "Swords to Plowshares", owner: "me", zone: "hand" },
-            { name: "Serra Angel", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 1,
-    },
-    {
-        // Effect Script at an ACTIVATED-ability site (ADR 0045, issue #803):
-        // Prodigal Pyromancer's "{T}: deal 1 damage to any target" is a
-        // DSL-only ability resolved by the same interpreter as spell scripts.
-        // It enters already un-sick so you can tap it this turn — activate,
-        // target the opponent, and watch the scripted `dealDamage` fire from
-        // the stack.
-        label: "Prodigal Pyromancer — Effect Script activated ability (#803)",
-        cards: [
-            {
-                name: "Prodigal Pyromancer",
-                owner: "me",
-                zone: "battlefield",
-                summoningSick: false,
-            },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Effect Script at a TRIGGERED-ability site (ADR 0045, issue #803):
-        // Honden of Seeing Winds' upkeep trigger "draw a card for each Shrine
-        // you control" is a DSL-only script (a battlefield `count` feeding the
-        // `draw` Op). Two Hondens on the battlefield + a stocked library — pass
-        // priority through to your NEXT upkeep and the trigger fires, drawing 2
-        // via the interpreter. Start in the main phase (the scenario seeder sets
-        // the phase directly and does not re-scan phase-begin triggers, so the
-        // trigger fires on the next natural upkeep transition, not on load).
-        label: "Honden of Seeing Winds — Effect Script triggered ability (#803)",
-        cards: [
-            {
-                name: "Honden of Seeing Winds",
-                owner: "me",
-                zone: "battlefield",
-                count: 2,
-            },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-        libraryCount: 10,
-        turn: 2,
-    },
-    {
-        // Effect Script choice Op — interpreter suspension/resume (ADR 0045,
-        // issue #805): Mind Rot ("Target player discards two cards") is the
-        // first DSL card with a MID-RESOLUTION choice. Cast it at the
-        // opponent: the script suspends on a `discard-hand` Pending Choice
-        // rendered by the existing generic prompt, the opponent picks two of
-        // their three cards, and the script resumes to discard them. Three
-        // lands cover the {2}{B}.
-        label: "Mind Rot — Effect Script choice Op (#805)",
-        cards: [
-            { name: "Mind Rot", owner: "me", zone: "hand" },
-            { name: "Swamp", owner: "me", zone: "battlefield", count: 3 },
-            { name: "Grizzly Bears", owner: "opp", zone: "hand", count: 3 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Effect Script `if` construct — the unless-pays pattern (ADR 0045,
-        // issue #806): Force Spike ("Counter target spell unless its controller
-        // pays {1}") is DSL-only — a `mayPay` Op offers the spell's controller
-        // the {1} and binds the outcome, and the `if` construct fires the
-        // `counter` consequence only when the payment went unpaid. To exercise
-        // it end-to-end: let the opponent cast their Lightning Bolt (it goes on
-        // the stack), respond with Force Spike targeting it, then the opponent
-        // sees the generic Pay/Skip prompt — decline and the Bolt is countered,
-        // pay {1} and it resolves. One Island covers Force Spike's {U}; the
-        // opponent's Mountains cover the Bolt and the {1}.
-        label: "Force Spike — Effect Script if / unless-pays (#806)",
-        cards: [
-            { name: "Force Spike", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield" },
-            { name: "Lightning Bolt", owner: "opp", zone: "hand" },
-            { name: "Mountain", owner: "opp", zone: "battlefield", count: 2 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Effect Script forEach construct — permanents sweep (ADR 0045,
-        // issue #807): Day of Judgment ("Destroy all creatures") is the
-        // first DSL card iterating a frozen permanent set (CR 608.2i) and
-        // destroying each member via the `$each` object ref. Cast it and
-        // creatures on BOTH sides die — including your own Grizzly Bears —
-        // while lands survive the filter. Four Plains cover the {2}{W}{W}.
-        label: "Day of Judgment — Effect Script forEach sweep (#807)",
-        cards: [
-            { name: "Day of Judgment", owner: "me", zone: "hand" },
-            { name: "Plains", owner: "me", zone: "battlefield", count: 4 },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-            { name: "War Mammoth", owner: "opp", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Effect Script forEach + choice composition — APNAP player
-        // iteration (ADR 0045, issue #807): Innocent Blood ("Each player
-        // sacrifices a creature of their choice") is the first DSL card
-        // suspending PER ITERATION: the active player picks a creature to
-        // sacrifice first (CR 101.4), the script resumes, then the opponent
-        // picks. Both seats have two creatures so each pick is a real
-        // decision; one Swamp covers the {B}.
-        label: "Innocent Blood — forEach + APNAP choice (#807)",
-        cards: [
-            { name: "Innocent Blood", owner: "me", zone: "hand" },
-            { name: "Swamp", owner: "me", zone: "battlefield" },
-            {
-                name: "Grizzly Bears",
-                owner: "me",
-                zone: "battlefield",
-                count: 2,
-            },
-            {
-                name: "Grizzly Bears",
-                owner: "opp",
-                zone: "battlefield",
-                count: 2,
-            },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
     },
     {
         // ICE buildable-now utilities (#728): Elkin Bottle exiles the top card
@@ -830,28 +657,6 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 4,
     },
     {
-        // Stifle — "counter target activated or triggered ability" (CR 701.5a).
-        // The opponent controls a Prodigal Sorcerer ("{T}: deal 1 damage to any
-        // target"). Activate its ability from the opp seat, targeting me → the
-        // ability goes on the stack. Switch to my seat (priority) and cast
-        // Stifle ({U}, from the Island) targeting that ability. Verify: (1) the
-        // ability on the stack IS highlightable/clickable for Stifle (a "target
-        // spell" like Counterspell would NOT be), and (2) resolving Stifle
-        // vanishes the ability — no damage is dealt, and my life stays at 20.
-        label: "Stifle: counter an activated ability on the stack (Prodigal Sorcerer ping) (#679)",
-        cards: [
-            {
-                name: "Prodigal Sorcerer",
-                owner: "opp",
-                zone: "battlefield",
-            },
-            { name: "Stifle", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
         // Twiddle modal tap/untap (CR 701.26, #961). Cast Twiddle on the tapped
         // Grizzly Bears (or the Island): resolution now prompts a Tap/Untap
         // CHOICE instead of a forced state-toggle. Pick "Untap" to free the
@@ -887,42 +692,42 @@ const PRESET_SCENARIOS: PresetScenario[] = [
     },
     {
         // Alternative casting cost — return / sacrifice lands (CR 118.9, #983).
-        // Gush ("return two Islands rather than pay {4}{U}, draw two") and Thwart
-        // ("return three Islands rather than pay {2}{U}{U}, counter target
-        // spell") are in "me"'s hand with five Islands in play but NO other
-        // mana — so both are castable ONLY via their land alt cost. Fireblast
+        // WHICH lands pay is the player's CHOICE (CR 701.21a): Gush ("return two
+        // Islands rather than pay {4}{U}, draw two"), Thwart ("return three
+        // Islands rather than pay {2}{U}{U}, counter target spell") and Fireblast
         // ("sacrifice two Mountains rather than pay {4}{R}{R}, deal 4 to any
-        // target") sits alongside two Mountains. Cast a card and pick the
-        // alternative in the picker; the lands are returned / sacrificed and the
-        // spell resolves. The opponent's Grizzly Bears is a target for Fireblast;
-        // cast an opponent spell first (from their hand) to exercise Thwart.
-        label: "Alt cost: return/sacrifice lands (Gush / Thwart / Fireblast) (#983)",
+        // target") sit in "me"'s hand with NO other mana — castable ONLY via
+        // their land alt cost. The lands are a mix of tapped/untapped so the
+        // choice is REAL: casting parks and prompts you to click WHICH lands to
+        // return / sacrifice (a picker, not a silent auto-pick of the first N).
+        // With four untapped Islands you can return any two/three; the two tapped
+        // Mountains vs two untapped let you keep the ones you want for Fireblast.
+        // The opponent's Grizzly Bears is a target for Fireblast; cast an opponent
+        // spell first (from their hand) to exercise Thwart's counter.
+        label: "Alt cost: choose lands to return/sacrifice (Gush / Thwart / Fireblast) (#983)",
         cards: [
             { name: "Gush", owner: "me", zone: "hand" },
             { name: "Thwart", owner: "me", zone: "hand" },
             { name: "Fireblast", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield", count: 5 },
+            // Four untapped + one tapped Island → returning 2 (Gush) or 3
+            // (Thwart) is a real, prompted choice.
+            { name: "Island", owner: "me", zone: "battlefield", count: 4 },
+            { name: "Island", owner: "me", zone: "battlefield", tapped: true },
+            // Two untapped + two tapped Mountains → sacrificing 2 (Fireblast) is
+            // a real, prompted choice.
             { name: "Mountain", owner: "me", zone: "battlefield", count: 2 },
+            {
+                name: "Mountain",
+                owner: "me",
+                zone: "battlefield",
+                count: 2,
+                tapped: true,
+            },
             { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
-    {
-        // Echo keyword (Goblin Patrol) — CR 702.30, #990. Goblin Patrol ({R}
-        // 2/1, Echo {R}) starts in hand with three untapped Mountains. Cast it
-        // (it enters with the echo debt flagged), then pass to your NEXT upkeep:
-        // the echo trigger demands {R} — pay it to keep the Goblin, or decline
-        // to sacrifice it. It fires exactly once (a later upkeep never re-asks).
-        label: "Echo keyword: pay {R} or sacrifice (Goblin Patrol) (#990)",
-        cards: [
-            { name: "Goblin Patrol", owner: "me", zone: "hand" },
-            { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-
     {
         // Cursed Scroll random-reveal conditional damage (issue #991): "{3},
         // {T}: Choose a card name, then reveal a card at random from your hand.
@@ -937,26 +742,6 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Cursed Scroll", owner: "me", zone: "battlefield" },
             { name: "Grizzly Bears", owner: "me", zone: "hand" },
             { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 3,
-    },
-    {
-        // scryReorder / mill Effect Script Ops (#885). Preordain (Scry 2, then
-        // draw) and Ponder (look at top 3, reorder, may shuffle, draw) exercise
-        // the choice-driven `scryReorder` Op — cast one and the order-top drag
-        // picker appears on the top cards. Thought Scour (target player mills
-        // two, draw) and Millstone ({2},{T}: target player mills two) exercise
-        // the deterministic `mill` Op — cast/activate targeting the opponent to
-        // send the top of their library to the graveyard. 3 Islands cover the
-        // {U} spells; the opponent's library is milled from the shared draw pile.
-        label: "scryReorder / mill Effect Script Ops (Preordain / Ponder / Thought Scour / Millstone) (#885)",
-        cards: [
-            { name: "Preordain", owner: "me", zone: "hand" },
-            { name: "Ponder", owner: "me", zone: "hand" },
-            { name: "Thought Scour", owner: "me", zone: "hand" },
-            { name: "Millstone", owner: "me", zone: "battlefield" },
-            { name: "Island", owner: "me", zone: "battlefield", count: 3 },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 3,
