@@ -1676,6 +1676,40 @@ describe("Consecrate Land (Aura — enchanted land is indestructible, CR 702.12)
         )!;
         expect(slimLand.staticAbilities).toContain("indestructible");
     });
+
+    it("can't be enchanted by other Auras — a second Aura targeting the consecrated land goes to the graveyard (CR 303.4)", () => {
+        const { state } = setupAttached();
+        // host-land is now enchanted by Consecrate Land. A second Aura
+        // (another Consecrate Land) targeting it can't attach: the
+        // cantBeEnchanted guard bars the attach gate, so it hits the graveyard.
+        pushSpell(state, consecrateLand.id, "p1", [
+            { type: "permanent", id: "host-land" },
+        ]);
+        resolveTopOfStack(state);
+        const auras = state.players[0].battlefield.filter(
+            (c) => c.attachedTo === "host-land"
+        );
+        expect(auras).toHaveLength(1);
+        expect(
+            state.players[0].graveyard.some(
+                (c) => (c.card as { id?: string }).id === consecrateLand.id
+            )
+        ).toBe(true);
+    });
+
+    it("guard is host-scoped — an Aura still attaches to a different, unconsecrated land", () => {
+        const { state } = setupAttached();
+        // victim-land carries no Consecrate Land, so the guard doesn't cover
+        // it: another Consecrate Land attaches there normally.
+        pushSpell(state, consecrateLand.id, "p1", [
+            { type: "permanent", id: "victim-land" },
+        ]);
+        resolveTopOfStack(state);
+        const attachedToVictim = state.players[0].battlefield.some(
+            (c) => c.attachedTo === "victim-land"
+        );
+        expect(attachedToVictim).toBe(true);
+    });
 });
 
 describe("Crusade (static pt-buff: +1/+1 to white creatures)", () => {

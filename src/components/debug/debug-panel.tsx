@@ -370,57 +370,6 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 8,
     },
     {
-        // Shock-land land-entry pay-choice (CR 614.12, ADR 0051): the RAV/GPT/
-        // DIS "shock land" cycle. Play Steam Vents from hand — a "Pay 2 life"
-        // prompt appears (a stackless land-entry choice). Pay to enter untapped
-        // (−2 life) or Skip to enter tapped. Blood Crypt is a second copy to try
-        // both branches. At 20 life both options are open; the golden path is
-        // paying for immediate untapped mana.
-        label: "Shock land pay-2-life-or-tapped (Steam Vents / Blood Crypt) (ADR 0051)",
-        cards: [
-            { name: "Steam Vents", owner: "me", zone: "hand" },
-            { name: "Blood Crypt", owner: "me", zone: "hand" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 2,
-    },
-    {
-        // Shock land entering via an EFFECT, not played from hand (CR 614.12 —
-        // "as it enters" applies at EVERY entry, ADR 0051 amendment). Steam Vents
-        // sits in the library; Polluted Delta is in play. Activate the Delta
-        // ({T}, pay 1 life, sacrifice; search Island/Swamp), fetch Steam Vents,
-        // and it is put onto the battlefield — the SAME "Pay 2 life or enter
-        // tapped" prompt now appears on the fetched land (previously it entered
-        // untapped for FREE, skipping the choice). Pay to enter untapped (−2
-        // more life) or Skip to enter tapped. `libraryCount` is intentionally
-        // unset so the seeded Steam Vents survives in the library.
-        label: "Shock land FETCHED onto battlefield — pay-choice on effect entry (Polluted Delta → Steam Vents) (ADR 0051)",
-        cards: [
-            { name: "Polluted Delta", owner: "me", zone: "battlefield" },
-            { name: "Steam Vents", owner: "me", zone: "library" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 2,
-    },
-    {
-        // Irreversible tap-for-mana untap-toggle block (issue #793, CR 603.3):
-        // City of Brass has a "Whenever ~ becomes tapped, it deals 1 damage to
-        // you" triggered ability. Tap it for mana while holding priority — the
-        // trigger goes on the stack and (after it resolves) you lose 1 life.
-        // Now try the untap-toggle on it: it is REJECTED ("tap trigger already
-        // on the stack") because a resolved triggered ability can't be undone;
-        // the source stays tapped and the mana stays floated. Contrast the
-        // plain Forest next to it: tapping it for mana can still be undone
-        // (mana refunded, land untapped) — no becomes-tapped trigger, no block.
-        label: "Untap-toggle blocked after tap trigger (City of Brass) (#793)",
-        cards: [
-            { name: "City of Brass", owner: "me", zone: "battlefield" },
-            { name: "Forest", owner: "me", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 3,
-    },
-    {
         // ICE per-attacker sacrifice-a-land attack tax (issue #733): Flooded
         // Woodlands taxes GREEN creatures — declaring your Grizzly Bears (green)
         // as an attacker forces you to sacrifice one land per attacking green
@@ -1208,6 +1157,64 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             },
             { name: "Stifle", owner: "me", zone: "hand" },
             { name: "Island", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Mana ability canActivate gate (CR 602.5b, issue #947): a mana
+        // ability whose own `canActivate` precondition is false must not be
+        // offered as a tappable mana source, and tapping it must never throw
+        // "Invalid mana choice". The un-imprinted Chrome Mox has no
+        // imprinted colour, so `canActivate` is false — confirm it is NOT
+        // highlighted/clickable as a mana source and clicking it does
+        // nothing (no error toast). The imprinted Chrome Mox (seeded with an
+        // `imprint-G` counter, as if a green card had been exiled on ETB) IS
+        // a live mana source — click it to add {G} to the pool.
+        label: "Chrome Mox mana-ability gate: un-imprinted not tappable, imprinted taps for {G} (#947)",
+        cards: [
+            { name: "Chrome Mox", owner: "me", zone: "battlefield" },
+            {
+                name: "Chrome Mox",
+                owner: "me",
+                zone: "battlefield",
+                counters: { "imprint-G": 1 },
+            },
+            { name: "Forest", owner: "me", zone: "library" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Twiddle modal tap/untap (CR 701.26, #961). Cast Twiddle on the tapped
+        // Grizzly Bears (or the Island): resolution now prompts a Tap/Untap
+        // CHOICE instead of a forced state-toggle. Pick "Untap" to free the
+        // tapped Bears, or "Tap" to lock down the untapped Island.
+        label: "Twiddle: caster chooses Tap or Untap (modal, not a toggle) (#961)",
+        cards: [
+            { name: "Twiddle", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+            {
+                name: "Grizzly Bears",
+                owner: "opp",
+                zone: "battlefield",
+                tapped: true,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Thrull Wizard punisher — "{B} or {3}" alternative (CR 701.5a / 117.3a,
+        // #961). Activate Thrull Wizard targeting the opponent's Dark Ritual on
+        // the stack: the controller is offered {B} first, then {3} if they
+        // decline {B}; paying either saves the spell, declining both counters it.
+        label: "Thrull Wizard: counter unless controller pays {B} OR {3} (#961)",
+        cards: [
+            { name: "Thrull Wizard", owner: "me", zone: "battlefield" },
+            { name: "Swamp", owner: "me", zone: "battlefield", count: 2 },
+            { name: "Dark Ritual", owner: "opp", zone: "hand" },
+            { name: "Swamp", owner: "opp", zone: "battlefield", count: 3 },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,

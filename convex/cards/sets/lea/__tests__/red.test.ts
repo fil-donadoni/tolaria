@@ -722,6 +722,27 @@ describe("Shatter / Stone Rain / Tunnel (destroy-target shorthand)", () => {
         resolveTopOfStack(state);
         expect(state.players[1].graveyard.map((c) => c.id)).toContain("wall");
     });
+
+    it("Tunnel can't be regenerated — a regen shield does not save the Wall (CR 701.15c)", () => {
+        const wall = makeInstance(wallOfSwords.id, {
+            id: "wall",
+            controllerId: "p2",
+            ownerId: "p2",
+            card: { id: wallOfSwords.id, regenerationShields: 1 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [wall] }),
+            ],
+        });
+        pushSpell(state, tunnel.id, "p1", [{ type: "permanent", id: "wall" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "wall")
+        ).toBeUndefined();
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain("wall");
+    });
 });
 
 describe("Uthden Troll ({R}: regenerate self)", () => {

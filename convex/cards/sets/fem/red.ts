@@ -541,6 +541,14 @@ export const orgg: CardDefinition = {
     ],
 };
 
+// DIVERGENCE (tracked #974): only the Islandwalk keyword is modelled. The
+// second ability — "At the beginning of each combat, unless you pay {R},
+// whenever this creature blocks or becomes blocked by a creature this combat,
+// that creature gains first strike until end of turn" — is NOT modelled. It
+// needs a combat-start `mayPay` (CR 117.3a) that arms a per-combat, combat-
+// pairing delayed grant onto whichever creature this blocks/is blocked by
+// (CR 509.1h) — no Effect Script construct arms a pairing-conditioned grant off
+// a combat-start pay-or-else. Deferred rather than silently dropped.
 export const goblinFlotilla: CardDefinition = {
     id: "87024efe-4a74-49fe-a43a-480bed0a650a", // FEM 55
     rarity: "rare",
@@ -590,6 +598,13 @@ export const dwarvenLieutenant: CardDefinition = {
     ],
 };
 
+// DIVERGENCE (tracked #974): the "Whenever this creature blocks or becomes
+// blocked by one or more Orcs, this creature gets +0/+2 until end of turn"
+// trigger is NOT modelled. The engine's per-pair BLOCKERS_CONFIRMED events
+// (CR 509.1h) would fire the +0/+2 once PER Orc, but the printed "one or more"
+// batch trigger must fire exactly once per combat — no once-per-combat combat-
+// pairing guard exists yet. A vanilla 2/1 ships; the conditional buff is
+// deferred rather than shipped as an incorrect per-Orc stack.
 export const dwarvenSoldier: CardDefinition = {
     id: "6fe77608-0b33-43f5-83fb-ae993ca1bf7c", // FEM 53a (canonical art)
     rarity: "common",
@@ -702,6 +717,13 @@ export const dwarvenCatapult: CardDefinition = {
     },
 };
 
+// DIVERGENCE (tracked #974): the first line — "This enchantment can't be the
+// target of white spells or abilities from white sources" — is NOT modelled.
+// It is a protection-from-white variant restricted to WHITE SOURCES (a
+// source-colour-gated targeting ban, CR 702.16b), which the permanent-guard /
+// protection modules don't yet express (protection.ts keys off "protection
+// from <colour>", not "targeted by a <colour> source"). The Sacrifice-an-Orc
+// raze ability is fully implemented below; the targeting ban is deferred.
 export const raidingParty: CardDefinition = {
     id: "907a3396-706b-4ca2-9973-bca758986032", // FEM 64
     rarity: "rare",

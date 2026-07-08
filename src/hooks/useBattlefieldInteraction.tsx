@@ -536,7 +536,7 @@ export function useBattlefieldInteraction(player: Player) {
             ? [{ id: nonTapMana.id, oracleText: nonTapMana.oracleText }]
             : [];
         if (stack.length === 0) return nonTapManaEntry;
-        const mana = getActivatedManaMenuEntry(card);
+        const mana = getActivatedManaMenuEntry(card, stateView);
         if (!mana) return [...nonTapManaEntry, ...stack];
         if (card.isTapped) {
             if (!canRefundManaTap(card, player.manaPool))

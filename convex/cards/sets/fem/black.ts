@@ -712,20 +712,38 @@ export const thrullWizard: CardDefinition = {
                 count: 1,
                 colorFilter: "B",
             },
-            // CR 117.3a / 701.5a — "counter unless that spell's controller pays":
-            // the spell's controller may pay {B}; if they don't, counter it.
+            // CR 117.3a / 701.5a — "counter unless that spell's controller pays
+            // {B} or {3}": the spell's controller may pay EITHER {B} or {3}; if
+            // they pay neither, counter it (issue #961). The "{B} or {3}"
+            // alternative is modelled as two sequential `mayPay` offers — {B}
+            // first, then {3} only if {B} was declined — so paying either saves
+            // the spell (outcome-identical to a single either/or prompt; the
+            // controller who wants to pay {3} simply declines the {B} offer).
             effects: [
                 {
                     op: "mayPay",
                     player: { controllerOf: { target: 0 } },
                     cost: { B: 1 },
-                    prompt: "Pay {B} or your spell is countered (Thrull Wizard)?",
-                    bind: "$paid",
+                    prompt: "Pay {B} (or {3} next) to save your spell (Thrull Wizard)?",
+                    bind: "$paidB",
                 },
                 {
                     op: "if",
-                    predicate: { not: { binding: "$paid" } },
-                    then: [{ op: "counter", target: { target: 0 } }],
+                    predicate: { not: { binding: "$paidB" } },
+                    then: [
+                        {
+                            op: "mayPay",
+                            player: { controllerOf: { target: 0 } },
+                            cost: { X: 3 },
+                            prompt: "Pay {3} to save your spell (Thrull Wizard)?",
+                            bind: "$paid3",
+                        },
+                        {
+                            op: "if",
+                            predicate: { not: { binding: "$paid3" } },
+                            then: [{ op: "counter", target: { target: 0 } }],
+                        },
+                    ],
                 },
             ],
         },

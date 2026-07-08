@@ -373,11 +373,16 @@ export const circleOfProtectionWhite: CardDefinition = makeCircleOfProtection({
     colorWord: "White",
 });
 
-// Consecrate Land — "Enchant land. Enchanted land is indestructible. Prevent
-// all damage that would be dealt to enchanted land." (CR 303.4 aura attachment,
-// 702.12 indestructible keyword). The damage-prevention clause is innocuous in
-// the current engine — lands are not damageable targets — so the implementation
-// reduces to a `keyword-grant: "indestructible"` static effect on the host.
+// Consecrate Land — "Enchant land\nEnchanted land has indestructible and can't
+// be enchanted by other Auras." (CR 303.4 aura attachment, 702.12
+// indestructible keyword). Implemented as a `keyword-grant: "indestructible"`
+// static effect on the host, plus a host-scoped `cantBeEnchanted`
+// permanent-guard (CR 303.4) that blocks any OTHER Aura from attaching to the
+// enchanted land. Consecrate Land itself is naturally excluded: its own attach
+// gate (state.ts `isGuardedAgainst(state, host, "cantBeEnchanted")`) runs while
+// it is still resolving — not yet on the battlefield and with `attachedTo`
+// unset — so `AURA_AFFECTS_HOST` is false for it, and the guard only starts
+// barring new Auras once Consecrate Land is attached.
 export const consecrateLand: CardDefinition = {
     id: "d2379f78-c03f-447f-b3c9-10a918d556e9",
     rarity: "uncommon",
@@ -393,6 +398,16 @@ export const consecrateLand: CardDefinition = {
             kind: "keyword-grant",
             applies: AURA_AFFECTS_HOST,
             keyword: "indestructible",
+        },
+        {
+            // CR 303.4 — "enchanted land ... can't be enchanted by other
+            // Auras". Host-scoped guard (same class as Guardian Beast's
+            // cantBeEnchanted clause); consulted at the aura-attach gate. Self
+            // is excluded by construction (see the comment on this card).
+            kind: "permanent-guard",
+            id: "consecrate-land-cant-be-enchanted",
+            applies: AURA_AFFECTS_HOST,
+            cantBeEnchanted: true,
         },
     ],
 };
@@ -552,8 +567,13 @@ export const guardianAngel: CardDefinition = {
     // next-n Op with a chosen-cost `{ X: true }` amount. `to: { target: 0 }`
     // resolves the raw target (player OR permanent). A missing target is skipped
     // (CR 608.2b); X = 0 stacks a harmless 0-damage shield (the executor no-ops
-    // a zero-amount prevention). The second sentence ("you may pay {1} …") was
-    // already unmodelled in the closure — the migration preserves that.
+    // a zero-amount prevention).
+    // DIVERGENCE (tracked #974): the second sentence — "Until end of turn, you
+    // may pay {1} any time you could cast an instant. If you do, prevent the
+    // next 1 damage that would be dealt to that permanent or player this turn" —
+    // is NOT modelled. It grants the caster a floating, repeatable special
+    // action for the turn (CR 118.4 / 116.2b), a construct the Effect Script
+    // vocabulary has no surface for. Deferred rather than silently dropped.
     effects: [
         {
             op: "preventDamage",

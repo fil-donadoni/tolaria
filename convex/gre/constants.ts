@@ -3,6 +3,7 @@ import type {
     Color,
     ManaCost,
     PermanentView,
+    TriggerStateView,
 } from "../cards/types";
 import type { ManaRestriction } from "./types";
 import { getDefinition, tryGetDefinition } from "../cards";
@@ -334,7 +335,13 @@ export function getEffectiveManaChoices(
 ): ManaCost[] | null {
     const dynamic = getDynamicManaChoices(card, controllerId, battlefields);
     if (dynamic) return dynamic;
-    const ability = getActivatedManaAbility(card);
+    // CR 602.5b (issue #947) — gate on the ability's own `canActivate` using
+    // the battlefields already available here (Chrome Mox's imprint gate
+    // needs no more than `source.counters`, see `minimalManaGateView`).
+    const ability = getActivatedManaAbility(
+        card,
+        minimalManaGateView(battlefields)
+    );
     return ability?.manaChoices ?? null;
 }
 
@@ -388,6 +395,43 @@ function manaCostKey(mana: ManaCost): string {
  *  trio's `manaAmount`); omit it (static resolution) where the board isn't
  *  available — the planner's one-source model, as before, does not resolve
  *  dynamic choosers. */
+/** Minimal `TriggerStateView` built from whatever board data a mana-tap
+ *  resolution site has on hand, so an ability's own `canActivate` gate (CR
+ *  602.5b, issue #947) can be evaluated at every site that enumerates
+ *  mana-tap options — including the snapshot-free affordability / auto-tap
+ *  planner (`getProducibleManaOptions`), which never threads a full
+ *  `GameState`. `battlefields` (when supplied) becomes the view's per-player
+ *  permanent list; `life`/`hand` aren't tracked by any battlefields-only
+ *  caller so they're zeroed out. Safe today because the only mana ability
+ *  declaring `canActivate` (Chrome Mox's imprint gate) reads only
+ *  `source.counters`, ignoring `state` entirely — a future mana ability whose
+ *  gate genuinely needs life/hand would need real `GameState` threaded to its
+ *  call site instead of leaning on this fallback. */
+function minimalManaGateView(
+    battlefields?: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
+): TriggerStateView {
+    if (!battlefields) return { players: [] };
+    return {
+        players: battlefields.map((b) => ({
+            id: b.playerId,
+            life: 0,
+            hand: { length: 0 },
+            battlefield: b.battlefield.map((c) => ({
+                id: c.id,
+                controllerId: c.controllerId,
+                ownerId: c.ownerId,
+                types: c.types ?? [],
+                subtypes: c.subtypes ?? [],
+                staticAbilities: c.staticAbilities ?? [],
+                isTapped: c.isTapped === true,
+            })),
+        })),
+    };
+}
+
 export function getManaTapOptionsDetailed(
     card: CardInstanceState,
     controllerId?: string,
@@ -421,6 +465,19 @@ export function getManaTapOptionsDetailed(
             if (requireTap) {
                 if (!ability.cost.tap) continue;
             } else if (!ability.cost.tap && !ability.cost.sacrifice) {
+                continue;
+            }
+            // CR 602.5b (issue #947) — an ability whose own `canActivate`
+            // precondition is false is not a usable mana-tap option at all
+            // (an un-imprinted Chrome Mox has no active mana ability, not
+            // merely one with an empty choice list).
+            if (
+                ability.canActivate &&
+                !ability.canActivate(
+                    card as unknown as PermanentView,
+                    minimalManaGateView(battlefields)
+                )
+            ) {
                 continue;
             }
             const target = ability.cost.sacrifice ? sacrifice : nonSacrifice;
@@ -630,21 +687,42 @@ export function getActivatedManaRestriction(
     return ability?.manaRestriction ?? null;
 }
 
-/** Returns the activated mana ability definition for a card, or null. */
-export function getActivatedManaAbility(card: CardInstanceState) {
+/** Returns the activated mana ability definition for a card, or null.
+ *
+ *  CR 602.5b (issue #947) — when the found ability declares its own
+ *  `canActivate` precondition and a state snapshot is supplied, the ability
+ *  is gated: an un-imprinted Chrome Mox has NO usable mana ability at all
+ *  (not merely one whose `manaChoices` happens to resolve empty), so it must
+ *  not be offered as a tappable mana source or reach the tap-for-mana
+ *  pipeline. `state` is optional so shape-only callers (definition
+ *  introspection with no board snapshot) keep compiling; every real
+ *  tap-decision site (the three tap mutations, `hasManaAbility`) passes one. */
+export function getActivatedManaAbility(
+    card: CardInstanceState,
+    state?: TriggerStateView
+) {
     if (abilitiesSuppressed(card)) return null;
     const cardDef = getDefinition(card.card.id as string);
-    return (
+    const ability =
         cardDef.activatedAbilities?.find(
             (a) => !a.useStack && (a.manaProduced || a.manaChoices)
-        ) ?? null
-    );
+        ) ?? null;
+    if (!ability) return null;
+    if (ability.canActivate && state && !ability.canActivate(card, state)) {
+        return null;
+    }
+    return ability;
 }
 
-/** Returns true if a card has a tap mana ability (basic land subtype or activated). */
-export function hasManaAbility(card: CardInstanceState): boolean {
+/** Returns true if a card has a tap mana ability (basic land subtype or
+ *  activated), consulting the activated ability's own `canActivate` gate
+ *  when `state` is supplied (CR 602.5b, issue #947). */
+export function hasManaAbility(
+    card: CardInstanceState,
+    state?: TriggerStateView
+): boolean {
     return (
         getBasicLandMana(card) !== null ||
-        getActivatedManaAbility(card) !== null
+        getActivatedManaAbility(card, state) !== null
     );
 }

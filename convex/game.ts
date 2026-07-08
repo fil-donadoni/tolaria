@@ -726,6 +726,27 @@ function resolveManaTapChoice(
     return { mana: opt.mana, ability, choiceIndex: source.choiceIndex };
 }
 
+/** CR 605.1a — clean rejection message for a mana-choice tap that resolves to
+ *  nothing (`resolveManaTapChoice` returned null). Distinguishes "this source
+ *  has no legal mana-tap option at all" (issue #947 hardening — reachable
+ *  only if a source's `canActivate` availability gate is somehow bypassed,
+ *  e.g. an un-imprinted Chrome Mox) from "the submitted index is out of range
+ *  for an otherwise legal source", so a defensive double-fault doesn't
+ *  surface the same confusing generic message either way. */
+function manaChoiceRejectionMessage(
+    card: CardInstanceState,
+    controllerId: string,
+    battlefields: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
+): string {
+    const options = getManaTapOptionsDetailed(card, controllerId, battlefields);
+    return options.length === 0
+        ? "This source has no mana to add"
+        : "Invalid mana choice";
+}
+
 /** Battlefields shaped for the mana-tap resolvers (CR 106.1). */
 function manaTapBattlefields(state: GameState): {
     playerId: string;
@@ -750,7 +771,10 @@ export function tapSourceIntoPayment(
     if (isTapLockedBySummoningSickness(card)) {
         throw new Error("Creature has summoning sickness");
     }
-    const ability = getActivatedManaAbility(card);
+    // CR 602.5b (issue #947) — gate on the ability's own `canActivate`
+    // precondition so an un-imprinted Chrome Mox is treated as having no
+    // usable mana ability at all.
+    const ability = getActivatedManaAbility(card, state);
 
     // CR 106.4 / 605.1a — snapshot life before the mana ability's inline self-
     // damage / life-cost riders run, so an untapForPayment that reverses this
@@ -780,7 +804,15 @@ export function tapSourceIntoPayment(
             manaTapBattlefields(state),
             manaChoiceIndex
         );
-        if (!resolved) throw new Error("Invalid mana choice");
+        if (!resolved) {
+            throw new Error(
+                manaChoiceRejectionMessage(
+                    card,
+                    player.id,
+                    manaTapBattlefields(state)
+                )
+            );
+        }
         const { ability: effAbility, choiceIndex } = resolved;
         // CR 614 — Deep Water rewrites a land's produced mana to {U} before it
         // reaches the pool, so the event and refund snapshot the {U} actually
@@ -3794,8 +3826,18 @@ export const tapForPayment = mutation({
         );
         if (!card) throw new Error("Card not on battlefield");
         if (card.isTapped) throw new Error("Card already tapped");
+        // CR 602.5b (issue #947) — an un-imprinted Chrome Mox (or any source
+        // whose mana ability's `canActivate` currently fails) has no usable
+        // mana ability at all; reject cleanly rather than falling through to
+        // a mana-choice resolution that has nothing to resolve.
+        if (!hasManaAbility(card, state)) {
+            throw new Error("Card has no mana ability to tap");
+        }
 
-        const ability = getActivatedManaAbility(card);
+        // CR 602.5b (issue #947) — gate on the ability's own `canActivate`
+        // precondition so an un-imprinted Chrome Mox is treated as having no
+        // usable mana ability at all.
+        const ability = getActivatedManaAbility(card, state);
 
         if (
             manaTapNeedsChoice(
@@ -3821,7 +3863,15 @@ export const tapForPayment = mutation({
                 manaTapBattlefields(state),
                 args.manaChoiceIndex
             );
-            if (!resolved) throw new Error("Invalid mana choice");
+            if (!resolved) {
+                throw new Error(
+                    manaChoiceRejectionMessage(
+                        card,
+                        player.id,
+                        manaTapBattlefields(state)
+                    )
+                );
+            }
             // CR 614 — Deep Water rewrites a land's produced mana to {U}.
             const chosen = applyLandManaReplacement(
                 state,
@@ -7264,11 +7314,15 @@ export const tapUntap = mutation({
         );
         if (!card) throw new Error("Card not on battlefield");
 
-        if (!hasManaAbility(card)) {
+        // CR 602.5b (issue #947) — gate on the ability's own `canActivate`
+        // precondition so an un-imprinted Chrome Mox (or any source whose
+        // mana ability currently fails its gate) reads as having no mana
+        // ability at all, not merely one with an empty choice list.
+        if (!hasManaAbility(card, state)) {
             throw new Error("Card has no mana ability to tap/untap");
         }
 
-        const ability = getActivatedManaAbility(card);
+        const ability = getActivatedManaAbility(card, state);
         // CR 605.1a / 606 — a NON-tap mana ability whose cost is mana
         // (Farrelite Priest "{1}: Add {W}") has no tap toggle to flip: it can be
         // activated repeatedly and may carry a side effect (a conditional
@@ -7364,7 +7418,15 @@ export const tapUntap = mutation({
                     manaTapBattlefields(state),
                     args.manaChoiceIndex
                 );
-                if (!resolved) throw new Error("Invalid mana choice");
+                if (!resolved) {
+                    throw new Error(
+                        manaChoiceRejectionMessage(
+                            card,
+                            player.id,
+                            manaTapBattlefields(state)
+                        )
+                    );
+                }
                 const effAbility = resolved.ability;
                 const choiceIndex = resolved.choiceIndex;
                 tapAbility = effAbility;

@@ -86,10 +86,10 @@ export const artifactBlast: CardDefinition = {
 // targets an artifact spell you control); on a coin-flip WIN the counter is
 // simply not performed and you draw instead.
 //
-// DIVERGENCE (flagged): the printed "that isn't the target of an ability from
-// another creature named Goblin Artisans" multi-copy clause is simplified
-// (not enforced) — it only matters with two Goblin Artisans targeting the same
-// spell, an edge the current pool/UI doesn't exercise.
+// DIVERGENCE (flagged, tracked #974): the printed "that isn't the target of an
+// ability from another creature named Goblin Artisans" multi-copy clause is
+// simplified (not enforced) — it only matters with two Goblin Artisans
+// targeting the same spell, an edge the current pool/UI doesn't exercise.
 export const goblinArtisans: CardDefinition = {
     id: "6669d96e-9a7b-4427-a477-f4e76831f593",
     rarity: "uncommon",

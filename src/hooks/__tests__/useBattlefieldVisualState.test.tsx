@@ -23,9 +23,34 @@ vi.mock("~/hooks/usePendingChoiceBuffer", () => ({
 }));
 
 const PLAIN_DEF = { id: "plain-def", name: "Grizzly Bears", staticEffects: [] };
+
+// Synthetic Chrome-Mox-shaped mana ability (CR 602.5b, issue #947): a
+// `canActivate` predicate gated on an imprint counter, mirroring
+// `convex/cards/sets/mrd/colorless.ts` without importing the real card —
+// this proves the fix is a general `canActivate` mechanism, not a
+// Chrome-Mox-specific special case.
+const MOX_DEF = {
+    id: "mox-def",
+    name: "Test Gated Mox",
+    staticEffects: [],
+    activatedAbilities: [
+        {
+            id: "test-mox-mana",
+            oracleText: "{T}: Add one mana of the imprinted colour.",
+            cost: { tap: true },
+            useStack: false,
+            canActivate: (source: { counters?: Record<string, number> }) =>
+                (source.counters?.["imprint-G"] ?? 0) > 0,
+            manaChoices: [{ G: 1 }],
+            getManaChoices: (source: { counters?: Record<string, number> }) =>
+                (source.counters?.["imprint-G"] ?? 0) > 0 ? [{ G: 1 }] : [],
+        },
+    ],
+};
+
 vi.mock("@convex/cards", () => ({
-    getDefinition: () => PLAIN_DEF,
-    tryGetDefinition: () => PLAIN_DEF,
+    getDefinition: (id: string) => (id === "mox-def" ? MOX_DEF : PLAIN_DEF),
+    tryGetDefinition: (id: string) => (id === "mox-def" ? MOX_DEF : PLAIN_DEF),
 }));
 
 function creature(overrides: Partial<CardInstance> = {}): CardInstance {
@@ -38,6 +63,25 @@ function creature(overrides: Partial<CardInstance> = {}): CardInstance {
         isTapped: false,
         isSummoningSick: true,
         types: ["Creature"],
+        subtypes: [],
+        staticAbilities: [],
+        ...overrides,
+    } as CardInstance;
+}
+
+/** A canActivate-gated mana source (CR 602.5b, issue #947) — an artifact
+ *  with the synthetic `MOX_DEF`'s ability. `counters` un-set (or without the
+ *  imprint key) means `canActivate` is false, i.e. un-imprinted. */
+function moxCard(overrides: Partial<CardInstance> = {}): CardInstance {
+    return {
+        id: "mox1",
+        card: { id: "mox-def" },
+        controllerId: "me",
+        ownerId: "me",
+        zone: "battlefield",
+        isTapped: false,
+        isSummoningSick: false,
+        types: ["Artifact"],
         subtypes: [],
         staticAbilities: [],
         ...overrides,
@@ -144,5 +188,28 @@ describe("useBattlefieldVisualState — haste bypasses summoning sickness during
 
         expect(result.current.canInteract(veteran)).toBe(true);
         expect(result.current.getVisualState(veteran).dimmed).toBe(false);
+    });
+});
+
+describe("useBattlefieldVisualState — mana ability canActivate gate (CR 602.5b, issue #947)", () => {
+    it("an un-imprinted (ungated) mana source is NOT clickable and NOT highlighted as a mana source", () => {
+        const mox = moxCard();
+        const me = makePlayer("me", [mox]);
+        const { result } = renderVisualState(me, {
+            phase: "PRECOMBAT_MAIN",
+        });
+
+        expect(result.current.canInteract(mox)).toBe(false);
+        expect(result.current.getVisualState(mox).enabled).toBe(false);
+    });
+
+    it("an imprinted (gate-satisfied) mana source IS clickable", () => {
+        const mox = moxCard({ counters: { "imprint-G": 1 } });
+        const me = makePlayer("me", [mox]);
+        const { result } = renderVisualState(me, {
+            phase: "PRECOMBAT_MAIN",
+        });
+
+        expect(result.current.canInteract(mox)).toBe(true);
     });
 });
