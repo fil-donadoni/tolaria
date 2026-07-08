@@ -484,6 +484,9 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Values below are the true post-merge totals, reconciled by re-running
         // `bun scripts/migration-classifier.mjs` against the combined tree,
         // never hand-added.
+        // #994 (Dominate — targeted control change filtered by mana value)
+        // net-ADDED one protocol resolve() closure blocked on a control-change
+        // Op, landing Op-blocked: total 642→643, Op-blocked 225→226.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(643);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(403);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(370);
