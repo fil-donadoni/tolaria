@@ -86,6 +86,26 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Vision Charm phasing + modal charm (issue #982): Vision Charm ({U}
+        // instant) sits in hand with fixtures for all three modern-oracle modes.
+        // Mode 1 — mill four: the opponent has a stocked library. Mode 2 — land
+        // type change: you control an Island (and a Forest) to retype until end
+        // of turn. Mode 3 — phase out: a Black Lotus is in play as a target
+        // artifact; after it phases out (CR 702.26) it phases back in before your
+        // NEXT untap step (the untap-cycle wiring this issue added). Cast it and
+        // pick a mode to exercise the staged-resume resolution.
+        label: "Vision Charm — modal + untap-cycle phasing (#982)",
+        cards: [
+            { name: "Vision Charm", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield" },
+            { name: "Forest", owner: "me", zone: "battlefield" },
+            { name: "Black Lotus", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "opp", zone: "library", count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+    },
+    {
         // Copy-on-ETB Bot cast prune (issue #938): a copy-on-ETB spell (Copy
         // Artifact, Clone, Vesuvan Doppelganger, Dance of Many) enters as a copy
         // of a permanent already in play. Casting one with NO permanent it could
