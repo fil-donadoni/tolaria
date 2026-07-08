@@ -86,6 +86,25 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Chain of Vapor land-sacrifice copy chain (issue #993): Chain of Vapor
+        // ({U} instant) sits in hand with an opponent Grizzly Bears to bounce.
+        // Cast it targeting the Bears — it returns to the opponent's hand, then
+        // the Bears' controller (the opponent) may SACRIFICE A LAND to copy the
+        // spell and choose a new target. Each copy can chain again. You control
+        // a second Grizzly Bears as a legal new target for a copy, and both
+        // players have spare Islands to feed the sacrifice cost (CR 701.10
+        // bounce, CR 701.16 sacrifice, CR 707.12 "copy this spell").
+        label: "Chain of Vapor land-sac copy chain (#993)",
+        cards: [
+            { name: "Chain of Vapor", owner: "me", zone: "hand" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            { name: "Island", owner: "opp", zone: "battlefield", count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
+    {
         // Copy-on-ETB Bot cast prune (issue #938): a copy-on-ETB spell (Copy
         // Artifact, Clone, Vesuvan Doppelganger, Dance of Many) enters as a copy
         // of a permanent already in play. Casting one with NO permanent it could

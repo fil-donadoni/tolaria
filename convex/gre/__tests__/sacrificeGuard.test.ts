@@ -30,10 +30,24 @@ const ALLOW = new Set<string>([
     "gre/applyMove.ts",
 ]);
 
+// Tolerate entries that vanish mid-walk. A parallel test worker
+// (scripts/__tests__/json-to-cards.test.ts) creates and then removes a
+// throwaway set directory under convex/cards/sets/ while this guard walks the
+// same tree, so a name listed by readdirSync can be gone by the time we stat /
+// recurse into it (ENOENT). Skip such entries rather than crashing — the guard
+// only needs the committed .ts files, none of which are the transient dir.
 function walk(dir: string): string[] {
-    return readdirSync(dir).flatMap((f) => {
+    let entries: string[];
+    try {
+        entries = readdirSync(dir);
+    } catch {
+        return []; // directory removed mid-walk
+    }
+    return entries.flatMap((f) => {
         const p = join(dir, f);
-        return statSync(p).isDirectory() ? walk(p) : [p];
+        const stat = statSync(p, { throwIfNoEntry: false });
+        if (!stat) return []; // entry removed between readdir and stat
+        return stat.isDirectory() ? walk(p) : [p];
     });
 }
 
