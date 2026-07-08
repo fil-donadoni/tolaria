@@ -5416,6 +5416,44 @@ export type EffectOp =
           action: "shuffle";
           player: EffectPlayerRef;
       }
+    /** CR 401.4 look / CR 701.22 Scry / 701.44 Surveil / order-only (issue
+     *  #885) — look at the top `count` cards of a library, then reorder / place
+     *  them per `destination`. A thin declarative skin over the single
+     *  SpellContext primitive `orderTop` (the reusable drag-picker behind Scry /
+     *  Surveil / "put them back in any order"), one execution path (ADR 0045).
+     *  Like `choice` / `mayPay` this Op SUSPENDS: the first execution raises the
+     *  `order-top` PendingChoice (projected face-up as `libraryPeek`), and on
+     *  resume `orderTop` puts the KEPT cards back on top in the chooser's order
+     *  and sends the un-kept cards to `destination`, marking the kept cards
+     *  known to the controller (ADR 0026). The reorder-FROM-choice construct the
+     *  scryReorder backlog Op reserved (Ponder = `"none"`, Preordain = Scry 2 =
+     *  `"library-bottom"`, a Surveil = `"graveyard"`). `player` names whose
+     *  library (the resolving controller, an announced target slot, or a forEach
+     *  `$each`); `count` is how many top cards to look at (a non-positive count
+     *  or an empty library is a no-op, CR 608.2b). No `bind` — the pick is
+     *  consumed internally by `orderTop`, not read by a later Op. */
+    | {
+          op: "scryReorder";
+          player: EffectPlayerRef;
+          count: EffectValue;
+          destination: LibraryDestination;
+          prompt?: string;
+      }
+    /** CR 701.17 (issue #885) — mill: move the top `count` cards of a player's
+     *  library into their graveyard. A thin declarative skin over the existing
+     *  `peekLibraryTop` + `moveCardById` primitives, one execution path (ADR
+     *  0045): the mill loop reads the LIVE top id each pass and moves it library
+     *  → graveyard, stopping early when the library empties (CR 701.17a — mill
+     *  fewer if not enough cards). `player` names whose library is milled (an
+     *  announced target slot — "target player mills N", Thought Scour /
+     *  Millstone; the resolving controller; or a forEach `$each`); `count` is
+     *  how many cards to mill (a non-positive count is a no-op, CR 608.2b).
+     *  Deterministic — no player choice, unlike `scryReorder`. */
+    | {
+          op: "mill";
+          player: EffectPlayerRef;
+          count: EffectValue;
+      }
     /** CR 615 (issue #845) — establish a damage-prevention shield. A thin
      *  declarative skin over three SpellContext prevention primitives, one
      *  execution path per mode (ADR 0045). `mode` selects the shield shape:

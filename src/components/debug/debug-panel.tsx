@@ -917,6 +917,26 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 3,
     },
+    {
+        // scryReorder / mill Effect Script Ops (#885). Preordain (Scry 2, then
+        // draw) and Ponder (look at top 3, reorder, may shuffle, draw) exercise
+        // the choice-driven `scryReorder` Op — cast one and the order-top drag
+        // picker appears on the top cards. Thought Scour (target player mills
+        // two, draw) and Millstone ({2},{T}: target player mills two) exercise
+        // the deterministic `mill` Op — cast/activate targeting the opponent to
+        // send the top of their library to the graveyard. 3 Islands cover the
+        // {U} spells; the opponent's library is milled from the shared draw pile.
+        label: "scryReorder / mill Effect Script Ops (Preordain / Ponder / Thought Scour / Millstone) (#885)",
+        cards: [
+            { name: "Preordain", owner: "me", zone: "hand" },
+            { name: "Ponder", owner: "me", zone: "hand" },
+            { name: "Thought Scour", owner: "me", zone: "hand" },
+            { name: "Millstone", owner: "me", zone: "battlefield" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+    },
 ];
 
 type DebugPanelProps = {

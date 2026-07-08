@@ -880,8 +880,47 @@ export const OP_EXECUTORS: {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
         // `action` is "shuffle" — the only folded library primitive (issue
-        // #844; peek/reorder deferred to the `scryReorder` backlog Op).
+        // #844; peek/reorder are the `scryReorder` Op below, issue #885).
         ctx.shuffleLibrary(playerId);
+    },
+    // CR 401.4 look / CR 701.22 Scry / 701.44 Surveil / order-only (issue
+    // #885) — look at / reorder the top of a library. A thin declarative skin
+    // over the single SpellContext primitive `orderTop`, ONE execution path
+    // (ADR 0045). SUSPENDS like `choice`/`mayPay`: `orderTop` returns `false`
+    // while the `order-top` PendingChoice is pending (the Op then reports
+    // "suspend" so the engine leaves the item on the stack, checkpointed at
+    // this Op's position), and `true` once the chooser's ordering has been
+    // applied (the un-kept cards to `destination`, the kept cards back on top).
+    // Skipped when the player is gone or `count` ≤ 0 (CR 608.2b); `orderTop`
+    // itself no-ops on an empty library.
+    scryReorder(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — player gone, skip
+        const count = resolveValue(ctx, op.count);
+        if (count === undefined || count <= 0) return;
+        const applied = ctx.orderTop(playerId, count, {
+            destination: op.destination,
+            prompt: op.prompt,
+        });
+        if (!applied) return "suspend"; // enqueued the order-top choice — wait
+    },
+    // CR 701.17 (issue #885) — mill: move the top `count` cards of a player's
+    // library into their graveyard. A thin declarative skin over the existing
+    // `peekLibraryTop` + `moveCardById` primitives (the Millstone / Thought
+    // Scour composition), ONE execution path (ADR 0045): re-read the LIVE top
+    // id each pass so successive mills chase the receding library top, and stop
+    // early once it empties (CR 701.17a). Deterministic — no choice, no
+    // suspension. Skipped when the player is gone or `count` ≤ 0 (CR 608.2b).
+    mill(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — player gone, skip
+        const count = resolveValue(ctx, op.count);
+        if (count === undefined || count <= 0) return;
+        for (let i = 0; i < count; i++) {
+            const top = ctx.peekLibraryTop(playerId, 1);
+            if (top.length === 0) break; // library empty — mill fewer (701.17a)
+            ctx.moveCardById(playerId, top[0], "library", "graveyard");
+        }
     },
     // CR 615 (issue #845) — establish a damage-prevention shield. A thin
     // declarative skin over three SpellContext prevention primitives, ONE
