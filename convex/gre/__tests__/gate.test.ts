@@ -168,6 +168,59 @@ describe("assertExpectedInput — blockers variant (CR 509.1)", () => {
     });
 });
 
+describe("assertExpectedInput — sacrifice variant (CR 508.1c/1g, attack tax)", () => {
+    // Flooded Woodlands parks the attacking player's land sacrifice mid
+    // declare-attackers. Driving the shared gate here is equivalent to driving
+    // it through every mutation that routes through it: passPriority,
+    // announceCast, and selectSacrifice's attack branch. The regression — a
+    // parked sacrifice being silently bypassed (endTurn / Pass Turn resolving
+    // the attack with no land sacrificed) — is exactly a `priority` action
+    // being admitted while the game waits for `sacrifice`; the third case below
+    // pins that it is now REJECTED.
+    const parked = () =>
+        makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            combat: combatWithAttackers({
+                confirmed: false,
+                pendingAttackSacrifice: {
+                    playerId: "p1",
+                    reason: "Flooded Woodlands",
+                    requirements: [{ filter: { types: ["Land"] }, count: 1 }],
+                    picked: [],
+                },
+            }),
+        });
+
+    it("admits the attacking player's sacrifice pick", () => {
+        expect(() =>
+            assertExpectedInput(parked(), {
+                playerId: "p1",
+                expect: "sacrifice",
+            })
+        ).not.toThrow();
+    });
+
+    it("wrong player: rejects the non-attacking player", () => {
+        expect(() =>
+            assertExpectedInput(parked(), {
+                playerId: "p2",
+                expect: "sacrifice",
+            })
+        ).toThrow(/waiting for sacrifice input from another player/i);
+    });
+
+    it("blocks a competing priority action (endTurn / passPriority / cast) while parked", () => {
+        expect(() =>
+            assertExpectedInput(parked(), {
+                playerId: "p1",
+                expect: "priority",
+            })
+        ).toThrow(/waiting for sacrifice input, not priority/i);
+    });
+});
+
 describe("assertExpectedInput — game over (CR 104.2a)", () => {
     it("rejects any action once the game is over", () => {
         const state = makeState({

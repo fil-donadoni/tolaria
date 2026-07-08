@@ -5,6 +5,43 @@ import type {
     SacrificeRequirement,
     SacrificeSelection,
 } from "~/types/game";
+import type { PermanentFilter } from "@convex/cards/filters";
+
+/** Minimal noun phrase for a permanent filter, e.g. "a creature" (types:
+ *  "Creature") or "a Swamp" (subtypes: ["Swamp"]). Subtypes win over types
+ *  when both are present (more specific). Deliberately terse — the exact legal
+ *  set is already visible via battlefield highlighting
+ *  (`useBattlefieldVisualState`). Shared by the payment and sacrifice banners. */
+export function formatFilterLabel(filter: PermanentFilter): string {
+    const subtypes = filter.subtypes
+        ? Array.isArray(filter.subtypes)
+            ? filter.subtypes
+            : [filter.subtypes]
+        : [];
+    if (subtypes.length > 0) return `a ${subtypes.join(" or ")}`;
+    const types = filter.types
+        ? Array.isArray(filter.types)
+            ? filter.types
+            : [filter.types]
+        : [];
+    if (types.length > 0) return `a ${types.join(" or ").toLowerCase()}`;
+    return "a permanent";
+}
+
+/** Subtitle for an outstanding sacrifice choice (CR 701.21a) — names the next
+ *  unmet requirement's filter, with progress when more than one is owed.
+ *  Shared by the payment banner (cast/activation) and the sacrifice banner
+ *  (attack-declaration land tax). */
+export function describeSacrificeChoice(sel: SacrificeSelection): string {
+    const req = nextSacrificeRequirement(sel);
+    if (!req) return "sacrifice a permanent";
+    const label = formatFilterLabel(req.filter);
+    const total = sel.requirements.reduce((a, r) => a + r.count, 0);
+    if (total > 1) {
+        return `sacrifice ${label} (${sel.picked.length}/${total})`;
+    }
+    return `sacrifice ${label}`;
+}
 
 /** The next requirement still awaiting picks (greedy in-order allocation —
  *  mirror of the server's nextUnmetRequirement). CR 701.21a. */

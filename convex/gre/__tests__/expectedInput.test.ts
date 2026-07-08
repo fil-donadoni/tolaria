@@ -123,6 +123,53 @@ describe("computeExpectedInput — variant selection (ADR 0047)", () => {
         });
     });
 
+    it("sacrifice: a parked attack-tax land sacrifice (CR 508.1c/1g) outranks priority", () => {
+        // Flooded Woodlands parks the attacking player's land sacrifice mid
+        // declare-attackers. This is a turn-based action, NOT a priority window,
+        // so the waiting state is `sacrifice` — not the priority fall-through.
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            combat: combatWithAttackers({
+                confirmed: false,
+                pendingAttackSacrifice: {
+                    playerId: "p1",
+                    reason: "Flooded Woodlands",
+                    requirements: [{ filter: { types: ["Land"] }, count: 1 }],
+                    picked: [],
+                },
+            }),
+        });
+        expect(computeExpectedInput(state)).toEqual({
+            kind: "sacrifice",
+            playerId: "p1",
+        });
+    });
+
+    it("sacrifice: a COMPLETE parked selection falls through to priority (no longer waiting)", () => {
+        // Defensive: once every requirement is met the selection is about to be
+        // cleared by selectSacrifice's finalize; it must not keep blocking.
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            combat: combatWithAttackers({
+                confirmed: false,
+                pendingAttackSacrifice: {
+                    playerId: "p1",
+                    reason: "Flooded Woodlands",
+                    requirements: [{ filter: { types: ["Land"] }, count: 1 }],
+                    picked: ["land-1"],
+                },
+            }),
+        });
+        expect(computeExpectedInput(state)).toEqual({
+            kind: "priority",
+            playerId: "p1",
+        });
+    });
+
     it("blockers: defending player declares blockers this combat (CR 509.1)", () => {
         const state = makeState({
             phase: "DECLARE_BLOCKERS",
