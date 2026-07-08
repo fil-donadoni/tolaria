@@ -373,11 +373,14 @@ export const circleOfProtectionWhite: CardDefinition = makeCircleOfProtection({
     colorWord: "White",
 });
 
-// Consecrate Land — "Enchant land. Enchanted land is indestructible. Prevent
-// all damage that would be dealt to enchanted land." (CR 303.4 aura attachment,
-// 702.12 indestructible keyword). The damage-prevention clause is innocuous in
-// the current engine — lands are not damageable targets — so the implementation
-// reduces to a `keyword-grant: "indestructible"` static effect on the host.
+// Consecrate Land — "Enchant land\nEnchanted land has indestructible and can't
+// be enchanted by other Auras." (CR 303.4 aura attachment, 702.12
+// indestructible keyword). Implemented as a `keyword-grant: "indestructible"`
+// static effect on the host.
+// DIVERGENCE (tracked #974): the "can't be enchanted by other Auras" clause is
+// NOT modelled — there is no enchant-restriction static (an attach-legality
+// predicate on the host, same class as Tetravite's "can't be enchanted"), so no
+// Aura's attach is blocked by this. Deferred rather than silently dropped.
 export const consecrateLand: CardDefinition = {
     id: "d2379f78-c03f-447f-b3c9-10a918d556e9",
     rarity: "uncommon",
@@ -552,8 +555,13 @@ export const guardianAngel: CardDefinition = {
     // next-n Op with a chosen-cost `{ X: true }` amount. `to: { target: 0 }`
     // resolves the raw target (player OR permanent). A missing target is skipped
     // (CR 608.2b); X = 0 stacks a harmless 0-damage shield (the executor no-ops
-    // a zero-amount prevention). The second sentence ("you may pay {1} …") was
-    // already unmodelled in the closure — the migration preserves that.
+    // a zero-amount prevention).
+    // DIVERGENCE (tracked #974): the second sentence — "Until end of turn, you
+    // may pay {1} any time you could cast an instant. If you do, prevent the
+    // next 1 damage that would be dealt to that permanent or player this turn" —
+    // is NOT modelled. It grants the caster a floating, repeatable special
+    // action for the turn (CR 118.4 / 116.2b), a construct the Effect Script
+    // vocabulary has no surface for. Deferred rather than silently dropped.
     effects: [
         {
             op: "preventDamage",

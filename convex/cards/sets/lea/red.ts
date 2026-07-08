@@ -1219,7 +1219,14 @@ export const stoneRain: CardDefinition = {
     effect: "destroy-target",
 };
 
-// Tunnel — "Destroy target Wall." (CR 205.3 subtype filter, 701.7 destroy).
+// Tunnel — "Destroy target Wall. It can't be regenerated." (CR 205.3 subtype
+// filter, 701.7 destroy, 701.15c can't-be-regenerated).
+// DIVERGENCE (tracked #974): the "It can't be regenerated" rider is NOT
+// modelled — `setTargetCantBeRegeneratedThisTurn` exists as a SpellContext
+// primitive but has no Effect Script surface (the `destroy` Op takes no
+// cant-regenerate parameter), and `effect: "destroy-target"` routes through the
+// regeneration replacement layer. Observable only against a Wall carrying a
+// regeneration shield (rare); deferred rather than papered over with a resolve().
 export const tunnel: CardDefinition = {
     id: "b21ebc9f-a93e-4d18-b3e8-8459e3abbf31",
     rarity: "uncommon",

@@ -664,6 +664,12 @@ export const icatianScoutFemD: CardPrint = {
     rarity: "common",
 };
 
+// DIVERGENCE (tracked #974): the "Whenever this creature attacks, all creatures
+// banded with it gain first strike until end of turn" trigger is NOT modelled.
+// It requires enumerating the attacking band's members at trigger time (CR
+// 702.22 banding), a capability the engine doesn't yet expose to a trigger. The
+// printed first strike + banding keywords ship; the band-wide first-strike grant
+// is deferred rather than silently dropped.
 export const icatianSkirmishers: CardDefinition = {
     id: "15f6d115-c02d-45a3-aa6d-402964df47dd", // FEM 14
     rarity: "uncommon",

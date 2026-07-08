@@ -1,11 +1,11 @@
 // Fallen Empires (FEM), split by colour per ADR 0043. The 1994 faction-war
 // expansion (102 unique cards, 187 prints across its multi-art commons). Every
-// in-scope card is a new CardDefinition — FEM has zero reprints of
+// in-scope card is a new CardDefinition â FEM has zero reprints of
 // already-implemented cards (ADR 0014); its signature multi-artwork commons
 // ship as ONE shared CardDefinition plus one CardPrint per extra artwork, all
 // setCode "fem", all resolving to the single definition. Modern Scryfall oracle
 // text is authoritative (ADR 0004). Generic mana is encoded as `X: n`
-// (e.g. {1}{U} → { X: 1, U: 1 }). Cards are classified by the colour identity
+// (e.g. {1}{U} â { X: 1, U: 1 }). Cards are classified by the colour identity
 // of their mana cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
@@ -110,7 +110,7 @@ function makeStorageLand(config: {
                     "At the beginning of your upkeep, if this land is tapped, put a storage counter on it.",
                 // CR 603.4 intervening-if: only banks while the land is tapped.
                 condition: (_event, self) => self.isTapped === true,
-                // CR 122 (issue #841) — put one storage counter on the source.
+                // CR 122 (issue #841) â put one storage counter on the source.
                 effects: [
                     {
                         op: "counters",
@@ -128,10 +128,10 @@ function makeStorageLand(config: {
                 oracleText: `{T}, Remove any number of storage counters from this land: Add ${sym} for each storage counter removed this way.`,
                 cost: { tap: true },
                 useStack: false,
-                // Representative / fallback (no board snapshot): 0 counters → 0
+                // Representative / fallback (no board snapshot): 0 counters â 0
                 // mana. `getManaChoices` is what the player actually picks from.
                 manaChoices: [{ [color]: 0 } as ManaCost],
-                // CR 122.6 / 605.1a — index N = "remove N storage counters, add N
+                // CR 122.6 / 605.1a â index N = "remove N storage counters, add N
                 // mana of this land's colour". With `available` counters the
                 // chooser offers N = 0..available, i.e. 0..available mana.
                 getManaChoices: (source) => {
@@ -196,7 +196,7 @@ export const rainbowVale: CardDefinition = {
             cost: { tap: true },
             useStack: false,
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
-            // ADR 0040 — arm the delayed control change when tapped for mana.
+            // ADR 0040 â arm the delayed control change when tapped for mana.
             armsDelayedTriggerOnTap: {
                 triggerId: "rainbow-vale-handoff",
                 timing: "next-end-step",
@@ -211,22 +211,22 @@ export const rainbowVale: CardDefinition = {
             timing: "next-end-step",
             // NOT DSL-migratable (ADR 0045): the gainControl call lives in a
             // `delayedTriggers[]` body, and `DelayedTriggerDef` exposes only a
-            // `resolve` closure — there is no `effects[]` site on the old-style
+            // `resolve` closure â there is no `effects[]` site on the old-style
             // delayed-trigger definition to convert (the arming is already
             // declarative via `armsDelayedTriggerOnTap`). The gainControl Op
             // (#848) is COVERED, but it needs an effects[] site. Blocked on: an
-            // effects[] site on DelayedTriggerDef — stays resolve().
+            // effects[] site on DelayedTriggerDef â stays resolve().
             resolve: (ctx, payload) => {
                 const sourceId = payload.sourceId;
                 if (!sourceId) return;
-                // CR 800.4 / PRD §Out of Scope — 2-player: "an opponent" is the
+                // CR 800.4 / PRD Â§Out of Scope â 2-player: "an opponent" is the
                 // single opponent of the trigger's controller (the activator).
                 const opponent = ctx.allPlayerIds.find(
                     (id) => id !== ctx.controller
                 );
                 if (!opponent) return;
-                // CR 613.1b — indefinite control change (no condition), the
-                // Ghazbán Ogre shape. Reverts only when the next handoff fires.
+                // CR 613.1b â indefinite control change (no condition), the
+                // GhazbÃ¡n Ogre shape. Reverts only when the next handoff fires.
                 ctx.gainControl({ type: "permanent", id: sourceId }, opponent);
             },
         },
@@ -331,7 +331,7 @@ export const balmOfRestoration: CardDefinition = {
     rarity: "common",
     name: "Balm of Restoration",
     oracleText:
-        "{1}, {T}, Sacrifice this artifact: Choose one —\n• You gain 2 life.\n• Prevent the next 2 damage that would be dealt to any target this turn.",
+        "{1}, {T}, Sacrifice this artifact: Choose one â\nâ¢ You gain 2 life.\nâ¢ Prevent the next 2 damage that would be dealt to any target this turn.",
     manaCost: { X: 2 },
     types: ["Artifact"],
     activatedAbilities: [
@@ -349,7 +349,7 @@ export const balmOfRestoration: CardDefinition = {
             cost: { mana: { X: 1 }, tap: true, sacrifice: true },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #845): a prevent-the-next-2
+            // Migrated resolve()âeffects[] (ADR 0045, #845): a prevent-the-next-2
             // shield on the announced "any" target (CR 615.1).
             effects: [
                 {
@@ -423,7 +423,7 @@ export const draconianCylix: CardDefinition = {
             cost: { mana: { X: 2 }, tap: true, discardAtRandom: 1 },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
+            // Migrated resolve()âeffects[] (ADR 0045, #846): regenerate the
             // announced creature target (CR 701.15a).
             effects: [{ op: "regenerate", target: { target: 0 } }],
         },
@@ -495,7 +495,10 @@ export const delifsCone: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             resolve: () => {
-                // Deferred: arm-on-target unblocked-attack rider not yet built.
+                // DIVERGENCE (tracked #974): the "this turn, when target creature you control
+                // attacks and isn't blocked, …" armed unblocked-attack rider is NOT
+                // modelled — no delayed combat trigger arms off a chosen creature's
+                // unblocked-attack event this turn (CR 603.7a). Deferred, not silent.
             },
         },
     ],
@@ -518,7 +521,10 @@ export const delifsCube: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             resolve: () => {
-                // Deferred: arm-on-target unblocked-attack rider not yet built.
+                // DIVERGENCE (tracked #974): the "this turn, when target creature you control
+                // attacks and isn't blocked, …" armed unblocked-attack rider is NOT
+                // modelled — no delayed combat trigger arms off a chosen creature's
+                // unblocked-attack event this turn (CR 603.7a). Deferred, not silent.
             },
         },
         {
@@ -528,7 +534,7 @@ export const delifsCube: CardDefinition = {
             cost: { mana: { X: 2 }, removeCounter: { type: "cube", count: 1 } },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
+            // Migrated resolve()âeffects[] (ADR 0045, #846): regenerate the
             // announced creature target (CR 701.15a).
             effects: [{ op: "regenerate", target: { target: 0 } }],
         },

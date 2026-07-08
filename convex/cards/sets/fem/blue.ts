@@ -670,7 +670,8 @@ export const vodalianWarMachine: CardDefinition = {
     // capability the engine doesn't yet track. The load-bearing mechanic for
     // this slice (the `tapOtherFilter` cost to attack/pump, acceptance
     // criterion) is fully implemented above; the death-destroy rider is
-    // deferred and flagged rather than silently dropped. See issue #571.
+    // deferred and flagged rather than silently dropped (tracked #974; the
+    // originally-cited #571 is closed).
 };
 
 export const seasinger: CardDefinition = {

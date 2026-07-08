@@ -1411,8 +1411,23 @@ describe("Timetwister (each player reshuffles + draws 7, CR 121.1 / 701.20)", ()
 // cards." (CR 701.8, 121.1)
 // ---------------------------------------------------------------------------
 
-describe("Twiddle (toggle tap state on artifact/creature/land, CR 701.20)", () => {
-    it("taps an untapped target", () => {
+// Twiddle — "You may tap or untap target artifact, creature, or land."
+// (CR 701.26). Modal caster CHOICE (optionChoice #849 → tapUntap #842), issue
+// #961: the caster picks Tap or Untap on resolution instead of a forced toggle.
+const submitTwiddleMode = (state: GameState, mode: "tap" | "untap"): void => {
+    const head = state.pendingChoices![0];
+    expect(head.kind).toBe("option-pick");
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds: [mode],
+    });
+};
+
+describe("Twiddle (modal tap/untap target artifact/creature/land, CR 701.26)", () => {
+    it("taps an untapped target when the caster chooses Tap", () => {
         const land = makeInstance(grizzlyBears.id, {
             id: "land",
             controllerId: "p2",
@@ -1426,11 +1441,13 @@ describe("Twiddle (toggle tap state on artifact/creature/land, CR 701.20)", () =
             ],
         });
         pushSpell(state, twiddle.id, "p1", [{ type: "permanent", id: "land" }]);
-        resolveTopOfStack(state);
+        // Suspends on the caster's Tap/Untap choice (CR 601.2b).
+        expect(resolveTopOfStack(state)).toBeNull();
+        submitTwiddleMode(state, "tap");
         expect(state.players[1].battlefield[0].isTapped).toBe(true);
     });
 
-    it("untaps a tapped target", () => {
+    it("untaps a tapped target when the caster chooses Untap", () => {
         const land = makeInstance(grizzlyBears.id, {
             id: "land",
             controllerId: "p2",
@@ -1445,6 +1462,27 @@ describe("Twiddle (toggle tap state on artifact/creature/land, CR 701.20)", () =
         });
         pushSpell(state, twiddle.id, "p1", [{ type: "permanent", id: "land" }]);
         resolveTopOfStack(state);
+        submitTwiddleMode(state, "untap");
+        expect(state.players[1].battlefield[0].isTapped).toBe(false);
+    });
+
+    it("honours the choice against the target's current state (Untap leaves an untapped target untapped)", () => {
+        const land = makeInstance(grizzlyBears.id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+            isTapped: false,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        pushSpell(state, twiddle.id, "p1", [{ type: "permanent", id: "land" }]);
+        resolveTopOfStack(state);
+        // The caster may pick Untap even though a toggle would have tapped it.
+        submitTwiddleMode(state, "untap");
         expect(state.players[1].battlefield[0].isTapped).toBe(false);
     });
 
@@ -1500,8 +1538,10 @@ describe("Twiddle (toggle tap state on artifact/creature/land, CR 701.20)", () =
         });
         pushSpell(state, twiddle.id, "p1", [{ type: "permanent", id: "land" }]);
         removePermanentTo(state, "land", "graveyard");
-        // Should not throw — primitive silently no-ops.
+        // The spell's only target is gone, so it fizzles before its effects run
+        // (CR 608.2b — no Tap/Untap choice is even offered). Must not throw.
         expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.pendingChoices ?? []).toHaveLength(0);
     });
 });
 

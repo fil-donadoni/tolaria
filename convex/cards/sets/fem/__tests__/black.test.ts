@@ -1116,20 +1116,13 @@ describe("Thrull Retainer — Aura +1/+1 + sac-self regenerate (CR 303.4, 701.15
 
 // ---------------------------------------------------------------------------
 // Thrull Wizard — {1}{B}: counter target black spell unless its controller pays
-// (CR 701.5a, 117.3a). FAITHFUL-TEXT NOTE: "{B} OR {3}" is modelled as a single
-// may-pay of {B} (flagged in the card definition, not silently dropped).
+// {B} or {3} (CR 701.5a, 117.3a). The "{B} or {3}" alternative is modelled as
+// two sequential may-pay offers ({B}, then {3} if {B} was declined) — issue
+// #961; paying either saves the spell, declining both counters it.
 // ---------------------------------------------------------------------------
 
-describe("Thrull Wizard — counter black spell unless pay (CR 701.5a)", () => {
-    it("only targets black spells (colorFilter B)", () => {
-        const ability = thrullWizard.activatedAbilities![0];
-        expect(ability.targetRequirement).toMatchObject({
-            type: "spell",
-            colorFilter: "B",
-        });
-    });
-
-    it("counters the black spell when its controller declines to pay", () => {
+describe("Thrull Wizard — counter black spell unless pay {B} or {3} (CR 701.5a)", () => {
+    const setup = () => {
         const wiz = makeInstance(thrullWizard.id, {
             id: "wiz",
             controllerId: "p1",
@@ -1139,7 +1132,10 @@ describe("Thrull Wizard — counter black spell unless pay (CR 701.5a)", () => {
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [wiz] }),
-                makePlayer("p2"),
+                // Pool large enough to pay either alternative ({B} or {3}).
+                makePlayer("p2", {
+                    manaPool: { W: 0, U: 0, B: 1, R: 0, G: 0, C: 3 },
+                }),
             ],
         });
         const blackSpell = pushSpell(state, hymnToTourach.id, "p2", [
@@ -1148,10 +1144,42 @@ describe("Thrull Wizard — counter black spell unless pay (CR 701.5a)", () => {
         resolveActivated(state, wiz, "thrull-wizard-counter", [
             { type: "spell", id: blackSpell.id },
         ]);
-        const head = state.pendingChoices?.[0];
-        expect(head?.kind).toBe("may-pay");
+        return { state, blackSpell };
+    };
+
+    it("only targets black spells (colorFilter B)", () => {
+        const ability = thrullWizard.activatedAbilities![0];
+        expect(ability.targetRequirement).toMatchObject({
+            type: "spell",
+            colorFilter: "B",
+        });
+    });
+
+    it("counters the black spell when its controller declines BOTH {B} and {3}", () => {
+        const { state, blackSpell } = setup();
+        // First offer: {B}.
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        // Second offer: {3} (only reached because {B} was declined).
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
         applyMayPaySubmit(state, { playerId: "p2", accept: false });
         expect(state.stack.some((s) => s.id === blackSpell.id)).toBe(false);
+    });
+
+    it("saves the spell when its controller pays the {B} alternative (no {3} offer)", () => {
+        const { state, blackSpell } = setup();
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        // Paying {B} short-circuits — no second {3} prompt.
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.stack.some((s) => s.id === blackSpell.id)).toBe(true);
+    });
+
+    it("saves the spell when its controller declines {B} but pays the {3} alternative", () => {
+        const { state, blackSpell } = setup();
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.pendingChoices?.[0]?.kind).toBe("may-pay");
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
+        expect(state.stack.some((s) => s.id === blackSpell.id)).toBe(true);
     });
 });
 

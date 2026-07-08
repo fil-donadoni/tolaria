@@ -1214,6 +1214,40 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Twiddle modal tap/untap (CR 701.26, #961). Cast Twiddle on the tapped
+        // Grizzly Bears (or the Island): resolution now prompts a Tap/Untap
+        // CHOICE instead of a forced state-toggle. Pick "Untap" to free the
+        // tapped Bears, or "Tap" to lock down the untapped Island.
+        label: "Twiddle: caster chooses Tap or Untap (modal, not a toggle) (#961)",
+        cards: [
+            { name: "Twiddle", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+            {
+                name: "Grizzly Bears",
+                owner: "opp",
+                zone: "battlefield",
+                tapped: true,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Thrull Wizard punisher — "{B} or {3}" alternative (CR 701.5a / 117.3a,
+        // #961). Activate Thrull Wizard targeting the opponent's Dark Ritual on
+        // the stack: the controller is offered {B} first, then {3} if they
+        // decline {B}; paying either saves the spell, declining both counters it.
+        label: "Thrull Wizard: counter unless controller pays {B} OR {3} (#961)",
+        cards: [
+            { name: "Thrull Wizard", owner: "me", zone: "battlefield" },
+            { name: "Swamp", owner: "me", zone: "battlefield", count: 2 },
+            { name: "Dark Ritual", owner: "opp", zone: "hand" },
+            { name: "Swamp", owner: "opp", zone: "battlefield", count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

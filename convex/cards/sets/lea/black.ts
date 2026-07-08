@@ -354,8 +354,10 @@ export const demonicTutor: CardDefinition = {
 
 // Drain Life — "Drain Life deals X damage to any target. You gain life equal
 // to the damage dealt." (CR 107.3 for X, CR 120.1 for damage, CR 118.3 for
-// life gain). The LEA "spend only black mana on X" restriction is out of
-// scope — X is treated as generic here, matching Fireball's payment model.
+// life gain). DIVERGENCE (tracked #974): the "Spend only black mana on X"
+// payment restriction AND the life-gain sub-cap ("not more than the target's
+// toughness / life total …") are both unmodelled — X is treated as generic
+// (matching Fireball) and life gained is exactly X. Deferred, not silent.
 export const drainLife: CardDefinition = {
     id: "5d077a49-73d4-4958-b42a-31b814e110e8",
     rarity: "common",
