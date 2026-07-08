@@ -152,6 +152,27 @@ export function autoResolveFungible(
     }
 }
 
+/** CR 601.2f / 118.5 affordability gate: can the player cover every requirement
+ *  from distinct permanents? Greedy reservation across requirements in order. */
+export function canAffordSacrifice(
+    state: GameState,
+    playerId: string,
+    requirements: SacrificeRequirement[]
+): boolean {
+    const reserved = new Set<string>();
+    for (const req of requirements) {
+        let need = req.count;
+        for (const c of sacrificeCandidates(state, playerId, req.filter)) {
+            if (need <= 0) break;
+            if (reserved.has(c.id)) continue;
+            reserved.add(c.id);
+            need -= 1;
+        }
+        if (need > 0) return false;
+    }
+    return true;
+}
+
 /** True when a candidate legally satisfies the next unmet requirement:
  *  matches its filter, on the player's battlefield, not already picked. */
 export function isSacrificeCandidateLegal(
