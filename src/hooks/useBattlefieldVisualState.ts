@@ -484,7 +484,22 @@ export function useBattlefieldVisualState(player: Player) {
                     pendingCast.additionalCost.filter
                 )) ||
             (isPickingActivationCost && matchesActivationCostPick(card));
-        if (!ringClass && isValidSacrificePick) {
+        // Already-committed picks in a multi-element cost choice (Fireblast's
+        // two Mountains, Thwart's three Islands, Hand of Justice's tap-others).
+        // `matches*Pick` excludes picked ids, so without this branch a chosen
+        // permanent would lose its ring — the player couldn't see what they
+        // already selected. Solid ring mirrors the choose-permanents selected
+        // state (`isChoiceSelected` above). CR 701.21a / 602.1.
+        const isCostPicked =
+            (isPickingSacrifice &&
+                !!sacrificeSelection?.picked.includes(card.id)) ||
+            (isPickingActivationCost &&
+                !!pendingActivation?.tapOtherChoice?.pickedIds.includes(
+                    card.id
+                ));
+        if (!ringClass && isCostPicked) {
+            ringClass = "ring-2 ring-accent rounded-sm";
+        } else if (!ringClass && isValidSacrificePick) {
             ringClass = "ring-2 ring-accent/40 rounded-sm";
         }
 

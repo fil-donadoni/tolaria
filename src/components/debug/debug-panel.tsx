@@ -184,7 +184,7 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         cards: [
             { name: "Illusionary Terrain", owner: "me", zone: "hand" },
             { name: "Forest", owner: "me", zone: "battlefield", count: 3 },
-            { name: "Island", owner: "me", zone: "battlefield", count: 1 },
+            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 3,
@@ -657,28 +657,6 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 4,
     },
     {
-        // Stifle — "counter target activated or triggered ability" (CR 701.5a).
-        // The opponent controls a Prodigal Sorcerer ("{T}: deal 1 damage to any
-        // target"). Activate its ability from the opp seat, targeting me → the
-        // ability goes on the stack. Switch to my seat (priority) and cast
-        // Stifle ({U}, from the Island) targeting that ability. Verify: (1) the
-        // ability on the stack IS highlightable/clickable for Stifle (a "target
-        // spell" like Counterspell would NOT be), and (2) resolving Stifle
-        // vanishes the ability — no damage is dealt, and my life stays at 20.
-        label: "Stifle: counter an activated ability on the stack (Prodigal Sorcerer ping) (#679)",
-        cards: [
-            {
-                name: "Prodigal Sorcerer",
-                owner: "opp",
-                zone: "battlefield",
-            },
-            { name: "Stifle", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
         // Twiddle modal tap/untap (CR 701.26, #961). Cast Twiddle on the tapped
         // Grizzly Bears (or the Island): resolution now prompts a Tap/Untap
         // CHOICE instead of a forced state-toggle. Pick "Untap" to free the
@@ -750,21 +728,6 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
-    {
-        // Echo keyword (Goblin Patrol) — CR 702.30, #990. Goblin Patrol ({R}
-        // 2/1, Echo {R}) starts in hand with three untapped Mountains. Cast it
-        // (it enters with the echo debt flagged), then pass to your NEXT upkeep:
-        // the echo trigger demands {R} — pay it to keep the Goblin, or decline
-        // to sacrifice it. It fires exactly once (a later upkeep never re-asks).
-        label: "Echo keyword: pay {R} or sacrifice (Goblin Patrol) (#990)",
-        cards: [
-            { name: "Goblin Patrol", owner: "me", zone: "hand" },
-            { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-
     {
         // Cursed Scroll random-reveal conditional damage (issue #991): "{3},
         // {T}: Choose a card name, then reveal a card at random from your hand.

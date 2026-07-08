@@ -15,3 +15,7 @@ at convexToJsonInternal (../../node_modules/convex/src/values/value.ts:333:29)
 at convexToJsonInternal (../../node_modules/convex/src/values/value.ts:366:8)
 at convexToJsonInternal (../../node_modules/convex/src/values/value.ts:366:8)
 at patchValueToJson (../../node_modules/convex/src/values/value.ts:447:0)
+
+Illusionary terrain non funziona: posso scegliere i 2 tipi di terra base quando entra, ma poi le terre in gioco coinvolte non cambiano tipo e nell'oracle text della card-preview di illusionary terrain non viene mostrato il tipo di terra scelto.
+
+Come decidi chi inizia in G1? bisognerebbe tirare il dado

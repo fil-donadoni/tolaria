@@ -213,3 +213,66 @@ describe("useBattlefieldVisualState — mana ability canActivate gate (CR 602.5b
         expect(result.current.canInteract(mox)).toBe(true);
     });
 });
+
+// Multi-element cost picks (Fireblast's two Mountains, Thwart's three
+// Islands, CR 701.21a) must show a distinct SELECTED ring on already-committed
+// picks — `matchesSacrificePick` excludes picked ids, so without the
+// `isCostPicked` branch a chosen permanent would lose its ring entirely and
+// the player couldn't tell what they already selected.
+describe("useBattlefieldVisualState — multi-pick sacrifice cost selected ring (CR 701.21a)", () => {
+    function mountain(id: string): CardInstance {
+        return {
+            id,
+            card: { id: "mountain-def" },
+            controllerId: "me",
+            ownerId: "me",
+            zone: "battlefield",
+            isTapped: false,
+            isSummoningSick: false,
+            types: ["Land"],
+            subtypes: ["Mountain"],
+            staticAbilities: [],
+        } as CardInstance;
+    }
+
+    // Sacrifice two Mountains; m1 already picked, m2 still eligible.
+    function ctxWithSacrifice() {
+        return {
+            phase: "PRECOMBAT_MAIN",
+            combat: undefined,
+            pendingCast: {
+                playerId: "me",
+                sacrificeSelection: {
+                    playerId: "me",
+                    reason: "Fireblast",
+                    requirements: [
+                        { filter: { subtypes: ["Mountain"] }, count: 2 },
+                    ],
+                    picked: ["m1"],
+                },
+            },
+        } as unknown as Partial<NonNullable<Ctx>>;
+    }
+
+    it("already-picked permanent shows the solid selected ring", () => {
+        const m1 = mountain("m1");
+        const m2 = mountain("m2");
+        const me = makePlayer("me", [m1, m2]);
+        const { result } = renderVisualState(me, ctxWithSacrifice());
+
+        expect(result.current.getVisualState(m1).ringClass).toBe(
+            "ring-2 ring-accent rounded-sm"
+        );
+    });
+
+    it("still-eligible permanent shows the dim candidate ring", () => {
+        const m1 = mountain("m1");
+        const m2 = mountain("m2");
+        const me = makePlayer("me", [m1, m2]);
+        const { result } = renderVisualState(me, ctxWithSacrifice());
+
+        expect(result.current.getVisualState(m2).ringClass).toBe(
+            "ring-2 ring-accent/40 rounded-sm"
+        );
+    });
+});
