@@ -721,6 +721,29 @@ describe("game_state serialize round-trip", () => {
         expect((gotHost.card as { id: string }).id).toBe(savannahLions.id);
     });
 
+    it("preserves an untap-cycle bundle's phasedOutTurn (CR 702.26f)", () => {
+        const state = freshState();
+        const host = makeInstance(savannahLions.id, {
+            id: "art",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        state.phasedOut = [
+            {
+                id: "bundle-uc",
+                cards: [host],
+                returnOn: { kind: "untap-cycle" },
+                phasedOutTurn: 4,
+            },
+        ];
+        const expanded = expandState(compactState(state));
+        const b = expanded.phasedOut![0];
+        expect(b.returnOn).toEqual({ kind: "untap-cycle" });
+        // The skip-first-untap guard depends on this surviving the DB round trip.
+        expect(b.phasedOutTurn).toBe(4);
+    });
+
     it("preserves exileHeld bundles across the round trip (ADR 0028)", () => {
         const state = freshState();
         state.exileHeld = [

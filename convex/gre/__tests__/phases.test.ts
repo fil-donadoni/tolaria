@@ -7,6 +7,7 @@ import {
     effectiveMaxHandSize,
     finalizeCleanupDiscard,
 } from "../phases";
+import { phaseInUntapCycleBundles } from "../state";
 import {
     getOpponentId,
     type GameState,
@@ -780,6 +781,92 @@ describe("advancePhase", () => {
 
             const p1 = state.players.find((p) => p.id === "p1")!;
             expect(p1.battlefield[0].isTapped).toBe(true);
+        });
+    });
+
+    describe("untap-cycle phasing (CR 702.26c/f)", () => {
+        /** A phased-out `untap-cycle` bundle holding a single artifact
+         *  controlled by `controllerId`, phased out on `phasedOutTurn`. Mirrors
+         *  what `phaseOutPermanent` produces for Vision Charm mode 3. */
+        function phasedArtifactBundle(
+            controllerId: string,
+            phasedOutTurn: number,
+            opts: { tapped?: boolean } = {}
+        ) {
+            const art = makeCard({
+                id: "art1",
+                card: { name: "Ornithopter", types: ["Artifact"] },
+                controllerId,
+                ownerId: controllerId,
+                isTapped: opts.tapped ?? false,
+            });
+            return {
+                id: "bundle-uc",
+                cards: [art],
+                returnOn: { kind: "untap-cycle" as const },
+                phasedOutTurn,
+            };
+        }
+
+        it("phases the artifact back in on the controller's NEXT untap step (CR 702.26c)", () => {
+            // p2's artifact phased out on turn 1; p2's next untap is turn 2.
+            const state = makeGameState({
+                phase: "END_STEP",
+                turn: 1,
+                activePlayerId: "p1",
+                players: [makePlayer({ id: "p1" }), makePlayer({ id: "p2" })],
+                phasedOut: [phasedArtifactBundle("p2", 1, { tapped: true })],
+            });
+
+            // END_STEP → CLEANUP → turn 2 (p2 active) → UNTAP phases it in.
+            advancePhase(state);
+
+            expect(state.activePlayerId).toBe("p2");
+            const p2 = state.players.find((p) => p.id === "p2")!;
+            const art = p2.battlefield.find((c) => c.id === "art1");
+            expect(art).toBeDefined();
+            expect(state.phasedOut ?? []).toHaveLength(0);
+            // CR 502.1 — phasing precedes the untap, so an artifact that phased
+            // out tapped untaps this same untap step.
+            expect(art!.isTapped).toBe(false);
+        });
+
+        it("does NOT phase in on the untap step of the turn it phased out (CR 702.26f skip-first)", () => {
+            // Direct guard check: same turn → not eligible; a later turn → eligible.
+            const state = makeGameState({
+                turn: 3,
+                activePlayerId: "p1",
+                players: [makePlayer({ id: "p1" }), makePlayer({ id: "p2" })],
+                phasedOut: [phasedArtifactBundle("p1", 3)],
+            });
+
+            phaseInUntapCycleBundles(state, "p1");
+            expect(state.phasedOut).toHaveLength(1); // same turn — still out
+
+            state.turn = 5; // a later untap step of the same controller
+            phaseInUntapCycleBundles(state, "p1");
+            expect(state.phasedOut ?? []).toHaveLength(0); // now it returns
+        });
+
+        it("only phases in bundles controlled by the untapping player (CR 702.26g)", () => {
+            // p2's bundle must not return on p1's untap step.
+            const state = makeGameState({
+                turn: 4,
+                activePlayerId: "p1",
+                players: [makePlayer({ id: "p1" }), makePlayer({ id: "p2" })],
+                phasedOut: [phasedArtifactBundle("p2", 1)],
+            });
+
+            phaseInUntapCycleBundles(state, "p1");
+            expect(state.phasedOut).toHaveLength(1); // p2's bundle untouched
+
+            phaseInUntapCycleBundles(state, "p2");
+            expect(state.phasedOut ?? []).toHaveLength(0);
+            expect(
+                state.players
+                    .find((p) => p.id === "p2")!
+                    .battlefield.find((c) => c.id === "art1")
+            ).toBeDefined();
         });
     });
 

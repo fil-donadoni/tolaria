@@ -27,6 +27,7 @@ import {
     processPendingActionTriggers,
     getOpponentId,
     getPlayer,
+    phaseInUntapCycleBundles,
     isCombatDamageImmune,
     matchesPermanentFilter,
     discardToGraveyard,
@@ -294,6 +295,19 @@ export function effectivePermanentView(
  *  untap. */
 export function untapStep(state: GameState): void {
     const player = getPlayer(state, state.activePlayerId);
+
+    // CR 502.1 / 702.26c,f — the phasing turn-based action happens at the very
+    // start of the untap step, BEFORE the active player untaps. Phase in this
+    // player's `untap-cycle` bundles now, so a phased-in permanent is on the
+    // battlefield in time for the untap (and any untap restrictions) below: if
+    // it phased out tapped it untaps here like everything else; if untapped it
+    // simply stays. Runs once per untap step (first entry only — a
+    // restriction-prompt re-entry must not repeat it). The skip-first-untap
+    // guard inside honours CR 702.26f: a permanent phased out THIS turn waits
+    // for the controller's NEXT untap step, not the same turn's.
+    if ((state.pendingUntapStep?.restrictionCursor ?? 0) === 0) {
+        phaseInUntapCycleBundles(state, state.activePlayerId);
+    }
 
     // Data-driven dispatcher loop. `state.pendingUntapStep.restrictionCursor`
     // is set when a prior call enqueued an `untap-pick` prompt; resumption
