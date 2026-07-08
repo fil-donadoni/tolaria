@@ -123,6 +123,28 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        // Hexproof (CR 702.11b, issue #958): a permanent with hexproof can't be
+        // the target of spells or abilities its controller's OPPONENTS control,
+        // but its own controller can still target it. The opponent controls a
+        // Sylvan Caryatid (Defender, hexproof); cast my Lightning Bolt and
+        // confirm the Caryatid is NOT highlightable/clickable (the Grizzly Bears
+        // beside it IS — a legal contrast target). Then cast my Giant Growth on
+        // MY OWN Sylvan Caryatid and confirm it IS a legal target (own-controller
+        // allowance). Two Mountains + a Forest cover the spell costs.
+        label: "Hexproof: opponent's Sylvan Caryatid can't be Bolted, my own can be pumped (#958)",
+        cards: [
+            { name: "Sylvan Caryatid", owner: "opp", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            { name: "Sylvan Caryatid", owner: "me", zone: "battlefield" },
+            { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            { name: "Giant Growth", owner: "me", zone: "hand" },
+            { name: "Mountain", owner: "me", zone: "battlefield", count: 2 },
+            { name: "Forest", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Sacrifice-for-mana dies trigger (CR 603.6 / 700.4 / 605.3a, issue
         // #943): activating Chromatic Star's mana ability ("{1}, {T},
         // Sacrifice this artifact: Add one mana of any color") sacrifices it

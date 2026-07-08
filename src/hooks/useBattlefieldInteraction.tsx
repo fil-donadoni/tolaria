@@ -315,7 +315,10 @@ export function useBattlefieldInteraction(player: Player) {
                 allPlayers,
                 card,
                 pendingTarget.cardInstanceId,
-                pendingTarget.kind
+                pendingTarget.kind,
+                // CR 702.11b — the chooser controls the source; hexproof bars
+                // only an opponent's source, never the controller's own.
+                pendingTarget.playerId
             )
         ) {
             guardMutation(

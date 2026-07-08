@@ -26,14 +26,16 @@
 // scope for this census).
 //
 // Known engine gaps surfaced while building this census (flagged per
-// CLAUDE.md "flag explicitly rather than assuming deferred" — not fixed
-// here, out of scope for a census-only issue): `haste`, `hexproof`, and
-// `shroud` are pushed onto a permanent's `staticAbilities` by at least one
-// card (granted dynamically, e.g. Instill Energy / Homarid Warrior) but no
-// engine-side check anywhere consumes the string — combat eligibility and
-// targeting legality behave as if the creature never had the keyword. Rows
-// below are marked `status: "planned"` with a `note` documenting this rather
-// than `implemented`, to keep the registry an honest source of truth.
+// CLAUDE.md "flag explicitly rather than assuming deferred"): `haste`
+// (issue #730), `hexproof` (issue #958), and `shroud` were once pushed onto a
+// permanent's `staticAbilities` by cards (granted dynamically, e.g. Instill
+// Energy / Homarid Warrior) with no engine-side check consuming the string.
+// `haste` and `hexproof` have since graduated to `implemented` (combat
+// eligibility / CR 702.11b targeting legality respectively). `shroud` as a
+// KEYWORD STRING is still unenforced (shroud ships as a `permanent-guard`
+// staticEffect on the cards that need it, not via the keyword), so its row
+// stays `status: "planned"` with a `note`, to keep the registry an honest
+// source of truth.
 
 import type { GameEvent } from "./types";
 
@@ -714,8 +716,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Hexproof",
         kind: "keyword-ability",
         cr: "702.11",
-        status: "planned",
-        note: "GAP: granted via SpellContext.grantStaticAbility on at least one card but no target-legality check anywhere reads the string — decorative only, same class as haste.",
+        status: "implemented",
+        binding: "hexproof",
+        note: "HONOURED (issue #958): CR 702.11b — permanentGuard.ts bridges the `hexproof` staticAbilities string to the shroud `cantBeTargeted` targeting-legality path, narrowed to opponent-controlled sources (the source's controllerId ≠ the permanent's controllerId). Gated in rules.ts getLegalTargets and game.ts selectTarget (server-authoritative) and mirrored client-side in src/lib/targeting.ts so an opponent's targeted spell greys the permanent while the controller's own can still target it. Reads the instance's effective (materialized) staticAbilities, so a dynamically-granted hexproof is honoured like a printed one.",
     },
     // 702.12 Indestructible
     {

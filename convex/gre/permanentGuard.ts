@@ -48,6 +48,25 @@ export interface GuardActionSource {
     /** True if the source is a spell on the stack / being cast; false for an
      *  activated or triggered ability. */
     isSpell?: boolean;
+    /** Controller of the spell/ability source (CR 109.4). Only consulted by the
+     *  controller-relative `hexproof` guard (CR 702.11b — "can't be the target
+     *  of spells or abilities your OPPONENTS control"): the guard bars the
+     *  action only when this differs from the guarded permanent's controller.
+     *  When omitted the hexproof guard stays conservative and blocks (a
+     *  synthetic caller with no controller info can't prove it's the owner). */
+    controllerId?: string;
+}
+
+// CR 702.11 hexproof — the keyword that this module bridges to a guard. Read
+// off the permanent's effective (layer-materialized) `staticAbilities`, the
+// same array combat/rules gates read for `haste`/`flying`/`menace`, so a
+// dynamically-granted hexproof (Instill Energy-style grantStaticAbility) is
+// honoured identically to a printed one.
+const HEXPROOF_KEYWORD = "hexproof";
+
+/** True if `card`'s effective keywords include hexproof (CR 702.11). */
+function hasHexproof(card: CardInstanceState): boolean {
+    return card.staticAbilities?.includes(HEXPROOF_KEYWORD) ?? false;
 }
 
 type GuardClause = keyof Pick<
@@ -89,6 +108,32 @@ export function isGuardedAgainst(
     const src: GuardActionSource = Array.isArray(actionSource)
         ? { types: actionSource as ReadonlyArray<string> }
         : ((actionSource as GuardActionSource | undefined) ?? {});
+
+    // CR 702.11b hexproof — the narrower, CONTROLLER-RELATIVE cousin of shroud:
+    // the permanent can't be the target of spells or abilities its controller's
+    // OPPONENTS control, but its own controller can still target it. Modelled on
+    // the SAME `cantBeTargeted` targeting-legality path shroud uses (not a
+    // second parallel mechanism), derived directly from the `hexproof` keyword
+    // string so every card that declares `staticAbilities: ["hexproof"]` gets
+    // the guard for free (engine derives the guard from the keyword — the
+    // scalable choice for ~80k cards, and it matches how the keyword is already
+    // authored on the card and censused as a keyword in the Mechanics Registry).
+    // Only the `cantBeTargeted` clause is controller-relative; the enchant /
+    // indestructible / control-change clauses have no hexproof analogue.
+    if (clause === "cantBeTargeted" && hasHexproof(target)) {
+        // An opponent-controlled source is barred. A source controlled by the
+        // permanent's own controller is allowed (own aura/pump can target it).
+        // Unknown source controller ⇒ stay conservative and block (a synthetic
+        // caller can't prove ownership); every real call site threads the
+        // controller so the own-controller allowance holds.
+        if (
+            src.controllerId === undefined ||
+            src.controllerId !== target.controllerId
+        ) {
+            return true;
+        }
+    }
+
     for (const player of state.players) {
         for (const source of player.battlefield) {
             const cardId = (source.card as { id?: string }).id;

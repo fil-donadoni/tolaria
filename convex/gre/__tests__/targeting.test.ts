@@ -1420,3 +1420,75 @@ describe("can't-be-targeted backend gate (#382)", () => {
         ).toBe(false);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Hexproof backend gate (#958, CR 702.11b)
+//
+// The `selectTarget` mutation threads the SELECTING player (args.playerId) as
+// the guard's `controllerId`. Hexproof — the controller-relative cousin of
+// shroud — bars the target only when that controller differs from the
+// permanent's controller: an opponent's spell/ability is rejected server-side,
+// the permanent's own controller is accepted. Mirrors the exact decision the
+// mutation makes.
+// ---------------------------------------------------------------------------
+
+describe("hexproof backend gate (#958, CR 702.11b)", () => {
+    const SYLVAN_CARYATID = "d40b65c1-b24d-492d-81b9-d8474ebdc08c";
+
+    const makeBoard = () => {
+        const caryatid = makeCard({
+            id: "caryatid",
+            card: { id: SYLVAN_CARYATID },
+        });
+        caryatid.controllerId = "p1";
+        caryatid.ownerId = "p1";
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [caryatid] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        return { state, caryatid };
+    };
+
+    it("rejects an opponent's spell/ability (controllerId = opponent)", () => {
+        const { state, caryatid } = makeBoard();
+        // Opponent's Lightning Bolt (a spell) — rejected.
+        expect(
+            isGuardedAgainst(state, caryatid, "cantBeTargeted", {
+                types: ["Instant"],
+                isSpell: true,
+                controllerId: "p2",
+            })
+        ).toBe(true);
+        // Opponent's activated ability (not a spell) — also rejected (702.11b
+        // covers spells AND abilities).
+        expect(
+            isGuardedAgainst(state, caryatid, "cantBeTargeted", {
+                isSpell: false,
+                controllerId: "p2",
+            })
+        ).toBe(true);
+    });
+
+    it("accepts the permanent's own controller's spell/ability", () => {
+        const { state, caryatid } = makeBoard();
+        // p1's own aura / pump — accepted.
+        expect(
+            isGuardedAgainst(state, caryatid, "cantBeTargeted", {
+                subtypes: ["Aura"],
+                isSpell: true,
+                controllerId: "p1",
+            })
+        ).toBe(false);
+    });
+
+    it("stays conservative (rejects) when the source controller is unknown", () => {
+        const { state, caryatid } = makeBoard();
+        expect(
+            isGuardedAgainst(state, caryatid, "cantBeTargeted", {
+                isSpell: true,
+            })
+        ).toBe(true);
+    });
+});

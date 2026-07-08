@@ -931,11 +931,16 @@ export function getLegalTargets(
                 // entirely (Guardian Beast / shroud: "can't be the target of
                 // spells or abilities"), or narrowed by source quality ("Aura
                 // spells", "spells only" — CR 109.5 / 113.3). Read live.
+                // CR 702.11b — a hexproof permanent is barred on the same path
+                // for opponent-controlled sources only (own caster still legal).
                 if (
                     isGuardedAgainst(state, card, "cantBeTargeted", {
                         types: sourceTypes,
                         subtypes: sourceSubtypes,
                         isSpell: sourceIsSpell,
+                        // CR 702.11b — the source's controller, so hexproof bars
+                        // only an opponent-controlled source (the caster).
+                        controllerId: casterId,
                     })
                 )
                     continue;

@@ -51,7 +51,8 @@ function toGuardState(players: Player[]): {
 function pendingGuardSource(
     players: Player[],
     sourceCardInstanceId: string,
-    kind: "cast" | "ability" | "copy-retarget" | "retarget" | undefined
+    kind: "cast" | "ability" | "copy-retarget" | "retarget" | undefined,
+    sourceControllerId: string | undefined
 ): GuardActionSource {
     const isAbility = kind === "ability";
     for (const p of players) {
@@ -64,26 +65,43 @@ function pendingGuardSource(
                 types: found.types ?? [],
                 subtypes: found.subtypes ?? [],
                 isSpell: !isAbility,
+                // CR 702.11b — the source's controller, so hexproof greys only
+                // an opponent's targeted spell, never the controller's own.
+                controllerId: sourceControllerId,
             };
         }
     }
     // Source not located (e.g. copy on the stack): be conservative — treat as a
     // spell with no subtypes so unfiltered shroud still greys the candidate.
-    return { types: [], subtypes: [], isSpell: kind !== "ability" };
+    return {
+        types: [],
+        subtypes: [],
+        isSpell: kind !== "ability",
+        controllerId: sourceControllerId,
+    };
 }
 
 /** True if `candidate` is barred from being targeted by the pending
- *  spell/ability under any active `cantBeTargeted` guard (CR 702.18 / 611).
- *  Used by the battlefield click gate to make shrouded permanents un-clickable.
- *  When there is no source info the check stays conservative. */
+ *  spell/ability under any active `cantBeTargeted` guard (CR 702.18 shroud /
+ *  611, CR 702.11b hexproof). Used by the battlefield click gate to make
+ *  untargetable permanents un-clickable. `sourceControllerId` is the chooser
+ *  (the spell/ability's controller); hexproof greys the candidate only for an
+ *  opponent's source, never its own controller's. When there is no source info
+ *  the check stays conservative. */
 export function isUntargetableByPending(
     players: Player[],
     candidate: CardInstance,
     sourceCardInstanceId: string,
-    kind: "cast" | "ability" | "copy-retarget" | "retarget" | undefined
+    kind: "cast" | "ability" | "copy-retarget" | "retarget" | undefined,
+    sourceControllerId?: string
 ): boolean {
     const state = toGuardState(players);
-    const source = pendingGuardSource(players, sourceCardInstanceId, kind);
+    const source = pendingGuardSource(
+        players,
+        sourceCardInstanceId,
+        kind,
+        sourceControllerId
+    );
     return isGuardedAgainst(
         state,
         toGuardTarget(candidate),
