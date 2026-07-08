@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup";
 import { getCardByName } from "../../cards/index";
 import {
     findActiveSacrificeSelection,
@@ -99,15 +103,17 @@ describe("selectSacrifice dispatch + resume (CR 701.21a)", () => {
         const active = findActiveSacrificeSelection(state, "p1");
         expect(active?.container).toBe("cast");
         // A non-Swamp is not a legal sacrifice.
-        expect(isSacrificeCandidateLegal(state, active!.sel, "bear")).toBe(false);
+        expect(isSacrificeCandidateLegal(state, active!.sel, "bear")).toBe(
+            false
+        );
         // A Swamp is; picking the tapped one is honoured (the player's choice).
         pickAndResumeCast(state, "swT");
-        expect(
-            state.players[0].battlefield.some((c) => c.id === "swT")
-        ).toBe(false);
-        expect(
-            state.players[0].battlefield.some((c) => c.id === "swU")
-        ).toBe(true);
+        expect(state.players[0].battlefield.some((c) => c.id === "swT")).toBe(
+            false
+        );
+        expect(state.players[0].battlefield.some((c) => c.id === "swU")).toBe(
+            true
+        );
     });
 
     it("routes and resumes an attack-tax pick (parks, picks, finalizes)", () => {
@@ -167,15 +173,15 @@ describe("selectSacrifice dispatch + resume (CR 701.21a)", () => {
         finalizeConfirmAttackers(state);
 
         // The chosen land is gone, the other stays, and combat is confirmed.
-        expect(state.players[0].battlefield.some((c) => c.id === "land-u")).toBe(
-            false
-        );
-        expect(state.players[0].battlefield.some((c) => c.id === "land-t")).toBe(
-            true
-        );
-        expect(state.players[0].graveyard.filter((c) => isLand(c))).toHaveLength(
-            1
-        );
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "land-u")
+        ).toBe(false);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "land-t")
+        ).toBe(true);
+        expect(
+            state.players[0].graveyard.filter((c) => isLand(c))
+        ).toHaveLength(1);
         expect(state.combat!.confirmed).toBe(true);
         // The attacker is now tapped and attacking.
         const g1 = state.players[0].battlefield.find((c) => c.id === "g1");

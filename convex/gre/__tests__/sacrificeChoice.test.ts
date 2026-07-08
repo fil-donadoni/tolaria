@@ -8,7 +8,11 @@ import {
     applySacrificeSelection,
     type SacrificeSelection,
 } from "../sacrificeChoice";
-import { makeInstance, makePlayer, makeState } from "../../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup";
 import { getCardByName } from "../../cards/index";
 
 const FOREST = getCardByName("Forest").id;

@@ -30,12 +30,12 @@ seam to regress to auto-pick.
 
 ### In scope — the four auto-pick seams to convert
 
-| # | Seam | Location | Card examples |
-|---|------|----------|---------------|
-| #7 | Static additional cast/activation cost | `planStaticAdditionalSacrifices` / `payStaticAdditionalCost` (`convex/gre/state.ts:9660`, `convex/game.ts:3292`) | Drought |
-| #10 | Attack-declaration sacrifice tax | `confirmAttackers` loop (`convex/game.ts:5592`) over `collectAttackSacrificeTax` | Flooded Woodlands, Reclamation |
-| #16 | Optional-cost (`requestMayPay`) fallback | `payMayPayCost` author/battlefield-order default (`convex/gre/state.ts:~10037`) | Witherbloom Charm |
-| #17 | `autoSacrifice` replacement primitive | `replacements.ts:167` | dormant — no card callers today |
+| #   | Seam                                     | Location                                                                                                         | Card examples                   |
+| --- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| #7  | Static additional cast/activation cost   | `planStaticAdditionalSacrifices` / `payStaticAdditionalCost` (`convex/gre/state.ts:9660`, `convex/game.ts:3292`) | Drought                         |
+| #10 | Attack-declaration sacrifice tax         | `confirmAttackers` loop (`convex/game.ts:5592`) over `collectAttackSacrificeTax`                                 | Flooded Woodlands, Reclamation  |
+| #16 | Optional-cost (`requestMayPay`) fallback | `payMayPayCost` author/battlefield-order default (`convex/gre/state.ts:~10037`)                                  | Witherbloom Charm               |
+| #17 | `autoSacrifice` replacement primitive    | `replacements.ts:167`                                                                                            | dormant — no card callers today |
 
 ### In scope — fold the two already-correct single-pickers
 
@@ -74,13 +74,13 @@ finalizes":
 
 ```ts
 type SacrificeSelection = {
-    playerId: string;              // the sacrificing player (CR 701.21a)
-    reason: string;                // "Drought", "Flooded Woodlands", oracle text — banner label
+    playerId: string; // the sacrificing player (CR 701.21a)
+    reason: string; // "Drought", "Flooded Woodlands", oracle text — banner label
     requirements: {
         filter: PermanentFilter;
         count: number;
     }[];
-    picked: string[];              // instance ids chosen so far, across all requirements
+    picked: string[]; // instance ids chosen so far, across all requirements
 };
 ```
 
@@ -114,13 +114,13 @@ Each producer, instead of auto-picking, does: compute requirements →
 (no prompt, no regression on trivial boards) → else park the selection on the
 in-flight container, suspend the action, and return.
 
-| Producer | Park container (new field) | Resume tail |
-|----------|----------------------------|-------------|
-| static cost (Drought) | `pendingCast.sacrificeSelection` / `pendingActivation.sacrificeSelection` | `tryAutoCommitPendingCast` / `tryAutoCommitPendingActivation` |
-| own-cast sacrifice cost (folded) | `pendingCast.sacrificeSelection` (count 1) | `tryAutoCommitPendingCast` |
-| activated-ability sacrifice cost (folded) | `pendingActivation.sacrificeSelection` (count 1) | `tryAutoCommitPendingActivation` |
-| attack tax (Flooded) | `combat.pendingAttackSacrifice` | finalize tail of `confirmAttackers` |
-| optional cost (Witherbloom) | selection carried on the may-pay pending context | may-pay resume |
+| Producer                                  | Park container (new field)                                                | Resume tail                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| static cost (Drought)                     | `pendingCast.sacrificeSelection` / `pendingActivation.sacrificeSelection` | `tryAutoCommitPendingCast` / `tryAutoCommitPendingActivation` |
+| own-cast sacrifice cost (folded)          | `pendingCast.sacrificeSelection` (count 1)                                | `tryAutoCommitPendingCast`                                    |
+| activated-ability sacrifice cost (folded) | `pendingActivation.sacrificeSelection` (count 1)                          | `tryAutoCommitPendingActivation`                              |
+| attack tax (Flooded)                      | `combat.pendingAttackSacrifice`                                           | finalize tail of `confirmAttackers`                           |
+| optional cost (Witherbloom)               | selection carried on the may-pay pending context                          | may-pay resume                                                |
 
 The commit/finalize gates block while a parked `sacrificeSelection` is incomplete
 (mirrors today's `if (ac && !ac.pickedId) return null`).
@@ -128,7 +128,7 @@ The commit/finalize gates block while a parked `sacrificeSelection` is incomplet
 ### One mutation — `selectSacrifice`
 
 ```ts
-selectSacrifice({ gameId, playerId, cardInstanceId })
+selectSacrifice({ gameId, playerId, cardInstanceId });
 ```
 
 Finds the active parked `SacrificeSelection` for `playerId` (across pendingCast,
@@ -159,7 +159,7 @@ total). This replaces the two existing picker branches in
    entirely; convert `autoSacrifice`. After this, no code path auto-picks a
    filtered sacrifice.
 2. **Grep-guard test**: a catalogue-wide test asserting that `removePermanentTo(…,
-   "sacrifice")` (and the `ctx.sacrifice` filtered form) appears only in
+"sacrifice")` (and the `ctx.sacrifice` filtered form) appears only in
    `applySacrificeSelection`, the resolve-time interpreter `choice` path, and the
    fixed-self / fixed-target sites. A new filtered auto-pick fails CI.
 

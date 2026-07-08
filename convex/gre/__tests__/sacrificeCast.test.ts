@@ -147,9 +147,9 @@ describe("Drought additional sacrifice at commit (CR 701.21a)", () => {
             1,
             "p1"
         ) as unknown as GameState;
-        expect(
-            projected.pendingCast?.sacrificeSelection?.requirements
-        ).toEqual([{ filter: { subtypes: ["Swamp"] }, count: 1 }]);
+        expect(projected.pendingCast?.sacrificeSelection?.requirements).toEqual(
+            [{ filter: { subtypes: ["Swamp"] }, count: 1 }]
+        );
         expect(projected.pendingCast?.sacrificeSelection?.picked).toEqual([]);
     });
 });

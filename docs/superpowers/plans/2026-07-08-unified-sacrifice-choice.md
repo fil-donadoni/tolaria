@@ -39,34 +39,59 @@
 ### Task 1: `SacrificeSelection` type + `sacrificeChoice.ts` pure module
 
 **Files:**
+
 - Create: `convex/gre/sacrificeChoice.ts`
 - Create: `convex/gre/__tests__/sacrificeChoice.test.ts`
 - Modify: `convex/gre/state.ts` (add optional container fields; re-export type)
 - Modify: `convex/gre/serialize.ts` (smoke assertion only — fields nest under already-persisted keys)
 
 **Interfaces:**
+
 - Produces:
-  ```ts
-  type SacrificeRequirement = {
-      filter: PermanentFilter;
-      count: number;
-      snapshot?: boolean; // own-cast additional cost — caller wants MV/subtypes back
-  };
-  type SacrificeSelection = {
-      playerId: string;
-      reason: string;
-      requirements: SacrificeRequirement[];
-      picked: string[];
-  };
-  type SacrificeResult = { id: string; mv: number; subtypes?: string[]; snapshot: boolean };
-  function buildSacrificeRequirements(specs: SacrificeRequirement[]): SacrificeRequirement[];
-  function sacrificeCandidates(state: GameState, playerId: string, filter: PermanentFilter): CardInstanceState[];
-  function nextUnmetRequirement(sel: SacrificeSelection): SacrificeRequirement | undefined;
-  function isSacrificeCandidateLegal(state: GameState, sel: SacrificeSelection, cardInstanceId: string): boolean;
-  function autoResolveFungible(state: GameState, sel: SacrificeSelection): void; // mutates sel.picked
-  function isSacrificeSelectionComplete(sel: SacrificeSelection): boolean;
-  function applySacrificeSelection(state: GameState, sel: SacrificeSelection): SacrificeResult[];
-  ```
+    ```ts
+    type SacrificeRequirement = {
+        filter: PermanentFilter;
+        count: number;
+        snapshot?: boolean; // own-cast additional cost — caller wants MV/subtypes back
+    };
+    type SacrificeSelection = {
+        playerId: string;
+        reason: string;
+        requirements: SacrificeRequirement[];
+        picked: string[];
+    };
+    type SacrificeResult = {
+        id: string;
+        mv: number;
+        subtypes?: string[];
+        snapshot: boolean;
+    };
+    function buildSacrificeRequirements(
+        specs: SacrificeRequirement[]
+    ): SacrificeRequirement[];
+    function sacrificeCandidates(
+        state: GameState,
+        playerId: string,
+        filter: PermanentFilter
+    ): CardInstanceState[];
+    function nextUnmetRequirement(
+        sel: SacrificeSelection
+    ): SacrificeRequirement | undefined;
+    function isSacrificeCandidateLegal(
+        state: GameState,
+        sel: SacrificeSelection,
+        cardInstanceId: string
+    ): boolean;
+    function autoResolveFungible(
+        state: GameState,
+        sel: SacrificeSelection
+    ): void; // mutates sel.picked
+    function isSacrificeSelectionComplete(sel: SacrificeSelection): boolean;
+    function applySacrificeSelection(
+        state: GameState,
+        sel: SacrificeSelection
+    ): SacrificeResult[];
+    ```
 - Consumes: `matchesPermanentFilter`, `STATIC_EFFECT_CTX`, `getPlayer`, `removePermanentTo`, `tryGetDefinition` (existing).
 
 - [ ] **Step 1: Write the failing test file** `convex/gre/__tests__/sacrificeChoice.test.ts`
@@ -82,7 +107,11 @@ import {
     applySacrificeSelection,
     type SacrificeSelection,
 } from "../sacrificeChoice";
-import { makeInstance, makePlayer, makeState } from "../../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup";
 
 // CR 701.21a — the sacrificing player chooses which permanent(s) to sacrifice.
 describe("sacrificeChoice (CR 701.21a)", () => {
@@ -96,7 +125,10 @@ describe("sacrificeChoice (CR 701.21a)", () => {
     }
 
     it("sacrificeCandidates returns only matching permanents on the player's battlefield", () => {
-        const forest = makeInstance("forest", { subtypes: ["Forest"], types: ["Land"] });
+        const forest = makeInstance("forest", {
+            subtypes: ["Forest"],
+            types: ["Land"],
+        });
         const bear = makeInstance("grizzly-bears", { types: ["Creature"] });
         const p1 = makePlayer("p1", { battlefield: [forest, bear] });
         const state = makeState({ players: [p1] });
@@ -129,7 +161,10 @@ describe("sacrificeChoice (CR 701.21a)", () => {
 
     it("autoResolveFungible leaves a real choice unresolved (tapped differs)", () => {
         const untapped = makeInstance("forest", { types: ["Land"] });
-        const tapped = makeInstance("forest", { types: ["Land"], isTapped: true });
+        const tapped = makeInstance("forest", {
+            types: ["Land"],
+            isTapped: true,
+        });
         const p1 = makePlayer("p1", { battlefield: [untapped, tapped] });
         const state = makeState({ players: [p1] });
         const sel = landSel("p1", 1);
@@ -149,18 +184,25 @@ describe("sacrificeChoice (CR 701.21a)", () => {
     });
 
     it("applySacrificeSelection moves picked permanents to the graveyard and returns MV/subtypes", () => {
-        const island = makeInstance("island", { types: ["Land"], subtypes: ["Island"] });
+        const island = makeInstance("island", {
+            types: ["Land"],
+            subtypes: ["Island"],
+        });
         const p1 = makePlayer("p1", { battlefield: [island] });
         const state = makeState({ players: [p1] });
         const sel: SacrificeSelection = {
             playerId: "p1",
             reason: "Test",
-            requirements: [{ filter: { types: ["Land"] }, count: 1, snapshot: true }],
+            requirements: [
+                { filter: { types: ["Land"] }, count: 1, snapshot: true },
+            ],
             picked: [island.id],
         };
         const results = applySacrificeSelection(state, sel);
         const player = state.players[0];
-        expect(player.battlefield.find((c) => c.id === island.id)).toBeUndefined();
+        expect(
+            player.battlefield.find((c) => c.id === island.id)
+        ).toBeUndefined();
         expect(player.graveyard.some((c) => c.id === island.id)).toBe(true);
         expect(results).toEqual([
             { id: island.id, mv: 0, subtypes: ["Island"], snapshot: true },
@@ -319,9 +361,11 @@ export function autoResolveFungible(
         const alreadyForThis = countPicksFor(sel, req);
         let need = req.count - alreadyForThis;
         if (need <= 0) continue;
-        const cands = sacrificeCandidates(state, sel.playerId, req.filter).filter(
-            (c) => !used.has(c.id)
-        );
+        const cands = sacrificeCandidates(
+            state,
+            sel.playerId,
+            req.filter
+        ).filter((c) => !used.has(c.id));
         if (cands.length <= need) {
             for (const c of cands) {
                 sel.picked.push(c.id);
@@ -435,6 +479,7 @@ function pickSnapshotFlags(sel: SacrificeSelection): Map<string, boolean> {
 - [ ] **Step 4: Add container fields + re-export in `convex/gre/state.ts`**
 
 Add to the `PendingCast` type (next to `additionalCost` at ~line 1146):
+
 ```ts
     /** Unified filtered-sacrifice choice for this cast (CR 701.21a): own-cast
      *  additional sacrifice cost AND board-wide static additional sacrifice
@@ -444,6 +489,7 @@ Add to the `PendingCast` type (next to `additionalCost` at ~line 1146):
 ```
 
 Add to the `PendingActivation` type (next to `sacrificeChoice` at ~line 1183):
+
 ```ts
     /** Unified filtered-sacrifice choice for this activation (CR 701.21a).
      *  Replaces the legacy single-pick `sacrificeChoice`. */
@@ -451,6 +497,7 @@ Add to the `PendingActivation` type (next to `sacrificeChoice` at ~line 1183):
 ```
 
 Add to `CombatState` (next to `pendingBlockerId` at ~line 1742):
+
 ```ts
     /** Parked land-sacrifice attack tax awaiting the attacking player's choice
      *  (CR 508.1c/1g, 701.21a — Flooded Woodlands, Reclamation). Present only
@@ -505,11 +552,13 @@ git commit -m "feat: unified SacrificeSelection module + containers (CR 701.21a)
 ### Task 2: Fold own-cast additional sacrifice + reroute Drought into `pendingCast.sacrificeSelection`
 
 **Files:**
+
 - Modify: `convex/game.ts` — `announceCast` (build selection, ~3727-3745), `tryAutoCommitPendingCast` (gate + apply, 1612-1780), `payStaticAdditionalCost` usage (delete call at 1742)
 - Modify: `convex/gre/state.ts` — delete `planStaticAdditionalSacrifices` (9660)
 - Test: `convex/cards/sets/ice/__tests__/white.test.ts` (Drought) or a dedicated `convex/gre/__tests__/sacrificeCast.test.ts`
 
 **Interfaces:**
+
 - Consumes: `buildSacrificeRequirements`, `getStaticAdditionalSacrifices`, `sacrificeCandidates`, `autoResolveFungible`, `isSacrificeSelectionComplete`, `applySacrificeSelection` (Task 1).
 - Produces: `pendingCast.sacrificeSelection` populated by `announceCast`; consumed by `tryAutoCommitPendingCast` and `selectSacrifice` (Task 5).
 
@@ -517,7 +566,11 @@ git commit -m "feat: unified SacrificeSelection module + containers (CR 701.21a)
 
 ```ts
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup";
 import { tryAutoCommitPendingCast } from "../../game"; // adjust if not exported
 import { isSacrificeSelectionComplete } from "../sacrificeChoice";
 
@@ -546,6 +599,7 @@ Expected: FAIL — `pendingCast.sacrificeSelection` is `undefined` (Drought stil
 - [ ] **Step 3: Build the cast selection in `announceCast`**
 
 Find where `announceCast` sets `pendingCast.additionalCost` (~3727-3745, uses `buildAdditionalCostPicker`). Change so that:
+
 - The **exile** branch keeps setting `additionalCost` (unchanged).
 - The **sacrifice** branch instead contributes a `SacrificeRequirement` (count 1, `snapshot: true`) to a combined selection.
 - **Also** compute the static Drought requirements up front via `getStaticAdditionalSacrifices(state, castDef?.manaCost, announcedCardInstance, "spell")` and map each to `{ filter, count }` (no snapshot).
@@ -585,11 +639,12 @@ if (picker && picker.kind === "exile") {
 }
 ```
 
-> **Implementer note:** read the current `announceCast` picker construction to get the exact variable names (`picker`, `announcedInstance`, `castDef`, `cardName`) and where `pendingCast` is assembled. The static-cost gate previously lived only inside commit; moving the *choice* to announce time is CR-correct (601.2f is part of casting). Also confirm `getLegalActions` still gates "cast" on payability so a board with too few Swamps can't reach here (mirrors the existing `buildAdditionalCostPicker` invariant); if not, add the affordability throw.
+> **Implementer note:** read the current `announceCast` picker construction to get the exact variable names (`picker`, `announcedInstance`, `castDef`, `cardName`) and where `pendingCast` is assembled. The static-cost gate previously lived only inside commit; moving the _choice_ to announce time is CR-correct (601.2f is part of casting). Also confirm `getLegalActions` still gates "cast" on payability so a board with too few Swamps can't reach here (mirrors the existing `buildAdditionalCostPicker` invariant); if not, add the affordability throw.
 
 - [ ] **Step 4: Gate + apply in `tryAutoCommitPendingCast`**
 
 Replace the `additionalCost` gate at 1654-1657 with a `sacrificeSelection` gate:
+
 ```ts
 // CR 601.2f / 701.21a: commit is blocked until every filtered sacrifice has
 // been chosen. The player completes the choice via selectSacrifice.
@@ -605,6 +660,7 @@ if (ac && ac.kind === "exile" && !ac.pickedId) {
 ```
 
 Replace the sacrifice-execution block (1683-1713) and the `payStaticAdditionalCost` call (1742-1748). Instead, after mana is paid and the spell card is pulled from hand, apply the unified selection:
+
 ```ts
 // CR 117.9 / 601.2f — execute every chosen sacrifice through the unified layer.
 let additionalSacrificeSnapshot: StackItem["additionalSacrificeSnapshot"];
@@ -622,11 +678,15 @@ if (sel) {
 // exile branch unchanged:
 if (ac && ac.kind === "exile" && ac.pickedId) {
     const exiled = player.battlefield.find((c) => c.id === ac.pickedId);
-    if (!exiled) { state.pendingCast = undefined; return null; }
+    if (!exiled) {
+        state.pendingCast = undefined;
+        return null;
+    }
     // (retain existing exile snapshot logic here)
     removePermanentTo(state, exiled.id, "exile");
 }
 ```
+
 Delete the standalone `payStaticAdditionalCost(state, castDef?.manaCost, spellCard, player, "spell")` call at 1742-1748.
 
 > **Implementer note:** the ordering matters — the existing code sacrifices BEFORE removing the spell from hand and BEFORE `payStaticAdditionalCost` (which ran after). The unified `applySacrificeSelection` should run at the same logical point the old own-cast sacrifice ran (after mana paid). Verify no downstream reader depends on the Drought sacrifice happening strictly after `removeFromZone`. Keep the "picked permanent vanished → drop pendingCast" safety: `applySacrificeSelection` already skips vanished victims, but if the SNAPSHOT victim vanished the snapshot is simply absent — acceptable (mirrors CR 608.2b).
@@ -657,10 +717,12 @@ git commit -m "feat: route cast additional sacrifice + Drought through Sacrifice
 ### Task 3: Fold activated `sacrificeChoice` + reroute ability static additional cost
 
 **Files:**
+
 - Modify: `convex/game.ts` — where `pendingActivation.sacrificeChoice` is built (activation announce path) and `tryAutoCommitPendingActivation` (gate + apply)
 - Test: `convex/gre/__tests__/sacrificeActivation.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1 helpers.
 - Produces: `pendingActivation.sacrificeSelection`; consumed by `tryAutoCommitPendingActivation` + `selectSacrifice`.
 
@@ -696,7 +758,12 @@ const sacSpecs: SacrificeRequirement[] = [];
 if (abilitySacrificeFilter) {
     sacSpecs.push({ filter: abilitySacrificeFilter, count: 1 });
 }
-for (const req of getStaticAdditionalSacrifices(state, abilityRawCost, source, "ability")) {
+for (const req of getStaticAdditionalSacrifices(
+    state,
+    abilityRawCost,
+    source,
+    "ability"
+)) {
     sacSpecs.push({ filter: req.filter, count: req.count });
 }
 const requirements = buildSacrificeRequirements(sacSpecs);
@@ -715,12 +782,14 @@ if (requirements.length > 0) {
 - [ ] **Step 4: Gate + apply in `tryAutoCommitPendingActivation`**
 
 Find its `sacrificeChoice` gate (mirror of the cast gate) and its execution (`removePermanentTo(...,"sacrifice")` for the picked id + any `payStaticAdditionalCost(..., "ability")` call). Replace with:
+
 ```ts
 const sel = state.pendingActivation.sacrificeSelection;
 if (sel && !isSacrificeSelectionComplete(sel)) return null;
 // …after mana paid, before pushing the ability on the stack:
 if (sel) applySacrificeSelection(state, sel);
 ```
+
 Delete the ability-path `payStaticAdditionalCost(..., "ability")` call if present.
 
 > **Implementer note:** read `tryAutoCommitPendingActivation` in full first (not captured here). Preserve any `notedManaSpent` / mana snapshot logic and the tap-other-choice branch (`tapOtherChoice` is a DIFFERENT cost — do NOT fold it). Only the sacrifice leg migrates.
@@ -742,10 +811,12 @@ git commit -m "feat: route activated-ability sacrifice cost through SacrificeSel
 ### Task 4: Reroute attack-declaration tax → `combat.pendingAttackSacrifice`
 
 **Files:**
+
 - Modify: `convex/game.ts` — `confirmAttackers` loop (5592-5601) → park/finalize
 - Test: `convex/gre/__tests__/sacrificeAttackTax.test.ts`
 
 **Interfaces:**
+
 - Consumes: `collectAttackSacrificeTax` (combat.ts, unchanged), Task 1 helpers.
 - Produces: `combat.pendingAttackSacrifice`; consumed by `selectSacrifice` (Task 5) + a `finalizeConfirmAttackers` tail.
 
@@ -772,6 +843,7 @@ Expected: FAIL — `combat.pendingAttackSacrifice` undefined; tax auto-picks.
 - [ ] **Step 3: Extract a `finalizeConfirmAttackers` tail**
 
 Move everything in `confirmAttackers` AFTER the tax loop (the "Tap and mark each attacker" block through the end, 5603+) into a pure helper so both the inline auto-resolve path and the `selectSacrifice` resume path can call it:
+
 ```ts
 function finalizeConfirmAttackers(state: GameState, player: PlayerState): void {
     // (moved body: tap+mark attackers, set combat.confirmed, reset blocker
@@ -796,7 +868,10 @@ if (charges.length > 0) {
     const payerId = charges[0].controllerId;
     // affordability: reject the declaration if too few lands (mirrors old throw)
     const totalNeeded = charges.reduce((a, ch) => a + ch.count, 0);
-    if (sacrificeCandidates(state, payerId, { types: ["Land"] }).length < totalNeeded) {
+    if (
+        sacrificeCandidates(state, payerId, { types: ["Land"] }).length <
+        totalNeeded
+    ) {
         throw new Error(charges[0].reason);
     }
     const sel: SacrificeSelection = {
@@ -809,7 +884,13 @@ if (charges.length > 0) {
     if (!isSacrificeSelectionComplete(sel)) {
         state.combat.pendingAttackSacrifice = sel;
         // suspend: save with combat unconfirmed; selectSacrifice resumes.
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state, gameState);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
         return;
     }
     applySacrificeSelection(state, sel);
@@ -836,10 +917,12 @@ git commit -m "feat: route attack-declaration land tax through SacrificeSelectio
 ### Task 5: `selectSacrifice` mutation
 
 **Files:**
+
 - Modify: `convex/game.ts` — new `selectSacrifice` mutation; retire the sacrifice branch of `selectAdditionalCost` / `selectActivationCost`
 - Test: `convex/gre/__tests__/selectSacrifice.test.ts` (backend integration)
 
 **Interfaces:**
+
 - Consumes: `isSacrificeCandidateLegal`, `isSacrificeSelectionComplete` (Task 1); `tryAutoCommitPendingCast`, `tryAutoCommitPendingActivation` (Tasks 2/3); `finalizeConfirmAttackers` + `applySacrificeSelection` (Task 4).
 - Produces: `api.game.selectSacrifice` for the client (Task 6).
 
@@ -867,7 +950,10 @@ export const selectSacrifice = mutation({
         if (!gameState) throw new Error("Game not found");
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
-        assertExpectedInput(state, { playerId: args.playerId, expect: "priority" });
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
 
         const active = findActiveSacrificeSelection(state, args.playerId);
         if (!active) throw new Error("No sacrifice choice awaiting you");
@@ -886,25 +972,45 @@ export const selectSacrifice = mutation({
                 // attack tax: apply + finalize the declaration
                 applySacrificeSelection(state, sel);
                 state.combat!.pendingAttackSacrifice = undefined;
-                finalizeConfirmAttackers(state, getPlayer(state, state.activePlayerId));
+                finalizeConfirmAttackers(
+                    state,
+                    getPlayer(state, state.activePlayerId)
+                );
             }
         }
-        await saveGameState(ctx, args.gameId, gameState.seq + 1, state, gameState);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
     },
 });
 
 function findActiveSacrificeSelection(
     state: GameState,
     playerId: string
-): { sel: SacrificeSelection; container: "cast" | "activation" | "attack" } | null {
+): {
+    sel: SacrificeSelection;
+    container: "cast" | "activation" | "attack";
+} | null {
     const pc = state.pendingCast;
-    if (pc && pc.playerId === playerId && pc.sacrificeSelection &&
-        !isSacrificeSelectionComplete(pc.sacrificeSelection)) {
+    if (
+        pc &&
+        pc.playerId === playerId &&
+        pc.sacrificeSelection &&
+        !isSacrificeSelectionComplete(pc.sacrificeSelection)
+    ) {
         return { sel: pc.sacrificeSelection, container: "cast" };
     }
     const pa = state.pendingActivation;
-    if (pa && pa.playerId === playerId && pa.sacrificeSelection &&
-        !isSacrificeSelectionComplete(pa.sacrificeSelection)) {
+    if (
+        pa &&
+        pa.playerId === playerId &&
+        pa.sacrificeSelection &&
+        !isSacrificeSelectionComplete(pa.sacrificeSelection)
+    ) {
         return { sel: pa.sacrificeSelection, container: "activation" };
     }
     const at = state.combat?.pendingAttackSacrifice;
@@ -938,12 +1044,14 @@ git commit -m "feat: selectSacrifice mutation; retire folded cost pickers"
 ### Task 6: Unified client picker
 
 **Files:**
+
 - Modify: `src/hooks/useBattlefieldInteraction.tsx` (194-217, 275-294, mutation ref 101-102)
 - Modify: `src/hooks/useBattlefieldVisualState.ts` (85-130, 222-231, 455-465)
 - Modify: `src/components/board/payment-banner.tsx` (38-58 + render)
 - Test: `src/components/board/__tests__/board-sacrifice-choice.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `api.game.selectSacrifice`; `pendingCast.sacrificeSelection`, `pendingActivation.sacrificeSelection`, `combat.pendingAttackSacrifice` (projected verbatim).
 - Produces: highlighted candidates + click dispatch + banner label.
 
@@ -957,6 +1065,7 @@ Expected: FAIL.
 - [ ] **Step 3: Add a shared client selector**
 
 Create `src/lib/sacrifice-selection.ts`:
+
 ```ts
 import type { GameState } from "convex/gre/state"; // type-only import allowed
 type Sel = NonNullable<GameState["pendingCast"]>["sacrificeSelection"];
@@ -973,8 +1082,14 @@ export function activeSacrificeSelection(
         s && owner === playerId && !isComplete(s) ? s : undefined;
     return (
         pick(pendingCast?.sacrificeSelection, pendingCast?.playerId) ??
-        pick(pendingActivation?.sacrificeSelection, pendingActivation?.playerId) ??
-        pick(combat?.pendingAttackSacrifice, combat?.pendingAttackSacrifice?.playerId)
+        pick(
+            pendingActivation?.sacrificeSelection,
+            pendingActivation?.playerId
+        ) ??
+        pick(
+            combat?.pendingAttackSacrifice,
+            combat?.pendingAttackSacrifice?.playerId
+        )
     );
 }
 
@@ -993,7 +1108,7 @@ function isComplete(s: Sel): boolean {
 }
 ```
 
-> **Implementer note:** frontend must not import GRE *runtime* code — type-only `import type` from `convex/gre/state` is the established pattern (verify how existing hooks import `PendingCast`). Reuse `matchesPermanentFilter` client mirror already used by `matchesActivationCostPick` for candidate highlighting.
+> **Implementer note:** frontend must not import GRE _runtime_ code — type-only `import type` from `convex/gre/state` is the established pattern (verify how existing hooks import `PendingCast`). Reuse `matchesPermanentFilter` client mirror already used by `matchesActivationCostPick` for candidate highlighting.
 
 - [ ] **Step 4: Replace the two branches in the hooks**
 
@@ -1021,6 +1136,7 @@ git commit -m "feat: unified client sacrifice picker via selectSacrifice"
 ### Task 7: Delete dead auto-pickers, grep-guard, wire-format test
 
 **Files:**
+
 - Modify: `convex/gre/replacements.ts` — delete `autoSacrifice` (167-182)
 - Create: `convex/gre/__tests__/sacrificeGuard.test.ts`
 - Create/Modify: a wire-format test asserting the parked selection survives projection
@@ -1058,9 +1174,14 @@ describe("sacrifice routing guard (CR 701.21a)", () => {
         const offenders: string[] = [];
         for (const file of walk("convex")) {
             if (!file.endsWith(".ts") || file.includes("__tests__")) continue;
-            const rel = file.replace(/^.*\/tolaria\//, "").replace(/^.*unified-sacrifice\//, "");
+            const rel = file
+                .replace(/^.*\/tolaria\//, "")
+                .replace(/^.*unified-sacrifice\//, "");
             const src = readFileSync(file, "utf8");
-            if (/removePermanentTo\([^)]*"sacrifice"/.test(src) && !ALLOW.has(rel)) {
+            if (
+                /removePermanentTo\([^)]*"sacrifice"/.test(src) &&
+                !ALLOW.has(rel)
+            ) {
                 offenders.push(rel);
             }
         }
@@ -1084,8 +1205,9 @@ Assert a parked `pendingCast.sacrificeSelection` survives `projectPublicState(st
 it("parked sacrificeSelection survives projection", () => {
     // build state with pendingCast.sacrificeSelection (Drought, incomplete)
     const projected = projectPublicState(state, 1, viewerId);
-    expect(projected.pendingCast?.sacrificeSelection?.requirements[0].filter)
-        .toEqual({ subtypes: ["Swamp"] });
+    expect(
+        projected.pendingCast?.sacrificeSelection?.requirements[0].filter
+    ).toEqual({ subtypes: ["Swamp"] });
     expect(projected.pendingCast?.sacrificeSelection?.picked).toEqual([]);
 });
 ```
@@ -1105,6 +1227,7 @@ git commit -m "feat: delete dormant autoSacrifice; grep-guard + wire-format for 
 ### Task 8: Preset scenarios + full quality gate
 
 **Files:**
+
 - Modify: `src/components/debug/debug-panel.tsx` — `PRESET_SCENARIOS`
 
 - [ ] **Step 1: Add two preset scenarios**

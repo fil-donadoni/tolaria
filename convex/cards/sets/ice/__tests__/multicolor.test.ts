@@ -34,7 +34,6 @@ import {
 } from "../../ice";
 import { mountain, grizzlyBears, scatheZombies } from "../../lea";
 import { collectAttackSacrificeTax } from "../../../../gre/combat";
-import { removePermanentTo } from "../../../../gre/state";
 import {
     sacrificeCandidates,
     autoResolveFungible,

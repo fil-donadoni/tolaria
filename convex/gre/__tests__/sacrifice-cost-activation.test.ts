@@ -126,7 +126,10 @@ function commitActivation(state: GameState, playerId: string): boolean {
     if (!pa || pa.playerId !== playerId) return false;
     const player = getPlayer(state, playerId);
     if (!isManaCostCovered(player.manaPool, pa.manaCost)) return false;
-    if (pa.sacrificeSelection && !isSacrificeSelectionComplete(pa.sacrificeSelection))
+    if (
+        pa.sacrificeSelection &&
+        !isSacrificeSelectionComplete(pa.sacrificeSelection)
+    )
         return false;
 
     const card = player.battlefield.find((c) => c.id === pa.cardInstanceId)!;

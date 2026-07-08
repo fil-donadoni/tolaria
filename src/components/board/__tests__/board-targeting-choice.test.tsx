@@ -429,9 +429,7 @@ describe("board activation sacrifice-cost picker (#282, CR 602.1)", () => {
                 sacrificeSelection: {
                     playerId: "me",
                     reason: "Atog",
-                    requirements: [
-                        { filter: { types: "Creature" }, count: 1 },
-                    ],
+                    requirements: [{ filter: { types: "Creature" }, count: 1 }],
                     picked: [],
                 },
             } as never,
@@ -464,9 +462,7 @@ describe("board activation sacrifice-cost picker (#282, CR 602.1)", () => {
                 sacrificeSelection: {
                     playerId: "me",
                     reason: "Atog",
-                    requirements: [
-                        { filter: { types: "Artifact" }, count: 1 },
-                    ],
+                    requirements: [{ filter: { types: "Artifact" }, count: 1 }],
                     picked: [],
                 },
             } as never,

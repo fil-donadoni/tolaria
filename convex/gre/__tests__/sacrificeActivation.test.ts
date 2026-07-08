@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup";
 import { getCardByName } from "../../cards/index";
 import { tryAutoCommitPendingActivation } from "../../game";
 import {

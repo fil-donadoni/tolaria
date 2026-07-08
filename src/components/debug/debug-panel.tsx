@@ -150,6 +150,53 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 4,
     },
     {
+        // Unified sacrifice choice (CR 701.21a): Flooded Woodlands' attack tax
+        // with NON-fungible lands, so the controller must pick WHICH land to
+        // sacrifice rather than the engine auto-picking. Move to combat and
+        // declare the Grizzly Bears attacking; a land the tapped Island vs the
+        // untapped Forest/Mountain is a real choice, so the sacrifice picker
+        // lights up on the battlefield. (Two untapped basics + one tapped =
+        // distinguishable → prompt; an all-identical-untapped board would
+        // auto-resolve with no prompt.)
+        label: "Sacrifice choice: Flooded Woodlands land tax (pick a land) (CR 701.21a)",
+        cards: [
+            { name: "Flooded Woodlands", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            { name: "Forest", owner: "me", zone: "battlefield" },
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+            {
+                name: "Island",
+                owner: "me",
+                zone: "battlefield",
+                tapped: true,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
+        // Unified sacrifice choice (CR 701.21a): Drought's per-black-pip
+        // "sacrifice a Swamp" cast additional cost with NON-fungible Swamps.
+        // Cast Scathe Zombies ({2}{B}, one black pip) — three Swamps tap for the
+        // mana, leaving a mix of untapped and tapped Swamps, so the one Swamp
+        // owed to Drought is a real choice and the sacrifice picker lights up.
+        // (An all-identical Swamp board would auto-resolve with no prompt.)
+        label: "Sacrifice choice: Drought cast tax (pick a Swamp) (CR 701.21a)",
+        cards: [
+            { name: "Drought", owner: "me", zone: "battlefield" },
+            { name: "Scathe Zombies", owner: "me", zone: "hand" },
+            { name: "Swamp", owner: "me", zone: "battlefield", count: 4 },
+            {
+                name: "Swamp",
+                owner: "me",
+                zone: "battlefield",
+                tapped: true,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // ICE forced-attack requirement (issue #738): Arcum's Whistle ({3},{T})
         // targets a non-Wall creature the active player controls. Its
         // controller may pay {X} (X = the creature's mana value); if they
