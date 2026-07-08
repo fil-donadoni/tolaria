@@ -142,8 +142,12 @@ export function answerMayPay(
     let picks = sacrificeIds;
     if (accept && picks === undefined && head.zone === "battlefield") {
         const cost = head.cost;
-        const required =
-            cost && "sacrifice" in cost ? (cost.sacrifice?.count ?? 0) : 0;
+        // Fixed-count sacrifice legs auto-pick the first N candidates. The
+        // summed-power threshold shape (`{ minTotalPower }`, issue #977) has no
+        // fixed cardinal; ice tests never use it, so treat it as 0 here.
+        const count =
+            cost && "sacrifice" in cost ? cost.sacrifice?.count : undefined;
+        const required = typeof count === "number" ? count : 0;
         picks = (head.candidateIds ?? []).slice(0, required);
     }
     applyMayPaySubmit(state, {

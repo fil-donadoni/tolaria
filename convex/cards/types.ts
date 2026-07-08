@@ -870,10 +870,33 @@ export type MayPayCost =
           mana?: ManaCost;
           /** Flat life leg (CR 118.4 — "Pay N life"). */
           life?: number;
-          /** Typed sacrifice leg (CR 701.16 — "Sacrifice a land"). `count`
-           *  permanents matching `filter` controlled by the payer are
-           *  sacrificed on accept. */
-          sacrifice?: { filter: PermanentFilter; count: number };
+          /** Typed sacrifice leg (CR 701.16 — "Sacrifice a land"). Permanents
+           *  matching `filter` controlled by the payer are sacrificed on
+           *  accept. `count` selects between two payment shapes:
+           *
+           *   - **fixed cardinal** (`number`) — "sacrifice N matching
+           *     permanents". The payer picks exactly `count` victims (CR
+           *     701.16b); the historical shape (shock lands, cumulative
+           *     upkeep, ADR 0042).
+           *   - **summed-power threshold** (`{ minTotalPower: N }`) —
+           *     "sacrifice ANY NUMBER of matching permanents with total power
+           *     ≥ N" (CR 118 / 701.16, Phyrexian Dreadnought). The payer picks
+           *     a variable-size set whose summed EFFECTIVE power (layer
+           *     pipeline, CR 613) meets or exceeds `N`; over-payment is legal,
+           *     minimality is not required.
+           *
+           *  The threshold rides the COST leg (a punisher paid through
+           *  `mayPay`) rather than a generic `choice`-Op rider deliberately:
+           *  Phyrexian Dreadnought's "sacrifice unless you sacrifice …" is a
+           *  cost-or-lose-the-permanent decision, which is exactly what the
+           *  `mayPay` pipeline already models (accept → pay the whole union;
+           *  decline → the `if !$paid` consequence sacrifices the source). A
+           *  general "sacrifice things totalling power N" `choice` rider is
+           *  deferred until a card needs it OUTSIDE a cost context (YAGNI). */
+          sacrifice?: {
+              filter: PermanentFilter;
+              count: number | { minTotalPower: number };
+          };
       };
 
 // --- Token specification (CR 111, 707.1) ---

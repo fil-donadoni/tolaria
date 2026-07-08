@@ -5226,6 +5226,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Phyrexian Dreadnought",
+        "scryfallId": "7b8197b9-0cd1-4fa1-9668-d1b5f1759151",
+        "oracleId": "a7950edb-5670-46fd-a30e-0fe888a5a32b",
+        "firstSet": "mir"
+    },
+    {
         "name": "Phyrexian Gremlins",
         "scryfallId": "21a985a9-5612-4844-982e-fd1aa6249770",
         "oracleId": "407a0761-7ccc-4607-8df6-e744d30a81a0",

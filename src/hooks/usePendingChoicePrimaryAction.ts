@@ -4,7 +4,8 @@ import { api } from "@convex/_generated/api";
 import {
     mayPayCanAfford,
     mayPaySacrificeCount,
-    mayPayRequiredSacrifices,
+    mayPaySacrificePower,
+    mayPaySacrificePickSatisfied,
 } from "~/lib/card-utils";
 import { isZonePickConfirmEnabled } from "~/lib/pending-choice-confirm";
 import { useGameContext } from "./useGameContext";
@@ -106,12 +107,17 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                           return acc;
                       }, {})
                 : undefined;
-        // CR 701.16b — when the choice carries a battlefield sacrifice pick
-        // (`zone: "battlefield"`), Pay stays disabled until the chooser has
-        // selected exactly the required number of victims into the buffer.
+        // CR 701.16b / 118 — when the choice carries a battlefield sacrifice
+        // pick (`zone: "battlefield"`), Pay stays disabled until the buffered
+        // victims satisfy the leg: a fixed count, or (threshold mode, Phyrexian
+        // Dreadnought) enough summed power to reach `minTotalPower`.
         const sacrificePickSatisfied =
             choice.zone !== "battlefield" ||
-            bufferCtx.buffer.length === mayPayRequiredSacrifices(choice.cost);
+            mayPaySacrificePickSatisfied(
+                choice.cost,
+                bufferCtx.buffer,
+                chooser?.battlefield ?? []
+            );
         canConfirm =
             !isBusy &&
             sacrificePickSatisfied &&
@@ -125,7 +131,8 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                               choice.cost,
                               chooser.battlefield
                           ),
-                          extraMana
+                          extraMana,
+                          mayPaySacrificePower(choice.cost, chooser.battlefield)
                       )
                     : false));
     } else {

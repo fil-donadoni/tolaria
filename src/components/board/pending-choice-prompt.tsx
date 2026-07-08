@@ -7,7 +7,12 @@ import { useGameContext } from "~/hooks/useGameContext";
 import { useDraggable } from "~/hooks/useDraggable";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { usePendingChoicePrimaryAction } from "~/hooks/usePendingChoicePrimaryAction";
-import { mayPayCostLabel, mayPayRequiredSacrifices } from "~/lib/card-utils";
+import {
+    mayPayCostLabel,
+    mayPayRequiredSacrifices,
+    mayPaySacrificeThreshold,
+    mayPaySacrificeSelectionPower,
+} from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
 import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
 import {
@@ -89,6 +94,21 @@ export default function PendingChoicePrompt({
             ? mayPayRequiredSacrifices(choice.cost)
             : 0;
     const needsSacrificePick = sacrificePickCount > 0;
+    // CR 118 threshold mode (Phyrexian Dreadnought): no fixed count — the pick
+    // is complete once the selected permanents' summed power reaches the
+    // threshold. Show power progress instead of a count.
+    const sacrificeThreshold =
+        isMayPay && choice.zone === "battlefield"
+            ? mayPaySacrificeThreshold(choice.cost)
+            : undefined;
+    const chooser = allPlayers.find((p) => p.id === choice.playerId);
+    const selectedSacrificePower =
+        sacrificeThreshold !== undefined
+            ? mayPaySacrificeSelectionPower(
+                  bufferCtx.buffer,
+                  chooser?.battlefield ?? []
+              )
+            : 0;
 
     // Done/Skip label (ADR 0007): switches to "Skip" only when min === 0 and
     // the buffer is empty.
@@ -207,6 +227,13 @@ export default function PendingChoicePrompt({
                                         {selected} / {sacrificePickCount}{" "}
                                         selected — click a permanent to
                                         sacrifice
+                                    </p>
+                                )}
+                                {sacrificeThreshold !== undefined && (
+                                    <p className="text-text-disabled text-xs">
+                                        {selectedSacrificePower} /{" "}
+                                        {sacrificeThreshold} power selected —
+                                        click creatures to sacrifice
                                     </p>
                                 )}
                                 <div className="flex gap-2 mt-1">
