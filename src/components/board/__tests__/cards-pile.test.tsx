@@ -44,6 +44,31 @@ function makeCard(id: string): CardInstance {
     };
 }
 
+describe("CardsPile — collapsed stack is open-only (no play-on-open)", () => {
+    // Regression: an impulse-exiled card (Headliner Scarlett) whose exile
+    // projection carries legalActions used to render as a `SelectableCard` in
+    // the COLLAPSED stack, so a single pile click both played the card and
+    // opened the reveal dialog. The collapsed stack must be a plain,
+    // non-interactive image — the Play/Cast affordance lives in the dialog.
+    it("renders a plain card image (not SelectableCard) for a playable pile card", () => {
+        const card = makeCard("exiled-1");
+        card.zone = "exile";
+        card.legalActions = ["cast"];
+        const { baseElement } = render(
+            <CardsPile cards={[card]} isFaceDown={false} title="Exile" />
+        );
+
+        // Collapsed stack (dialog is closed) shows the image marker, never the
+        // action-firing SelectableCard.
+        expect(
+            baseElement.querySelector('[data-testid="card-image-exiled-1"]')
+        ).not.toBeNull();
+        expect(
+            baseElement.querySelector('[data-testid="selectable-card"]')
+        ).toBeNull();
+    });
+});
+
 describe("CardsPile — filtered search eligibility (issue #933)", () => {
     it("grid layout: rings and enables clicks only on allow-listed cards", () => {
         const cards = [makeCard("artifact-1"), makeCard("creature-2")];

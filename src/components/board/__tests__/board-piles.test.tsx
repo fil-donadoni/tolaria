@@ -183,9 +183,10 @@ describe("BoardPiles (slice #255)", () => {
         // Collapsed: no reveal dialog yet.
         expect(screen.queryByRole("dialog")).toBeNull();
 
-        // The collapsed pile is a clickable stack (the selectable cards).
+        // The collapsed pile is an OPEN-ONLY clickable stack of plain card
+        // images — clicking it expands the reveal, it never fires a card action.
         const playerPiles = screen.getByTestId("piles-player");
-        const stack = within(playerPiles).getAllByTestId("selectable-card")[0];
+        const stack = within(playerPiles).getAllByTestId("card-image")[0];
         fireEvent.click(stack);
 
         // Expanded reveal: dialog titled with the zone + count.

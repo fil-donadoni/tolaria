@@ -7,9 +7,11 @@ import {
     type CardInstanceState,
     type GameState,
     type StackItem,
+    getPlayer,
     resolveTopOfStack,
 } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
+import { tapSourceIntoPayment } from "../../../../game";
 
 const FOREST = getCardByName("Forest").id;
 
@@ -72,5 +74,65 @@ describe("Chromatic Star (any-colour sac + dies-cantrip, CR 605 / 603.6c)", () =
 
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[0].hand.length).toBe(1);
+    });
+
+    // CR 605.1a / 601.2f — the mana ability's cost is "{1}, {T}, Sacrifice",
+    // so activating it must SPEND {1} from the pool. Chromatic Star nets zero
+    // mana — it converts one generic into one of any colour.
+    it("charges the {1} activation cost: converts a floated generic into the chosen colour", () => {
+        const star = makeInstance(chromaticStar.id, {
+            id: "star",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [star],
+                    // Float a single red to pay the {1}.
+                    manaPool: { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 },
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const p1 = getPlayer(state, "p1");
+
+        // Choice option 2 = {B}. Pays {1} from the red, adds {B}.
+        tapSourceIntoPayment(state, p1, star, 2, []);
+
+        expect(p1.manaPool.B).toBe(1);
+        expect(p1.manaPool.R).toBe(0);
+        // Net zero: exactly one mana in the pool, colour-converted.
+        const total = Object.values(p1.manaPool).reduce((a, b) => a + b, 0);
+        expect(total).toBe(1);
+        expect(p1.graveyard.some((c) => c.id === "star")).toBe(true);
+    });
+
+    it("rejects activation when the pool cannot pay the {1} cost", () => {
+        const star = makeInstance(chromaticStar.id, {
+            id: "star",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                // Empty pool — the {1} is unpayable.
+                makePlayer("p1", { battlefield: [star] }),
+                makePlayer("p2"),
+            ],
+        });
+        const p1 = getPlayer(state, "p1");
+
+        expect(() => tapSourceIntoPayment(state, p1, star, 0, [])).toThrow(
+            /Not enough mana/
+        );
+        // CR 601.2f — a rejected activation leaves the state untouched: the
+        // Star is NOT sacrificed and no mana was produced.
+        expect(p1.battlefield.some((c) => c.id === "star")).toBe(true);
+        expect(p1.graveyard.some((c) => c.id === "star")).toBe(false);
+        const total = Object.values(p1.manaPool).reduce((a, b) => a + b, 0);
+        expect(total).toBe(0);
     });
 });

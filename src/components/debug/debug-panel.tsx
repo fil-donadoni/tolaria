@@ -86,87 +86,6 @@ type PresetScenario = {
 
 const PRESET_SCENARIOS: PresetScenario[] = [
     {
-        // Play-from-exile permission: expiry + land-play (CR 601.3e / 514.2 /
-        // 608.2g / 305.2, issue #946). Headliner Scarlett is in play; a Forest
-        // sits already exiled with an impulse "you may play that card this turn"
-        // grant (as if her upkeep trigger had fired). Two things to verify:
-        //  (1) LAND-PLAY — the exiled Forest shows a "Play" button (not "Cast");
-        //      clicking it plays it as a land (CR 305.2), consuming the land
-        //      drop and entering the battlefield. Previously an exiled land had
-        //      no legal action at all.
-        //  (2) EXPIRY — instead of playing it, pass to your next cleanup: the
-        //      grant lapses (CR 514.2) and the Play button disappears while the
-        //      Forest stays exiled. Previously the grant persisted forever.
-        // The exiled Mountain (a persisted grant — no expiry) stays playable to
-        // contrast the two windows.
-        label: "Play-from-exile: land plays + this-turn grant expires (Headliner Scarlett) (#946)",
-        cards: [
-            {
-                name: "Headliner Scarlett",
-                owner: "me",
-                zone: "battlefield",
-            },
-            {
-                name: "Forest",
-                owner: "me",
-                zone: "exile",
-                faceDownExile: true,
-                castableFromExile: true,
-            },
-            {
-                name: "Grizzly Bears",
-                owner: "me",
-                zone: "library",
-            },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Hexproof (CR 702.11b, issue #958): a permanent with hexproof can't be
-        // the target of spells or abilities its controller's OPPONENTS control,
-        // but its own controller can still target it. The opponent controls a
-        // Sylvan Caryatid (Defender, hexproof); cast my Lightning Bolt and
-        // confirm the Caryatid is NOT highlightable/clickable (the Grizzly Bears
-        // beside it IS — a legal contrast target). Then cast my Giant Growth on
-        // MY OWN Sylvan Caryatid and confirm it IS a legal target (own-controller
-        // allowance). Two Mountains + a Forest cover the spell costs.
-        label: "Hexproof: opponent's Sylvan Caryatid can't be Bolted, my own can be pumped (#958)",
-        cards: [
-            { name: "Sylvan Caryatid", owner: "opp", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-            { name: "Sylvan Caryatid", owner: "me", zone: "battlefield" },
-            { name: "Lightning Bolt", owner: "me", zone: "hand" },
-            { name: "Giant Growth", owner: "me", zone: "hand" },
-            { name: "Mountain", owner: "me", zone: "battlefield", count: 2 },
-            { name: "Forest", owner: "me", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Pestilence modern-Oracle board-wipe engine (CR 120.3 / 603.4d,
-        // issue #960): "{B}: Pestilence deals 1 damage to each creature and
-        // each player." Repeatedly activate the {B} ability (four Swamps for
-        // mana) to ping every creature AND both players — the 1-toughness
-        // creatures on both sides die after one activation. Once no creatures
-        // remain on the battlefield, the "At the beginning of the end step, if
-        // no creatures are on the battlefield, sacrifice this enchantment"
-        // trigger fires at the next end step and sacrifices Pestilence. The
-        // pre-Oracle Alpha printing (upkeep sacrifice-unless-{B}, creature-
-        // gated activation) is gone — this scenario exercises the corrected
-        // behavior end-to-end.
-        label: "Pestilence board-wipe engine: {B} pings all, end-step self-sac when boardless (#960)",
-        cards: [
-            { name: "Pestilence", owner: "me", zone: "battlefield" },
-            { name: "Swamp", owner: "me", zone: "battlefield", count: 4 },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
         // Sacrifice-for-mana dies trigger (CR 603.6 / 700.4 / 605.3a, issue
         // #943): activating Chromatic Star's mana ability ("{1}, {T},
         // Sacrifice this artifact: Add one mana of any color") sacrifices it
@@ -182,51 +101,6 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Chromatic Star", owner: "me", zone: "battlefield" },
             { name: "Island", owner: "me", zone: "battlefield", count: 2 },
             { name: "Grizzly Bears", owner: "me", zone: "library" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Unpayable additional-cost sacrifice (CR 117.9 / 601.2f, issue
-        // #944): Natural Order's additional cost is "sacrifice a green
-        // creature." With NO green creature under my control, the Cast
-        // action must be illegal — the card greyed out, not clickable —
-        // instead of announcing the spell and crashing when the
-        // additional-cost picker finds no candidate. Four Forests cover the
-        // {2}{G}{G} mana cost so mana affordability isn't what's gating the
-        // cast; only the unpayable sacrifice should. Put a green creature
-        // (e.g. Grizzly Bears) into play via the board to flip the scenario
-        // to the payable path and confirm Cast becomes legal + the
-        // sacrifice picker opens end to end.
-        label: "Unpayable additional-cost sacrifice: Natural Order, no green creature (#944)",
-        cards: [
-            { name: "Natural Order", owner: "me", zone: "hand" },
-            { name: "Forest", owner: "me", zone: "battlefield", count: 4 },
-            { name: "Grizzly Bears", owner: "me", zone: "library" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Created-token art (issue #941): Titania, Protector of Argoth's
-        // "whenever a land you control is put into a graveyard from the
-        // battlefield, create a 5/3 green Elemental creature token" produces
-        // a token whose `imagePrintId` is now resolved via
-        // `tokenPrintIdFor` (10E's printed Elemental token) — it should
-        // render real Scryfall art, not the placeholder. Activate Strip
-        // Mine's "{T}, Sacrifice this land: Destroy target land" (target the
-        // Forest, or Strip Mine itself) — the sacrifice-as-cost puts a land
-        // you control into the graveyard from the battlefield and fires
-        // Titania's trigger.
-        label: "Titania, Protector of Argoth: land dies → Elemental token has real art (#941)",
-        cards: [
-            {
-                name: "Titania, Protector of Argoth",
-                owner: "me",
-                zone: "battlefield",
-            },
-            { name: "Strip Mine", owner: "me", zone: "battlefield" },
-            { name: "Forest", owner: "me", zone: "battlefield" },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,

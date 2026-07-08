@@ -574,6 +574,33 @@ export function applyManaAbilityDiscardCost(
     payDiscardAtRandomCost(state, activatorId, count);
 }
 
+/** CR 605.1a / 601.2f — the MANA portion of a mana ability's activation cost
+ *  (Chromatic Star's "{1}, {T}, Sacrifice this artifact: Add one mana of any
+ *  color"). Unlike a spell, a mana ability resolves immediately (CR 605.3a),
+ *  but its cost is still paid on activation: the {1} is deducted from the
+ *  controller's pool BEFORE the ability's produced mana is added, so the cost
+ *  can never be funded by the mana the ability itself makes. Because no
+ *  upstream affordability gate threads the pool into the tap-for-mana option
+ *  enumeration (the pool is absent from `TriggerStateView`), this helper is the
+ *  authoritative check: it throws when the pool can't cover the cost, so every
+ *  caller MUST invoke it FIRST — before tapping/sacrificing the source or
+ *  emitting any event — so a rejected activation leaves the state untouched.
+ *  No-op for the common mana ability with no mana cost. Shared by both
+ *  tap-for-mana paths (`tapUntap` priority tap + `tapSourceIntoPayment`
+ *  payment tap). */
+export function applyManaAbilityManaCost(
+    player: PlayerState,
+    ability: ActivatedAbility | undefined | null
+): void {
+    if (!ability?.cost.mana) return;
+    const cost = normalizeManaCost(ability.cost.mana);
+    if (Object.keys(cost).length === 0) return;
+    if (!isManaCostCovered(player.manaPool, cost)) {
+        throw new Error("Not enough mana to activate this ability");
+    }
+    payManaCost(player.manaPool, cost);
+}
+
 /** CR 605.1a / 122.1 — depletion-dual tap-for-mana rider. When a tap mana
  *  ability declares `putDepletionCounterOnTap`, the source puts one depletion
  *  counter on itself as part of resolving the mana ability (Land Cap, Lava
@@ -843,6 +870,10 @@ export function tapSourceIntoPayment(
         }
 
         const isSacrifice = effAbility?.cost.sacrifice === true;
+        // CR 605.1a / 601.2f — pay the mana portion of the activation cost
+        // (Chromatic Star's {1}) FIRST, before any source mutation, so an
+        // unaffordable activation throws with nothing changed.
+        applyManaAbilityManaCost(player, effAbility);
         // CR 605.2 — emit "tapped for mana" before the sacrifice path moves
         // the card off the battlefield, so the event carries the permanent's
         // pre-sacrifice types/subtypes for trigger predicates.
@@ -917,6 +948,10 @@ export function tapSourceIntoPayment(
     // (Basal Thrull) sacrifices the source instead of tapping it. One-way: the
     // sacrificed source is never in `tappedLandIds` as an untappable entry.
     const isSacrifice = ability?.cost.sacrifice === true;
+    // CR 605.1a / 601.2f — pay the mana portion of the activation cost FIRST,
+    // before any source mutation, so an unaffordable activation throws with
+    // nothing changed.
+    applyManaAbilityManaCost(player, ability);
     if (!isSacrifice) card.isTapped = true;
     // CR 106.1 / 605.1a — board-conditional output (Urza trio) is computed from
     // the controller's battlefield now and snapshotted onto `chosenMana` so the
@@ -3881,6 +3916,10 @@ export const tapForPayment = mutation({
             );
 
             const isSacrifice = resolved.ability?.cost.sacrifice === true;
+            // CR 605.1a / 601.2f — pay the mana portion of the activation cost
+            // (Chromatic Star's {1}) FIRST, before any source mutation, so an
+            // unaffordable activation throws with nothing changed.
+            applyManaAbilityManaCost(player, resolved.ability);
             // CR 605.2 — emit "tapped for mana" before any sacrifice path
             // moves the card off the battlefield, so the event still carries
             // the permanent's pre-sacrifice types/subtypes.
@@ -3913,6 +3952,10 @@ export const tapForPayment = mutation({
             // ability (Basal Thrull) sacrifices the source instead of tapping
             // it. One-way: it is never pushed as an untappable tappedLand entry.
             const isSacrifice = ability?.cost.sacrifice === true;
+            // CR 605.1a / 601.2f — pay the mana portion of the activation cost
+            // FIRST, before any source mutation, so an unaffordable activation
+            // throws with nothing changed.
+            applyManaAbilityManaCost(player, ability);
             if (!isSacrifice) card.isTapped = true;
             // CR 106.1 / 605.1a — board-conditional output (Urza trio) computed
             // from the controller's battlefield and snapshotted onto

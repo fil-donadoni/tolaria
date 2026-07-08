@@ -53,7 +53,13 @@ describe("sacrifice-for-mana fires the source's leave-the-battlefield trigger (C
         });
         const state = makeState({
             players: [
-                makePlayer("p1", { battlefield: [star], library: [lib] }),
+                makePlayer("p1", {
+                    battlefield: [star],
+                    library: [lib],
+                    // CR 605.1a / 601.2f — Chromatic Star's ability costs {1};
+                    // float one generic (a red) so the activation is payable.
+                    manaPool: { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 },
+                }),
                 makePlayer("p2"),
             ],
         });
@@ -63,9 +69,11 @@ describe("sacrifice-for-mana fires the source's leave-the-battlefield trigger (C
         // ({W}) and sacrifice the Star to produce the mana.
         tapSourceIntoPayment(state, p1, star, 0, []);
 
-        // CR 605.1a — the mana is added immediately (mana-ability semantics
-        // unchanged) and the Star has left the battlefield for the graveyard.
+        // CR 605.1a / 601.2f — the {1} cost is spent from the floated red and
+        // the chosen {W} is added, so the pool is colour-converted (net zero
+        // count); the Star has left the battlefield for the graveyard.
         expect(p1.manaPool.W).toBe(1);
+        expect(p1.manaPool.R).toBe(0);
         expect(p1.battlefield.some((c) => c.id === "star")).toBe(false);
         expect(p1.graveyard.some((c) => c.id === "star")).toBe(true);
         // The leave event was queued — the exact thing the raw `moveCard` dropped.

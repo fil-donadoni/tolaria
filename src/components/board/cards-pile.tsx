@@ -3,7 +3,6 @@ import type { CardInstance } from "~/types/game";
 import { useInertialScroll } from "~/hooks/useInertialScroll";
 import GameDialog from "~/components/ui/game-dialog";
 import CardBack from "../cards/card-back";
-import SelectableCard from "../cards/selectable-card";
 import CardImage from "../cards/card-image";
 
 function seededRandom(seed: number) {
@@ -336,13 +335,18 @@ export default function CardsPile({
             transform: `rotate(${rotations[cardIndex]}deg)`,
         };
 
+        // The collapsed stack is an OPEN-ONLY affordance: clicking it expands the
+        // reveal dialog (the wrapping `onClick={setIsOpen(true)}` below). It must
+        // stay non-interactive per card — a `SelectableCard` bound to the card's
+        // `legalActions` turns a playable pile card (e.g. a Headliner Scarlett
+        // impulse-exiled card whose exile projection carries `["play"|"cast"]`,
+        // gameProjections) into a `<div onClick={play}>`, so the single pile click
+        // both PLAYS the card and opens the dialog. Per-card actions belong in the
+        // dialog only, surfaced via `renderCardAction` (Exile → ExileCastButton).
         const image = isCardFaceDown(cardInstance, isFaceDown, faceUpIds) ? (
             <CardBack />
         ) : (
-            <SelectableCard
-                cardInstance={cardInstance}
-                allowedActions={cardInstance.legalActions ?? []}
-            />
+            <CardImage card={cardInstance} />
         );
 
         return (
@@ -361,8 +365,11 @@ export default function CardsPile({
     return (
         <>
             {/* Controlled (chip) mode suppresses the collapsed card stack — the
-                owner renders the trigger and only the dialog mounts here. */}
-            {!controlled && (
+                owner renders the trigger and only the dialog mounts here.
+                `forceOpen` (a blocking picker modal) likewise hides it: the
+                collapsed trigger sits behind an undismissable dialog and is
+                unreachable, and rendering it would duplicate every card image. */}
+            {!controlled && !forceOpen && (
                 <div className="cursor-pointer" onClick={() => setIsOpen(true)}>
                     {pileCards}
                 </div>
