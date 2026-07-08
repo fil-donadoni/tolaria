@@ -583,6 +583,75 @@ describe("validateDeck — wired to the REAL card registry (ADR 0036)", () => {
     });
 });
 
+// --- Premodern printing-gap reprints (issue #980, ADR 0036) ---------------
+//
+// Counterspell (lea), Lightning Bolt (lea) and Ball Lightning (drk) each only
+// carried a pre-Premodern printing, so a Premodern deck containing them failed
+// checkSets. The fix adds a Premodern-legal CardPrint per card (Tempest,
+// 4th Edition, Beatdown) — the reprint machinery collapses printId -> the
+// canonical CardDefinition id. These are the real per-print Scryfall UUIDs.
+describe("validateDeck — Premodern reprints, REAL registry (issue #980)", () => {
+    const COUNTERSPELL_TMP = "dacdd380-71cf-4832-bd02-3697501325f3";
+    const BOLT_4ED = "9521375e-0bc1-45ef-b513-6d332a25f9d2";
+    const BALL_LIGHTNING_BTD = "6312e369-aef7-486e-a689-97eef04c71d8";
+    const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56";
+    // Canonical CardDefinition ids each reprint printId must collapse to.
+    const COUNTERSPELL_DEF = "0df55e3f-14de-46ef-b6b1-616618724d9e";
+    const BOLT_DEF = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
+    const BALL_LIGHTNING_DEF = "c1ba83ab-83f5-421d-bba1-0f925870b5c8";
+
+    it("resolves each reprint printId to a Premodern-legal set code", () => {
+        const cs = resolveDeckCardMeta(COUNTERSPELL_TMP);
+        expect(cs?.setCode).toBe("tmp");
+        expect(cs?.cardId).toBe(COUNTERSPELL_DEF);
+
+        const bolt = resolveDeckCardMeta(BOLT_4ED);
+        expect(bolt?.setCode).toBe("4ed");
+        expect(bolt?.cardId).toBe(BOLT_DEF);
+
+        const ball = resolveDeckCardMeta(BALL_LIGHTNING_BTD);
+        expect(ball?.setCode).toBe("btd");
+        expect(ball?.cardId).toBe(BALL_LIGHTNING_DEF);
+
+        // All three sets are in the Premodern-legal pool.
+        const allowed = new Set(FORMAT_RULES["premodern"].allowedSets ?? []);
+        expect(allowed.has("tmp")).toBe(true);
+        expect(allowed.has("4ed")).toBe(true);
+        expect(allowed.has("btd")).toBe(true);
+    });
+
+    it("passes a Premodern deck containing all three reprints (no set-not-allowed)", () => {
+        // 3 target reprints + 57 basics = 60. Basics are set-exempt.
+        const deck: ValidatableDeck = {
+            cards: [
+                card(COUNTERSPELL_TMP, "Counterspell"),
+                card(BOLT_4ED, "Lightning Bolt"),
+                card(BALL_LIGHTNING_BTD, "Ball Lightning"),
+                ...Array.from({ length: 57 }, () => card(MOUNTAIN, "Mountain")),
+            ],
+        };
+        const { isLegal, reasons } = validateDeck(deck, "premodern");
+        expect(reasons.some((r) => r.code === "set-not-allowed")).toBe(false);
+        expect(reasons.some((r) => r.code === "set-unknown")).toBe(false);
+        expect(isLegal).toBe(true);
+        expect(reasons).toEqual([]);
+    });
+
+    it("assertDeckLegal accepts the Premodern reprint deck via the real resolver", () => {
+        const deck = {
+            name: "Premodern Reprints",
+            format: "premodern",
+            cards: [
+                card(COUNTERSPELL_TMP, "Counterspell"),
+                card(BOLT_4ED, "Lightning Bolt"),
+                card(BALL_LIGHTNING_BTD, "Ball Lightning"),
+                ...Array.from({ length: 57 }, () => card(MOUNTAIN, "Mountain")),
+            ],
+        };
+        expect(() => assertDeckLegal(deck)).not.toThrow();
+    });
+});
+
 // --- Old School full legality (issue #516, ADR 0036) ----------------------
 
 describe("checkCopyLimit — 4-copy limit by Card ID (issue #516)", () => {
