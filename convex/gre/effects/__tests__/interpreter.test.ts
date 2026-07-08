@@ -7613,3 +7613,269 @@ describe("Effect Script Op: mill (CR 701.17, issue #885)", () => {
         expect(projected.players[1].library.count).toBe(1);
     });
 });
+
+// --- digToHand Op: look at top N, put one (or K) into hand, rest on the bottom
+// (CR 401.4, issue #984) ---------------------------------------------------------
+// digToHand SUSPENDS on a `look-top` choice over exactly the looked-at top N
+// (candidateIds), then moves the kept cards library→hand and bottoms the rest.
+// The pick is consumed internally (no `bind`), like `scryReorder`. Impulse is
+// the canonical instance: look 4, take 1.
+
+describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
+    const libOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    // Drives the suspended look-top choice to keep `keep` and finish the Op.
+    const submitKeep = (state: GameState, keep: string[]) => {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: keep,
+        });
+    };
+
+    it("Impulse: looks at the top four, one enters hand, the other three go to the bottom", () => {
+        const id = registerScript("test-op-dig-impulse", [
+            { op: "digToHand", player: "controller", look: 4, take: 1 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", ["a", "b", "c", "d", "e"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        // First execution suspends on the look-top pick over exactly the top 4.
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("look-top");
+        expect(head.candidateIds).toEqual(["a", "b", "c", "d"]);
+        expect(head.count).toBe(1);
+
+        submitKeep(state, ["b"]);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        // "b" is in hand; the untouched fifth card "e" is now on top; the three
+        // un-kept looked-at cards (a, c, d) are on the bottom.
+        expect(state.players[0].hand.map((c) => c.id)).toContain("b");
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "e",
+            "a",
+            "c",
+            "d",
+        ]);
+    });
+
+    it("mills nothing to the graveyard — the rest go to the library bottom, not away", () => {
+        const id = registerScript("test-op-dig-bottom", [
+            { op: "digToHand", player: "controller", look: 3, take: 1 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b", "c"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        submitKeep(state, ["a"]);
+        // "a" to hand; b, c bottomed — library still holds both, none in gy.
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["b", "c"]);
+        expect(state.players[0].graveyard.map((c) => c.id)).not.toContain("b");
+    });
+
+    it("takes two when take is 2 (the general dig, Stock Up-style)", () => {
+        const id = registerScript("test-op-dig-take2", [
+            { op: "digToHand", player: "controller", look: 4, take: 2 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", ["a", "b", "c", "d", "e"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].count).toBe(2);
+        submitKeep(state, ["a", "c"]);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["a", "c"])
+        );
+        // b, d bottomed under the untouched e.
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "e",
+            "b",
+            "d",
+        ]);
+    });
+
+    it("looks at fewer than requested when the library is short, still keeps one", () => {
+        const id = registerScript("test-op-dig-short", [
+            { op: "digToHand", player: "controller", look: 4, take: 1 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // Only two cards to look at; candidateIds is the whole (short) library.
+        expect(state.pendingChoices![0].candidateIds).toEqual(["a", "b"]);
+        submitKeep(state, ["b"]);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("b");
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["a"]);
+    });
+
+    it("look via {X} (a value ref): reads the chosen X as the look count", () => {
+        const id = registerScript("test-op-dig-x", [
+            {
+                op: "digToHand",
+                player: "controller",
+                look: { X: true },
+                take: 1,
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", ["a", "b", "c", "d"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, id, "p1");
+        item.chosenX = 2; // look at only the top two
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].candidateIds).toEqual(["a", "b"]);
+        submitKeep(state, ["a"]);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+        // "b" bottomed under the untouched c, d.
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "c",
+            "d",
+            "b",
+        ]);
+    });
+
+    it("digs a target player's library, not the controller's", () => {
+        const id = registerScript(
+            "test-op-dig-target",
+            [{ op: "digToHand", player: { target: 0 }, look: 3, take: 1 }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    library: libOf("p2", ["a", "b", "c", "d"]),
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        // The chooser is p2 (the library's owner picks their own kept card).
+        expect(state.pendingChoices![0].playerId).toBe("p2");
+        submitKeep(state, ["b"]);
+        expect(state.players[1].hand.map((c) => c.id)).toContain("b");
+        expect(state.players[1].library.map((c) => c.id)).toEqual([
+            "d",
+            "a",
+            "c",
+        ]);
+    });
+
+    it("no-ops (never suspends) on an empty library and on look <= 0; a later Op still runs", () => {
+        const idEmpty = registerScript("test-op-dig-empty", [
+            { op: "digToHand", player: "controller", look: 4, take: 1 },
+            { op: "gainLife", player: "controller", amount: 3 },
+        ]);
+        const empty = makeState();
+        pushSpell(empty, idEmpty, "p1");
+        expect(resolveTopOfStack(empty)).not.toBeNull(); // no suspension
+        expect(empty.pendingChoices ?? []).toHaveLength(0);
+        expect(empty.players[0].life).toBe(23); // the trailing Op ran
+
+        const idZero = registerScript("test-op-dig-zero", [
+            { op: "digToHand", player: "controller", look: 0, take: 1 },
+        ]);
+        const zero = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(zero, idZero, "p1");
+        expect(resolveTopOfStack(zero)).not.toBeNull();
+        expect(zero.pendingChoices ?? []).toHaveLength(0);
+        expect(zero.players[0].library).toHaveLength(2);
+    });
+
+    it("an Op before the digToHand never re-runs on resume (CR 608.3 checkpoint)", () => {
+        const id = registerScript("test-op-dig-checkpoint", [
+            { op: "gainLife", player: "controller", amount: 2 },
+            { op: "digToHand", player: "controller", look: 2, take: 1 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libOf("p1", ["a", "b", "c"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state); // gains 2, then suspends on the dig
+        expect(state.players[0].life).toBe(22);
+        submitKeep(state, ["a"]);
+        // The gainLife did NOT run a second time on resume.
+        expect(state.players[0].life).toBe(22);
+        expect(state.players[0].hand.map((c) => c.id)).toContain("a");
+    });
+
+    it("wire format: the chooser sees exactly the looked-at cards as libraryPeek; the kept card survives projection", () => {
+        const id = registerScript("test-op-dig-wire", [
+            { op: "digToHand", player: "controller", look: 3, take: 1 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libOf("p1", ["a", "b", "c", "d"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state); // suspends
+
+        // Chooser's projected view: exactly the top three are face-up.
+        const chooserView = projectPublicState(state, 1, "p1");
+        expect(chooserView.players[0].libraryPeek?.map((c) => c.id)).toEqual([
+            "a",
+            "b",
+            "c",
+        ]);
+        // Opponent's projected view: no leak.
+        const oppView = projectPublicState(state, 1, "p2");
+        expect(oppView.players[0].libraryPeek).toBeUndefined();
+
+        submitKeep(state, ["b"]);
+        // The kept card is in hand and the reshuffle survives projection.
+        const post = projectPublicState(state, 1, "p1");
+        expect(post.players[0].hand.some((c) => c?.id === "b")).toBe(true);
+        expect(post.players[0].library.count).toBe(3);
+    });
+});

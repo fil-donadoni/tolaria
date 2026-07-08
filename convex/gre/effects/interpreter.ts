@@ -922,6 +922,61 @@ export const OP_EXECUTORS: {
             ctx.moveCardById(playerId, top[0], "library", "graveyard");
         }
     },
+    // CR 401.4 (issue #984) — dig to hand: look at the top `look` cards, put
+    // `take` (default 1) into hand, the rest on the BOTTOM. A thin declarative
+    // skin composed of existing primitives (the Stock Up composition
+    // generalized), ONE execution path (ADR 0045). SUSPENDS like `choice` /
+    // `scryReorder`: a single `look-top` `requestChoice` over exactly the
+    // looked-at ids (candidateIds — projected face-up as `libraryPeek`, never
+    // the whole hidden library) drives the kept-card pick; the first execution
+    // enqueues it and reports "suspend", the resumed execution reads the picks
+    // back and finishes the moves. The kept cards move library→hand
+    // (`moveCardById`); the un-kept looked-at cards are bottomed
+    // (`reorderLibraryTop`) in look order — Impulse's "in any order" is a
+    // formality (the cards go face-down into the library, unknown, so no
+    // arrangement carries value). Skipped when the player is gone, `look` ≤ 0,
+    // or the library is empty (CR 608.2b — never suspends then).
+    digToHand(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — player gone, skip
+        const look = resolveValue(ctx, op.look);
+        if (look === undefined || look <= 0) return;
+        const topIds = ctx.peekLibraryTop(playerId, look);
+        if (topIds.length === 0) return; // empty library — no look, no suspend
+        const take = op.take === undefined ? 1 : resolveValue(ctx, op.take);
+        if (take === undefined || take <= 0) return;
+        const keep = Math.min(take, topIds.length);
+        const picks = ctx.requestChoice({
+            playerId,
+            // A fixed choiceId is unique per Op position: the pipeline keys on
+            // `step:choiceId` and `step` IS this Op's checkpointed position, so
+            // two digToHand Ops at different positions never collide.
+            choiceId: "dig-to-hand",
+            kind: "look-top",
+            zone: "library",
+            candidateIds: topIds,
+            count: keep,
+            prompt:
+                op.prompt ??
+                "Choose which card(s) to put into your hand (the rest go to the bottom of your library).",
+        });
+        if (picks === undefined) return "suspend"; // enqueued — wait
+        // Resume — the kept cards go to hand; the remaining looked-at cards are
+        // bottomed. A picked id that has since left the library is a no-op in
+        // `moveCardById` (CR 608.2b).
+        for (const id of picks)
+            ctx.moveCardById(playerId, id, "library", "hand");
+        const pickSet = new Set(picks);
+        const restTop = topIds.filter((id) => !pickSet.has(id));
+        if (restTop.length === 0) return;
+        // Everything currently in the library minus the un-kept looked-at cards,
+        // then the un-kept cards appended — a full reorder that lands the rest on
+        // the true bottom (CR 401.4).
+        const all = ctx.peekLibraryTop(playerId, Number.MAX_SAFE_INTEGER);
+        const restSet = new Set(restTop);
+        const below = all.filter((id) => !restSet.has(id));
+        ctx.reorderLibraryTop(playerId, [...below, ...restTop]);
+    },
     // CR 615 (issue #845) — establish a damage-prevention shield. A thin
     // declarative skin over three SpellContext prevention primitives, ONE
     // execution path per mode (ADR 0045). Each mode is skipped when its

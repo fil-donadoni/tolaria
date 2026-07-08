@@ -5454,6 +5454,35 @@ export type EffectOp =
           player: EffectPlayerRef;
           count: EffectValue;
       }
+    /** CR 401.4 look (issue #984) — dig to hand: look at the top `look` cards of
+     *  a library, put `take` of them (default 1) into that player's hand, and
+     *  put the rest on the BOTTOM of the library. A thin declarative skin
+     *  composed of existing SpellContext primitives, one execution path (ADR
+     *  0045): `peekLibraryTop(look)` reveals the top cards, a single suspending
+     *  `look-top` `requestChoice` over exactly those looked-at ids drives the
+     *  kept-card pick (the projection exposes ONLY those cards face-up as
+     *  `libraryPeek`, not the whole library — the same shared top-N look path as
+     *  Stock Up), the kept cards move library→hand via `moveCardById`, and the
+     *  remaining looked-at cards are bottomed via `reorderLibraryTop`. Like
+     *  `choice` / `scryReorder` this Op SUSPENDS: the first execution raises the
+     *  `look-top` PendingChoice, the resumed execution reads the picks back and
+     *  finishes the moves. The bottom order of the un-kept cards is auto-resolved
+     *  in look order — Impulse's "in any order" is a formality with no strategic
+     *  value (the cards go face-down into the library, unknown; CR 401.4 lets the
+     *  owner arrange them but the arrangement is unobservable). `player` names
+     *  whose library (the resolving controller, an announced target slot, or a
+     *  forEach `$each`); `look` is how many top cards to look at; `take` is how
+     *  many to put into hand (default 1, clamped to the number looked at). No
+     *  `bind` — the pick is consumed internally, not read by a later Op.
+     *  Distinct from an exile-and-may-play "impulse draw" (#791): the chosen card
+     *  goes to HAND and the rest to the bottom, no exile / play window. */
+    | {
+          op: "digToHand";
+          player: EffectPlayerRef;
+          look: EffectValue;
+          take?: EffectValue;
+          prompt?: string;
+      }
     /** CR 615 (issue #845) — establish a damage-prevention shield. A thin
      *  declarative skin over three SpellContext prevention primitives, one
      *  execution path per mode (ADR 0045). `mode` selects the shield shape:

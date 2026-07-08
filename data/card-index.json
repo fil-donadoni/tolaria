@@ -3534,6 +3534,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Impulse",
+        "scryfallId": "9d710a97-062f-4773-b6c6-8aeddeb3b6e8",
+        "oracleId": "f6bd2902-7f8b-419e-bbc7-bcab0c1b7e01",
+        "firstSet": "vis"
+    },
+    {
         "name": "In the Eye of Chaos",
         "scryfallId": "733933dd-c871-4f75-8b08-d7c010dddbe6",
         "oracleId": "6a0da9f3-cb06-42b1-ae73-b142c0eedaff",

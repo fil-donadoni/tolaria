@@ -809,6 +809,21 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 4,
     },
+    {
+        // digToHand Effect Script Op (#984). Impulse ({1}{U} instant): "Look at
+        // the top four cards of your library. Put one of them into your hand and
+        // the rest on the bottom of your library in any order." Cast it and the
+        // look-top picker shows exactly the top four face-up — keep one (it goes
+        // to hand), the other three drop to the bottom of the library. 3 Islands
+        // cover the {1}{U}; the library is the shared draw pile.
+        label: "digToHand Effect Script Op (Impulse) (#984)",
+        cards: [
+            { name: "Impulse", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+    },
 ];
 
 type DebugPanelProps = {
