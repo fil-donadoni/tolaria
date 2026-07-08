@@ -236,9 +236,19 @@ function mayPayIsAffordable(
             // CR 118 threshold mode — affordable iff the payer's matching
             // permanents sum to ≥ the required total power. Uses PRINTED power
             // (the same proxy the accept-side greedy uses); layer-modified
-            // effective power isn't reachable client-side.
+            // effective power isn't reachable client-side. The ability's own
+            // source is excluded (see `mayPaySourceInstanceId`): a rational bot
+            // never self-sacrifices the very permanent the payment keeps, so it
+            // must reach the threshold from the OTHER creatures alone — else it
+            // declines and lets the "sacrifice it unless …" clause take the
+            // source (CR 118). This keeps affordability consistent with the
+            // accept-side greedy's candidate set.
+            const sourceId = mayPaySourceInstanceId(state, head);
             const total = matching.reduce(
-                (sum, c) => sum + (tryGetDefinition(c.card.id)?.power ?? 0),
+                (sum, c) =>
+                    c.id === sourceId
+                        ? sum
+                        : sum + (tryGetDefinition(c.card.id)?.power ?? 0),
                 0
             );
             if (total < norm.sacrifice.count.minTotalPower) return false;
@@ -247,6 +257,20 @@ function mayPayIsAffordable(
         }
     }
     return true;
+}
+
+/** The instance id of the ability SOURCE behind a pending may-pay — the stack
+ *  item's trigger source (`triggerSourceId`). Used to exclude the source from a
+ *  CR 118 threshold-mode sacrifice pool: a "sacrifice it unless you sacrifice
+ *  creatures with total power ≥ N" punisher (Phyrexian Dreadnought) lists its
+ *  own source among the legal victims, but sacrificing it to pay is self-
+ *  defeating — it destroys the permanent the payment is meant to keep, board-
+ *  equivalent to declining. Undefined when no source is identifiable. */
+function mayPaySourceInstanceId(
+    state: PublicGameState,
+    head: PendingChoice
+): string | undefined {
+    return state.stack.find((s) => s.id === head.stackItemId)?.triggerSourceId;
 }
 
 /** Surfaces the may-pay sacrifice pick shape for the bot's OwedChoice: a fixed
@@ -297,11 +321,25 @@ function buildOwedChoice(
             candidates.push({ id: opt.id, value: 0 });
         }
     }
+    // CR 118 — for a threshold-mode may-pay sacrifice (Phyrexian Dreadnought),
+    // drop the ability's own source from the pool the bot reasons over so the
+    // greedy never self-sacrifices the permanent the payment keeps. The same
+    // exclusion runs in `mayPayIsAffordable`, so accept/decline and the greedy
+    // pick see one consistent candidate set.
+    const sacrificePick = mayPaySacrificePick(head);
+    const candidatesForChoice =
+        head.kind === "may-pay" &&
+        sacrificePick.sacrificeThreshold !== undefined
+            ? candidates.filter(
+                  (c) => c.id !== mayPaySourceInstanceId(state, head)
+              )
+            : candidates;
+
     return {
         kind: head.kind,
         min: getPendingChoiceMin(head.count),
         max: getPendingChoiceMax(head.count),
-        candidates,
+        candidates: candidatesForChoice,
         affordable:
             head.kind === "may-pay" || head.kind === "land-entry-tapped"
                 ? mayPayIsAffordable(state, head, botId)
@@ -312,7 +350,7 @@ function buildOwedChoice(
         // OR the summed-power threshold (`sacrificeThreshold`, CR 118, Phyrexian
         // Dreadnought) so the bot supplies a legal `sacrificeIds`. Both undefined
         // for a plain yes/no or auto-resolving pay.
-        ...mayPaySacrificePick(head),
+        ...sacrificePick,
         // issue #242 — the discard heuristic needs the board's mana picture to
         // protect scarce lands and rank spells by castability.
         manaSituation:
