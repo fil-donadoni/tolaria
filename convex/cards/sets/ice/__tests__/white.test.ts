@@ -60,6 +60,7 @@ import {
     drought,
     kjeldoranEliteGuard,
     kjeldoranGuard,
+    battleCry,
 } from "../../ice";
 import { plains } from "../../lea";
 import { getDefinition, getCardByName } from "../../../index";
@@ -98,6 +99,7 @@ import {
     advancePhase,
     applyAllCombatDamage,
     finalizeCleanup,
+    emitBlockersConfirmedEvents,
 } from "../../../../gre/phases";
 import {
     validateBlockerEligibility,
@@ -2699,5 +2701,179 @@ describe("Kjeldoran Guard (snow-gated instance leave-watch, CR 205.4a / 603.7a)"
         // Remove the snow land → activation becomes legal.
         state.players[1].battlefield = [];
         expect(ability.canActivate!(guard, state)).toBe(true);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Battle Cry (issue #884, split out of #739) — CR 701.26b untap + a REPEATING
+// delayed triggered ability (CR 603.7d, the new "this-turn-creature-blocks"
+// timing). Unlike every other delayedTrigger timing (single-shot), this one
+// fires once per BLOCKERS_CONFIRMED event for the rest of the turn and is
+// never dequeued by firing — only purged, unconditionally, at CLEANUP.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Battle Cry (untap-all-white + repeating block-buff delayed trigger, CR 603.7d / 701.26b, issue #884)", () => {
+    it("is registered with the modern oracle text, {2}{W} cost, and no resolve() (DSL-first)", () => {
+        expect(battleCry.manaCost).toEqual({ X: 2, W: 1 });
+        expect(battleCry.types).toEqual(["Instant"]);
+        expect(battleCry.oracleText).toBe(
+            "Untap all white creatures you control.\nWhenever a creature blocks this turn, it gets +0/+1 until end of turn."
+        );
+        expect(battleCry.resolve).toBeUndefined();
+        expect(battleCry.effects).toBeDefined();
+    });
+
+    it("untaps every white creature you control, leaves a non-white creature tapped", () => {
+        const whiteGuy = makeInstance(shieldBearer.id, {
+            id: "white1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const greenGuy = makeInstance(balduvianBears.id, {
+            id: "green1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isTapped: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [whiteGuy, greenGuy] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, battleCry.id, "p1");
+        resolveTopOfStack(state);
+        const live = (id: string) =>
+            state.players[0].battlefield.find((c) => c.id === id)!;
+        expect(live("white1").isTapped).toBe(false);
+        expect(live("green1").isTapped).toBe(true);
+    });
+
+    it("schedules a this-turn-creature-blocks delayed trigger with no capture map needed", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, battleCry.id, "p1");
+        resolveTopOfStack(state);
+        const watch = state.delayedTriggers?.find(
+            (t) => t.timing === "this-turn-creature-blocks"
+        );
+        expect(watch).toBeDefined();
+        expect(watch!.payload).toEqual({});
+    });
+
+    it("pumps EVERY blocking creature +0/+1 independently and keeps firing (not consumed on fire)", () => {
+        const blocker1 = vanilla("b1", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const blocker2 = vanilla("b2", 1, 1, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const atk1 = vanilla("a1", 3, 3, { controllerId: "p2", ownerId: "p2" });
+        const atk2 = vanilla("a2", 3, 3, { controllerId: "p2", ownerId: "p2" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [blocker1, blocker2] }),
+                makePlayer("p2", { battlefield: [atk1, atk2] }),
+            ],
+            activePlayerId: "p2",
+            phase: "DECLARE_BLOCKERS",
+        });
+        pushSpell(state, battleCry.id, "p1");
+        resolveTopOfStack(state);
+
+        state.combat = {
+            attackerIds: ["a1", "a2"],
+            confirmed: true,
+            blockersConfirmed: true,
+            blockerAssignments: { b1: ["a1"], b2: ["a2"] },
+        };
+        emitBlockersConfirmedEvents(state);
+        // Two BLOCKERS_CONFIRMED-fired stack items are now queued — drain them.
+        while (state.stack.some((s) => s.delayedTriggerId !== undefined)) {
+            resolveTopOfStack(state);
+        }
+
+        const live = (id: string) =>
+            [
+                ...state.players[0].battlefield,
+                ...state.players[1].battlefield,
+            ].find((c) => c.id === id)!;
+        expect(getEffectivePower(state, live("b1"))).toBe(2);
+        expect(getEffectiveToughness(state, live("b1"))).toBe(3);
+        expect(getEffectivePower(state, live("b2"))).toBe(1);
+        expect(getEffectiveToughness(state, live("b2"))).toBe(2);
+        // The attackers (didn't block) are untouched.
+        expect(getEffectiveToughness(state, live("a1"))).toBe(3);
+        expect(getEffectiveToughness(state, live("a2"))).toBe(3);
+
+        // CR 603.7d — the delayed trigger is NOT consumed by firing; it stays
+        // queued to fire again on a later block this same turn.
+        expect(
+            state.delayedTriggers?.some(
+                (t) => t.timing === "this-turn-creature-blocks"
+            )
+        ).toBe(true);
+    });
+
+    it("expires unconditionally at CLEANUP regardless of fire count (CR 514.2)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, battleCry.id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.delayedTriggers?.some(
+                (t) => t.timing === "this-turn-creature-blocks"
+            )
+        ).toBe(true);
+        finalizeCleanup(state);
+        expect(
+            state.delayedTriggers?.some(
+                (t) => t.timing === "this-turn-creature-blocks"
+            ) ?? false
+        ).toBe(false);
+    });
+
+    it("the block-buff survives projectPublicState (wire format)", () => {
+        const blocker = vanilla("bw", 2, 2, {
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const attacker = vanilla("aw", 3, 3, {
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [blocker] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+            activePlayerId: "p2",
+            phase: "DECLARE_BLOCKERS",
+        });
+        pushSpell(state, battleCry.id, "p1");
+        resolveTopOfStack(state);
+        state.combat = {
+            attackerIds: ["aw"],
+            confirmed: true,
+            blockersConfirmed: true,
+            blockerAssignments: { bw: ["aw"] },
+        };
+        emitBlockersConfirmedEvents(state);
+        while (state.stack.some((s) => s.delayedTriggerId !== undefined)) {
+            resolveTopOfStack(state);
+        }
+        const live = state.players[0].battlefield.find((c) => c.id === "bw")!;
+        expect(getEffectiveToughness(state, live)).toBe(3);
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "bw"
+        )!;
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
     });
 });

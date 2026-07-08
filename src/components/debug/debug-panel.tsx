@@ -131,6 +131,31 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 4,
     },
     {
+        // ICE repeating combat-event delayed trigger (issue #884): Battle Cry
+        // ("Untap all white creatures you control. Whenever a creature blocks
+        // this turn, it gets +0/+1 until end of turn."). Shield Bearer starts
+        // TAPPED to show the untap clause; Balduvian Bears is a ready attacker.
+        // Cast Battle Cry in PRECOMBAT_MAIN (untaps Shield Bearer immediately
+        // and schedules the repeating "this-turn-creature-blocks" watch),
+        // attack with the Bears, then block with the opponent's Bears — the
+        // blocker gets +0/+1 until end of turn, and the watch stays queued for
+        // any further block this turn (unlike a one-shot delayed trigger).
+        label: "ICE repeating combat-event delayed trigger (Battle Cry) (#884)",
+        cards: [
+            { name: "Battle Cry", owner: "me", zone: "hand" },
+            {
+                name: "Shield Bearer",
+                owner: "me",
+                zone: "battlefield",
+                tapped: true,
+            },
+            { name: "Balduvian Bears", owner: "me", zone: "battlefield" },
+            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+    },
+    {
         // Cumulative-upkeep global-lock permanents (issue #727): Glacial Chasm
         // and Halls of Mist enter the battlefield, Energy Storm sits in hand.
         // Glacial Chasm's ETB asks you to sacrifice a land; on the battlefield

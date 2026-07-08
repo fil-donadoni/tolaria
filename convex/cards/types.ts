@@ -2803,7 +2803,21 @@ export type DelayedTriggerTiming =
      *  specific watched instance (`DelayedTriggerInstance.watchInstanceId`),
      *  not at a step boundary; any instance still pending expires unfired at
      *  CLEANUP (the "this turn" bound, CR 514.2). */
-    | "leaves-battlefield";
+    | "leaves-battlefield"
+    /** CR 603.7d / 603.10 (issue #884) — a REPEATING, this-turn-bounded,
+     *  combat-event watch: "Whenever a creature blocks this turn, …" (Battle
+     *  Cry). Unlike every other timing (single-shot: fires once, then the
+     *  instance is dequeued) this one stays queued and fires ONCE PER
+     *  `BLOCKERS_CONFIRMED` event for the rest of the turn — every creature
+     *  that blocks, not one watched instance. Because the firing event is
+     *  still live at fire time (`collectTriggers`, triggers.ts, threads it
+     *  onto the built StackItem exactly like a normal triggered ability), the
+     *  body may read `$event.blockerId` directly — no `capture` needed. Purged
+     *  unconditionally at CLEANUP regardless of how many times it fired (the
+     *  "this turn" bound, CR 514.2, phases.ts's CLEANUP delayed-trigger sweep).
+     *  Rejects `targetPlayer` / `watch` like the phase-boundary timings
+     *  (validate.ts). */
+    | "this-turn-creature-blocks";
 
 /** ADR 0048 — the inline body of an Effect-Script-scheduled delayed trigger
  *  (CR 603.7a): a pure-JSON Op list persisted ON the `DelayedTriggerInstance`

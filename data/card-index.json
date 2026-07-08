@@ -594,6 +594,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Battle Cry",
+        "scryfallId": "c558a8c4-035c-464e-9ff8-c188c1bb619e",
+        "oracleId": "b92afdba-5aea-42c8-bdd8-6ba5ff6cba4f",
+        "firstSet": "ice"
+    },
+    {
         "name": "Battle Frenzy",
         "scryfallId": "a85ae675-56ca-4a00-83d2-ee035f33d6d1",
         "oracleId": "0fca46ec-ec1a-4e6c-bb0e-cdb834b38c92",

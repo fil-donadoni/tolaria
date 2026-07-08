@@ -776,6 +776,11 @@ const DELAYED_TIMINGS = new Set([
     // watched permanent's PERMANENT_LEFT, not a step boundary. Requires
     // `watch`; rejects `targetPlayer` (checked below).
     "leaves-battlefield",
+    // Repeating combat-event watch (CR 603.7d / 603.10, issue #884) — fires
+    // once per BLOCKERS_CONFIRMED event for the rest of the turn (Battle
+    // Cry). Rejects both `targetPlayer` and `watch` (checked below), like the
+    // phase-boundary timings — it is not scoped to a player nor one instance.
+    "this-turn-creature-blocks",
 ]);
 
 function isDelayedTiming(value: unknown): boolean {
@@ -1845,14 +1850,24 @@ function checkOpListRefs(
                     );
                 }
             }
-            // The body runs at FIRE time — the firing event is gone, so `$event`
-            // is illegal here (ADR 0049). `inDelayedBody` flips on.
+            // "this-turn-creature-blocks" (issue #884) is the ONE delayed
+            // timing whose firing event is still live at fire time: it
+            // re-fires per BLOCKERS_CONFIRMED event, and `triggers.ts` threads
+            // that event onto the built StackItem exactly like a normal
+            // triggered ability — so its body may read `$event.blockerId`
+            // directly (no capture needed). Every OTHER timing's body runs at
+            // a phase boundary / after the watched permanent already left, so
+            // `$event` stays illegal there (ADR 0049) — `inDelayedBody` flips
+            // on for those.
+            const eventBody = entry.timing === "this-turn-creature-blocks";
             checkOpListRefs(
                 entry.effects,
                 (j) => `${at}: effects[${j}]`,
                 errors,
                 bodyScope,
-                { eventType: eventScope.eventType, inDelayedBody: true }
+                eventBody
+                    ? { eventType: "BLOCKERS_CONFIRMED", inDelayedBody: false }
+                    : { eventType: eventScope.eventType, inDelayedBody: true }
             );
         }
 
