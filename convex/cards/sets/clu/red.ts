@@ -19,10 +19,12 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 //
 // PROTOCOL (recurring impulse-draw — no Op skin, precedent: Elkin Bottle /
 // Ice Cauldron, ice/colorless.ts): the upkeep trigger composes
-// `peekLibraryTop` + `exileFaceDown` + `grantCastFromExile`. Matching every
-// other shipped impulse card, the "this turn" window end is not auto-revoked
-// on a timer (no play-permission-expiry primitive exists yet) — the play
-// permission persists while the card remains in exile.
+// `peekLibraryTop` + `exileFaceDown` + `grantCastFromExile(..., "this-turn")`.
+// The "this turn" window (CR 514.2 / 608.2g) is now first-class: the grant is
+// stamped with the current turn and revoked at that turn's CLEANUP step, so the
+// exiled card stops being playable at end of turn while it stays in exile. If
+// the exiled card is a LAND it is played as a land (CR 305.2, consuming the land
+// drop), not just cast — the play-from-exile path routes both.
 export const headlinerScarlett: CardDefinition = {
     id: "be77b98a-dd79-477c-8ab2-7ebf5637a89e",
     name: "Headliner Scarlett",
@@ -71,7 +73,12 @@ export const headlinerScarlett: CardDefinition = {
                     "library",
                     scopedPlayerId
                 );
-                ctx.grantCastFromExile(cardId, scopedPlayerId);
+                ctx.grantCastFromExile(
+                    cardId,
+                    scopedPlayerId,
+                    undefined,
+                    "this-turn"
+                );
             },
         }),
     ],

@@ -694,10 +694,22 @@ export type CardInstanceState = {
     notedMana?: { mana: Record<string, number>; castableCardId?: string };
     /** Cast-from-exile permission (CR 601.3e — Ice Cauldron: "You may cast that
      *  card for as long as it remains exiled"). When set on a card in the exile
-     *  zone, the named player may cast it from exile as if it were in their
-     *  hand. Cleared when the card leaves exile (it has been cast). Persisted so
-     *  the permission survives a DB round-trip. */
+     *  zone, the named player may PLAY it from exile as if it were in their hand
+     *  — cast it if it's a spell, or play it as a land if it's a land (CR
+     *  305.2). Cleared when the card leaves exile. Persisted so the permission
+     *  survives a DB round-trip. */
     castableFromExileBy?: string;
+    /** Turn-scoped expiry marker for {@link castableFromExileBy} (CR 514.2 /
+     *  608.2g). When set, the play permission is an "until end of turn" impulse
+     *  window (Headliner Scarlett, Expressive Iteration — "play that card this
+     *  turn") and is revoked at the CLEANUP step of a turn whose number is `>=`
+     *  this value, while the card stays exiled. ABSENT means an open-ended /
+     *  persisted grant ("as long as it remains exiled" — Ice Cauldron;
+     *  while-source-lives — Robber of the Rich) that the cleanup expiry never
+     *  touches. Stores the turn number rather than a bare flag so the primitive
+     *  can also express "until end of your next turn" (grant with a later turn
+     *  number) without a schema change. */
+    castableFromExileUntilTurn?: number;
 };
 
 /** ADR 0026 — clears persistent card knowledge over a Hidden Zone. The single
@@ -6532,19 +6544,33 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
         grantCastFromExile(
             cardInstanceId: string,
             playerId: string,
-            zoneOwnerId?: string
+            zoneOwnerId?: string,
+            window: "this-turn" | "while-exiled" = "while-exiled"
         ): void {
             // CR 601.3e — Ice Cauldron: mark a card in `zoneOwnerId`'s exile
             // (defaults to `playerId` — the historical same-player shape) as
-            // castable from exile by `playerId` ("You may cast that card for
+            // playable from exile by `playerId` ("You may cast that card for
             // as long as it remains exiled"). No-op for an id not in that
             // zone owner's exile. A distinct `zoneOwnerId` supports a
             // CROSS-PLAYER grant (Robber of the Rich: the defending player's
             // library card, exiled into THEIR OWN exile per CR 400.7, is
             // castable by the attacking player).
+            //
+            // CR 514.2 / 608.2g — `window` picks the expiry semantics:
+            //   - "while-exiled" (default): open-ended, persists as long as the
+            //     card stays exiled (Ice Cauldron, Robber of the Rich).
+            //   - "this-turn": an impulse window (Headliner Scarlett, Expressive
+            //     Iteration — "play that card this turn"). Stamps the current
+            //     turn number so the CLEANUP step revokes it at end of turn.
             const owner = getPlayer(state, zoneOwnerId ?? playerId);
             const card = owner.exile.find((c) => c.id === cardInstanceId);
-            if (card) card.castableFromExileBy = playerId;
+            if (!card) return;
+            card.castableFromExileBy = playerId;
+            if (window === "this-turn") {
+                card.castableFromExileUntilTurn = state.turn;
+            } else {
+                delete card.castableFromExileUntilTurn;
+            }
         },
         getX(): number {
             return item.chosenX ?? 0;
@@ -8983,8 +9009,9 @@ export function removeFromZone(
     // `knownTo` never resurrects.
     delete card.knownTo;
     // CR 601.3e — Ice Cauldron's cast-from-exile permission is consumed once the
-    // card leaves exile for the stack; clear the stale flag.
+    // card leaves exile for the stack; clear the stale flag and its expiry marker.
     delete card.castableFromExileBy;
+    delete card.castableFromExileUntilTurn;
     return card;
 }
 
