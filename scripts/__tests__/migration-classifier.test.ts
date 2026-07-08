@@ -477,14 +477,18 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Ponder + Thought Scour + Millstone leaving the closure census) stack
         // ON TOP of #993 + #991: total 646→642 (−4), FREE 401→403 (+2),
         // AFK-ready 368→370 (+2), Op-blocked 231→225 (−6), X-only unchanged.
+        // MERGE (#986 Seal of Fire + Mogg Fanatic onto the advanced main): the
+        // two new cards are DSL (no closures), but the merged union tree carries
+        // one more resolve() closure than the branch base — total 642→643 (+1),
+        // Op-blocked 225→226 (+1); FREE / AFK-ready / X-only unchanged.
         // Values below are the true post-merge totals, reconciled by re-running
         // `bun scripts/migration-classifier.mjs` against the combined tree,
         // never hand-added.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(642);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(643);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(403);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(370);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(225);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(226);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
