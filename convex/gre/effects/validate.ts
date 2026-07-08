@@ -416,9 +416,19 @@ function isCounterDestination(value: unknown): boolean {
 }
 
 /** The action of a `libraryLook` Op (issue #844, CR 701.20). Only `"shuffle"`
- *  is folded; peek/reorder are deferred to the `scryReorder` backlog Op. */
+ *  is folded; peek/reorder are the `scryReorder` Op (issue #885). */
 function isLibraryLookAction(value: unknown): boolean {
     return value === "shuffle";
+}
+
+/** The `destination` of a `scryReorder` Op (issue #885) — where the un-kept
+ *  looked-at cards go (the `LibraryDestination` the `orderTop` primitive
+ *  accepts): `"library-bottom"` (Scry, CR 701.22), `"graveyard"` (Surveil, CR
+ *  701.44) or `"none"` (order-only, Ponder — every card stays on top). */
+function isLibraryDestination(value: unknown): boolean {
+    return (
+        value === "library-bottom" || value === "graveyard" || value === "none"
+    );
 }
 
 /** The `mode` discriminator of a `preventDamage` Op (issue #845, CR 615): the
@@ -1034,6 +1044,28 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         required: {
             action: isLibraryLookAction,
             player: isPlayerRef,
+        },
+    },
+    // CR 401.4 / 701.22 / 701.44 (issue #885) — look at / reorder the top of a
+    // library through the suspending `orderTop` primitive. `player` names whose
+    // library; `count` is how many top cards to look at; `destination` is where
+    // the un-kept cards go. `prompt` is an optional choice header. No `bind` —
+    // the pick is consumed internally by `orderTop`, not by a later Op.
+    scryReorder: {
+        required: {
+            player: isPlayerRef,
+            count: isEffectValue,
+            destination: isLibraryDestination,
+        },
+        optional: { prompt: isNonEmptyString },
+    },
+    // CR 701.17 (issue #885) — mill: move the top `count` cards of a player's
+    // library into their graveyard (deterministic; no choice). `player` names
+    // whose library is milled; `count` is how many cards.
+    mill: {
+        required: {
+            player: isPlayerRef,
+            count: isEffectValue,
         },
     },
     // CR 615 (issue #845) — establish a damage-prevention shield. `mode`

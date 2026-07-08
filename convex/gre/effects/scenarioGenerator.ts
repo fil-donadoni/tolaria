@@ -327,6 +327,22 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // from the card's own suspension/resume tests.
             req.skip ??= `Op "mayPay" suspends for a Pay/Skip decision — covered by the card's own suspension/resume tests`;
             return;
+        case "scryReorder":
+            // A `scryReorder` Op suspends resolution for a live order-top drag
+            // decision (issue #885) — a canned scenario cannot submit the
+            // ordering, so the script is reported as an explicit skip;
+            // execution coverage comes from the Op's own interpreter tests and
+            // the migrated cards' suspension/resume tests (per-Op regime).
+            req.skip ??= `Op "scryReorder" suspends for a look/reorder-top choice — covered by the Op's interpreter tests and the card's suspension/resume tests`;
+            return;
+        case "mill":
+            // `mill` (issue #885) moves the top N library cards to a graveyard.
+            // The canned generator seeds only a minimal filler library and does
+            // not model milling a TARGET player's deck, so rather than
+            // mis-assert a graveyard delta it reports an explicit skip;
+            // execution coverage is the Op's own interpreter tests.
+            req.skip ??= `Op "mill" moves top-of-library cards to the graveyard — covered by the Op's interpreter tests`;
+            return;
         case "counter":
             // `counter` targets a SPELL on the stack (issue #806); the canned
             // generator seeds only players and battlefield permanents, not a
@@ -1020,6 +1036,23 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // scenario can assert). Kept for the 1:1 coverage guard; the shuffle
     // primitive is covered by the Op's own interpreter tests.
     libraryLook() {
+        return null;
+    },
+    // `scryReorder` (CR 401.4 / 701.22, issue #885) — never reached: `analyseOp`
+    // skips every script with a scryReorder Op (it suspends on a live order-top
+    // choice, so there is no deterministic same-resolution outcome the canned
+    // scenario can assert). Kept for the 1:1 coverage guard; the look/reorder
+    // is covered by the Op's own interpreter tests and the migrated cards'
+    // suspension/resume tests.
+    scryReorder() {
+        return null;
+    },
+    // `mill` (CR 701.17, issue #885) — never reached: `analyseOp` skips every
+    // script with a mill Op (the canned generator does not model milling a
+    // target player's library, so there is no graveyard delta it can assert
+    // without mis-modelling the source deck). Kept for the 1:1 coverage guard;
+    // the mill loop is covered by the Op's own interpreter tests.
+    mill() {
         return null;
     },
     // `preventDamage` (CR 615, issue #845) — never reached: `analyseOp` skips
