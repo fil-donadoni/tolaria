@@ -140,7 +140,6 @@ import {
     getManaTapOptionsDetailed,
     getFixedManaAmount,
     hasManaAbility,
-    isLand,
     isTapLockedBySummoningSickness,
     manaValue,
 } from "./gre/constants";
@@ -5611,6 +5610,38 @@ export const removeBand = mutation({
     },
 });
 
+/** Finalize the attacker declaration once every combat-declaration cost is paid
+ *  (CR 508): tap and mark the attackers, open blocker declaration, fire the
+ *  "when creatures attack" triggers, and hand priority to the active player.
+ *  Shared by the inline path (fungible/no tax) and the selectSacrifice resume
+ *  path (attack sacrifice tax chosen). */
+function finalizeConfirmAttackers(state: GameState): void {
+    const player = getPlayer(state, state.activePlayerId);
+    const combat = state.combat;
+    if (!combat) return;
+    // Tap and mark each attacker (vigilance creatures don't tap)
+    for (const attackerId of combat.attackerIds) {
+        const card = player.battlefield.find((c) => c.id === attackerId);
+        if (card) {
+            if (!card.staticAbilities.includes("vigilance")) {
+                // CR 708.9 / ADR 0013 — a face-down attacker turns up as it
+                // taps to attack.
+                tapPermanent(state, card);
+            }
+            card.isAttacking = true;
+            card.hasAttackedThisTurn = true;
+        }
+    }
+    combat.confirmed = true;
+    combat.blockerAssignments = {};
+    combat.blockersConfirmed = false;
+    // ADR 0012 — fire "when creatures attack" triggers (Raging River).
+    emitAttackersDeclaredEvents(state);
+    state.priorityPlayerId = state.activePlayerId;
+    state.passCount = 0;
+    drainAutoPasses(state);
+}
+
 /** Lock in the attacker selection, tap attackers, and pass priority. */
 export const confirmAttackers = mutation({
     args: {
@@ -5666,50 +5697,58 @@ export const confirmAttackers = mutation({
             throw new Error(declaredAttackCheck.reason);
         }
 
-        // CR 508.1c/1g — per-attacker sacrifice-a-land attack tax (Flooded
-        // Woodlands, Reclamation, #733). Each taxed attacker (green/black
-        // creature) forces its controller to sacrifice one land as attackers are
-        // declared; the cost scales with the taxed-attacker count. If the
-        // controller has too few lands to pay for every taxed attacker declared,
-        // the declaration is illegal and rejected — mirroring the Hipparion
-        // pay-to-block bypass, which likewise throws when the combat-declaration
-        // cost can't be met so the player must reassign. The engine auto-selects
-        // which lands to sacrifice (documented simplification — see
-        // StaticAttackSacrificeTax; the interactive land choice would require a
-        // parallel declare-time choice mechanism, which #733 forbids).
-        for (const charge of collectAttackSacrificeTax(state)) {
-            const payer = getPlayer(state, charge.controllerId);
-            const lands = payer.battlefield.filter((c) => isLand(c));
-            if (lands.length < charge.count) {
-                throw new Error(charge.reason);
+        // CR 508.1c/1g / 701.21a — per-attacker sacrifice-a-land attack tax
+        // (Flooded Woodlands, Reclamation, #733). Each taxed attacker forces its
+        // controller to sacrifice one land as attackers are declared; the cost
+        // scales with the taxed-attacker count. The controller CHOOSES which
+        // lands to sacrifice: a fungible/forced board auto-resolves inline, a
+        // real choice parks on `combat.pendingAttackSacrifice` and suspends the
+        // declaration until the player picks via selectSacrifice. Too few lands
+        // to pay for every taxed attacker → the declaration is illegal.
+        const charges = collectAttackSacrificeTax(state);
+        if (charges.length > 0) {
+            // The attack-tax cards tax the attacking (active) player, so all
+            // charges share one controller. A future multi-payer tax would need
+            // a per-payer selection — flag it rather than silently paying one.
+            if (new Set(charges.map((c) => c.controllerId)).size > 1) {
+                throw new Error(
+                    "Multi-payer attack sacrifice tax is not supported"
+                );
             }
-            for (let i = 0; i < charge.count; i++) {
-                removePermanentTo(state, lands[i].id, "graveyard", "sacrifice");
+            const payerId = charges[0].controllerId;
+            const landFilter: PermanentFilter = { types: ["Land"] };
+            const totalNeeded = charges.reduce((a, ch) => a + ch.count, 0);
+            if (
+                sacrificeCandidates(state, payerId, landFilter).length <
+                totalNeeded
+            ) {
+                throw new Error(charges[0].reason);
             }
+            const sel: SacrificeSelection = {
+                playerId: payerId,
+                reason: charges[0].reason,
+                requirements: buildSacrificeRequirements(
+                    charges.map((ch) => ({ filter: landFilter, count: ch.count }))
+                ),
+                picked: [],
+            };
+            autoResolveFungible(state, sel);
+            if (!isSacrificeSelectionComplete(sel)) {
+                // Park the choice; selectSacrifice resumes finalizeConfirmAttackers.
+                state.combat.pendingAttackSacrifice = sel;
+                await saveGameState(
+                    ctx,
+                    args.gameId,
+                    gameState.seq + 1,
+                    state,
+                    gameState
+                );
+                return;
+            }
+            applySacrificeSelection(state, sel);
         }
 
-        // Tap and mark each attacker (vigilance creatures don't tap)
-        for (const attackerId of state.combat.attackerIds) {
-            const card = player.battlefield.find((c) => c.id === attackerId);
-            if (card) {
-                if (!card.staticAbilities.includes("vigilance")) {
-                    // CR 708.9 / ADR 0013 — a face-down attacker turns up as it
-                    // taps to attack.
-                    tapPermanent(state, card);
-                }
-                card.isAttacking = true;
-                card.hasAttackedThisTurn = true;
-            }
-        }
-
-        state.combat.confirmed = true;
-        state.combat.blockerAssignments = {};
-        state.combat.blockersConfirmed = false;
-        // ADR 0012 — fire "when creatures attack" triggers (Raging River).
-        emitAttackersDeclaredEvents(state);
-        state.priorityPlayerId = state.activePlayerId;
-        state.passCount = 0;
-        drainAutoPasses(state);
+        finalizeConfirmAttackers(state);
 
         await saveGameState(
             ctx,
