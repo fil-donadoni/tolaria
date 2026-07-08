@@ -457,14 +457,20 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // resolveSteps closure: its "return target nonland permanent, then that
         // permanent's controller may sacrifice a land to copy this spell and
         // retarget" chain has no DSL Op (the copy-resolving-spell primitive,
-        // shared with Chain Lightning), so it lands Op-blocked. Net from #993:
-        // total 644→645, Op-blocked 229→230; FREE, AFK-ready and X-only
-        // unchanged.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(645);
+        // shared with Chain Lightning), so it lands Op-blocked.
+        // #991 (Cursed Scroll) net-ADDED one more protocol resolve() closure —
+        // a name-a-card + random-reveal-from-hand + runtime-name-compare
+        // ability blocked on the `nameCard` planned Op, also landing in the
+        // Op-blocked bucket. BOTH #993 and #991 add one Op-blocked closure, so
+        // the merged totals reflect both: total 644→646, Op-blocked 229→231;
+        // FREE, AFK-ready and X-only unchanged. Values below are the true
+        // post-merge totals, reconciled by re-running
+        // `bun scripts/migration-classifier.mjs`, never hand-added.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(646);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(401);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(368);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(230);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(231);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {

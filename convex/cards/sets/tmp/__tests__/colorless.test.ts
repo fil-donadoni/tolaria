@@ -2,8 +2,8 @@
 // Each card's describe block cites the CR section it exercises.
 
 import { describe, it, expect } from "vitest";
-import { ancientTomb, lotusPetal, wasteland } from "../colorless";
-import { plains, badlands } from "../../lea";
+import { ancientTomb, cursedScroll, lotusPetal, wasteland } from "../colorless";
+import { plains, badlands, grizzlyBears } from "../../lea";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     applyUnconditionalTapSelfDamage,
@@ -11,7 +11,31 @@ import {
 } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import { getLegalTargets } from "../../../../gre/rules";
-import { resolveTopOfStack } from "../../../../gre/state";
+import {
+    resolveTopOfStack,
+    type CardInstanceState,
+    type GameState,
+    type StackItem,
+} from "../../../../gre/state";
+import { applyNameCardSubmit } from "../../../../gre/pendingChoiceSubmit";
+
+/** Push an activated ability onto the stack with its cost assumed already
+ *  paid, then resolve it (mirrors the per-set `resolveActivated` shim). */
+function resolveActivated(
+    state: GameState,
+    source: CardInstanceState,
+    abilityId: string,
+    targets: StackItem["targets"] = []
+): void {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        abilityId,
+        targets,
+    });
+    resolveTopOfStack(state);
+}
 
 // Ancient Tomb — "{T}: Add {C}{C}. This land deals 2 damage to you." The
 // self-damage rides the NEW `dealsDamageToControllerOnTap` rider (issue
@@ -307,5 +331,169 @@ describe("Wasteland (CR 701.26 mana ability / CR 701.7 destroy nonbasic land)", 
                 )
             ).toBe(false);
         }
+    });
+});
+
+// Cursed Scroll — "{3}, {T}: Choose a card name, then reveal a card at random
+// from your hand. If that card has the chosen name, this artifact deals 2
+// damage to any target." Protocol resolve() card (name-a-card + random reveal +
+// runtime name compare). The seeded PRNG (rngSeed 0) makes the "random" pick
+// deterministic in tests: with counter starting at 0, the first randomInt(n)
+// draw resolves to index 0, so ordering the hand controls which card is
+// revealed. CR 201.3 (name), CR 701.20a (random reveal), CR 119 (damage).
+describe("Cursed Scroll ({3},{T}: name + random reveal → 2 damage, CR 201.3 / 701.20a / 119)", () => {
+    // p1 controls a Cursed Scroll; the given cards start in p1's hand (order
+    // matters — index 0 is the deterministically-revealed card at rngSeed 0).
+    function setup(hand: CardInstanceState[]) {
+        const scroll = makeInstance(cursedScroll.id, {
+            id: "scroll",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [scroll], hand }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        return { state, scroll };
+    }
+
+    function handCard(def: { id: string }, instId: string): CardInstanceState {
+        return makeInstance(def.id, {
+            id: instId,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+    }
+
+    it("definition: {1} rare Artifact, {3}+{T} ability, any target", () => {
+        expect(cursedScroll.manaCost).toEqual({ X: 1 });
+        expect(cursedScroll.types).toEqual(["Artifact"]);
+        expect(cursedScroll.rarity).toBe("rare");
+        const ability = cursedScroll.activatedAbilities![0];
+        expect(ability.cost).toEqual({ tap: true, mana: { X: 3 } });
+        expect(ability.useStack).toBe(true);
+        expect(ability.targetRequirement).toEqual({ type: "any", count: 1 });
+    });
+
+    it("one-card hand: the reveal is forced, so naming that card deals 2 (guaranteed)", () => {
+        const { state, scroll } = setup([handCard(grizzlyBears, "bears")]);
+        resolveActivated(state, scroll, "cursed-scroll-ping", [
+            { type: "player", id: "p2" },
+        ]);
+        // Suspended on the name-card choice for the controller.
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("name-card");
+        expect(head.playerId).toBe("p1");
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "Grizzly Bears",
+        });
+        // CR 119 — the revealed card matched → 2 damage to p2.
+        expect(state.players[1].life).toBe(18);
+        // The revealed card is only shown, not moved out of hand.
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["bears"]);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    it("multi-card hand, revealed card MATCHES the named card → deals 2", () => {
+        // rngSeed 0 → first draw picks index 0 (the Bears).
+        const { state, scroll } = setup([
+            handCard(grizzlyBears, "bears"),
+            handCard(plains, "plains"),
+        ]);
+        resolveActivated(state, scroll, "cursed-scroll-ping", [
+            { type: "player", id: "p2" },
+        ]);
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "Grizzly Bears",
+        });
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("multi-card hand, revealed card does NOT match → no damage", () => {
+        // Index 0 is Plains; naming Grizzly Bears misses the random reveal.
+        const { state, scroll } = setup([
+            handCard(plains, "plains"),
+            handCard(grizzlyBears, "bears"),
+        ]);
+        resolveActivated(state, scroll, "cursed-scroll-ping", [
+            { type: "player", id: "p2" },
+        ]);
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "Grizzly Bears",
+        });
+        // CR 608.2b — the conditional failed, so no damage is dealt.
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("empty hand: nothing is revealed, so no damage (CR 608.2b)", () => {
+        const { state, scroll } = setup([]);
+        resolveActivated(state, scroll, "cursed-scroll-ping", [
+            { type: "player", id: "p2" },
+        ]);
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "Grizzly Bears",
+        });
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("can deal its 2 damage to a creature (any target)", () => {
+        const bearsOnField = makeInstance(grizzlyBears.id, {
+            id: "target-bears",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const scroll = makeInstance(cursedScroll.id, {
+            id: "scroll",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [scroll],
+                    hand: [handCard(grizzlyBears, "bears")],
+                }),
+                makePlayer("p2", { battlefield: [bearsOnField] }),
+            ],
+        });
+        resolveActivated(state, scroll, "cursed-scroll-ping", [
+            { type: "permanent", id: "target-bears" },
+        ]);
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "Grizzly Bears",
+        });
+        // 2/2 Bears took 2 marked damage → destroyed by SBA (CR 704.5g).
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "target-bears")
+        ).toBe(false);
+    });
+
+    it("wire format: the 2 damage AND the revealed card survive projectPublicState", () => {
+        const { state, scroll } = setup([handCard(grizzlyBears, "bears")]);
+        resolveActivated(state, scroll, "cursed-scroll-ping", [
+            { type: "player", id: "p2" },
+        ]);
+        applyNameCardSubmit(state, {
+            playerId: "p1",
+            cardName: "Grizzly Bears",
+        });
+        // The damage (life loss) is visible to both seats.
+        for (const viewer of ["p1", "p2"] as const) {
+            const projected = projectPublicState(state, 1, viewer);
+            expect(projected.players[1].life).toBe(18);
+        }
+        // The revealed card is known-to-all, so the opponent (p2) sees the real
+        // card in p1's hand instead of a nulled slot (CR 701.20a reveal).
+        const p2View = projectPublicState(state, 1, "p2");
+        const p1HandSlot = p2View.players[0].hand[0];
+        expect(p1HandSlot?.card?.id).toBe(grizzlyBears.id);
     });
 });

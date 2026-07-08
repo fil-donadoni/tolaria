@@ -8215,6 +8215,22 @@ export function buildSpellContext(
             }
             return undefined;
         },
+        revealRandomHandCard(playerId): string | undefined {
+            // CR 701.20a — "reveal a card at random from your hand". The pick
+            // is drawn from the game's seeded PRNG (rngSeed/rngCounter) so it
+            // is deterministic on replay, exactly like `flipCoin` /
+            // `discardCardsAtRandom`. It MUST run in the final, non-suspending
+            // resolution segment (after any `requestNameCard` suspension) so
+            // the replayed step never advances the counter twice and re-rolls a
+            // different card. Empty hand → nothing is revealed (CR 608.2b).
+            const player = getPlayer(state, playerId);
+            if (player.hand.length === 0) return undefined;
+            const picked = player.hand[randomInt(state, player.hand.length)];
+            // CR 701.20a — the revealed card is shown to every player, so the
+            // wire projection surfaces the real card (not a nulled slot).
+            grantKnowledgeToAll(state, playerId, [picked.id]);
+            return picked.id;
+        },
         requestCoinFlip(req): boolean | undefined {
             // CR 705.2 / ADR 0023 — engine-generated random reveal. Unlike the
             // player-answer primitives above, the OUTCOME is drawn here, not
