@@ -1190,6 +1190,30 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 4,
     },
+    {
+        // Mana ability canActivate gate (CR 602.5b, issue #947): a mana
+        // ability whose own `canActivate` precondition is false must not be
+        // offered as a tappable mana source, and tapping it must never throw
+        // "Invalid mana choice". The un-imprinted Chrome Mox has no
+        // imprinted colour, so `canActivate` is false — confirm it is NOT
+        // highlighted/clickable as a mana source and clicking it does
+        // nothing (no error toast). The imprinted Chrome Mox (seeded with an
+        // `imprint-G` counter, as if a green card had been exiled on ETB) IS
+        // a live mana source — click it to add {G} to the pool.
+        label: "Chrome Mox mana-ability gate: un-imprinted not tappable, imprinted taps for {G} (#947)",
+        cards: [
+            { name: "Chrome Mox", owner: "me", zone: "battlefield" },
+            {
+                name: "Chrome Mox",
+                owner: "me",
+                zone: "battlefield",
+                counters: { "imprint-G": 1 },
+            },
+            { name: "Forest", owner: "me", zone: "library" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

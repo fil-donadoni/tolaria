@@ -16,6 +16,7 @@ import {
     getLandManaColor,
     getActivatedManaColor,
     getManaChoices,
+    buildTriggerStateView,
 } from "~/lib/card-utils";
 import { isUntargetableByPending } from "~/lib/targeting";
 import { COMBAT_GROUP_RING, COMBAT_GROUP_BG } from "~/lib/combat-colors";
@@ -47,6 +48,12 @@ export function useBattlefieldVisualState(player: Player) {
     } = useGameContext();
     const bufferCtx = usePendingChoiceBuffer();
     const isMe = player.id === playerId;
+
+    // CR 602.5b (issue #947) — viewer-visible board snapshot fed to a mana
+    // ability's own `canActivate` precondition (Chrome Mox's imprint gate) so
+    // an un-imprinted source doesn't read as a usable mana source here — the
+    // same UI-hint convention `getActivatable` already uses (#436).
+    const manaGateView = buildTriggerStateView(allPlayers, activePlayerId);
 
     // --- Interaction modes ---
 
@@ -308,7 +315,7 @@ export function useBattlefieldVisualState(player: Player) {
 
         if (isBlockerTarget && card.isAttacking) return true;
 
-        if (!isMe || !hasManaAbility(card)) return false;
+        if (!isMe || !hasManaAbility(card, manaGateView)) return false;
         // CR 302.1 — creatures with summoning sickness can't pay {T}, so
         // their mana ability isn't activatable. Untapping (refunding floating
         // mana) is still allowed — it reverses an earlier activation.
@@ -332,7 +339,7 @@ export function useBattlefieldVisualState(player: Player) {
 
     function getVisualState(card: CardInstance): CardVisualState {
         const creature = isCreature(card);
-        const manaSource = hasManaAbility(card);
+        const manaSource = hasManaAbility(card, manaGateView);
 
         const isValidTarget =
             isSelectingTarget &&

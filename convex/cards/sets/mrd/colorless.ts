@@ -114,6 +114,11 @@ export const chromeMox: CardDefinition = {
             // Mox's mana ability would be invisible to the tap-for-mana
             // pipeline entirely (issue #679 fix). The engine overrides this
             // with `getManaChoices` whenever a board snapshot exists.
+            // `canActivate` above (issue #947) is the availability gate every
+            // consumer of this static list now consults FIRST — an
+            // un-imprinted Mox is excluded before this fallback is ever read,
+            // so the "all five colours" shape here is purely representative,
+            // never surfaced as a real tap-for-mana option with no imprint.
             manaChoices: CHROME_MOX_COLORS.map((c) => ({ [c]: 1 })),
             getManaChoices: (source) =>
                 CHROME_MOX_COLORS.filter(

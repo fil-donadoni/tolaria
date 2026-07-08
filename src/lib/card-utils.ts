@@ -83,23 +83,44 @@ export function getLandManaColor(card: CardInstance): Color | null {
     return null;
 }
 
-/** Returns true if a card has a tap mana ability (basic land subtype or activated). */
-export function hasManaAbility(card: CardInstance): boolean {
+/** Returns true if a card has a tap mana ability (basic land subtype or
+ *  activated), consulting the activated ability's own `canActivate`
+ *  precondition when present (CR 602.5b, issue #947) — an un-imprinted
+ *  Chrome Mox has NO usable mana ability at all, not merely one with an empty
+ *  choice list, so it must not read as tappable. `stateView` is the same
+ *  viewer-visible board projection `getStackAbilities` uses; an omitted
+ *  caller falls back to an empty view, matching the existing UI-hint
+ *  convention (#436) — server validation stays authoritative. */
+export function hasManaAbility(
+    card: CardInstance,
+    stateView?: TriggerStateView
+): boolean {
     if (getLandManaColor(card) !== null) return true;
     const cardDef = getDefinition(card.card.id);
-    return !!cardDef.activatedAbilities?.some(
+    const ability = cardDef.activatedAbilities?.find(
         (a) =>
             !a.useStack && (a.manaProduced || a.manaChoices || a.getManaChoices)
     );
+    if (!ability) return false;
+    if (ability.canActivate) {
+        const view: TriggerStateView = stateView ?? { players: [] };
+        if (!ability.canActivate(card as unknown as PermanentView, view)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /** Returns the native mana ability of a card as a menu entry (id + oracleText),
  *  or null if the card has no native activated mana ability. Used to surface
  *  the mana ability inside the ability context menu when a card has both a
  *  mana ability and a stack ability (e.g. Basalt Monolith, Mana Vault), so a
- *  left click doesn't silently choose tap-for-mana over the {3}: Untap. */
+ *  left click doesn't silently choose tap-for-mana over the {3}: Untap.
+ *  Gated on `canActivate` like {@link hasManaAbility} (issue #947) — an
+ *  un-imprinted Chrome Mox has no menu entry to offer. */
 export function getActivatedManaMenuEntry(
-    card: CardInstance
+    card: CardInstance,
+    stateView?: TriggerStateView
 ): { id: string; oracleText: string } | null {
     const cardDef = getDefinition(card.card.id);
     const ability = cardDef.activatedAbilities?.find(
@@ -107,6 +128,12 @@ export function getActivatedManaMenuEntry(
             !a.useStack && (a.manaProduced || a.manaChoices || a.getManaChoices)
     );
     if (!ability) return null;
+    if (ability.canActivate) {
+        const view: TriggerStateView = stateView ?? { players: [] };
+        if (!ability.canActivate(card as unknown as PermanentView, view)) {
+            return null;
+        }
+    }
     return { id: ability.id, oracleText: ability.oracleText };
 }
 
