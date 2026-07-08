@@ -2504,6 +2504,12 @@ export interface SpellContext {
     /** Sacrifices a permanent controlled by its current controller (CR 701.16).
      *  No-op if the id is not on the battlefield. */
     sacrifice: (cardInstanceId: string) => void;
+    /** CR 702.30a — Echo: clears the resolving trigger source's `echoPending`
+     *  flag once its echo cost has been paid, so the echo trigger's
+     *  intervening-if never fires again on a later upkeep. No-op if the source
+     *  has left the battlefield. Called only by the echo trigger template
+     *  (`abilities/echo.ts`). */
+    markEchoPaid: () => void;
 
     /** Discards a specific card from `playerId`'s hand (CR 701.8). No-op if
      *  the card is no longer in hand. */
@@ -2955,6 +2961,12 @@ export interface PermanentView {
      *  The trigger system passes the raw `CardInstanceState` as `self`, so this
      *  flag is populated for trigger predicates. */
     isSummoningSick?: boolean;
+    /** CR 702.30a — Echo: true while this permanent still owes its echo cost
+     *  (it came under its controller's control and has not yet had its first
+     *  upkeep under that control). Read by the echo trigger's CR 603.4d
+     *  intervening-if; the trigger system passes the raw `CardInstanceState`
+     *  as `self`, so this flag is populated for trigger predicates. */
+    echoPending?: boolean;
     /** One-shot P/T modifications scoped to a phase boundary (CR 611.1, 611.2).
      *  Each entry adds to `power`/`toughness` at read time; the engine purges
      *  entries whose `duration` has expired during phase-boundary cleanup

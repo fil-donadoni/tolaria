@@ -220,6 +220,15 @@ export type CardInstanceState = {
     tapTriggerCommitted?: boolean;
     /** Set when a creature enters the battlefield. Cleared at untap step. Prevents attacking. */
     isSummoningSick?: boolean;
+    /** CR 702.30a — Echo: true while this permanent still owes its echo cost,
+     *  i.e. it came under its controller's control and has not yet had its
+     *  first upkeep under that control. Set at ETB for permanents whose
+     *  definition declares the `echo` keyword; read by the echo trigger's
+     *  CR 603.4d intervening-if so it fires exactly once (on the controller's
+     *  first upkeep) and cleared by `SpellContext.markEchoPaid()` when the
+     *  echo cost is paid. Persisted (must survive the DB write between entry
+     *  and the next upkeep). */
+    echoPending?: boolean;
     /** Set during combat when this creature is declared as attacker. Cleared
      *  when the END_OF_COMBAT step ends (CR 511.2 — attackers remain attacking
      *  until the end of combat step ends), not when it begins. */
@@ -2709,6 +2718,10 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
                         sourceCard.dealtDamageToOpponentThisTurn,
                     startedTurnUntapped: sourceCard.startedTurnUntapped,
                     isSummoningSick: sourceCard.isSummoningSick,
+                    // CR 702.30a — echo's "came under your control since your
+                    // last upkeep" flag must survive into the resolve-time
+                    // intervening-if so the trigger fires exactly once.
+                    echoPending: sourceCard.echoPending,
                     // CR 700.2c — the cast-time modal choice must survive into
                     // the resolve-time intervening-if so modal-permanent state
                     // triggers (Jihad's chosen-colour self-sacrifice) read the
@@ -2883,6 +2896,7 @@ function finalizeSpellResolution(
         | {
               entersTapped?: boolean;
               tracksControlContinuity?: boolean;
+              staticAbilities?: string[];
               entersWith?: {
                   counters?: { type: string; count: number | "X" }[];
               };
@@ -2971,6 +2985,15 @@ function finalizeSpellResolution(
         // a creature — a manland animated the turn it entered reads sick, while
         // one controlled since a prior turn (flag already cleared) does not.
         markEnteredThisTurn(item);
+        // CR 702.30a — Echo: a permanent that declares the `echo` keyword owes
+        // its echo cost on its controller's first upkeep after it comes under
+        // control. Flag it here (its entry into play); the echo trigger reads
+        // the flag via its intervening-if and `markEchoPaid()` clears it on
+        // payment. (Set only on the spell-resolution ETB path — the sole route
+        // any built echo card enters today.)
+        if (cardDef?.staticAbilities?.includes("echo")) {
+            item.echoPending = true;
+        }
         controller.battlefield.push(item);
         // CR 122.1, 614.1c — apply ETB-counters before the layer system runs
         // so effective P/T reads include them immediately (Clockwork Beast).
@@ -8376,6 +8399,15 @@ export function buildSpellContext(
         // sacrifice (CR 701.16a). No-op if the id is not on the battlefield.
         sacrifice(cardInstanceId: string): void {
             removePermanentTo(state, cardInstanceId, "graveyard", "sacrifice");
+        },
+        // CR 702.30a — Echo: clear the resolving trigger source's `echoPending`
+        // flag once its echo cost is paid, so the trigger's intervening-if
+        // never fires again on a later upkeep. No-op if the source has left the
+        // battlefield.
+        markEchoPaid(): void {
+            const sourceId = item.triggerSourceId ?? item.id;
+            const found = findOnBattlefield(state, sourceId);
+            if (found) delete found.card.echoPending;
         },
         // CR 701.8: to discard a card is to move it from its owner's hand
         // into that player's graveyard. No-op if the card is no longer in

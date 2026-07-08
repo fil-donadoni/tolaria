@@ -104,6 +104,9 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
         ["indestructible", "702.12", "indestructible"],
         ["banding", "702.22", "banding"],
         ["cumulative-upkeep", "702.24", "cumulative-upkeep"],
+        // #990 — echo: at the controller's first upkeep after it comes under
+        // control, sacrifice it unless the echo cost is paid (CR 702.30a).
+        ["echo", "702.30", "echo"],
         ["haste", "702.10", "haste"],
         // #958 — hexproof: a permanent can't be targeted by spells/abilities its
         // controller's opponents control (CR 702.11b), bridged from the keyword
