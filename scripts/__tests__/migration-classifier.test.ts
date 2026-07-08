@@ -453,11 +453,18 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // the true post-change totals, reconciled by re-running
         // `bun scripts/migration-classifier.mjs` against the merged tree rather
         // than hand-added.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(644);
+        // #993 (Chain of Vapor — ons/blue.ts) net-ADDED one protocol
+        // resolveSteps closure: its "return target nonland permanent, then that
+        // permanent's controller may sacrifice a land to copy this spell and
+        // retarget" chain has no DSL Op (the copy-resolving-spell primitive,
+        // shared with Chain Lightning), so it lands Op-blocked. Net from #993:
+        // total 644→645, Op-blocked 229→230; FREE, AFK-ready and X-only
+        // unchanged.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(645);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(401);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(368);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(229);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(230);
     });
 
     it("surfaces the demonstrated new-Op backlog (top blocker is peekLibraryTop)", () => {

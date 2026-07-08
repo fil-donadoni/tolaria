@@ -1062,6 +1062,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Chain of Vapor",
+        "scryfallId": "30f6b4a2-5780-46e9-b239-459d2cf37743",
+        "oracleId": "2167ac25-d042-4b48-b770-8b94acc1a965",
+        "firstSet": "ons"
+    },
+    {
         "name": "Channel",
         "scryfallId": "c1862c47-71cc-45a3-8805-a5ddc62e55ea",
         "oracleId": "d1b815d1-2848-40d4-a555-66822d1becbc",
