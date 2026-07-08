@@ -73,6 +73,7 @@ function compactCard(
     if (card.isTapped) out.isTapped = true;
     if (card.isToken) out.isToken = true;
     if (card.isSummoningSick) out.isSummoningSick = true;
+    if (card.echoPending) out.echoPending = true;
     if (card.isAttacking) out.isAttacking = true;
     if (card.isBlocking) out.isBlocking = true;
     if (card.hasAttackedThisTurn) out.hasAttackedThisTurn = true;
@@ -260,6 +261,7 @@ function expandCard(
         result.chosenModeId = compact.chosenModeId as string;
     if (compact.isToken) result.isToken = true;
     if (compact.isSummoningSick) result.isSummoningSick = true;
+    if (compact.echoPending) result.echoPending = true;
     if (compact.isAttacking) result.isAttacking = true;
     if (compact.isBlocking) result.isBlocking = true;
     if (compact.hasAttackedThisTurn) result.hasAttackedThisTurn = true;

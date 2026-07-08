@@ -885,6 +885,20 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Echo keyword (Goblin Patrol) — CR 702.30, #990. Goblin Patrol ({R}
+        // 2/1, Echo {R}) starts in hand with three untapped Mountains. Cast it
+        // (it enters with the echo debt flagged), then pass to your NEXT upkeep:
+        // the echo trigger demands {R} — pay it to keep the Goblin, or decline
+        // to sacrifice it. It fires exactly once (a later upkeep never re-asks).
+        label: "Echo keyword: pay {R} or sacrifice (Goblin Patrol) (#990)",
+        cards: [
+            { name: "Goblin Patrol", owner: "me", zone: "hand" },
+            { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

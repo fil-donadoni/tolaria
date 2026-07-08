@@ -897,7 +897,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Echo",
         kind: "keyword-ability",
         cr: "702.30",
-        status: "planned",
+        status: "implemented",
+        binding: "echo",
+        note: 'convex/cards/abilities/echo.ts (CR 702.30) + `echoPending` instance flag (state.ts); cards declare `staticAbilities: ["echo"]` (ETB flag) and `echoTrigger(...)`. Used in usg/red.ts (Goblin Patrol).',
     },
     // 702.31 Horsemanship
     {
