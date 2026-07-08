@@ -904,9 +904,11 @@ const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Island", owner: "me", zone: "battlefield", count: 5 },
             { name: "Mountain", owner: "me", zone: "battlefield", count: 2 },
             { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-        ]
-        },
-        {
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Echo keyword (Goblin Patrol) — CR 702.30, #990. Goblin Patrol ({R}
         // 2/1, Echo {R}) starts in hand with three untapped Mountains. Cast it
         // (it enters with the echo debt flagged), then pass to your NEXT upkeep:
@@ -958,7 +960,27 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 3,
-         }
+    },
+    {
+        // Dominate — targeted control change filtered by mana value (issue
+        // #994). Dominate ({X}{1}{U}{U} instant, "Gain control of target
+        // creature with mana value X or less") sits in hand. The opponent
+        // controls a Grizzly Bears (MV 2) and a Serra Angel (MV 5). Cast
+        // Dominate with X = 3: only the Bears is a legal target (MV 2 <= 3),
+        // the Serra Angel is filtered out (MV 5 > 3) — the mana-value gate in
+        // getLegalTargets (CR 202.3). On resolution the Bears moves under your
+        // control indefinitely (CR 613.1b layer-2 control change). 6 Islands
+        // cover {X=3}{1}{U}{U} = 6 mana.
+        label: "Dominate: control change filtered by mana value (#994)",
+        cards: [
+            { name: "Dominate", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 6 },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            { name: "Serra Angel", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {
