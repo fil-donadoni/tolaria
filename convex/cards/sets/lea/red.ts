@@ -1220,13 +1220,8 @@ export const stoneRain: CardDefinition = {
 };
 
 // Tunnel — "Destroy target Wall. It can't be regenerated." (CR 205.3 subtype
-// filter, 701.7 destroy, 701.15c can't-be-regenerated).
-// DIVERGENCE (tracked #974): the "It can't be regenerated" rider is NOT
-// modelled — `setTargetCantBeRegeneratedThisTurn` exists as a SpellContext
-// primitive but has no Effect Script surface (the `destroy` Op takes no
-// cant-regenerate parameter), and `effect: "destroy-target"` routes through the
-// regeneration replacement layer. Observable only against a Wall carrying a
-// regeneration shield (rare); deferred rather than papered over with a resolve().
+// filter, 701.7 destroy, 701.15c can't-be-regenerated). Same shape as Fissure
+// (drk/red.ts) / Detonate (atq/red.ts) modulo target filter.
 export const tunnel: CardDefinition = {
     id: "b21ebc9f-a93e-4d18-b3e8-8459e3abbf31",
     rarity: "uncommon",
@@ -1239,7 +1234,13 @@ export const tunnel: CardDefinition = {
         count: 1,
         subtypeFilter: "Wall",
     },
-    effect: "destroy-target",
+    // NOT DSL-migratable (ADR 0045): the "can't be regenerated" rider is a
+    // destroy option the `destroy` Op does not carry. Stays resolve(),
+    // mirroring Fissure / Detonate.
+    resolve: (ctx: SpellContext) => {
+        const target = ctx.targets[0];
+        if (target) ctx.destroy(target, { cantBeRegenerated: true });
+    },
 };
 
 // Two-Headed Giant of Foriys — "Trample. Two-Headed Giant of Foriys can

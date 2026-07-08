@@ -376,11 +376,13 @@ export const circleOfProtectionWhite: CardDefinition = makeCircleOfProtection({
 // Consecrate Land — "Enchant land\nEnchanted land has indestructible and can't
 // be enchanted by other Auras." (CR 303.4 aura attachment, 702.12
 // indestructible keyword). Implemented as a `keyword-grant: "indestructible"`
-// static effect on the host.
-// DIVERGENCE (tracked #974): the "can't be enchanted by other Auras" clause is
-// NOT modelled — there is no enchant-restriction static (an attach-legality
-// predicate on the host, same class as Tetravite's "can't be enchanted"), so no
-// Aura's attach is blocked by this. Deferred rather than silently dropped.
+// static effect on the host, plus a host-scoped `cantBeEnchanted`
+// permanent-guard (CR 303.4) that blocks any OTHER Aura from attaching to the
+// enchanted land. Consecrate Land itself is naturally excluded: its own attach
+// gate (state.ts `isGuardedAgainst(state, host, "cantBeEnchanted")`) runs while
+// it is still resolving — not yet on the battlefield and with `attachedTo`
+// unset — so `AURA_AFFECTS_HOST` is false for it, and the guard only starts
+// barring new Auras once Consecrate Land is attached.
 export const consecrateLand: CardDefinition = {
     id: "d2379f78-c03f-447f-b3c9-10a918d556e9",
     rarity: "uncommon",
@@ -396,6 +398,16 @@ export const consecrateLand: CardDefinition = {
             kind: "keyword-grant",
             applies: AURA_AFFECTS_HOST,
             keyword: "indestructible",
+        },
+        {
+            // CR 303.4 — "enchanted land ... can't be enchanted by other
+            // Auras". Host-scoped guard (same class as Guardian Beast's
+            // cantBeEnchanted clause); consulted at the aura-attach gate. Self
+            // is excluded by construction (see the comment on this card).
+            kind: "permanent-guard",
+            id: "consecrate-land-cant-be-enchanted",
+            applies: AURA_AFFECTS_HOST,
+            cantBeEnchanted: true,
         },
     ],
 };

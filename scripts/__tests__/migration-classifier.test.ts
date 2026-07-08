@@ -442,13 +442,20 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Script (#961), so it leaves the closure census. Thrull Wizard was
         // already effects[] (only its punisher gained the {3} alternative, no
         // closure change). Net from #961: total 644→643, FREE 401→400, AFK-ready
-        // 368→367, Op-blocked and X-only unchanged. Values below are the true
-        // post-change totals, reconciled by re-running
+        // 368→367, Op-blocked and X-only unchanged.
+        // #961 review fixup: Tunnel's "can't be regenerated" rider was
+        // implemented as a resolve() closure (mirroring Fissure/Detonate),
+        // re-adding one FREE + AFK-ready closure (its per-card test lives in
+        // sets/lea/__tests__/red.test.ts). Consecrate Land's "can't be
+        // enchanted" clause is data (a permanent-guard staticEffect) — no
+        // closure change. Net from the fixup: total 643→644, FREE 400→401,
+        // AFK-ready 367→368, Op-blocked and X-only unchanged. Values below are
+        // the true post-change totals, reconciled by re-running
         // `bun scripts/migration-classifier.mjs` against the merged tree rather
         // than hand-added.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(643);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(400);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(367);
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(644);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(401);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(368);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(229);
     });
