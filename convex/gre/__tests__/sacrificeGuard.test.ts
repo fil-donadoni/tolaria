@@ -24,6 +24,11 @@ const ALLOW = new Set<string>([
     "gre/state.ts", // ctx.sacrifice(id) primitive + rule-driven sacrifices
     "gre/effects/interpreter.ts", // resolve-time `sacrifice` Op (choice-driven)
     "gre/sba.ts", // state-based sacrifice (CR 704) — no choice
+    // Alternative-cost payment (CR 118.9 / 601.2h): "sacrifice two Mountains"
+    // as a cast cost, auto-picked over fungible basics (the choice is
+    // immaterial — same rationale as the resolve-time interpreter Op above).
+    // Not a filtered resolve-time 701.21a sacrifice.
+    "gre/alternativeCost.ts",
     // Bot ISMCTS search slice: a deterministic evaluation-only approximation
     // (lowest-mv pick), NOT the authoritative game action (game.ts routes the
     // real player choice through the unified layer). Out of scope for 701.21a.

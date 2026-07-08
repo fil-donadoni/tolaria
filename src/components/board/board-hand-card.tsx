@@ -92,8 +92,12 @@ export default function BoardHandCard({
     const canCast = legal.includes("cast");
     const commitEnabled = !isHandChoice && (canPlay || canCast);
 
-    const { onPlayClick, onCastClick, modePickerOverlay } =
-        useHandCardCommit(card);
+    const {
+        onPlayClick,
+        onCastClick,
+        modePickerOverlay,
+        altCostPickerOverlay,
+    } = useHandCardCommit(card);
 
     const commit = (e: React.MouseEvent | React.PointerEvent) => {
         // Land plays take precedence over cast for the same instance; only one
@@ -206,6 +210,7 @@ export default function BoardHandCard({
             </CardTilt3D>
             {seen && <SeenByOpponentBadge />}
             {modePickerOverlay}
+            {altCostPickerOverlay}
         </div>
     );
 }

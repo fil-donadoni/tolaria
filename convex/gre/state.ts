@@ -1647,6 +1647,11 @@ export type PendingTarget = {
      *  Propagated through pendingCast → stack item. Determines which mode's
      *  `targetRequirement` governs this selection. */
     chosenModeId?: string;
+    /** CR 118.9 — id of a chosen ALTERNATIVE casting cost
+     *  (`CardDefinition.alternativeCosts`), propagated from announcement so it
+     *  is paid at cast commit (`finalizeTargetSelection`) instead of the mana
+     *  cost. Used by targeted alt-cost spells (Thwart, Fireblast). */
+    alternativeCostId?: string;
     /** Distinguishes a spell cast (default) from an activated ability that
      *  requires targets (CR 602.2b). When "ability", `abilityId` is set and
      *  costs are paid at finalization instead of at announcement. When
