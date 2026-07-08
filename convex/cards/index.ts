@@ -173,6 +173,7 @@ import * as otj from "./sets/otj";
 // Lapse (its earliest paper printing, Homelands, per ADR 0041). mkm/sos/rav/
 // c15/mh2 already imported above (shared with earlier tranches).
 import * as hml from "./sets/hml";
+import * as scg from "./sets/scg";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -338,6 +339,10 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "otj", exports: otj },
     // Cube FREE: counterspells (issue #683) — new home set for Memory Lapse.
     { code: "hml", exports: hml },
+    // Stifle — "counter target activated or triggered ability" (issue #679
+    // Tishana's Tidebinder gap: the `spellStackKind: "ability"` stack-object
+    // kind + countering a triggered ability on the stack).
+    { code: "scg", exports: scg },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>

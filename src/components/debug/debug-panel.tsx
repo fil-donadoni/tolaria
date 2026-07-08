@@ -1190,6 +1190,28 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 4,
     },
+    {
+        // Stifle — "counter target activated or triggered ability" (CR 701.5a).
+        // The opponent controls a Prodigal Sorcerer ("{T}: deal 1 damage to any
+        // target"). Activate its ability from the opp seat, targeting me → the
+        // ability goes on the stack. Switch to my seat (priority) and cast
+        // Stifle ({U}, from the Island) targeting that ability. Verify: (1) the
+        // ability on the stack IS highlightable/clickable for Stifle (a "target
+        // spell" like Counterspell would NOT be), and (2) resolving Stifle
+        // vanishes the ability — no damage is dealt, and my life stays at 20.
+        label: "Stifle: counter an activated ability on the stack (Prodigal Sorcerer ping) (#679)",
+        cards: [
+            {
+                name: "Prodigal Sorcerer",
+                owner: "opp",
+                zone: "battlefield",
+            },
+            { name: "Stifle", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
 
 type DebugPanelProps = {

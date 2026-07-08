@@ -322,14 +322,19 @@ export interface TargetRequirement {
      *  `gre/rules.ts`. Ignored for non-spell target types. */
     spellWouldDestroyLandYouControl?: boolean;
     /** Restricts a stack-object target (`type: "spell"`) by object KIND
-     *  (CR 113 / 114.1). Omitted = any stack object (the historical behavior —
-     *  spells and abilities alike). `"spell"` keeps only actual spells;
-     *  `"activated-ability"` keeps only activated abilities on the stack
-     *  (CR 602 / 113.3 — the stack item carries an `abilityId`). Used by Brown
-     *  Ouphe ("Counter target activated ability from an artifact source").
-     *  Mana abilities never use the stack (CR 605.3a), so they are never a
-     *  legal target regardless. Ignored for non-spell target types. */
-    spellStackKind?: "spell" | "activated-ability";
+     *  (CR 113 / 114.1). Omitted = SPELLS ONLY — a "target spell" targets a
+     *  spell, never an ability (CR 701.5a; a triggered/activated ability on the
+     *  stack is not a legal target for Counterspell et al.). `"spell"` is the
+     *  explicit form of that same spell-only default. `"activated-ability"`
+     *  instead keeps ONLY activated abilities on the stack (CR 602 / 113.3 — the
+     *  stack item carries an `abilityId`); used by Brown Ouphe ("Counter target
+     *  activated ability from an artifact source"). `"ability"` keeps ANY
+     *  ability — activated OR triggered (and delayed) — but no spells; used by
+     *  Stifle ("Counter target activated or triggered ability"). Abilities are
+     *  legal targets ONLY under an explicit ability kind. Mana abilities never
+     *  use the stack (CR 605.3a), so they are never a legal target regardless.
+     *  Ignored for non-spell target types. */
+    spellStackKind?: "spell" | "activated-ability" | "ability";
     /** Restricts a stack-object target (`type: "spell"`) to objects whose
      *  SOURCE card types include at least one of these (CR 113.7a). An
      *  activated ability on the stack carries the source permanent's card

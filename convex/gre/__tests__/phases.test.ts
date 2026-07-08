@@ -18,6 +18,7 @@ import type { Phase } from "../types";
 import type { CardType } from "../../cards/types";
 import { tryGetDefinition } from "../../cards";
 import { recordBlockedAttackers } from "../banding";
+import { assertExpectedInput } from "../expectedInput";
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -1488,6 +1489,18 @@ function simPassPriority(state: GameState, playerId: string): void {
     drainAutoPasses(state);
 }
 
+// Mirrors the head guards of the production `passPriority` mutation. The
+// wrong-player early return MUST run BEFORE `assertExpectedInput`, otherwise
+// the gate's "waiting for priority input from another player" throw shadows
+// the benign misclick and Convex logs a server error for a harmless Space
+// press during the opponent's priority. Returns true if the mutation would
+// proceed to mutate state, false if it silently no-ops.
+function simPassPriorityHead(state: GameState, playerId: string): boolean {
+    if (state.priorityPlayerId !== playerId) return false;
+    assertExpectedInput(state, { playerId, expect: "priority" });
+    return true;
+}
+
 // Mirrors the production `cancelAutoPass` mutation.
 function simCancelAutoPass(state: GameState, playerId: string): void {
     const autoPass = state.autoPassPlayers ?? [];
@@ -2200,5 +2213,36 @@ describe("cleanup discard (CR 514.1)", () => {
                 expect(c.knownTo).toBeUndefined();
             }
         });
+    });
+});
+
+describe("passPriority wrong-player guard (ADR 0047)", () => {
+    it("silently no-ops a pass while the opponent holds priority — no throw", () => {
+        const state = makeGameState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 0,
+        });
+
+        // p2 mashes Space while p1 holds priority. The head guard returns
+        // before reaching assertExpectedInput, so no "waiting for priority
+        // input from another player" error is thrown.
+        let proceeds = true;
+        expect(() => {
+            proceeds = simPassPriorityHead(state, "p2");
+        }).not.toThrow();
+        expect(proceeds).toBe(false);
+    });
+
+    it("proceeds through the gate when the passing player holds priority", () => {
+        const state = makeGameState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            passCount: 0,
+        });
+
+        expect(simPassPriorityHead(state, "p1")).toBe(true);
     });
 });

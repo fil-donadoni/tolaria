@@ -126,7 +126,11 @@ export const altarOfBone: CardDefinition = {
     manaCost: { W: 1, G: 1 },
     types: ["Sorcery"],
     additionalCosts: {
-        sacrificeFilter: { types: "Creature", controllerRelation: "you" },
+        // A sacrifice cost is always paid from the caster's own battlefield, so
+        // no `controllerRelation` is needed (nor supported — the cost-validation
+        // call sites pass no `selfControllerId`; a `controllerRelation` here
+        // never matches).
+        sacrificeFilter: { types: "Creature" },
     },
     // NOT DSL-migratable (ADR 0045): the "then shuffle" tail is now a
     // libraryLook Op (issue #844), but the search half both (a) moves a

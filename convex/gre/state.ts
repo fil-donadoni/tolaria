@@ -1568,8 +1568,9 @@ export type PendingTarget = {
     spellWouldDestroyLandYouControl?: boolean;
     /** Restricts a stack-object target by object kind (CR 113 / 114.1).
      *  Propagated from TargetRequirement.spellStackKind. Used by Brown Ouphe
-     *  ("counter target activated ability ..."). Ignored for non-spell types. */
-    spellStackKind?: "spell" | "activated-ability";
+     *  ("counter target activated ability ...") and Stifle ("... activated or
+     *  triggered ability", `"ability"`). Ignored for non-spell types. */
+    spellStackKind?: "spell" | "activated-ability" | "ability";
     /** Restricts a stack-object target to objects whose source card types
      *  include at least one of these (CR 113.7a). Propagated from
      *  TargetRequirement.stackSourceTypeFilter. Used by Brown Ouphe
@@ -6415,8 +6416,16 @@ function buildSpellContext(state: GameState, item: StackItem): SpellContext {
             if (idx === -1) return; // target no longer on stack — fizzle silently
             const [item] = state.stack.splice(idx, 1);
             const owner = getPlayer(state, item.ownerId);
-            // Activated abilities are not cards: they just vanish (CR 701.5a, 113.7a).
-            if (item.abilityId) return;
+            // Abilities on the stack are not cards: activated (CR 113.7a),
+            // triggered (CR 113.7a) and delayed-triggered abilities all just
+            // vanish when countered (CR 701.5a — Stifle). Only a countered
+            // SPELL moves to a destination zone.
+            if (
+                item.abilityId ||
+                item.triggeredAbilityId ||
+                item.delayedTriggerId
+            )
+                return;
             switch (destination) {
                 case "exile":
                     item.zone = "exile";

@@ -301,10 +301,13 @@ export const heroism: CardDefinition = {
             oracleText:
                 "Sacrifice a white creature: For each attacking red creature, prevent all combat damage that would be dealt by that creature this turn unless its controller pays {2}{R}.",
             cost: {
+                // A sacrifice cost is always paid from the activating player's
+                // own battlefield, so no `controllerRelation` is needed (nor
+                // supported — the cost-validation call sites pass no
+                // `selfControllerId`; a `controllerRelation` here never matches).
                 sacrificeFilter: {
                     types: "Creature",
                     colors: "W",
-                    controllerRelation: "you",
                 },
             },
             useStack: true,

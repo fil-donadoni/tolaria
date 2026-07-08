@@ -821,7 +821,7 @@ describe("matchesStackObjectFilter (Brown Ouphe / Mistfolk — CR 113/114.1)", (
         ).toBe(false);
     });
 
-    it("matches any stack item when no filter is set", () => {
+    it("matches a SPELL when no stack-kind filter is set", () => {
         expect(
             matchesStackObjectFilter(
                 artifactSpell,
@@ -830,6 +830,71 @@ describe("matchesStackObjectFilter (Brown Ouphe / Mistfolk — CR 113/114.1)", (
                 undefined
             )
         ).toBe(true);
+    });
+
+    it("rejects an ability under the default (omitted) and explicit 'spell' — target spell targets a spell (CR 701.5a)", () => {
+        // Regression: Counterspell ("target spell", omitted spellStackKind)
+        // must NOT be clickable on a triggered/activated ability.
+        const triggeredAbility = {
+            types: ["Creature"],
+            triggeredAbilityId: "etb-trigger",
+        };
+        expect(
+            matchesStackObjectFilter(
+                creatureAbility,
+                undefined,
+                undefined,
+                undefined
+            )
+        ).toBe(false);
+        expect(
+            matchesStackObjectFilter(
+                triggeredAbility,
+                undefined,
+                undefined,
+                undefined
+            )
+        ).toBe(false);
+        expect(
+            matchesStackObjectFilter(
+                creatureAbility,
+                "spell",
+                undefined,
+                undefined
+            )
+        ).toBe(false);
+    });
+
+    it("keeps any ability — activated OR triggered — under 'ability' (Stifle), rejects a spell", () => {
+        const triggeredAbility = {
+            types: ["Creature"],
+            triggeredAbilityId: "etb-trigger",
+        };
+        expect(
+            matchesStackObjectFilter(
+                creatureAbility,
+                "ability",
+                undefined,
+                undefined
+            )
+        ).toBe(true);
+        expect(
+            matchesStackObjectFilter(
+                triggeredAbility,
+                "ability",
+                undefined,
+                undefined
+            )
+        ).toBe(true);
+        // An ability-kind target never accepts a spell.
+        expect(
+            matchesStackObjectFilter(
+                artifactSpell,
+                "ability",
+                undefined,
+                undefined
+            )
+        ).toBe(false);
     });
 });
 

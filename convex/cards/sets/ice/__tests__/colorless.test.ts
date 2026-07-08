@@ -590,7 +590,6 @@ describe("Skull Catapult ({1},{T},Sac a creature: 2 dmg, CR 605 / 120.1)", () =>
         const ability = skullCatapult.activatedAbilities![0];
         expect(ability.cost.sacrificeFilter).toMatchObject({
             types: "Creature",
-            controllerRelation: "you",
         });
         expect(ability.targetRequirement).toMatchObject({ type: "any" });
     });
@@ -771,7 +770,6 @@ describe("Zuran Orb (Sac a land: gain 2 life, CR 605 / 119.3)", () => {
         const ability = zuranOrb.activatedAbilities![0];
         expect(ability.cost.sacrificeFilter).toMatchObject({
             types: "Land",
-            controllerRelation: "you",
         });
     });
     it("gains the controller 2 life", () => {

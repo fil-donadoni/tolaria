@@ -1016,11 +1016,25 @@ export function getLegalTargets(
                 !!item.abilityId ||
                 !!item.triggeredAbilityId ||
                 !!item.delayedTriggerId;
-            // CR 113 / 114.1 — restrict by stack-object kind. "spell" drops
+            // CR 113 / 114.1 — restrict by stack-object kind. A "target spell"
+            // targets a SPELL, never an ability (CR 701.5a): abilities on the
+            // stack are legal ONLY when the requirement explicitly opts into an
+            // ability kind. The default (omitted) AND "spell" both drop
             // abilities; "activated-ability" keeps only activated abilities
-            // (Brown Ouphe — mana abilities never reach the stack, CR 605.3a).
-            if (stackKind === "spell" && isAbilityItem) continue;
-            if (stackKind === "activated-ability" && !item.abilityId) continue;
+            // (Brown Ouphe); "ability" keeps any ability — activated OR
+            // triggered (Stifle). Mana abilities never reach the stack
+            // (CR 605.3a), so they are never targetable regardless.
+            const wantsAbilityKind =
+                stackKind === "activated-ability" || stackKind === "ability";
+            if (isAbilityItem) {
+                if (!wantsAbilityKind) continue;
+                // "activated-ability" narrows further to activated abilities.
+                if (stackKind === "activated-ability" && !item.abilityId) {
+                    continue;
+                }
+            } else if (wantsAbilityKind) {
+                continue; // an ability-kind target never accepts a spell
+            }
             // CR 113.7a — restrict by the object's source card types (Brown
             // Ouphe: "from an artifact source"). The ability stack item carries
             // the source permanent's live `types`.

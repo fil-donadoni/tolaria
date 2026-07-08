@@ -450,9 +450,11 @@ export function matchesSpellWouldDestroyLand(
 
 /** True if a stack item is a legal target under the stack-object filters
  *  introduced for filtered counter abilities (CR 113 / 114.1):
- *   - `spellStackKind`: `"spell"` drops abilities; `"activated-ability"` keeps
- *     only activated abilities (Brown Ouphe — mana abilities never reach the
- *     stack, CR 605.3a);
+ *   - `spellStackKind`: omitted (or `"spell"`) drops abilities — a "target
+ *     spell" targets a spell, never an ability (CR 701.5a); `"activated-ability"`
+ *     keeps only activated abilities (Brown Ouphe — mana abilities never reach
+ *     the stack, CR 605.3a); `"ability"` keeps any ability, activated or
+ *     triggered (Stifle);
  *   - `stackSourceTypeFilter`: the object's source card `types` must include at
  *     least one listed type (Brown Ouphe: "from an artifact source");
  *   - `spellTargetsInstanceIds`: the spell must target one of these permanent
@@ -466,7 +468,7 @@ export function matchesStackObjectFilter(
         delayedTriggerId?: string;
         targets?: { type: string; id: string }[];
     },
-    spellStackKind: "spell" | "activated-ability" | undefined,
+    spellStackKind: "spell" | "activated-ability" | "ability" | undefined,
     stackSourceTypeFilter: string[] | undefined,
     spellTargetsInstanceIds: string[] | undefined
 ): boolean {
@@ -474,8 +476,22 @@ export function matchesStackObjectFilter(
         !!item.abilityId ||
         !!item.triggeredAbilityId ||
         !!item.delayedTriggerId;
-    if (spellStackKind === "spell" && isAbility) return false;
-    if (spellStackKind === "activated-ability" && !item.abilityId) return false;
+    // A "target spell" targets a SPELL, never an ability (CR 701.5a). Abilities
+    // on the stack are legal only when the requirement explicitly opts into an
+    // ability kind: the default (omitted) AND "spell" both drop abilities;
+    // "activated-ability" keeps only activated abilities; "ability" keeps any
+    // ability — activated OR triggered (Stifle).
+    const wantsAbilityKind =
+        spellStackKind === "activated-ability" || spellStackKind === "ability";
+    if (isAbility) {
+        if (!wantsAbilityKind) return false;
+        // "activated-ability" narrows further to activated abilities.
+        if (spellStackKind === "activated-ability" && !item.abilityId) {
+            return false;
+        }
+    } else if (wantsAbilityKind) {
+        return false; // an ability-kind target never accepts a spell
+    }
     if (stackSourceTypeFilter && stackSourceTypeFilter.length > 0) {
         const types = item.types ?? [];
         if (!stackSourceTypeFilter.some((t) => types.includes(t))) return false;

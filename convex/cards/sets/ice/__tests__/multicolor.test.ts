@@ -268,7 +268,7 @@ describe("Altar of Bone (sac-creature additional cost + tutor to hand, CR 117.9 
     it("declares the sacrifice additional cost and a resolve body", () => {
         expect(altarOfBone.types).toEqual(["Sorcery"]);
         expect(altarOfBone.additionalCosts).toMatchObject({
-            sacrificeFilter: { types: "Creature", controllerRelation: "you" },
+            sacrificeFilter: { types: "Creature" },
         });
         expect(typeof altarOfBone.resolve).toBe("function");
     });

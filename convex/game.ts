@@ -4918,13 +4918,26 @@ export const selectTarget = mutation({
                 !!spell.abilityId ||
                 !!spell.triggeredAbilityId ||
                 !!spell.delayedTriggerId;
-            // CR 113 / 114.1 — restrict by stack-object kind (Brown Ouphe:
-            // "counter target activated ability").
-            if (pt.spellStackKind === "spell" && spellIsAbility) {
-                throw new Error("Target must be a spell");
-            }
-            if (pt.spellStackKind === "activated-ability" && !spell.abilityId) {
-                throw new Error("Target must be an activated ability");
+            // CR 113 / 114.1 — restrict by stack-object kind. A "target spell"
+            // targets a SPELL, never an ability (CR 701.5a): the default
+            // (omitted) AND "spell" both reject abilities; "activated-ability"
+            // keeps only activated abilities (Brown Ouphe); "ability" keeps any
+            // activated or triggered ability (Stifle) but rejects spells.
+            const wantsAbilityKind =
+                pt.spellStackKind === "activated-ability" ||
+                pt.spellStackKind === "ability";
+            if (spellIsAbility) {
+                if (!wantsAbilityKind) {
+                    throw new Error("Target must be a spell");
+                }
+                if (
+                    pt.spellStackKind === "activated-ability" &&
+                    !spell.abilityId
+                ) {
+                    throw new Error("Target must be an activated ability");
+                }
+            } else if (wantsAbilityKind) {
+                throw new Error("Target must be an ability");
             }
             // CR 113.7a — restrict by source card types (Brown Ouphe: "from an
             // artifact source").
@@ -6045,6 +6058,17 @@ export const passPriority = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+
+        if (state.priorityPlayerId !== args.playerId) {
+            // A pass issued while this player does not hold priority is a
+            // harmless misclick — the player mashed Space/Pass while the
+            // opponent was acting (ADR 0047 "waiting for another player").
+            // Silent no-op instead of a server error surfaced to the console.
+            // Must run BEFORE assertExpectedInput, whose wrong-player throw
+            // would otherwise shadow this benign case and log a server error.
+            return;
+        }
+
         assertExpectedInput(state, {
             playerId: args.playerId,
             expect: "priority",
@@ -6054,14 +6078,6 @@ export const passPriority = mutation({
         // CR 103.5: no priority is given during the pre-game mulligan phase.
         if (state.phase === "MULLIGAN") {
             throw new Error("Cannot pass priority during mulligan phase");
-        }
-
-        if (state.priorityPlayerId !== args.playerId) {
-            // A pass issued while this player does not hold priority is a
-            // harmless misclick — the player mashed Space/Pass while the
-            // opponent was acting (ADR 0047 "waiting for another player").
-            // Silent no-op instead of a server error surfaced to the console.
-            return;
         }
 
         // Passing priority while a mana payment is still open abandons it

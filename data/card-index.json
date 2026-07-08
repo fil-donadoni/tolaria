@@ -6546,6 +6546,12 @@
         "firstSet": "ltr"
     },
     {
+        "name": "Stifle",
+        "scryfallId": "2d7643c0-b2db-478f-944e-b27b77bad3eb",
+        "oracleId": "b3b00911-ece7-4484-bc36-f211ce72b6cc",
+        "firstSet": "scg"
+    },
+    {
         "name": "Stock Up",
         "scryfallId": "0a786855-6eb4-42c0-a528-4842db46809d",
         "oracleId": "2251e34e-4ce8-4452-9dc6-d8cce8583996",

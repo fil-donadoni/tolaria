@@ -547,7 +547,6 @@ describe("FEM white reuse cards — canonical shapes", () => {
         expect(heroism.activatedAbilities![0].cost.sacrificeFilter).toEqual({
             types: "Creature",
             colors: "W",
-            controllerRelation: "you",
         });
     });
 

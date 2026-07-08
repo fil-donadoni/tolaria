@@ -1334,9 +1334,12 @@ export const skullCatapult: CardDefinition = {
             cost: {
                 mana: { X: 1 },
                 tap: true,
+                // A sacrifice cost is always paid from the activating player's
+                // own battlefield, so no `controllerRelation` is needed (nor
+                // supported — the cost-validation call sites pass no
+                // `selfControllerId`; a `controllerRelation` here never matches).
                 sacrificeFilter: {
                     types: "Creature",
-                    controllerRelation: "you",
                 },
             },
             useStack: true,
@@ -1850,7 +1853,11 @@ export const zuranOrb: CardDefinition = {
             id: "zuran-orb-gain-life",
             oracleText: "Sacrifice a land: You gain 2 life.",
             cost: {
-                sacrificeFilter: { types: "Land", controllerRelation: "you" },
+                // A sacrifice cost is always paid from the activating player's
+                // own battlefield, so no `controllerRelation` is needed (nor
+                // supported — the cost-validation call sites pass no
+                // `selfControllerId`; a `controllerRelation` here never matches).
+                sacrificeFilter: { types: "Land" },
             },
             useStack: true,
             effects: [{ op: "gainLife", player: "controller", amount: 2 }],
