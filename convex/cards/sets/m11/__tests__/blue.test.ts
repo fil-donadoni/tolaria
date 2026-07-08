@@ -39,17 +39,21 @@ describe("Preordain (scry 2 then draw; CR 701.42 / 121.1)", () => {
         const first = resolveTopOfStack(state);
         expect(first).toBeNull(); // suspended on the scry choice
 
-        // Scry: top two are a, b. Put "a" on the bottom, keep "b" on top.
+        // Scry: top two are a, b. Keep "b" on top, put "a" on the bottom.
+        // order-top payload: kept top (topmost first) + the un-kept `secondZoneIds`.
         const head = state.pendingChoices![0];
+        expect(head.kind).toBe("order-top");
+        expect(head.destination).toBe("library-bottom");
         applyPendingChoiceSubmit(state, {
             playerId: head.playerId,
             stackItemId: head.stackItemId,
             step: head.step,
             choiceId: head.choiceId,
-            cardInstanceIds: ["a"],
+            cardInstanceIds: ["b"],
+            secondZoneIds: ["a"],
         });
 
-        // "b" was on top → it is drawn; "a" is now at the bottom.
+        // "b" was kept on top → it is drawn; "a" is now at the true bottom.
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["b"]);
         const libIds = state.players[0].library.map((c) => c.id);
         expect(libIds).toHaveLength(3);
@@ -92,15 +96,40 @@ describe("Preordain (scry 2 then draw; CR 701.42 / 121.1)", () => {
         pushSpell(state, preordain.id, "p1");
         resolveTopOfStack(state);
         const head = state.pendingChoices![0];
-        // Put nothing on the bottom.
+        // Keep both on top in original order; nothing to the bottom.
         applyPendingChoiceSubmit(state, {
             playerId: head.playerId,
             stackItemId: head.stackItemId,
             step: head.step,
             choiceId: head.choiceId,
-            cardInstanceIds: [],
+            cardInstanceIds: ["a", "b"],
+            secondZoneIds: [],
         });
-        expect(state.players[0].hand).toHaveLength(1);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["a"]);
         expect(state.players[0].library).toHaveLength(2);
+    });
+
+    it("honours the chosen TOP order — reordering the kept cards changes which is drawn", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: lib(["a", "b", "c"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, preordain.id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        // Top two are a,b. Keep both but put "b" ON TOP (drawn first).
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["b", "a"],
+            secondZoneIds: [],
+        });
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["b"]);
+        // "a" is now the new top of the library (index 0).
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["a", "c"]);
     });
 });

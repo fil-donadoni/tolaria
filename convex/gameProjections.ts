@@ -350,10 +350,13 @@ function computeChoiceExposure(
         isChooser &&
         (head.kind === "reorder-library" ||
             head.kind === "draw-look-keep" ||
-            head.kind === "look-top") &&
+            head.kind === "look-top" ||
+            // order-top (scry/surveil/ponder drag picker, #942) — exposes the
+            // looked-at top N (`candidateIds`) so the picker can render them.
+            head.kind === "order-top") &&
         head.zone === "library";
-    // reorder-library shows `count` cards; draw-look-keep and look-top show all
-    // the looked-at cards named in `candidateIds`.
+    // reorder-library shows `count` cards; draw-look-keep, look-top and
+    // order-top show all the looked-at cards named in `candidateIds`.
     const peekCount = !exposeLibraryPeek
         ? 0
         : head.kind === "reorder-library"

@@ -3,15 +3,14 @@
 // Scryfall oracle text is authoritative (ADR 0004).
 import type { CardDefinition, SpellContext } from "../../types";
 
-// Preordain — {U} Sorcery. "Scry 2, then draw a card." Scry has no dedicated
-// primitive (CR 701.42): it is composed from `peekLibraryTop` + a `look-top`
-// choice (#942 — pick any subset of the looked-at top two to put on the
-// bottom; the projection exposes exactly those two face-up as `libraryPeek`,
-// the fix for `partition` exposing nothing on the wire) + a
-// `reorderLibraryTop` that lays the kept cards back on top and the chosen ones
-// on the bottom, then the draw (CR 121.1). The kept cards retain their relative
-// order on top (the engine offers no further reorder for a 2-card scry — a
-// faithful-enough simplification of "the rest on top in any order").
+// Preordain — {U} Sorcery. "Scry 2, then draw a card." Scry (CR 701.22) is the
+// reusable ordered-top primitive `SpellContext.orderTop` with
+// `destination: "library-bottom"`: it raises the `order-top` drag choice on the
+// top two cards (projected face-up as `libraryPeek`), then on submit puts the
+// kept cards back on top in the player's chosen order and the rest on the true
+// bottom of the library — honouring "the rest on top in any order", which the
+// old `look-top` path could not. Then the draw (CR 121.1). The kept cards stay
+// known to the controller afterwards (ADR 0026 — you know your top cards).
 export const preordain: CardDefinition = {
     id: "e3868c3d-4fcd-444b-866f-0f8e50ce7b67",
     name: "Preordain",
@@ -22,26 +21,14 @@ export const preordain: CardDefinition = {
     types: ["Sorcery"],
     resolveSteps: [
         (ctx: SpellContext) => {
-            const me = ctx.controller;
-            const topIds = ctx.peekLibraryTop(me, 2);
-            if (topIds.length === 0) return;
-            const toBottom = ctx.requestChoice({
-                playerId: me,
-                choiceId: `preordain-scry-${ctx.sourceInstanceId}`,
-                kind: "look-top",
-                zone: "library",
-                candidateIds: topIds,
-                count: { min: 0, max: topIds.length },
-                prompt: "Scry 2 — choose any number of cards to put on the bottom (the rest stay on top).",
-            });
-            if (toBottom === undefined) return; // suspended on the scry choice
-            const bottomSet = new Set(toBottom);
-            const keptTop = topIds.filter((id) => !bottomSet.has(id));
-            const all = ctx.peekLibraryTop(me, Number.MAX_SAFE_INTEGER);
-            const topSet = new Set(topIds);
-            const middle = all.filter((id) => !topSet.has(id));
-            // Kept cards on top, untouched library below, scryed cards on bottom.
-            ctx.reorderLibraryTop(me, [...keptTop, ...middle, ...toBottom]);
+            if (
+                !ctx.orderTop(ctx.controller, 2, {
+                    destination: "library-bottom",
+                    prompt: "Scry 2 — keep cards on top (drag to order) or send them to the bottom.",
+                })
+            ) {
+                return; // suspended on the scry choice
+            }
         },
         (ctx: SpellContext) => {
             ctx.drawCards(ctx.controller, 1);

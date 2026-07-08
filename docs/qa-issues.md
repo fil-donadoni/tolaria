@@ -6,8 +6,8 @@ Uncaught Error: Not enough life
 at handler (../convex/game.ts:7094:20)
 la validazione a monte deve disabilitare quell'abilità se non è pagabile.
 
-boomerang al momento non può targettare le terre, ma deve poterlo fare.
-
 quando una carta tipo Copy artifact diventa una copia, la card-preview deve mostrare accanto allo stato attuale anche la carta originale. vedi ui arena.
 
-Flooded woodlands: non ho potuto scegliere quali terre sacrificare. questo era già successo con witherbloom charm, è stato sistemato a livello di carta ma deve essere un fix di motore generale. Salvo diverse indicazioni, sacrificare implica una scelta del controllore.
+Target slection banner mostra la label "spell" per l'abilità attivata di Arcum's Whistle, anche se il name della card definition è presente.
+
+Mishra's Bauble, ma anche Thoughtseize, Gitaxian Probe ecc: alla risoluzione dell'abilità di peek/look/reveal, deve comparire un dialog a tempo (10s) con pulsante X di chiusura manuale che mostra le carte rivelate dalla spell/abilità. poi la visibilità delle carte persiste come già implementato.

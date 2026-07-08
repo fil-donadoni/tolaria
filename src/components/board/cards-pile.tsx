@@ -65,6 +65,12 @@ type CardsPileProps = {
      *  `forceOpen` the dialog stays dismissable. */
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
+    /** Library ordering (ADR 0026): render the TOP of the library on the RIGHT
+     *  with the topmost card highest, in BOTH the collapsed zone stack and the
+     *  expanded dialog — so the known top cards (scry / Mishra's Bauble peek)
+     *  read the same way as the scry drag picker. Only the library passes this;
+     *  every other zone keeps its default order. */
+    topOnRight?: boolean;
 };
 
 /** Resolves whether a single card renders face-down. A `faceUpIds` set (ADR
@@ -104,6 +110,7 @@ function FanLayout({
     onClose,
     selectedIds,
     eligibleIds,
+    topOnRight = false,
 }: {
     cards: CardInstance[];
     isFaceDown: boolean;
@@ -116,11 +123,17 @@ function FanLayout({
     onClose: () => void;
     selectedIds?: string[];
     eligibleIds?: ReadonlySet<string>;
+    /** Library ordering: put the TOP of the library on the RIGHT, each card
+     *  overlapping its left neighbour so the topmost sits highest (matches the
+     *  scry drag picker). The input is top→bottom; rendering it reversed makes
+     *  the last-painted (top) card the rightmost and visually on top. */
+    topOnRight?: boolean;
 }) {
     // A full library fans to many overlapping cards that overflow the dialog
     // width. Inertial drag-to-pan (Arena-like) makes browsing the reveal feel
     // physical; native wheel + keyboard scroll stay intact (#255).
     const scrollRef = useInertialScroll<HTMLDivElement>("x");
+    const ordered = topOnRight ? [...cards].reverse() : cards;
     return (
         <div
             ref={scrollRef}
@@ -140,7 +153,7 @@ function FanLayout({
                     minWidth: "min-content",
                 }}
             >
-                {cards.map((cardInstance, cardIndex) => {
+                {ordered.map((cardInstance, cardIndex) => {
                     const faceDown = isCardFaceDown(
                         cardInstance,
                         isFaceDown,
@@ -288,6 +301,7 @@ export default function CardsPile({
     onMinimize,
     open,
     onOpenChange,
+    topOnRight = false,
 }: CardsPileProps) {
     // Controlled-open chip mode (#336): the owner drives `open` and supplies the
     // trigger, so this component renders only the dialog.
@@ -331,9 +345,19 @@ export default function CardsPile({
     }
 
     const pileCards = cards.map((cardInstance: CardInstance, cardIndex) => {
-        const cardStyle = {
-            transform: `rotate(${rotations[cardIndex]}deg)`,
-        };
+        // Library (topOnRight): in the small collapsed board slot a full-library
+        // horizontal fan would overflow, so here we only lift the known top cards
+        // in the stacking order — the topmost (index 0) sits highest and face-up,
+        // so a scried / peeked top card is the one you see on the board. The full
+        // top-on-the-right fan happens in the expanded dialog below. Every other
+        // zone keeps the plain rotated stack (later card on top).
+        const faceUpHere = !isCardFaceDown(cardInstance, isFaceDown, faceUpIds);
+        const cardStyle: React.CSSProperties = topOnRight
+            ? {
+                  transform: `rotate(${rotations[cardIndex]}deg)`,
+                  zIndex: faceUpHere ? cards.length - cardIndex : 0,
+              }
+            : { transform: `rotate(${rotations[cardIndex]}deg)` };
 
         // The collapsed stack is an OPEN-ONLY affordance: clicking it expands the
         // reveal dialog (the wrapping `onClick={setIsOpen(true)}` below). It must
@@ -394,6 +418,7 @@ export default function CardsPile({
                         onClose={() => setIsOpen(false)}
                         selectedIds={selectedIds}
                         eligibleIds={eligibleIds}
+                        topOnRight={topOnRight}
                     />
                 ) : (
                     <GridLayout

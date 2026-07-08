@@ -72,12 +72,32 @@ export type ZonePickKind =
     // path in `applyPendingChoiceSubmit` (library-zone allow-list on
     // `candidateIds`).
     | "look-top"
+    // Ordered top-of-library placement (CR 701.22 Scry / 701.44 Surveil /
+    // "look at the top N, put them back in any order" — Ponder). The drag
+    // picker's kind: `candidateIds` are the looked-at top N (from
+    // `peekLibraryTop`), exposed face-up as `libraryPeek` exactly like
+    // `look-top`. Unlike `look-top` the submit carries TWO ordered lists — the
+    // kept top order (`cardInstanceIds`, topmost first) and the cards sent to
+    // the second zone (`secondZoneIds`) — and `PendingChoice.destination` names
+    // that second zone (`library-bottom` scry, `graveyard` surveil, or `none`
+    // for order-only Ponder). Applied by `SpellContext.orderTop`, which reorders
+    // the kept cards on top, sends the rest to the destination, and marks the
+    // kept cards known to the controller (ADR 0026 — you know your top cards
+    // after a scry).
+    | "order-top"
     // Legend rule (CR 704.5j, #378): when a controller has 2+ legendary
     // permanents that share a name, they keep exactly one (`candidateIds` are
     // the same-name duplicates) and the rest go to their owners' graveyards.
     // An SBA-level choice (stackItemId === "") raised by `checkLegendRuleSBA`,
     // committed by `finalizeLegendKeep`.
     | "legend-keep";
+
+/** Where the un-kept cards of an `order-top` choice go (the SECOND zone of the
+ *  drag picker). `library-bottom` = scry (CR 701.22), `graveyard` = surveil
+ *  (CR 701.44), `none` = order-only (Ponder / Index — every card stays on top,
+ *  only the order changes). The kept cards always return to the TOP of the
+ *  library in the chosen order. */
+export type LibraryDestination = "library-bottom" | "graveyard" | "none";
 /** CR 702.26 — condition under which a phased-out bundle phases back in. A
  *  discriminated union so future phasing variants stay expressible:
  *   - `source-leaves` (Oubliette): phase in when the named source leaves the

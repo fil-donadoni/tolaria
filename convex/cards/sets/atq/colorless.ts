@@ -21,7 +21,7 @@ import type {
     TokenSpec,
     TriggeredAbility,
 } from "../../types";
-import { cantBeEnchantedSelfGuard } from "../../types";
+import { cantBeEnchantedSelfGuard, PERMANENT_TYPES } from "../../types";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -257,9 +257,9 @@ export const stripMine: CardDefinition = {
 // scopes legal targets to permanents the activator controls — and, since you
 // can only own-and-control a permanent you also own, this is effectively "you
 // both own and control"). `type: "any"` matches only damageable permanent
-// types (CR 115.4 — creature/planeswalker/battle), so the target is declared
-// as the explicit set of every permanent type to honor "target permanent" of
-// any type. Mana cost {1} per MTGJSON ATQ.json (ADR 0004 authoritative).
+// types (CR 115.4 — creature/planeswalker/battle), so the target uses the full
+// CR 300.1 permanent-type set (incl. Land) to honor "target permanent" of any
+// type. Mana cost {1} per MTGJSON ATQ.json (ADR 0004 authoritative).
 export const obeliskOfUndoing: CardDefinition = {
     id: "1ba61ccd-4429-4f7c-b9f3-30867878d88e",
     rarity: "rare",
@@ -276,14 +276,7 @@ export const obeliskOfUndoing: CardDefinition = {
             cost: { tap: true, mana: { X: 6 } },
             useStack: true,
             targetRequirement: {
-                type: [
-                    "Artifact",
-                    "Creature",
-                    "Enchantment",
-                    "Land",
-                    "Planeswalker",
-                    "Battle",
-                ],
+                type: [...PERMANENT_TYPES],
                 count: 1,
                 controller: "you",
             },

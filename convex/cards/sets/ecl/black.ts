@@ -2,21 +2,15 @@
 // `import * as ecl from "./sets/ecl"` resolves through ecl/index.ts.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition, CardType, TriggeredAbility } from "../../types";
+import type { CardDefinition, TriggeredAbility } from "../../types";
+import { PERMANENT_TYPES } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
-// `gre/constants.ts` PERMANENT_TYPES deliberately excludes "Land" (it scopes
-// "types a resolving STACK ITEM can be" — lands are never cast, CR 305.1, so
-// never appear on the stack). A discarded/milled card CAN be a land, so the
-// "permanent card" check below needs the full CR 300.1 permanent-type list.
-const CR_300_1_PERMANENT_CARD_TYPES: ReadonlyArray<CardType> = [
-    "Creature",
-    "Artifact",
-    "Enchantment",
-    "Land",
-    "Planeswalker",
-    "Battle",
-];
+// A discarded/milled card CAN be a land, so the "permanent card" check below
+// needs the full CR 300.1 permanent-type list (`PERMANENT_TYPES`, incl. Land) —
+// NOT `gre/constants.ts` CASTABLE_PERMANENT_TYPES, which excludes Land because
+// it scopes "types a resolving STACK ITEM can be" (lands are never cast, CR
+// 305.1, so never appear on the stack).
 
 // Moonshadow — {B} Creature — Elemental (issue #684, Cube FREE evasion/
 // protection statics). "Menace\nThis creature enters with six -1/-1 counters
@@ -111,7 +105,7 @@ function moonshadowRemoveCounterOnDiscard(): TriggeredAbility {
             );
             if (gyCard === undefined) return false;
             return gyCard.types.some((t) =>
-                CR_300_1_PERMANENT_CARD_TYPES.includes(t as CardType)
+                PERMANENT_TYPES.includes(t as (typeof PERMANENT_TYPES)[number])
             );
         },
         // CR 603.3b — collapses N simultaneous CARD_DISCARDED events in the

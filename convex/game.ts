@@ -6265,6 +6265,9 @@ export const submitResolutionChoice = mutation({
         step: v.number(),
         choiceId: v.string(),
         cardInstanceIds: v.array(v.string()),
+        // `order-top` (scry/surveil) only — the un-kept looked-at cards sent to
+        // the choice's destination. Omitted for every other choice kind.
+        secondZoneIds: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -6283,6 +6286,7 @@ export const submitResolutionChoice = mutation({
             step: args.step,
             choiceId: args.choiceId,
             cardInstanceIds: args.cardInstanceIds,
+            secondZoneIds: args.secondZoneIds,
         });
 
         checkStateBasedActions(state);

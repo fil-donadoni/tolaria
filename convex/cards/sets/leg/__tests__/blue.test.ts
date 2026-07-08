@@ -298,6 +298,51 @@ describe("Boomerang (return target permanent to hand, CR 701.10)", () => {
         ).toBeUndefined();
         expect(state.players[1].hand.some((c) => c.id === "drake")).toBe(true);
     });
+
+    it("offers a land as a legal target (CR 701.10 — any permanent type)", () => {
+        const land = makeInstance(forest.id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            boomerang.targetRequirement!,
+            [],
+            "p1"
+        );
+        expect(
+            legal.some((t) => t.type === "permanent" && t.id === "land")
+        ).toBe(true);
+    });
+
+    it("bounces a land to its owner's hand", () => {
+        const land = makeInstance(forest.id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        pushSpell(state, boomerang.id, "p1", [
+            { type: "permanent", id: "land" },
+        ]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "land")
+        ).toBeUndefined();
+        expect(state.players[1].hand.some((c) => c.id === "land")).toBe(true);
+    });
 });
 
 describe("Acid Rain (destroy all Forests, CR 701.7)", () => {

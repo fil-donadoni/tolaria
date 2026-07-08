@@ -34,7 +34,15 @@ export type SubmitChoiceArgs = {
     stackItemId: string;
     step: number;
     choiceId: string;
+    /** The primary ordered selection. For `order-top` this is the KEPT cards in
+     *  final top-to-bottom order (topmost first); for every other kind it is the
+     *  single picked set. */
     cardInstanceIds: string[];
+    /** For `kind: "order-top"` only — the un-kept looked-at cards, ordered, sent
+     *  to the choice's `destination` (bottom of library / graveyard). Together
+     *  with `cardInstanceIds` these MUST partition the looked-at `candidateIds`.
+     *  Omitted (or empty) for `destination: "none"` and every other kind. */
+    secondZoneIds?: string[];
 };
 
 export type SubmitMayPayArgs = {
@@ -515,6 +523,35 @@ export function applyPendingChoiceSubmit(
                 throw new Error("Card is not an eligible choice");
             }
         }
+        if (head.kind === "order-top") {
+            // The un-kept cards (`secondZoneIds`) must also be looked-at library
+            // cards, and the two ordered lists must PARTITION the looked-at set
+            // exactly — no card lost, duplicated, or invented (CR 701.22/701.44:
+            // every looked-at card is placed).
+            const second = args.secondZoneIds ?? [];
+            for (const id of second) {
+                if (
+                    !zoneOwner.library.find(
+                        (c: CardInstanceState) => c.id === id
+                    )
+                ) {
+                    throw new Error("Card not in library");
+                }
+                if (head.candidateIds && !head.candidateIds.includes(id)) {
+                    throw new Error("Card is not an eligible choice");
+                }
+            }
+            const placed = [...args.cardInstanceIds, ...second];
+            const placedSet = new Set(placed);
+            if (
+                placedSet.size !== placed.length ||
+                placedSet.size !== (head.candidateIds?.length ?? placed.length)
+            ) {
+                throw new Error(
+                    "order-top must place every looked-at card once"
+                );
+            }
+        }
     } else if (head.zone === "graveyard") {
         // Recall (LEG) — return N cards from the chooser's graveyard to hand
         // (CR 400.7). The graveyard is public; eligibility is the snapshot taken
@@ -609,6 +646,12 @@ export function applyPendingChoiceSubmit(
     stackItem.collectedChoices = {
         ...(stackItem.collectedChoices ?? {}),
         [key]: args.cardInstanceIds,
+        // `order-top` carries a SECOND ordered list (the un-kept cards) under a
+        // sibling key; `SpellContext.orderTop` reads it back on resume to apply
+        // the destination split.
+        ...(head.kind === "order-top"
+            ? { [`${key}:second`]: args.secondZoneIds ?? [] }
+            : {}),
     };
 
     queue.shift();

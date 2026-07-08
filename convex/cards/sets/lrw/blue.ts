@@ -4,11 +4,14 @@
 import type { CardDefinition, SpellContext } from "../../types";
 
 // Ponder — {U} Sorcery. "Look at the top three cards of your library, then put
-// them back in any order. You may shuffle. Draw a card." Composed exactly like
-// Portent (ice/blue.ts) but on the caster's OWN library: peek top 3 + a
-// `reorder-library` choice (CR 401.4 look, CR 401 reorder), then an optional
-// shuffle (CR 701.20), then the draw (CR 121.1). Each interactive step is its
-// own `resolveSteps` entry so a suspension never re-applies an earlier step.
+// them back in any order. You may shuffle. Draw a card." The look-and-reorder is
+// the reusable `SpellContext.orderTop` with `destination: "none"` (every card
+// stays on top, only the order changes — CR 401.4 look, CR 401 reorder): it
+// raises the `order-top` drag choice on the top 3 and puts them back in the
+// player's chosen order, marking them known to the caster (ADR 0026). Then an
+// optional shuffle (CR 701.20 — which clears that knowledge), then the draw
+// (CR 121.1). Each interactive step is its own `resolveSteps` entry so a
+// suspension never re-applies an earlier step.
 export const ponder: CardDefinition = {
     id: "ba6b6fc5-5077-4812-b8e9-906783dbaf67",
     name: "Ponder",
@@ -19,23 +22,14 @@ export const ponder: CardDefinition = {
     types: ["Sorcery"],
     resolveSteps: [
         (ctx: SpellContext) => {
-            const me = ctx.controller;
-            const topIds = ctx.peekLibraryTop(me, 3);
-            if (topIds.length === 0) return;
-            const ordered = ctx.requestChoice({
-                playerId: me,
-                choiceId: `ponder-reorder-${ctx.sourceInstanceId}`,
-                kind: "reorder-library",
-                zone: "library",
-                count: topIds.length,
-                candidateIds: topIds,
-                prompt: "Put these cards back on top in any order (first = top).",
-            });
-            if (ordered === undefined) return; // suspended on the reorder
-            const allIds = ctx.peekLibraryTop(me, Number.MAX_SAFE_INTEGER);
-            const orderedSet = new Set(ordered);
-            const rest = allIds.filter((id) => !orderedSet.has(id));
-            ctx.reorderLibraryTop(me, [...ordered, ...rest]);
+            if (
+                !ctx.orderTop(ctx.controller, 3, {
+                    destination: "none",
+                    prompt: "Put these cards back on top in any order (rightmost = top).",
+                })
+            ) {
+                return; // suspended on the reorder
+            }
         },
         (ctx: SpellContext) => {
             // "You may shuffle" — a no-cost may decision by the caster.

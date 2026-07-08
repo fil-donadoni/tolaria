@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import {
@@ -12,6 +13,7 @@ import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import CardsPile from "./cards-pile";
 import LibrarySearchConfirm from "./library-search-confirm";
+import LibraryOrderPicker from "./library-order/library-order-picker";
 import { buildLibraryPileModel } from "~/lib/library-knowledge";
 import { orderLibrarySearchCards } from "~/lib/library-search-order";
 
@@ -31,6 +33,8 @@ export default function PlayerLibrary({
     const draw = useMutation(api.game.drawCard);
     const millCard = useMutation(api.game.mill);
     const exile = useMutation(api.game.exileFromLibrary);
+    const submitChoice = useMutation(api.game.submitResolutionChoice);
+    const [orderSubmitting, setOrderSubmitting] = useState(false);
     const bufferCtx = usePendingChoiceBuffer();
     const { isMinimized, minimize } = useMinimizedChoice();
     const isMe = player.id === playerId;
@@ -63,6 +67,18 @@ export default function PlayerLibrary({
     const isLibraryPeekPick =
         !!head &&
         (head.kind === "draw-look-keep" || head.kind === "look-top") &&
+        head.zone === "library" &&
+        head.playerId === playerId &&
+        player.id === playerId &&
+        !!player.libraryPeek;
+
+    // Scry / surveil / ponder ordered-top pick (`order-top`, CR 701.22/701.44):
+    // the projection exposes the looked-at top N as `libraryPeek`, and the
+    // player orders them via the drag picker (a full-screen overlay), NOT the
+    // grid/click-buffer path — so it is deliberately kept OUT of `isLibraryPick`.
+    const isOrderTopPick =
+        !!head &&
+        head.kind === "order-top" &&
         head.zone === "library" &&
         head.playerId === playerId &&
         player.id === playerId &&
@@ -165,6 +181,11 @@ export default function PlayerLibrary({
             // each is fully visible and individually selectable, and surface
             // the buffered picks with a per-card ring.
             layout={isLibraryPick ? "grid" : "fan"}
+            // ADR 0026 — known top cards read top-on-the-right (topmost highest),
+            // in the collapsed board slot and the browse dialog, for BOTH the
+            // viewer's own library and the opponent's (Mishra's Bauble peek). The
+            // grid pick modes are unaffected (they don't fan).
+            topOnRight={!isLibraryPick}
             selectedIds={isLibraryPick ? bufferCtx.buffer : undefined}
             // Filtered search (issue #933): gate the ring/click affordance to
             // the allow-listed cards. `eligibleIds` is `undefined` for an
@@ -178,16 +199,52 @@ export default function PlayerLibrary({
         />
     );
 
+    const handleOrderConfirm = async (
+        topTopmostFirst: string[],
+        secondIds: string[]
+    ) => {
+        if (!head || orderSubmitting) return;
+        setOrderSubmitting(true);
+        try {
+            await submitChoice({
+                gameId,
+                playerId,
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: topTopmostFirst,
+                secondZoneIds: secondIds.length > 0 ? secondIds : undefined,
+            });
+        } finally {
+            setOrderSubmitting(false);
+        }
+    };
+
+    const orderPicker = isOrderTopPick ? (
+        <LibraryOrderPicker
+            lookedAt={player.libraryPeek!.map((c) => ({
+                instanceId: c.id,
+                defId: c.card.id,
+            }))}
+            destination={head!.destination ?? "none"}
+            prompt={head!.prompt ?? "Order the top of your library"}
+            submitting={orderSubmitting}
+            onConfirm={handleOrderConfirm}
+        />
+    ) : null;
+
     if (!isMe || !hasCards || !debugAllActions) {
         return (
             <div className="w-[var(--card-w-sm)] aspect-5/7">
                 <div className="relative">{pile}</div>
+                {orderPicker}
             </div>
         );
     }
 
     return (
         <div className="w-[var(--card-w-sm)] aspect-5/7">
+            {orderPicker}
             <ContextMenu>
                 <ContextMenuTrigger>
                     <div className="relative cursor-pointer">{pile}</div>
