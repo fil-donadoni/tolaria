@@ -12,6 +12,7 @@ import {
     isBotSeat,
     matchBelongsToUser,
     nextGameActivePlayerId,
+    pickCoinTossWinner,
     projectMatch,
     recordGameResult,
     snapshotDeck,
@@ -203,9 +204,10 @@ describe("matchBelongsToUser (#155 → single-active-match guard)", () => {
         expect(matchBelongsToUser(m([`prefix${userId}`]), userId)).toBe(false);
     });
 
-    it("counts only waiting / playing / sideboarding as active", () => {
+    it("counts waiting / pregame / playing / sideboarding as active", () => {
         expect(ACTIVE_MATCH_STATUSES).toEqual([
             "waiting",
+            "pregame",
             "playing",
             "sideboarding",
         ]);
@@ -312,6 +314,37 @@ describe("nextGameActivePlayerId (#394, CR 103.4)", () => {
 
     it("falls back to undefined when the chooser isn't a seat", () => {
         expect(nextGameActivePlayerId(m("ghost"), "play")).toBeUndefined();
+    });
+});
+
+describe("pickCoinTossWinner (G1 coin toss, CR 103.2-103.3)", () => {
+    const seats = [{ id: "a" }, { id: "b" }];
+
+    it("a low roll (< 0.5) picks the first seat", () => {
+        expect(pickCoinTossWinner(seats, 0)).toBe("a");
+        expect(pickCoinTossWinner(seats, 0.4999)).toBe("a");
+    });
+
+    it("a high roll (>= 0.5) picks the second seat", () => {
+        expect(pickCoinTossWinner(seats, 0.5)).toBe("b");
+        expect(pickCoinTossWinner(seats, 0.9999)).toBe("b");
+    });
+
+    it("is unbiased across the [0,1) range (both seats reachable)", () => {
+        const winners = Array.from({ length: 100 }, (_, i) =>
+            pickCoinTossWinner(seats, i / 100)
+        );
+        expect(winners.filter((w) => w === "a")).toHaveLength(50);
+        expect(winners.filter((w) => w === "b")).toHaveLength(50);
+    });
+
+    it("feeds nextGameActivePlayerId: toss winner + 'play' starts, 'draw' hands over", () => {
+        // CR 103.4: the toss winner becomes the play/draw chooser; 'play' keeps
+        // them on the play, 'draw' gives the first turn to the opponent.
+        const chooser = pickCoinTossWinner(seats, 0.7); // "b"
+        const m = { players: seats, playDrawChooserId: chooser };
+        expect(nextGameActivePlayerId(m, "play")).toBe("b");
+        expect(nextGameActivePlayerId(m, "draw")).toBe("a");
     });
 });
 

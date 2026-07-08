@@ -18,4 +18,10 @@ at patchValueToJson (../../node_modules/convex/src/values/value.ts:447:0)
 
 Illusionary terrain non funziona: posso scegliere i 2 tipi di terra base quando entra, ma poi le terre in gioco coinvolte non cambiano tipo e nell'oracle text della card-preview di illusionary terrain non viene mostrato il tipo di terra scelto.
 
-Come decidi chi inizia in G1? bisognerebbe tirare il dado
+Quando confermi per entrare in G2 o G3 dopo la side, va in 404. devi tornare alla home e fare resume, e funziona.
+
+Manca la seconda abilità attivata di Psychic frog
+
+Brainstorm è buggato, verificare
+
+Phase out dovrebbe mostrare le carte disabilitate e con poca opacità, non farle sparire del tutto

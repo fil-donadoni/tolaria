@@ -128,9 +128,12 @@ export default defineSchema({
         bestOf: v.union(v.literal(1), v.literal(3)),
         status: v.union(
             // Mirrors the game lifecycle: a 2-player Match opens "waiting" for
-            // an opponent, then "playing"; "sideboarding" is the Bo3 between-
-            // games gate; "finished" is terminal.
+            // an opponent; "pregame" is the G1 coin-toss + play/draw gate (CR
+            // 103.2-103.4) before the first Game builds; then "playing";
+            // "sideboarding" is the Bo3 between-games gate; "finished" is
+            // terminal.
             v.literal("waiting"),
+            v.literal("pregame"),
             v.literal("playing"),
             v.literal("sideboarding"),
             v.literal("finished")
@@ -186,6 +189,9 @@ export default defineSchema({
         gameNumber: v.optional(v.number()),
         status: v.union(
             v.literal("waiting"),
+            // "pregame": the owning Match is resolving the G1 coin toss +
+            // play/draw choice; no game_states row exists yet (CR 103.2-103.4).
+            v.literal("pregame"),
             v.literal("playing"),
             v.literal("finished")
         ),

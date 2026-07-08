@@ -11,7 +11,7 @@ export type ActiveGame = {
     gameId: Id<"games">;
     matchId: Id<"matches">;
     name: string;
-    status: "waiting" | "playing" | "finished";
+    status: "waiting" | "pregame" | "playing" | "finished";
     solo: boolean;
     vsAi: boolean;
 };
