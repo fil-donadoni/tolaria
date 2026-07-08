@@ -640,6 +640,7 @@ function alpha40Validate(
  * so the intent is documented and the intersection is auditable at a glance.
  */
 export const PREMODERN_LEGAL_SETS: readonly string[] = [
+    "4ed", // Fourth Edition (earliest Premodern-legal set)
     "ice", // Ice Age
     "hml", // Homelands
     "mir", // Mirage
@@ -658,6 +659,7 @@ export const PREMODERN_LEGAL_SETS: readonly string[] = [
     "ons", // Onslaught
     "scg", // Scourge
     "ptk", // Portal Three Kingdoms
+    "btd", // Beatdown Box Set (Premodern-legal reprint box set)
 ];
 
 /**

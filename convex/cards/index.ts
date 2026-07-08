@@ -174,6 +174,11 @@ import * as otj from "./sets/otj";
 // c15/mh2 already imported above (shared with earlier tranches).
 import * as hml from "./sets/hml";
 import * as scg from "./sets/scg";
+// Premodern-legal reprint box sets (issue #980) — reprint-only modules that
+// carry a CardPrint into a Premodern-legal set so earlier definitions become
+// deck-legal in Premodern.
+import * as fourthEdition from "./sets/4ed";
+import * as beatdown from "./sets/btd";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -343,6 +348,9 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     // Tishana's Tidebinder gap: the `spellStackKind: "ability"` stack-object
     // kind + countering a triggered ability on the stack).
     { code: "scg", exports: scg },
+    // Premodern-legal reprint box sets (issue #980).
+    { code: "4ed", exports: fourthEdition },
+    { code: "btd", exports: beatdown },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>
