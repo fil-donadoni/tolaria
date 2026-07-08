@@ -4860,6 +4860,10 @@ export const selectTarget = mutation({
                     // copy-retarget is a spell copy; cast is a spell; ability
                     // is not (CR 113.3).
                     isSpell: guardSourceKind !== "ability",
+                    // CR 702.11b — the source's controller (the selecting
+                    // player). Hexproof bars only an opponent-controlled source;
+                    // the permanent's own controller can still target it.
+                    controllerId: args.playerId,
                 })
             ) {
                 throw new Error(

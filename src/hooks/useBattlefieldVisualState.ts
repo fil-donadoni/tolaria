@@ -251,7 +251,10 @@ export function useBattlefieldVisualState(player: Player) {
                     allPlayers,
                     card,
                     pendingTarget.cardInstanceId,
-                    pendingTarget.kind
+                    pendingTarget.kind,
+                    // CR 702.11b — the chooser controls the source; hexproof
+                    // bars only an opponent's source, never the own controller.
+                    pendingTarget.playerId
                 )
             ) {
                 return false;

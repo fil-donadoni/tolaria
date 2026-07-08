@@ -14,6 +14,7 @@ const JASMINE_BOREAL = "db6ef678-4ce9-48d6-aa4f-2afd9a1ad724"; // vanilla creatu
 const SPECTRAL_CLOAK = "7524fd0d-a675-41d6-bc99-bd3ba336893b";
 const ANTI_MAGIC_AURA = "ff78eef1-efaa-4a12-bf5d-fec83c14aff8";
 const BARTEL_RUNEAXE = "f1a42691-98bb-4234-9b56-085e6677f3e4";
+const SYLVAN_CARYATID = "d40b65c1-b24d-492d-81b9-d8474ebdc08c"; // hexproof
 
 function inst(
     overrides: Partial<CardInstance> & { card: { id: string } }
@@ -173,5 +174,54 @@ describe("isUntargetableByPending — Bartel Runeaxe (CR 109.5)", () => {
         expect(isUntargetableByPending(players, bartel, "bolt", "cast")).toBe(
             false
         );
+    });
+});
+
+// CR 702.11b — hexproof is controller-relative: an opponent's targeted spell
+// greys the permanent (not clickable), but the controller's own does not.
+// #958. The 5th arg to isUntargetableByPending is the source's controller (the
+// chooser = pendingTarget.playerId), threaded by both battlefield click gates.
+describe("isUntargetableByPending — Sylvan Caryatid hexproof (CR 702.11b)", () => {
+    function board(): Player[] {
+        // p1 controls the hexproof Caryatid. staticAbilities mirror the wire
+        // projection (the server ships the effective keyword array on the card).
+        const caryatid = inst({
+            id: "caryatid",
+            card: { id: SYLVAN_CARYATID },
+            types: ["Creature"],
+            subtypes: ["Plant"],
+            staticAbilities: ["defender", "hexproof"],
+        });
+        // p1's own bolt (in p1's hand) and p2's bolt (in p2's hand).
+        const ownBolt = inst({
+            id: "own-bolt",
+            card: { id: JASMINE_BOREAL },
+            zone: "hand",
+        });
+        const oppBolt = inst({
+            id: "opp-bolt",
+            card: { id: JASMINE_BOREAL },
+            zone: "hand",
+        });
+        return [
+            player({ id: "p1", battlefield: [caryatid], hand: [ownBolt] }),
+            player({ id: "p2", hand: [oppBolt] }),
+        ];
+    }
+
+    it("not clickable for an opponent's targeted spell (source controller = p2)", () => {
+        const players = board();
+        const caryatid = players[0].battlefield[0];
+        expect(
+            isUntargetableByPending(players, caryatid, "opp-bolt", "cast", "p2")
+        ).toBe(true);
+    });
+
+    it("clickable for the controller's own targeted spell (source controller = p1)", () => {
+        const players = board();
+        const caryatid = players[0].battlefield[0];
+        expect(
+            isUntargetableByPending(players, caryatid, "own-bolt", "cast", "p1")
+        ).toBe(false);
     });
 });

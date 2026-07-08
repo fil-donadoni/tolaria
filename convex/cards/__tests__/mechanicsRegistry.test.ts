@@ -105,6 +105,10 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
         ["banding", "702.22", "banding"],
         ["cumulative-upkeep", "702.24", "cumulative-upkeep"],
         ["haste", "702.10", "haste"],
+        // #958 — hexproof: a permanent can't be targeted by spells/abilities its
+        // controller's opponents control (CR 702.11b), bridged from the keyword
+        // to the shroud `cantBeTargeted` guard.
+        ["hexproof", "702.11", "hexproof"],
         ["unblockable", undefined, "unblockable"],
     ] as const)(
         "%s is implemented with binding %s",
@@ -131,8 +135,9 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
     // enforced anywhere in the engine. Documented as a fact, not silently
     // marked implemented.
     // Haste graduated to `implemented` in issue #730 (combat honours it for
-    // attack eligibility). The remaining rows are still declared-but-unenforced.
-    it.each(["hexproof", "shroud", "ward"] as const)(
+    // attack eligibility); hexproof in issue #958 (CR 702.11b targeting). The
+    // remaining rows are still declared-but-unenforced keyword strings.
+    it.each(["shroud", "ward"] as const)(
         "%s is honestly marked planned (declared-but-unenforced gap)",
         (id) => {
             const row = MECHANICS_REGISTRY.find((r) => r.id === id);
