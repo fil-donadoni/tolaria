@@ -2357,6 +2357,20 @@ export interface SpellContext {
      *  Used to compare a revealed card against a named card (Petra Sphinx). */
     getCardName: (cardInstanceId: string) => string | undefined;
 
+    /** Reveals ONE card chosen uniformly at random from `playerId`'s hand
+     *  (CR 701.20a reveal), using the game's seeded PRNG so replays reproduce
+     *  the same pick, exactly like `flipCoin` / `discardAtRandom`. The picked
+     *  card is stamped known-to-all (`markKnownToAll`) so the wire projection
+     *  shows the real card, and a one-shot reveal notification is enqueued for
+     *  both players. Returns the revealed instance id (compare its name with
+     *  `getCardName`), or undefined when the hand is empty (CR 608.2b — nothing
+     *  is revealed). MUST be called only in the final, non-suspending segment
+     *  of a resolution (draw the bit exactly once): call it AFTER any
+     *  `requestNameCard` / `requestChoice` suspension so the random draw is not
+     *  re-rolled on the replayed step. Used by Cursed Scroll ("reveal a card at
+     *  random from your hand"). */
+    revealRandomHandCard: (playerId: string) => string | undefined;
+
     /** Reads back an answer collected by an EARLIER resolution step of the same
      *  stack item (CR 608.2 stepped resolution). `requestChoice` /
      *  `requestMayPay` key their answers under `${step}:${choiceId}`, so a later

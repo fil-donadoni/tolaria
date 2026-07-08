@@ -176,7 +176,10 @@ for (const card of cards) {
 
 // ── write ────────────────────────────────────────────────────────────────────
 
-const setsDir = resolve("convex/cards/sets");
+// Default output is the live catalogue (`convex/cards/sets`). Tests override it
+// (JSON_TO_CARDS_OUT_DIR) to a throwaway tmp dir so their generate/cleanup can
+// never race a concurrent worker walking the real sets tree (sacrificeGuard).
+const setsDir = resolve(process.env.JSON_TO_CARDS_OUT_DIR ?? "convex/cards/sets");
 // Colour modules live at `sets/<code>/<colour>.ts`, two levels above `cards/`.
 const importLine = `import type { CardDefinition } from "../../types";`;
 const setDir = writeSetDirectory(setsDir, setCode, sources, importLine);

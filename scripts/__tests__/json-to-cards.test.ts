@@ -39,14 +39,21 @@ function generate(
 ): { combined: string; modules: Record<string, string>; barrel: string } {
     const dir = mkdtempSync(join(tmpdir(), "json-to-cards-"));
     const jsonPath = join(dir, `${setCode}.json`);
-    const outDir = join(process.cwd(), "convex", "cards", "sets", setCode);
+    // Emit into a throwaway tmp dir (JSON_TO_CARDS_OUT_DIR override) instead of
+    // the live `convex/cards/sets` tree, so the create/cleanup here can never
+    // race a concurrent worker walking the real catalogue (sacrificeGuard).
+    const outRoot = join(dir, "sets");
+    const outDir = join(outRoot, setCode);
     writeFileSync(
         jsonPath,
         JSON.stringify({ data: { code: setCode, cards } }),
         "utf-8"
     );
     try {
-        execFileSync("bun", [SCRIPT, jsonPath], { encoding: "utf-8" });
+        execFileSync("bun", [SCRIPT, jsonPath], {
+            encoding: "utf-8",
+            env: { ...process.env, JSON_TO_CARDS_OUT_DIR: outRoot },
+        });
         const modules: Record<string, string> = {};
         for (const m of COLOUR_MODULES) {
             modules[m] = readFileSync(join(outDir, `${m}.ts`), "utf-8");

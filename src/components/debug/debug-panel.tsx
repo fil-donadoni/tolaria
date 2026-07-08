@@ -899,6 +899,24 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Cursed Scroll random-reveal conditional damage (issue #991): "{3},
+        // {T}: Choose a card name, then reveal a card at random from your hand.
+        // If that card has the chosen name, this artifact deals 2 damage to
+        // any target." Cursed Scroll is in play with exactly ONE card in hand
+        // (Grizzly Bears), so the random reveal is forced — activate it, name
+        // "Grizzly Bears", and the reveal is guaranteed to match, dealing 2 to
+        // any target (the opponent, or their Grizzly Bears). Discard a card
+        // first to make the reveal probabilistic. 3 lands cover the {3} cost.
+        label: "Cursed Scroll: random-reveal conditional damage (#991)",
+        cards: [
+            { name: "Cursed Scroll", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "me", zone: "hand" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+    },
 ];
 
 type DebugPanelProps = {

@@ -1440,6 +1440,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Cursed Scroll",
+        "scryfallId": "31415b9b-fb30-4132-a9a3-795b4573a901",
+        "oracleId": "514752ea-d453-41d4-97cf-b1dcdb4b4a08",
+        "firstSet": "tmp"
+    },
+    {
         "name": "Cyclone",
         "scryfallId": "f11684d6-5b74-47a7-a2d0-256c9e437aa6",
         "oracleId": "fc9e82b2-f148-431b-9312-97b7101cffe4",
