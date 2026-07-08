@@ -224,6 +224,34 @@ export function collectTriggers(
         state.delayedTriggers = remaining.length > 0 ? remaining : undefined;
     }
 
+    // CR 603.7d / 603.10 (issue #884) — repeating combat-event delayed
+    // triggers: a `timing: "this-turn-creature-blocks"` instance (Battle Cry)
+    // fires once per BLOCKERS_CONFIRMED event in THIS batch, for the rest of
+    // the turn — unlike every other delayed-trigger timing, it is NOT removed
+    // from `state.delayedTriggers` after firing (it stays queued, purged only
+    // at CLEANUP, phases.ts). The firing event is threaded onto the built
+    // StackItem as `triggerEvent`, exactly like a normal triggered ability
+    // (`buildTriggerItem` above) — the one delayed-trigger case where the
+    // firing event is still live at fire time, so the inline body may read
+    // `$event.blockerId` directly (validate.ts allows `$event` only for this
+    // timing's body).
+    if (state.delayedTriggers?.length) {
+        const repeaters = state.delayedTriggers.filter(
+            (t) => t.timing === "this-turn-creature-blocks"
+        );
+        if (repeaters.length > 0) {
+            for (const event of events) {
+                if (event.type !== "BLOCKERS_CONFIRMED") continue;
+                for (const t of repeaters) {
+                    out.push({
+                        ...buildDelayedTriggerStackItem(state, t),
+                        triggerEvent: event,
+                    });
+                }
+            }
+        }
+    }
+
     return out;
 }
 
