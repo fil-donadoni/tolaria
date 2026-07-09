@@ -586,6 +586,8 @@ export function buildTriggerStateView(
                 types: c.types ?? [],
                 subtypes: c.subtypes ?? [],
                 staticAbilities: c.staticAbilities ?? [],
+                power: c.power,
+                toughness: c.toughness,
                 isTapped: c.isTapped === true,
                 // CR 202.2 / 613.1d — effective colours for a tapOtherFilter
                 // colour clause (Hand of Justice): layer-5 override wins, else
