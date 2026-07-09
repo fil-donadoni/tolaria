@@ -40,8 +40,10 @@
 // unambiguous. No new GameState or StackItem field is introduced: the
 // serialization drift guard needs nothing.
 //
-// The value grammar is exactly literal | ref | count (ADR 0045 frozen
-// grammar). The `if` structural construct (issue #806) is a registered Op
+// The value grammar is exactly literal | ref | count | X | counters (ADR 0045
+// frozen grammar — X issue #852, counters issue #1015; both thin skins over an
+// existing SpellContext primitive, neither a new structural construct). The
+// `if` structural construct (issue #806) is a registered Op
 // (`{ op: "if", predicate, then, else? }`) whose executor runs the matching
 // branch through `runOpList`. Because a branch may itself contain a
 // suspending Op AFTER a side-effecting one, the checkpoint is a PRE-ORDER
@@ -252,9 +254,11 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
 
 /** Resolves a numeric Op parameter (ADR 0045 value grammar): a literal, a
  *  `ref` reading a bound snapshot's power/toughness, a `count` of a selected
- *  set, or the chosen-cost `X` (issue #852 — a thin skin over `ctx.getX()`,
- *  CR 107.3 / 601.2b). Returns `undefined` when a ref names a binding that was
- *  never captured (its Op was skipped — CR 608.2b), so the caller skips too. */
+ *  set, the chosen-cost `X` (issue #852 — a thin skin over `ctx.getX()`,
+ *  CR 107.3 / 601.2b), or a `counters` count on a selected object (issue #1015
+ *  — a thin skin over `ctx.getCounterCount`, CR 122.6). Returns `undefined`
+ *  when a ref names a binding that was never captured or a selected object has
+ *  left play (CR 608.2b), so the caller skips too. */
 function resolveValue(
     ctx: SpellContext,
     value: EffectValue
@@ -280,6 +284,17 @@ function resolveValue(
     // time, read back off the stack item via getX(). One execution path, no
     // duplicated logic (ADR 0045, issue #852).
     if ("X" in value) return ctx.getX();
+    // counters — the number of counters of a given type on a selected object
+    // (CR 122.6, issue #1015), a thin skin over ctx.getCounterCount. `of`
+    // resolves through the SAME resolveObjectRef path every object-acting Op
+    // uses (announced slot / $source / $each); an undefined resolution (the
+    // object left play — CR 608.2b) makes the value unresolvable, so the caller
+    // skips exactly as it does for any other missing ref.
+    if ("counters" in value) {
+        const target = resolveObjectRef(ctx, value.counters.of);
+        if (!target) return undefined;
+        return ctx.getCounterCount(target, value.counters.type);
+    }
     return countSet(ctx, value.count);
 }
 

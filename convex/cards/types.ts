@@ -5067,11 +5067,35 @@ export interface EffectCardFilter {
  *  it (a card like Braingeyser drawing `X` cards, Drain Life dealing `X`). */
 export type EffectXValue = { X: true };
 
+/** counters — the number of counters of a given `type` on a selected object
+ *  (CR 122.6), a thin JSON-pure skin over `SpellContext.getCounterCount`
+ *  (issue #1015). A SIXTH `EffectValue` grammar member; like `X` (issue #852)
+ *  it is NOT an Op and NOT a new STRUCTURAL construct — it does not reopen
+ *  ADR 0045 (only a fifth bind/ref/if/forEach-style construct would). `of` is
+ *  an object selector resolved through the SAME `resolveObjectRef` path every
+ *  object-acting Op uses — an announced target slot (`{ target: N }`), the
+ *  resolving source at an ability site (`{ ref: "$source" }`), or the current
+ *  `forEach` member (`{ ref: "$each" }`); `type` is the counter kind ("fuse",
+ *  "+1/+1", "charge", …). Reads the LIVE count on the battlefield permanent
+ *  (0 when the object has left play — CR 608.2b). Unblocks the "value equal to
+ *  the number of <type> counters on it" class (Powder Keg's MV-matched sweep,
+ *  issue #997; damage / pump / draw scaled by counters). Still no arithmetic:
+ *  it reads back one count, nothing composes it. */
+export type EffectCountersValue = {
+    counters: { of: EffectObjectSelector; type: string };
+};
+
 /** A runtime numeric parameter of an Op (ADR 0045): a literal count, a `ref`
- *  reading a bound object's numeric property, a `count` of a selected set, or
- *  the chosen-cost `X` (issue #852). The value grammar is capped at these —
- *  no arithmetic, no expressions (the frozen-grammar defence, ADR 0045). */
-export type EffectValue = number | EffectRef | EffectCount | EffectXValue;
+ *  reading a bound object's numeric property, a `count` of a selected set, the
+ *  chosen-cost `X` (issue #852), or a `counters` count on a selected object
+ *  (issue #1015). The value grammar is capped at these — no arithmetic, no
+ *  expressions (the frozen-grammar defence, ADR 0045). */
+export type EffectValue =
+    | number
+    | EffectRef
+    | EffectCount
+    | EffectXValue
+    | EffectCountersValue;
 
 /** JSON-pure mana specification for the `addMana` Op (CR 106.1, issue #850) —
  *  a per-colour amount map. Only fixed coloured / colorless pips: no variable
