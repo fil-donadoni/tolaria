@@ -6326,6 +6326,21 @@ export interface CardDefinition {
          *  game "an opponent" is unambiguous; the single opponent's graveyard is
          *  counted. */
         xFromOpponentGraveyard?: { cardTypes: CardType[] };
+        /** CR 702.34a / 118.5 — a FLASHBACK-only additional cost: "Exile X
+         *  <color> cards from your graveyard." Applies ONLY when the spell is
+         *  cast via flashback (from the graveyard); a normal cast from hand
+         *  skips it entirely. The number of cards exiled equals the announced X
+         *  (the card carries a variable `{X}` pip, so this composes with the
+         *  existing `chosenX` flow — X drives BOTH the exile count and the
+         *  effect). The caster picks exactly X matching cards from their OWN
+         *  graveyard via `selectCastExileCost`; the picked cards move graveyard
+         *  → exile at cast commit. The flashback card itself is never eligible
+         *  (it is leaving the graveyard as it's cast — CR 702.34e "You can't
+         *  exile <this> to pay for its own flashback cost"). Used by Flash of
+         *  Insight ("Flashback—{1}{U}, Exile X blue cards from your
+         *  graveyard"). `color` filters the eligible cards (CR 105.2); omit for
+         *  any card. */
+        flashbackExileFromGraveyard?: { color?: Color };
     };
     /** CR 118.9 — alternative casting costs the caster may choose at
      *  announcement INSTEAD of paying this spell's mana cost. Each entry pays

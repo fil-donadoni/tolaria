@@ -1172,6 +1172,21 @@ export type PendingCast = {
      *  sacrifice (Drought), folded into one selection. `additionalCost` remains
      *  for the exile branch only. */
     sacrificeSelection?: SacrificeSelection;
+    /** In-progress "exile X cards from your own graveyard" FLASHBACK cost
+     *  picker (CR 702.34a / 118.5 — Flash of Insight). Set when a flashback
+     *  cast has `additionalCosts.flashbackExileFromGraveyard`. `count` equals
+     *  the announced X; `color` mirrors the cost's colour filter (CR 105.2);
+     *  `excludeInstanceId` is the flashback card itself (it can't pay for its
+     *  own cost, CR 702.34e). `pickedCardIds` is undefined until the player
+     *  calls `selectCastExileCost`, and commit is blocked while it is unset
+     *  regardless of mana coverage. On commit the chosen cards move graveyard →
+     *  exile. Mirrors the activation-path `exileFromGraveyardChoice`. */
+    exileFromGraveyardChoice?: {
+        count: number;
+        color?: Color;
+        excludeInstanceId: string;
+        pickedCardIds?: string[];
+    };
 };
 
 /** Tracks an in-progress activated-ability payment (CR 602.1, 602.2b).
