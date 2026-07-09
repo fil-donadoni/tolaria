@@ -46,6 +46,7 @@ import PauseMenuDialog from "./pause-menu-dialog";
 import TargetSelectionBanner from "./target-selection-banner";
 import GraveyardTargetDialog from "./graveyard-target-dialog";
 import ExileCostDialog from "./exile-cost-dialog";
+import CastExileCostDialog from "./cast-exile-cost-dialog";
 import { isGraveyardTargetForViewer } from "~/lib/graveyard-targets";
 import PaymentBanner from "./payment-banner";
 import SacrificeBanner from "./sacrifice-banner";
@@ -536,7 +537,23 @@ export default function Board({
                                     />
                                 ))}
                             {pendingCast &&
-                                pendingCast.playerId === viewerId && (
+                                pendingCast.playerId === viewerId &&
+                                // CR 702.34a / 118.5 — the flashback "exile X
+                                // blue cards from your graveyard" cost (Flash of
+                                // Insight) needs a dedicated card picker before
+                                // the payment banner takes over.
+                                (pendingCast.exileFromGraveyardChoice &&
+                                !pendingCast.exileFromGraveyardChoice
+                                    .pickedCardIds ? (
+                                    <CastExileCostDialog
+                                        choice={
+                                            pendingCast.exileFromGraveyardChoice
+                                        }
+                                        me={me}
+                                        gameId={gameId}
+                                        playerId={viewerId}
+                                    />
+                                ) : (
                                     <PaymentBanner
                                         kind="cast"
                                         pendingCast={pendingCast}
@@ -544,7 +561,7 @@ export default function Board({
                                         gameId={gameId}
                                         playerId={viewerId}
                                     />
-                                )}
+                                ))}
                             {pendingActivation &&
                                 pendingActivation.playerId === viewerId &&
                                 // CR 602.1 / 118.5 — the exile-from-graveyard

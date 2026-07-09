@@ -10,10 +10,12 @@ import {
     getInstanceManaCost,
     tryGetDefinition,
 } from "./cards";
+import { getCardColors } from "./cards/colors";
 import {
     type CardInstanceState,
     type GameState,
     type PendingActivation,
+    type PendingCast,
     type PendingTarget,
     type PlayerState,
     type StackItem,
@@ -1107,6 +1109,40 @@ function canPayExileFromGraveyard(
     );
 }
 
+/** True iff the graveyard card matches a FLASHBACK exile cost's colour filter
+ *  (CR 105.2 / 202.2 — Flash of Insight "blue cards"). Colours are the card's
+ *  printed colours (`getCardColors`), read from its definition; `color`
+ *  undefined matches any card. A card whose definition can't be resolved never
+ *  matches (a token has no graveyard existence, CR 111.7). */
+function graveyardCardMatchesColor(
+    card: CardInstanceState,
+    color?: Color
+): boolean {
+    if (color === undefined) return true;
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    return def ? getCardColors(def).includes(color) : false;
+}
+
+/** True iff `player`'s OWN graveyard holds `count` cards matching `color`,
+ *  EXCLUDING `excludeInstanceId` (the flashback card itself — CR 702.34e "You
+ *  can't exile <this> to pay for its own flashback cost"). Gates the legality
+ *  of a `flashbackExileFromGraveyard` cost at cast announcement (Flash of
+ *  Insight). */
+function canPayFlashbackExile(
+    player: PlayerState,
+    count: number,
+    color: Color | undefined,
+    excludeInstanceId: string
+): boolean {
+    return (
+        player.graveyard.filter(
+            (c) =>
+                c.id !== excludeInstanceId &&
+                graveyardCardMatchesColor(c, color)
+        ).length >= count
+    );
+}
+
 /** Untapped permanents on `player`'s battlefield that match `filter` and are
  *  eligible to pay a `tapOtherFilter` cost (CR 602.1 / 118.8). The source
  *  permanent (`sourceId`) is excluded — the cost taps OTHER permanents — as is
@@ -1683,6 +1719,14 @@ export function tryAutoCommitPendingCast(
     if (ac && !ac.pickedId) {
         return null;
     }
+    // CR 702.34a / 118.5 — the flashback "exile X blue cards from your
+    // graveyard" cost (Flash of Insight) gates on its own picker: commit is
+    // blocked until the player has picked the cards (selectCastExileCost),
+    // regardless of mana coverage.
+    const castExile = state.pendingCast.exileFromGraveyardChoice;
+    if (castExile && !castExile.pickedCardIds) {
+        return null;
+    }
 
     // CR 106.4 / 202.3 — cast-path mana-spent tracking (Soul Burn). Snapshot
     // the pool before payment so the per-colour delta becomes `notedManaSpent`
@@ -1741,6 +1785,25 @@ export function tryAutoCommitPendingCast(
                 : {}),
         };
         removePermanentTo(state, exiled.id, "exile");
+    }
+
+    // CR 702.34a / 118.5 — pay the flashback "exile X blue cards from your
+    // graveyard" cost (Flash of Insight): move each picked card from the
+    // caster's own graveyard to their exile. Re-check presence at commit
+    // (vanished-card policy): if any picked card is no longer in the graveyard,
+    // drop the pendingCast silently. Runs BEFORE the flashback card itself
+    // leaves the graveyard below (the picks never include it — CR 702.34e).
+    if (castExile?.pickedCardIds) {
+        const stillThere = castExile.pickedCardIds.every((id) =>
+            player.graveyard.some((c) => c.id === id)
+        );
+        if (!stillThere) {
+            state.pendingCast = undefined;
+            return null;
+        }
+        for (const id of castExile.pickedCardIds) {
+            moveCard(player, id, "graveyard", "exile");
+        }
     }
 
     // CR 601.3e / 702.34 — remove from the zone the card was actually cast from
@@ -4051,8 +4114,46 @@ export const announceCast = mutation({
             cardDef.additionalCosts,
             cardDef.name ?? "Sacrifice"
         );
+        // CR 702.34a / 118.5 — Flash of Insight's flashback-only additional
+        // cost "Exile X blue cards from your graveyard". Applies ONLY on a
+        // flashback cast (from the graveyard); X = the announced chosenX.
+        // Validate the caster's own graveyard holds enough matching cards
+        // (excluding the flashback card itself, CR 702.34e), then open the
+        // picker so commit gates on it. A zero-X flashback cast has no exile
+        // cost (the spell looks at 0 cards).
+        const fbExileSpec =
+            cardDef.additionalCosts?.flashbackExileFromGraveyard;
+        let castExileChoice: PendingCast["exileFromGraveyardChoice"];
+        if (
+            fbExileSpec &&
+            castFromZone === "graveyard" &&
+            chosenX !== undefined &&
+            chosenX > 0
+        ) {
+            if (
+                !canPayFlashbackExile(
+                    player,
+                    chosenX,
+                    fbExileSpec.color,
+                    args.cardInstanceId
+                )
+            ) {
+                throw new Error(
+                    "Not enough matching cards in your graveyard to pay the flashback cost"
+                );
+            }
+            castExileChoice = {
+                count: chosenX,
+                ...(fbExileSpec.color !== undefined
+                    ? { color: fbExileSpec.color }
+                    : {}),
+                excludeInstanceId: args.cardInstanceId,
+            };
+        }
+
         const parkForSacrifice =
             !!exilePicker ||
+            !!castExileChoice ||
             (castSac !== undefined && !isSacrificeSelectionComplete(castSac));
         if (parkForSacrifice) {
             // Open pendingCast in cost-picker mode. Commit is gated on the
@@ -4070,6 +4171,9 @@ export const announceCast = mutation({
                     : {}),
                 ...(exilePicker ? { additionalCost: exilePicker } : {}),
                 ...(castSac ? { sacrificeSelection: castSac } : {}),
+                ...(castExileChoice
+                    ? { exileFromGraveyardChoice: castExileChoice }
+                    : {}),
             };
 
             await saveGameState(
@@ -5047,6 +5151,92 @@ export const selectActivationExileCost = mutation({
         // Commit fires here when the mana is also covered; otherwise the player
         // taps the remaining mana via tapForActivationPayment.
         tryAutoCommitPendingActivation(state, args.playerId);
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** Records the player's picks for a FLASHBACK "exile X <colour> cards from your
+ *  graveyard" cost (CR 702.34a / 118.5 — Flash of Insight). Validates that the
+ *  pick count equals the announced X, that every card is in the caster's OWN
+ *  graveyard, matches the colour filter (CR 105.2), is not a duplicate, and is
+ *  not the flashback card itself (CR 702.34e). Only RECORDS the pick — the
+ *  cards move graveyard → exile at cast commit (`tryAutoCommitPendingCast`), so
+ *  cancelling leaves the graveyard untouched. Pure (no ctx) so it is unit-tested
+ *  directly, mirroring the flashback capability suite (issue #944). */
+export function recordCastExileCostPick(
+    state: GameState,
+    playerId: string,
+    cardInstanceIds: string[]
+): void {
+    const pc = state.pendingCast;
+    if (!pc) throw new Error("No spell being cast");
+    if (pc.playerId !== playerId) throw new Error("Not your pending cast");
+    const ec = pc.exileFromGraveyardChoice;
+    if (!ec) throw new Error("This spell has no exile-from-graveyard cost");
+    if (ec.pickedCardIds) throw new Error("Exile cost already paid");
+    if (cardInstanceIds.length !== ec.count) {
+        throw new Error(
+            `Must exile exactly ${ec.count} card(s) from your graveyard`
+        );
+    }
+    if (new Set(cardInstanceIds).size !== cardInstanceIds.length) {
+        throw new Error("Duplicate card selected for the exile cost");
+    }
+    const player = getPlayer(state, playerId);
+    for (const id of cardInstanceIds) {
+        if (id === ec.excludeInstanceId) {
+            // CR 702.34e — the flashback card can't pay for its own cost.
+            throw new Error(
+                "Can't exile the flashback card itself to pay its cost"
+            );
+        }
+        const card = player.graveyard.find((c) => c.id === id);
+        if (!card) {
+            throw new Error("Selected card is not in your graveyard");
+        }
+        if (!graveyardCardMatchesColor(card, ec.color)) {
+            throw new Error(
+                "Selected card does not match the exile cost filter"
+            );
+        }
+    }
+    ec.pickedCardIds = [...cardInstanceIds];
+}
+
+/** Records the player's pick for a FLASHBACK "exile X blue cards from your
+ *  graveyard" cast cost (CR 702.34a / 118.5 — Flash of Insight). Mirrors
+ *  `selectActivationExileCost` on the cast path: it validates + records the
+ *  pick (the cards move graveyard → exile at commit), then drives
+ *  `tryAutoCommitPendingCast` once the pick and the mana are both in. */
+export const selectCastExileCost = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceIds: v.array(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
+
+        recordCastExileCostPick(state, args.playerId, args.cardInstanceIds);
+
+        // Commit fires here when the mana is also covered; otherwise the player
+        // taps the remaining mana via tapForCastPayment.
+        tryAutoCommitPendingCast(state, args.playerId);
 
         await saveGameState(
             ctx,

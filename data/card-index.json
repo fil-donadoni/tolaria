@@ -2400,6 +2400,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Flash of Insight",
+        "scryfallId": "ffaab905-0b97-42c2-a1a3-1e72275caa82",
+        "oracleId": "9196c8dc-bca6-4c35-949e-8c14a699a41d",
+        "firstSet": "jud"
+    },
+    {
         "name": "Flashfires",
         "scryfallId": "ee8a05a4-0ce3-4abe-bb60-08af53cf08e5",
         "oracleId": "c281f436-8c77-48f7-b31c-d40cd7f9ed6a",

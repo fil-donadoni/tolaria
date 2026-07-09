@@ -1,0 +1,128 @@
+import { useMemo, useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
+import type { CardInstance, Player } from "~/types/game";
+import type { Color } from "@convex/cards/types";
+import { getDefinition } from "@convex/cards";
+import { getCardColors } from "@convex/cards/colors";
+import GameDialog from "~/components/ui/game-dialog";
+import CardImage from "~/components/cards/card-image";
+
+/** Flashback "exile X <colour> cards from your graveyard" CAST-cost picker
+ *  (CR 702.34a / 118.5 — Flash of Insight). Active when this player's
+ *  `pendingCast` is waiting for them to pick the cards the flashback exile cost
+ *  requires. The whole cost comes from the caster's OWN graveyard; the player
+ *  selects EXACTLY `count` cards matching the `color` filter (CR 105.2), never
+ *  the flashback card itself (`excludeInstanceId`, CR 702.34e), then submits via
+ *  `selectCastExileCost`. Dismissing cancels the cast (parity with the payment
+ *  banner's Cancel). Mirrors the activation-path `ExileCostDialog`. */
+export default function CastExileCostDialog({
+    choice,
+    me,
+    gameId,
+    playerId,
+}: {
+    choice: { count: number; color?: Color; excludeInstanceId: string };
+    me: Player | undefined;
+    gameId: Id<"games">;
+    playerId: string;
+}) {
+    const selectExileCost = useMutation(api.game.selectCastExileCost);
+    const cancelCast = useMutation(api.game.cancelCast);
+    const [isPending, setIsPending] = useState(false);
+    const [selected, setSelected] = useState<string[]>([]);
+
+    // Eligible payment cards: the caster's own graveyard, matching the colour
+    // filter (CR 105.2), excluding the flashback card itself (CR 702.34e).
+    const eligible = useMemo(
+        () =>
+            (me?.graveyard ?? []).filter(
+                (card: CardInstance) =>
+                    card.id !== choice.excludeInstanceId &&
+                    (choice.color === undefined ||
+                        getCardColors(getDefinition(card.card.id)).includes(
+                            choice.color
+                        ))
+            ),
+        [me?.graveyard, choice.color, choice.excludeInstanceId]
+    );
+
+    async function handleCancel() {
+        if (isPending) return;
+        setIsPending(true);
+        try {
+            await cancelCast({ gameId, playerId });
+        } finally {
+            setIsPending(false);
+        }
+    }
+
+    function toggle(cardId: string) {
+        setSelected((prev) => {
+            if (prev.includes(cardId))
+                return prev.filter((id) => id !== cardId);
+            if (prev.length >= choice.count) return prev; // cap at count
+            return [...prev, cardId];
+        });
+    }
+
+    async function handleConfirm() {
+        if (isPending || selected.length !== choice.count) return;
+        setIsPending(true);
+        try {
+            await selectExileCost({
+                gameId,
+                playerId,
+                cardInstanceIds: selected,
+            });
+        } finally {
+            setIsPending(false);
+        }
+    }
+
+    return (
+        <GameDialog
+            open
+            onOpenChange={(open) => {
+                if (!open) void handleCancel();
+            }}
+            title="Flashback cost"
+            subtitle={`Exile ${choice.count} ${choice.color === "U" ? "blue " : ""}card(s) from your graveyard`}
+            size="wide"
+            dismissable={!isPending}
+        >
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-2">
+                {eligible.map((card) => {
+                    const isSel = selected.includes(card.id);
+                    return (
+                        <button
+                            key={card.id}
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => toggle(card.id)}
+                            title={getDefinition(card.card.id).name}
+                            className={`relative rounded-sm overflow-hidden ring-1 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                                isSel
+                                    ? "ring-2 ring-accent"
+                                    : "ring-transparent hover:ring-2 hover:ring-accent"
+                            }`}
+                        >
+                            <CardImage card={card} />
+                        </button>
+                    );
+                })}
+            </div>
+            <div className="mt-3 flex justify-end">
+                <button
+                    type="button"
+                    disabled={isPending || selected.length !== choice.count}
+                    onClick={() => void handleConfirm()}
+                    className="rounded-sm px-4 py-2 bg-accent hover:bg-accent-strong text-black font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                    Exile {selected.length}/{choice.count}
+                </button>
+            </div>
+        </GameDialog>
+    );
+}
