@@ -59,7 +59,7 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         // hand (an Island covers {U}) to raise the scry-1 order-top choice on
         // your top card — keep it on top or drag it to the bottom — then draw.
         // A stocked library (libraryCount) makes the top-card look/draw visible.
-        label: "Opt — scry 1 + draw (#1002)",
+        label: "Opt — scry 1 + draw (#1002) - Visibilità scry to bottom",
         cards: [
             { name: "Opt", owner: "me", zone: "hand" },
             { name: "Island", owner: "me", zone: "battlefield" },
@@ -139,7 +139,7 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         // target creature. The opponent's Balduvian Bears is a ready attacker
         // to test the Guard's redirect; your own Bears + the riders exercise
         // the assign-no-damage seam. 5 lands cover {3}{W}{W}.
-        label: "ICE combat-damage redirect / assign-no-damage (Royal Guard / Cloak / Gaze) (#732)",
+        label: "ICE assign-no-damage (Cloak of Confusion) (#732)",
         cards: [
             { name: "Cloak of Confusion", owner: "me", zone: "hand" },
             { name: "Balduvian Bears", owner: "me", zone: "battlefield" },
@@ -147,70 +147,6 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 5,
-    },
-    {
-        // Filtered counter abilities (issue #736): Mistfolk ("{U}: Counter
-        // target spell that targets this creature"), Brown Ouphe ("{1}{G},{T}:
-        // Counter target activated ability from an artifact source"), and
-        // Arenson's Aura ("{W}, Sac an enchantment: Destroy target enchantment"
-        // / "{3}{U}{U}: Counter target enchantment spell"). The opponent's Icy
-        // Manipulator gives Brown Ouphe an artifact activated ability to target
-        // ({1},{T}: tap); the opponent's Energy Storm is an enchantment for
-        // Arenson's Aura to destroy. 5 lands cover the coloured costs.
-        label: "ICE filtered counters (Mistfolk / Brown Ouphe / Arenson's Aura) (#736)",
-        cards: [
-            { name: "Mistfolk", owner: "me", zone: "battlefield" },
-            { name: "Brown Ouphe", owner: "me", zone: "battlefield" },
-            { name: "Arenson's Aura", owner: "me", zone: "battlefield" },
-            { name: "Icy Manipulator", owner: "opp", zone: "battlefield" },
-            { name: "Energy Storm", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 5,
-    },
-    {
-        // ICE buildable-now utilities (#728): Elkin Bottle exiles the top card
-        // of your library and lets you play it from exile ({3},{T}); Burnt
-        // Offering sacrifices a creature and adds mana in any {B}/{R}
-        // combination equal to its mana value. Elkin Bottle is on the
-        // battlefield (untapped) with a stocked library; Burnt Offering sits in
-        // hand with a Grizzly Bears to sacrifice. 4 lands cover the {3} activation
-        // and the {B} cast.
-        label: "Elkin Bottle + Burnt Offering — ICE utilities (#728)",
-        cards: [
-            { name: "Elkin Bottle", owner: "me", zone: "battlefield" },
-            { name: "Burnt Offering", owner: "me", zone: "hand" },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 4,
-        libraryCount: 6,
-    },
-    {
-        // Colour / amount damage-prevention shields (ICE, #734). Prismatic Ward
-        // (choose a colour on entry, prevent ALL damage to the enchanted
-        // creature from that colour) and Sacred Boon (prevent the next 3 damage
-        // to a creature, then a +0/+1 counter per point actually prevented at
-        // the next end step). Enchant your Grizzly Bears with Prismatic Ward and
-        // pick red, then let the opponent's Prodigal Pyromancer ping it —
-        // prevented. Or cast Sacred Boon on the Bears, take some damage, and
-        // watch the +0/+1 counters land at end of turn. Three Plains cover the
-        // {1}{W} each.
-        label: "Prismatic Ward + Sacred Boon — damage-prevention shields (#734)",
-        cards: [
-            { name: "Prismatic Ward", owner: "me", zone: "hand" },
-            { name: "Sacred Boon", owner: "me", zone: "hand" },
-            { name: "Plains", owner: "me", zone: "battlefield", count: 3 },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-            {
-                name: "Prodigal Pyromancer",
-                owner: "opp",
-                zone: "battlefield",
-                summoningSick: false,
-            },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
     },
     {
         // #674 card-draw / card-advantage FREE tranche golden path: Sheoldred,
@@ -235,6 +171,10 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Baleful Strix", owner: "me", zone: "hand" },
             { name: "Island", owner: "me", zone: "battlefield" },
             { name: "Swamp", owner: "me", zone: "battlefield" },
+            { name: "Griselbrand", owner: "opp", zone: "battlefield" },
+            { name: "Baleful Strix", owner: "opp", zone: "hand" },
+            { name: "Island", owner: "opp", zone: "battlefield" },
+            { name: "Swamp", owner: "opp", zone: "battlefield" },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
@@ -263,261 +203,15 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
-        // Fumarole — dual-target destroy + fixed pay-life (#737, CR 601.2b /
-        // 601.2c / 701.7). "As an additional cost to cast this spell, pay 3
-        // life. Destroy target creature and target land." Cast it from hand:
-        // the engine walks TWO independent target groups — first pick the
-        // opponent's Balduvian Bears (creature), then a Plains (land, from
-        // landCount) — pays 3 life on commit, and destroys both. Swamp +
-        // Mountain + three Plains cover the {3}{B}{R}.
-        label: "Fumarole — dual-target destroy + pay 3 life (#737)",
-        cards: [
-            { name: "Fumarole", owner: "me", zone: "hand" },
-            { name: "Swamp", owner: "me", zone: "battlefield" },
-            { name: "Mountain", owner: "me", zone: "battlefield" },
-            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 3,
-    },
-    {
-        // Vintage Cube mana ramp / rocks / dorks / fixing tranche (issue
-        // #675, ADR 0041). Gaea's Cradle scales with the 2 Elvish Mystics on
-        // the battlefield (manaAmount — {G} for each creature you control);
-        // Urborg, Tomb of Yawgmoth turns every land into a Swamp too (layer-4
-        // subtype-add), so Copperline Gorge — a fast land with no printed
-        // basic land types of its own — gains a free {T}: Add {B} via the
-        // basic-land-type mana inference on top of its printed R/G choice.
-        // Talisman of Progress is in hand-adjacent reach (already in play)
-        // to exercise the painland-shaped choice mana ability. No `landCount`
-        // padding: every land here is a named ramp/fixing piece.
-        label: "Vintage Cube ramp & fixing — Cradle/Urborg/fast land (#675)",
-        cards: [
-            { name: "Gaea's Cradle", owner: "me", zone: "battlefield" },
-            {
-                name: "Urborg, Tomb of Yawgmoth",
-                owner: "me",
-                zone: "battlefield",
-            },
-            { name: "Copperline Gorge", owner: "me", zone: "battlefield" },
-            { name: "Talisman of Progress", owner: "me", zone: "battlefield" },
-            {
-                name: "Elvish Mystic",
-                owner: "me",
-                zone: "battlefield",
-                count: 2,
-                summoningSick: false,
-            },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Vintage Cube FREE targeted removal (#676): Infernal Grasp ("Destroy
-        // target creature. You lose 2 life.") and Vindicate ("Destroy target
-        // permanent.") exercise the single-target destroy golden path — cast
-        // Infernal Grasp at the opponent's Balduvian Bears, or Vindicate at
-        // either the Bears or their nonbasic Badlands (any permanent type).
-        // Wasteland is already in play — sacrifice it to destroy the Badlands
-        // (CR 205.4a nonbasic-only filter) without spending a card from hand.
-        // Swamp + Plains cover the {B} / {W}{B} pips; landCount covers the
-        // generic {1} on both spells.
-        label: "Infernal Grasp / Vindicate / Wasteland — targeted removal (#676)",
-        cards: [
-            { name: "Infernal Grasp", owner: "me", zone: "hand" },
-            { name: "Vindicate", owner: "me", zone: "hand" },
-            { name: "Swamp", owner: "me", zone: "battlefield" },
-            { name: "Plains", owner: "me", zone: "battlefield" },
-            { name: "Wasteland", owner: "me", zone: "battlefield" },
-            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
-            { name: "Badlands", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 2,
-    },
-    {
-        // Cube FREE: tutors / library search (#677) — the moveZone
-        // `cards`/`player` shape (the search half of a tutor/fetch effect).
-        // Wishclaw Talisman starts with its three wish counters pre-seeded
-        // (the ETB grant already ran); activate it to search your library
-        // (unrestricted — guaranteed candidates whenever the library is
-        // non-empty, unlike a fetchland's subtype-restricted search), put the
-        // found card into hand, then watch control of the Talisman itself
-        // pass to the opponent (CR 613.1b). A stocked library covers the
-        // search.
-        label: "Wishclaw Talisman — moveZone tutor/fetch search (#677)",
-        cards: [
-            {
-                name: "Wishclaw Talisman",
-                owner: "me",
-                zone: "battlefield",
-                counters: { wish: 3 },
-            },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 1,
-        libraryCount: 10,
-    },
-    {
-        // Cube FREE token makers (issue #678). Two spec-driven `createToken`
-        // engines side by side: Retrofitter Foundry ({2},{T}: make a Servo →
-        // {1},{T},Sac a Servo: make a flying Thopter → {T},Sac a Thopter: make
-        // a 4/4 Construct — climb the ladder with the pre-placed lands), and
-        // Third Path Iconoclast (Whenever you cast a noncreature spell, make a
-        // 1/1 Soldier artifact token — cast the Lightning Bolt in hand to fire
-        // it). Exercises createToken at both an activated- and a triggered-
-        // ability site (CR 111 / 707.1).
-        label: "Cube token makers (Retrofitter Foundry / Third Path Iconoclast) (#678)",
-        cards: [
-            { name: "Retrofitter Foundry", owner: "me", zone: "battlefield" },
-            {
-                name: "Third Path Iconoclast",
-                owner: "me",
-                zone: "battlefield",
-            },
-            { name: "Lightning Bolt", owner: "me", zone: "hand" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 5,
-    },
-    {
-        // Cube FREE: graveyard recursion (#680) — the `moveZone` graveyard
-        // reanimation branches. Cast Reanimate targeting Griselbrand (mana
-        // value 8) in your own graveyard: it enters under your control and you
-        // lose 8 life (the `ref.manaValue` snapshot, CR 608.2h). Cast Exhume:
-        // both players put a creature card from their OWN graveyard onto the
-        // battlefield (the `forEach(players)` + per-player `choice` pattern —
-        // "me" picks Balduvian Bears, "opp" also has one to pick up, exercising
-        // the two-player APNAP branch). Cast Eternal Witness: its ETB lets you
-        // return any card from your graveyard to hand (no type filter — the
-        // Bears card, or Reanimate/Exhume themselves once they're in the
-        // graveyard).
-        label: "Graveyard recursion (#680) — Reanimate / Exhume / Eternal Witness",
-        cards: [
-            { name: "Reanimate", owner: "me", zone: "hand" },
-            { name: "Exhume", owner: "me", zone: "hand" },
-            { name: "Eternal Witness", owner: "me", zone: "hand" },
-            { name: "Griselbrand", owner: "me", zone: "graveyard" },
-            { name: "Balduvian Bears", owner: "me", zone: "graveyard" },
-            { name: "Balduvian Bears", owner: "opp", zone: "graveyard" },
-            { name: "Swamp", owner: "me", zone: "battlefield", count: 4 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Cube FREE: mass removal / sweepers (#685) — Damnation
-        // (`resolve()`/`destroyAll`, CR 701.8/701.15c) and Upheaval (Effect
-        // Script `forEach` + `moveZone`, CR 400.7) side by side. Cast
-        // Damnation first: every creature on BOTH sides dies (including a
-        // regenerating Lion — the "can't be regenerated" rider suppresses
-        // its shield) while Sol Ring survives untouched. Then cast Upheaval:
-        // Sol Ring and every remaining permanent (lands included) bounce to
-        // their owners' hands — nothing is left on either battlefield.
-        label: "Cube FREE sweepers (#685) — Damnation / Upheaval",
-        cards: [
-            { name: "Damnation", owner: "me", zone: "hand" },
-            { name: "Upheaval", owner: "me", zone: "hand" },
-            { name: "Swamp", owner: "me", zone: "battlefield", count: 4 },
-            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
-            { name: "Sol Ring", owner: "me", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-            { name: "War Mammoth", owner: "opp", zone: "battlefield" },
-            {
-                name: "Savannah Lions",
-                owner: "opp",
-                zone: "battlefield",
-            },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Cube FREE: edict / discard / hand disruption (#682) — the
-        // `reveal` + `choice(zoneOwnerId)` template. Cast Thoughtseize /
-        // Inquisition of Kozilek / Duress targeting "opp": each reveals
-        // opp's hand (Swamp + Balduvian Bears + Lightning Bolt) and lets
-        // "me" choose a nonland (Thoughtseize/Inquisition) or noncreature-
-        // nonland (Duress, picks Lightning Bolt over the Bears) card to
-        // discard — the Swamp is never a legal pick. Inquisition's mana-
-        // value-3-or-less filter also excludes nothing here (both remaining
-        // nonland cards are cheap). Sheoldred's Edict is the 3-mode
+        // Cube FREE: edict (#682) — Sheoldred's Edict is the 3-mode
         // `optionChoice` — its nontoken-creature mode has Balduvian Bears to
-        // sacrifice. Memory Jar exercises the whole-hand exile/draw-7/
-        // delayed-return sequence independently of the discard spells.
-        label: "Edict / discard / hand disruption (#682) — Thoughtseize / Inquisition / Duress / Sheoldred's Edict / Memory Jar",
+        // sacrifice.
+        label: "Edict (#682) — Sheoldred's Edict",
         cards: [
-            { name: "Thoughtseize", owner: "me", zone: "hand" },
-            { name: "Inquisition of Kozilek", owner: "me", zone: "hand" },
-            { name: "Duress", owner: "me", zone: "hand" },
             { name: "Sheoldred's Edict", owner: "me", zone: "hand" },
-            { name: "Memory Jar", owner: "me", zone: "battlefield" },
             { name: "Swamp", owner: "opp", zone: "hand" },
-            { name: "Balduvian Bears", owner: "opp", zone: "hand" },
-            { name: "Lightning Bolt", owner: "opp", zone: "hand" },
             { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
             { name: "Swamp", owner: "me", zone: "battlefield", count: 6 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Counterspells + new spell-target filters (issue #683): Stern
-        // Scolding ("Counter target creature spell with power or toughness 2
-        // or less" — the new `spellCreaturePtFilter`) and Spell Pierce
-        // ("Counter target noncreature spell unless its controller pays {2}"
-        // — the new `spellExcludeTypeFilter`). Let the opponent cast Grizzly
-        // Bears (2/2 — qualifies for Stern Scolding's P/T gate) or Lightning
-        // Bolt (an instant — qualifies for Spell Pierce's noncreature gate;
-        // NOT a legal Stern Scolding target). Respond with the matching
-        // counterspell to verify only the right stack items are clickable.
-        label: "Counterspells — new spell-target filters (#683)",
-        cards: [
-            { name: "Stern Scolding", owner: "me", zone: "hand" },
-            { name: "Spell Pierce", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
-            { name: "Grizzly Bears", owner: "opp", zone: "hand" },
-            { name: "Lightning Bolt", owner: "opp", zone: "hand" },
-            { name: "Forest", owner: "opp", zone: "battlefield" },
-            { name: "Mountain", owner: "opp", zone: "battlefield", count: 2 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Alternative casting cost — return / sacrifice lands (CR 118.9, #983).
-        // WHICH lands pay is the player's CHOICE (CR 701.21a): Gush ("return two
-        // Islands rather than pay {4}{U}, draw two"), Thwart ("return three
-        // Islands rather than pay {2}{U}{U}, counter target spell") and Fireblast
-        // ("sacrifice two Mountains rather than pay {4}{R}{R}, deal 4 to any
-        // target") sit in "me"'s hand with NO other mana — castable ONLY via
-        // their land alt cost. The lands are a mix of tapped/untapped so the
-        // choice is REAL: casting parks and prompts you to click WHICH lands to
-        // return / sacrifice (a picker, not a silent auto-pick of the first N).
-        // With four untapped Islands you can return any two/three; the two tapped
-        // Mountains vs two untapped let you keep the ones you want for Fireblast.
-        // The opponent's Grizzly Bears is a target for Fireblast; cast an opponent
-        // spell first (from their hand) to exercise Thwart's counter.
-        label: "Alt cost: choose lands to return/sacrifice (Gush / Thwart / Fireblast) (#983)",
-        cards: [
-            { name: "Gush", owner: "me", zone: "hand" },
-            { name: "Thwart", owner: "me", zone: "hand" },
-            { name: "Fireblast", owner: "me", zone: "hand" },
-            // Four untapped + one tapped Island → returning 2 (Gush) or 3
-            // (Thwart) is a real, prompted choice.
-            { name: "Island", owner: "me", zone: "battlefield", count: 4 },
-            { name: "Island", owner: "me", zone: "battlefield", tapped: true },
-            // Two untapped + two tapped Mountains → sacrificing 2 (Fireblast) is
-            // a real, prompted choice.
-            { name: "Mountain", owner: "me", zone: "battlefield", count: 2 },
-            {
-                name: "Mountain",
-                owner: "me",
-                zone: "battlefield",
-                count: 2,
-                tapped: true,
-            },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
@@ -537,33 +231,11 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Dominate", owner: "me", zone: "hand" },
             { name: "Island", owner: "me", zone: "battlefield", count: 6 },
             { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            // { name: "Ornithopter", owner: "opp", zone: "battlefield" },
             { name: "Serra Angel", owner: "opp", zone: "battlefield" },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
-    },
-    {
-        // Sacrifice-for-effect activated ability (issue #986): Seal of Fire
-        // ({R} enchantment) and Mogg Fanatic ({R} 1/1 Goblin) both carry
-        // "Sacrifice this: deal N damage to any target" — a self-sacrifice
-        // activation cost (CR 602.1 / 701.21) with no mana and no tap,
-        // activatable any time you have priority. The Seal starts on the
-        // battlefield ready to pop; the Mogg is also in play (summoning
-        // sickness never gates a sacrifice ability — it is not a tap ability).
-        // A spare Mogg Fanatic sits in hand to recast. Opponent creatures
-        // (Grizzly Bears 2/2, Balduvian Bears 2/2) plus the opponent's face
-        // are legal any-target sinks — sacrifice the Seal for 2 or the Mogg
-        // for 1 (CR 120.1 damage).
-        label: "Sacrifice-for-effect (Seal of Fire / Mogg Fanatic) (#986)",
-        cards: [
-            { name: "Seal of Fire", owner: "me", zone: "battlefield" },
-            { name: "Mogg Fanatic", owner: "me", zone: "battlefield" },
-            { name: "Mogg Fanatic", owner: "me", zone: "hand" },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 4,
     },
     {
         // digToHand Effect Script Op (#984). Impulse ({1}{U} instant): "Look at
@@ -572,57 +244,12 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         // look-top picker shows exactly the top four face-up — keep one (it goes
         // to hand), the other three drop to the bottom of the library. 3 Islands
         // cover the {1}{U}; the library is the shared draw pile.
-        label: "digToHand Effect Script Op (Impulse) (#984)",
+        label: "Impulse (#984) - Verificare put to bottom",
         cards: [
             { name: "Impulse", owner: "me", zone: "hand" },
             { name: "Island", owner: "me", zone: "battlefield", count: 3 },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 3,
-    },
-    {
-        // Powder Keg — fuse counters + MV-matched sweep (#997). Powder Keg
-        // enters with 2 fuse counters pre-seeded. Activate "{T}, Sacrifice
-        // Powder Keg" and it destroys every artifact and creature with mana
-        // value EQUAL to its fuse count (2): Grizzly Bears (MV 2 creature) and
-        // Ankh of Mishra (MV 2 artifact) die; Sol Ring (MV 1) and Llanowar
-        // Elves (MV 1) survive. The counter count is read as last-known
-        // information — Powder Keg is already gone (sacrificed as a cost) when
-        // the ability resolves (CR 608.2g). Pass a turn to reach your upkeep to
-        // exercise the optional "you may put a fuse counter" accrual half.
-        label: "Powder Keg — fuse counters + MV-matched sweep (#997)",
-        cards: [
-            {
-                name: "Powder Keg",
-                owner: "me",
-                zone: "battlefield",
-                counters: { fuse: 2 },
-            },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-            { name: "Sol Ring", owner: "me", zone: "battlefield" },
-            { name: "Ankh of Mishra", owner: "opp", zone: "battlefield" },
-            { name: "Llanowar Elves", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 2,
-    },
-    {
-        // Price of Progress (issue #999): {1}{R} Instant "deals damage to each
-        // player equal to twice the number of nonbasic lands that player
-        // controls." Cast the Price of Progress in hand (a Mountain covers {R},
-        // {1}). You control 2 Wasteland (nonbasic) + 1 Mountain (basic) → 2
-        // nonbasic → take 4; the opponent controls 1 Wasteland + 2 Mountain → 1
-        // nonbasic → takes 2. Basics contribute 0 — the symmetric asymmetric
-        // burn that punishes a nonbasic-heavy manabase.
-        label: "Price of Progress — damage per nonbasic land (#999)",
-        cards: [
-            { name: "Price of Progress", owner: "me", zone: "hand" },
-            { name: "Wasteland", owner: "me", zone: "battlefield", count: 2 },
-            { name: "Mountain", owner: "me", zone: "battlefield" },
-            { name: "Wasteland", owner: "opp", zone: "battlefield" },
-            { name: "Mountain", owner: "opp", zone: "battlefield", count: 2 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 1,
     },
 ];
