@@ -297,11 +297,23 @@ function resolveValue(
         // activation COST (Powder Keg #997, Icatian Moneychanger) has left the
         // battlefield by the time the ability resolves, so the battlefield-
         // scoped `resolveObjectRef` returns undefined. The resolving stack item
-        // still snapshots the source's counters and `getCounterCount` keys its
-        // LKI branch off the resolving item id (== `ctx.sourceInstanceId`), so
-        // re-read the count through the source id: getCounterCount returns the
-        // pre-sacrifice count ("Destroy each … with mana value equal to the
-        // number of fuse counters on it" reads that count as last-known info).
+        // still snapshots the source's counters, so re-read the count through
+        // `ctx.sourceInstanceId`: getCounterCount returns the pre-sacrifice
+        // count ("Destroy each … with mana value equal to the number of fuse
+        // counters on it" reads that count as last-known info).
+        //
+        // CAVEAT — this LKI re-read is faithful only for ACTIVATED / native
+        // stack items, where the resolving item id EQUALS `ctx.sourceInstanceId`
+        // (getCounterCount's LKI branch keys off the resolving item id). For a
+        // TRIGGERED ability `ctx.sourceInstanceId` is the `triggerSourceId`, NOT
+        // the resolving item id, so if the trigger's source has ALSO left play
+        // the LKI re-read misses and returns 0 rather than a true last-known
+        // count. No shipping card hits that path today — Powder Keg's activated
+        // sweep is the only counter-after-leave reader, and its fuse trigger
+        // keeps the source alive. Generalise the LKI read (thread the resolving
+        // item id, not just `sourceInstanceId`) when a triggered counter-reader
+        // whose source leaves first ever ships.
+        //
         // Scoped to `$source` only — an announced target or a `$each` member
         // that left play stays unresolvable (the Op is skipped, CR 608.2b).
         if ("ref" in value.counters.of && value.counters.of.ref === "$source") {

@@ -63,6 +63,8 @@ import * as ody from "./sets/ody";
 // ADR 0041) — new cross-set home sets routed to earliest paper printing.
 import * as ema from "./sets/ema";
 import * as usg from "./sets/usg";
+// Powder Keg homed in its real Urza's Destiny printing (issue #1027).
+import * as uds from "./sets/uds";
 import * as plc from "./sets/plc";
 import * as fin from "./sets/fin";
 import * as mrd from "./sets/mrd";
@@ -255,6 +257,8 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     // Vintage Cube mana ramp / rocks / dorks / fixing tranche (issue #675).
     { code: "ema", exports: ema },
     { code: "usg", exports: usg },
+    // Powder Keg's real home set (Urza's Destiny), Premodern-legal (issue #1027).
+    { code: "uds", exports: uds },
     { code: "plc", exports: plc },
     { code: "fin", exports: fin },
     { code: "mrd", exports: mrd },

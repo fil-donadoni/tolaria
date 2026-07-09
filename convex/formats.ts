@@ -651,6 +651,7 @@ export const PREMODERN_LEGAL_SETS: readonly string[] = [
     "exo", // Exodus
     "usg", // Urza's Saga
     "ulg", // Urza's Legacy
+    "uds", // Urza's Destiny
     "mmq", // Mercadian Masques
     "nem", // Nemesis
     "inv", // Invasion
