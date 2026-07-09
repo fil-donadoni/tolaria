@@ -275,4 +275,23 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
         libraryCount: 12,
     },
+    {
+        // Lava Dart flashback (#1005, CR 702.34a / 118.5): a purely non-mana
+        // flashback cost — "Flashback—Sacrifice a Mountain", no mana at all.
+        // Lava Dart sits in your graveyard with two Mountains in play. The
+        // "Flashback" button costs no mana; committing it opens the unified
+        // sacrifice picker (never auto-picked) to choose WHICH Mountain to
+        // sacrifice, then deals 1 damage to the opponent's Grizzly Bears (or
+        // retarget to the opponent's face) and exiles Lava Dart instead of
+        // returning it to the graveyard. Consumes the sacrifice-flashback
+        // engine wiring that shipped generically with #1035/#1037.
+        label: "Lava Dart — flashback, sacrifice a Mountain (#1005)",
+        cards: [
+            { name: "Lava Dart", owner: "me", zone: "graveyard" },
+            { name: "Mountain", owner: "me", zone: "battlefield", count: 2 },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
