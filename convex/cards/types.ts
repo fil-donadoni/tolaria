@@ -526,18 +526,24 @@ export interface ActivatedAbility {
         discardAtRandom?: number;
         /** "Exile N cards from a single graveyard" as an activation cost
          *  (CR 602.1, 118.5, 406 — exile zone). A real cost: the activating
-         *  player chooses ONE graveyard (any player's, CR 118.5 doesn't restrict
-         *  the zone's owner) and exiles exactly `count` cards from it that match
-         *  `cardType` (when set — Night Soil exiles "creature cards"). The
-         *  activation is illegal unless at least one graveyard holds `count`
-         *  matching cards (a single graveyard must satisfy the whole cost — you
-         *  cannot split it across two graveyards). The player picks the
-         *  graveyard + the specific cards via `selectActivationCost`; the cards
-         *  move graveyard → exile at activation commit (so cancelling leaves the
+         *  player chooses ONE graveyard and exiles exactly `count` cards from it
+         *  that match `cardType` (when set — Night Soil exiles "creature
+         *  cards"). The activation is illegal unless at least one eligible
+         *  graveyard holds `count` matching cards (a single graveyard must
+         *  satisfy the whole cost — you cannot split it across two graveyards).
+         *  By default ANY player's graveyard is eligible (CR 118.5 doesn't
+         *  restrict the zone's owner — Night Soil); `owner: "you"` restricts the
+         *  cost to the ACTIVATING player's OWN graveyard (Grim Lavamancer —
+         *  "Exile two cards from your graveyard"). The player picks the graveyard
+         *  + the specific cards via `selectActivationCost`; the cards move
+         *  graveyard → exile at activation commit (so cancelling leaves the
          *  graveyard untouched). Drives Night Soil ("{1}, Exile two creature
-         *  cards from a single graveyard: Create a 1/1 green Saproling creature
-         *  token."). */
-        exileFromGraveyard?: { count: number; cardType?: CardType };
+         *  cards from a single graveyard: …") and Grim Lavamancer. */
+        exileFromGraveyard?: {
+            count: number;
+            cardType?: CardType;
+            owner?: "you";
+        };
         /** Derives the value of X in this ability's mana cost from the targeted
          *  spell instead of asking the player to choose it (CR 107.3 — "X is
          *  twice the mana value of that spell"). Only meaningful when

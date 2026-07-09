@@ -140,6 +140,7 @@ import * as woe from "./sets/woe";
 import * as eoe from "./sets/eoe";
 import * as tla from "./sets/tla";
 import * as tmt from "./sets/tmt";
+import * as tor from "./sets/tor";
 import * as nec from "./sets/nec";
 import * as c21 from "./sets/c21";
 // Cube FREE: ETB / dies / attack triggers (issue #679). tla/znr shared with
@@ -319,6 +320,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "eoe", exports: eoe },
     { code: "tla", exports: tla },
     { code: "tmt", exports: tmt },
+    { code: "tor", exports: tor },
     { code: "nec", exports: nec },
     { code: "c21", exports: c21 },
     // Cube FREE: ETB / dies / attack triggers (issue #679). tla/znr shared
