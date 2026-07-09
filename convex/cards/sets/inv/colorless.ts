@@ -49,8 +49,7 @@ export const tsabosWeb: CardDefinition = {
                 "Each land with an activated ability that isn't a mana ability doesn't untap during its controller's untap step.",
             filter: { types: "Land" },
             maxUntap: 0,
-            dynamicMatch: (_candidate, def) =>
-                hasNonManaActivatedAbility(def),
+            dynamicMatch: (_candidate, def) => hasNonManaActivatedAbility(def),
         }),
     ],
 };
