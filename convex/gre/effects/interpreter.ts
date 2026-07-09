@@ -292,8 +292,25 @@ function resolveValue(
     // skips exactly as it does for any other missing ref.
     if ("counters" in value) {
         const target = resolveObjectRef(ctx, value.counters.of);
-        if (!target) return undefined;
-        return ctx.getCounterCount(target, value.counters.type);
+        if (target) return ctx.getCounterCount(target, value.counters.type);
+        // CR 608.2g LAST-KNOWN INFORMATION — a `$source` sacrificed as an
+        // activation COST (Powder Keg #997, Icatian Moneychanger) has left the
+        // battlefield by the time the ability resolves, so the battlefield-
+        // scoped `resolveObjectRef` returns undefined. The resolving stack item
+        // still snapshots the source's counters and `getCounterCount` keys its
+        // LKI branch off the resolving item id (== `ctx.sourceInstanceId`), so
+        // re-read the count through the source id: getCounterCount returns the
+        // pre-sacrifice count ("Destroy each … with mana value equal to the
+        // number of fuse counters on it" reads that count as last-known info).
+        // Scoped to `$source` only — an announced target or a `$each` member
+        // that left play stays unresolvable (the Op is skipped, CR 608.2b).
+        if ("ref" in value.counters.of && value.counters.of.ref === "$source") {
+            return ctx.getCounterCount(
+                { type: "permanent", id: ctx.sourceInstanceId },
+                value.counters.type
+            );
+        }
+        return undefined;
     }
     return countSet(ctx, value.count);
 }

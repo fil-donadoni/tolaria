@@ -5394,6 +5394,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Powder Keg",
+        "scryfallId": "4d9715c2-9036-4ae2-a5b4-1b190d50c963",
+        "oracleId": "ca1144c2-49a3-49b4-9085-3094141769ea",
+        "firstSet": "uds"
+    },
+    {
         "name": "Power Artifact",
         "scryfallId": "e48bc89e-6da5-43da-b4e0-60d5f850199c",
         "oracleId": "9a8c8d52-1701-4ae0-9d2d-cce4e476673b",

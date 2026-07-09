@@ -629,4 +629,30 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 3,
     },
+    {
+        // Powder Keg — fuse counters + MV-matched sweep (#997). Powder Keg
+        // enters with 2 fuse counters pre-seeded. Activate "{T}, Sacrifice
+        // Powder Keg" and it destroys every artifact and creature with mana
+        // value EQUAL to its fuse count (2): Grizzly Bears (MV 2 creature) and
+        // Ankh of Mishra (MV 2 artifact) die; Sol Ring (MV 1) and Llanowar
+        // Elves (MV 1) survive. The counter count is read as last-known
+        // information — Powder Keg is already gone (sacrificed as a cost) when
+        // the ability resolves (CR 608.2g). Pass a turn to reach your upkeep to
+        // exercise the optional "you may put a fuse counter" accrual half.
+        label: "Powder Keg — fuse counters + MV-matched sweep (#997)",
+        cards: [
+            {
+                name: "Powder Keg",
+                owner: "me",
+                zone: "battlefield",
+                counters: { fuse: 2 },
+            },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            { name: "Sol Ring", owner: "me", zone: "battlefield" },
+            { name: "Ankh of Mishra", owner: "opp", zone: "battlefield" },
+            { name: "Llanowar Elves", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
 ];
