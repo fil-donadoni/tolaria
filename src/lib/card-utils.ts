@@ -1,7 +1,8 @@
-import type { CardInstance, ManaPool } from "~/types/game";
+import type { CardInstance, ManaPool, Player } from "~/types/game";
 import type { CardType, Color, ManaCost } from "~/types/cards";
 import type { Phase } from "@convex/gre/types";
 import type {
+    AlternativeCost,
     CardDefinition,
     MayPayCost,
     PermanentView,
@@ -15,7 +16,12 @@ import {
     LANDWALK_SUPERTYPE_KEYWORDS,
     getManaTapOptions,
 } from "@convex/gre/constants";
-import type { CardInstanceState } from "@convex/gre/state";
+import type {
+    CardInstanceState,
+    GameState,
+    PlayerState,
+} from "@convex/gre/state";
+import { affordableAlternativeCosts } from "@convex/gre/alternativeCost";
 import { getDefinition, tryGetDefinition } from "@convex/cards";
 import { getColorsFromCost } from "@convex/cards/colors";
 import {
@@ -591,6 +597,39 @@ export function buildTriggerStateView(
         })),
         activePlayerId,
     };
+}
+
+/** The alternative casting costs (CR 118.9) the caster can currently AFFORD for
+ *  a hand card — the cast-availability CONDITION holds ("not your turn", "you
+ *  control a Swamp") AND the cost is payable from the viewer-visible
+ *  board/hand/life. The cast-option picker offers ONLY these: an unaffordable or
+ *  condition-failing alternative (Force of Negation / Force of Vigor pitched on
+ *  your own turn, Mine Collapse pitched on the opponent's turn, Snuff Out's "Pay
+ *  4 life" without a Swamp) is filtered out so clicking it never throws a hard
+ *  `announceCast` rejection ("Can't pay the alternative cost"). Delegates to the
+ *  server predicate `affordableAlternativeCosts` — the same authority the
+ *  mutation enforces — so the UI and the GRE can never disagree (no duplicated
+ *  condition logic client-side). The projected `Player`/`CardInstance` shapes
+ *  carry every field the predicate reads (`activePlayerId`, battlefield
+ *  `types`/`subtypes`/`colorOverride`, own-hand `card.id`, `life`), so it
+ *  evaluates correctly against the wire projection. */
+export function affordableAltCostsForCard(
+    card: CardInstance,
+    casterId: string,
+    players: ReadonlyArray<Player>,
+    activePlayerId: string
+): AlternativeCost[] {
+    const caster = players.find((p) => p.id === casterId);
+    if (!caster) return [];
+    const state = {
+        activePlayerId,
+        players,
+    } as unknown as GameState;
+    return affordableAlternativeCosts(
+        state,
+        caster as unknown as PlayerState,
+        card as unknown as CardInstanceState
+    );
 }
 
 /** Returns stack-using activated abilities the player can currently announce.

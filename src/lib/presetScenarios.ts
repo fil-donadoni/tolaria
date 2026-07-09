@@ -319,9 +319,11 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         //     opponent's creatures (the exile-from-hand leg — the new infra).
         // Force of Will (pay 1 life + exile a blue card) also appears in hand —
         // its counter needs an opponent spell on the stack, so use it against a
-        // spell you bait out. Edge case — Force of Vigor pitch is gated on
-        // "if it's not your turn", so its alternative is correctly HIDDEN here
-        // (it's your turn); pass priority to the opponent's turn to see it offer.
+        // spell you bait out. Edge case — Force of Vigor pitch is gated on "if
+        // it's not your turn", so the cast-option picker filters its alternative
+        // OUT here (it's your turn) and only "Pay mana cost" is offered; pass
+        // priority to the opponent's turn and the "exile a green card" pitch
+        // appears (a green card — Giant Growth — is in hand to pay it).
         label: "Free pitch alt-cost (#690) — Snuff Out / Mine Collapse / Pyrokinesis",
         cards: [
             { name: "Snuff Out", owner: "me", zone: "hand" },
