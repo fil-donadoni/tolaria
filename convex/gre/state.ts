@@ -941,6 +941,12 @@ export type PlayerState = {
      *  Kept as a dedicated scalar rather than an entry in the object
      *  `counters[type]` map (ADR 0032). */
     poisonCounters?: number;
+    /** Revolt (CR 702.RV): true when a permanent this player controlled left
+     *  the battlefield this turn. Set by `removePermanentTo` whenever a
+     *  permanent leaves the battlefield (destroy / exile / sacrifice / bounce).
+     *  Reset to false at the start of each turn (`advanceTurn`). Read by
+     *  cards with the Revolt ability word (Fatal Push). */
+    permanentYouControlledLeftThisTurn?: boolean;
 };
 
 export type StackItem = CardInstanceState & {
@@ -4754,6 +4760,10 @@ export function removePermanentTo(
             ...(cause ? { cause } : {}),
         },
     ];
+    // Revolt (CR 702.RV): set the per-player flag when a permanent a player
+    // controlled leaves the battlefield this turn.
+    const controller = getPlayer(state, snapshotControllerId);
+    controller.permanentYouControlledLeftThisTurn = true;
     // CR 702.26 — "until ~ leaves the battlefield" durations end here. Any
     // bundle phased out by this source (Oubliette) phases back in immediately,
     // before SBAs/triggers settle (the duration ending is a continuous effect,
@@ -8991,6 +9001,15 @@ export function buildSpellContext(
                 if (p.graveyard.some((c) => c.id === id)) return p.id;
             }
             return undefined;
+        },
+        // Revolt (CR 702.RV): true when a permanent the given player controlled
+        // left the battlefield this turn. Set by removePermanentTo, reset at
+        // turn start (advanceTurn).
+        hasRevolt(playerId: string): boolean {
+            return (
+                getPlayer(state, playerId)
+                    .permanentYouControlledLeftThisTurn === true
+            );
         },
         // CR 708.2 / 707 — Illusionary Mask. Move the chosen card hand → stack,
         // turn it face down (real id retained in `faceDownOf`), and push it as

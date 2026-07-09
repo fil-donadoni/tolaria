@@ -489,8 +489,19 @@ function countZoneForPlayer(
     // Subtype-scoped graveyard counts are legitimate ("for each Zombie in your
     // graveyard").
     const cards = ctx.getGraveyardCards(playerId);
-    if (!spec.filter) return cards.length;
-    return cards.filter((c) => matchesCardFilter(c, spec.filter!)).length;
+    const filtered = spec.filter
+        ? cards.filter((c) => matchesCardFilter(c, spec.filter!))
+        : cards;
+    // Delirium (CR 702.D): count distinct card types instead of total cards
+    // ("there are four or more card types among cards in your graveyard").
+    if (spec.countTypes) {
+        const typeSet = new Set<string>();
+        for (const c of filtered) {
+            for (const t of c.types) typeSet.add(t);
+        }
+        return typeSet.size;
+    }
+    return filtered.length;
 }
 
 /** Resolves a player selector to a concrete player id, or undefined when the
