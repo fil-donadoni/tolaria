@@ -14,8 +14,9 @@ import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { tsabosWeb } from "../colorless";
 import { mishrasFactory } from "../../atq/colorless";
+import { creepingTarPit } from "../../wwk/colorless";
 import { plains } from "../../lea/colorless";
-import { hasNonManaTapActivatedAbility } from "../../../abilities/static/untapRestriction";
+import { hasNonManaActivatedAbility } from "../../../abilities/static/untapRestriction";
 
 describe("Tsabo's Web (INV) — definition wiring", () => {
     it("is a {2} artifact with the ETB draw trigger and the untap-lock static", () => {
@@ -48,12 +49,18 @@ describe("Tsabo's Web (INV) — definition wiring", () => {
         ).toBeTypeOf("function");
     });
 
-    it("hasNonManaTapActivatedAbility classifies lands per CR 605.1a", () => {
+    it("hasNonManaActivatedAbility classifies lands per CR 605.1a (no tap-cost requirement)", () => {
         // Mishra's Factory has "{T}: Target Assembly-Worker gets +1/+1"
-        // (useStack:true, tap cost) → a non-mana {T} ability.
-        expect(hasNonManaTapActivatedAbility(mishrasFactory)).toBe(true);
+        // (useStack:true) → a non-mana ability.
+        expect(hasNonManaActivatedAbility(mishrasFactory)).toBe(true);
+        // Creeping Tar Pit's animate ability is `{1}{U}{B}:` with NO {T} in its
+        // cost (useStack:true) — a non-mana ability under the CR 605.1 test.
+        // The old classifier wrongly required `cost.tap` and returned false,
+        // letting the creatureland escape the lock; the modern oracle has no
+        // tap clause, so it MUST be classified as locked.
+        expect(hasNonManaActivatedAbility(creepingTarPit)).toBe(true);
         // A basic Plains has only its intrinsic mana ability → not locked.
-        expect(hasNonManaTapActivatedAbility(plains)).toBe(false);
+        expect(hasNonManaActivatedAbility(plains)).toBe(false);
     });
 });
 
@@ -91,6 +98,38 @@ describe("Tsabo's Web untap lock (CR 502.1, dynamicMatch)", () => {
         expect(state.pendingChoices ?? []).toEqual([]);
         expect(factory.isTapped).toBe(true);
         expect(land.isTapped).toBe(false);
+    });
+
+    it("locks a creatureland whose non-mana animate ability has NO {T} in its cost (Creeping Tar Pit)", () => {
+        // Regression: Creeping Tar Pit's `{1}{U}{B}:` animate ability carries no
+        // tap cost, so the old `cost.tap === true` classifier let it untap under
+        // Tsabo's Web. The modern oracle has no tap clause — it MUST stay locked.
+        const web = makeInstance(tsabosWeb.id, { id: "web" });
+        const tarpit = makeInstance(creepingTarPit.id, {
+            id: "tarpit",
+            isTapped: true,
+        });
+        const land = makeInstance(plains.id, { id: "plain", isTapped: true });
+        const state = makeState({
+            phase: "UNTAP",
+            players: [
+                makePlayer("p1", { battlefield: [web, tarpit, land] }),
+                makePlayer("p2"),
+            ],
+        });
+        untapStep(state);
+
+        const tarpitAfter = state.players[0].battlefield.find(
+            (c) => c.id === "tarpit"
+        )!;
+        const landAfter = state.players[0].battlefield.find(
+            (c) => c.id === "plain"
+        )!;
+        // Hard skip (maxUntap 0) — no prompt, auto-resolved.
+        expect(state.pendingChoices ?? []).toEqual([]);
+        expect(tarpitAfter.isTapped).toBe(true);
+        // A mana-only land is unaffected and untaps normally.
+        expect(landAfter.isTapped).toBe(false);
     });
 
     it("removing Tsabo's Web lets the utility land untap again (control)", () => {

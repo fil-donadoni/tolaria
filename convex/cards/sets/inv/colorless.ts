@@ -5,7 +5,7 @@
 import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import {
-    hasNonManaTapActivatedAbility,
+    hasNonManaActivatedAbility,
     untapRestriction,
 } from "../../abilities/static/untapRestriction";
 
@@ -17,14 +17,15 @@ import {
 // `draw` Op (CR 603.6a, CR 121.1), DSL-first (ADR 0045).
 //
 // Part (b) — the untap lock is a continuous `untap-restriction` static effect
-// (CR 502.1). Its target set — "each land with an activated ability with {T} in
-// its cost that isn't a mana ability" — depends on the land's card DEFINITION
-// (its `activatedAbilities`), which `PermanentFilter` doesn't carry, so it uses
-// the `dynamicMatch` refinement: the base `filter` scopes to lands, and
-// `hasNonManaTapActivatedAbility` (a non-mana ability is `useStack: true`,
-// CR 605.1a) selects the qualifying ones at untap-collection time. `maxUntap: 0`
-// makes it a hard skip — matching lands cannot untap while Tsabo's Web is in
-// play (mana-only lands untap normally).
+// (CR 502.1). Its target set — "each land with an activated ability that isn't a
+// mana ability" — depends on the land's card DEFINITION (its
+// `activatedAbilities`), which `PermanentFilter` doesn't carry, so it uses the
+// `dynamicMatch` refinement: the base `filter` scopes to lands, and
+// `hasNonManaActivatedAbility` (a non-mana ability is `useStack: true`,
+// CR 605.1a — NO tap-cost requirement, so no-{T} animate creaturelands like
+// Creeping Tar Pit are caught) selects the qualifying ones at untap-collection
+// time. `maxUntap: 0` makes it a hard skip — matching lands cannot untap while
+// Tsabo's Web is in play (mana-only lands untap normally).
 export const tsabosWeb: CardDefinition = {
     id: "0dee69f8-cceb-41b9-a0ee-6b2ac9f4bad9",
     rarity: "rare",
@@ -49,7 +50,7 @@ export const tsabosWeb: CardDefinition = {
             filter: { types: "Land" },
             maxUntap: 0,
             dynamicMatch: (_candidate, def) =>
-                hasNonManaTapActivatedAbility(def),
+                hasNonManaActivatedAbility(def),
         }),
     ],
 };
