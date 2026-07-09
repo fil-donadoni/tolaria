@@ -5,6 +5,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { PendingTarget, Player } from "~/types/game";
 import { getDefinition } from "@convex/cards";
 import { useDraggable } from "~/hooks/useDraggable";
+import { useDivideAmount } from "~/hooks/useDivideAmount";
 
 const TARGET_LABEL: Record<string, string> = {
     Creature: "a creature",
@@ -101,6 +102,7 @@ export default function TargetSelectionBanner({
     const confirmTargets = useMutation(api.game.confirmTargets);
     const [isBusy, setIsBusy] = useState(false);
     const { offset, dragHandlers } = useDraggable();
+    const divide = useDivideAmount();
 
     // CR 707.10b — a copy-retarget selection points at a spell copy on the
     // stack (not a card in hand); declining keeps the copy's inherited
@@ -159,8 +161,41 @@ export default function TargetSelectionBanner({
                         {cardName}
                     </span>
                     <br />
-                    <span className="text-text-muted ml-2">{hint}</span>
+                    <span className="text-text-muted ml-2">
+                        {divide.active
+                            ? `assign damage — ${divide.remaining} left`
+                            : hint}
+                    </span>
                 </div>
+                {divide.active && divide.remaining > 0 && (
+                    // CR 601.2d — divide-as-you-choose stepper: choose how many
+                    // of the remaining points the NEXT clicked target receives.
+                    <div className="flex items-center gap-1.5 select-none">
+                        <button
+                            type="button"
+                            disabled={isBusy || divide.amount <= 1}
+                            onClick={() => divide.setAmount(divide.amount - 1)}
+                            aria-label="Assign one less"
+                            className="w-6 h-6 rounded-sm text-sm font-beleren bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        >
+                            −
+                        </button>
+                        <span className="min-w-6 text-center font-beleren text-parchment tabular-nums">
+                            {divide.amount}
+                        </span>
+                        <button
+                            type="button"
+                            disabled={
+                                isBusy || divide.amount >= divide.remaining
+                            }
+                            onClick={() => divide.setAmount(divide.amount + 1)}
+                            aria-label="Assign one more"
+                            className="w-6 h-6 rounded-sm text-sm font-beleren bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        >
+                            +
+                        </button>
+                    </div>
+                )}
                 {showDone && (
                     <button
                         disabled={isBusy || !minReached}

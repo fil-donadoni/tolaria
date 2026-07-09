@@ -2,6 +2,7 @@ import type { Player } from "~/types/game";
 import { wantsPlayerTarget } from "~/lib/card-utils";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
+import { useDivideAmount } from "~/hooks/useDivideAmount";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 
@@ -55,6 +56,7 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
 
     const selectTargetMut = useMutation(api.game.selectTarget);
     const bufferCtx = usePendingChoiceBuffer();
+    const divideAmount = useDivideAmount();
 
     const isTargetable =
         !!pendingTarget &&
@@ -89,6 +91,12 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
                 playerId,
                 targetType: "player",
                 targetId: player.id,
+                // CR 601.2d — divide-as-you-choose (Meteor Shower / Fire
+                // Covenant hit "any target", so a player can take a share):
+                // send the stepper amount, omitted for non-divide spells.
+                ...(pendingTarget?.divideTotal !== undefined
+                    ? { amount: divideAmount.amount }
+                    : {}),
             });
             return;
         }

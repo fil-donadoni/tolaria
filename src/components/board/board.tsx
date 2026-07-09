@@ -15,6 +15,13 @@ import {
     usePendingChoiceBufferState,
 } from "~/hooks/usePendingChoiceBuffer";
 import {
+    DivideAmountContext,
+    useDivideAmountState,
+    computeRemaining,
+    clampAmount,
+    type DivideAmount,
+} from "~/hooks/useDivideAmount";
+import {
     MinimizedChoiceContext,
     useMinimizedChoiceState,
 } from "~/hooks/useMinimizedChoice";
@@ -221,6 +228,12 @@ export default function Board({
         activeChoice: state?.pendingChoices?.[0],
     });
 
+    // Divide-as-you-choose stepper state (CR 601.2d, Pyrokinesis / Fire
+    // Covenant). Raw amount owned here so the banner (sets it) and the click
+    // sites (send it via selectTarget) share one source of truth. Assembled
+    // into the viewer-aware DivideAmount below, once viewerId is known.
+    const divideAmountState = useDivideAmountState(state?.pendingTarget);
+
     // Client-only per-choice minimize toggle for blocking choice dialogs
     // (issue #315). Shared by the banner and the library-pick modal so one
     // minimize collapses whichever surface the active choice uses. Resets when
@@ -277,6 +290,20 @@ export default function Board({
               })
             : playerId;
 
+    // Assemble the viewer-aware divide-as-you-choose state (CR 601.2d) from the
+    // raw stepper amount owned above. `active` only when the divide selection
+    // belongs to the current viewer; `amount` clamped to the remaining budget.
+    const divideRemaining = computeRemaining(pendingTarget);
+    const divideAmount: DivideAmount = {
+        active:
+            pendingTarget?.divideTotal !== undefined &&
+            pendingTarget.playerId === viewerId,
+        remaining: divideRemaining,
+        amount: clampAmount(divideAmountState.rawAmount, divideRemaining),
+        setAmount: (n: number) =>
+            divideAmountState.setRawAmount(clampAmount(n, divideRemaining)),
+    };
+
     // vs-AI: the bot is the seat the human does not control. The driver queries
     // the bot's own viewpoint and enumerates its moves (ADR 0001) — it only
     // needs the seat id from here.
@@ -318,6 +345,7 @@ export default function Board({
         >
             <SkipPhasePrefsContext value={skipPhasePrefs}>
                 <PendingChoiceBufferContext value={pendingChoiceBuffer}>
+                  <DivideAmountContext value={divideAmount}>
                     <MinimizedChoiceContext value={minimizedChoice}>
                         <main className="flex h-full w-full flex-col relative overflow-hidden">
                             <BoardBackground />
@@ -670,6 +698,7 @@ export default function Board({
                             />
                         </main>
                     </MinimizedChoiceContext>
+                  </DivideAmountContext>
                 </PendingChoiceBufferContext>
             </SkipPhasePrefsContext>
         </GameContext>
