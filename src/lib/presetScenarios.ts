@@ -55,6 +55,26 @@ type PresetScenario = {
 
 export const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Sulfuric Vortex (issue #988): {1}{R}{R} Enchantment — "At the
+        // beginning of each player's upkeep, this enchantment deals 2 damage to
+        // that player. If a player would gain life, that player gains no life
+        // instead." Vortex is already on your battlefield. Advance to the next
+        // upkeep to watch it ping the upkeep player for 2 (fires on EVERY
+        // player's upkeep — both you and the opponent take 2 in turn). Then try
+        // to gain life: cast Healing Salve (a Plains covers {W}) and choose the
+        // "gain 3 life" mode — the life-gain lock consumes it, so your life
+        // total stays put.
+        label: "Sulfuric Vortex — upkeep ping + lifegain lock (#988)",
+        cards: [
+            { name: "Sulfuric Vortex", owner: "me", zone: "battlefield" },
+            { name: "Healing Salve", owner: "me", zone: "hand" },
+            { name: "Plains", owner: "me", zone: "battlefield" },
+            { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Hibernation (issue #995): {2}{U} Instant "Return all green permanents
         // to their owners' hands." A colour-filtered mass bounce. Cast the
         // Hibernation in hand (two Islands cover {2}{U}) — every GREEN permanent

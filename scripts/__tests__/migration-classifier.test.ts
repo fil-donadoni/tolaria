@@ -493,9 +493,15 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Op-blocked 223. Values below are the true post-merge totals,
         // reconciled by re-running `bun scripts/migration-classifier.mjs`
         // against the combined tree, never hand-added.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(643);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(406);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(373);
+        // #988 (Sulfuric Vortex) net-ADDED two closures — an `each`-scoped
+        // upkeep phaseTrigger resolve() (dealDamage, a Covered Op, but `each`
+        // scope disallows `effects[]`) plus its lifegain-lock replacementEffect
+        // closure. Both are FREE (no blocked Op) and AFK-ready (the card ships
+        // with a per-card test): total 643→645 (+2), FREE 406→408 (+2),
+        // AFK-ready 373→375 (+2); X-only / Op-blocked unchanged.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(645);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(408);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(375);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(223);
     });
