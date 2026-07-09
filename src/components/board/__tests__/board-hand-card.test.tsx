@@ -79,6 +79,31 @@ vi.mock("../../cards/mode-picker", async () => {
     };
 });
 
+// The X / kicker cost dialog (replaces the old native prompt/confirm). Mirror
+// it with a portal button that confirms a fixed chosen X (3) so the test drives
+// the same downstream dispatch a real confirm would.
+vi.mock("../../cards/cast-cost-dialog", async () => {
+    const { createPortal } = await import("react-dom");
+    return {
+        default: ({
+            askX,
+            onConfirm,
+        }: {
+            askX: boolean;
+            onConfirm: (v: { chosenX?: number; kickerCount?: number }) => void;
+        }) =>
+            createPortal(
+                <button
+                    data-testid="cost-confirm"
+                    onClick={() => onConfirm({ chosenX: askX ? 3 : undefined })}
+                >
+                    confirm
+                </button>,
+                document.body
+            ),
+    };
+});
+
 import BoardHandCard from "../board-hand-card";
 
 function makeCard(
@@ -235,13 +260,14 @@ describe("BoardHandCard drag-commit parity (seam 3, #254)", () => {
         });
     });
 
-    it("dragging the X-prompt path passes the same chosen X for click and drag", () => {
+    it("the X-cost dialog path passes the same chosen X for click and drag", () => {
         cardDef = { name: "X Spell", manaCost: { X: "X" } };
-        const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("3");
         const card = makeCard("xspell", ["cast"]);
 
         renderCard(card);
         fireEvent.click(el());
+        expect(announceCast).not.toHaveBeenCalled(); // deferred to cost dialog
+        fireEvent.click(screen.getByTestId("cost-confirm"));
         const clickArgs = announceCast.mock.calls[0][0];
 
         announceCast.mockClear();
@@ -249,11 +275,12 @@ describe("BoardHandCard drag-commit parity (seam 3, #254)", () => {
 
         renderCard(card);
         drag(120);
+        expect(announceCast).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByTestId("cost-confirm"));
         const dragArgs = announceCast.mock.calls[0][0];
 
         expect(dragArgs).toEqual(clickArgs);
         expect(dragArgs).toMatchObject({ chosenX: 3 });
-        promptSpy.mockRestore();
     });
 
     it("a modal-spell drag opens the SAME mode picker as a click, dispatching the chosen mode", () => {

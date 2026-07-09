@@ -27,6 +27,7 @@ import { outstandingDamageAssigner } from "~/lib/priority";
 import { extractMutationError, type MutationError } from "~/lib/mutation-error";
 import type { ActivatableAbility } from "~/components/board/battlefield-card";
 import ManaChoicePicker from "~/components/board/mana-choice-picker";
+import CastCostDialog from "~/components/cards/cast-cost-dialog";
 import ErrorToast from "~/components/board/error-toast";
 
 /** Battlefield interaction controller for one player's battlefield (PRD #249,
@@ -125,6 +126,18 @@ export function useBattlefieldInteraction(player: Player) {
 
     const [validationError, setValidationError] =
         useState<MutationError | null>(null);
+
+    // CR 601.2b — X in an activated ability's mana cost is chosen before the
+    // ability goes on the stack. Parked here while the in-game cost dialog
+    // collects the value (replacing the old native `window.prompt`); the
+    // confirm handler dispatches `activateAbility` with the chosen X.
+    const [abilityXChoiceState, setAbilityXChoiceState] = useState<{
+        cardInstanceId: string;
+        abilityId: string;
+        cardName: string;
+        oracleText?: string;
+        keepPriority: boolean;
+    } | null>(null);
 
     function guardMutation(promise: Promise<unknown>) {
         promise.catch((err) => {
@@ -658,21 +671,21 @@ export function useBattlefieldInteraction(player: Player) {
             return;
         }
         // CR 107.3 / 601.2b: if the ability has X in its mana cost, the
-        // activator chooses X before announcement. Prompt the user — same
-        // pattern as the spell-cast path in selectable-card.tsx.
+        // activator chooses X before announcement. Open the in-game cost dialog
+        // (same one the spell-cast path uses); the confirm handler dispatches
+        // `activateAbility` with the chosen X.
         const hasX =
             ability?.cost.mana?.X !== undefined &&
             typeof ability.cost.mana.X === "string";
-        let chosenX: number | undefined;
         if (hasX) {
-            const raw = window.prompt(
-                `Choose X for ${def.name} (${ability!.oracleText})`,
-                "0"
-            );
-            if (raw === null) return;
-            const parsed = Number.parseInt(raw, 10);
-            if (!Number.isFinite(parsed) || parsed < 0) return;
-            chosenX = parsed;
+            setAbilityXChoiceState({
+                cardInstanceId,
+                abilityId,
+                cardName: def.name,
+                oracleText: ability?.oracleText,
+                keepPriority,
+            });
+            return;
         }
         guardMutation(
             activateAbility({
@@ -681,7 +694,7 @@ export function useBattlefieldInteraction(player: Player) {
                 cardInstanceId,
                 abilityId,
                 keepPriority: keepPriority || undefined,
-                chosenX,
+                chosenX: undefined,
             })
         );
     }
@@ -713,6 +726,29 @@ export function useBattlefieldInteraction(player: Player) {
                         setManaChoiceState(null);
                     }}
                     onCancel={() => setManaChoiceState(null)}
+                />
+            )}
+            {abilityXChoiceState && (
+                <CastCostDialog
+                    open
+                    cardName={abilityXChoiceState.cardName}
+                    subtitle={abilityXChoiceState.oracleText}
+                    askX
+                    onConfirm={({ chosenX }) => {
+                        const s = abilityXChoiceState;
+                        setAbilityXChoiceState(null);
+                        guardMutation(
+                            activateAbility({
+                                gameId,
+                                playerId,
+                                cardInstanceId: s.cardInstanceId,
+                                abilityId: s.abilityId,
+                                keepPriority: s.keepPriority || undefined,
+                                chosenX,
+                            })
+                        );
+                    }}
+                    onCancel={() => setAbilityXChoiceState(null)}
                 />
             )}
             <ErrorToast

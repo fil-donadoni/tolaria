@@ -17,8 +17,12 @@ export default function GraveyardFlashbackButton({
     card: CardInstance;
     onCommitted?: () => void;
 }) {
-    const { onCastClick, modePickerOverlay, altCostPickerOverlay } =
-        useHandCardCommit(card);
+    const {
+        onCastClick,
+        modePickerOverlay,
+        altCostPickerOverlay,
+        costDialogOverlay,
+    } = useHandCardCommit(card);
 
     // CR 702.34c — the projection attaches `legalActions` to the viewer's own
     // flashback cards; "cast" is present only when the flashback cast is legal
@@ -48,6 +52,7 @@ export default function GraveyardFlashbackButton({
             </button>
             {modePickerOverlay}
             {altCostPickerOverlay}
+            {costDialogOverlay}
         </>
     );
 }

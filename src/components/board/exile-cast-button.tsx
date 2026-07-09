@@ -24,6 +24,7 @@ export default function ExileCastButton({
         onCastClick,
         modePickerOverlay,
         altCostPickerOverlay,
+        costDialogOverlay,
     } = useHandCardCommit(card);
 
     // A land in exile is PLAYED (as a land, CR 305.2), everything else is CAST.
@@ -64,6 +65,7 @@ export default function ExileCastButton({
             </button>
             {modePickerOverlay}
             {altCostPickerOverlay}
+            {costDialogOverlay}
         </>
     );
 }

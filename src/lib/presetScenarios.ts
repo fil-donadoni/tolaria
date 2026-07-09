@@ -55,11 +55,32 @@ type PresetScenario = {
 
 export const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // X mana cost (CR 601.2b). Disintegrate ("{X}{R}: deal X damage to any
+        // target, and it can't be regenerated") is in hand with seven Mountains,
+        // so casting it opens the in-game cost dialog's X stepper — pick a value,
+        // Cast, then choose a target. Green Sun's Zenith adds a second X card
+        // (fetch a creature of mana value X) to exercise the stepper on a
+        // non-burn spell. An opponent creature + face give the "any target"
+        // choices.
+        label: "X mana cost (CR 601.2b) — cost dialog X stepper",
+        cards: [
+            { name: "Disintegrate", owner: "me", zone: "hand" },
+            { name: "Green Sun's Zenith", owner: "me", zone: "hand" },
+            { name: "Mountain", owner: "me", zone: "battlefield", count: 5 },
+            { name: "Forest", owner: "me", zone: "battlefield", count: 2 },
+            { name: "Serra Angel", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 12,
+    },
+    {
         // Kicker / Multikicker cluster (issue #692, CR 702.33 / 702.33e). Every
         // kicker card is in hand with a full colour base so you can cast each
-        // one both WITHOUT and WITH the kicker (the hand-card cast prompts a
-        // "pay the kicker?" confirm; Everflowing Chalice's Multikicker prompts
-        // for a count). Targets to exercise the kicked-vs-unkicked branch: an
+        // one both WITHOUT and WITH the kicker (the hand-card cast opens the
+        // in-game cost dialog with a "pay kicker cost" toggle; Everflowing
+        // Chalice's Multikicker shows a "times to pay kicker" stepper). Targets
+        // to exercise the kicked-vs-unkicked branch: an
         // artifact (Sol Ring, mana value 1 — Overload/Tear Asunder), a big
         // creature (Serra Angel, mana value 5 — Bloodchief's Thirst can only
         // target it WHEN kicked). A stocked library makes Consult the Star
