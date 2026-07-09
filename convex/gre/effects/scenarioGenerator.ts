@@ -240,6 +240,17 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     if (value.count.filter?.name !== undefined) {
         req.skip ??= `count set filters by card name "${value.count.filter.name}" — filler doesn't synthesize an exact name`;
     }
+    // issue #999 — the filler seeds cards by type/subtype only and predicts a
+    // plain cardinality. A supertype-exclusion filter ("nonbasic land") or a
+    // `times` multiplier ("twice the number of …") aren't modelled by the
+    // seeder/predictor, so skip-with-reason — the construct's hand-written
+    // interpreter test is the behavioural guarantor (new-construct regime).
+    if (value.count.filter?.excludeSupertype !== undefined) {
+        req.skip ??= `count set excludes supertype(s) — the filler doesn't model supertype exclusion`;
+    }
+    if (value.count.times !== undefined) {
+        req.skip ??= `count set applies a ${value.count.times}× multiplier — not modelled by the canned predictor`;
+    }
 }
 
 function analysePlayer(

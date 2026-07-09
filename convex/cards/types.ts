@@ -5005,6 +5005,13 @@ export interface EffectCountSpec {
     acrossAllPlayers?: boolean;
     /** Optional card filter (AND of the listed fields). Omitted = count all. */
     filter?: EffectCardFilter;
+    /** Fixed integer multiplier applied to the counted cardinality (CR 122 —
+     *  "TWICE the number of nonbasic lands", Price of Progress, issue #999).
+     *  A literal scaling factor baked into the `count` construct, NOT arithmetic
+     *  composition of two values (the frozen-grammar defence, ADR 0045 — nothing
+     *  else composes it). Defaults to 1 (plain "the number of …"); `times: 2` is
+     *  "twice the number of …". Must be a positive integer. */
+    times?: number;
 }
 
 /** Minimal JSON-pure card filter for `count` sets and a `choice` Op's
@@ -5045,6 +5052,15 @@ export interface EffectCardFilter {
     type?: CardType | CardType[];
     subtype?: string | string[];
     supertype?: CardSupertype;
+    /** Negative of `supertype` (CR 205.4a) — a card matches only if it has
+     *  NONE of the listed supertypes. Mirrors `TargetRequirement.excludeSupertypes`
+     *  (Wasteland's "target nonbasic land") and `excludeType`, just exposed on
+     *  the `count` filter shape (ADR 0045 "generalize, don't add" — a symmetric
+     *  field on an existing primitive). `excludeSupertype: "Basic"` is the
+     *  "nonbasic land" selector (Price of Progress, issue #999). A single value
+     *  is shorthand for one supertype; AND with every other field. Read against
+     *  the LIVE supertype set (snow-aware) for battlefield counts. */
+    excludeSupertype?: CardSupertype | CardSupertype[];
     color?: Color | Color[];
     manaValueAtMost?: number;
     isToken?: boolean;

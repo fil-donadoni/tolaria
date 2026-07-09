@@ -2539,7 +2539,16 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  `literal | ref | count | X | counters`; like `X` it does NOT reopen ADR 0045
  *  (not a structural construct) and earns no EFFECT_OP_REGISTRY row. It unblocks
  *  the "value equal to the number of <type> counters on it" class (Powder Keg's
- *  MV-matched sweep, issue #997). */
+ *  MV-matched sweep, issue #997). The `count` value's `times` multiplier and
+ *  the `EffectCardFilter.excludeSupertype` field (issue #999, CR 122 / 205.4a)
+ *  are likewise NOT Ops and NOT new grammar members — they are REFINEMENTS of
+ *  the existing `count` value (a fixed literal scaling factor and a
+ *  supertype-exclusion filter, the "nonbasic land" selector), mirroring the
+ *  already-shipped `excludeType` / `acrossAllPlayers` refinements. Neither
+ *  reopens ADR 0045 (no structural construct, no arithmetic composition — a
+ *  constant baked into one count) and neither earns an EFFECT_OP_REGISTRY row.
+ *  They unblock the "damage/value equal to TWICE the number of nonbasic lands"
+ *  class (Price of Progress, issue #999). */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED

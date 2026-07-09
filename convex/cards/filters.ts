@@ -61,6 +61,13 @@ export interface PermanentFilter {
      *  indefinite mutations (Arcum's Weathervane) are honored. AND with every
      *  other field. Single value is shorthand for one supertype. */
     supertypes?: string | string[];
+    /** Exclude permanents that have ANY of these supertypes (CR 205.4a — the
+     *  negative of `supertypes`). Used for "nonbasic land" (Wasteland,
+     *  Price of Progress) — `excludeSupertypes: "Basic"`. Read against the same
+     *  LIVE supertype set as `supertypes` (card's own supertypes, else the
+     *  injected snow-aware `supertypesOf`). Single value is shorthand for one
+     *  supertype. AND with every other field. */
+    excludeSupertypes?: string | string[];
     /** Only match permanents whose `staticAbilities` contains this keyword. */
     requireAbility?: string;
     /** Skip permanents whose `staticAbilities` contains this keyword. */
@@ -274,6 +281,13 @@ export function matchesPermanentFilter(
         // `supertypesOf` (snow-aware). Absent both → fail closed.
         const have = card.supertypes ?? ctx?.supertypesOf?.(card) ?? [];
         if (!supertypes.every((s) => have.includes(s))) return false;
+    }
+    if (filter.excludeSupertypes !== undefined) {
+        const excluded = asArray(filter.excludeSupertypes);
+        // CR 205.4a — "nonbasic land" fails if the card has ANY listed
+        // supertype. Same live-supertype resolution as `supertypes`.
+        const have = card.supertypes ?? ctx?.supertypesOf?.(card) ?? [];
+        if (excluded.some((s) => have.includes(s))) return false;
     }
     if (
         filter.requireAbility !== undefined &&
