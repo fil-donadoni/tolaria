@@ -17,9 +17,27 @@
 // reflection.
 
 import type { PermanentFilter } from "../../filters";
-import type { StaticUntapRestriction } from "../../types";
+import type {
+    CardDefinition,
+    PermanentView,
+    StaticUntapRestriction,
+} from "../../types";
 
 export type UntapRestrictionScope = "each-player";
+
+/** CR 605.1a — a mana ability is an activated ability that could add mana, has
+ *  no target, and isn't a loyalty ability; the engine models it as
+ *  `useStack: false`. This returns true when `def` has at least one activated
+ *  ability that is NOT a mana ability (`useStack: true`) — i.e. "an activated
+ *  ability that isn't a mana ability" (Tsabo's Web, modern Scryfall oracle).
+ *  There is NO tap-cost requirement: the CR 605.1 mana-ability test is the sole
+ *  criterion, so creaturelands whose non-mana ability has no {T} in its cost
+ *  (Creeping Tar Pit's `{1}{U}{B}:` animate, Celestial Colonnade's `{3}{W}{U}:`)
+ *  are correctly caught. Reads the printed definition; granted abilities
+ *  (layer 6) are out of scope for this pool. */
+export function hasNonManaActivatedAbility(def: CardDefinition): boolean {
+    return (def.activatedAbilities ?? []).some((a) => a.useStack === true);
+}
 
 export interface UntapRestrictionArgs {
     /** Stable id used for collectedChoices keying / event tagging. Must be
@@ -41,6 +59,11 @@ export interface UntapRestrictionArgs {
      *  source (Winter Orb / Smoke / Stasis). Reserved for future
      *  controller-scoped restrictions. */
     scope?: UntapRestrictionScope;
+    /** Per-candidate refinement resolved at untap-collection time (CR 502.1).
+     *  See `StaticUntapRestriction.dynamicMatch` — used by Tsabo's Web to match
+     *  lands whose card definition carries a non-mana activated ability, a
+     *  property `PermanentFilter` can't express. */
+    dynamicMatch?: (candidate: PermanentView, def: CardDefinition) => boolean;
 }
 
 /** Builds a `StaticUntapRestriction` for `staticEffects[]`. The engine
@@ -56,5 +79,6 @@ export function untapRestriction(
         filter: args.filter,
         maxUntap: args.maxUntap ?? 0,
         scope: args.scope ?? "each-player",
+        ...(args.dynamicMatch ? { dynamicMatch: args.dynamicMatch } : {}),
     };
 }

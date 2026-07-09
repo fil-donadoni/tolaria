@@ -5,7 +5,7 @@
 // wire coverage per § Card testing convention.
 
 import { describe, it, expect } from "vitest";
-import { dominate } from "..";
+import { accumulatedKnowledge, dominate } from "..";
 import { grizzlyBears, serraAngel } from "../../lea";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { getLegalTargets } from "../../../../gre/rules";
@@ -16,6 +16,63 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
+
+// Accumulated Knowledge exercises the `count` construct's NEW dynamic-count
+// path (name filter + acrossAllPlayers scope, issue #985), which the canned-
+// scenario smoke generator skips-with-reason (an exact-name, all-graveyards
+// count isn't faithfully sizable). Per that contract it earns a hand-written
+// per-card test tying the shipped definition to the CR 122 / 201.2 outcome.
+describe("Accumulated Knowledge ({1}{U}: draw 1 + 1 per copy in all graveyards)", () => {
+    const bearLibrary = (owner: "p1" | "p2", n: number) =>
+        Array.from({ length: n }, (_, i) =>
+            makeInstance(grizzlyBears.id, {
+                id: `ak-lib-${owner}-${i}`,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+    const akInGraveyard = (owner: "p1" | "p2", n: number) =>
+        Array.from({ length: n }, (_, i) =>
+            makeInstance(accumulatedKnowledge.id, {
+                id: `ak-gy-${owner}-${i}`,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "graveyard",
+            })
+        );
+
+    it("draws exactly 1 with no copies in any graveyard (CR 121.1)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: bearLibrary("p1", 5) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, accumulatedKnowledge.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.length).toBe(1);
+    });
+
+    it("draws 1 + 1 per copy across BOTH graveyards, surviving projection", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: bearLibrary("p1", 6),
+                    graveyard: akInGraveyard("p1", 1),
+                }),
+                makePlayer("p2", { graveyard: akInGraveyard("p2", 2) }),
+            ],
+        });
+        pushSpell(state, accumulatedKnowledge.id, "p1");
+        resolveTopOfStack(state);
+        // draw 1 + (1 in p1's + 2 in p2's graveyard) = 4 (CR 122).
+        expect(state.players[0].hand.length).toBe(4);
+        // Wire format: the drawn hand survives the client projection.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].hand.length).toBe(4);
+    });
+});
 
 describe("Dominate ({X}{1}{U}{U}: gain control of target creature with MV <= X)", () => {
     // CR 202.3 — legal targets are creatures whose mana value is X or less.

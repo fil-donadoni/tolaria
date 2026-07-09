@@ -30,6 +30,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Accumulated Knowledge",
+        "scryfallId": "ab061406-38f4-40e7-a9ea-e3cbcaabc127",
+        "oracleId": "1ca25379-d194-4670-a7bf-525ad11cf436",
+        "firstSet": "nem"
+    },
+    {
         "name": "Acid Rain",
         "scryfallId": "ba93c50a-2440-4e92-9cba-d97e20b1d29c",
         "oracleId": "6ae3c3a2-bd17-4fea-ae27-9d2d1eaf8cc0",
@@ -7294,6 +7300,12 @@
         "scryfallId": "a9c6c759-aabf-44e7-ba8c-33c5df232b56",
         "oracleId": "74b7fe23-5d3a-4092-8d78-7c0eba8f6f73",
         "firstSet": "lea"
+    },
+    {
+        "name": "Tsabo's Web",
+        "scryfallId": "0dee69f8-cceb-41b9-a0ee-6b2ac9f4bad9",
+        "oracleId": "96a4e515-2b4e-4c2d-aa1a-963597484723",
+        "firstSet": "inv"
     },
     {
         "name": "Tsunami",
