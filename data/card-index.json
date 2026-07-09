@@ -6762,6 +6762,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Sulfuric Vortex",
+        "scryfallId": "79955e27-eef7-43bd-9895-e9209ed1537f",
+        "oracleId": "7652f328-e142-494b-a869-772ced10c26a",
+        "firstSet": "scg"
+    },
+    {
         "name": "Sulfurous Springs",
         "scryfallId": "2fdeab50-b45f-412b-85a3-c6cf009ce567",
         "oracleId": "f5c38c01-4a40-469f-91a0-7479daf4e8e7",

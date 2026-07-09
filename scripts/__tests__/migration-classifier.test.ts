@@ -493,9 +493,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Op-blocked 223. Values below are the true post-merge totals,
         // reconciled by re-running `bun scripts/migration-classifier.mjs`
         // against the combined tree, never hand-added.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(643);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(406);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(373);
+        // #988 (Sulfuric Vortex) net-ADDED exactly ONE counted closure — an
+        // `each`-scoped upkeep phaseTrigger resolve() (dealDamage, a Covered
+        // Op, but `each` scope disallows `effects[]`). Its lifegain-lock
+        // replacementEffect closure is NOT counted (the classifier counts only
+        // resolve()/resolveSteps). It is FREE (no blocked Op) and AFK-ready
+        // (ships with a per-card test).
+        // IMPORTANT — this PR also reconciles a pre-existing green-main drift:
+        // the committed snapshot above stale-asserts 643, but plain
+        // `origin/main` already classifies at 644 / FREE 407 / AFK-ready 374.
+        // That +1 total drift was introduced by Jackal Pup's resolve() (commit
+        // 268b6c89), which was merged directly WITHOUT bumping this snapshot —
+        // leaving main red on this test. So the true deltas here are the base
+        // reconciliation PLUS Vortex's +1: total 644→645, FREE 407→408,
+        // AFK-ready 374→375; X-only / Op-blocked unchanged.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(645);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(408);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(375);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(223);
     });
