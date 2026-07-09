@@ -37,7 +37,11 @@ registerTokenDefinition({
     types: ["Creature"],
     subtypes: [FILLER_SUBTYPE],
     power: 2,
-    toughness: 5,
+    // Toughness is high (8) so a smoke-test damage Op leaves observable marked
+    // damage (CR 120.3) instead of killing the creature and moving it out from
+    // under a follow-up assertion — sized above the largest single-target
+    // dealDamage amount in the catalogue (Mine Collapse's 5, issue #690).
+    toughness: 8,
 });
 
 /** A DSL Effect Script found in the catalogue, tagged by site so the harness

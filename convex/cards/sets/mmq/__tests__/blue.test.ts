@@ -98,7 +98,7 @@ describe("Gush ({4}{U} instant — return two Islands rather than pay mana, draw
         // CR 118.9 / 701.21a — WHICH Islands to return is the caster's choice,
         // routed through the unified layer. Three indistinguishable Islands
         // returning 2 auto-resolves (no real choice), then the picks are applied.
-        const choice = buildAlternativeCostChoice(state, "p1", alt, "Gush");
+        const choice = buildAlternativeCostChoice(state, "p1", alt, "Gush")!;
         expect(choice.action).toBe("return");
         applySacrificeSelection(state, choice);
         expect(state.players[0].battlefield).toHaveLength(1); // 3 − 2 returned

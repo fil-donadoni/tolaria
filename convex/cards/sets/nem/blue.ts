@@ -72,3 +72,49 @@ export const dominate: CardDefinition = {
         },
     ],
 };
+
+// Daze — {1}{U} Instant. "You may return an Island you control to its owner's
+// hand rather than pay this spell's mana cost. Counter target spell unless its
+// controller pays {1}." (CR 118.9 alternative pitch cost — return an Island;
+// CR 701.24 return; CR 701.5a counter-unless-pay; CR 117.3a may-pay.)
+//
+// The alternative cost is a censusless CR 118.9 rules concept (no keyword name):
+// the existing PERMANENT `action: "return"` leg (Gush's shape) narrowed to a
+// single Island. The counter-unless-pay effect is the shipped Mana Tithe / Force
+// Spike shape — a `mayPay` on the spell's controller + `if (not $paid) counter`,
+// both already-censused Ops (ADR 0045, DSL-first).
+export const daze: CardDefinition = {
+    id: "d03bff25-0d5e-4dcf-8d75-6df846afea3b", // NEM 30
+    rarity: "common",
+    name: "Daze",
+    oracleText:
+        "You may return an Island you control to its owner's hand rather than pay this spell's mana cost.\nCounter target spell unless its controller pays {1}.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "spell", count: 1 },
+    alternativeCosts: [
+        {
+            id: "pitch-return-island",
+            description: "Return an Island you control to its owner's hand",
+            action: "return",
+            count: 1,
+            filter: { subtypes: "Island" },
+        },
+    ],
+    effects: [
+        {
+            op: "mayPay",
+            // CR 117.3a — the countered spell's controller decides whether to pay.
+            player: { controllerOf: { target: 0 } },
+            cost: { X: 1 },
+            prompt: "Pay {1} to prevent your spell from being countered?",
+            bind: "$paid",
+        },
+        {
+            // CR 701.5a — counter unless the payment was made.
+            op: "if",
+            predicate: { not: { binding: "$paid" } },
+            then: [{ op: "counter", target: { target: 0 } }],
+        },
+    ],
+};

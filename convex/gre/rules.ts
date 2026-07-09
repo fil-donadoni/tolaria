@@ -191,7 +191,7 @@ export function getLegalActions(
             // ALTERNATIVE cost (Gush/Thwart return Islands, Fireblast sacrifices
             // Mountains) that replaces the mana cost entirely.
             (canPotentiallyPayCost(player, card) ||
-                affordableAlternativeCosts(player, card).length > 0) &&
+                affordableAlternativeCosts(state, player, card).length > 0) &&
             hasEnoughLegalTargets(state, player, card) &&
             hasPayableAdditionalCost(player, card)
         ) {

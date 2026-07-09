@@ -5,7 +5,7 @@
 // whole-table reset uses composed SpellContext zone primitives (resolve()); the
 // flashback exile itself is covered class-wide by convex/gre/__tests__/flashback.test.ts.
 import { describe, it, expect } from "vitest";
-import { echoOfEons } from "../blue";
+import { echoOfEons, forceOfNegation } from "../blue";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack, getPlayer } from "../../../../gre/state";
 import { grizzlyBears } from "../../lea";
@@ -70,5 +70,36 @@ describe("Echo of Eons (Timetwister with flashback, CR 103.4 / 702.34)", () => {
         expect(getPlayer(state, "p1").library).toHaveLength(8);
         // p2 started with 1+4+10 = 15 cards; 7 in hand → 8 left in library.
         expect(getPlayer(state, "p2").library).toHaveLength(8);
+    });
+});
+
+// Force of Negation — {1}{U}{U} Instant. "If it's not your turn, you may exile a
+// blue card from your hand rather than pay this spell's mana cost. Counter target
+// noncreature spell. If that spell is countered this way, exile it instead of
+// putting it into its owner's graveyard." (CR 118.9 pitch cost; CR 701.5a
+// counter-to-exile.) The hand leg + not-your-turn condition and the reused
+// counter-with-destination Op are covered by the framework + smoke sweep; here
+// we pin the definition shape.
+describe("Force of Negation (pitch: exile a blue card, not your turn)", () => {
+    it("declares the conditional hand alternative cost and counter-to-exile of a noncreature spell", () => {
+        expect(forceOfNegation.alternativeCosts).toEqual([
+            {
+                id: "pitch-exile-blue",
+                description: "Exile a blue card from your hand",
+                condition: { kind: "not-your-turn" },
+                handCost: {
+                    action: "exile",
+                    requirements: [{ filter: { color: "U" }, count: 1 }],
+                },
+            },
+        ]);
+        expect(forceOfNegation.targetRequirement).toEqual({
+            type: "spell",
+            count: 1,
+            spellExcludeTypeFilter: "Creature",
+        });
+        expect(forceOfNegation.effects).toEqual([
+            { op: "counter", target: { target: 0 }, destination: "exile" },
+        ]);
     });
 });

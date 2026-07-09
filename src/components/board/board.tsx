@@ -47,6 +47,7 @@ import TargetSelectionBanner from "./target-selection-banner";
 import GraveyardTargetDialog from "./graveyard-target-dialog";
 import ExileCostDialog from "./exile-cost-dialog";
 import CastExileCostDialog from "./cast-exile-cost-dialog";
+import CastAlternativeHandCostDialog from "./cast-alternative-hand-cost-dialog";
 import { isGraveyardTargetForViewer } from "~/lib/graveyard-targets";
 import PaymentBanner from "./payment-banner";
 import SacrificeBanner from "./sacrifice-banner";
@@ -548,6 +549,22 @@ export default function Board({
                                     <CastExileCostDialog
                                         choice={
                                             pendingCast.exileFromGraveyardChoice
+                                        }
+                                        me={me}
+                                        gameId={gameId}
+                                        playerId={viewerId}
+                                    />
+                                ) : pendingCast.alternativeCostHandChoice &&
+                                  !pendingCast.alternativeCostHandChoice
+                                      .pickedCardIds ? (
+                                    // CR 118.9 — the alternative-cost hand leg
+                                    // (Force of Will "exile a blue card", Foil
+                                    // "discard an Island card and another card")
+                                    // needs a dedicated hand-card picker before
+                                    // the payment banner takes over.
+                                    <CastAlternativeHandCostDialog
+                                        choice={
+                                            pendingCast.alternativeCostHandChoice
                                         }
                                         me={me}
                                         gameId={gameId}

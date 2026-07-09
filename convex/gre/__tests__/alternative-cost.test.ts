@@ -116,7 +116,7 @@ describe("buildAlternativeCostChoice — forced/fungible auto-resolves (CR 118.9
             "p1",
             returnTwoIslands,
             "Gush"
-        );
+        )!;
         // No real choice (2 Islands, must return 2) → auto-resolved + complete.
         expect(isSacrificeSelectionComplete(sel)).toBe(true);
         expect(sel.picked).toHaveLength(2);
@@ -137,7 +137,7 @@ describe("buildAlternativeCostChoice — forced/fungible auto-resolves (CR 118.9
             "p1",
             returnTwoIslands,
             "Gush"
-        );
+        )!;
         expect(isSacrificeSelectionComplete(sel)).toBe(true);
         expect(sel.picked).toHaveLength(2);
     });
@@ -168,7 +168,7 @@ describe("buildAlternativeCostChoice — real choice parks (CR 118.9 / 701.21a)"
             "p1",
             sacrificeTwoMountains,
             "Fireblast"
-        );
+        )!;
         // A real choice remains — no auto-pick; the caller parks the cast.
         expect(isSacrificeSelectionComplete(sel)).toBe(false);
         expect(sel.picked).toHaveLength(0);
@@ -189,7 +189,7 @@ describe("applySacrificeSelection — alternative-cost terminal actions (CR 118.
             "p1",
             returnTwoIslands,
             "Gush"
-        );
+        )!;
         applySacrificeSelection(state, sel);
         const p1 = state.players[0];
         expect(p1.battlefield).toHaveLength(0);
@@ -209,7 +209,7 @@ describe("applySacrificeSelection — alternative-cost terminal actions (CR 118.
             "p1",
             sacrificeTwoMountains,
             "Fireblast"
-        );
+        )!;
         applySacrificeSelection(state, sel);
         const p1 = state.players[0];
         expect(p1.battlefield).toHaveLength(0);
