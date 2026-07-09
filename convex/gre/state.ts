@@ -5471,6 +5471,16 @@ function cloneSpellOntoStack(
     // state (CR 608.2 / 707.12).
     delete copy.resolutionStep;
     delete copy.collectedChoices;
+    // CR 707.10 — a copy is created, not *cast*. Any "cast" provenance the
+    // original carried must be cleared so the copy doesn't inherit it: a copy
+    // of a flashed-back spell (Sevinne's Reclamation) was NOT cast from a
+    // graveyard, so `wasCastFromGraveyard()` must read false for it — otherwise
+    // the copy re-offers its own "may copy this spell" clause and spirals into
+    // unbounded copies. `exileOnResolve` is likewise a cast-site artifact (the
+    // flashback card is exiled, not the copy, which ceases to exist as a
+    // one-shot effect per CR 707.10/112.5).
+    delete copy.castFromGraveyard;
+    delete copy.exileOnResolve;
     // CR 707.10b / 707.12 — the copy is controlled by the controller of the
     // effect that created it (e.g. Fork's controller, or the resolving spell's
     // own controller for "copy this spell"), unless the effect names a specific
