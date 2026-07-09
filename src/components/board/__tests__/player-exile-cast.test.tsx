@@ -115,6 +115,7 @@ function renderExile(player: Player, viewerId: string) {
         allPlayers: [player],
         showAllCards: false,
         debugAllActions: false,
+        onSwitchGame: () => {},
     } as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={value}>

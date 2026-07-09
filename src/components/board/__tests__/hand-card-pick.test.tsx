@@ -92,6 +92,7 @@ function renderWith(opts: {
         allPlayers: opts.allPlayers,
         showAllCards: false,
         debugAllActions: false,
+        onSwitchGame: () => {},
         pendingChoices: opts.pendingChoices,
     } as React.ContextType<typeof GameContext>;
     return render(

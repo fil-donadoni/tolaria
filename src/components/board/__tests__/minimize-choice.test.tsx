@@ -120,6 +120,7 @@ function makeContext(): React.ContextType<typeof GameContext> {
         allPlayers: [makePlayer("me"), makePlayer("opp")],
         showAllCards: false,
         debugAllActions: false,
+        onSwitchGame: () => {},
     } as React.ContextType<typeof GameContext>;
 }
 

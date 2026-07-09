@@ -47,6 +47,7 @@ function renderStack(stack: StackItem[]) {
         allPlayers: [],
         showAllCards: false,
         debugAllActions: false,
+        onSwitchGame: () => {},
     } as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={value}>

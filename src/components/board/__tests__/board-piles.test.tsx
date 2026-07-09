@@ -93,6 +93,7 @@ function renderPiles(opponent: Player, me: Player) {
         allPlayers: [opponent, me],
         showAllCards: false,
         debugAllActions: false,
+        onSwitchGame: () => {},
     } as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={value}>

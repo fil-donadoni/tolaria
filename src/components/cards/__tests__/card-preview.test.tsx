@@ -29,6 +29,7 @@ const GAME_CTX = {
     allPlayers: [],
     showAllCards: false,
     debugAllActions: false,
+    onSwitchGame: () => {},
 };
 
 function renderOnBoard(children: ReactNode = <div>face</div>) {

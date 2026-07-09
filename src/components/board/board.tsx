@@ -84,6 +84,8 @@ type BoardProps = {
     vsAi: boolean;
     showAllCards: boolean;
     debugAllActions: boolean;
+    /** Re-point the session to another game in-place (see GameContext). */
+    onSwitchGame: (gameId: Id<"games">, playerId: string) => void;
 };
 
 /** Hand: shallow fanned arc, baseline near the bottom of its zone so the dome
@@ -119,6 +121,7 @@ export default function Board({
     vsAi,
     showAllCards,
     debugAllActions,
+    onSwitchGame,
 }: BoardProps) {
     const isPortrait = useIsPortrait();
     const pageVisible = usePageVisible();
@@ -308,6 +311,7 @@ export default function Board({
                 allPlayers,
                 showAllCards,
                 debugAllActions,
+                onSwitchGame,
             }}
         >
             <SkipPhasePrefsContext value={skipPhasePrefs}>

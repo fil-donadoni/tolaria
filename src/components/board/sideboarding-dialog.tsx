@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import type { PublicMatch } from "@convex/matches";
 import GameDialog from "~/components/ui/game-dialog";
-import { storeSession } from "~/lib/session";
+import { useGameContext } from "~/hooks/useGameContext";
 import {
     moveToMaindeck,
     moveToSideboard,
@@ -51,6 +52,7 @@ export default function SideboardingDialog({
 }: SideboardingDialogProps) {
     const submitSideboard = useMutation(api.game.submitSideboard);
     const setReady = useMutation(api.game.setReady);
+    const { onSwitchGame } = useGameContext();
 
     const seats = useMemo(() => sideboardableSeats(match), [match]);
     // Index of the seat currently being sideboarded (Solo readies seats in turn).
@@ -160,9 +162,13 @@ export default function SideboardingDialog({
             });
             if (gameId) {
                 // All seats ready → next Game built. Re-point the session to it
-                // (same viewer seat) and reload onto the fresh board.
-                storeSession(gameId, viewerId);
-                window.location.reload();
+                // (same viewer seat) in-place. Must NOT full-page reload: the
+                // route is a static `/game` and a reload re-requests it from the
+                // host, which 404s on static hosts lacking an SPA fallback
+                // (resume-from-home works only because it's a client-side nav
+                // from `/`). The board is keyed by gameId, so a state swap
+                // remounts it clean onto G2/G3.
+                onSwitchGame(gameId as Id<"games">, viewerId);
                 return;
             }
             // More seats to sideboard on this client (Solo) — advance. The
@@ -172,8 +178,11 @@ export default function SideboardingDialog({
             }
             setSubmitting(false);
         } catch {
-            // A race may have advanced the Match; reload to resync.
-            window.location.reload();
+            // A race may have advanced the Match. `match` is reactive (Convex
+            // query upstream), so the dialog re-renders into the correct state
+            // on its own — no full-page reload (which would 404, see above).
+            // Clear the in-flight flag so the seat stays interactive.
+            setSubmitting(false);
         }
     };
 
