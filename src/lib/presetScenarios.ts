@@ -55,6 +55,16 @@ type PresetScenario = {
 
 export const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        label: "Brainstorm",
+        cards: [
+            { name: "Brainstorm", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 1,
+        libraryCount: 12,
+    },
+    {
         // Opt (issue #1002): {U} Instant "Scry 1. Draw a card." Cast the Opt in
         // hand (an Island covers {U}) to raise the scry-1 order-top choice on
         // your top card — keep it on top or drag it to the bottom — then draw.
