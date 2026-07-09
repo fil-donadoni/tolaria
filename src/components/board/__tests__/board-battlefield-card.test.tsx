@@ -89,6 +89,7 @@ function renderCard(card: CardInstance, vs: CardVisualState) {
         allPlayers: [me],
         showAllCards: false,
         debugAllActions: false,
+        onSwitchGame: () => {},
     } as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={value}>
@@ -231,6 +232,7 @@ describe("BoardBattlefieldCard click wiring (#272)", () => {
             allPlayers: [me],
             showAllCards: false,
             debugAllActions: false,
+            onSwitchGame: () => {},
         } as React.ContextType<typeof GameContext>;
         const { container } = render(
             <GameContext value={value}>
@@ -270,6 +272,7 @@ describe("BoardBattlefieldCard click wiring (#272)", () => {
                         allPlayers: [makePlayer([card])],
                         showAllCards: false,
                         debugAllActions: false,
+                        onSwitchGame: () => {},
                     } as React.ContextType<typeof GameContext>
                 }
             >
@@ -305,6 +308,7 @@ describe("BoardBattlefieldCard click wiring (#272)", () => {
                         allPlayers: [makePlayer([card])],
                         showAllCards: false,
                         debugAllActions: false,
+                        onSwitchGame: () => {},
                     } as React.ContextType<typeof GameContext>
                 }
             >

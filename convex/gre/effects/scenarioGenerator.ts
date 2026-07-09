@@ -216,8 +216,19 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;
-    if (typeof c === "object" && "ref" in c) {
+    if (typeof c === "object" && c !== null && "ref" in c) {
         req.skip ??= `count set controller is a ref "${c.ref}"`;
+    }
+    // issue #985 — the filler seeds ONE player's zone with cards matched by
+    // type/subtype only. An `acrossAllPlayers` scope (every graveyard) or a
+    // `name` filter (an exact printed name the filler doesn't synthesize) can't
+    // be faithfully sized here; skip-with-reason so a hand-written test is the
+    // behavioural guarantor (per DSL-first authoring, new-construct regime).
+    if (value.count.acrossAllPlayers) {
+        req.skip ??= `count set spans all players' zones — not faithfully sizable in a canned scenario`;
+    }
+    if (value.count.filter?.name !== undefined) {
+        req.skip ??= `count set filters by card name "${value.count.filter.name}" — filler doesn't synthesize an exact name`;
     }
 }
 

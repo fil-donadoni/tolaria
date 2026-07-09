@@ -34,6 +34,11 @@ type GameContext = {
     allPlayers: Player[];
     showAllCards: boolean;
     debugAllActions: boolean;
+    /** Re-point the client session to another game in-place (state swap, no
+     *  full-page reload). Used by the sideboarding flow to enter G2/G3 without
+     *  a `window.location.reload()` — a reload re-requests `/game` from the
+     *  host, which 404s on static hosts lacking an SPA fallback. */
+    onSwitchGame: (gameId: Id<"games">, playerId: string) => void;
 };
 
 export const GameContext = createContext<GameContext | null>(null);

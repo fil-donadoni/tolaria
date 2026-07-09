@@ -42,6 +42,11 @@ export interface FilterMatchContext {
  *  (`enteredTrigger.filter`, etc.), and mid-resolution choice pickers. All
  *  fields are combined with AND; omitted fields don't constrain. */
 export interface PermanentFilter {
+    /** Match permanents by exact printed name (CR 201.2 — "cards named ~").
+     *  Read against the live `MatchablePermanent.name`; a caller that doesn't
+     *  populate `name` never matches a name filter (fail-closed). AND with
+     *  every other field. */
+    name?: string;
     types?: CardType | CardType[];
     /** Exclude permanents whose `types` include any of these (CR 205). The
      *  negative of `types`; used for "nonartifact creature" (The Abyss),
@@ -176,6 +181,10 @@ export interface PlayerFilter {
  *  populate it (derive via `getColorsFromCost` against the card def). */
 export interface MatchablePermanent {
     id: string;
+    /** Live printed name (CR 201.2). Optional: callers that use
+     *  `PermanentFilter.name` must populate it; absent → a name filter fails
+     *  closed (matches nothing). */
+    name?: string;
     types: ReadonlyArray<CardType | string>;
     subtypes: ReadonlyArray<string>;
     /** Live supertypes (CR 205.4a). Optional: callers that use
@@ -243,6 +252,9 @@ export function matchesPermanentFilter(
     filter: PermanentFilter,
     ctx?: FilterMatchContext
 ): boolean {
+    if (filter.name !== undefined && card.name !== filter.name) {
+        return false;
+    }
     if (filter.types !== undefined) {
         const types = asArray(filter.types);
         if (!types.some((t) => card.types.includes(t))) return false;

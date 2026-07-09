@@ -74,6 +74,7 @@ function renderWithContext(
         allPlayers: [],
         showAllCards: false,
         debugAllActions: false,
+        onSwitchGame: () => {},
         pendingChoices,
         pendingTarget,
     } as React.ContextType<typeof GameContext>;

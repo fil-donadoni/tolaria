@@ -149,6 +149,7 @@ function boardEl() {
             vsAi={false}
             showAllCards={false}
             debugAllActions={false}
+            onSwitchGame={() => {}}
         />
     );
 }

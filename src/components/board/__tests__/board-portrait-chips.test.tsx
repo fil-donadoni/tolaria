@@ -101,6 +101,7 @@ function renderChips(
         allPlayers: [opponent, me],
         showAllCards: false,
         debugAllActions: false,
+        onSwitchGame: () => {},
     } as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={value}>

@@ -90,6 +90,7 @@ export default function GameRoute() {
                     vsAi={game.vsAi === true}
                     showAllCards={showAllCards}
                     debugAllActions={debugAllActions}
+                    onSwitchGame={handleSwitchGame}
                 />
                 {import.meta.env.DEV && (
                     <DebugPanel

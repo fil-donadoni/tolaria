@@ -107,6 +107,7 @@ function renderCard(card: CardInstance) {
         allPlayers: [],
         showAllCards: false,
         debugAllActions: false,
+        onSwitchGame: () => {},
     } as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={value}>

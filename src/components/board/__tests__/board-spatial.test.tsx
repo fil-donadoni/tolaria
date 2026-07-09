@@ -158,6 +158,7 @@ function renderBoard(opponent: Player, me: Player) {
             vsAi={false}
             showAllCards={false}
             debugAllActions={false}
+            onSwitchGame={() => {}}
         />
     );
 }

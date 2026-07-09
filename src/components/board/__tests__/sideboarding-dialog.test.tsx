@@ -1,13 +1,30 @@
 // Sideboarding step editor: the Ready gate (blocked until the Maindeck returns
 // to its locked size; enabled at a valid partition) and the Maindeck↔Sideboard
 // swap action (issue #395). See `../sideboarding-dialog`.
+import type { ComponentProps, ReactElement } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, within } from "@testing-library/react";
 import type { PublicMatch } from "@convex/matches";
+import { GameContext } from "~/hooks/useGameContext";
 import SideboardingDialog from "../sideboarding-dialog";
 
 const submitSideboard = vi.fn(() => Promise.resolve(undefined));
-const setReady = vi.fn(() => Promise.resolve({ gameId: null }));
+const setReady = vi.fn(() =>
+    Promise.resolve({ gameId: null as string | null })
+);
+const onSwitchGame = vi.fn();
+
+// SideboardingDialog reads `onSwitchGame` from GameContext (entering G2/G3 is an
+// in-place session swap, not a full-page reload — see the component). Only that
+// field is exercised here, so the provider value is a minimal cast.
+type GameCtxValue = ComponentProps<typeof GameContext>["value"];
+function renderDialog(ui: ReactElement) {
+    return render(
+        <GameContext value={{ onSwitchGame } as unknown as GameCtxValue}>
+            {ui}
+        </GameContext>
+    );
+}
 
 vi.mock("convex/react", () => ({
     useMutation: (ref: { _name: string }) =>
@@ -65,10 +82,11 @@ describe("SideboardingDialog Ready gate (issue #395)", () => {
     beforeEach(() => {
         submitSideboard.mockClear();
         setReady.mockClear();
+        onSwitchGame.mockClear();
     });
 
     it("Ready is enabled at the locked size and dispatches submit + ready", async () => {
-        const { getByRole } = render(
+        const { getByRole } = renderDialog(
             <SideboardingDialog match={baseMatch()} viewerId="me" />
         );
         const ready = getByRole("button", {
@@ -82,8 +100,23 @@ describe("SideboardingDialog Ready gate (issue #395)", () => {
         expect(setReady).toHaveBeenCalledOnce();
     });
 
+    it("enters the next Game by switching session in-place, not reloading", async () => {
+        // When all seats are ready `setReady` returns the built next Game's id.
+        // The dialog MUST re-point the session via onSwitchGame (client-side
+        // state swap) — a full-page reload re-requests the static `/game` route
+        // and 404s on hosts without an SPA fallback (the entering-G2/G3 bug).
+        setReady.mockResolvedValueOnce({ gameId: "g2" });
+        const { getByRole } = renderDialog(
+            <SideboardingDialog match={baseMatch()} viewerId="me" />
+        );
+        fireEvent.click(getByRole("button", { name: "Ready" }));
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(onSwitchGame).toHaveBeenCalledWith("g2", "me");
+    });
+
     it("Ready is blocked while the Maindeck size differs from the lock", () => {
-        const { getByRole, getAllByRole } = render(
+        const { getByRole, getAllByRole } = renderDialog(
             <SideboardingDialog match={baseMatch()} viewerId="me" />
         );
         // Move one card out of the Maindeck → size 1 ≠ locked 2.
@@ -96,7 +129,7 @@ describe("SideboardingDialog Ready gate (issue #395)", () => {
     });
 
     it("swapping a card back to the Maindeck re-enables Ready", () => {
-        const { getByRole, getAllByRole } = render(
+        const { getByRole, getAllByRole } = renderDialog(
             <SideboardingDialog match={baseMatch()} viewerId="me" />
         );
         // out then bring a Sideboard card in → size back to 2.
@@ -109,7 +142,7 @@ describe("SideboardingDialog Ready gate (issue #395)", () => {
     });
 
     it("shows a play/draw chooser only for the previous Game's loser", () => {
-        const { queryByRole, rerender } = render(
+        const { queryByRole, rerender } = renderDialog(
             <SideboardingDialog
                 match={baseMatch({ playDrawChooserId: "opp" })}
                 viewerId="me"
@@ -118,10 +151,12 @@ describe("SideboardingDialog Ready gate (issue #395)", () => {
         // Viewer is NOT the chooser → no Play button.
         expect(queryByRole("button", { name: "Play" })).toBeNull();
         rerender(
-            <SideboardingDialog
-                match={baseMatch({ playDrawChooserId: "me" })}
-                viewerId="me"
-            />
+            <GameContext value={{ onSwitchGame } as unknown as GameCtxValue}>
+                <SideboardingDialog
+                    match={baseMatch({ playDrawChooserId: "me" })}
+                    viewerId="me"
+                />
+            </GameContext>
         );
         expect(queryByRole("button", { name: "Play" })).not.toBeNull();
     });
@@ -132,7 +167,7 @@ describe("SideboardingDialog Ready gate (issue #395)", () => {
         // other player) has nothing to edit → waiting state.
         const m = baseMatch();
         m.players = m.players.map((p) => ({ ...p, deck: undefined }));
-        const { getByText } = render(
+        const { getByText } = renderDialog(
             <SideboardingDialog match={m} viewerId="me" />
         );
         expect(getByText(/waiting/i)).toBeTruthy();
@@ -146,7 +181,7 @@ describe("SideboardingDialog Ready gate (issue #395)", () => {
 describe("SideboardingDialog opponent ready-state (issue #397)", () => {
     it("shows the opponent's 'sideboarding…' indicator in a 2-player Match", () => {
         // Opponent not yet ready → editor shows the live opponent status.
-        const { getByText } = render(
+        const { getByText } = renderDialog(
             <SideboardingDialog match={baseMatch()} viewerId="me" />
         );
         expect(getByText(/sideboarding…/i)).toBeTruthy();
@@ -159,7 +194,7 @@ describe("SideboardingDialog opponent ready-state (issue #397)", () => {
         m.players = m.players.map((p) =>
             p.id === "opp" ? { ...p, ready: true } : p
         );
-        const { getByText, queryByText } = render(
+        const { getByText, queryByText } = renderDialog(
             <SideboardingDialog match={m} viewerId="me" />
         );
         // Viewer still editing → editor visible, opponent shown as ready. The
@@ -176,7 +211,7 @@ describe("SideboardingDialog opponent ready-state (issue #397)", () => {
         m.players = m.players.map((p) =>
             p.id === "me" ? { ...p, ready: true } : p
         );
-        const { getByText, queryByRole } = render(
+        const { getByText, queryByRole } = renderDialog(
             <SideboardingDialog match={m} viewerId="me" />
         );
         expect(getByText(/You are ready/i)).toBeTruthy();
@@ -219,7 +254,7 @@ describe("SideboardingDialog opponent ready-state (issue #397)", () => {
                 },
             },
         ];
-        const { queryByText } = render(
+        const { queryByText } = renderDialog(
             <SideboardingDialog match={m} viewerId="u" />
         );
         expect(queryByText(/sideboarding…/i)).toBeNull();

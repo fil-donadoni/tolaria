@@ -526,18 +526,24 @@ export interface ActivatedAbility {
         discardAtRandom?: number;
         /** "Exile N cards from a single graveyard" as an activation cost
          *  (CR 602.1, 118.5, 406 — exile zone). A real cost: the activating
-         *  player chooses ONE graveyard (any player's, CR 118.5 doesn't restrict
-         *  the zone's owner) and exiles exactly `count` cards from it that match
-         *  `cardType` (when set — Night Soil exiles "creature cards"). The
-         *  activation is illegal unless at least one graveyard holds `count`
-         *  matching cards (a single graveyard must satisfy the whole cost — you
-         *  cannot split it across two graveyards). The player picks the
-         *  graveyard + the specific cards via `selectActivationCost`; the cards
-         *  move graveyard → exile at activation commit (so cancelling leaves the
+         *  player chooses ONE graveyard and exiles exactly `count` cards from it
+         *  that match `cardType` (when set — Night Soil exiles "creature
+         *  cards"). The activation is illegal unless at least one eligible
+         *  graveyard holds `count` matching cards (a single graveyard must
+         *  satisfy the whole cost — you cannot split it across two graveyards).
+         *  By default ANY player's graveyard is eligible (CR 118.5 doesn't
+         *  restrict the zone's owner — Night Soil); `owner: "you"` restricts the
+         *  cost to the ACTIVATING player's OWN graveyard (Grim Lavamancer —
+         *  "Exile two cards from your graveyard"). The player picks the graveyard
+         *  + the specific cards via `selectActivationCost`; the cards move
+         *  graveyard → exile at activation commit (so cancelling leaves the
          *  graveyard untouched). Drives Night Soil ("{1}, Exile two creature
-         *  cards from a single graveyard: Create a 1/1 green Saproling creature
-         *  token."). */
-        exileFromGraveyard?: { count: number; cardType?: CardType };
+         *  cards from a single graveyard: …") and Grim Lavamancer. */
+        exileFromGraveyard?: {
+            count: number;
+            cardType?: CardType;
+            owner?: "you";
+        };
         /** Derives the value of X in this ability's mana cost from the targeted
          *  spell instead of asking the player to choose it (CR 107.3 — "X is
          *  twice the mana value of that spell"). Only meaningful when
@@ -2672,6 +2678,7 @@ export interface SpellContext {
      *  in their hand"). Empty for an empty hand. */
     getHandCards: (playerId: string) => Array<{
         id: string;
+        name: string;
         types: CardType[];
         subtypes: string[];
         supertypes: CardSupertype[];
@@ -2694,6 +2701,7 @@ export interface SpellContext {
      *  Transmute Artifact. */
     getLibraryCards: (playerId: string) => Array<{
         id: string;
+        name: string;
         types: CardType[];
         subtypes: string[];
         supertypes: CardSupertype[];
@@ -2708,6 +2716,7 @@ export interface SpellContext {
      *  an empty graveyard. */
     getGraveyardCards: (playerId: string) => Array<{
         id: string;
+        name: string;
         types: CardType[];
         subtypes: string[];
         manaValue: number;
@@ -4986,8 +4995,14 @@ export interface EffectCountSpec {
      *  player controls (CR 110); `graveyard` counts cards in the player's
      *  graveyard (CR 404). */
     zone: "battlefield" | "graveyard";
-    /** Whose zone (CR 109.5 relative selectors). */
-    controller: EffectPlayerRef;
+    /** Whose zone (CR 109.5 relative selectors). Required UNLESS
+     *  `acrossAllPlayers` is set, in which case it is omitted (the count spans
+     *  every player's zone, not one player's). */
+    controller?: EffectPlayerRef;
+    /** Count across ALL players' zones (CR 122 counting — the "in all
+     *  graveyards" scope of Accumulated Knowledge, issue #985), summing each
+     *  player's matching cards. Mutually exclusive with `controller`. */
+    acrossAllPlayers?: boolean;
     /** Optional card filter (AND of the listed fields). Omitted = count all. */
     filter?: EffectCardFilter;
 }
@@ -5034,6 +5049,11 @@ export interface EffectCardFilter {
     manaValueAtMost?: number;
     isToken?: boolean;
     excludeType?: CardType | CardType[];
+    /** Match cards by exact printed name (CR 201.2 — "each other card named
+     *  Accumulated Knowledge", Relentless Rats' "cards named ~", issue #985). A
+     *  single card name; matched case-sensitively against the registry name,
+     *  ANDed with every other field. */
+    name?: string;
 }
 
 /** X — the chosen-cost value (CR 107.3, 601.2b), a thin JSON-pure skin over

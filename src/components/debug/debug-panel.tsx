@@ -827,12 +827,13 @@ const PRESET_SCENARIOS: PresetScenario[] = [
     {
         // Tsabo's Web — ETB draw + utility-land untap lock (#998). Tsabo's Web
         // ({2} artifact) sits in hand. Cast it to draw a card on entry (part a),
-        // then it imposes its continuous static (CR 502.1): each land with a
-        // non-mana {T} activated ability doesn't untap. Two tapped lands are in
-        // play — Mishra's Factory (its "{T}: pump Assembly-Worker" is a non-mana
-        // ability → stays locked) and a plain Island (mana-only → untaps
-        // normally). Cast the Web, then pass to your next untap step and watch
-        // the Factory stay tapped while the Island untaps. 4 lands cover the {2}.
+        // then it imposes its continuous static (CR 502.1): each land with an
+        // activated ability that isn't a mana ability doesn't untap. Two tapped
+        // lands are in play — Mishra's Factory (its "{T}: pump Assembly-Worker"
+        // is a non-mana ability → stays locked) and a plain Island (mana-only →
+        // untaps normally). Cast the Web, then pass to your next untap step and
+        // watch the Factory stay tapped while the Island untaps. 4 lands cover
+        // the {2}.
         label: "Tsabo's Web — ETB draw + utility-land untap lock (#998)",
         cards: [
             { name: "Tsabo's Web", owner: "me", zone: "hand" },
@@ -851,6 +852,67 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 4,
+    },
+    {
+        // Count-based draw across all graveyards (#985). Accumulated Knowledge
+        // ({1}{U} instant): "Draw a card, then draw cards equal to the number
+        // of cards named Accumulated Knowledge in all graveyards." One copy
+        // already sits in YOUR graveyard and one in the OPPONENT's, so casting
+        // the copy in hand draws 1 + 2 = 3 (the resolving copy is on the stack,
+        // not a graveyard, so it doesn't self-count). The library is the shared
+        // draw pile; 2 Islands cover the {1}{U}.
+        label: "Count-based draw across all graveyards (Accumulated Knowledge) (#985)",
+        cards: [
+            { name: "Accumulated Knowledge", owner: "me", zone: "hand" },
+            { name: "Accumulated Knowledge", owner: "me", zone: "graveyard" },
+            { name: "Accumulated Knowledge", owner: "opp", zone: "graveyard" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+            { name: "Grizzly Bears", owner: "me", zone: "library", count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+    {
+        // Grim Lavamancer graveyard-exile activated cost (#987, PRD #979).
+        // "{R}, {T}, Exile two cards from your graveyard: This creature deals 2
+        // damage to any target." Grim Lavamancer is in play with two Grizzly
+        // Bears in YOUR graveyard as exile fuel and three Mountains for the {R}.
+        // Activate it, pick a target (the opponent's Balduvian Bears, or the
+        // opponent's face), pay {R}+{T}, then pick the two graveyard cards to
+        // exile — 2 damage resolves. The opponent's own graveyard card is NOT
+        // an eligible source (owner: "you" — CR 118.5), so the exile picker
+        // only offers your graveyard.
+        label: "Grim Lavamancer — exile-from-your-graveyard cost (#987)",
+        cards: [
+            { name: "Grim Lavamancer", owner: "me", zone: "battlefield" },
+            { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
+            { name: "Grizzly Bears", owner: "me", zone: "graveyard", count: 2 },
+            { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
+            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+    },
+    {
+        // Annul ({U} instant, #996): "Counter target artifact or enchantment
+        // spell." The opponent holds an artifact (Black Lotus) and an
+        // enchantment (Crusade) to cast, plus a creature (Grizzly Bears) and a
+        // burn instant (Lightning Bolt) that Annul CANNOT target — the
+        // spellTypeFilter exhaustive-over-the-union check. Let the opponent put
+        // one on the stack, then respond with Annul: only the artifact /
+        // enchantment spell is a legal (clickable) target. 1 Island covers {U}.
+        label: "Annul — counter artifact/enchantment spell (#996)",
+        cards: [
+            { name: "Annul", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield" },
+            { name: "Black Lotus", owner: "opp", zone: "hand" },
+            { name: "Crusade", owner: "opp", zone: "hand" },
+            { name: "Grizzly Bears", owner: "opp", zone: "hand" },
+            { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+            { name: "Island", owner: "opp", zone: "battlefield", count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 1,
     },
 ];
 

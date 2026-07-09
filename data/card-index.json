@@ -30,6 +30,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Accumulated Knowledge",
+        "scryfallId": "ab061406-38f4-40e7-a9ea-e3cbcaabc127",
+        "oracleId": "1ca25379-d194-4670-a7bf-525ad11cf436",
+        "firstSet": "nem"
+    },
+    {
         "name": "Acid Rain",
         "scryfallId": "ba93c50a-2440-4e92-9cba-d97e20b1d29c",
         "oracleId": "6ae3c3a2-bd17-4fea-ae27-9d2d1eaf8cc0",
@@ -232,6 +238,12 @@
         "scryfallId": "f594b7aa-d44e-47c4-989b-565f881e25f1",
         "oracleId": "63c1eda1-3e6f-4e9c-adf3-a43164df98bb",
         "firstSet": "lea"
+    },
+    {
+        "name": "Annul",
+        "scryfallId": "3f8c73ff-be92-41ca-93a7-76f9823adb38",
+        "oracleId": "d08e9784-75f7-4164-ac48-d06160f8c56b",
+        "firstSet": "usg"
     },
     {
         "name": "Anti-Magic Aura",
@@ -3010,6 +3022,12 @@
         "scryfallId": "1f6118b2-fe01-425a-a2ed-6d7c42286c8e",
         "oracleId": "727ab7f2-741e-4442-b5cb-e3032549fa87",
         "firstSet": "lea"
+    },
+    {
+        "name": "Grim Lavamancer",
+        "scryfallId": "5dd72697-24be-42c7-a6d9-a837bdbd4662",
+        "oracleId": "37445e06-88a1-4e2e-a432-383736c9b977",
+        "firstSet": "tor"
     },
     {
         "name": "Grim Monolith",

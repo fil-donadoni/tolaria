@@ -142,7 +142,8 @@ function isValueOrArray(
 }
 
 /** `{ type?, excludeType?, subtype?, supertype?, color?, manaValueAtMost?,
- *  isToken? }` — the minimal card filter for a `count` set or a `choice` Op's
+ *  isToken?, name? }` — the minimal card filter for a `count` set or a `choice`
+ *  Op's
  *  zone-restricted candidates (issue #677). `type`/`excludeType`/`subtype`/
  *  `color` accept a single value OR a non-empty array (OR within the field —
  *  a fetchland's "a Forest or Island card"). `excludeType` (issue #682) is
@@ -179,6 +180,9 @@ function isCardFilter(value: unknown): boolean {
         }
         if (k === "isToken") {
             return typeof v === "boolean";
+        }
+        if (k === "name") {
+            return typeof v === "string" && v.length > 0;
         }
         return false;
     });
@@ -273,9 +277,11 @@ function isEffectTokenSpec(value: unknown): boolean {
     return true;
 }
 
-/** `{ count: { zone, controller, filter? } }` — SHAPE of the count construct
- *  (ADR 0045). The `controller` player ref is shape-checked here; any ref
- *  inside it is property-checked by the ordered ref pass. */
+/** `{ count: { zone, controller | acrossAllPlayers, filter? } }` — SHAPE of the
+ *  count construct (ADR 0045). Exactly one player scope: a `controller` player
+ *  ref (shape-checked here; any ref inside it is property-checked by the ordered
+ *  ref pass) OR `acrossAllPlayers: true` (CR 122 "in all graveyards", issue
+ *  #985 — the two are mutually exclusive). */
 function isCountValue(value: unknown): boolean {
     if (typeof value !== "object" || value === null) return false;
     const keys = Object.keys(value);
@@ -283,10 +289,22 @@ function isCountValue(value: unknown): boolean {
     const spec = (value as { count: unknown }).count;
     if (typeof spec !== "object" || spec === null) return false;
     const s = spec as Record<string, unknown>;
-    const allowed = new Set(["zone", "controller", "filter"]);
+    const allowed = new Set([
+        "zone",
+        "controller",
+        "filter",
+        "acrossAllPlayers",
+    ]);
     if (!Object.keys(s).every((k) => allowed.has(k))) return false;
     if (s.zone !== "battlefield" && s.zone !== "graveyard") return false;
-    if (!isPlayerRef(s.controller)) return false;
+    // CR 122 — `acrossAllPlayers` (issue #985) sums every player's zone and is
+    // mutually exclusive with a `controller` (which names ONE player's zone).
+    if ("acrossAllPlayers" in s) {
+        if (s.acrossAllPlayers !== true) return false;
+        if ("controller" in s) return false;
+    } else if (!isPlayerRef(s.controller)) {
+        return false;
+    }
     if ("filter" in s && !isCardFilter(s.filter)) return false;
     return true;
 }
