@@ -156,6 +156,7 @@ function makeBuffer(): PendingChoiceBuffer {
         submit: vi.fn(() => Promise.resolve()),
         isPending: false,
         lastError: null,
+        reportError: vi.fn(),
         dismissError: vi.fn(),
     };
 }

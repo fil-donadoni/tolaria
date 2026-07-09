@@ -3,6 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { getDefinition } from "@convex/cards";
 import { useGameContext } from "~/hooks/useGameContext";
+import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import type { CardInstance } from "~/types/game";
 import ModePicker from "~/components/cards/mode-picker";
 import AltCostPicker from "~/components/cards/alt-cost-picker";
@@ -36,6 +37,7 @@ type AltCostPickerState = {
  * is `null` until a modal spell's cast is in progress. */
 export function useHandCardCommit(cardInstance: CardInstance) {
     const { gameId, playerId, debugAllActions } = useGameContext();
+    const { reportError } = usePendingChoiceBuffer();
     const playCard = useMutation(api.game.playCard);
     const announceCast = useMutation(api.game.announceCast);
 
@@ -45,12 +47,16 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         useState<AltCostPickerState | null>(null);
 
     const onPlayClick = () => {
-        playCard({
-            gameId,
-            playerId,
-            cardInstanceId: cardInstance.id,
-            skipValidation: debugAllActions || undefined,
-        });
+        // Route a server-side rejection to the shared error toast instead of
+        // leaving it as an uncaught promise rejection in the console.
+        Promise.resolve(
+            playCard({
+                gameId,
+                playerId,
+                cardInstanceId: cardInstance.id,
+                skipValidation: debugAllActions || undefined,
+            })
+        ).catch(reportError);
     };
 
     function commitAnnounceCast(args: {
@@ -59,15 +65,17 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         chosenModeId: string | undefined;
         alternativeCostId?: string | undefined;
     }) {
-        announceCast({
-            gameId,
-            playerId,
-            cardInstanceId: cardInstance.id,
-            keepPriority: args.keepPriority,
-            chosenX: args.chosenX,
-            chosenModeId: args.chosenModeId,
-            alternativeCostId: args.alternativeCostId,
-        });
+        Promise.resolve(
+            announceCast({
+                gameId,
+                playerId,
+                cardInstanceId: cardInstance.id,
+                keepPriority: args.keepPriority,
+                chosenX: args.chosenX,
+                chosenModeId: args.chosenModeId,
+                alternativeCostId: args.alternativeCostId,
+            })
+        ).catch(reportError);
     }
 
     const onCastClick = (e: React.MouseEvent | React.PointerEvent) => {

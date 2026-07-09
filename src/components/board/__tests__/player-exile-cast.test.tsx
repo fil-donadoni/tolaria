@@ -14,6 +14,21 @@ import {
 } from "@testing-library/react";
 import type { Player, CardInstance } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
+import {
+    PendingChoiceBufferContext,
+    type PendingChoiceBuffer,
+} from "~/hooks/usePendingChoiceBuffer";
+
+const noopBuffer: PendingChoiceBuffer = {
+    buffer: [],
+    toggle: () => {},
+    clear: () => {},
+    submit: () => Promise.resolve(),
+    isPending: false,
+    lastError: null,
+    reportError: () => {},
+    dismissError: () => {},
+};
 
 // Capture the cast dispatch. useHandCardCommit calls useMutation(api.game.*).
 const playCard = vi.fn();
@@ -119,8 +134,10 @@ function renderExile(player: Player, viewerId: string) {
     } as React.ContextType<typeof GameContext>;
     return render(
         <GameContext value={value}>
-            {/* open the reveal so the per-card actions mount */}
-            <PlayerExile player={player} open onOpenChange={() => {}} />
+            <PendingChoiceBufferContext value={noopBuffer}>
+                {/* open the reveal so the per-card actions mount */}
+                <PlayerExile player={player} open onOpenChange={() => {}} />
+            </PendingChoiceBufferContext>
         </GameContext>
     );
 }

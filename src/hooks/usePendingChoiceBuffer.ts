@@ -73,6 +73,12 @@ export type PendingChoiceBuffer = {
     /** Last submission error (server-side rejection), shown via the error
      *  toast. `null` when there's nothing to surface. */
     lastError: MutationError | null;
+    /** Route an arbitrary mutation rejection to the shared error toast. Used
+     *  by fire-and-forget commit sites (hand cast, flashback, exile cast) that
+     *  don't own a toast of their own, so a server-side validation rejection
+     *  (e.g. "Not enough matching cards in your graveyard to pay the flashback
+     *  cost") surfaces to the player instead of an uncaught console rejection. */
+    reportError: (error: unknown) => void;
     /** Clear the error after the toast dismisses. */
     dismissError: () => void;
 };
@@ -135,6 +141,11 @@ export function usePendingChoiceBufferState(args: {
         }
     }, [activeChoice, isPending, buffer, gameId, playerId, submitMutation]);
 
+    const reportError = useCallback(
+        (error: unknown) => setLastError(extractMutationError(error)),
+        []
+    );
+
     const dismissError = useCallback(() => setLastError(null), []);
 
     return {
@@ -144,6 +155,7 @@ export function usePendingChoiceBufferState(args: {
         submit,
         isPending,
         lastError,
+        reportError,
         dismissError,
     };
 }

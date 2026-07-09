@@ -266,36 +266,10 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         label: "Flashback — cast from graveyard (#693)",
         cards: [
             { name: "Firebolt", owner: "me", zone: "graveyard" },
-            { name: "Faithless Looting", owner: "me", zone: "graveyard" },
+            // { name: "Faithless Looting", owner: "me", zone: "graveyard" },
             { name: "Snapcaster Mage", owner: "me", zone: "hand" },
             { name: "Mountain", owner: "me", zone: "battlefield", count: 5 },
             { name: "Island", owner: "me", zone: "battlefield", count: 3 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-        libraryCount: 12,
-    },
-    {
-        // Flash of Insight (#1004, JUD 40, CR 401.4 / 702.34): dig + flashback.
-        // Golden path (main cast): Flash of Insight ({X}{1}{U}) in hand + 6
-        // Islands — cast it for X=3, look at the top 3, keep one, bottom the
-        // rest (the `digToHand` Op). Key edge case (flashback exile cost): a
-        // SECOND Flash of Insight sits in the graveyard with a stack of blue
-        // cards (Snapcaster Mage, Opt, Counterspell) — flash it back for
-        // {1}{U}, choosing X, then the CastExileCostDialog asks you to exile X
-        // blue cards from your graveyard (CR 702.34e — never the flashback card
-        // itself). It's exiled on resolve, not returned. A green card
-        // (Balduvian Bears) is in the yard to show the colour filter excludes
-        // non-blue cards.
-        label: "Flash of Insight — dig + flashback exile cost (#1004)",
-        cards: [
-            { name: "Flash of Insight", owner: "me", zone: "hand" },
-            { name: "Flash of Insight", owner: "me", zone: "graveyard" },
-            { name: "Snapcaster Mage", owner: "me", zone: "graveyard" },
-            { name: "Opt", owner: "me", zone: "graveyard" },
-            { name: "Counterspell", owner: "me", zone: "graveyard" },
-            { name: "Balduvian Bears", owner: "me", zone: "graveyard" },
-            { name: "Island", owner: "me", zone: "battlefield", count: 6 },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,

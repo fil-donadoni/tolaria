@@ -51,6 +51,7 @@ const noopBuffer: PendingChoiceBuffer = {
     submit: async () => {},
     isPending: false,
     lastError: null,
+    reportError: () => {},
     dismissError: () => {},
 };
 

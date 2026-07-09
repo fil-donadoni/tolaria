@@ -108,7 +108,7 @@ export default function PlayerGraveyard({
                     // reachable Done button.
                     forceOpen={isGraveyardChoice && !isMinimized}
                     onMinimize={isGraveyardChoice ? minimize : undefined}
-                    layout={isGraveyardChoice ? "grid" : "fan"}
+                    layout="grid"
                     selectedIds={
                         isGraveyardChoice ? bufferCtx.buffer : undefined
                     }
