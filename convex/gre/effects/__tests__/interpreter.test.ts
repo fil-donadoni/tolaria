@@ -16,7 +16,7 @@ import {
     makeState,
     pushSpell,
 } from "../../../cards/__tests__/setup";
-import { resolveTopOfStack } from "../../state";
+import { resolveTopOfStack, removePermanentTo } from "../../state";
 import type { GameState, StackItem } from "../../state";
 import {
     applyMayPaySubmit,
@@ -492,6 +492,76 @@ describe("Effect Script value grammar: counters (counter count, CR 122.6, issue 
         // getCounterCount is never reached — the value is unresolvable, so the
         // gainLife amount folds to a skip (no life gained).
         expect(state.players[0].life).toBe(20);
+    });
+
+    it("reads $source's LAST-KNOWN count after it was sacrificed as a cost (CR 608.2g, Powder Keg #997)", () => {
+        // An activated ability whose source is SACRIFICED as a cost has left
+        // the battlefield by resolution, so the battlefield-scoped
+        // resolveObjectRef returns undefined for `$source`. The `counters`
+        // EffectValue falls back to `ctx.getCounterCount` via
+        // `ctx.sourceInstanceId`, which reads the pre-sacrifice count off the
+        // resolving stack item's snapshot (last-known information). Without the
+        // fallback the value would be unresolvable and the effect skipped —
+        // Powder Keg would destroy nothing.
+        const SRC = "test-counters-sacrificed-source";
+        registerTokenDefinition({
+            id: SRC,
+            name: SRC,
+            rarity: "common",
+            manaCost: { generic: 1 },
+            types: ["Artifact"],
+            activatedAbilities: [
+                {
+                    id: "src-detonate",
+                    oracleText:
+                        "{T}, Sacrifice this: You gain life equal to the fuse counters on this.",
+                    cost: { tap: true, sacrifice: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "gainLife",
+                            player: "controller",
+                            amount: {
+                                counters: {
+                                    of: { ref: "$source" },
+                                    type: "fuse",
+                                },
+                            },
+                        },
+                    ],
+                },
+            ],
+        });
+        const src = makeInstance(SRC, {
+            id: "src-sac",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+            counters: { fuse: 3 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [src] }),
+                makePlayer("p2"),
+            ],
+        });
+        // Push the ability snapshot (retains the counters), then pay the
+        // sacrifice cost by removing the source from the battlefield.
+        const onBoard = state.players[0].battlefield[0];
+        state.stack.push({
+            ...structuredClone(onBoard),
+            zone: "stack",
+            isTapped: true,
+            castById: "p1",
+            abilityId: "src-detonate",
+            targets: [],
+        });
+        removePermanentTo(state, "src-sac", "graveyard", "sacrifice");
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "src-sac")
+        ).toBe(false); // gone before resolution
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(23); // 20 + 3 (last-known) fuse counters
     });
 });
 
