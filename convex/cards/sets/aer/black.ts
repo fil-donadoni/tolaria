@@ -3,4 +3,33 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-export {};
+import type { CardDefinition } from "../../types";
+
+// Fatal Push — {B} Instant. "Destroy target creature if it has mana value 2 or
+// less. Revolt — Destroy that creature if it has mana value 4 or less instead
+// if a permanent left the battlefield under your control this turn." (Revolt
+// ability word — engine infra, no registry row.)
+//
+// resolve() justified: the card combines two runtime checks — the revolt flag
+// (a per-player "a permanent you controlled left this turn") and the target
+// creature's mana value — against a variable threshold (2 without revolt, 4
+// with revolt). The frozen predicate grammar does not express "target's mana
+// value" as an EffectValue.
+export const fatalPush: CardDefinition = {
+    id: "6e9d8fe4-fd9b-4923-92bf-7dd6b8fa02e7",
+    rarity: "uncommon",
+    name: "Fatal Push",
+    oracleText:
+        "Destroy target creature if it has mana value 2 or less.\nRevolt — Destroy that creature if it has mana value 4 or less instead if a permanent left the battlefield under your control this turn.",
+    manaCost: { B: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx) => {
+        const target = ctx.targets[0];
+        if (!target) return;
+        const threshold = ctx.hasRevolt(ctx.controller) ? 4 : 2;
+        if (ctx.getManaValue(target) <= threshold) {
+            ctx.destroy(target);
+        }
+    },
+};

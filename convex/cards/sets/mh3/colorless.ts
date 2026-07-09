@@ -1,19 +1,41 @@
-// mh3 (Modern Horizons 3) — colorless cards (ADR 0043 colour split). Modern
-// Scryfall oracle text is authoritative (ADR 0004). Lands and colourless
-// artifacts (no coloured cost) live here per the colour-split convention.
+// MH3 — colorless cards, split by colour per ADR 0043. The registry's
+// `import * as mh3 from "./sets/mh3"` resolves through mh3/index.ts.
+// Lands and colorless artifacts (no coloured cost) live here. Cards with a
+// coloured colour identity go to their matching colour file.
+//
+// Reference: set code mh3, Modern Horizons 3.
 
-// import type { CardDefinition } from "../../types";
+import type { CardDefinition, LandEntryStateView } from "../../types";
 
-// Arena of Glory — "This land enters tapped unless you control a Mountain.
-// {T}: Add {R}. {R}, {T}, Exert this land: Add {R}{R}. If that mana is spent
-// on a creature spell, it gains haste until end of turn." STOP-AND-ISSUE
-// (tracked-by: #675): Exert (CR 701.43) is `status: "planned"` in
-// `convex/cards/mechanicsRegistry.ts` — an uncensused mechanic is a
-// stop-and-issue case. Left as a tracked stub pending Exert.
-// export const arenaOfGlory: CardDefinition = {
-//     id: "dd148edc-9e43-41aa-bb50-f912115d3e72",
-//     name: "Arena of Glory",
-//     rarity: "rare",
-//     types: ["Land"],
-// };
-export {};
+// Shifting Woodland — Land.
+// "This land enters tapped unless you control a Forest.
+//  {T}: Add {G}.
+//  Delirium — {2}{G}{G}: This land becomes a copy of target permanent card in
+//  your graveyard until end of turn. Activate only if there are four or more
+//  card types among cards in your graveyard."
+//
+// TODO(issue #691): Delirium copy ability — {2}{G}{G}: This land becomes a
+// copy of target permanent card in your graveyard until end of turn. Activate
+// only if delirium. Blocked on: copy-from-graveyard infrastructure and the
+// "becomes a copy" semantics for non-creature permanents.
+export const shiftingWoodland: CardDefinition = {
+    id: "059164e1-894d-4586-9800-e60d6fbd6eb6",
+    rarity: "rare",
+    name: "Shifting Woodland",
+    oracleText:
+        "This land enters tapped unless you control a Forest.\n{T}: Add {G}.\nDelirium — {2}{G}{G}: This land becomes a copy of target permanent card in your graveyard until end of turn. Activate only if there are four or more card types among cards in your graveyard.",
+    types: ["Land"],
+    subtypes: ["Forest"],
+    entersTappedUnless(
+        view: LandEntryStateView,
+        controllerId: string
+    ): boolean {
+        for (const player of view.players) {
+            if (player.id !== controllerId) continue;
+            return player.battlefield.some((p) =>
+                p.subtypes.includes("Forest")
+            );
+        }
+        return false;
+    },
+};

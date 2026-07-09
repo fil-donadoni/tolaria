@@ -303,6 +303,7 @@ function isCountValue(value: unknown): boolean {
         "filter",
         "acrossAllPlayers",
         "times",
+        "countTypes",
     ]);
     if (!Object.keys(s).every((k) => allowed.has(k))) return false;
     if (s.zone !== "battlefield" && s.zone !== "graveyard") return false;

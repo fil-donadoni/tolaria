@@ -436,6 +436,8 @@ function minimalManaGateView(
                 types: c.types ?? [],
                 subtypes: c.subtypes ?? [],
                 staticAbilities: c.staticAbilities ?? [],
+                power: c.power,
+                toughness: c.toughness,
                 isTapped: c.isTapped === true,
             })),
         })),
