@@ -6085,16 +6085,52 @@ export interface AlternativeCost {
     /** Player-facing label for the cast-option picker (e.g. "Return two
      *  Islands"). */
     description: string;
-    /** How the matching permanents leave the battlefield: `"return"` bounces
-     *  them to their owner's hand (CR 701.24), `"sacrifice"` moves them to the
-     *  graveyard as a sacrifice (CR 701.16). */
-    action: "return" | "sacrifice";
-    /** How many matching permanents the caster must return / sacrifice. */
-    count: number;
-    /** Which of the caster's permanents qualify (matched against the caster's
-     *  own battlefield; "you control" is implicit). */
-    filter: PermanentFilter;
+    /** PERMANENT leg (CR 118.9): how the matching permanents leave the
+     *  battlefield — `"return"` bounces them to their owner's hand (CR 701.24),
+     *  `"sacrifice"` moves them to the graveyard as a sacrifice (CR 701.16).
+     *  Optional: a life-only or hand-cost alternative (Snuff Out, Force of Will,
+     *  Foil) has no permanent leg. Present iff `count`/`filter` are. */
+    action?: "return" | "sacrifice";
+    /** How many matching permanents the caster must return / sacrifice
+     *  (permanent leg only). */
+    count?: number;
+    /** Which of the caster's permanents qualify (permanent leg only; matched
+     *  against the caster's own battlefield; "you control" is implicit). */
+    filter?: PermanentFilter;
+    /** LIFE leg (CR 118.4 / 119.4): life paid as part of the alternative cost.
+     *  Snuff Out ("pay 4 life"), Force of Will / Force of Negation ("pay 1
+     *  life and exile a blue card"). Paid at cast commit; affordable only when
+     *  the caster's life total ≥ this amount (CR 119.4). */
+    payLife?: number;
+    /** HAND leg (CR 118.9): cards the caster gives up FROM HAND — exiled
+     *  (Force of Will / Force of Negation / Force of Vigor / Pyrokinesis) or
+     *  discarded (Foil). Each requirement is a distinct card filter × count and
+     *  must be satisfied by DISTINCT cards (Foil: "an Island card and another
+     *  card"). The cast card itself never pays for its own cost (it is on the
+     *  stack, not in hand). WHICH cards pay is the caster's choice (parks for a
+     *  picker when real, auto-resolves when forced). */
+    handCost?: {
+        /** Whether the chosen hand cards are exiled (CR 701.13) or discarded
+         *  (CR 701.9). */
+        action: "exile" | "discard";
+        requirements: { filter: EffectCardFilter; count: number }[];
+    };
+    /** Cast-availability CONDITION (CR 118.9 — "if it's not your turn", "if you
+     *  control a Swamp"). The variant is only offered/legal when it holds; an
+     *  absent condition means always available. */
+    condition?: AlternativeCostCondition;
 }
+
+/** When an {@link AlternativeCost} variant is legal to choose (CR 118.9). */
+export type AlternativeCostCondition =
+    /** Only on the caster's own turn (Mine Collapse "If it's your turn"). */
+    | { kind: "your-turn" }
+    /** Only when it is NOT the caster's turn (Force of Vigor / Force of
+     *  Negation "If it's not your turn"). */
+    | { kind: "not-your-turn" }
+    /** Only while the caster controls a permanent matching `filter`
+     *  (Snuff Out "If you control a Swamp"). */
+    | { kind: "control"; filter: PermanentFilter };
 
 /** Full card definition used by the GRE. */
 export interface CardDefinition {

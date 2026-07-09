@@ -516,11 +516,17 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // +1) and AFK-ready (375→376, +1, it has a per-card test). Combined
         // tree: total 645→648, FREE 408→409, AFK-ready 375→376, X-only 14,
         // Op-blocked 223→225.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(648);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(409);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(376);
+        // #690 (Free pitch CAP) then net-ADDS two more closures: Snuff Out
+        // (resolve() — destroy + can't-regenerate flag, all covered) lands FREE
+        // (409→410, +1) and AFK-ready (376→377, +1, it has a per-card test);
+        // Pyrokinesis (resolve() — dealDamageDividedAsChosen, division has no
+        // Op) lands Op-blocked (225→226, +1). Combined tree: total 648→650,
+        // FREE 409→410, AFK-ready 376→377, X-only 14, Op-blocked 225→226.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(650);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(410);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(377);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(225);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(226);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

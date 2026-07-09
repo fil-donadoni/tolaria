@@ -1566,6 +1566,12 @@
         "firstSet": "m11"
     },
     {
+        "name": "Daze",
+        "scryfallId": "d03bff25-0d5e-4dcf-8d75-6df846afea3b",
+        "oracleId": "70486bee-6ee7-41ea-b834-8caf4699302b",
+        "firstSet": "nem"
+    },
+    {
         "name": "Death Ward",
         "scryfallId": "fa5466cc-aa57-4a7f-8b21-d92b2fe02e13",
         "oracleId": "0544b707-ec67-43e3-a25d-fd7005ab673d",
@@ -2466,6 +2472,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Foil",
+        "scryfallId": "870fb793-3107-4cb2-ba78-34fbf5c9da2f",
+        "oracleId": "7dde4eb6-e9d7-4259-abc2-3af738e0f00f",
+        "firstSet": "pcy"
+    },
+    {
         "name": "Folk of the Pines",
         "scryfallId": "0c13311d-db83-483f-ba2b-4f54ceb8b026",
         "oracleId": "6cd8cf2a-972f-41b7-ab0c-b4953accc2fe",
@@ -2482,6 +2494,24 @@
         "scryfallId": "21551cb6-3a53-42dd-9bbd-4bc56304d6d3",
         "oracleId": "e3c4c27d-f263-4c69-a4fe-2928136ff68b",
         "firstSet": "lea"
+    },
+    {
+        "name": "Force of Negation",
+        "scryfallId": "e9be371c-c688-44ad-ab71-bd4c9f242d58",
+        "oracleId": "ac2173f9-f223-440a-9231-fd98762bdc6f",
+        "firstSet": "mh1"
+    },
+    {
+        "name": "Force of Vigor",
+        "scryfallId": "017c415b-d635-43c6-92b8-8c95d1c4ff8d",
+        "oracleId": "5f627e45-deee-4a4f-8128-57b0d8ebc553",
+        "firstSet": "mh1"
+    },
+    {
+        "name": "Force of Will",
+        "scryfallId": "9a879b60-4381-447d-8a5a-8e0b6a1d49ca",
+        "oracleId": "956381ba-6d37-4a8a-846c-bad79222dbee",
+        "firstSet": "all"
     },
     {
         "name": "Force Spike",
@@ -4698,6 +4728,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Mine Collapse",
+        "scryfallId": "56e2e8b5-660d-4469-a4fe-2367dfadb709",
+        "oracleId": "83df0f44-86ca-4adb-9f3a-da1ba6dd7a6d",
+        "firstSet": "mh2"
+    },
+    {
         "name": "Minion of Leshrac",
         "scryfallId": "61278908-a1b4-4b4c-84f5-498ca41fc6b6",
         "oracleId": "8af3b981-6eda-46b0-a7b8-226bc719d137",
@@ -5640,6 +5676,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Pyrokinesis",
+        "scryfallId": "db2a5e85-6cbc-43c1-9362-4056ad017ef0",
+        "oracleId": "d001febc-d511-4e65-a631-91dc9415056b",
+        "firstSet": "all"
+    },
+    {
         "name": "Quandrix Charm",
         "scryfallId": "318486e0-f255-40f5-8150-dc272eec9d7d",
         "oracleId": "f43e36ea-6bf5-45bd-a4ad-cc507ae45641",
@@ -6478,6 +6520,12 @@
         "scryfallId": "788ed793-3993-4a63-b9f9-9ac3947c3108",
         "oracleId": "5ffed544-1656-4753-ac8f-ad8fb4442c7f",
         "firstSet": "ice"
+    },
+    {
+        "name": "Snuff Out",
+        "scryfallId": "18a3cca1-e50e-49b6-9e1a-f86640e3b177",
+        "oracleId": "324824cb-f938-401c-b9b5-d8908b431ef0",
+        "firstSet": "mmq"
     },
     {
         "name": "Sol Ring",

@@ -22,6 +22,7 @@ import {
     getPlayer,
     getOpponentId,
     drawCard as drawCardFromLibrary,
+    discardToGraveyard,
     matchesPermanentFilter,
     moveCard,
     removeFromZone,
@@ -120,6 +121,8 @@ import {
     canPayAlternativeCost,
     getAlternativeCost,
     buildAlternativeCostChoice,
+    buildAlternativeCostHandChoice,
+    validateAlternativeHandCostPicks,
 } from "./gre/alternativeCost";
 import { hasSupertypeLive, liveSupertypesOf } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
@@ -1671,6 +1674,33 @@ export function abandonPendingPayment(
     }
 }
 
+/** CR 118.9 / 601.2h — pay the HAND leg of a chosen alternative cost: move each
+ *  picked card from the caster's hand to exile (CR 701.13) or discard it to the
+ *  graveyard (CR 701.9, through the discard choke point so CARD_DISCARDED /
+ *  Library of Leng apply). Re-checks presence at commit (vanished-card policy):
+ *  returns `false` if any picked card is no longer in hand, so the caller can
+ *  drop the cast silently. Runs BEFORE the cast card itself leaves the hand. */
+function payAlternativeCostHandChoice(
+    state: GameState,
+    playerId: string,
+    choice: NonNullable<PendingCast["alternativeCostHandChoice"]>
+): boolean {
+    const picks = choice.pickedCardIds;
+    if (!picks) return false;
+    const player = getPlayer(state, playerId);
+    if (!picks.every((id) => player.hand.some((c) => c.id === id))) {
+        return false;
+    }
+    for (const id of picks) {
+        if (choice.action === "exile") {
+            moveCard(player, id, "hand", "exile");
+        } else {
+            discardToGraveyard(state, playerId, id);
+        }
+    }
+    return true;
+}
+
 export function tryAutoCommitPendingCast(
     state: GameState,
     playerId: string
@@ -1729,6 +1759,14 @@ export function tryAutoCommitPendingCast(
     // regardless of mana coverage.
     const castExile = state.pendingCast.exileFromGraveyardChoice;
     if (castExile && !castExile.pickedCardIds) {
+        return null;
+    }
+    // CR 118.9 — the alternative-cost HAND leg (Force of Will's "exile a blue
+    // card", Foil's "discard an Island card and another card") gates on its own
+    // picker: commit is blocked until the player has picked the cards
+    // (selectCastAlternativeHandCost), regardless of mana coverage.
+    const castAltHand = state.pendingCast.alternativeCostHandChoice;
+    if (castAltHand && !castAltHand.pickedCardIds) {
         return null;
     }
 
@@ -1813,6 +1851,17 @@ export function tryAutoCommitPendingCast(
         }
         for (const id of castExile.pickedCardIds) {
             moveCard(player, id, exileSourceZone, "exile");
+        }
+    }
+    // CR 118.9 — pay the alternative-cost HAND leg (Force of Will's "exile a
+    // blue card", Foil's "discard an Island card and another card"): move each
+    // picked card from hand to exile / graveyard. Runs BEFORE the cast card
+    // itself leaves the hand below. Re-check presence (vanished-card policy);
+    // drop the pendingCast silently on a mismatch.
+    if (castAltHand?.pickedCardIds) {
+        if (!payAlternativeCostHandChoice(state, playerId, castAltHand)) {
+            state.pendingCast = undefined;
+            return null;
         }
     }
 
@@ -3373,7 +3422,10 @@ export function finalizeTargetSelection(
     const payLife =
         (cardDef.additionalCosts?.payXLife === true ? (chosenX ?? 0) : 0) +
         // CR 601.2b — a FIXED "pay N life" additional cost (Fumarole).
-        (cardDef.additionalCosts?.payLife ?? 0);
+        (cardDef.additionalCosts?.payLife ?? 0) +
+        // CR 118.4 / 118.9 — the LIFE leg of the chosen alternative cost (Snuff
+        // Out "pay 4 life", Force of Will "pay 1 life and exile a blue card").
+        (chosenAltCost?.payLife ?? 0);
 
     // CR 601.2c → 601.2f — targets have just been chosen; now the additional
     // cost is paid. A spell with both a target and an additional cost (FEM Soul
@@ -3412,9 +3464,19 @@ export function finalizeTargetSelection(
               cardDef.name ?? "Alternative cost"
           )
         : additionalSac;
+    // CR 118.9 — the HAND leg of the chosen alternative cost (Force of Will
+    // "exile a blue card", Foil "discard an Island card and another card"). A
+    // player-chosen filtered give-up FROM HAND, paid at commit through the
+    // cast's `alternativeCostHandChoice` picker (parks when real, auto-resolves
+    // when forced). None of these cards also carries a permanent leg, so the
+    // two never coexist.
+    const altHandChoice = chosenAltCost
+        ? buildAlternativeCostHandChoice(player, chosenAltCost, cardInstanceId)
+        : undefined;
     const parkForSacrifice =
         !!exilePicker ||
-        (castSac !== undefined && !isSacrificeSelectionComplete(castSac));
+        (castSac !== undefined && !isSacrificeSelectionComplete(castSac)) ||
+        (altHandChoice !== undefined && !altHandChoice.pickedCardIds);
     if (parkForSacrifice) {
         state.pendingCast = {
             playerId,
@@ -3423,9 +3485,13 @@ export function finalizeTargetSelection(
             tappedLandIds: [],
             keepPriority,
             chosenX,
+            ...(payLife > 0 ? { payLife } : {}),
             ...(chosenModeId ? { chosenModeId } : {}),
             ...(exilePicker ? { additionalCost: exilePicker } : {}),
             ...(castSac ? { sacrificeSelection: castSac } : {}),
+            ...(altHandChoice
+                ? { alternativeCostHandChoice: altHandChoice }
+                : {}),
         };
         (state.pendingCast as Record<string, unknown>).targets = targets;
         return;
@@ -3465,6 +3531,13 @@ export function finalizeTargetSelection(
         // moves hand → stack (Fire Covenant). Affordability validated at
         // announcement; SBA handles a fatal payment.
         if (payLife > 0) player.life -= payLife;
+        // CR 118.9 — pay the alternative-cost HAND leg's forced picks (Force of
+        // Vigor's single green card when it's the only one, etc.) BEFORE the
+        // cast card leaves the hand. A real (unforced) choice already parked
+        // above; this branch is reached only when the picks are complete.
+        if (altHandChoice?.pickedCardIds) {
+            payAlternativeCostHandChoice(state, playerId, altHandChoice);
+        }
         const card = removeFromZone(player, cardInstanceId, castZone);
         // CR 601.2f / 118.5 / 118.9 / 701.21a — pay the filtered give-up cost as
         // the spell hits the stack: the fungible/forced additional sacrifice
@@ -3822,11 +3895,14 @@ export const announceCast = mutation({
         }
         if (
             chosenAltCost &&
-            !canPayAlternativeCost(state, args.playerId, chosenAltCost)
+            !canPayAlternativeCost(
+                state,
+                args.playerId,
+                chosenAltCost,
+                args.cardInstanceId
+            )
         ) {
-            throw new Error(
-                "Can't pay the alternative cost (not enough permanents)"
-            );
+            throw new Error("Can't pay the alternative cost");
         }
 
         // Validate X is provided iff the cost contains a string X (CR 107.3).
@@ -4049,10 +4125,22 @@ export const announceCast = mutation({
                 chosenAltCost,
                 cardDef.name ?? "Alternative cost"
             );
-            if (!isSacrificeSelectionComplete(altChoice)) {
+            const altHandChoice = buildAlternativeCostHandChoice(
+                player,
+                chosenAltCost,
+                args.cardInstanceId
+            );
+            const altPayLife = chosenAltCost.payLife ?? 0;
+            const parkPerm =
+                altChoice !== undefined &&
+                !isSacrificeSelectionComplete(altChoice);
+            const parkHand =
+                altHandChoice !== undefined && !altHandChoice.pickedCardIds;
+            if (parkPerm || parkHand) {
                 // Park with a zeroed mana cost (the alt cost replaces mana): the
                 // commit gate in tryAutoCommitPendingCast fires once the pick is
-                // complete, applying the return/sacrifice through the same path.
+                // complete, applying the return / sacrifice / exile / discard
+                // (and life) through the same path.
                 state.pendingCast = {
                     playerId: args.playerId,
                     cardInstanceId: args.cardInstanceId,
@@ -4060,10 +4148,14 @@ export const announceCast = mutation({
                     tappedLandIds: [],
                     keepPriority: args.keepPriority,
                     chosenX,
+                    ...(altPayLife > 0 ? { payLife: altPayLife } : {}),
                     ...(args.chosenModeId
                         ? { chosenModeId: args.chosenModeId }
                         : {}),
-                    sacrificeSelection: altChoice,
+                    ...(altChoice ? { sacrificeSelection: altChoice } : {}),
+                    ...(altHandChoice
+                        ? { alternativeCostHandChoice: altHandChoice }
+                        : {}),
                 };
                 await saveGameState(
                     ctx,
@@ -4075,7 +4167,15 @@ export const announceCast = mutation({
                 return;
             }
             // Forced/fungible choice: apply it now and commit.
-            sacrificeSnapshotFromSelection(altChoice, state);
+            if (altChoice) sacrificeSnapshotFromSelection(altChoice, state);
+            if (altHandChoice?.pickedCardIds) {
+                payAlternativeCostHandChoice(
+                    state,
+                    args.playerId,
+                    altHandChoice
+                );
+            }
+            if (altPayLife > 0) player.life -= altPayLife;
             const card = removeFromZone(
                 player,
                 args.cardInstanceId,
@@ -5296,6 +5396,69 @@ export const selectCastExileCost = mutation({
 
         // Commit fires here when the mana is also covered; otherwise the player
         // taps the remaining mana via tapForCastPayment.
+        tryAutoCommitPendingCast(state, args.playerId);
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** Records the player's picks for an ALTERNATIVE-cost HAND leg (CR 118.9 —
+ *  Force of Will's "exile a blue card", Foil's "discard an Island card and
+ *  another card"). Validates the picks satisfy the alt cost's requirements from
+ *  distinct hand cards (never the cast card itself), then only RECORDS them —
+ *  the cards move hand → exile / graveyard at cast commit
+ *  (`tryAutoCommitPendingCast`), so cancelling leaves the hand untouched. Pure
+ *  (no ctx) so it is unit-tested directly. */
+export function recordCastAlternativeHandCostPick(
+    state: GameState,
+    playerId: string,
+    cardInstanceIds: string[]
+): void {
+    const pc = state.pendingCast;
+    if (!pc) throw new Error("No spell being cast");
+    if (pc.playerId !== playerId) throw new Error("Not your pending cast");
+    const ah = pc.alternativeCostHandChoice;
+    if (!ah) throw new Error("This spell has no alternative-cost hand leg");
+    if (ah.pickedCardIds) throw new Error("Alternative cost already paid");
+    const player = getPlayer(state, playerId);
+    validateAlternativeHandCostPicks(player, ah, cardInstanceIds);
+    ah.pickedCardIds = [...cardInstanceIds];
+}
+
+/** Records the player's pick for an ALTERNATIVE-cost HAND leg (CR 118.9 — Force
+ *  of Will / Foil). Mirrors `selectCastExileCost`: validates + records the pick
+ *  (the cards move hand → exile / graveyard at commit), then drives
+ *  `tryAutoCommitPendingCast` (alt costs zero the mana, so this commits at
+ *  once). */
+export const selectCastAlternativeHandCost = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceIds: v.array(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
+
+        recordCastAlternativeHandCostPick(
+            state,
+            args.playerId,
+            args.cardInstanceIds
+        );
+
         tryAutoCommitPendingCast(state, args.playerId);
 
         await saveGameState(

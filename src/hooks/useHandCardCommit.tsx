@@ -4,9 +4,11 @@ import { api } from "@convex/_generated/api";
 import { getDefinition } from "@convex/cards";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
+import { affordableAltCostsForCard } from "~/lib/card-utils";
 import type { CardInstance } from "~/types/game";
 import ModePicker from "~/components/cards/mode-picker";
 import AltCostPicker from "~/components/cards/alt-cost-picker";
+import type { AlternativeCost } from "@convex/cards/types";
 
 type ModePickerState = {
     chosenX: number | undefined;
@@ -18,6 +20,10 @@ type AltCostPickerState = {
     chosenX: number | undefined;
     keepPriority: boolean | undefined;
     position: { x: number; y: number };
+    /** The alternative costs the caster can currently afford (CR 118.9) — the
+     *  picker offers exactly these plus "Pay mana cost". Filtered at open time
+     *  so a condition-failing / unaffordable alt is never shown. */
+    altCosts: AlternativeCost[];
 };
 
 /** The shared hand-card commit pipeline (PRD #249, slice #254).
@@ -36,7 +42,8 @@ type AltCostPickerState = {
  * caller renders so the picker anchors correctly to its card. `modePickerOverlay`
  * is `null` until a modal spell's cast is in progress. */
 export function useHandCardCommit(cardInstance: CardInstance) {
-    const { gameId, playerId, debugAllActions } = useGameContext();
+    const { gameId, playerId, debugAllActions, allPlayers, activePlayerId } =
+        useGameContext();
     const { reportError } = usePendingChoiceBuffer();
     const playCard = useMutation(api.game.playCard);
     const announceCast = useMutation(api.game.announceCast);
@@ -110,16 +117,34 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         // CR 118.9 — a spell with alternative casting costs (Gush, Thwart,
         // Fireblast): pick between paying mana and each alternative before
         // announcement. Not composed with modal spells (none of the alt-cost
-        // cards are modal).
+        // cards are modal). Only alternatives whose cast-availability condition
+        // AND affordability currently hold are offered — a condition-failing /
+        // unpayable alt (Force of Negation on your turn, Snuff Out without a
+        // Swamp) would otherwise throw a hard `announceCast` rejection on click.
+        // With no affordable alternative the picker is skipped and the spell is
+        // cast for its normal mana cost.
         if (def.alternativeCosts && def.alternativeCosts.length > 0) {
-            const anchor = e.currentTarget as HTMLElement | null;
-            const rect = anchor?.getBoundingClientRect();
-            const position =
-                rect && rect.width > 0 && rect.height > 0
-                    ? { x: rect.right + 8, y: rect.top }
-                    : { x: e.clientX + 8, y: e.clientY + 8 };
-            setAltCostPickerState({ chosenX, keepPriority, position });
-            return;
+            const affordableAlts = affordableAltCostsForCard(
+                cardInstance,
+                playerId,
+                allPlayers,
+                activePlayerId
+            );
+            if (affordableAlts.length > 0) {
+                const anchor = e.currentTarget as HTMLElement | null;
+                const rect = anchor?.getBoundingClientRect();
+                const position =
+                    rect && rect.width > 0 && rect.height > 0
+                        ? { x: rect.right + 8, y: rect.top }
+                        : { x: e.clientX + 8, y: e.clientY + 8 };
+                setAltCostPickerState({
+                    chosenX,
+                    keepPriority,
+                    position,
+                    altCosts: affordableAlts,
+                });
+                return;
+            }
         }
         commitAnnounceCast({
             chosenX,
@@ -150,9 +175,9 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         ) : null;
 
     const altCostPickerOverlay =
-        altCostPickerState && def.alternativeCosts ? (
+        altCostPickerState && altCostPickerState.altCosts.length > 0 ? (
             <AltCostPicker
-                altCosts={def.alternativeCosts}
+                altCosts={altCostPickerState.altCosts}
                 cardName={def.name}
                 position={altCostPickerState.position}
                 onSelect={(altCostId) => {

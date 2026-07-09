@@ -9,6 +9,7 @@ import type {
     DelayedTriggerInlineBody,
     DelayedTriggerTiming,
     DurationSpec,
+    EffectCardFilter,
     EffectOp,
     FlashbackCost,
     GameEvent,
@@ -1195,6 +1196,22 @@ export type PendingCast = {
         color?: Color;
         excludeInstanceId: string;
         zone?: "graveyard" | "hand";
+        pickedCardIds?: string[];
+    };
+    /** In-progress "exile / discard N cards from your HAND" ALTERNATIVE-cost
+     *  picker (CR 118.9 — Force of Will's "exile a blue card", Foil's "discard
+     *  an Island card and another card"). Set when the chosen alternative cost
+     *  carries a `handCost` leg and the choice is real (more matching hand cards
+     *  than required). `requirements` mirror the alt cost's hand requirements
+     *  (distinct filter × count); `pickedCardIds` is undefined until the player
+     *  calls `selectCastAlternativeHandCost` (or auto-filled when the choice is
+     *  forced), and commit is blocked while it is unset regardless of mana. On
+     *  commit the chosen cards move hand → exile / graveyard. Mirrors the
+     *  flashback `exileFromGraveyardChoice`. */
+    alternativeCostHandChoice?: {
+        action: "exile" | "discard";
+        requirements: { filter: EffectCardFilter; count: number }[];
+        excludeInstanceId: string;
         pickedCardIds?: string[];
     };
 };

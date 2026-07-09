@@ -5,7 +5,7 @@
 // wire coverage per § Card testing convention.
 
 import { describe, it, expect } from "vitest";
-import { accumulatedKnowledge, dominate } from "..";
+import { accumulatedKnowledge, dominate, daze } from "..";
 import { grizzlyBears, serraAngel } from "../../lea";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { getLegalTargets } from "../../../../gre/rules";
@@ -159,5 +159,29 @@ describe("Dominate ({X}{1}{U}{U}: gain control of target creature with MV <= X)"
             (c) => c.id === "bear"
         );
         expect(slim?.controllerId).toBe("p1");
+    });
+});
+
+// Daze — {1}{U} Instant. "You may return an Island you control to its owner's
+// hand rather than pay this spell's mana cost. Counter target spell unless its
+// controller pays {1}." (CR 118.9 pitch cost — return an Island, reusing the
+// existing permanent-return leg (Gush's shape); CR 701.5a counter-unless-pay.)
+// The counter-unless-pay effect (mayPay + if + counter) is the shipped Mana
+// Tithe shape, exercised by the interpreter suite + smoke sweep; here we pin the
+// definition shape.
+describe("Daze (pitch: return an Island; counter unless pays {1})", () => {
+    it("declares the return-Island alternative cost and the counter-unless-pay effect", () => {
+        expect(daze.alternativeCosts).toEqual([
+            {
+                id: "pitch-return-island",
+                description: "Return an Island you control to its owner's hand",
+                action: "return",
+                count: 1,
+                filter: { subtypes: "Island" },
+            },
+        ]);
+        expect(daze.targetRequirement).toEqual({ type: "spell", count: 1 });
+        expect(daze.effects?.[0]).toMatchObject({ op: "mayPay" });
+        expect(daze.effects?.[1]).toMatchObject({ op: "if" });
     });
 });

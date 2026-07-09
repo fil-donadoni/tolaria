@@ -186,6 +186,11 @@ import * as beatdown from "./sets/btd";
 // Premodern utility-land hoser (issue #998) — Tsabo's Web's home set is its
 // earliest paper printing, Invasion (ADR 0041).
 import * as inv from "./sets/inv";
+// Cube CAP: Free pitch — alternative-cost (CR 118.9) pitch spells (issue #690 /
+// #1003). New cross-set home sets routed to earliest paper printing (ADR 0041):
+// Alliances (Force of Will, Pyrokinesis), Prophecy (Foil).
+import * as all from "./sets/all";
+import * as pcy from "./sets/pcy";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -365,6 +370,8 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "btd", exports: beatdown },
     // Premodern utility-land hoser — Tsabo's Web (issue #998).
     { code: "inv", exports: inv },
+    { code: "all", exports: all },
+    { code: "pcy", exports: pcy },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>

@@ -304,4 +304,49 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Free pitch — alternative casting cost (CR 118.9, issue #690). Cast a
+        // pitch spell by giving up a NON-mana resource instead of paying mana.
+        // The cast-option picker (click the spell) offers "Pay mana cost" + the
+        // alternative; picking the alternative pays it at commit. Golden paths
+        // castable on YOUR turn with no stacked spell:
+        //   • Snuff Out — "Pay 4 life" (you control a Swamp): destroy the
+        //     opponent's Grizzly Bears (can't be regenerated).
+        //   • Mine Collapse — "Sacrifice a Mountain" (it's your turn): 5 damage
+        //     to a creature.
+        //   • Pyrokinesis — "Exile a red card from your hand": pick Lightning
+        //     Bolt in the hand-cost picker, then divide 4 damage among the
+        //     opponent's creatures (the exile-from-hand leg — the new infra).
+        // Force of Will (pay 1 life + exile a blue card) also appears in hand —
+        // its counter needs an opponent spell on the stack, so use it against a
+        // spell you bait out. Edge case — Force of Vigor pitch is gated on "if
+        // it's not your turn", so the cast-option picker filters its alternative
+        // OUT here (it's your turn) and only "Pay mana cost" is offered; pass
+        // priority to the opponent's turn and the "exile a green card" pitch
+        // appears (a green card — Giant Growth — is in hand to pay it).
+        label: "Free pitch alt-cost (#690) — Snuff Out / Mine Collapse / Pyrokinesis",
+        cards: [
+            { name: "Snuff Out", owner: "me", zone: "hand" },
+            { name: "Mine Collapse", owner: "me", zone: "hand" },
+            { name: "Pyrokinesis", owner: "me", zone: "hand" },
+            { name: "Force of Will", owner: "me", zone: "hand" },
+            { name: "Force of Vigor", owner: "me", zone: "hand" },
+            // Pitch fodder: a red card (Pyrokinesis) and a blue card (Force of
+            // Will) to exile from hand; a green card for Force of Vigor.
+            { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            { name: "Counterspell", owner: "me", zone: "hand" },
+            { name: "Giant Growth", owner: "me", zone: "hand" },
+            { name: "Swamp", owner: "me", zone: "battlefield" },
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+            {
+                name: "Grizzly Bears",
+                owner: "opp",
+                zone: "battlefield",
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+        libraryCount: 10,
+    },
 ];
