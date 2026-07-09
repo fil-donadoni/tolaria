@@ -322,15 +322,36 @@ function isXValue(value: unknown): boolean {
     );
 }
 
+/** `{ counters: { of, type } }` — SHAPE of the counter-count value construct
+ *  (issue #1015, CR 122.6). `of` is an object selector (an announced target
+ *  slot, the ability-site `$source`, or a permanents-set forEach `$each`) — the
+ *  ref inside it is family-checked as an OBJECT position by the ordered ref pass
+ *  (the `of` keyHint in `collectRefUses`). `type` is a non-empty counter-kind
+ *  string ("fuse", "+1/+1", "charge", …). No other keys are permitted. */
+function isCountersValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "counters") return false;
+    const spec = (value as { counters: unknown }).counters;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    const allowed = new Set(["of", "type"]);
+    if (!Object.keys(s).every((k) => allowed.has(k))) return false;
+    if (typeof s.type !== "string" || s.type.length === 0) return false;
+    return isObjectSelector(s.of);
+}
+
 /** A numeric Op parameter (ADR 0045 value grammar): a positive-int literal,
- *  a `ref`, a `count`, or the chosen-cost `X` (issue #852). Exactly those
- *  four — no arithmetic, no expressions. */
+ *  a `ref`, a `count`, the chosen-cost `X` (issue #852), or a `counters` count
+ *  on a selected object (issue #1015). Exactly those — no arithmetic, no
+ *  expressions. */
 function isEffectValue(value: unknown): boolean {
     return (
         isPositiveInt(value) ||
         isRefValue(value) ||
         isCountValue(value) ||
-        isXValue(value)
+        isXValue(value) ||
+        isCountersValue(value)
     );
 }
 
@@ -487,11 +508,17 @@ function isBoolean(value: unknown): boolean {
 /** A SIGNED effect value, for a `pump` Op's P/T amounts (issue #840). Unlike
  *  `isEffectValue` (whose literal branch is a positive count, CR 107.1), a
  *  pump amount is a signed integer literal — a negative is a shrink (Weakness),
- *  a zero is a one-sided pump (+1/+0) — or a `ref` / `count` / chosen-cost `X`
- *  (all non-negative by nature; Howl from Beyond's +X/+0, issue #852). */
+ *  a zero is a one-sided pump (+1/+0) — or a `ref` / `count` / chosen-cost `X` /
+ *  `counters` count (all non-negative by nature; Howl from Beyond's +X/+0,
+ *  issue #852; a "+1/+1 per fuse counter" pump, issue #1015). */
 function isSignedEffectValue(value: unknown): boolean {
     if (typeof value === "number") return Number.isInteger(value);
-    return isRefValue(value) || isCountValue(value) || isXValue(value);
+    return (
+        isRefValue(value) ||
+        isCountValue(value) ||
+        isXValue(value) ||
+        isCountersValue(value)
+    );
 }
 
 /** A `DurationSpec` (issue #840, CR 611.2) — the phase boundary at which a
@@ -1360,8 +1387,9 @@ interface RefUse {
  *  position. A ref under a `player` / `controller` / `zoneOwnerId` key is a
  *  player ref (issue #920 — a `choice` Op's zone-owner override); a ref
  *  under a `cards` / `permanents` key is a picks ref (issues #805/#807 — reads
- *  a choice Op's picks); a ref under a `target` / `to` key is an object ref
- *  (issue #807 — acts ON the referenced permanent, `$each`); any other ref is
+ *  a choice Op's picks); a ref under a `target` / `to` / `of` key is an object
+ *  ref (issue #807 — acts ON / reads the referenced permanent, `$each`; `of` is
+ *  a `counters` value's object selector, issue #1015); any other ref is
  *  numeric (amount / count). `count` specs are traversed so a ref in their
  *  `controller` is caught too. `if` predicates and branch Op lists are NOT
  *  walked here — the caller handles them explicitly (boolean-binding refs and
@@ -1384,7 +1412,9 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                     ? "player"
                     : keyHint === "cards" || keyHint === "permanents"
                       ? "picks"
-                      : keyHint === "target" || keyHint === "to"
+                      : keyHint === "target" ||
+                          keyHint === "to" ||
+                          keyHint === "of"
                         ? "object"
                         : "number",
         });

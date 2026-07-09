@@ -2532,7 +2532,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  skin over SpellContext.getX()), not an Op. It SHIPPED in issue #852 as a
  *  value-grammar member (EffectValue = literal | ref | count | X); adding it did
  *  NOT reopen ADR 0045 (only a fifth STRUCTURAL construct would) and it earns no
- *  EFFECT_OP_REGISTRY row (PRD #826). */
+ *  EFFECT_OP_REGISTRY row (PRD #826). `counters` (issue #1015, CR 122.6) is
+ *  likewise a value-grammar member and NOT an Op — the number of counters of a
+ *  type on a selected object (`{ counters: { of, type } }`), a thin skin over
+ *  SpellContext.getCounterCount. It extends the value grammar to
+ *  `literal | ref | count | X | counters`; like `X` it does NOT reopen ADR 0045
+ *  (not a structural construct) and earns no EFFECT_OP_REGISTRY row. It unblocks
+ *  the "value equal to the number of <type> counters on it" class (Powder Keg's
+ *  MV-matched sweep, issue #997). */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED

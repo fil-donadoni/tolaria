@@ -175,6 +175,110 @@ describe("validateEffectScript — bind + ref + count constructs (#802)", () => 
         }
     });
 
+    it("accepts a counters value over an announced target and a forEach $each (issue #1015)", () => {
+        // { target: N } at a spell site; { ref: "$each" } inside a permanents
+        // forEach body — both legal object selectors for `of`.
+        const effects: EffectOp[] = [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { counters: { of: { target: 0 }, type: "+1/+1" } },
+            },
+            {
+                op: "forEach",
+                select: { set: "permanents", zone: "battlefield" },
+                effects: [
+                    {
+                        op: "if",
+                        predicate: {
+                            left: {
+                                counters: {
+                                    of: { ref: "$each" },
+                                    type: "fuse",
+                                },
+                            },
+                            op: "ge",
+                            right: 2,
+                        },
+                        then: [{ op: "destroy", target: { ref: "$each" } }],
+                    },
+                ],
+            },
+        ];
+        expect(validateEffectScript(host({ effects }))).toEqual([]);
+    });
+
+    it("accepts a counters value over the ability-site $source (issue #1015)", () => {
+        const effects: EffectOp[] = [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: {
+                    counters: { of: { ref: "$source" }, type: "charge" },
+                },
+            },
+        ];
+        // $source is only pre-declared at ability sites.
+        expect(
+            validateAbilityEffectScript(
+                { id: "src-gain", effects },
+                "Test Host"
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects a malformed counters value (missing/empty type, unknown key, non-object of)", () => {
+        for (const bad of [
+            { op: "gainLife", player: "controller", amount: { counters: {} } },
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { counters: { of: { target: 0 } } }, // no type
+            },
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { counters: { of: { target: 0 }, type: "" } }, // empty type
+            },
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: {
+                    counters: { of: { target: 0 }, type: "fuse", extra: 1 },
+                },
+            },
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { counters: { of: 5, type: "fuse" } }, // of not a selector
+            },
+        ] as never[]) {
+            const errors = validateEffectScript(host({ effects: [bad] }));
+            expect(errors.length, JSON.stringify(bad)).toBeGreaterThan(0);
+        }
+    });
+
+    it("rejects a counters value whose $source is unavailable at a spell site (issue #1015)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: {
+                            counters: {
+                                of: { ref: "$source" },
+                                type: "charge",
+                            },
+                        },
+                    },
+                ] as never,
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+        expect(errors.some((e) => /\$source/.test(e))).toBe(true);
+    });
+
     it("rejects a ref to an undefined binding (static ref-check)", () => {
         const errors = validateEffectScript(
             host({

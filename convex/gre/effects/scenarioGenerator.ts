@@ -213,6 +213,16 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount is chosen-cost X — depends on the value announced for {X} at cast time`;
         return;
     }
+    // counters (issue #1015, CR 122.6): the amount reads the LIVE count of a
+    // counter type on a selected permanent. The canned generator does not
+    // pre-seed counters on its filler permanents, so the count would be 0 and
+    // the declared outcome can't be asserted deterministically. Skip-with-reason
+    // — the construct's interpreter test (across $source / $each / target) is
+    // the behavioural guarantor (per DSL-first authoring, new-construct regime).
+    if ("counters" in value) {
+        req.skip ??= `amount reads a permanent's "${value.counters.type}" counter count — the canned generator does not pre-seed counters`;
+        return;
+    }
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;
@@ -704,6 +714,7 @@ type Assertor = (
 function predictAmount(value: EffectValue): number | null {
     if (typeof value === "number") return value;
     if ("ref" in value) return null; // skipped earlier — defensive
+    if ("counters" in value) return null; // skipped earlier — defensive
     return COUNT_SET_SIZE;
 }
 

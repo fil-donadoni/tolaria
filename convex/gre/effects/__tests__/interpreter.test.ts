@@ -272,6 +272,229 @@ describe("Effect Script value grammar: X (chosen cost, CR 107.3 / 601.2b, issue 
     });
 });
 
+describe("Effect Script value grammar: counters (counter count, CR 122.6, issue #1015)", () => {
+    // `{ counters: { of, type } }` is the SIXTH EffectValue member — a thin skin
+    // over SpellContext.getCounterCount (the number of counters of a type on a
+    // selected object). It is NOT an Op and NOT a new structural construct
+    // (ADR 0045 stays closed). `of` resolves through the SAME resolveObjectRef
+    // path every object-acting Op uses. Exercised across every combination it
+    // participates in: the ability-site `$source`, an announced `{ target: N }`
+    // slot at a spell site, and the per-iteration `$each` inside a forEach — the
+    // last both as a direct value (gainLife) and as a comparison operand inside
+    // an `if` predicate (the Powder Keg-shaped MV/count-matched sweep, #997).
+    // One resolveValue execution path serves them all. Carries a wire-format
+    // assertion (projectPublicState) per the new-construct test regime.
+
+    it("reads the source's counter count at an ability site ($source, gainLife)", () => {
+        const SRC = "test-counters-source-gainlife";
+        registerTokenDefinition({
+            id: SRC,
+            name: SRC,
+            rarity: "common",
+            manaCost: { generic: 1 },
+            types: ["Artifact"],
+            activatedAbilities: [
+                {
+                    id: "src-gain",
+                    oracleText:
+                        "{1}: You gain life equal to the charge counters on this.",
+                    cost: { mana: { generic: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "gainLife",
+                            player: "controller",
+                            amount: {
+                                counters: {
+                                    of: { ref: "$source" },
+                                    type: "charge",
+                                },
+                            },
+                        },
+                    ],
+                },
+            ],
+        });
+        const src = makeInstance(SRC, {
+            id: "src1",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+            counters: { charge: 3 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [src] }),
+                makePlayer("p2"),
+            ],
+        });
+        const s = state.players[0].battlefield[0];
+        state.stack.push({
+            ...s,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "src-gain",
+            targets: [],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(23); // 20 + 3 charge counters
+    });
+
+    it("reads a targeted permanent's counter count (target N, gainLife) and survives projection (wire format)", () => {
+        const id = registerScript("test-counters-target-gainlife", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { counters: { of: { target: 0 }, type: "+1/+1" } },
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            id: "ctB",
+            controllerId: "p2",
+            ownerId: "p2",
+            counters: { "+1/+1": 4 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "ctB" }]);
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(24); // 20 + 4 counters on the target
+        // Wire format: the counter tally the value read must survive the
+        // projection — slimCard preserves the instance's `counters` map (a
+        // board-visible field), so a client-side re-read would see the same 4.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].life).toBe(24);
+        const slimTarget = projected.players[1].battlefield.find(
+            (c) => c.id === "ctB"
+        )!;
+        expect(slimTarget.counters?.["+1/+1"]).toBe(4);
+    });
+
+    it("sums the per-iteration counter count across a forEach set ($each, gainLife)", () => {
+        const id = registerScript("test-counters-each-gainlife", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    controller: "controller",
+                    filter: { type: "Creature" },
+                },
+                effects: [
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: {
+                            counters: { of: { ref: "$each" }, type: "charge" },
+                        },
+                    },
+                ],
+            },
+        ]);
+        const a = makeInstance(BEAR_ID, {
+            id: "eA",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { charge: 2 },
+        });
+        const b = makeInstance(BEAR_ID, {
+            id: "eB",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { charge: 3 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a, b] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(25); // 20 + (2 + 3) charge counters
+    });
+
+    it("compares the counter count inside an if predicate over a forEach set (Powder Keg-shaped sweep)", () => {
+        // "Destroy each creature with 3+ +1/+1 counters on it" — the value is the
+        // `right`/`left` operand of an `if` comparison, resolved per iteration
+        // via `$each`. Mirrors Powder Keg's MV-matched sweep structure (#997)
+        // without needing the manaValue snapshot: the counter count IS the test.
+        const id = registerScript("test-counters-each-predicate", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    controller: "controller",
+                    filter: { type: "Creature" },
+                },
+                effects: [
+                    {
+                        op: "if",
+                        predicate: {
+                            left: {
+                                counters: {
+                                    of: { ref: "$each" },
+                                    type: "+1/+1",
+                                },
+                            },
+                            op: "ge",
+                            right: 3,
+                        },
+                        then: [{ op: "destroy", target: { ref: "$each" } }],
+                    },
+                ],
+            },
+        ]);
+        const hi = makeInstance(BEAR_ID, {
+            id: "hi",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+1": 3 },
+        });
+        const lo = makeInstance(BEAR_ID, {
+            id: "lo",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { "+1/+1": 1 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [hi, lo] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const bf = state.players[0].battlefield;
+        expect(bf.find((c) => c.id === "hi")).toBeUndefined(); // 3 counters → destroyed
+        expect(bf.find((c) => c.id === "lo")).toBeDefined(); // 1 counter → survives
+        expect(state.players[0].graveyard.some((c) => c.id === "hi")).toBe(
+            true
+        );
+    });
+
+    it("resolves to undefined (Op skipped) when the selected object is gone (CR 608.2b)", () => {
+        const id = registerScript("test-counters-missing", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { counters: { of: { target: 0 }, type: "+1/+1" } },
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []); // no announced target
+        resolveTopOfStack(state);
+        // getCounterCount is never reached — the value is unresolvable, so the
+        // gainLife amount folds to a skip (no life gained).
+        expect(state.players[0].life).toBe(20);
+    });
+});
+
 describe("Effect Script Op: draw (CR 121.1)", () => {
     const withLibrary = (owner: "p1" | "p2", n: number) =>
         Array.from({ length: n }, (_, i) =>
