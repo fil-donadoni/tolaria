@@ -55,6 +55,22 @@ type PresetScenario = {
 
 export const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Argothian Enchantress (Urza's Saga): {1}{G} 0/1 with Shroud and
+        // "Whenever you cast an enchantment spell, draw a card." The
+        // enchantress is on your battlefield; Fastbond ({G} Enchantment) is in
+        // hand and a Forest covers its cost. Cast Fastbond — the mandatory
+        // spell-cast trigger goes on the stack above it and, on resolution,
+        // draws you a card before Fastbond itself resolves (CR 603.2 / 121.1).
+        label: "Argothian Enchantress — draw on enchantment cast",
+        cards: [
+            { name: "Argothian Enchantress", owner: "me", zone: "battlefield" },
+            { name: "Fastbond", owner: "me", zone: "hand" },
+            { name: "Forest", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Sulfuric Vortex (issue #988): {1}{R}{R} Enchantment — "At the
         // beginning of each player's upkeep, this enchantment deals 2 damage to
         // that player. If a player would gain life, that player gains no life

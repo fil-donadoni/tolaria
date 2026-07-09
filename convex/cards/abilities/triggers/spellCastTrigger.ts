@@ -10,6 +10,7 @@
 import type {
     CardType,
     Color,
+    EffectOp,
     GameEvent,
     PermanentView,
     SpellCastEvent,
@@ -76,12 +77,21 @@ export interface SpellCastTriggerArgs {
         state?: TriggerStateView
     ) => boolean;
     /** Resolution body. Receives the engine `SpellContext`, the original
-     *  `SpellCastEvent`, and the derived `spell` payload. */
-    resolve: (
+     *  `SpellCastEvent`, and the derived `spell` payload. Mutually exclusive
+     *  with `effects` — supply exactly one (DSL-first, ADR 0045). Use
+     *  `resolve` when the effect must inspect the firing spell (the `spell`
+     *  payload); use `effects` for an event-independent effect. */
+    resolve?: (
         ctx: SpellContext,
         event: SpellCastEvent,
         spell: SpellCastDerived
     ) => void;
+    /** Effect Script (ADR 0045) — the trigger's resolution as declarative,
+     *  JSON-pure Ops, run through the shared interpreter with the source's
+     *  controller bound. The DSL-first default for a spell-cast trigger whose
+     *  effect does NOT read the firing spell (e.g. Argothian Enchantress'
+     *  mandatory "draw a card"). Mutually exclusive with `resolve`. */
+    effects?: EffectOp[];
 }
 
 function castInScope(
@@ -101,6 +111,11 @@ function castInScope(
  *  matching, and last-known-information delivery so card definitions stay
  *  declarative. */
 export function spellCastTrigger(args: SpellCastTriggerArgs): TriggeredAbility {
+    if ((args.resolve === undefined) === (args.effects === undefined)) {
+        throw new Error(
+            `spellCastTrigger(${args.id}): supply exactly one of resolve / effects`
+        );
+    }
     const built: TriggeredAbility = {
         id: args.id,
         oracleText: args.oracleText,
@@ -121,9 +136,14 @@ export function spellCastTrigger(args: SpellCastTriggerArgs): TriggeredAbility {
             }
             return true;
         },
-        resolve: (ctx, event) => {
+    };
+    if (args.effects !== undefined) {
+        built.effects = args.effects;
+    } else {
+        const resolveFn = args.resolve!;
+        built.resolve = (ctx, event) => {
             if (event.type !== "SPELL_CAST") return;
-            args.resolve(ctx, event, {
+            resolveFn(ctx, event, {
                 instanceId: event.spellInstanceId,
                 casterId: event.casterId,
                 cardId: event.spellCardId,
@@ -131,8 +151,8 @@ export function spellCastTrigger(args: SpellCastTriggerArgs): TriggeredAbility {
                 subtypes: event.spellSubtypes,
                 colors: event.spellColors,
             });
-        },
-    };
+        };
+    }
     if (args.interveningIf) {
         const ifFn = args.interveningIf;
         built.interveningIf = (event: GameEvent, self, state) => {
