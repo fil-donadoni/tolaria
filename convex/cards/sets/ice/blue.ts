@@ -343,23 +343,41 @@ export const brainstorm: CardDefinition = {
         "Draw three cards, then put two cards from your hand on top of your library in any order.",
     manaCost: { U: 1 },
     types: ["Instant"],
-    resolve: (ctx: SpellContext) => {
-        ctx.drawCards(ctx.controller, 3);
-        const picks = ctx.requestChoice({
-            playerId: ctx.controller,
-            choiceId: "brainstorm-putback",
-            kind: "choose-hand-card",
-            zone: "hand",
-            count: 2,
-            prompt: "Choose two cards to put on top of your library (last picked ends up on top).",
-        });
-        if (picks === undefined) return; // suspended for the choice
-        // Move each pick to the top; the second pick lands on top last, so the
-        // player's chosen order is preserved (CR 401 "in any order").
-        for (const id of picks) {
-            ctx.moveHandCardToLibraryTop(ctx.controller, id);
-        }
-    },
+    // protocol card: "draw N, then put N chosen hand cards on top of library in
+    // any order" is not expressible by the current Op vocabulary — there is no
+    // hand→library-top-with-player-ordering Op (a suspending pick that consumes
+    // its own result; distinct from moveZone / scryReorder / libraryLook, which
+    // don't move a chosen hand subset to the top). DSL migration is blocked on
+    // that Op (stop-and-issue). resolveSteps isolates the irreversible draw in
+    // step 0 so a resume for the putback choice never re-runs it — a single
+    // `resolve()` replays from the top on resume and draws 3 twice.
+    resolveSteps: [
+        (ctx: SpellContext) => {
+            ctx.drawCards(ctx.controller, 3);
+        },
+        (ctx: SpellContext) => {
+            const picks = ctx.requestChoice({
+                playerId: ctx.controller,
+                choiceId: "brainstorm-putback",
+                kind: "choose-hand-card",
+                zone: "hand",
+                count: 2,
+                prompt: "Choose two cards to put on top of your library (last picked ends up on top).",
+            });
+            if (picks === undefined) return; // suspended for the choice
+            // Move each pick to the top; the second pick lands on top last, so
+            // the player's chosen order is preserved (CR 401 "in any order").
+            for (const id of picks) {
+                ctx.moveHandCardToLibraryTop(ctx.controller, id);
+            }
+            // Private knowledge (ADR 0026): the caster chose these two cards and
+            // their order, so they keep knowing them on top — mark them known to
+            // the controller alone (NOT revealed to the opponent; Brainstorm has
+            // no reveal clause). They surface via `libraryPeek` for the caster
+            // until a shuffle clears the knowledge (CR 701.20).
+            ctx.markKnown(ctx.controller, picks, ctx.controller);
+        },
+    ],
 };
 // Breath of Dreams — {2}{U}{U} Enchantment with cumulative upkeep {U} on itself,
 // plus a GROUP GRANT of "Cumulative upkeep {1}" to every green creature

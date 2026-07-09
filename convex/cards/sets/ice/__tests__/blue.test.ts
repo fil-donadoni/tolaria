@@ -182,6 +182,47 @@ describe("Brainstorm (draw three then put two back, CR 121.1)", () => {
         // choice — the engine waits for the player's pick).
         expect(state.players[0].hand.length).toBe(3);
     });
+
+    it("draws three exactly once across the put-back suspension (no replay re-draw)", () => {
+        // Regression: a single resolve() replayed on resume and re-ran the
+        // irreversible drawCards(3) — 6 drawn instead of 3. resolveSteps
+        // checkpoints the draw in step 0 so resume resumes step 1 only.
+        const lib = [0, 1, 2, 3, 4, 5, 6].map((i) =>
+            makeInstance(silverErne.id, {
+                id: `lib${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, brainstorm.id, "p1");
+        resolveTopOfStack(state); // draws 3, suspends on the put-back choice
+        expect(state.players[0].hand.length).toBe(3);
+        expect(state.pendingChoices?.[0]?.kind).toBe("choose-hand-card");
+
+        const drawn = state.players[0].hand.map((c) => c.id);
+        submitChoice(state, [drawn[0], drawn[1]]); // pick two to put back
+        // 3 drawn − 2 put back = 1 in hand. NOT 6 − 2 = 4 (the replay bug).
+        expect(state.players[0].hand.length).toBe(1);
+        expect(state.stack.length).toBe(0);
+        // Top two of library are the put-back picks (CR 401 "in any order").
+        const topTwo = state.players[0].library.slice(0, 2).map((c) => c.id);
+        expect(topTwo.slice().sort()).toEqual([drawn[0], drawn[1]].sort());
+
+        // Wire format (ADR 0026): the caster keeps knowing the two cards they
+        // put on top — they surface as the caster's contiguous top-of-library
+        // known run, in order, and are hidden from the opponent.
+        const casterView = projectPublicState(state, 2, "p1");
+        const known = casterView.players[0].library.known ?? [];
+        expect(known.map((k) => k.card.id)).toEqual(topTwo);
+        expect(known.map((k) => k.index)).toEqual([0, 1]);
+
+        const oppView = projectPublicState(state, 2, "p2");
+        expect(oppView.players[0].library.known ?? []).toEqual([]);
+    });
 });
 
 // --- Deflection (change a spell's target, CR 114.6) ------------------------
