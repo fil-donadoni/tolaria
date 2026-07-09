@@ -23,7 +23,12 @@ export default function CastExileCostDialog({
     gameId,
     playerId,
 }: {
-    choice: { count: number; color?: Color; excludeInstanceId: string };
+    choice: {
+        count: number;
+        color?: Color;
+        excludeInstanceId: string;
+        zone?: "graveyard" | "hand";
+    };
     me: Player | undefined;
     gameId: Id<"games">;
     playerId: string;
@@ -33,19 +38,26 @@ export default function CastExileCostDialog({
     const [isPending, setIsPending] = useState(false);
     const [selected, setSelected] = useState<string[]>([]);
 
-    // Eligible payment cards: the caster's own graveyard, matching the colour
+    // CR 702.34a / 118.5 — the cost cards come from the caster's own graveyard
+    // (default, Flash of Insight) or hand (`zone: "hand"`, the exile-a-card-
+    // from-hand flashback cost).
+    const zone = choice.zone ?? "graveyard";
+    const sourceCards = zone === "hand" ? me?.hand : me?.graveyard;
+
+    // Eligible payment cards: the caster's own zone, matching the colour
     // filter (CR 105.2), excluding the flashback card itself (CR 702.34e).
     const eligible = useMemo(
         () =>
-            (me?.graveyard ?? []).filter(
-                (card: CardInstance) =>
+            (sourceCards ?? []).filter(
+                (card): card is CardInstance =>
+                    card !== null &&
                     card.id !== choice.excludeInstanceId &&
                     (choice.color === undefined ||
                         getCardColors(getDefinition(card.card.id)).includes(
                             choice.color
                         ))
             ),
-        [me?.graveyard, choice.color, choice.excludeInstanceId]
+        [sourceCards, choice.color, choice.excludeInstanceId]
     );
 
     async function handleCancel() {
@@ -88,7 +100,7 @@ export default function CastExileCostDialog({
                 if (!open) void handleCancel();
             }}
             title="Flashback cost"
-            subtitle={`Exile ${choice.count} ${choice.color === "U" ? "blue " : ""}card(s) from your graveyard`}
+            subtitle={`Exile ${choice.count} ${choice.color === "U" ? "blue " : ""}card(s) from your ${zone}`}
             size="wide"
             dismissable={!isPending}
         >

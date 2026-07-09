@@ -24,6 +24,8 @@ import {
 import { getLegalActions } from "../rules";
 import {
     getFlashbackCost,
+    getFlashbackAdditionalCost,
+    normalizeFlashbackCost,
     findFlashbackCastable,
     hasFlashback,
 } from "../flashback";
@@ -32,7 +34,10 @@ import {
     locateCastSource,
     castRawManaCost,
     flashbackStackFlags,
+    buildCastSacrificeSelection,
+    recordCastExileCostPick,
 } from "../../game";
+import { applySacrificeSelection } from "../sacrificeChoice";
 import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
 import {
@@ -42,7 +47,7 @@ import {
 } from "../../cards/__tests__/setup";
 import { firebolt } from "../../cards/sets/ody/red";
 import { faithlessLooting } from "../../cards/sets/dka/red";
-import { grizzlyBears } from "../../cards/sets/lea";
+import { grizzlyBears, mountain, ancestralRecall } from "../../cards/sets/lea";
 
 describe("Flashback capability (CR 702.34)", () => {
     describe("flashback cost lookup (convex/gre/flashback.ts)", () => {
@@ -254,6 +259,361 @@ describe("Flashback capability (CR 702.34)", () => {
             const round = expandState(compactState(state));
             expect(round.stack[0].castFromGraveyard).toBe(true);
             expect(round.stack[0].exileOnResolve).toBe(true);
+        });
+    });
+
+    // CR 702.34a / 118.5 — the flashback cost may carry a NON-mana component
+    // (sacrifice a permanent / exile a card from hand) that applies ONLY on the
+    // graveyard (flashback) cast, never on the normal hand cast. Lava Dart
+    // ("Flashback—Sacrifice a Mountain") is the driving case: no mana at all.
+    describe("non-mana flashback cost (CR 702.34a / 118.5)", () => {
+        const SAC_MOUNTAIN = { subtypes: ["Mountain"] as string[] };
+
+        describe("cost shape normalization + accessors", () => {
+            it("normalizeFlashbackCost keeps a FlashbackCost, wraps a bare ManaCost", () => {
+                expect(normalizeFlashbackCost({ R: 1 })).toEqual({
+                    mana: { R: 1 },
+                });
+                expect(
+                    normalizeFlashbackCost({ sacrifice: SAC_MOUNTAIN })
+                ).toEqual({ sacrifice: SAC_MOUNTAIN });
+                expect(
+                    normalizeFlashbackCost({
+                        mana: { U: 1 },
+                        sacrifice: SAC_MOUNTAIN,
+                    })
+                ).toEqual({ mana: { U: 1 }, sacrifice: SAC_MOUNTAIN });
+            });
+
+            it("a purely non-mana flashback has NO mana but IS castable (Lava Dart)", () => {
+                const c = makeInstance(grizzlyBears.id, {
+                    zone: "graveyard",
+                    grantedFlashback: { sacrifice: SAC_MOUNTAIN },
+                });
+                // No mana portion...
+                expect(getFlashbackCost(c)).toBeUndefined();
+                // ...but the card still has a flashback, and the additional cost.
+                expect(hasFlashback(c)).toBe(true);
+                expect(getFlashbackAdditionalCost(c)).toEqual({
+                    sacrifice: SAC_MOUNTAIN,
+                });
+            });
+
+            it("a mana-only flashback carries no additional cost (backward compat)", () => {
+                const fb = makeInstance(firebolt.id, { zone: "graveyard" });
+                expect(getFlashbackCost(fb)).toEqual({ X: 4, R: 1 });
+                expect(getFlashbackAdditionalCost(fb)).toBeUndefined();
+            });
+
+            it("mana + sacrifice compose (both accessors return their part)", () => {
+                const c = makeInstance(grizzlyBears.id, {
+                    zone: "graveyard",
+                    grantedFlashback: {
+                        mana: { U: 1 },
+                        sacrifice: SAC_MOUNTAIN,
+                    },
+                });
+                expect(getFlashbackCost(c)).toEqual({ U: 1 });
+                expect(getFlashbackAdditionalCost(c)).toEqual({
+                    sacrifice: SAC_MOUNTAIN,
+                });
+            });
+        });
+
+        describe("affordance gate (getLegalActions)", () => {
+            function graveyardFlashbackState(
+                grantedFlashback: NonNullable<
+                    ReturnType<typeof makeInstance>["grantedFlashback"]
+                >,
+                battlefield: ReturnType<typeof makeInstance>[] = [],
+                hand: ReturnType<typeof makeInstance>[] = []
+            ): { state: GameState; card: ReturnType<typeof makeInstance> } {
+                const fb = makeInstance(firebolt.id, {
+                    zone: "graveyard",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    grantedFlashback,
+                });
+                const p1 = makePlayer("p1", {
+                    graveyard: [fb],
+                    battlefield,
+                    hand,
+                    // No mana — the sacrifice/exile flashback needs none.
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                });
+                const state = makeState({ players: [p1, makePlayer("p2")] });
+                const card = getPlayer(state, "p1").graveyard.find(
+                    (c) => c.id === fb.id
+                )!;
+                return { state, card };
+            }
+
+            it('offers "cast" for a sacrifice flashback only when a matching permanent is controlled', () => {
+                const withMountain = graveyardFlashbackState(
+                    { sacrifice: SAC_MOUNTAIN },
+                    [
+                        makeInstance(mountain.id, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ]
+                );
+                expect(
+                    getLegalActions(
+                        withMountain.state,
+                        getPlayer(withMountain.state, "p1"),
+                        withMountain.card
+                    )
+                ).toEqual(["cast"]);
+
+                const noMountain = graveyardFlashbackState({
+                    sacrifice: SAC_MOUNTAIN,
+                });
+                expect(
+                    getLegalActions(
+                        noMountain.state,
+                        getPlayer(noMountain.state, "p1"),
+                        noMountain.card
+                    )
+                ).toEqual([]);
+            });
+
+            it('offers "cast" for an exile-from-hand flashback only when a matching card is held', () => {
+                const withBlue = graveyardFlashbackState(
+                    { exileFromHand: { color: "U" } },
+                    [],
+                    [
+                        makeInstance(ancestralRecall.id, {
+                            zone: "hand",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ]
+                );
+                expect(
+                    getLegalActions(
+                        withBlue.state,
+                        getPlayer(withBlue.state, "p1"),
+                        withBlue.card
+                    )
+                ).toEqual(["cast"]);
+
+                // A red land in hand does not satisfy an "exile a blue card" cost.
+                const wrongColor = graveyardFlashbackState(
+                    { exileFromHand: { color: "U" } },
+                    [],
+                    [
+                        makeInstance(mountain.id, {
+                            zone: "hand",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ]
+                );
+                expect(
+                    getLegalActions(
+                        wrongColor.state,
+                        getPlayer(wrongColor.state, "p1"),
+                        wrongColor.card
+                    )
+                ).toEqual([]);
+            });
+        });
+
+        describe("sacrifice cost folds into the cast selection — graveyard cast only", () => {
+            it("builds a Mountain-sacrifice requirement on the flashback cast and pays it", () => {
+                const mtn = makeInstance(mountain.id, {
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const fb = makeInstance(grizzlyBears.id, {
+                    zone: "graveyard",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    grantedFlashback: { sacrifice: SAC_MOUNTAIN },
+                });
+                const p1 = makePlayer("p1", {
+                    graveyard: [fb],
+                    battlefield: [mtn],
+                });
+                const state = makeState({ players: [p1, makePlayer("p2")] });
+
+                const { selection } = buildCastSacrificeSelection(
+                    state,
+                    undefined,
+                    fb,
+                    getPlayer(state, "p1"),
+                    undefined,
+                    "Flashback",
+                    "graveyard"
+                );
+                expect(selection).toBeDefined();
+                expect(selection!.requirements).toEqual([
+                    { filter: SAC_MOUNTAIN, count: 1 },
+                ]);
+                // A single matching Mountain is auto-resolved (fungible).
+                expect(selection!.picked).toEqual([mtn.id]);
+
+                // Paying the cost sacrifices the Mountain to the graveyard.
+                applySacrificeSelection(state, selection!);
+                expect(
+                    getPlayer(state, "p1").battlefield.some(
+                        (c) => c.id === mtn.id
+                    )
+                ).toBe(false);
+                expect(
+                    getPlayer(state, "p1").graveyard.some(
+                        (c) => c.id === mtn.id
+                    )
+                ).toBe(true);
+            });
+
+            it("does NOT fold the flashback sacrifice onto a hand (non-flashback) cast", () => {
+                const mtn = makeInstance(mountain.id, {
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const fb = makeInstance(grizzlyBears.id, {
+                    zone: "hand",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    grantedFlashback: { sacrifice: SAC_MOUNTAIN },
+                });
+                const p1 = makePlayer("p1", {
+                    hand: [fb],
+                    battlefield: [mtn],
+                });
+                const state = makeState({ players: [p1, makePlayer("p2")] });
+
+                const { selection } = buildCastSacrificeSelection(
+                    state,
+                    undefined,
+                    fb,
+                    getPlayer(state, "p1"),
+                    undefined,
+                    "Cast",
+                    "hand"
+                );
+                // Hand cast: the flashback-only cost never applies (CR 702.34a).
+                expect(selection).toBeUndefined();
+            });
+        });
+
+        describe("exile-from-hand cost picker (zone-aware)", () => {
+            it("records a picked hand card, rejecting a non-matching colour", () => {
+                const blue = makeInstance(ancestralRecall.id, {
+                    zone: "hand",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const red = makeInstance(mountain.id, {
+                    zone: "hand",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const fb = makeInstance(grizzlyBears.id, {
+                    zone: "graveyard",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const p1 = makePlayer("p1", {
+                    hand: [blue, red],
+                    graveyard: [fb],
+                });
+                const state = makeState({ players: [p1, makePlayer("p2")] });
+                state.pendingCast = {
+                    playerId: "p1",
+                    cardInstanceId: fb.id,
+                    manaCost: {},
+                    tappedLandIds: [],
+                    exileFromGraveyardChoice: {
+                        count: 1,
+                        color: "U",
+                        excludeInstanceId: fb.id,
+                        zone: "hand",
+                    },
+                };
+
+                // A red card in hand does not satisfy an "exile a blue card" cost.
+                expect(() =>
+                    recordCastExileCostPick(state, "p1", [red.id])
+                ).toThrow(/does not match/);
+                // The matching blue card is recorded (moves at commit).
+                recordCastExileCostPick(state, "p1", [blue.id]);
+                expect(
+                    state.pendingCast!.exileFromGraveyardChoice!.pickedCardIds
+                ).toEqual([blue.id]);
+            });
+        });
+
+        describe("serialization round-trip", () => {
+            it("preserves a FlashbackCost grant + the exile-cost zone", () => {
+                const granted = makeInstance(grizzlyBears.id, {
+                    zone: "graveyard",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    grantedFlashback: {
+                        mana: { U: 1 },
+                        sacrifice: SAC_MOUNTAIN,
+                    },
+                });
+                const state = makeState({
+                    players: [
+                        makePlayer("p1", { graveyard: [granted] }),
+                        makePlayer("p2"),
+                    ],
+                });
+                state.pendingCast = {
+                    playerId: "p1",
+                    cardInstanceId: granted.id,
+                    manaCost: {},
+                    tappedLandIds: [],
+                    exileFromGraveyardChoice: {
+                        count: 1,
+                        color: "U",
+                        excludeInstanceId: granted.id,
+                        zone: "hand",
+                    },
+                };
+                const round = expandState(compactState(state));
+                expect(
+                    getPlayer(round, "p1").graveyard[0].grantedFlashback
+                ).toEqual({ mana: { U: 1 }, sacrifice: SAC_MOUNTAIN });
+                expect(round.pendingCast!.exileFromGraveyardChoice!.zone).toBe(
+                    "hand"
+                );
+            });
+        });
+
+        describe("frontend wiring — projectPublicState tags a non-mana flashback", () => {
+            it("attaches legalActions to a sacrifice-flashback card when affordable", () => {
+                const fb = makeInstance(firebolt.id, {
+                    zone: "graveyard",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    grantedFlashback: { sacrifice: SAC_MOUNTAIN },
+                });
+                const mtn = makeInstance(mountain.id, {
+                    controllerId: "p1",
+                    ownerId: "p1",
+                });
+                const state = makeState({
+                    players: [
+                        makePlayer("p1", {
+                            graveyard: [fb],
+                            battlefield: [mtn],
+                            // No mana pool — the flashback cost is a sacrifice.
+                            manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
+                        }),
+                        makePlayer("p2"),
+                    ],
+                });
+                const projected = projectPublicState(state, 1, "p1");
+                const projFb = projected.players[0].graveyard.find(
+                    (c) => c.id === fb.id
+                )!;
+                expect(projFb.legalActions).toEqual(["cast"]);
+            });
         });
     });
 

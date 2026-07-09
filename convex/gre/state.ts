@@ -10,6 +10,7 @@ import type {
     DelayedTriggerTiming,
     DurationSpec,
     EffectOp,
+    FlashbackCost,
     GameEvent,
     ManaCost as CardManaCost,
     MayPayCost,
@@ -726,8 +727,10 @@ export type CardInstanceState = {
      *  the card becomes castable from that graveyard for this cost, overriding
      *  any printed `CardDefinition.flashback`. Cleared at the CLEANUP step
      *  (CR 514.2 — "until end of turn"). Persisted so the grant survives a DB
-     *  round-trip. */
-    grantedFlashback?: CardManaCost;
+     *  round-trip. Normally a bare mana cost (Snapcaster's grant equals the
+     *  card's mana cost), but may carry a full {@link FlashbackCost} shape when
+     *  the granted flashback also has a non-mana component (CR 702.34a). */
+    grantedFlashback?: CardManaCost | FlashbackCost;
 };
 
 /** ADR 0026 — clears persistent card knowledge over a Hidden Zone. The single
@@ -1180,11 +1183,18 @@ export type PendingCast = {
      *  own cost, CR 702.34e). `pickedCardIds` is undefined until the player
      *  calls `selectCastExileCost`, and commit is blocked while it is unset
      *  regardless of mana coverage. On commit the chosen cards move graveyard →
-     *  exile. Mirrors the activation-path `exileFromGraveyardChoice`. */
+     *  exile. Mirrors the activation-path `exileFromGraveyardChoice`.
+     *
+     *  `zone` selects which of the caster's OWN zones the picked cards come from:
+     *  `"graveyard"` (default, Flash of Insight) or `"hand"` — the flashback-only
+     *  "Exile a <colour> card from your hand" cost (CR 702.34a / 118.5). The
+     *  record/commit/affordability/UI paths read this zone uniformly, so the
+     *  hand variant rides the exact same picker as the graveyard one. */
     exileFromGraveyardChoice?: {
         count: number;
         color?: Color;
         excludeInstanceId: string;
+        zone?: "graveyard" | "hand";
         pickedCardIds?: string[];
     };
 };

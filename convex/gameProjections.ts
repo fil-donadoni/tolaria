@@ -10,7 +10,7 @@ import { getPendingChoiceMax } from "./gre/state";
 import type { CardAction } from "./gre/types";
 import type { ActivatedAbility, ManaCost } from "./cards/types";
 import { getLegalActions } from "./gre/rules";
-import { getFlashbackCost } from "./gre/flashback";
+import { hasFlashback } from "./gre/flashback";
 import { FACE_DOWN_CARD_ID, tryGetDefinition } from "./cards";
 
 /** CardInstanceState with the static card def stripped to { id } only. */
@@ -320,7 +320,9 @@ function projectGraveyardCard(
     legalActionsFor: () => CardAction[]
 ): SlimGraveyardCard {
     const slim = slimCard(card);
-    if (isOwnGraveyard && getFlashbackCost(card) !== undefined) {
+    // CR 702.34a — tag any flashback-castable card, including a purely non-mana
+    // flashback (Lava Dart) whose mana portion is absent.
+    if (isOwnGraveyard && hasFlashback(card)) {
         return { ...slim, legalActions: legalActionsFor() };
     }
     return slim;

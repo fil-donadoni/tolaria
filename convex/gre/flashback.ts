@@ -14,25 +14,94 @@
 // and cost live here. The flashback cost is either printed on the card
 // (`CardDefinition.flashback`) or granted at the instance level until end of
 // turn (`CardInstanceState.grantedFlashback` — Snapcaster Mage).
-import type { ManaCost } from "../cards/types";
+import type { FlashbackCost, ManaCost } from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import type { CardInstanceState, PlayerState } from "./state";
 
-/** The Flashback cost currently available on a card, or `undefined` when the
- *  card has no flashback (CR 702.34a). An instance-level grant (Snapcaster
- *  Mage's `grantedFlashback`) overrides / supplies the printed
- *  `CardDefinition.flashback`. */
-export function getFlashbackCost(
+/** The flashback-only NON-mana additional cost (sacrifice a permanent and/or
+ *  exile a card from hand), independent of the mana portion (CR 702.34a). */
+export type FlashbackAdditionalCost = Pick<
+    FlashbackCost,
+    "sacrifice" | "exileFromHand"
+>;
+
+/** A raw `flashback` value may be a bare {@link ManaCost} (mana-only flashback,
+ *  Faithless Looting) or the generalized {@link FlashbackCost} shape carrying a
+ *  non-mana component (Lava Dart). This discriminant is exact: a `FlashbackCost`
+ *  is the only shape with a `mana`/`sacrifice`/`exileFromHand` key, and a
+ *  `ManaCost` never has one (its keys are colour/generic/X pips). */
+function isFlashbackCostShape(
+    raw: ManaCost | FlashbackCost
+): raw is FlashbackCost {
+    return "mana" in raw || "sacrifice" in raw || "exileFromHand" in raw;
+}
+
+/** Normalize either accepted `flashback` shape to a {@link FlashbackCost}. A
+ *  bare mana cost becomes `{ mana }`; a `FlashbackCost` passes through. */
+export function normalizeFlashbackCost(
+    raw: ManaCost | FlashbackCost
+): FlashbackCost {
+    return isFlashbackCostShape(raw) ? raw : { mana: raw };
+}
+
+/** The raw flashback value in effect for `card` — the instance-level grant
+ *  (Snapcaster's `grantedFlashback`) if present, else the printed
+ *  `CardDefinition.flashback`. Undefined when the card has no flashback. */
+function getRawFlashback(
     card: CardInstanceState
-): ManaCost | undefined {
+): ManaCost | FlashbackCost | undefined {
     if (card.grantedFlashback) return card.grantedFlashback;
     const id = (card.card as { id?: string }).id;
     return id ? (tryGetDefinition(id)?.flashback ?? undefined) : undefined;
 }
 
-/** True iff `card` currently has a Flashback cost (printed or granted). */
+/** The full normalized flashback cost for `card`, or `undefined` when it has no
+ *  flashback (CR 702.34a). */
+export function getNormalizedFlashback(
+    card: CardInstanceState
+): FlashbackCost | undefined {
+    const raw = getRawFlashback(card);
+    return raw ? normalizeFlashbackCost(raw) : undefined;
+}
+
+/** The MANA portion of a card's flashback cost, or `undefined` when the card
+ *  has no flashback OR the flashback cost has no mana component (Lava Dart:
+ *  "Sacrifice a Mountain" pays no mana). An instance-level grant (Snapcaster
+ *  Mage's `grantedFlashback`) overrides / supplies the printed
+ *  `CardDefinition.flashback`. Callers that also need the non-mana component
+ *  read {@link getFlashbackAdditionalCost}. */
+export function getFlashbackCost(
+    card: CardInstanceState
+): ManaCost | undefined {
+    return getNormalizedFlashback(card)?.mana;
+}
+
+/** The flashback-only NON-mana additional cost for `card`, or `undefined` when
+ *  the card has no flashback or a purely-mana flashback (CR 702.34a / 118.5).
+ *  Applies ONLY on a flashback (graveyard) cast — the caller gates on the cast
+ *  zone. */
+export function getFlashbackAdditionalCost(
+    card: CardInstanceState
+): FlashbackAdditionalCost | undefined {
+    const fb = getNormalizedFlashback(card);
+    if (!fb) return undefined;
+    if (fb.sacrifice === undefined && fb.exileFromHand === undefined) {
+        return undefined;
+    }
+    return {
+        ...(fb.sacrifice !== undefined ? { sacrifice: fb.sacrifice } : {}),
+        ...(fb.exileFromHand !== undefined
+            ? { exileFromHand: fb.exileFromHand }
+            : {}),
+    };
+}
+
+/** True iff `card` currently has a Flashback cost of any shape — mana-only,
+ *  a non-mana cost, or both (printed or granted). Note this is NOT
+ *  `getFlashbackCost(card) !== undefined`: a purely non-mana flashback (Lava
+ *  Dart) has no mana portion yet is still castable via flashback. */
 export function hasFlashback(card: CardInstanceState): boolean {
-    return getFlashbackCost(card) !== undefined;
+    return getNormalizedFlashback(card) !== undefined;
 }
 
 /** CR 702.34a — the card in `player`'s graveyard with `instanceId` that can be
