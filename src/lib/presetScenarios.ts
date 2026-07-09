@@ -55,6 +55,35 @@ type PresetScenario = {
 
 export const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Kicker / Multikicker cluster (issue #692, CR 702.33 / 702.33e). Every
+        // kicker card is in hand with a full colour base so you can cast each
+        // one both WITHOUT and WITH the kicker (the hand-card cast prompts a
+        // "pay the kicker?" confirm; Everflowing Chalice's Multikicker prompts
+        // for a count). Targets to exercise the kicked-vs-unkicked branch: an
+        // artifact (Sol Ring, mana value 1 — Overload/Tear Asunder), a big
+        // creature (Serra Angel, mana value 5 — Bloodchief's Thirst can only
+        // target it WHEN kicked). A stocked library makes Consult the Star
+        // Charts' dig visible.
+        label: "Kicker / Multikicker cluster (#692) — kicked vs not-kicked",
+        cards: [
+            { name: "Burst Lightning", owner: "me", zone: "hand" },
+            { name: "Overload", owner: "me", zone: "hand" },
+            { name: "Bloodchief's Thirst", owner: "me", zone: "hand" },
+            { name: "Tear Asunder", owner: "me", zone: "hand" },
+            { name: "Consult the Star Charts", owner: "me", zone: "hand" },
+            { name: "Everflowing Chalice", owner: "me", zone: "hand" },
+            { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
+            { name: "Swamp", owner: "me", zone: "battlefield", count: 3 },
+            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+            { name: "Forest", owner: "me", zone: "battlefield", count: 2 },
+            { name: "Sol Ring", owner: "opp", zone: "battlefield" },
+            { name: "Serra Angel", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 12,
+    },
+    {
         // Opt (issue #1002): {U} Instant "Scry 1. Draw a card." Cast the Opt in
         // hand (an Island covers {U}) to raise the scry-1 order-top choice on
         // your top card — keep it on top or drag it to the bottom — then draw.

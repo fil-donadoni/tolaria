@@ -8507,3 +8507,148 @@ describe("Effect Script count refinements: times multiplier + excludeSupertype (
         expect(state.players[1].life).toBe(18); // 1 nonbasic → 2 damage
     });
 });
+
+// --- New value members (CR 702.33 kicker, CR 202.3 mana value, issue #692) ---
+//
+// Each new EffectValue member pays the "entry fee once" (per DSL-first
+// authoring, new-value regime): an interpreter unit test through the REAL
+// resolution path plus a wire-format assertion once through projectPublicState.
+// Later kicker cards reuse these free.
+
+describe("Effect Script value: kickerCount (CR 702.33 / 702.33e)", () => {
+    it("reads the spell's kicker tally in a comparison predicate (was-kicked gate)", () => {
+        const id = registerScript("test-val-kicked-gate", [
+            {
+                op: "if",
+                predicate: {
+                    left: { kickerCount: true },
+                    op: "ge",
+                    right: 1,
+                },
+                then: [
+                    { op: "dealDamage", amount: 4, to: { player: "opponent" } },
+                ],
+                else: [
+                    { op: "dealDamage", amount: 2, to: { player: "opponent" } },
+                ],
+            },
+        ]);
+        // Unkicked (no kickerCount on the stack item) → the else branch.
+        const s1 = makeState();
+        pushSpell(s1, id, "p1");
+        resolveTopOfStack(s1);
+        expect(s1.players[1].life).toBe(18);
+        // Kicked (kickerCount = 1) → the then branch.
+        const s2 = makeState();
+        const item = pushSpell(s2, id, "p1");
+        item.kickerCount = 1;
+        resolveTopOfStack(s2);
+        expect(s2.players[1].life).toBe(16);
+    });
+
+    it("reads the raw multikicker tally as a numeric amount", () => {
+        const id = registerScript("test-val-kicked-count", [
+            {
+                op: "dealDamage",
+                amount: { kickerCount: true },
+                to: { player: "opponent" },
+            },
+        ]);
+        const state = makeState();
+        const item = pushSpell(state, id, "p1");
+        item.kickerCount = 3; // paid three times (multikicker)
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17);
+    });
+
+    it("survives the wire projection (kickerCount is server-read; outcome matches)", () => {
+        const id = registerScript("test-val-kicked-wire", [
+            {
+                op: "dealDamage",
+                amount: { kickerCount: true },
+                to: { player: "opponent" },
+            },
+        ]);
+        const state = makeState();
+        const item = pushSpell(state, id, "p1");
+        item.kickerCount = 2;
+        // The projected stack still carries the tally (compact round-trip).
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.stack.find((s) => s.id === item.id) as
+            | { kickerCount?: number }
+            | undefined;
+        expect(slim?.kickerCount).toBe(2);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(18);
+    });
+});
+
+describe("Effect Script value: manaValue (CR 202.3)", () => {
+    it("gates a destroy on the announced target's mana value", () => {
+        const id = registerScript("test-val-mv-gate", [
+            {
+                op: "if",
+                predicate: {
+                    left: { manaValue: { of: { target: 0 } } },
+                    op: "le",
+                    right: 2,
+                },
+                then: [{ op: "destroy", target: { target: 0 } }],
+            },
+        ]);
+        // Target BEAR_ID has mana value 1 ({X:1,G:1} → 1 generic + 1 G = 2? →
+        // X:1 is generic 1, G:1 → mana value 2). It is destroyed (≤ 2).
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "mvbear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "mvbear" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "mvbear")
+        ).toBeUndefined();
+    });
+
+    it("does not fire when the target's mana value exceeds the ceiling", () => {
+        const id = registerScript("test-val-mv-over", [
+            {
+                op: "if",
+                predicate: {
+                    left: { manaValue: { of: { target: 0 } } },
+                    op: "le",
+                    right: 2,
+                },
+                then: [{ op: "destroy", target: { target: 0 } }],
+            },
+        ]);
+        // Serra Angel-like MV 5 target survives.
+        const bigId = "test-val-mv-big";
+        registerTokenDefinition({
+            id: bigId,
+            name: bigId,
+            rarity: "common",
+            manaCost: { X: 3, W: 2 },
+            types: ["Creature"],
+            power: 4,
+            toughness: 4,
+        });
+        const big = makeInstance(bigId, { controllerId: "p2", id: "mvbig" });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [big] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "mvbig" }]);
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "mvbig")
+        ).toBeDefined();
+    });
+});

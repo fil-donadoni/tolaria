@@ -3,3 +3,4 @@
 
 export * from "./blue";
 export * from "./colorless";
+export * from "./red";

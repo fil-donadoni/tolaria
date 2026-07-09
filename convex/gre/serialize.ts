@@ -648,6 +648,10 @@ function compactStackItem(item: StackItem): CompactCard {
     base.castById = item.castById;
     if (item.targets?.length) base.targets = item.targets;
     if (item.chosenX !== undefined) base.chosenX = item.chosenX;
+    // CR 702.33 — persist the kicker tally so an "if this spell was kicked"
+    // resolution (Overload, Burst Lightning, Everflowing Chalice's ETB counters)
+    // survives a DB round-trip while the spell sits on the stack.
+    if (item.kickerCount !== undefined) base.kickerCount = item.kickerCount;
     if (item.targetAmounts) base.targetAmounts = item.targetAmounts;
     if (item.chosenModeId) base.chosenModeId = item.chosenModeId;
     if (item.additionalSacrificeSnapshot) {
@@ -702,6 +706,9 @@ function expandStackItem(compact: CompactCard): StackItem {
         item.targets = compact.targets as StackItem["targets"];
     }
     if (compact.chosenX !== undefined) item.chosenX = compact.chosenX as number;
+    if (compact.kickerCount !== undefined) {
+        item.kickerCount = compact.kickerCount as number;
+    }
     if (compact.targetAmounts) {
         item.targetAmounts = compact.targetAmounts as Record<string, number>;
     }

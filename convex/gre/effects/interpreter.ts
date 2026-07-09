@@ -324,6 +324,21 @@ function resolveValue(
         }
         return undefined;
     }
+    // kickerCount — how many times the resolving spell was kicked (CR 702.33 /
+    // 702.33e), a thin skin over ctx.getKickerCount. Reads back off the stack
+    // item; `> 0` in a comparison predicate is the "if this spell was kicked"
+    // gate (Overload, Burst Lightning, Bloodchief's Thirst, Tear Asunder,
+    // Consult the Star Charts). One execution path, no arithmetic.
+    if ("kickerCount" in value) return ctx.getKickerCount();
+    // manaValue — the mana value of a selected object (CR 202.3), a thin skin
+    // over ctx.getManaValue. `of` resolves through the SAME resolveObjectRef
+    // path every object-acting Op uses; an undefined resolution (the object
+    // left play, CR 608.2b) makes the value unresolvable so the caller skips
+    // (Overload's "destroy target artifact if its mana value is N or less").
+    if ("manaValue" in value) {
+        const target = resolveObjectRef(ctx, value.manaValue.of);
+        return target ? ctx.getManaValue(target) : undefined;
+    }
     return countSet(ctx, value.count);
 }
 

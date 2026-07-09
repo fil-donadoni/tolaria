@@ -208,3 +208,63 @@ describe("Celestial Colonnade (manland — CR 611.1 animate, CR 614.1c enters ta
         expect(live.staticAbilities).not.toContain("vigilance");
     });
 });
+
+// --- Everflowing Chalice (Multikicker {2}, CR 702.33e, issue #692) ----------
+// Enters with a charge counter per kick (`entersWith.counters` count "kicker"),
+// and its {T} mana ability scales {C} with the live charge count via the
+// board-conditional `manaAmount` hook. Board-visible → a wire-format assertion
+// (projectPublicState) confirms the counters survive the projection.
+import { everflowingChalice } from "..";
+import { pushSpell } from "../../../__tests__/setup";
+import { getDynamicManaProduced } from "../../../../gre/constants";
+import { projectPublicState } from "../../../../gameProjections";
+
+describe("Everflowing Chalice (Multikicker {2}, CR 702.33e)", () => {
+    function enterKicked(times: number) {
+        const state = makeState();
+        const item = pushSpell(state, everflowingChalice.id, "p1");
+        if (times > 0) item.kickerCount = times;
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("enters with a charge counter for each time it was kicked", () => {
+        const state = enterKicked(2);
+        const chalice = state.players[0].battlefield.find(
+            (c) => c.card.id === everflowingChalice.id
+        )!;
+        expect(chalice.counters?.charge).toBe(2);
+    });
+
+    it("enters with no counters when not kicked", () => {
+        const state = enterKicked(0);
+        const chalice = state.players[0].battlefield.find(
+            (c) => c.card.id === everflowingChalice.id
+        )!;
+        expect(chalice.counters?.charge ?? 0).toBe(0);
+    });
+
+    it("taps for {C} equal to its charge counters (board-conditional mana)", () => {
+        const state = enterKicked(3);
+        const chalice = state.players[0].battlefield.find(
+            (c) => c.card.id === everflowingChalice.id
+        )!;
+        const produced = getDynamicManaProduced(
+            chalice,
+            state.players[0].battlefield
+        );
+        expect(produced?.C).toBe(3);
+    });
+
+    it("carries the charge counters across the wire projection", () => {
+        const state = enterKicked(2);
+        const chalice = state.players[0].battlefield.find(
+            (c) => c.card.id === everflowingChalice.id
+        )!;
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === chalice.id
+        )!;
+        expect(slim.counters?.charge).toBe(2);
+    });
+});

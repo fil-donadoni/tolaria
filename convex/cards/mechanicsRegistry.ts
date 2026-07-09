@@ -925,7 +925,19 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Kicker",
         kind: "keyword-ability",
         cr: "702.33",
-        status: "planned",
+        status: "implemented",
+        binding: "kicker",
+        note: "Cost-system / keyword-cast capability (engine infra, NOT an Effect Script Op): CardDefinition.kicker (KickerCost — the optional additional mana cost) + CardDefinition.kickedTargetRequirement (target set that replaces targetRequirement when kicked). announceCast accepts a kickerCount, folds kicker.cost into the pending mana cost, threads it through pendingTarget/pendingCast, and snapshots it on the StackItem as kickerCount; SpellContext.getKickerCount() reads it at resolution, exposed to DSL via the { kickerCount: true } value (`> 0` = was kicked). projectPublicState carries the card's kicker field to the client (HandCardKickerButton) so the caster can choose to pay it. Used by Overload, Bloodchief's Thirst, Burst Lightning, Tear Asunder, Consult the Star Charts.",
+    },
+    // 702.33e Multikicker
+    {
+        id: "multikicker",
+        name: "Multikicker",
+        kind: "keyword-ability",
+        cr: "702.33e",
+        status: "implemented",
+        binding: "multikicker",
+        note: "The Kicker variant that may be paid any number of times as the spell is cast (CardDefinition.kicker.multi). Shares the whole Kicker cost-system path; kickerCount records how many times it was paid and drives 'a charge counter for each time it was kicked' via entersWith.counters count 'kicker'. Used by Everflowing Chalice.",
     },
     // 702.34 Flashback
     {

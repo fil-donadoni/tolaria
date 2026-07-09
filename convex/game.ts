@@ -88,6 +88,7 @@ import {
 import { assertDeckLegal } from "./formats";
 import type {
     ActivatedAbility,
+    CardDefinition,
     CardType,
     Color,
     ManaCost,
@@ -1876,6 +1877,7 @@ export function tryAutoCommitPendingCast(
     const pendingTargets = (state.pendingCast as Record<string, unknown>)
         .targets as StackItem["targets"] | undefined;
     const pendingChosenX = state.pendingCast.chosenX;
+    const pendingKickerCount = state.pendingCast.kickerCount;
     const pendingChosenModeId = state.pendingCast.chosenModeId;
     const pendingTargetAmounts = state.pendingCast.targetAmounts;
     // CR 601.2b / 118.4 — pay the "pay X life" additional cost the instant the
@@ -1892,6 +1894,7 @@ export function tryAutoCommitPendingCast(
         castById: playerId,
         ...(pendingTargets ? { targets: pendingTargets } : {}),
         ...(pendingChosenX !== undefined ? { chosenX: pendingChosenX } : {}),
+        ...(pendingKickerCount ? { kickerCount: pendingKickerCount } : {}),
         ...(pendingTargetAmounts
             ? { targetAmounts: pendingTargetAmounts }
             : {}),
@@ -3024,6 +3027,59 @@ export function advanceTargetGroupOrFinalize(
  *  additional generic cost modifier (CR 601.2f). Exported for integration
  *  tests that exercise the real cost/target commit path (e.g. Reflecting
  *  Mirror's derived-X + retarget finalization). */
+/** CR 702.33 — validate a requested Kicker tally against a card and return the
+ *  canonical count (0 = not kicked). Throws when a positive count is requested
+ *  for a card with no Kicker, when the count is not a non-negative integer, or
+ *  when a single (non-Multikicker) Kicker is asked to be paid more than once
+ *  (CR 702.33e — only Multikicker may be paid repeatedly). */
+export function resolveKickerCount(
+    cardDef: CardDefinition,
+    requested: number | undefined
+): number {
+    const n = requested ?? 0;
+    if (n === 0) return 0;
+    if (!Number.isInteger(n) || n < 0) {
+        throw new Error("Invalid kicker count");
+    }
+    if (!cardDef.kicker) throw new Error("This spell has no kicker");
+    if (!cardDef.kicker.multi && n > 1) {
+        throw new Error("This spell's kicker can only be paid once");
+    }
+    return n;
+}
+
+/** CR 702.33a / 601.2f — fold the Kicker cost (paid `kickerCount` times) into a
+ *  normalized mana-cost record, mutating it in place. No-op when not kicked or
+ *  the card has no Kicker. Applied to the total mana cost BEFORE cost modifiers
+ *  (CR 601.2f — an additional cost joins the total, then increases/reductions
+ *  apply). */
+function foldKickerCost(
+    cost: Record<string, number>,
+    cardDef: CardDefinition,
+    kickerCount: number
+): void {
+    if (kickerCount <= 0 || !cardDef.kicker) return;
+    const per = normalizeManaCost(cardDef.kicker.cost);
+    for (const [sym, amt] of Object.entries(per)) {
+        cost[sym] = (cost[sym] ?? 0) + amt * kickerCount;
+    }
+}
+
+/** CR 702.33 — the target requirement in force for a cast: the card's
+ *  `kickedTargetRequirement` when the spell was kicked and one is declared
+ *  (Bloodchief's Thirst, Tear Asunder), else the base `targetRequirement`. A
+ *  chosen modal mode's requirement still wins over both (modal + kicker never
+ *  co-occur on a shipped card, but the precedence is defined). */
+function kickerAdjustedTargetRequirement(
+    cardDef: CardDefinition,
+    kickerCount: number
+): TargetRequirement | undefined {
+    if (kickerCount > 0 && cardDef.kickedTargetRequirement) {
+        return cardDef.kickedTargetRequirement;
+    }
+    return cardDef.targetRequirement;
+}
+
 export function finalizeTargetSelection(
     state: GameState,
     pt: PendingTarget,
@@ -3036,6 +3092,9 @@ export function finalizeTargetSelection(
     const cardInstanceId = pt.cardInstanceId;
     const keepPriority = pt.keepPriority;
     const chosenX = pt.chosenX;
+    // CR 702.33 — Kicker tally chosen at announcement, folded into the mana cost
+    // paid at this commit and propagated to the resolving stack item.
+    const kickerCount = pt.kickerCount ?? 0;
     const chosenModeId = pt.chosenModeId;
     const kind = pt.kind ?? "cast";
     const abilityId = pt.abilityId;
@@ -3403,6 +3462,17 @@ export function finalizeTargetSelection(
         : rawCost
           ? normalizeManaCost(rawCost, { chosenX, additionalGeneric })
           : {};
+    // CR 702.33a / 601.2f — a Kicker cast pays the kicker cost ON TOP of the
+    // cost, as an ADDITIONAL cost. It composes with an ALTERNATIVE cost (CR
+    // 118.9): the alt cost zeroes the printed mana (`manaCost` starts `{}`) and
+    // is paid through its own non-mana legs (return/sacrifice/pay-life/exile),
+    // while the kicker's mana still folds on top here — so a spell that is both
+    // kicked AND alt-cast pays the kicker mana plus the alt cost, neither leg
+    // clobbering the other. `foldKickerCost` early-returns when the card has no
+    // kicker or `kickerCount` is 0, so this is a no-op for a plain alt-cost
+    // cast. Folded BEFORE cost modifiers so reductions/increases apply to the
+    // total (CR 601.2f).
+    foldKickerCost(manaCost, cardDef, kickerCount);
     applyCostModifiers(manaCost, getCostModifiers(state, cardInHand, "spell"));
     // CR 601.2f / 118.5 — board-wide static NON-mana additional cost (Drought:
     // "Spells cost an additional 'Sacrifice a Swamp' for each black mana
@@ -3486,6 +3556,7 @@ export function finalizeTargetSelection(
             keepPriority,
             chosenX,
             ...(payLife > 0 ? { payLife } : {}),
+            ...(kickerCount > 0 ? { kickerCount } : {}),
             ...(chosenModeId ? { chosenModeId } : {}),
             ...(exilePicker ? { additionalCost: exilePicker } : {}),
             ...(castSac ? { sacrificeSelection: castSac } : {}),
@@ -3553,6 +3624,7 @@ export function finalizeTargetSelection(
             castById: playerId,
             targets,
             ...(chosenX !== undefined ? { chosenX } : {}),
+            ...(kickerCount > 0 ? { kickerCount } : {}),
             ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
             ...(chosenModeId ? { chosenModeId } : {}),
             ...(additionalSacrificeSnapshot
@@ -3578,6 +3650,7 @@ export function finalizeTargetSelection(
             tappedLandIds: [],
             keepPriority,
             chosenX,
+            ...(kickerCount > 0 ? { kickerCount } : {}),
             ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
             ...(payLife > 0 ? { payLife } : {}),
             ...(chosenModeId ? { chosenModeId } : {}),
@@ -3831,6 +3904,10 @@ export const announceCast = mutation({
         /** Value chosen for X at cast-time (CR 107.3, 601.2b). Required when
          *  the spell has `X: "X"` in its mana cost. */
         chosenX: v.optional(v.number()),
+        /** CR 702.33 — how many times to pay this spell's optional Kicker cost
+         *  as it is cast (0/omitted = don't kick). A single Kicker accepts 0 or
+         *  1; a Multikicker (CR 702.33e) accepts any non-negative integer. */
+        kickerCount: v.optional(v.number()),
         /** Mode chosen for modal spells (CR 700.2 / 700.2c). Required when
          *  the card defines `modes`. */
         chosenModeId: v.optional(v.string()),
@@ -3970,11 +4047,19 @@ export const announceCast = mutation({
             );
         }
 
+        // CR 702.33 — validate and canonicalize the optional Kicker tally
+        // chosen for this cast (0 = not kicked). Throws for a non-kicker card,
+        // a bad count, or a single kicker asked to be paid more than once.
+        const kickerCount = resolveKickerCount(cardDef, args.kickerCount);
+
         // For modal spells, the chosen mode's targetRequirement drives target
-        // selection (CR 700.2d). Falls back to the card-level requirement for
-        // non-modal spells.
+        // selection (CR 700.2d). Falls back to the kicker-adjusted card-level
+        // requirement for non-modal spells — a kicked spell with a
+        // `kickedTargetRequirement` (Bloodchief's Thirst, Tear Asunder) targets
+        // its wider/different set (CR 702.33).
         const activeTargetRequirement =
-            chosenMode?.targetRequirement ?? cardDef.targetRequirement;
+            chosenMode?.targetRequirement ??
+            kickerAdjustedTargetRequirement(cardDef, kickerCount);
 
         // Check if the card requires targets (CR 601.2c). When `count: "X"`
         // resolves to 0 (X chosen as 0), the spell takes no targets — fall
@@ -4078,6 +4163,7 @@ export const announceCast = mutation({
                 selected: [],
                 keepPriority: args.keepPriority,
                 chosenX,
+                ...(kickerCount > 0 ? { kickerCount } : {}),
                 ...(divideTotal !== undefined ? { divideTotal } : {}),
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
@@ -4215,6 +4301,9 @@ export const announceCast = mutation({
         const rawCost = castRawManaCost(cardInHand, castFromZone);
 
         const manaCost = rawCost ? normalizeManaCost(rawCost, { chosenX }) : {};
+        // CR 702.33a — fold the optional Kicker cost into the total (before cost
+        // modifiers, CR 601.2f). No-op when the caster didn't kick.
+        foldKickerCost(manaCost, cardDef, kickerCount);
         applyCostModifiers(
             manaCost,
             getCostModifiers(state, cardInHand, "spell")
@@ -4320,6 +4409,7 @@ export const announceCast = mutation({
                 tappedLandIds: [],
                 keepPriority: args.keepPriority,
                 chosenX,
+                ...(kickerCount > 0 ? { kickerCount } : {}),
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
@@ -4380,6 +4470,7 @@ export const announceCast = mutation({
                 ...card,
                 castById: args.playerId,
                 ...(chosenX !== undefined ? { chosenX } : {}),
+                ...(kickerCount > 0 ? { kickerCount } : {}),
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
@@ -4406,6 +4497,7 @@ export const announceCast = mutation({
                 tappedLandIds: [],
                 keepPriority: args.keepPriority,
                 chosenX,
+                ...(kickerCount > 0 ? { kickerCount } : {}),
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
