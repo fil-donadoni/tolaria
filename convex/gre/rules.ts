@@ -30,8 +30,14 @@ import { isGuardedAgainst } from "./permanentGuard";
 import { castProhibitionReason } from "../cards/castRestrictions";
 import { matchesPermanentFilter } from "../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
+import { getCardColors } from "../cards/colors";
 import { affordableAlternativeCosts } from "./alternativeCost";
-import { getFlashbackCost } from "./flashback";
+import {
+    getFlashbackCost,
+    getFlashbackAdditionalCost,
+    hasFlashback,
+    type FlashbackAdditionalCost,
+} from "./flashback";
 import type { ManaCost } from "../cards/types";
 import {
     landPlayLockActive,
@@ -134,22 +140,30 @@ export function getLegalActions(
     // A graveyard card is never castable any other way, so this branch fully
     // owns the "cast" decision for it: same timing/phase gates as a hand cast,
     // but affordability is checked against the flashback cost.
-    const flashbackCost =
+    const isFlashbackCast =
         !types.includes("Land") &&
-        player.graveyard.some((c) => c.id === card.id)
-            ? getFlashbackCost(card)
-            : undefined;
-    if (flashbackCost !== undefined) {
+        player.graveyard.some((c) => c.id === card.id) &&
+        hasFlashback(card);
+    if (isFlashbackCast) {
         const baseLegal = hasInstantTiming(card)
             ? true
             : isSorceryTiming(state);
+        // CR 702.34a — the mana portion may be absent (Lava Dart pays only a
+        // sacrifice); an empty cost is always affordable.
+        const flashbackMana = getFlashbackCost(card) ?? {};
         if (
             baseLegal &&
             passesCastPhaseRestriction(state, card) &&
             castProhibitionReason(player.id, card, state) === undefined &&
-            canPotentiallyPayCost(player, card, flashbackCost) &&
+            canPotentiallyPayCost(player, card, flashbackMana) &&
             hasEnoughLegalTargets(state, player, card) &&
-            hasPayableAdditionalCost(player, card)
+            // CR 702.34a / 118.5 — the flashback-only non-mana cost (sacrifice a
+            // matching permanent / exile a matching card from hand) must itself
+            // be payable, or the flashback cast can't be announced.
+            hasPayableFlashbackAdditionalCost(
+                player,
+                getFlashbackAdditionalCost(card)
+            )
         ) {
             actions.push("cast");
         }
@@ -218,6 +232,46 @@ function hasPayableAdditionalCost(
             selfControllerId: player.id,
         });
     });
+}
+
+/** CR 702.34a / 118.5 — affordability gate for the flashback-only non-mana
+ *  additional cost (Lava Dart "Sacrifice a Mountain"). A flashback cast can only
+ *  be announced if the caster controls at least one permanent matching the
+ *  `sacrifice` filter AND holds at least one card matching the `exileFromHand`
+ *  filter (each additional cost demands exactly one). Suppressing "cast" here
+ *  also blocks the server path (`assertLegalAction` rejects an unpayable
+ *  flashback). Effective colours are derived per-candidate via the layer system
+ *  (mirrors `hasPayableAdditionalCost`). Undefined cost → always payable. */
+function hasPayableFlashbackAdditionalCost(
+    player: PlayerState,
+    add: FlashbackAdditionalCost | undefined
+): boolean {
+    if (!add) return true;
+    if (add.sacrifice) {
+        const sacFilter = add.sacrifice;
+        const hasVictim = player.battlefield.some((c) => {
+            const view = { ...c, colors: STATIC_EFFECT_CTX.getColors(c) };
+            return matchesPermanentFilter(view, sacFilter, {
+                selfControllerId: player.id,
+            });
+        });
+        if (!hasVictim) return false;
+    }
+    if (add.exileFromHand) {
+        const wantColor = add.exileFromHand.color;
+        const hasCard = player.hand.some((c) => {
+            const cardId = (c.card as { id?: string }).id;
+            if (!cardId) return false;
+            const def = tryGetDefinition(cardId);
+            if (!def) return false;
+            return (
+                wantColor === undefined ||
+                getCardColors(def).includes(wantColor)
+            );
+        });
+        if (!hasCard) return false;
+    }
+    return true;
 }
 
 /** CR 601.2c: a spell with required targets can only be cast if enough legal

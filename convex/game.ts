@@ -79,7 +79,11 @@ import {
     buildHandSpellDemands,
 } from "./gre/autoTapDemands";
 import { isGuardedAgainst } from "./gre/permanentGuard";
-import { findFlashbackCastable, getFlashbackCost } from "./gre/flashback";
+import {
+    findFlashbackCastable,
+    getFlashbackAdditionalCost,
+    getFlashbackCost,
+} from "./gre/flashback";
 import { assertDeckLegal } from "./formats";
 import type {
     ActivatedAbility,
@@ -1794,15 +1798,21 @@ export function tryAutoCommitPendingCast(
     // drop the pendingCast silently. Runs BEFORE the flashback card itself
     // leaves the graveyard below (the picks never include it — CR 702.34e).
     if (castExile?.pickedCardIds) {
+        // CR 702.34a / 118.5 — the picked cost cards leave the caster's own
+        // graveyard (default) or hand (`zone: "hand"`, the exile-from-hand
+        // flashback cost) for exile.
+        const exileSourceZone = castExile.zone ?? "graveyard";
+        const exileSource =
+            exileSourceZone === "hand" ? player.hand : player.graveyard;
         const stillThere = castExile.pickedCardIds.every((id) =>
-            player.graveyard.some((c) => c.id === id)
+            exileSource.some((c) => c.id === id)
         );
         if (!stillThere) {
             state.pendingCast = undefined;
             return null;
         }
         for (const id of castExile.pickedCardIds) {
-            moveCard(player, id, "graveyard", "exile");
+            moveCard(player, id, exileSourceZone, "exile");
         }
     }
 
@@ -3384,7 +3394,8 @@ export function finalizeTargetSelection(
             cardInHand,
             player,
             cardDef.additionalCosts,
-            cardDef.name ?? "Sacrifice"
+            cardDef.name ?? "Sacrifice",
+            castZone
         );
     // CR 118.9 — the chosen alternative cost (return/sacrifice N lands) is a
     // player-chosen filtered give-up, built as a `SacrificeSelection` and paid
@@ -3585,7 +3596,7 @@ export function buildAdditionalCostPicker(
  *  static additional sacrifice (Drought). Auto-resolves the fungible/forced
  *  board inline so trivial casts never prompt. The exile additional cost is NOT
  *  folded — it rides on `pendingCast.additionalCost` unchanged (Soul Exchange). */
-function buildCastSacrificeSelection(
+export function buildCastSacrificeSelection(
     state: GameState,
     rawCost: ManaCost | undefined,
     announced: CardInstanceState,
@@ -3593,7 +3604,12 @@ function buildCastSacrificeSelection(
     additionalCosts:
         | { sacrificeFilter?: PermanentFilter; exileFilter?: PermanentFilter }
         | undefined,
-    reason: string
+    reason: string,
+    /** CR 601.3e / 702.34 — the zone this cast originates from. On a `"graveyard"`
+     *  (flashback) cast the card's flashback-only "Sacrifice a <filter>" cost
+     *  (Lava Dart) is folded into the selection; on any other zone it is
+     *  ignored, so the flashback cost never leaks onto the hand cast. */
+    castFromZone: CastFromZone
 ): {
     selection?: SacrificeSelection;
     exilePicker?: { kind: "exile"; filter: PermanentFilter };
@@ -3606,6 +3622,17 @@ function buildCastSacrificeSelection(
             exilePicker = { kind: "exile", filter: picker.filter };
         } else {
             specs.push({ filter: picker.filter, count: 1, snapshot: true });
+        }
+    }
+    // CR 702.34a / 118.5 — the flashback-only "Sacrifice a <filter>" cost, added
+    // ONLY on a flashback (graveyard) cast. WHICH permanent is sacrificed is the
+    // caster's explicit choice through the unified sacrificeChoice layer (never
+    // auto-picked); exactly one is owed. Not snapshot-flagged (the flashback
+    // resolve reads no sacrificed-permanent data).
+    if (castFromZone === "graveyard") {
+        const fbSacrifice = getFlashbackAdditionalCost(announced)?.sacrifice;
+        if (fbSacrifice) {
+            specs.push({ filter: fbSacrifice, count: 1 });
         }
     }
     for (const req of getStaticAdditionalSacrifices(
@@ -4112,7 +4139,8 @@ export const announceCast = mutation({
             cardInHand,
             player,
             cardDef.additionalCosts,
-            cardDef.name ?? "Sacrifice"
+            cardDef.name ?? "Sacrifice",
+            castFromZone
         );
         // CR 702.34a / 118.5 — Flash of Insight's flashback-only additional
         // cost "Exile X blue cards from your graveyard". Applies ONLY on a
@@ -4148,6 +4176,32 @@ export const announceCast = mutation({
                     ? { color: fbExileSpec.color }
                     : {}),
                 excludeInstanceId: args.cardInstanceId,
+            };
+        }
+        // CR 702.34a / 118.5 — the flashback-only "Exile a <colour> card from
+        // your hand" cost (generalized `FlashbackCost.exileFromHand`). Applies
+        // ONLY on a flashback cast; the caster exiles exactly ONE matching card
+        // from their own HAND via the same picker (`zone: "hand"`). Reuses the
+        // exile-from-graveyard choice slot — a card never has both. Affordability
+        // is gated by getLegalActions; this re-check is defence in depth.
+        const fbHandSpec =
+            getFlashbackAdditionalCost(cardInHand)?.exileFromHand;
+        if (fbHandSpec && castFromZone === "graveyard" && !castExileChoice) {
+            const eligible = player.hand.filter((c) =>
+                graveyardCardMatchesColor(c, fbHandSpec.color)
+            );
+            if (eligible.length < 1) {
+                throw new Error(
+                    "No matching card in your hand to pay the flashback cost"
+                );
+            }
+            castExileChoice = {
+                count: 1,
+                ...(fbHandSpec.color !== undefined
+                    ? { color: fbHandSpec.color }
+                    : {}),
+                excludeInstanceId: args.cardInstanceId,
+                zone: "hand",
             };
         }
 
@@ -5190,6 +5244,12 @@ export function recordCastExileCostPick(
         throw new Error("Duplicate card selected for the exile cost");
     }
     const player = getPlayer(state, playerId);
+    // CR 702.34a / 118.5 — the cost cards come from the caster's graveyard
+    // (default, Flash of Insight) or their hand (`zone: "hand"`, the exile-a-
+    // card-from-hand flashback cost). The picked cards move `zone` → exile at
+    // commit.
+    const sourceZone = ec.zone ?? "graveyard";
+    const sourceCards = sourceZone === "hand" ? player.hand : player.graveyard;
     for (const id of cardInstanceIds) {
         if (id === ec.excludeInstanceId) {
             // CR 702.34e — the flashback card can't pay for its own cost.
@@ -5197,9 +5257,9 @@ export function recordCastExileCostPick(
                 "Can't exile the flashback card itself to pay its cost"
             );
         }
-        const card = player.graveyard.find((c) => c.id === id);
+        const card = sourceCards.find((c) => c.id === id);
         if (!card) {
-            throw new Error("Selected card is not in your graveyard");
+            throw new Error(`Selected card is not in your ${sourceZone}`);
         }
         if (!graveyardCardMatchesColor(card, ec.color)) {
             throw new Error(

@@ -35,7 +35,7 @@ export default function GraveyardFlashbackButton({
                 title={
                     enabled
                         ? undefined
-                        : "Can't flash back yet — not your main phase, or not enough mana for the flashback cost."
+                        : "Can't flash back yet — not your main phase, or you can't pay the flashback cost (mana, sacrifice, or exile-from-hand)."
                 }
                 onClick={(e) => {
                     if (!enabled) return;

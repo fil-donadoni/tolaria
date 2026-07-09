@@ -84,6 +84,33 @@ export type ManaCost = {
     xFactor?: number;
 };
 
+/** CR 702.34a / 118.5 — the full Flashback cost, generalizing the mana-only
+ *  `CardDefinition.flashback?: ManaCost` to carry an optional NON-mana cost
+ *  component that applies ONLY on the flashback (graveyard) cast, never on the
+ *  card's normal hand cast. A card whose flashback cost is purely mana can still
+ *  set `flashback` to a bare `ManaCost` — the engine normalizes both shapes
+ *  (`convex/gre/flashback.ts` → `normalizeFlashbackCost`). All additional costs
+ *  reuse existing cost machinery scoped to the flashback cast path only:
+ *  `sacrifice` routes through the unified sacrificeChoice layer (always an
+ *  explicit player choice, CR 701.21a), `exileFromHand` through the flashback
+ *  exile-cost picker. Used by Lava Dart ("Flashback—Sacrifice a Mountain",
+ *  no mana). */
+export interface FlashbackCost {
+    /** The mana portion of the flashback cost, if any. Absent for a purely
+     *  non-mana flashback cost (Lava Dart pays only "Sacrifice a Mountain"). */
+    mana?: ManaCost;
+    /** CR 702.34a / 118.5 — "Sacrifice a <filter>" flashback-only additional
+     *  cost (Lava Dart: "Sacrifice a Mountain"). The caster picks WHICH matching
+     *  permanent to sacrifice through the unified sacrificeChoice layer — never
+     *  auto-picked. Exactly one permanent is sacrificed per flashback cast. */
+    sacrifice?: PermanentFilter;
+    /** CR 702.34a / 118.5 — "Exile a <colour> card from your hand" flashback-only
+     *  additional cost. The caster exiles exactly one matching card from their
+     *  own hand via the flashback exile-cost picker. `color` filters the
+     *  eligible cards (CR 105.2); omit for any card. */
+    exileFromHand?: { color?: Color };
+}
+
 export type CardType =
     | "Creature"
     | "Planeswalker"
@@ -6358,8 +6385,12 @@ export interface CardDefinition {
      *  is flagged `exileOnResolve` so `finalizeSpellResolution` sends the card
      *  to exile instead of the graveyard. A temporary grant (Snapcaster Mage,
      *  `CardInstanceState.grantedFlashback`) overrides / supplies this at the
-     *  instance level. */
-    flashback?: ManaCost;
+     *  instance level. Set to a bare {@link ManaCost} for a mana-only flashback
+     *  (Faithless Looting), or to a {@link FlashbackCost} to add a flashback-only
+     *  NON-mana cost — sacrifice a permanent and/or exile a card from hand
+     *  (Lava Dart: "Sacrifice a Mountain") — that never leaks onto the hand
+     *  cast (CR 702.34a). */
+    flashback?: ManaCost | FlashbackCost;
     /** Adds this many generic mana to the total cost for each target beyond
      *  the first (CR 601.2f). Used by Fireball ("costs {1} more to cast for
      *  each target beyond the first"). */
