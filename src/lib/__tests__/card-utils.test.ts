@@ -18,6 +18,7 @@ import {
     getAbilityOracleText,
     getDelayedTriggerOracleText,
     getDisplayAbilities,
+    shouldShowOracleText,
     resolvePreviewAbilities,
     getManaChoices,
     hasManaAbility,
@@ -30,6 +31,8 @@ import {
     type DisplayAbilities,
 } from "../card-utils";
 import type { CardInstance } from "~/types/game";
+import type { CardDefinition } from "@convex/cards/types";
+import { getDefinition } from "@convex/cards";
 import { dominate } from "@convex/cards/sets/nem";
 import { fellwarStone, deepWater, gaeasTouch } from "@convex/cards/sets/drk";
 import {
@@ -1870,5 +1873,89 @@ describe("may-pay cost union helpers (CR 117.3a / 118.4 / 702.24, #638)", () => 
         // No sacrifice leg / cost-less → 0.
         expect(mayPayRequiredSacrifices({ U: 1 })).toBe(0);
         expect(mayPayRequiredSacrifices(undefined)).toBe(0);
+    });
+});
+
+// The card preview renders the structured ability rows (keywords / activated /
+// triggered) OR the printed Oracle text, never both. `shouldShowOracleText`
+// gates that choice. The bug it fixes: a permanent whose behavior is
+// oracle-text-only (replacement effect, enter-tapped choice) but that ALSO has
+// a structured ability would suppress its Oracle text and show nothing for the
+// oracle-only clause. See shouldShowOracleText in card-utils.
+describe("shouldShowOracleText — preview Oracle-text gate", () => {
+    const show = (def: CardDefinition) =>
+        shouldShowOracleText(def, def.types, def.subtypes ?? []);
+
+    it("shows Oracle text for a replacement-effect permanent that also has a triggered ability (Sulfuric Vortex)", () => {
+        // Enchantment: upkeep-ping trigger + lifegain-lock replacement. The
+        // replacement's rules text lives only in oracleText — the structured
+        // trigger row would otherwise be the sole thing shown.
+        const def = getDefinition("79955e27-eef7-43bd-9895-e9209ed1537f");
+        expect(def.replacementEffects?.length ?? 0).toBeGreaterThan(0);
+        expect((def.triggeredAbilities?.length ?? 0) > 0).toBe(true);
+        expect(show(def)).toBe(true);
+    });
+
+    it("shows Oracle text for a shockland (enter-tapped choice) that also has a mana ability (Steam Vents)", () => {
+        // Land: activated mana ability + entersTappedUnlessPay (CR 614.12).
+        // The pay-2-life-or-tapped clause is oracle-only.
+        const def = getDefinition("054f2276-2dd5-43da-bb26-c57c560861fe");
+        expect(def.entersTappedUnlessPay).toBeDefined();
+        expect((def.activatedAbilities?.length ?? 0) > 0).toBe(true);
+        expect(show(def)).toBe(true);
+    });
+
+    it("does NOT show Oracle text for a card whose only behavior is structured keyword/activated/triggered abilities", () => {
+        // A keyword flyer with no oracle-only mechanic: the structured rows
+        // fully describe it, so the Oracle text is suppressed to avoid
+        // double-printing.
+        const def: CardDefinition = {
+            id: "x",
+            name: "Test Flyer",
+            rarity: "common",
+            oracleText: "Flying",
+            manaCost: { W: 1 },
+            types: ["Creature"],
+            subtypes: ["Bird"],
+            power: 2,
+            toughness: 2,
+            staticAbilities: ["flying"],
+        };
+        expect(show(def)).toBe(false);
+    });
+
+    it("shows Oracle text for spells, auras, and ability-less cards", () => {
+        const spell: CardDefinition = {
+            id: "s",
+            name: "Test Bolt",
+            rarity: "common",
+            oracleText: "Deal 3 damage to any target.",
+            manaCost: { R: 1 },
+            types: ["Instant"],
+        };
+        const ability: CardDefinition = {
+            id: "a",
+            name: "Test Aura",
+            rarity: "common",
+            oracleText: "Enchanted creature gets +2/+2.",
+            manaCost: { W: 1 },
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+        };
+        const vanilla: CardDefinition = {
+            id: "v",
+            name: "Test Bear",
+            rarity: "common",
+            oracleText: "",
+            manaCost: { G: 1 },
+            types: ["Creature"],
+            subtypes: ["Bear"],
+            power: 2,
+            toughness: 2,
+        };
+        expect(show(spell)).toBe(true);
+        expect(show(ability)).toBe(true);
+        // Empty oracleText → nothing to show even though ability-less.
+        expect(show(vanilla)).toBe(false);
     });
 });

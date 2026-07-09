@@ -5,6 +5,7 @@ import { getArtCropImageUrl, resolveCardImageId } from "~/lib/images";
 import {
     formatTypeLine,
     getDisplayAbilities,
+    shouldShowOracleText,
     manaCostToString,
     resolvePreviewAbilities,
 } from "~/lib/card-utils";
@@ -189,32 +190,12 @@ export default function CardPreview({
     const types = cardInstance?.types ?? def?.types ?? [];
     const subtypes = cardInstance?.subtypes ?? def?.subtypes ?? [];
     const isCreatureCard = types.includes("Creature");
-    const isSpellCard = types.includes("Instant") || types.includes("Sorcery");
-    // CR 303.4 auras grant clauses to their host via `staticEffects`
-    // (keyword-grant / pt-buff). That static grant text never lands on the
-    // aura's own `staticAbilities`, so the structured ability view would
-    // hide it from the preview. Show the printed Oracle text for auras
-    // instead — it always covers the static + activated + triggered rules
-    // collectively, and the structured render is suppressed below so we
-    // don't double-print the activated/triggered lines.
-    const isAura = subtypes.includes("Aura");
-    const hasStructuredAbilities =
-        (def?.staticAbilities?.length ?? 0) > 0 ||
-        (def?.activatedAbilities?.length ?? 0) > 0 ||
-        (def?.triggeredAbilities?.length ?? 0) > 0;
-    // staticEffects (pt-cda, pt-buff, keyword-grant, etc.) are not rendered
-    // by the structured abilities view — their printed text only lives in
-    // oracleText. Force oracleText display when the card carries any so
-    // mixed cards like Nightmare ("Flying" keyword + Swamps-count CDA) keep
-    // the CDA clause visible. The structured render is suppressed below to
-    // avoid double-printing the keywords already covered by Oracle text.
-    const hasStaticEffectText = (def?.staticEffects?.length ?? 0) > 0;
-    const showOracleText =
-        !!def?.oracleText &&
-        (isSpellCard ||
-            isAura ||
-            !hasStructuredAbilities ||
-            hasStaticEffectText);
+    // Whether to print the Oracle text vs the structured ability rows. The
+    // gate lives in card-utils (`shouldShowOracleText`) so it is unit-tested
+    // directly — it covers spells, auras, ability-less cards, and cards whose
+    // behavior is oracle-text-only (staticEffects, replacementEffects,
+    // enter-tapped mechanics — CR 611/613/614). See the helper for detail.
+    const showOracleText = shouldShowOracleText(def, types, subtypes);
     const oracleParagraphs = showOracleText
         ? def!.oracleText!.split("\n").filter((p) => p.length > 0)
         : null;

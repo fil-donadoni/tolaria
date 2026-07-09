@@ -55,61 +55,6 @@ type PresetScenario = {
 
 export const PRESET_SCENARIOS: PresetScenario[] = [
     {
-        // Argothian Enchantress (Urza's Saga): {1}{G} 0/1 with Shroud and
-        // "Whenever you cast an enchantment spell, draw a card." The
-        // enchantress is on your battlefield; Fastbond ({G} Enchantment) is in
-        // hand and a Forest covers its cost. Cast Fastbond — the mandatory
-        // spell-cast trigger goes on the stack above it and, on resolution,
-        // draws you a card before Fastbond itself resolves (CR 603.2 / 121.1).
-        label: "Argothian Enchantress — draw on enchantment cast",
-        cards: [
-            { name: "Argothian Enchantress", owner: "me", zone: "battlefield" },
-            { name: "Fastbond", owner: "me", zone: "hand" },
-            { name: "Forest", owner: "me", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Sulfuric Vortex (issue #988): {1}{R}{R} Enchantment — "At the
-        // beginning of each player's upkeep, this enchantment deals 2 damage to
-        // that player. If a player would gain life, that player gains no life
-        // instead." Vortex is already on your battlefield. Advance to the next
-        // upkeep to watch it ping the upkeep player for 2 (fires on EVERY
-        // player's upkeep — both you and the opponent take 2 in turn). Then try
-        // to gain life: cast Healing Salve (a Plains covers {W}) and choose the
-        // "gain 3 life" mode — the life-gain lock consumes it, so your life
-        // total stays put.
-        label: "Sulfuric Vortex — upkeep ping + lifegain lock (#988)",
-        cards: [
-            { name: "Sulfuric Vortex", owner: "me", zone: "battlefield" },
-            { name: "Healing Salve", owner: "me", zone: "hand" },
-            { name: "Plains", owner: "me", zone: "battlefield" },
-            { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Hibernation (issue #995): {2}{U} Instant "Return all green permanents
-        // to their owners' hands." A colour-filtered mass bounce. Cast the
-        // Hibernation in hand (two Islands cover {2}{U}) — every GREEN permanent
-        // on BOTH battlefields (your Grizzly Bears + Forest-less green here, and
-        // the opponent's green creature) returns to its owner's hand, while the
-        // colourless Ornithopter and the Islands stay put. Confirms the filter:
-        // green goes, non-green stays.
-        label: "Hibernation — mass bounce by colour (#995)",
-        cards: [
-            { name: "Hibernation", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-            { name: "Ornithopter", owner: "me", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 2,
-    },
-    {
         // Opt (issue #1002): {U} Instant "Scry 1. Draw a card." Cast the Opt in
         // hand (an Island covers {U}) to raise the scry-1 order-top choice on
         // your top card — keep it on top or drag it to the bottom — then draw.
@@ -122,23 +67,6 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 1,
         libraryCount: 12,
-    },
-    {
-        // Goblin Cadets (issue #1001): {R} 2/1 Goblin — "Whenever this creature
-        // blocks or becomes blocked, target opponent gains control of it. (This
-        // removes this creature from combat.)" Goblin Cadets is on your
-        // battlefield with an opponent creature across the table. Move to combat
-        // and attack with Goblin Cadets; when the opponent blocks it, it
-        // "becomes blocked" — the trigger donates it to the opponent (CR 613.1b)
-        // and removes it from combat (CR 506.4c), so no combat damage is dealt.
-        // (Symmetrically, blocking an opponent's attacker donates it too.)
-        label: "Goblin Cadets — control-donation drawback (#1001)",
-        cards: [
-            { name: "Goblin Cadets", owner: "me", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 2,
     },
     {
         // Copy-on-ETB Bot cast prune (issue #938): a copy-on-ETB spell (Copy
@@ -186,49 +114,6 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 4,
     },
     {
-        // ICE repeating combat-event delayed trigger (issue #884): Battle Cry
-        // ("Untap all white creatures you control. Whenever a creature blocks
-        // this turn, it gets +0/+1 until end of turn."). Shield Bearer starts
-        // TAPPED to show the untap clause; Balduvian Bears is a ready attacker.
-        // Cast Battle Cry in PRECOMBAT_MAIN (untaps Shield Bearer immediately
-        // and schedules the repeating "this-turn-creature-blocks" watch),
-        // attack with the Bears, then block with the opponent's Bears — the
-        // blocker gets +0/+1 until end of turn, and the watch stays queued for
-        // any further block this turn (unlike a one-shot delayed trigger).
-        label: "ICE repeating combat-event delayed trigger (Battle Cry) (#884)",
-        cards: [
-            { name: "Battle Cry", owner: "me", zone: "hand" },
-            {
-                name: "Shield Bearer",
-                owner: "me",
-                zone: "battlefield",
-                tapped: true,
-            },
-            { name: "Balduvian Bears", owner: "me", zone: "battlefield" },
-            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 3,
-    },
-    {
-        // Cumulative-upkeep global-lock permanents (issue #727): Glacial Chasm
-        // and Halls of Mist enter the battlefield, Energy Storm sits in hand.
-        // Glacial Chasm's ETB asks you to sacrifice a land; on the battlefield
-        // it locks your creatures out of combat and prevents all damage to you.
-        // Halls of Mist forbids a creature that attacked last turn from
-        // attacking. Cast Energy Storm to prevent instant/sorcery damage and
-        // keep flyers tapped. Extra lands so the ETB sacrifice has a target.
-        label: "ICE global-lock permanents (Glacial Chasm / Halls of Mist / Energy Storm) (#727)",
-        cards: [
-            { name: "Glacial Chasm", owner: "me", zone: "battlefield" },
-            { name: "Halls of Mist", owner: "me", zone: "battlefield" },
-            { name: "Energy Storm", owner: "me", zone: "hand" },
-            { name: "Balduvian Bears", owner: "me", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 4,
-    },
-    {
         // ICE computed subtype swap (issue #727, ADR 0050): Illusionary Terrain
         // in hand. As it enters, choose two basic land types — pick Forest then
         // Island. Your basic Forests immediately become Islands and tap for {U}
@@ -256,15 +141,9 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         // the assign-no-damage seam. 5 lands cover {3}{W}{W}.
         label: "ICE combat-damage redirect / assign-no-damage (Royal Guard / Cloak / Gaze) (#732)",
         cards: [
-            {
-                name: "Kjeldoran Royal Guard",
-                owner: "me",
-                zone: "battlefield",
-            },
             { name: "Cloak of Confusion", owner: "me", zone: "hand" },
-            { name: "Gaze of Pain", owner: "me", zone: "hand" },
             { name: "Balduvian Bears", owner: "me", zone: "battlefield" },
-            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
+            { name: "Swamp", owner: "me", zone: "battlefield", count: 4 },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 5,

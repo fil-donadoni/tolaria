@@ -2,6 +2,7 @@ import type { CardInstance, ManaPool } from "~/types/game";
 import type { CardType, Color, ManaCost } from "~/types/cards";
 import type { Phase } from "@convex/gre/types";
 import type {
+    CardDefinition,
     MayPayCost,
     PermanentView,
     TargetRequirement,
@@ -878,6 +879,45 @@ export type DisplayAbilities = {
     activated: DisplayActivated[];
     triggered: DisplayTriggered[];
 };
+
+/** Decides whether the card preview should print the card's `oracleText`
+ *  instead of (or alongside) the structured ability rows. The structured
+ *  abilities view (`getDisplayAbilities`) only renders keywords, activated and
+ *  triggered abilities — it has NO row for effects whose rules text lives ONLY
+ *  in `oracleText`:
+ *    - `staticEffects[]` (P/T CDA, anthems, keyword grants — CR 611/613)
+ *    - `replacementEffects[]` (CR 614 — e.g. Sulfuric Vortex's lifegain lock)
+ *    - enter-tapped mechanics (CR 614.12 shocklands, conditional-tapped lands,
+ *      plain `entersTapped`)
+ *  For those, and for spells/auras/cards with no structured abilities at all,
+ *  the Oracle text is the only place the behavior is described, so it must be
+ *  shown. When it is shown, the structured render is suppressed by the caller
+ *  to avoid double-printing keywords already covered by the Oracle text. */
+export function shouldShowOracleText(
+    def: CardDefinition | null | undefined,
+    types: readonly string[],
+    subtypes: readonly string[]
+): boolean {
+    if (!def?.oracleText) return false;
+    const isSpellCard = types.includes("Instant") || types.includes("Sorcery");
+    // CR 303.4 — an aura's granted clauses live on `staticEffects`, never on
+    // its own `staticAbilities`, so the structured view would hide them.
+    const isAura = subtypes.includes("Aura");
+    const hasStructuredAbilities =
+        (def.staticAbilities?.length ?? 0) > 0 ||
+        (def.activatedAbilities?.length ?? 0) > 0 ||
+        (def.triggeredAbilities?.length ?? 0) > 0;
+    // Effects the structured view cannot render — their text is oracle-only.
+    const hasOracleOnlyText =
+        (def.staticEffects?.length ?? 0) > 0 ||
+        (def.replacementEffects?.length ?? 0) > 0 ||
+        def.entersTappedUnlessPay !== undefined ||
+        def.entersTappedUnless !== undefined ||
+        def.entersTapped === true;
+    return (
+        isSpellCard || isAura || !hasStructuredAbilities || hasOracleOnlyText
+    );
+}
 
 /** Resolves the abilities to display in the zoom panel for a card. When
  *  `instance` is provided, runtime overrides are reflected:
