@@ -339,6 +339,7 @@ function toPermanentFilter(
         excludeTypes: filter.excludeType,
         subtypes: filter.subtype,
         supertypes: filter.supertype,
+        excludeSupertypes: filter.excludeSupertype,
         colors: filter.color,
         isToken: filter.isToken,
         name: filter.name,
@@ -406,6 +407,17 @@ function matchesCardFilter(
     ) {
         return false;
     }
+    // issue #999 — the negative of `supertype` ("nonbasic land"): fails if the
+    // card has ANY listed supertype. A hidden-zone card shape may carry no
+    // supertypes (fail-open here — nothing to exclude), mirroring the
+    // fail-closed `supertype` positive above.
+    const excludeSupertypes = asFilterArray(filter.excludeSupertype);
+    if (
+        excludeSupertypes !== undefined &&
+        excludeSupertypes.some((s) => (card.supertypes ?? []).includes(s))
+    ) {
+        return false;
+    }
     if (
         colors !== undefined &&
         !colors.some((c) => (card.colors ?? []).includes(c))
@@ -424,17 +436,26 @@ function matchesCardFilter(
 /** Counts a declaratively-selected set of cards (ADR 0045 `count` construct,
  *  CR 122 counting). Returns 0 when the controlling player cannot be resolved. */
 function countSet(ctx: SpellContext, spec: EffectCountSpec): number {
+    // CR 122 — a fixed literal multiplier scales the counted cardinality
+    // ("TWICE the number of nonbasic lands", Price of Progress, issue #999).
+    // Not arithmetic composition (ADR 0045 frozen grammar): a constant baked
+    // into the count, defaulting to 1. Applied AFTER the count so a 0 count
+    // stays 0 (times * 0 = 0, still a no-op amount).
+    const times = spec.times ?? 1;
     // CR 122 — "in all graveyards" (Accumulated Knowledge, issue #985): sum
     // each player's matching cards. `controller` is ignored in this mode.
     if (spec.acrossAllPlayers) {
-        return ctx.allPlayerIds.reduce(
-            (sum, pid) => sum + countZoneForPlayer(ctx, pid, spec),
-            0
+        return (
+            times *
+            ctx.allPlayerIds.reduce(
+                (sum, pid) => sum + countZoneForPlayer(ctx, pid, spec),
+                0
+            )
         );
     }
     const playerId = resolvePlayerRef(ctx, spec.controller!);
     if (playerId === undefined) return 0;
-    return countZoneForPlayer(ctx, playerId, spec);
+    return times * countZoneForPlayer(ctx, playerId, spec);
 }
 
 /** Counts one player's matching cards in the spec's zone (CR 122). Shared by

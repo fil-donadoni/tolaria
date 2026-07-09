@@ -87,6 +87,30 @@ describe("matchesPermanentFilter", () => {
         ).toBe(false);
     });
 
+    it("excludeSupertypes rejects permanents carrying any listed supertype ('nonbasic land', issue #999)", () => {
+        const nonbasicLand = permanent({ types: ["Land"], supertypes: [] });
+        const basicLand = permanent({
+            types: ["Land"],
+            supertypes: ["Basic"],
+        });
+        const nonbasic = {
+            types: "Land" as const,
+            excludeSupertypes: "Basic",
+        };
+        expect(matchesPermanentFilter(nonbasicLand, nonbasic)).toBe(true);
+        expect(matchesPermanentFilter(basicLand, nonbasic)).toBe(false);
+        // Resolves live supertypes via the injected `supertypesOf` when the
+        // card carries none of its own (CR 205.4a).
+        const ctx: FilterMatchContext = { supertypesOf: () => ["Basic"] };
+        expect(
+            matchesPermanentFilter(
+                permanent({ types: ["Land"], supertypes: undefined }),
+                nonbasic,
+                ctx
+            )
+        ).toBe(false);
+    });
+
     it("matches by subtypes (string or array, OR semantics)", () => {
         const card = permanent({ subtypes: ["Goblin", "Warrior"] });
         expect(matchesPermanentFilter(card, { subtypes: "Goblin" })).toBe(true);

@@ -727,4 +727,23 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 2,
     },
+    {
+        // Price of Progress (issue #999): {1}{R} Instant "deals damage to each
+        // player equal to twice the number of nonbasic lands that player
+        // controls." Cast the Price of Progress in hand (a Mountain covers {R},
+        // {1}). You control 2 Wasteland (nonbasic) + 1 Mountain (basic) → 2
+        // nonbasic → take 4; the opponent controls 1 Wasteland + 2 Mountain → 1
+        // nonbasic → takes 2. Basics contribute 0 — the symmetric asymmetric
+        // burn that punishes a nonbasic-heavy manabase.
+        label: "Price of Progress — damage per nonbasic land (#999)",
+        cards: [
+            { name: "Price of Progress", owner: "me", zone: "hand" },
+            { name: "Wasteland", owner: "me", zone: "battlefield", count: 2 },
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+            { name: "Wasteland", owner: "opp", zone: "battlefield" },
+            { name: "Mountain", owner: "opp", zone: "battlefield", count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 1,
+    },
 ];

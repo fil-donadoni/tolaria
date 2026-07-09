@@ -169,6 +169,14 @@ function isCardFilter(value: unknown): boolean {
         if (k === "supertype") {
             return typeof v === "string" && TOKEN_SUPERTYPES.has(v);
         }
+        if (k === "excludeSupertype") {
+            // issue #999 — negative of `supertype` ("nonbasic land"), a real
+            // printed supertype or non-empty array of them.
+            return isValueOrArray(
+                v,
+                (m) => typeof m === "string" && TOKEN_SUPERTYPES.has(m)
+            );
+        }
         if (k === "color") {
             return isValueOrArray(
                 v,
@@ -294,9 +302,18 @@ function isCountValue(value: unknown): boolean {
         "controller",
         "filter",
         "acrossAllPlayers",
+        "times",
     ]);
     if (!Object.keys(s).every((k) => allowed.has(k))) return false;
     if (s.zone !== "battlefield" && s.zone !== "graveyard") return false;
+    // issue #999 — an optional positive-integer multiplier ("twice the
+    // number of …", Price of Progress). A literal only; no ref/X.
+    if ("times" in s) {
+        if (typeof s.times !== "number" || !Number.isInteger(s.times)) {
+            return false;
+        }
+        if (s.times < 1) return false;
+    }
     // CR 122 — `acrossAllPlayers` (issue #985) sums every player's zone and is
     // mutually exclusive with a `controller` (which names ONE player's zone).
     if ("acrossAllPlayers" in s) {
