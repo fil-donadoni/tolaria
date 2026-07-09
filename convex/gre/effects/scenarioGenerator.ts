@@ -223,6 +223,22 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount reads a permanent's "${value.counters.type}" counter count — the canned generator does not pre-seed counters`;
         return;
     }
+    // kickerCount (CR 702.33): the amount reads how many times the spell was
+    // kicked, a cast-time decision the canned generator (which casts unkicked)
+    // can't reproduce. Skip-with-reason — the per-card / interpreter test is the
+    // behavioural guarantor (per DSL-first authoring, new-construct regime).
+    if ("kickerCount" in value) {
+        req.skip ??= `amount reads the spell's kicker count — the canned generator casts unkicked`;
+        return;
+    }
+    // manaValue (CR 202.3): the amount reads a selected object's mana value. The
+    // canned generator's filler permanents have no controlled mana value the
+    // predictor can size a declared outcome against; skip-with-reason — the
+    // per-card / interpreter test is the behavioural guarantor.
+    if ("manaValue" in value) {
+        req.skip ??= `amount reads a selected object's mana value — not faithfully sizable in a canned scenario`;
+        return;
+    }
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;

@@ -951,6 +951,13 @@ export type StackItem = CardInstanceState & {
      *  (CR 107.3, 601.2b). Undefined for spells without X. Read on
      *  resolution by SpellContext.getX(). */
     chosenX?: number;
+    /** CR 702.33 — how many times this spell's Kicker cost was paid as it was
+     *  cast (0/absent = not kicked; 1 for a single kicker; N for a paid-N-times
+     *  Multikicker, CR 702.33e). Snapshotted at cast commit from
+     *  `PendingCast.kickerCount`; read at resolution by
+     *  SpellContext.getKickerCount() (and by `entersWith.counters` count
+     *  `"kicker"`). Undefined for spells without a Kicker cost / cast unkicked. */
+    kickerCount?: number;
     /** Divide-as-you-choose split (CR 601.2d / 120.4). Maps a target key
      *  (`${type}:${id}`) to the amount of damage / counters the caster assigned
      *  to that target at announcement, each ≥ 1, summing to the spell's total.
@@ -1140,6 +1147,12 @@ export type PendingCast = {
     keepPriority?: boolean;
     /** Value chosen for X at announce time. Propagated to the stack item. */
     chosenX?: number;
+    /** CR 702.33 — how many times the caster chose to pay this spell's Kicker
+     *  cost at announcement (0/absent = not kicked; ≥ 1 kicked; > 1 only for a
+     *  Multikicker, CR 702.33e). The kicker mana is folded into `manaCost`;
+     *  this count is propagated to the stack item at commit so resolution reads
+     *  `SpellContext.getKickerCount()`. */
+    kickerCount?: number;
     /** Divide-as-you-choose split assigned at target selection (CR 601.2d).
      *  Carried through the deferred-payment commit (`commitSpellCast`) onto the
      *  stack item's `targetAmounts`. Keyed by `${type}:${id}`. Undefined for
@@ -1702,6 +1715,12 @@ export type PendingTarget = {
     keepPriority?: boolean;
     /** Propagated from announceCast when the spell has X in its mana cost. */
     chosenX?: number;
+    /** CR 702.33 — how many times the caster chose to pay this spell's Kicker
+     *  cost at announcement (0/absent = not kicked). Propagated from
+     *  announceCast through `finalizeTargetSelection` → pendingCast → stack item
+     *  so the kicked target set (`kickedTargetRequirement`) governs this
+     *  selection and the tally reaches resolution. */
+    kickerCount?: number;
     /** Mode id chosen at announcement for modal spells (CR 700.2 / 700.2c).
      *  Propagated through pendingCast → stack item. Determines which mode's
      *  `targetRequirement` governs this selection. */
@@ -2969,7 +2988,10 @@ function finalizeSpellResolution(
               tracksControlContinuity?: boolean;
               staticAbilities?: string[];
               entersWith?: {
-                  counters?: { type: string; count: number | "X" }[];
+                  counters?: {
+                      type: string;
+                      count: number | "X" | "kicker";
+                  }[];
               };
           }
         | undefined
@@ -3077,7 +3099,12 @@ function finalizeSpellResolution(
                 const n =
                     entry.count === "X"
                         ? Math.max(0, item.chosenX ?? 0)
-                        : entry.count;
+                        : // CR 702.33e — "a charge counter for each time it was
+                          // kicked" (Everflowing Chalice) reads the Multikicker
+                          // tally snapshotted on the resolving stack item.
+                          entry.count === "kicker"
+                          ? Math.max(0, item.kickerCount ?? 0)
+                          : entry.count;
                 if (n <= 0) continue;
                 counters[entry.type] = (counters[entry.type] ?? 0) + n;
             }
@@ -6837,6 +6864,12 @@ export function buildSpellContext(
         },
         getX(): number {
             return item.chosenX ?? 0;
+        },
+        // CR 702.33 / 702.33e — times this spell's Kicker cost was paid, read
+        // back off the stack item (0 = not kicked). `> 0` is "if this spell was
+        // kicked"; the raw count is the Multikicker tally (Everflowing Chalice).
+        getKickerCount(): number {
+            return item.kickerCount ?? 0;
         },
         // CR 202.3 / 202.3b — mana value lookup. For permanents on the
         // battlefield, X in the printed cost counts as 0 (the chosen X is

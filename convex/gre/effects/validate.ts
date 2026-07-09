@@ -358,6 +358,35 @@ function isCountersValue(value: unknown): boolean {
     return isObjectSelector(s.of);
 }
 
+/** `{ kickerCount: true }` — SHAPE of the kicker-count value construct
+ *  (CR 702.33 / 702.33e). No parameters — reads the resolving spell's kicker
+ *  tally off the stack item. Mirrors `{ X: true }` (isXValue). */
+function isKickerCountValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    return (
+        keys.length === 1 &&
+        keys[0] === "kickerCount" &&
+        (value as { kickerCount: unknown }).kickerCount === true
+    );
+}
+
+/** `{ manaValue: { of } }` — SHAPE of the mana-value value construct (CR 202.3,
+ *  Overload). `of` is an object selector (an announced target slot, `$source`,
+ *  or a permanents-set forEach `$each`) — the ref inside it is family-checked as
+ *  an OBJECT position by the ordered ref pass (the `of` keyHint in
+ *  `collectRefUses`). No other keys are permitted. Mirrors `isCountersValue`. */
+function isManaValueValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "manaValue") return false;
+    const spec = (value as { manaValue: unknown }).manaValue;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "of")) return false;
+    return isObjectSelector(s.of);
+}
+
 /** A numeric Op parameter (ADR 0045 value grammar): a positive-int literal,
  *  a `ref`, a `count`, the chosen-cost `X` (issue #852), or a `counters` count
  *  on a selected object (issue #1015). Exactly those — no arithmetic, no
@@ -368,7 +397,9 @@ function isEffectValue(value: unknown): boolean {
         isRefValue(value) ||
         isCountValue(value) ||
         isXValue(value) ||
-        isCountersValue(value)
+        isCountersValue(value) ||
+        isKickerCountValue(value) ||
+        isManaValueValue(value)
     );
 }
 

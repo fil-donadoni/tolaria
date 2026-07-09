@@ -111,6 +111,30 @@ export interface FlashbackCost {
     exileFromHand?: { color?: Color };
 }
 
+/** CR 702.33 — Kicker. An OPTIONAL additional cost the caster may choose to pay
+ *  as they cast the spell ("You may pay an additional [cost] as you cast this
+ *  spell"). Paid ON TOP of the mana cost at cast time (unlike an
+ *  {@link AlternativeCost}, which replaces it). Whether the spell was kicked is
+ *  snapshotted on the resulting stack item (`StackItem.kickerCount`) and read at
+ *  resolution — DSL scripts branch on it with the `{ kickerCount: true }`
+ *  value ({@link EffectKickerCountValue}). Kicker is a cost-system / keyword-cast
+ *  capability (engine infra), NOT an Effect Script Op.
+ *
+ *  - single Kicker (Overload, Burst Lightning, Bloodchief's Thirst, Tear
+ *    Asunder, Consult the Star Charts): kicked at most once → `kickerCount` is
+ *    0 (not kicked) or 1 (kicked).
+ *  - Multikicker (CR 702.33e — Everflowing Chalice): `multi: true` lets the
+ *    caster pay the kicker cost any number of times; `kickerCount` records how
+ *    many times it was paid. */
+export interface KickerCost {
+    /** The additional mana cost paid per kick (CR 702.33a). */
+    cost: ManaCost;
+    /** CR 702.33e — Multikicker: the kicker cost may be paid any number of
+     *  times as the spell is cast. Omitted/false = a single kicker (paid at most
+     *  once). */
+    multi?: boolean;
+}
+
 export type CardType =
     | "Creature"
     | "Planeswalker"
@@ -1563,6 +1587,13 @@ export interface SpellContext {
     /** Value chosen for X at cast-time (CR 107.3, 601.2b). 0 if the spell
      *  has no X in its cost. Read by spells like Fireball on resolution. */
     getX: () => number;
+    /** CR 702.33 — how many times this spell's Kicker cost was paid as it was
+     *  cast (0 = not kicked; 1 for a single kicker; N for a paid-N-times
+     *  Multikicker, CR 702.33e). Snapshotted on the stack item
+     *  (`StackItem.kickerCount`) at cast commit and read at resolution. Read in
+     *  DSL via the `{ kickerCount: true }` value; `> 0` is the "was it kicked"
+     *  test (Overload, Burst Lightning, …). */
+    getKickerCount: () => number;
     /** Mana value of a target (CR 202.3 / 202.3b). For a permanent target,
      *  returns the printed cost's mana value — X in the cost counts as 0
      *  because the chosen X is not currently preserved on the resulting
@@ -5141,6 +5172,34 @@ export type EffectCountersValue = {
     counters: { of: EffectObjectSelector; type: string };
 };
 
+/** kickerCount — how many times the resolving spell's Kicker cost was paid as
+ *  it was cast (CR 702.33 / 702.33e), a thin JSON-pure skin over
+ *  `SpellContext.getKickerCount`. A seventh `EffectValue` grammar member; like
+ *  `X` (issue #852) and `counters` (issue #1015) it is NOT an Op and NOT a new
+ *  STRUCTURAL construct — it does not reopen ADR 0045 (only a fifth
+ *  bind/ref/if/forEach-style construct would). Reads back one number (0 = not
+ *  kicked), nothing composes it. `> 0` is the "if this spell was kicked" test
+ *  (Overload, Burst Lightning, Bloodchief's Thirst, Tear Asunder, Consult the
+ *  Star Charts); the raw count drives "a charge counter for each time it was
+ *  kicked" (Everflowing Chalice, expressed via `entersWith.counters` count
+ *  `"kicker"`, not this value). */
+export type EffectKickerCountValue = { kickerCount: true };
+
+/** manaValue — the mana value (CR 202.3) of a selected object, a thin JSON-pure
+ *  skin over `SpellContext.getManaValue`. An eighth `EffectValue` grammar
+ *  member; like `counters` (issue #1015) it is NOT an Op and NOT a new
+ *  STRUCTURAL construct. `of` is an object selector resolved through the SAME
+ *  `resolveObjectRef` path every object-acting Op uses — an announced target
+ *  slot (`{ target: N }`), the resolving source (`{ ref: "$source" }`), or the
+ *  current `forEach` member (`{ ref: "$each" }`). Reads the LIVE printed mana
+ *  value of the battlefield permanent (0 when the object has left play,
+ *  CR 608.2b). Unblocks the "destroy target … if its mana value is N or less"
+ *  class (Overload). Still no arithmetic: it reads back one number, nothing
+ *  composes it. */
+export type EffectManaValueValue = {
+    manaValue: { of: EffectObjectSelector };
+};
+
 /** A runtime numeric parameter of an Op (ADR 0045): a literal count, a `ref`
  *  reading a bound object's numeric property, a `count` of a selected set, the
  *  chosen-cost `X` (issue #852), or a `counters` count on a selected object
@@ -5151,7 +5210,9 @@ export type EffectValue =
     | EffectRef
     | EffectCount
     | EffectXValue
-    | EffectCountersValue;
+    | EffectCountersValue
+    | EffectKickerCountValue
+    | EffectManaValueValue;
 
 /** JSON-pure mana specification for the `addMana` Op (CR 106.1, issue #850) —
  *  a per-colour amount map. Only fixed coloured / colorless pips: no variable
@@ -6296,10 +6357,14 @@ export interface CardDefinition {
     tracksControlContinuity?: boolean;
     /** Counters placed on the permanent when it enters the battlefield
      *  (CR 122.1, 614.1c). Each entry is a counter type and a count, where
-     *  `count: "X"` reads the value chosen for X at cast time (CR 107.3).
+     *  `count: "X"` reads the value chosen for X at cast time (CR 107.3), and
+     *  `count: "kicker"` reads how many times the spell was kicked (CR 702.33e —
+     *  "a charge counter for each time it was kicked", Everflowing Chalice).
      *  Applied by
      *  `finalizeSpellResolution` after the permanent is on the battlefield. */
-    entersWith?: { counters?: { type: string; count: number | "X" }[] };
+    entersWith?: {
+        counters?: { type: string; count: number | "X" | "kicker" }[];
+    };
     staticAbilities?: string[];
     /** Continuous static effects (CR 611). Applied at stat-read time by the layer system. */
     staticEffects?: StaticEffect[];
@@ -6427,6 +6492,23 @@ export interface CardDefinition {
      *  (Lava Dart: "Sacrifice a Mountain") — that never leaks onto the hand
      *  cast (CR 702.34a). */
     flashback?: ManaCost | FlashbackCost;
+    /** CR 702.33 — Kicker. An OPTIONAL additional cost the caster may pay as
+     *  they cast this spell, snapshotted on the resulting stack item and read at
+     *  resolution ({@link KickerCost}). The on-resolution effect stays DSL-first
+     *  (`effects`); only the cast/cost permission lives in the engine. Used by
+     *  Overload, Bloodchief's Thirst, Burst Lightning, Tear Asunder, Consult the
+     *  Star Charts (single Kicker) and Everflowing Chalice (Multikicker). */
+    kicker?: KickerCost;
+    /** CR 702.33 — the target requirement that REPLACES `targetRequirement` when
+     *  this spell was kicked ("If this spell was kicked, [do something to] target
+     *  <different thing> instead"). Chosen at announcement (the kick decision
+     *  precedes target selection, CR 601.2b/601.2c). Used by Bloodchief's Thirst
+     *  ("target creature or planeswalker with mana value 2 or less" →
+     *  unrestricted when kicked) and Tear Asunder ("target artifact or
+     *  enchantment" → "target nonland permanent"). Omit when the target set is
+     *  unchanged by kicking (Overload, Burst Lightning — the effect, not the
+     *  target, differs). */
+    kickedTargetRequirement?: TargetRequirement;
     /** Adds this many generic mana to the total cost for each target beyond
      *  the first (CR 601.2f). Used by Fireball ("costs {1} more to cast for
      *  each target beyond the first"). */
