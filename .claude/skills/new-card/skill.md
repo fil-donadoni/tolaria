@@ -187,6 +187,32 @@ This keeps reprint coverage in sync with implementation: as soon as a
 `CardDefinition` becomes real, every print that references it goes live in
 the registry without a separate follow-up.
 
+### Step 7c — Frontend wiring analysis (mandatory)
+
+A card correct in the GRE can still be dead in the UI: the client never sees
+`GameState`, only the output of **view reducers** that can silently drop a
+field the card's affordance depends on. This is a recurring bug class — the
+card passes every server-side test (GRE unit, wire format, DSL smoke) while no
+affordance appears on the board. Walk the reducers before considering the card
+done (`.claude/rules/gre-development.md` § Frontend wiring analysis has the
+full table):
+
+1. **Activation-cost affordability.** If the card has an `activatedAbility`
+   whose `cost` gates on player/board state (`exileFromGraveyard`, `life`,
+   `removeCounter`, or a `canActivate` predicate), confirm
+   `buildTriggerStateView` (`src/lib/card-utils.ts`) carries the field the gate
+   reads and that `getStackAbilities` has a matching gate. The catalogue sweep
+   `src/lib/__tests__/activation-affordability.catalogue.test.ts` covers the
+   `exileFromGraveyard`/`life`/`removeCounter` shapes automatically — reusing
+   one needs no new frontend test. A **brand-new cost shape** must be added to
+   that sweep's `Shape` union AND gated in `getStackAbilities`.
+2. **New card-instance field or `TargetRequirement.type`.** Confirm
+   `projectPublicState` preserves it (add a wire-format test) and, for a new
+   target type, run the full target-type table in the rule file.
+3. Any SURFACE test you add MUST drive the assertion **through the reducer**
+   (`buildTriggerStateView` / `projectPublicState`) — a hand-built view/state
+   masks a dropped field and does not count.
+
 ### Step 8 — Refresh the card-index lockfile (mandatory)
 
 `data/card-index.json` (ADR 0041) is the committed index of every implemented
@@ -218,6 +244,7 @@ command above; never hand-edit the lockfile.
 - [ ] `bun run test convex/cards/__tests__/effectScripts.test.ts convex/cards/__tests__/effectScriptSmoke.test.ts convex/cards/__tests__/mechanicsRegistry.test.ts` passes with no hand-edits to those files (the catalogue-wide sweeps pick the new card up automatically)
 - [ ] `id` == the card's `identifiers.scryfallId` from `data/json/<SET>.json` (NOT a generated UUID)
 - [ ] All matching `CardPrint` stubs in `convex/cards/sets/<code>/<colour>.ts` uncommented (Step 7b)
+- [ ] Frontend wiring walked (Step 7c): any affordability/target/instance-field the card adds is preserved through `buildTriggerStateView` / `projectPublicState`, and a new cost shape (if any) is added to the affordability catalogue sweep + gated in `getStackAbilities`
 - [ ] `data/card-index.json` regenerated via `backfill-card-index.ts` (Step 8) — `bun run check:index` passes
 
 The deck builder's card list is computed in-memory from the colour-split set

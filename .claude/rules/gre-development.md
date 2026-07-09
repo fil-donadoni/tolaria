@@ -146,6 +146,33 @@ When a new `TargetRequirement.type` value is introduced (e.g. `"spell-or-permane
 
 **Rule: every feature that crosses the GRE → game.ts → UI boundary MUST have at least one integration test that exercises the full path. Two pieces passing individually but failing together is a shipped bug.**
 
+## Frontend wiring analysis (mandatory for EVERY new card / mechanic)
+
+A card that is fully correct in the GRE can still be dead in the UI. The client
+never sees `GameState` — it sees the output of **view reducers** that slim it
+down, and every reducer is a place a field the UI depends on can be silently
+dropped. This is the single most common recurring bug class: the card passes
+all GRE unit tests, wire-format tests and the DSL smoke sweep (they all run
+server-side, where the ability is legal), yet no affordance appears on the
+board. **Before marking any card/mechanic done, walk the reducers and confirm
+the UI still works.**
+
+The client-side reducers a new card can trip, and what each drives:
+
+| Reducer                                     | Lives in                                          | Drives (UI surface)                                                                                                                     | Drop symptom                                                                                                           |
+| ------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `projectPublicState` / `FullGameState`      | `convex/gameProjections.ts`                       | everything the board renders (strips `card.card` → `{ id }`, `library` → `{ count }`, opponent `hand` → `null[]`)                       | effect reads a fat field the wire strips → value wrong client-side                                                     |
+| `buildTriggerStateView`                     | `src/lib/card-utils.ts`                           | `getStackAbilities` affordability hints + `canActivate` predicates (life, `exileFromGraveyard`, `removeCounter`, board/graveyard scans) | ability never offered even though the GRE would allow it (Grim Lavamancer: dropped `graveyard`)                        |
+| `getStackAbilities` gates                   | `src/lib/card-utils.ts`                           | whether an activated ability appears in the tap/context menu                                                                            | a new cost shape with no gate is always shown (server rejects) OR gated against a field the view lacks → always hidden |
+| `matchesTargetRequirement` / `TARGET_LABEL` | `src/lib/card-utils.ts` / `src/components/board/` | clickable targets + the target prompt label                                                                                             | new `TargetRequirement.type` not handled → nothing clickable / raw fallback string                                     |
+
+**Analysis checklist — run for every new card:**
+
+1. Does the card add or read a **field on `CardInstanceState`** (counters, a new flag)? Confirm `projectPublicState` preserves it and add/extend a wire-format test.
+2. Does an ability's **activation cost** gate on player/board state (`exileFromGraveyard`, `life`, `removeCounter`, a `canActivate` predicate)? Confirm `buildTriggerStateView` carries the field it reads, and confirm `getStackAbilities` has a matching affordability gate. The catalogue sweep `src/lib/__tests__/activation-affordability.catalogue.test.ts` picks up `exileFromGraveyard`/`life`/`removeCounter` shapes automatically — a new card reusing them needs no hand-written frontend test; a **new cost shape** must be added to that sweep's `Shape` union (its "new-Op pays the entry fee once" analogue).
+3. Does the card add a **new `TargetRequirement.type`**? Run the full target-type table above.
+4. For any reducer the card newly depends on, add at least one test that drives the SURFACE assertion **through the reducer** (build the view via `buildTriggerStateView`, project via `projectPublicState`) — a hand-built view/state masks a dropped field, so it does not count.
+
 ## Exhaustive target-type matching
 
 Code that switches on `TargetRequirement.type` values MUST use an exhaustive helper or explicitly list every member of the union. A raw `reqTypes.includes("spell")` that doesn't also handle `"spell-or-permanent"` is a bug. When adding a new type value, grep for every consumer and update all of them.

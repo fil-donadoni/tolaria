@@ -295,6 +295,13 @@ Per `.claude/rules/gre-development.md`:
   assertion after `projectPublicState`).
 - **≥1 full-path integration test** for any feature crossing GRE → game.ts → UI
   (new cost/target shapes get the full 5-layer matrix).
+- **Frontend wiring walked** for every card (`.claude/rules/gre-development.md`
+  § Frontend wiring analysis): confirm each affordability / target / instance
+  field survives the client view reducers (`buildTriggerStateView`,
+  `projectPublicState`). A new activation-cost shape must be added to the
+  affordability catalogue sweep
+  (`src/lib/__tests__/activation-affordability.catalogue.test.ts`) and gated in
+  `getStackAbilities`; existing shapes are covered automatically.
 - New optional `GameState` field → `PERSISTED_OPTIONAL_KEYS`/`TRANSIENT_KEYS` +
   round-trip test (serialize drift guard).
 - A **preset scenario** per cluster in `PRESET_SCENARIOS`
