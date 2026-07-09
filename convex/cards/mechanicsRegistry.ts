@@ -933,7 +933,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Flashback",
         kind: "keyword-ability",
         cr: "702.34",
-        status: "planned",
+        status: "implemented",
+        binding: "flashback",
+        note: "Cost-system / keyword-cast capability (engine infra, NOT an Effect Script Op): convex/gre/flashback.ts (getFlashbackCost / findFlashbackCastable) + CardDefinition.flashback (printed cost) + CardInstanceState.grantedFlashback (Snapcaster's until-EOT grant, cleared at CLEANUP). announceCast/finalizeTargetSelection/commitPendingCast (convex/game.ts) locate the graveyard card, pay the flashback cost, and flag the stack item exileOnResolve + castFromGraveyard; finalizeSpellResolution exiles it (CR 702.34a). getLegalActions offers the cast; projectPublicState carries the affordance to the client (GraveyardFlashbackButton). Used by Faithless Looting, Firebolt, Lingering Souls, Echo of Eons, Sevinne's Reclamation; granted by Snapcaster Mage.",
     },
     // 702.35 Madness
     {

@@ -77,6 +77,7 @@ import {
     buildHandSpellDemands,
 } from "./gre/autoTapDemands";
 import { isGuardedAgainst } from "./gre/permanentGuard";
+import { findFlashbackCastable, getFlashbackCost } from "./gre/flashback";
 import { assertDeckLegal } from "./formats";
 import type {
     ActivatedAbility,
@@ -1145,6 +1146,55 @@ function findCastableExileCard(
     );
 }
 
+/** The zone a cast originates from (CR 601.3e). Normally the hand; exile for
+ *  Ice Cauldron's noted card; graveyard for a Flashback cast (CR 702.34). */
+type CastFromZone = "hand" | "exile" | "graveyard";
+
+/** Locate the card being cast and the zone it comes from — hand, exile
+ *  (Ice Cauldron, CR 601.3e), or graveyard (Flashback, CR 702.34). A single
+ *  choke point so every cast-commit site derives the origin identically. The
+ *  `card` is undefined when the id isn't castable from any zone (callers throw
+ *  "Card not in hand"). Exported so the flashback integration test can drive
+ *  the REAL cast-source resolution (no convex-test harness — issue #944). */
+export function locateCastSource(
+    player: PlayerState,
+    instanceId: string
+): { card?: CardInstanceState; zone: CastFromZone } {
+    const inHand = player.hand.find((c) => c.id === instanceId);
+    if (inHand) return { card: inHand, zone: "hand" };
+    const exile = findCastableExileCard(player, instanceId);
+    if (exile) return { card: exile, zone: "exile" };
+    const flashback = findFlashbackCastable(player, instanceId);
+    if (flashback) return { card: flashback, zone: "graveyard" };
+    return { zone: "hand" };
+}
+
+/** CR 702.34 — the stack-item flags a Flashback cast (from the graveyard) adds:
+ *  `castFromGraveyard` (read by "if this spell was cast from a graveyard"
+ *  clauses) and `exileOnResolve` (so `finalizeSpellResolution` exiles the card
+ *  instead of returning it to the graveyard). Empty for a normal hand/exile
+ *  cast. Exported for the flashback integration test (issue #944 pattern). */
+export function flashbackStackFlags(zone: CastFromZone): {
+    exileOnResolve?: true;
+    castFromGraveyard?: true;
+} {
+    return zone === "graveyard"
+        ? { exileOnResolve: true, castFromGraveyard: true }
+        : {};
+}
+
+/** The mana cost a cast pays: the Flashback cost when cast from the graveyard
+ *  (CR 702.34a — "rather than paying its mana cost"), else the card's printed
+ *  mana cost. Exported for the flashback integration test (issue #944 pattern). */
+export function castRawManaCost(
+    card: CardInstanceState,
+    zone: CastFromZone
+): ManaCost | undefined {
+    return zone === "graveyard"
+        ? getFlashbackCost(card)
+        : getInstanceManaCost(card);
+}
+
 /** Resolves an activated ability's mana cost, folding in the FEM Merseine
  *  "pay enchanted creature's mana cost" dynamic cost (CR 601.2f / 202.3). When
  *  `manaEqualToEnchantedCreatureCost` is set, the source's `attachedTo`
@@ -1605,9 +1655,8 @@ export function tryAutoCommitPendingCast(
     const castInstanceId = state.pendingCast!.cardInstanceId;
     // CR 601.3e — the card may be cast from the hand OR from exile (Ice
     // Cauldron's "you may cast that card for as long as it remains exiled").
-    const castCard =
-        player.hand.find((c) => c.id === castInstanceId) ??
-        findCastableExileCard(player, castInstanceId);
+    const castSource = locateCastSource(player, castInstanceId);
+    const castCard = castSource.card;
     const castDef = castCard
         ? tryGetDefinition((castCard.card as { id: string }).id)
         : undefined;
@@ -1694,13 +1743,9 @@ export function tryAutoCommitPendingCast(
         removePermanentTo(state, exiled.id, "exile");
     }
 
-    // CR 601.3e — remove from the zone the card was actually cast from (hand,
-    // or exile for Ice Cauldron's noted card).
-    const castFromZone: "hand" | "exile" = player.hand.some(
-        (c) => c.id === state.pendingCast!.cardInstanceId
-    )
-        ? "hand"
-        : "exile";
+    // CR 601.3e / 702.34 — remove from the zone the card was actually cast from
+    // (hand, exile for Ice Cauldron's noted card, or graveyard for Flashback).
+    const castFromZone = castSource.zone;
     const spellCard = removeFromZone(
         player,
         state.pendingCast.cardInstanceId,
@@ -1731,6 +1776,7 @@ export function tryAutoCommitPendingCast(
         ...(pendingChosenModeId ? { chosenModeId: pendingChosenModeId } : {}),
         ...(additionalSacrificeSnapshot ? { additionalSacrificeSnapshot } : {}),
         ...(castNotedManaSpent ? { notedManaSpent: castNotedManaSpent } : {}),
+        ...flashbackStackFlags(castFromZone),
     };
     state.stack.push(stackItem);
 
@@ -3205,14 +3251,12 @@ export function finalizeTargetSelection(
         return;
     }
 
-    // Spell cast branch (CR 601.2c). CR 601.3e — normally the hand, but Ice
-    // Cauldron's noted card is cast from exile.
-    const exileCastCard = player.hand.some((c) => c.id === cardInstanceId)
-        ? undefined
-        : findCastableExileCard(player, cardInstanceId);
-    const castZone: "hand" | "exile" = exileCastCard ? "exile" : "hand";
-    const cardInHand =
-        player.hand.find((c) => c.id === cardInstanceId) ?? exileCastCard;
+    // Spell cast branch (CR 601.2c). CR 601.3e / 702.34 — normally the hand,
+    // but Ice Cauldron's noted card is cast from exile, and a Flashback card is
+    // cast from the graveyard.
+    const castSource = locateCastSource(player, cardInstanceId);
+    const castZone = castSource.zone;
+    const cardInHand = castSource.card;
     if (!cardInHand) throw new Error("Card not in hand");
     const cardDef = getDefinition((cardInHand.card as { id: string }).id);
 
@@ -3224,7 +3268,9 @@ export function finalizeTargetSelection(
         ? getAlternativeCost(cardDef, pt.alternativeCostId)
         : undefined;
 
-    const rawCost = getInstanceManaCost(cardInHand);
+    // CR 702.34a — a Flashback cast pays the flashback cost from the graveyard
+    // instead of the printed mana cost.
+    const rawCost = castRawManaCost(cardInHand, castZone);
     const extraPer = cardDef.additionalGenericPerExtraTarget ?? 0;
     const additionalGeneric =
         extraPer > 0 ? Math.max(0, targets.length - 1) * extraPer : 0;
@@ -3368,6 +3414,7 @@ export function finalizeTargetSelection(
             ...(immediateNotedManaSpent
                 ? { notedManaSpent: immediateNotedManaSpent }
                 : {}),
+            ...flashbackStackFlags(castZone),
         };
         state.stack.push(stackItem);
         state.passCount = 0;
@@ -3656,21 +3703,18 @@ export const announceCast = mutation({
             throw new Error("Target selection is in progress");
         }
 
-        // CR 601.3e — a spell is normally cast from the hand, but Ice Cauldron
-        // lets the noted card be cast from exile ("You may cast that card for as
-        // long as it remains exiled"). Check the hand first, then castable exile.
-        const cardInHand =
-            player.hand.find((c) => c.id === args.cardInstanceId) ??
-            findCastableExileCard(player, args.cardInstanceId);
+        // CR 601.3e / 702.34 — a spell is normally cast from the hand, but Ice
+        // Cauldron lets the noted card be cast from exile ("You may cast that
+        // card for as long as it remains exiled"), and a Flashback card is cast
+        // from the graveyard. Check hand, then castable exile, then flashback.
+        const castSource = locateCastSource(player, args.cardInstanceId);
+        const cardInHand = castSource.card;
         if (!cardInHand) throw new Error("Card not in hand");
         assertLegalAction(state, player, cardInHand, "cast");
-        // CR 601.3e — the zone this cast originates from (hand, or exile for Ice
-        // Cauldron's noted card). Used at commit for `removeFromZone`.
-        const castFromZone: "hand" | "exile" = player.hand.some(
-            (c) => c.id === args.cardInstanceId
-        )
-            ? "hand"
-            : "exile";
+        // CR 601.3e / 702.34 — the zone this cast originates from (hand, exile
+        // for Ice Cauldron, or graveyard for Flashback). Used at commit for
+        // `removeFromZone` and to override the cost with the flashback cost.
+        const castFromZone = castSource.zone;
 
         const cardDef = getDefinition((cardInHand.card as { id: string }).id);
 
@@ -3976,7 +4020,9 @@ export const announceCast = mutation({
 
         // No targets needed — proceed to additional-cost picker (CR 117.9 /
         // 601.2f) or directly to mana payment / cast if no additional cost.
-        const rawCost = getInstanceManaCost(cardInHand);
+        // CR 702.34a — a Flashback cast pays the flashback cost from the
+        // graveyard instead of the printed mana cost.
+        const rawCost = castRawManaCost(cardInHand, castFromZone);
 
         const manaCost = rawCost ? normalizeManaCost(rawCost, { chosenX }) : {};
         applyCostModifiers(
@@ -4082,6 +4128,7 @@ export const announceCast = mutation({
                 ...(additionalSacrificeSnapshot
                     ? { additionalSacrificeSnapshot }
                     : {}),
+                ...flashbackStackFlags(castFromZone),
             };
             state.stack.push(stackItem);
             state.passCount = 0;

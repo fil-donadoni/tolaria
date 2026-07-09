@@ -1949,6 +1949,17 @@ export function finalizeCleanup(state: GameState): void {
         }
     }
 
+    // CR 702.34 / 514.2 — an instance-level Flashback grant (Snapcaster Mage:
+    // "gains flashback until end of turn") expires at the cleanup step. The
+    // granted card stays in the graveyard but is no longer castable from there.
+    for (const p of state.players) {
+        for (const card of p.graveyard) {
+            if (card.grantedFlashback !== undefined) {
+                delete card.grantedFlashback;
+            }
+        }
+    }
+
     // CR 603.7a / 514.2 (issue #731) — an instance leave-watch delayed trigger
     // ("when that creature leaves the battlefield THIS TURN, …") that never
     // fired expires here. Every `leaves-battlefield` instance is this-turn

@@ -504,14 +504,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // `origin/main` already classifies at 644 / FREE 407 / AFK-ready 374.
         // That +1 total drift was introduced by Jackal Pup's resolve() (commit
         // 268b6c89), which was merged directly WITHOUT bumping this snapshot —
-        // leaving main red on this test. So the true deltas here are the base
+        // leaving main red on this test. So the base deltas here are the base
         // reconciliation PLUS Vortex's +1: total 644→645, FREE 407→408,
         // AFK-ready 374→375; X-only / Op-blocked unchanged.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(645);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(408);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(375);
+        // #693 (Flashback CAP, THIS PR) then net-ADDS three more closures on
+        // top of that 645 baseline: Echo of Eons (resolve() — whole-table
+        // Timetwister reset, no shuffle/per-player Op) and Sevinne's
+        // Reclamation (resolveSteps — copy-this-spell clause, no spell-copy Op)
+        // land Op-blocked (223→225, +2); Snapcaster Mage's ETB resolve()
+        // (requestChoice + grantFlashback, all covered) lands FREE (408→409,
+        // +1) and AFK-ready (375→376, +1, it has a per-card test). Combined
+        // tree: total 645→648, FREE 408→409, AFK-ready 375→376, X-only 14,
+        // Op-blocked 223→225.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(648);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(409);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(376);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(223);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(225);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

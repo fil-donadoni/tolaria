@@ -1950,6 +1950,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Echo of Eons",
+        "scryfallId": "ff590af2-2d6c-4f16-a9b8-1a6dab6e9ad5",
+        "oracleId": "23d3e5fe-3f82-44cf-91a1-6646a12a0255",
+        "firstSet": "mh1"
+    },
+    {
         "name": "El-Hajjâj",
         "scryfallId": "c4b610d3-2005-4347-bcda-c30b5b7972e5",
         "oracleId": "f92c9a5d-853f-4157-89ba-8d8c8033c533",
@@ -2202,6 +2208,12 @@
         "firstSet": "eld"
     },
     {
+        "name": "Faithless Looting",
+        "scryfallId": "a1b0da17-d595-441d-811c-a2d28d2bb232",
+        "oracleId": "3d6fa57a-aa53-4b5c-b8af-a7612c823117",
+        "firstSet": "dka"
+    },
+    {
         "name": "Fallen Angel",
         "scryfallId": "0f4174e4-0be8-49b5-8c52-22001790f6eb",
         "oracleId": "1869a326-8b48-4331-b969-5ce83cf4ff8a",
@@ -2332,6 +2344,12 @@
         "scryfallId": "b1eb5b2c-1f02-48a6-a287-88eb189d6780",
         "oracleId": "9dd7f27a-e862-47d7-9158-034cf4d353b8",
         "firstSet": "vis"
+    },
+    {
+        "name": "Firebolt",
+        "scryfallId": "d5e45005-dd81-4d80-b043-02f719aca929",
+        "oracleId": "7aa31280-12c3-479d-a6dd-f1c669043083",
+        "firstSet": "ody"
     },
     {
         "name": "Firebreathing",
@@ -4240,6 +4258,12 @@
         "scryfallId": "af976f42-3d56-4e32-8294-970a276a4bf3",
         "oracleId": "7f9116e1-9aab-470b-90eb-f51a3fbb3c0e",
         "firstSet": "ice"
+    },
+    {
+        "name": "Lingering Souls",
+        "scryfallId": "891a92d7-9ccf-4de1-8286-aa5254f27ba9",
+        "oracleId": "0b8c3337-04dd-4798-8203-6d8b8cfb936b",
+        "firstSet": "dka"
     },
     {
         "name": "Lion's Eye Diamond",
@@ -6204,6 +6228,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Sevinne's Reclamation",
+        "scryfallId": "7e68f4df-88ce-4e09-a03c-7edf40bff167",
+        "oracleId": "1b9f9f5b-8712-4f00-90cb-1b7b9970eccc",
+        "firstSet": "c19"
+    },
+    {
         "name": "Shambling Strider",
         "scryfallId": "8886ba2d-b25a-4b74-9299-911c509ae864",
         "oracleId": "fd65468c-d75a-4be2-8a0c-9c4e808e3dd0",
@@ -6370,6 +6400,12 @@
         "scryfallId": "7c67788e-d713-47c3-ab9f-b8a6212ae24f",
         "oracleId": "8aa97d25-cd51-4ceb-b7eb-af64f0914a8c",
         "firstSet": "lea"
+    },
+    {
+        "name": "Snapcaster Mage",
+        "scryfallId": "9e5b279e-4670-4a1e-87d0-3cab7e4f9e58",
+        "oracleId": "2bb2eda7-3b38-4c56-870f-c3218a1056f5",
+        "firstSet": "isd"
     },
     {
         "name": "Snow Devil",
