@@ -3198,6 +3198,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Hibernation",
+        "scryfallId": "68b7444c-fabb-4437-8db9-a1008ea09415",
+        "oracleId": "633b541b-e37f-451a-be73-3398e61e0f75",
+        "firstSet": "usg"
+    },
+    {
         "name": "Hidden Path",
         "scryfallId": "cbc93c0b-0ac8-4b8f-b2f6-96887d1acd77",
         "oracleId": "f1c9f5df-d36a-4e15-bae4-81190e4be477",

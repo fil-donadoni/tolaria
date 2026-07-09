@@ -6143,6 +6143,59 @@ describe("Effect Script construct: forEach + moveZone — mass bounce (CR 400.7 
         // Opponent's hand is hidden from this viewer — slimmed to a count.
         expect(projected.players[1].hand).toEqual([null]);
     });
+
+    // Colour-filtered mass bounce (Hibernation, issue #995, CR 202.2 / 400.7):
+    // the SAME forEach+moveZone sweep narrowed by `filter: { color: "G" }` on
+    // the selector. Asserts the two acceptance criteria — every GREEN permanent
+    // (any type, both battlefields) returns to its owner's hand, and non-green
+    // permanents are untouched. The colour predicate is matched against
+    // EFFECTIVE colours (`getBattlefieldIds` populates layer-5 colour), the
+    // shared filter path every `filter.color` consumer uses. BEAR_ID is green
+    // ({G}); BOUNCE_LAND_ID is a colourless land.
+    it("returns only GREEN permanents to their owners' hands, sparing non-green (Hibernation)", () => {
+        const id = registerScript("test-foreach-movezone-color", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { color: "G" },
+                },
+                effects: [
+                    { op: "moveZone", target: { ref: "$each" }, to: "hand" },
+                ],
+            },
+        ]);
+        const myGreen = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            id: "hibG1",
+        });
+        const myLand = makeInstance(BOUNCE_LAND_ID, {
+            controllerId: "p1",
+            id: "hibLand",
+        });
+        const theirGreen = makeInstance(BEAR_ID, {
+            id: "hibG2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [myGreen, myLand] }),
+                makePlayer("p2", { battlefield: [theirGreen] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // Both green creatures bounced, across both battlefields.
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["hibG1"]);
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["hibG2"]);
+        // The colourless land is untouched.
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "hibLand",
+        ]);
+        expect(state.players[1].battlefield).toHaveLength(0);
+    });
 });
 
 describe("Effect Script construct: forEach — player sets, APNAP choice composition (CR 101.4, issue #807)", () => {
