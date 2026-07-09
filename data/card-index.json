@@ -30,6 +30,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Accumulated Knowledge",
+        "scryfallId": "ab061406-38f4-40e7-a9ea-e3cbcaabc127",
+        "oracleId": "1ca25379-d194-4670-a7bf-525ad11cf436",
+        "firstSet": "nem"
+    },
+    {
         "name": "Acid Rain",
         "scryfallId": "ba93c50a-2440-4e92-9cba-d97e20b1d29c",
         "oracleId": "6ae3c3a2-bd17-4fea-ae27-9d2d1eaf8cc0",

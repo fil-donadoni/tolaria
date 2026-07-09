@@ -825,6 +825,25 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 3,
     },
     {
+        // Count-based draw across all graveyards (#985). Accumulated Knowledge
+        // ({1}{U} instant): "Draw a card, then draw cards equal to the number
+        // of cards named Accumulated Knowledge in all graveyards." One copy
+        // already sits in YOUR graveyard and one in the OPPONENT's, so casting
+        // the copy in hand draws 1 + 2 = 3 (the resolving copy is on the stack,
+        // not a graveyard, so it doesn't self-count). The library is the shared
+        // draw pile; 2 Islands cover the {1}{U}.
+        label: "Count-based draw across all graveyards (Accumulated Knowledge) (#985)",
+        cards: [
+            { name: "Accumulated Knowledge", owner: "me", zone: "hand" },
+            { name: "Accumulated Knowledge", owner: "me", zone: "graveyard" },
+            { name: "Accumulated Knowledge", owner: "opp", zone: "graveyard" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+            { name: "Grizzly Bears", owner: "me", zone: "library", count: 6 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+    {
         // Grim Lavamancer graveyard-exile activated cost (#987, PRD #979).
         // "{R}, {T}, Exile two cards from your graveyard: This creature deals 2
         // damage to any target." Grim Lavamancer is in play with two Grizzly

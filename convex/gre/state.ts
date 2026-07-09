@@ -8357,13 +8357,23 @@ export function buildSpellContext(
             // CR 205.4a — `supertypesOf` resolves live snow status for
             // `supertypes` filters (Cold Snap / Avalanche snow-land counts).
             return bf
-                .filter((c) =>
-                    matchesPermanentFilter(
-                        { ...c, colors: STATIC_EFFECT_CTX.getColors(c) },
+                .filter((c) => {
+                    // CR 201.2 — live printed name from the registry, so a
+                    // `name` filter (issue #985) matches on the battlefield.
+                    const cardId = (c.card as { id?: string }).id;
+                    const name = cardId
+                        ? tryGetDefinition(cardId)?.name
+                        : undefined;
+                    return matchesPermanentFilter(
+                        {
+                            ...c,
+                            name,
+                            colors: STATIC_EFFECT_CTX.getColors(c),
+                        },
                         filter,
                         { supertypesOf: liveSupertypesOf }
-                    )
-                )
+                    );
+                })
                 .map((c) => c.id);
         },
         getCardDefinitionId(cardInstanceId: string): string | undefined {
@@ -8748,6 +8758,7 @@ export function buildSpellContext(
         },
         getHandCards(playerId: string): Array<{
             id: string;
+            name: string;
             types: CardType[];
             subtypes: string[];
             supertypes: CardSupertype[];
@@ -8759,6 +8770,9 @@ export function buildSpellContext(
                 const def = cardId ? tryGetDefinition(cardId) : undefined;
                 return {
                     id: c.id,
+                    // CR 201.2 — printed name from the registry (empty for a
+                    // definition-less instance; fail-closed for a name filter).
+                    name: def?.name ?? "",
                     types: def?.types ?? c.types,
                     subtypes: def?.subtypes ?? c.subtypes,
                     // CR 205.4 — supertypes (Basic) from the registry; hidden
@@ -8777,6 +8791,7 @@ export function buildSpellContext(
         // `supertypes`; Natural Order's "a green creature card" reads `colors`).
         getLibraryCards(playerId: string): Array<{
             id: string;
+            name: string;
             types: CardType[];
             subtypes: string[];
             supertypes: CardSupertype[];
@@ -8788,6 +8803,8 @@ export function buildSpellContext(
                 const def = cardId ? tryGetDefinition(cardId) : undefined;
                 return {
                     id: c.id,
+                    // CR 201.2 — printed name from the registry.
+                    name: def?.name ?? "",
                     types: def?.types ?? c.types,
                     subtypes: def?.subtypes ?? c.subtypes,
                     // CR 205.4 — supertypes (Basic) from the registry; hidden
@@ -8804,6 +8821,7 @@ export function buildSpellContext(
         // (Nameless Race: "white cards in their graveyards").
         getGraveyardCards(playerId: string): Array<{
             id: string;
+            name: string;
             types: CardType[];
             subtypes: string[];
             manaValue: number;
@@ -8814,6 +8832,9 @@ export function buildSpellContext(
                 const def = cardId ? tryGetDefinition(cardId) : undefined;
                 return {
                     id: c.id,
+                    // CR 201.2 — printed name from the registry (Accumulated
+                    // Knowledge's "each other card named ~", issue #985).
+                    name: def?.name ?? "",
                     types: def?.types ?? c.types,
                     subtypes: def?.subtypes ?? c.subtypes,
                     manaValue: manaValue(def?.manaCost),

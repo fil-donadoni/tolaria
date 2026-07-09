@@ -2678,6 +2678,7 @@ export interface SpellContext {
      *  in their hand"). Empty for an empty hand. */
     getHandCards: (playerId: string) => Array<{
         id: string;
+        name: string;
         types: CardType[];
         subtypes: string[];
         supertypes: CardSupertype[];
@@ -2700,6 +2701,7 @@ export interface SpellContext {
      *  Transmute Artifact. */
     getLibraryCards: (playerId: string) => Array<{
         id: string;
+        name: string;
         types: CardType[];
         subtypes: string[];
         supertypes: CardSupertype[];
@@ -2714,6 +2716,7 @@ export interface SpellContext {
      *  an empty graveyard. */
     getGraveyardCards: (playerId: string) => Array<{
         id: string;
+        name: string;
         types: CardType[];
         subtypes: string[];
         manaValue: number;
@@ -4979,8 +4982,14 @@ export interface EffectCountSpec {
      *  player controls (CR 110); `graveyard` counts cards in the player's
      *  graveyard (CR 404). */
     zone: "battlefield" | "graveyard";
-    /** Whose zone (CR 109.5 relative selectors). */
-    controller: EffectPlayerRef;
+    /** Whose zone (CR 109.5 relative selectors). Required UNLESS
+     *  `acrossAllPlayers` is set, in which case it is omitted (the count spans
+     *  every player's zone, not one player's). */
+    controller?: EffectPlayerRef;
+    /** Count across ALL players' zones (CR 122 counting — the "in all
+     *  graveyards" scope of Accumulated Knowledge, issue #985), summing each
+     *  player's matching cards. Mutually exclusive with `controller`. */
+    acrossAllPlayers?: boolean;
     /** Optional card filter (AND of the listed fields). Omitted = count all. */
     filter?: EffectCardFilter;
 }
@@ -5027,6 +5036,11 @@ export interface EffectCardFilter {
     manaValueAtMost?: number;
     isToken?: boolean;
     excludeType?: CardType | CardType[];
+    /** Match cards by exact printed name (CR 201.2 — "each other card named
+     *  Accumulated Knowledge", Relentless Rats' "cards named ~", issue #985). A
+     *  single card name; matched case-sensitively against the registry name,
+     *  ANDed with every other field. */
+    name?: string;
 }
 
 /** X — the chosen-cost value (CR 107.3, 601.2b), a thin JSON-pure skin over
