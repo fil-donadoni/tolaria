@@ -8366,3 +8366,144 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
         expect(post.players[0].library.count).toBe(3);
     });
 });
+
+describe("Effect Script count refinements: times multiplier + excludeSupertype (CR 122 / 205.4a, issue #999)", () => {
+    // Price of Progress-shaped constructs — the `count` value gains a `times`
+    // literal multiplier ("TWICE the number of …") and the `EffectCardFilter`
+    // gains an `excludeSupertype` selector ("nonbasic land"). Neither is an Op
+    // nor a new grammar member; they are refinements of the existing `count`
+    // value (ADR 0045 stays closed). Exercised through the real resolution path
+    // (a forEach over players dealing each player 2× their nonbasic-land count),
+    // with a projectPublicState wire assertion since damage is board-visible.
+
+    // A nonbasic land (no "Basic" supertype) and a basic land, registered so
+    // makeInstance hydrates real card shapes. Supertypes are set on the
+    // instance so the battlefield matcher reads them directly.
+    const NONBASIC_LAND = "test-999-nonbasic-land";
+    const BASIC_LAND = "test-999-basic-land";
+    registerTokenDefinition({
+        id: NONBASIC_LAND,
+        name: NONBASIC_LAND,
+        rarity: "common",
+        manaCost: { generic: 0 },
+        types: ["Land"],
+    });
+    registerTokenDefinition({
+        id: BASIC_LAND,
+        name: BASIC_LAND,
+        rarity: "common",
+        manaCost: { generic: 0 },
+        types: ["Land"],
+        supertypes: ["Basic"],
+    });
+
+    /** Price of Progress' effect script (issue #999). */
+    const PRICE_OF_PROGRESS: EffectOp[] = [
+        {
+            op: "forEach",
+            select: { set: "players" },
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: {
+                        count: {
+                            zone: "battlefield",
+                            controller: { ref: "$each" },
+                            filter: {
+                                type: "Land",
+                                excludeSupertype: "Basic",
+                            },
+                            times: 2,
+                        },
+                    },
+                    to: { player: { ref: "$each" } },
+                },
+            ],
+        },
+    ];
+
+    // Supertypes are NOT stored on the instance — the battlefield matcher
+    // resolves them live from the registry (via the injected `supertypesOf`),
+    // so a token def's `supertypes: ["Basic"]` drives the nonbasic distinction.
+    function nonbasic(
+        id: string,
+        controller: string
+    ): ReturnType<typeof makeInstance> {
+        return makeInstance(NONBASIC_LAND, {
+            id,
+            controllerId: controller,
+            ownerId: controller,
+        });
+    }
+    function basic(
+        id: string,
+        controller: string
+    ): ReturnType<typeof makeInstance> {
+        return makeInstance(BASIC_LAND, {
+            id,
+            controllerId: controller,
+            ownerId: controller,
+        });
+    }
+
+    it("deals each player 2× their nonbasic-land count; basics contribute 0", () => {
+        const scriptId = registerScript(
+            "test-999-price-of-progress",
+            PRICE_OF_PROGRESS
+        );
+        const state = makeState({
+            players: [
+                // p1: 2 nonbasic + 1 basic → 2 nonbasic → 4 damage.
+                makePlayer("p1", {
+                    battlefield: [
+                        nonbasic("p1-nb1", "p1"),
+                        nonbasic("p1-nb2", "p1"),
+                        basic("p1-b1", "p1"),
+                    ],
+                }),
+                // p2: 1 nonbasic + 2 basic → 1 nonbasic → 2 damage.
+                makePlayer("p2", {
+                    battlefield: [
+                        nonbasic("p2-nb1", "p2"),
+                        basic("p2-b1", "p2"),
+                        basic("p2-b2", "p2"),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, scriptId, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(16); // 20 - 2*2
+        expect(state.players[1].life).toBe(18); // 20 - 1*2
+
+        // Wire format: damage is board-visible — the resulting life totals must
+        // survive the projection (new-construct regime).
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].life).toBe(16);
+        expect(projected.players[1].life).toBe(18);
+    });
+
+    it("deals 0 to a player controlling only basic lands (excludeSupertype filters them out)", () => {
+        const scriptId = registerScript(
+            "test-999-price-only-basics",
+            PRICE_OF_PROGRESS
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        basic("p1-only-b1", "p1"),
+                        basic("p1-only-b2", "p1"),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [nonbasic("p2-solo-nb", "p2")],
+                }),
+            ],
+        });
+        pushSpell(state, scriptId, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20); // only basics → 0 damage
+        expect(state.players[1].life).toBe(18); // 1 nonbasic → 2 damage
+    });
+});
