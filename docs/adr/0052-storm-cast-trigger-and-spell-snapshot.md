@@ -31,16 +31,15 @@ Three facts about the existing engine shape the decision:
    copy-retarget banner are all live. But every existing user makes **one**
    copy from a **live** source still on the stack. Two storm-specific subtleties
    are not covered:
-
-   - **Count timing.** "each other spell cast _before it_ this turn" is fixed at
-     the moment the storm spell is cast. Spells cast afterwards — while players
-     hold priority before the storm trigger resolves — must not count. A live
-     read of the counter at trigger resolution would over-count.
-   - **Countered original.** Per the Grapeshot/Tendrils rulings, the storm
-     copies are created **even if the original spell is countered** before the
-     storm trigger resolves. `copyStackItem(sourceId)` reads `state.stack` and
-     returns `null` when the source is gone, so it would silently produce zero
-     copies — a CR deviation.
+    - **Count timing.** "each other spell cast _before it_ this turn" is fixed at
+      the moment the storm spell is cast. Spells cast afterwards — while players
+      hold priority before the storm trigger resolves — must not count. A live
+      read of the counter at trigger resolution would over-count.
+    - **Countered original.** Per the Grapeshot/Tendrils rulings, the storm
+      copies are created **even if the original spell is countered** before the
+      storm trigger resolves. `copyStackItem(sourceId)` reads `state.stack` and
+      returns `null` when the source is gone, so it would silently produce zero
+      copies — a CR deviation.
 
 Storm has been a `status: "planned"` reservation in the Mechanics Registry
 (`cards/mechanicsRegistry.ts`, `kind: "keyword-ability"`, CR 702.40) since the

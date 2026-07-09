@@ -142,7 +142,7 @@ export default function CastAlternativeHandCostDialog({
             size="wide"
             dismissable={!isPending}
         >
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-2">
+            <div className="flex flex-wrap justify-center gap-2 mt-2 p-1">
                 {eligible.map((card) => {
                     const isSel = selected.includes(card.id);
                     return (
@@ -152,7 +152,7 @@ export default function CastAlternativeHandCostDialog({
                             disabled={isPending}
                             onClick={() => toggle(card.id)}
                             title={getDefinition(card.card.id).name}
-                            className={`relative rounded-sm overflow-hidden ring-1 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                            className={`relative w-24 sm:w-28 aspect-5/7 rounded-sm overflow-hidden ring-1 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                                 isSel
                                     ? "ring-2 ring-accent"
                                     : "ring-transparent hover:ring-2 hover:ring-accent"

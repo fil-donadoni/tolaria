@@ -461,7 +461,12 @@ export function useBattlefieldVisualState(player: Player) {
             }
         }
         if (!ringClass && isTargetSelected) {
-            ringClass = "ring-2 ring-accent rounded-sm";
+            // An already-picked target reads GREEN — the same emerald
+            // selection ring the card piles use (`selectionRing`,
+            // cards-pile.tsx) — so multi-target picks (Pyrokinesis's divided
+            // damage, Force of Vigor's up-to-two destroy) are unmistakable
+            // against the faded-gold "valid but unpicked" ring below.
+            ringClass = "ring-2 ring-emerald-400 rounded-sm";
         } else if (!ringClass && isValidTarget) {
             ringClass = "ring-2 ring-accent/50 rounded-sm";
         }

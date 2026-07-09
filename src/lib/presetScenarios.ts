@@ -55,16 +55,6 @@ type PresetScenario = {
 
 export const PRESET_SCENARIOS: PresetScenario[] = [
     {
-        label: "Brainstorm",
-        cards: [
-            { name: "Brainstorm", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 1,
-        libraryCount: 12,
-    },
-    {
         // Opt (issue #1002): {U} Instant "Scry 1. Draw a card." Cast the Opt in
         // hand (an Island covers {U}) to raise the scry-1 order-top choice on
         // your top card — keep it on top or drag it to the bottom — then draw.
@@ -286,25 +276,6 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         libraryCount: 12,
     },
     {
-        // Lava Dart flashback (#1005, CR 702.34a / 118.5): a purely non-mana
-        // flashback cost — "Flashback—Sacrifice a Mountain", no mana at all.
-        // Lava Dart sits in your graveyard with two Mountains in play. The
-        // "Flashback" button costs no mana; committing it opens the unified
-        // sacrifice picker (never auto-picked) to choose WHICH Mountain to
-        // sacrifice, then deals 1 damage to the opponent's Grizzly Bears (or
-        // retarget to the opponent's face) and exiles Lava Dart instead of
-        // returning it to the graveyard. Consumes the sacrifice-flashback
-        // engine wiring that shipped generically with #1035/#1037.
-        label: "Lava Dart — flashback, sacrifice a Mountain (#1005)",
-        cards: [
-            { name: "Lava Dart", owner: "me", zone: "graveyard" },
-            { name: "Mountain", owner: "me", zone: "battlefield", count: 2 },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
         // Free pitch — alternative casting cost (CR 118.9, issue #690). Cast a
         // pitch spell by giving up a NON-mana resource instead of paying mana.
         // The cast-option picker (click the spell) offers "Pay mana cost" + the
@@ -334,10 +305,14 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
             // Pitch fodder: a red card (Pyrokinesis) and a blue card (Force of
             // Will) to exile from hand; a green card for Force of Vigor.
             { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            { name: "Sol Ring", owner: "opp", zone: "battlefield", count: 2 },
             { name: "Counterspell", owner: "me", zone: "hand" },
+            { name: "Foil", owner: "me", zone: "hand" },
             { name: "Giant Growth", owner: "me", zone: "hand" },
             { name: "Swamp", owner: "me", zone: "battlefield" },
             { name: "Mountain", owner: "me", zone: "battlefield" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 3 },
+            { name: "Island", owner: "me", zone: "hand" },
             {
                 name: "Grizzly Bears",
                 owner: "opp",

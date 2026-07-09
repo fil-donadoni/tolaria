@@ -276,3 +276,44 @@ describe("useBattlefieldVisualState — multi-pick sacrifice cost selected ring 
         );
     });
 });
+
+// Multi-TARGET selection (Pyrokinesis's divided damage, Force of Vigor's
+// up-to-two destroy) must mark an already-picked target with the GREEN
+// emerald ring the card piles use — distinct from the faded-gold "valid but
+// unpicked" ring — so the player can tell which targets they've committed.
+describe("useBattlefieldVisualState — multi-target selected ring is green", () => {
+    // Pick creatures as targets; c1 already selected, c2 still a valid pick.
+    function ctxSelectingCreatures() {
+        return {
+            phase: "PRECOMBAT_MAIN",
+            combat: undefined,
+            pendingTarget: {
+                playerId: "me",
+                targetType: "Creature",
+                selected: [{ type: "permanent", id: "c1" }],
+            },
+        } as unknown as Partial<NonNullable<Ctx>>;
+    }
+
+    it("an already-picked target shows the green (emerald) selected ring", () => {
+        const c1 = creature({ id: "c1", isSummoningSick: false });
+        const c2 = creature({ id: "c2", isSummoningSick: false });
+        const me = makePlayer("me", [c1, c2]);
+        const { result } = renderVisualState(me, ctxSelectingCreatures());
+
+        expect(result.current.getVisualState(c1).ringClass).toBe(
+            "ring-2 ring-emerald-400 rounded-sm"
+        );
+    });
+
+    it("a still-valid unpicked target keeps the faded-gold candidate ring", () => {
+        const c1 = creature({ id: "c1", isSummoningSick: false });
+        const c2 = creature({ id: "c2", isSummoningSick: false });
+        const me = makePlayer("me", [c1, c2]);
+        const { result } = renderVisualState(me, ctxSelectingCreatures());
+
+        expect(result.current.getVisualState(c2).ringClass).toBe(
+            "ring-2 ring-accent/50 rounded-sm"
+        );
+    });
+});
