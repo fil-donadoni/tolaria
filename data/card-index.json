@@ -3720,6 +3720,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Jackal Pup",
+        "scryfallId": "3707ab74-9aec-4d30-86e0-ffa5f72d5b4f",
+        "oracleId": "993e41e6-0643-4a1f-8ada-b7a4aae486d9",
+        "firstSet": "tmp"
+    },
+    {
         "name": "Jacques le Vert",
         "scryfallId": "ee5a45b1-169b-468e-9251-424c09cd7f0f",
         "oracleId": "c030ca14-33cb-40b3-a1f5-b6d0cb0efd49",

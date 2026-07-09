@@ -2,7 +2,16 @@
 // `import * as mmq from "./sets/mmq"` resolves through mmq/index.ts.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import type { CardDefinition, CardPrint } from "../../types";
+
+// Counterspell — MMQ reprint of the LEA instant ("Counter target spell").
+// CardPrint onto the LEA definition (ADR 0014).
+export const counterspellMmq: CardPrint = {
+    printId: "7bd03c80-7812-4704-9e07-9cf73b49c01f",
+    definitionId: "0df55e3f-14de-46ef-b6b1-616618724d9e",
+    setCode: "mmq",
+    rarity: "common",
+};
 
 // Gush — "You may return two Islands you control to their owner's hand rather
 // than pay this spell's mana cost. Draw two cards." (CR 118.9 alternative cost;
