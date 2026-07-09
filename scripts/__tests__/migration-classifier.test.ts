@@ -522,11 +522,17 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Pyrokinesis (resolve() — dealDamageDividedAsChosen, division has no
         // Op) lands Op-blocked (225→226, +1). Combined tree: total 648→650,
         // FREE 409→410, AFK-ready 376→377, X-only 14, Op-blocked 225→226.
+        // #692 (Kicker / Multikicker CAP) then ships kicker Op/interpreter
+        // coverage that RECLASSIFIES one formerly Op-blocked closure as FREE
+        // (and AFK-ready): total conserved at 650, FREE 410→411, AFK-ready
+        // 377→378, Op-blocked 226→225, X-only 14 (Everflowing Chalice's mana
+        // ability is a {T}-mana closure, excluded from the migration census, so
+        // it does not add to the total). Partition still holds: 411+14+225=650.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(650);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(410);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(377);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(411);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(378);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(226);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(225);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

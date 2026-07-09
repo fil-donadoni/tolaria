@@ -2,7 +2,12 @@
 // oracle text is authoritative (ADR 0004). Lands and colourless artifacts
 // (no coloured cost) live here per the colour-split convention.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import type {
+    ActivatedAbilityContext,
+    CardDefinition,
+    PermanentView,
+    SpellContext,
+} from "../../types";
 
 // Creeping Tar Pit — the manland cycle (CR 611.1 animate), same shape as
 // Mishra's Factory (`convex/cards/sets/atq/colorless.ts`): `animateAsCreature`
@@ -103,6 +108,43 @@ export const celestialColonnade: CardDefinition = {
                     phase: "end-of-turn",
                 });
             },
+        },
+    ],
+};
+
+// Everflowing Chalice — "Multikicker {2}. This artifact enters with a charge
+// counter on it for each time it was kicked. {T}: Add {C} for each charge
+// counter on this artifact." (CR 702.33e Multikicker.) The kicker capability
+// tallies each payment on the stack item; `entersWith.counters` count "kicker"
+// (CR 122.1 / 614.1c) reads that tally as it enters. The mana ability scales
+// its {C} output with the live charge count via the board-conditional
+// `manaAmount` hook — the same primitive Gaea's Cradle / the Urza land trio use
+// (`convex/gre/constants.ts` getDynamicManaProduced), counting the source's own
+// counters instead of the battlefield. Vintage Cube Kicker cluster (#692).
+export const everflowingChalice: CardDefinition = {
+    id: "1fdcc0c3-4029-4fc3-a486-5d7f45c910bd",
+    rarity: "uncommon",
+    name: "Everflowing Chalice",
+    oracleText:
+        "Multikicker {2} (You may pay an additional {2} any number of times as you cast this spell.)\nThis artifact enters with a charge counter on it for each time it was kicked.\n{T}: Add {C} for each charge counter on this artifact.",
+    manaCost: {},
+    types: ["Artifact"],
+    kicker: { cost: { X: 2 }, multi: true },
+    entersWith: { counters: [{ type: "charge", count: "kicker" }] },
+    activatedAbilities: [
+        {
+            id: "everflowing-chalice-mana",
+            oracleText:
+                "{T}: Add {C} for each charge counter on this artifact.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ C: 1 });
+            },
+            manaProduced: { C: 1 },
+            manaAmount: (source: PermanentView) => ({
+                C: source.counters?.charge ?? 0,
+            }),
         },
     ],
 };

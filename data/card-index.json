@@ -780,6 +780,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Bloodchief's Thirst",
+        "scryfallId": "059e8447-6b1c-4651-a734-a8fea2cbf7b2",
+        "oracleId": "4236851b-5366-43a1-bde4-f525b4fbcbce",
+        "firstSet": "znr"
+    },
+    {
         "name": "Bloodstained Mire",
         "scryfallId": "68c72226-6f52-4322-8b14-18737293dfa0",
         "oracleId": "fc0707c7-d504-4ccf-a0d2-3eb6e26e7a57",
@@ -970,6 +976,12 @@
         "scryfallId": "a14c05e4-8df3-450b-8a98-5028e73b14c1",
         "oracleId": "d6b9b88b-e31b-4b88-9d53-3df5687804ba",
         "firstSet": "lea"
+    },
+    {
+        "name": "Burst Lightning",
+        "scryfallId": "2dc16614-5cf8-444d-a5ae-cac25018af68",
+        "oracleId": "ac2086fe-98ee-4280-9c7c-c5c2d6548a8b",
+        "firstSet": "zen"
     },
     {
         "name": "Call to Arms",
@@ -1312,6 +1324,12 @@
         "scryfallId": "c7824e2a-4eff-4f72-9216-0db30a4f4252",
         "oracleId": "1940e56d-0972-4ca4-946c-bbd42dde1dcb",
         "firstSet": "lea"
+    },
+    {
+        "name": "Consult the Star Charts",
+        "scryfallId": "a16a6555-2e3a-4587-aacd-0307d696b26c",
+        "oracleId": "e921839f-9d91-41a9-bc89-016af3c757aa",
+        "firstSet": "eoe"
     },
     {
         "name": "Control Magic",
@@ -2170,6 +2188,12 @@
         "scryfallId": "c7e10ca7-1e5d-4224-82cf-798a4d436d72",
         "oracleId": "30b24e8e-3b0e-4d8e-90f3-f66eb7c1858c",
         "firstSet": "5dn"
+    },
+    {
+        "name": "Everflowing Chalice",
+        "scryfallId": "1fdcc0c3-4029-4fc3-a486-5d7f45c910bd",
+        "oracleId": "0a79237e-0811-4a8a-bd4d-db3ca91bff22",
+        "firstSet": "wwk"
     },
     {
         "name": "Evil Presence",
@@ -5280,6 +5304,12 @@
         "firstSet": "rav"
     },
     {
+        "name": "Overload",
+        "scryfallId": "c91fca91-7296-422e-b251-d571b710ff71",
+        "oracleId": "07159efc-c69f-4164-a8ca-9da641dbf702",
+        "firstSet": "inv"
+    },
+    {
         "name": "Pale Bears",
         "scryfallId": "7f19c2a3-6403-4a78-bf45-6e339578d673",
         "oracleId": "0acb070b-6e81-4e0e-925d-14da9b931355",
@@ -7054,6 +7084,12 @@
         "scryfallId": "3035cead-a501-4204-9154-5fd648577d32",
         "oracleId": "f07f98bb-4190-4643-aeb9-c5eaf358c97c",
         "firstSet": "atq"
+    },
+    {
+        "name": "Tear Asunder",
+        "scryfallId": "629aa907-9533-4681-9bf2-9e56450a4cc2",
+        "oracleId": "610af0f7-b5e3-43fb-9d02-7c59bd99034c",
+        "firstSet": "dmu"
     },
     {
         "name": "Teleport",

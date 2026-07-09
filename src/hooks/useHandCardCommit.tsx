@@ -71,6 +71,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         keepPriority: boolean | undefined;
         chosenModeId: string | undefined;
         alternativeCostId?: string | undefined;
+        kickerCount?: number | undefined;
     }) {
         Promise.resolve(
             announceCast({
@@ -81,6 +82,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
                 chosenX: args.chosenX,
                 chosenModeId: args.chosenModeId,
                 alternativeCostId: args.alternativeCostId,
+                kickerCount: args.kickerCount,
             })
         ).catch(reportError);
     }
@@ -99,6 +101,29 @@ export function useHandCardCommit(cardInstance: CardInstance) {
             const parsed = Number.parseInt(raw, 10);
             if (!Number.isFinite(parsed) || parsed < 0) return;
             chosenX = parsed;
+        }
+        // CR 702.33 — Kicker: an optional additional cost the caster may choose
+        // to pay as the spell is cast. A single kicker is a yes/no confirm; a
+        // Multikicker (CR 702.33e) prompts for how many times to pay. Stay tiny:
+        // native prompts, matching the X-cost MVP above.
+        let kickerCount: number | undefined;
+        if (def.kicker) {
+            if (def.kicker.multi) {
+                const raw = window.prompt(
+                    `How many times to pay the kicker for ${def.name}? (0 = don't kick)`,
+                    "0"
+                );
+                if (raw === null) return;
+                const parsed = Number.parseInt(raw, 10);
+                if (!Number.isFinite(parsed) || parsed < 0) return;
+                kickerCount = parsed;
+            } else {
+                kickerCount = window.confirm(
+                    `Pay the kicker cost for ${def.name}?`
+                )
+                    ? 1
+                    : 0;
+            }
         }
         // CR 700.2 — modal spell: pick a mode before announcement.
         if (def.modes && def.modes.length > 0) {
@@ -150,6 +175,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
             chosenX,
             keepPriority,
             chosenModeId: undefined,
+            kickerCount,
         });
     };
 
