@@ -8,16 +8,19 @@ import { affordableAltCostsForCard } from "~/lib/card-utils";
 import type { CardInstance } from "~/types/game";
 import ModePicker from "~/components/cards/mode-picker";
 import AltCostPicker from "~/components/cards/alt-cost-picker";
+import CastCostDialog from "~/components/cards/cast-cost-dialog";
 import type { AlternativeCost } from "@convex/cards/types";
 
 type ModePickerState = {
     chosenX: number | undefined;
+    kickerCount: number | undefined;
     keepPriority: boolean | undefined;
     position: { x: number; y: number };
 };
 
 type AltCostPickerState = {
     chosenX: number | undefined;
+    kickerCount: number | undefined;
     keepPriority: boolean | undefined;
     position: { x: number; y: number };
     /** The alternative costs the caster can currently afford (CR 118.9) — the
@@ -26,21 +29,34 @@ type AltCostPickerState = {
     altCosts: AlternativeCost[];
 };
 
+/** Cost-choice dialog state (CR 601.2b {X} + CR 702.33 Kicker). Opened before
+ *  the mode / alt-cost pickers when the card needs a numeric X and/or a kicker
+ *  decision; `position` is captured at click time so the downstream pickers can
+ *  still anchor to the card after the dialog closes. */
+type CostDialogState = {
+    keepPriority: boolean | undefined;
+    askX: boolean;
+    kicker: { multi: boolean } | undefined;
+    position: { x: number; y: number };
+};
+
 /** The shared hand-card commit pipeline (PRD #249, slice #254).
  *
  * Both clicking a hand card (classic board / `selectable-card`) and dragging it
  * out of the hand past the commit threshold (spatial board / drag-to-cast)
  * dispatch the SAME GRE-boundary mutation — `playCard` for lands, `announceCast`
  * for spells — through this one hook. Extracting it guarantees drag and click
- * are provably identical: the X-cost prompt (CR 601.2b), the modal mode picker
- * (CR 700.2), the `ctrl/meta` keep-priority modifier, and the debug
- * skip-validation flag all run once here and behave the same regardless of which
- * gesture invoked them. Downstream flow (payment banner, target selection) is
- * untouched because the mutation args are identical.
+ * are provably identical: the cost-choice dialog (X — CR 601.2b — and Kicker —
+ * CR 702.33), the modal mode picker (CR 700.2), the `ctrl/meta` keep-priority
+ * modifier, and the debug skip-validation flag all run once here and behave the
+ * same regardless of which gesture invoked them. Downstream flow (payment
+ * banner, target selection) is untouched because the mutation args are
+ * identical.
  *
- * Returns the two commit handlers plus the mode-picker overlay node, which the
- * caller renders so the picker anchors correctly to its card. `modePickerOverlay`
- * is `null` until a modal spell's cast is in progress. */
+ * Returns the two commit handlers plus overlay nodes (cost-choice dialog, mode
+ * picker, alt-cost picker), which the caller renders so each anchors correctly
+ * to its card. Each overlay is `null` until its step of the cast is in
+ * progress. */
 export function useHandCardCommit(cardInstance: CardInstance) {
     const { gameId, playerId, debugAllActions, allPlayers, activePlayerId } =
         useGameContext();
@@ -52,6 +68,8 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         useState<ModePickerState | null>(null);
     const [altCostPickerState, setAltCostPickerState] =
         useState<AltCostPickerState | null>(null);
+    const [costDialogState, setCostDialogState] =
+        useState<CostDialogState | null>(null);
 
     const onPlayClick = () => {
         // Route a server-side rejection to the shared error toast instead of
@@ -87,56 +105,28 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         ).catch(reportError);
     }
 
-    const onCastClick = (e: React.MouseEvent | React.PointerEvent) => {
-        const keepPriority = e.ctrlKey || e.metaKey || undefined;
-        // CR 107.3 / 601.2b: if the spell has X in its mana cost, the caster
-        // chooses X before announcement. Stay tiny: a native prompt is enough
-        // for the study-engine MVP.
+    // Resume the cast pipeline once the cost choices (X / kicker) are known:
+    // CR 700.2 modal mode picker, then CR 118.9 alternative-cost picker, then
+    // the actual `announceCast`. Factored out of `onCastClick` so the same tail
+    // runs whether the choices came from the `CastCostDialog` or (for a card
+    // with neither X nor kicker) directly. `position` is captured at click time
+    // so the mode / alt-cost pickers still anchor to the card.
+    function proceedAfterCost(params: {
+        chosenX: number | undefined;
+        kickerCount: number | undefined;
+        keepPriority: boolean | undefined;
+        position: { x: number; y: number };
+    }) {
+        const { chosenX, kickerCount, keepPriority, position } = params;
         const def = getDefinition(cardInstance.card.id);
-        const hasX = typeof def.manaCost?.X === "string";
-        let chosenX: number | undefined;
-        if (hasX) {
-            const raw = window.prompt(`Choose X for ${def.name}`, "0");
-            if (raw === null) return;
-            const parsed = Number.parseInt(raw, 10);
-            if (!Number.isFinite(parsed) || parsed < 0) return;
-            chosenX = parsed;
-        }
-        // CR 702.33 — Kicker: an optional additional cost the caster may choose
-        // to pay as the spell is cast. A single kicker is a yes/no confirm; a
-        // Multikicker (CR 702.33e) prompts for how many times to pay. Stay tiny:
-        // native prompts, matching the X-cost MVP above.
-        let kickerCount: number | undefined;
-        if (def.kicker) {
-            if (def.kicker.multi) {
-                const raw = window.prompt(
-                    `How many times to pay the kicker for ${def.name}? (0 = don't kick)`,
-                    "0"
-                );
-                if (raw === null) return;
-                const parsed = Number.parseInt(raw, 10);
-                if (!Number.isFinite(parsed) || parsed < 0) return;
-                kickerCount = parsed;
-            } else {
-                kickerCount = window.confirm(
-                    `Pay the kicker cost for ${def.name}?`
-                )
-                    ? 1
-                    : 0;
-            }
-        }
         // CR 700.2 — modal spell: pick a mode before announcement.
         if (def.modes && def.modes.length > 0) {
-            // Anchor on currentTarget (the handler-bound element) — more
-            // stable than `e.target` which may be a nested child. Falls
-            // back to the pointer coords if the rect is degenerate.
-            const anchor = e.currentTarget as HTMLElement | null;
-            const rect = anchor?.getBoundingClientRect();
-            const position =
-                rect && rect.width > 0 && rect.height > 0
-                    ? { x: rect.right + 8, y: rect.top }
-                    : { x: e.clientX + 8, y: e.clientY + 8 };
-            setModePickerState({ chosenX, keepPriority, position });
+            setModePickerState({
+                chosenX,
+                kickerCount,
+                keepPriority,
+                position,
+            });
             return;
         }
         // CR 118.9 — a spell with alternative casting costs (Gush, Thwart,
@@ -156,14 +146,9 @@ export function useHandCardCommit(cardInstance: CardInstance) {
                 activePlayerId
             );
             if (affordableAlts.length > 0) {
-                const anchor = e.currentTarget as HTMLElement | null;
-                const rect = anchor?.getBoundingClientRect();
-                const position =
-                    rect && rect.width > 0 && rect.height > 0
-                        ? { x: rect.right + 8, y: rect.top }
-                        : { x: e.clientX + 8, y: e.clientY + 8 };
                 setAltCostPickerState({
                     chosenX,
+                    kickerCount,
                     keepPriority,
                     position,
                     altCosts: affordableAlts,
@@ -177,6 +162,44 @@ export function useHandCardCommit(cardInstance: CardInstance) {
             chosenModeId: undefined,
             kickerCount,
         });
+    }
+
+    const onCastClick = (e: React.MouseEvent | React.PointerEvent) => {
+        const keepPriority = e.ctrlKey || e.metaKey || undefined;
+        const def = getDefinition(cardInstance.card.id);
+        // CR 107.3 / 601.2b: X in the mana cost is chosen before announcement.
+        // CR 702.33: Kicker is an optional additional cost decided at cast time.
+        // Anchor on currentTarget (the handler-bound element) — more stable than
+        // `e.target` which may be a nested child. Falls back to the pointer
+        // coords if the rect is degenerate. Captured now so the downstream
+        // mode / alt-cost pickers can still anchor after the cost dialog closes.
+        const hasX = typeof def.manaCost?.X === "string";
+        const anchor = e.currentTarget as HTMLElement | null;
+        const rect = anchor?.getBoundingClientRect();
+        const position =
+            rect && rect.width > 0 && rect.height > 0
+                ? { x: rect.right + 8, y: rect.top }
+                : { x: e.clientX + 8, y: e.clientY + 8 };
+        // A spell needing an X value and/or a kicker decision collects both in
+        // one in-game dialog (replacing the old native prompt/confirm) before
+        // the cast pipeline resumes.
+        if (hasX || def.kicker) {
+            setCostDialogState({
+                keepPriority,
+                askX: hasX,
+                kicker: def.kicker
+                    ? { multi: def.kicker.multi === true }
+                    : undefined,
+                position,
+            });
+            return;
+        }
+        proceedAfterCost({
+            chosenX: undefined,
+            kickerCount: undefined,
+            keepPriority,
+            position,
+        });
     };
 
     const def = getDefinition(cardInstance.card.id);
@@ -188,12 +211,14 @@ export function useHandCardCommit(cardInstance: CardInstance) {
                 variant="portal"
                 position={modePickerState.position}
                 onSelect={(modeId) => {
-                    const { chosenX, keepPriority } = modePickerState;
+                    const { chosenX, kickerCount, keepPriority } =
+                        modePickerState;
                     setModePickerState(null);
                     commitAnnounceCast({
                         chosenX,
                         keepPriority,
                         chosenModeId: modeId,
+                        kickerCount,
                     });
                 }}
                 onCancel={() => setModePickerState(null)}
@@ -207,23 +232,46 @@ export function useHandCardCommit(cardInstance: CardInstance) {
                 cardName={def.name}
                 position={altCostPickerState.position}
                 onSelect={(altCostId) => {
-                    const { chosenX, keepPriority } = altCostPickerState;
+                    const { chosenX, kickerCount, keepPriority } =
+                        altCostPickerState;
                     setAltCostPickerState(null);
                     commitAnnounceCast({
                         chosenX,
                         keepPriority,
                         chosenModeId: undefined,
                         alternativeCostId: altCostId,
+                        kickerCount,
                     });
                 }}
                 onCancel={() => setAltCostPickerState(null)}
             />
         ) : null;
 
+    const costDialogOverlay = costDialogState ? (
+        <CastCostDialog
+            open
+            cardName={def.name}
+            askX={costDialogState.askX}
+            kicker={costDialogState.kicker}
+            onConfirm={({ chosenX, kickerCount }) => {
+                const { keepPriority, position } = costDialogState;
+                setCostDialogState(null);
+                proceedAfterCost({
+                    chosenX,
+                    kickerCount,
+                    keepPriority,
+                    position,
+                });
+            }}
+            onCancel={() => setCostDialogState(null)}
+        />
+    ) : null;
+
     return {
         onPlayClick,
         onCastClick,
         modePickerOverlay,
         altCostPickerOverlay,
+        costDialogOverlay,
     };
 }

@@ -178,6 +178,31 @@ vi.mock("../spatial-zone", () => ({
     ),
 }));
 
+// The X cost dialog (CR 601.2b) — replaces the old native prompt for an X
+// activated ability. Mirror it with a portal button that confirms a fixed
+// chosen X (3) so the test drives the same downstream dispatch.
+vi.mock("../../cards/cast-cost-dialog", async () => {
+    const { createPortal } = await import("react-dom");
+    return {
+        default: ({
+            askX,
+            onConfirm,
+        }: {
+            askX: boolean;
+            onConfirm: (v: { chosenX?: number; kickerCount?: number }) => void;
+        }) =>
+            createPortal(
+                <button
+                    data-testid="cost-confirm"
+                    onClick={() => onConfirm({ chosenX: askX ? 3 : undefined })}
+                >
+                    confirm
+                </button>,
+                document.body
+            ),
+    };
+});
+
 import BoardBattlefield from "../board-battlefield";
 
 function permanent(
@@ -300,12 +325,14 @@ describe("board battlefield activated-ability parity with the classic board (#27
         expect(spatialArgs!.keepPriority).toBeUndefined();
     });
 
-    it("(b) an X ability prompts and dispatches identical chosenX args on both boards", () => {
-        vi.spyOn(window, "prompt").mockReturnValue("3");
+    it("(b) an X ability opens the cost dialog and dispatches the chosen X", () => {
         const me = makePlayer("me", [permanent("rl1", "x-def")]);
 
         const { container } = renderSpatial(me, [me]);
         openMenuAndClick(container, "rl1", "deal X damage");
+        // The menu click defers to the cost dialog — no dispatch yet.
+        expect(activateAbility).not.toHaveBeenCalled();
+        fireEvent.click(within(document.body).getByTestId("cost-confirm"));
         const spatialArgs = activateAbility.mock.calls[0][0];
 
         expect(spatialArgs).toMatchObject({

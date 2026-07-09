@@ -97,6 +97,7 @@ export default function BoardHandCard({
         onCastClick,
         modePickerOverlay,
         altCostPickerOverlay,
+        costDialogOverlay,
     } = useHandCardCommit(card);
 
     const commit = (e: React.MouseEvent | React.PointerEvent) => {
@@ -211,6 +212,7 @@ export default function BoardHandCard({
             {seen && <SeenByOpponentBadge />}
             {modePickerOverlay}
             {altCostPickerOverlay}
+            {costDialogOverlay}
         </div>
     );
 }

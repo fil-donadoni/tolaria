@@ -42,6 +42,7 @@ export default function SelectableCard({
         onCastClick,
         modePickerOverlay,
         altCostPickerOverlay,
+        costDialogOverlay,
     } = useHandCardCommit(cardInstance);
 
     // Mid-resolution hand pick (CR 608.2, ADR 0007). Clicks toggle the
@@ -97,6 +98,7 @@ export default function SelectableCard({
                 <CardImage card={cardInstance} />
                 {modePickerOverlay}
                 {altCostPickerOverlay}
+                {costDialogOverlay}
             </>
         );
     }
@@ -146,6 +148,7 @@ export default function SelectableCard({
                 </div>
                 {modePickerOverlay}
                 {altCostPickerOverlay}
+                {costDialogOverlay}
             </>
         );
     }
@@ -194,6 +197,7 @@ export default function SelectableCard({
             />
             {modePickerOverlay}
             {altCostPickerOverlay}
+            {costDialogOverlay}
         </>
     );
 }
