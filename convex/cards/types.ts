@@ -3364,6 +3364,19 @@ export interface StaticUntapRestriction {
      *  Reads the source permanent's live view — Merseine gates on "if this Aura
      *  has a net counter on it" (`source.counters.net > 0`). */
     condition?: (source: PermanentView) => boolean;
+    /** Per-candidate refinement resolved at untap-collection time (CR 502.1).
+     *  When present, `collectUntapRestrictions` tests every battlefield
+     *  permanent that already passes `filter` against this predicate — which
+     *  may read the permanent's card DEFINITION (e.g. its `activatedAbilities`)
+     *  in addition to its live view — and synthesizes an `instanceIds` filter
+     *  from the matches. Needed for restrictions whose target set depends on
+     *  characteristics `PermanentFilter` doesn't carry: Tsabo's Web — "Each
+     *  land with an activated ability that isn't a mana ability doesn't untap"
+     *  (a non-mana ability is `useStack: true`, CR 605.1a; "{T} in its cost" is
+     *  `cost.tap`). Mutually exclusive with `appliesToHost`; `filter` still
+     *  pre-filters the candidate pool cheaply (Tsabo's Web scopes to
+     *  `types: "Land"`) before the predicate refines it. */
+    dynamicMatch?: (candidate: PermanentView, def: CardDefinition) => boolean;
 }
 
 /** Card-level block restriction (CR 509.1b). Declares that a permanent

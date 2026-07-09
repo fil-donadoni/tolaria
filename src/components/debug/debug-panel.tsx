@@ -825,6 +825,35 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 3,
     },
     {
+        // Tsabo's Web — ETB draw + utility-land untap lock (#998). Tsabo's Web
+        // ({2} artifact) sits in hand. Cast it to draw a card on entry (part a),
+        // then it imposes its continuous static (CR 502.1): each land with an
+        // activated ability that isn't a mana ability doesn't untap. Two tapped
+        // lands are in play — Mishra's Factory (its "{T}: pump Assembly-Worker"
+        // is a non-mana ability → stays locked) and a plain Island (mana-only →
+        // untaps normally). Cast the Web, then pass to your next untap step and
+        // watch the Factory stay tapped while the Island untaps. 4 lands cover
+        // the {2}.
+        label: "Tsabo's Web — ETB draw + utility-land untap lock (#998)",
+        cards: [
+            { name: "Tsabo's Web", owner: "me", zone: "hand" },
+            {
+                name: "Mishra's Factory",
+                owner: "me",
+                zone: "battlefield",
+                tapped: true,
+            },
+            {
+                name: "Island",
+                owner: "me",
+                zone: "battlefield",
+                tapped: true,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
+    {
         // Count-based draw across all graveyards (#985). Accumulated Knowledge
         // ({1}{U} instant): "Draw a card, then draw cards equal to the number
         // of cards named Accumulated Knowledge in all graveyards." One copy
