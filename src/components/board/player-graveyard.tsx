@@ -7,6 +7,7 @@ import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { isGraveyardChoiceActive } from "~/lib/graveyard-choice";
 import CardsPile from "./cards-pile";
+import GraveyardFlashbackButton from "./graveyard-flashback-button";
 import LibrarySearchConfirm from "./library-search-confirm";
 
 export default function PlayerGraveyard({
@@ -118,6 +119,24 @@ export default function PlayerGraveyard({
                                 max={choiceMax}
                             />
                         ) : undefined
+                    }
+                    // CR 702.34 — a card in the viewer's own graveyard with a
+                    // Flashback cost (printed or granted, projected as
+                    // `legalActions`) surfaces a Flashback cast button. Suppress
+                    // it while a graveyard target/choice owns the pile so the two
+                    // interactions never collide.
+                    renderCardAction={
+                        player.id === playerId &&
+                        !isGraveyardChoice &&
+                        !isGraveyardTarget
+                            ? (card, onClose) =>
+                                  card.legalActions !== undefined ? (
+                                      <GraveyardFlashbackButton
+                                          card={card}
+                                          onCommitted={onClose}
+                                      />
+                                  ) : null
+                            : undefined
                     }
                     // Portrait chip control only drives the normal browse — never
                     // while a blocking graveyard pick owns the modal.

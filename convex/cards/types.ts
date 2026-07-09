@@ -2853,6 +2853,19 @@ export interface SpellContext {
      *  graveyard when resolution completes. No-op on a stack item that is a
      *  copy (a copy ceases to exist anyway, CR 707.10) or an ability. */
     exileSelf: () => void;
+    /** CR 702.34 — grant Flashback to a target instant/sorcery card in a
+     *  graveyard until end of turn (Snapcaster Mage). The `target` is a chosen
+     *  `graveyard-card` selection; its flashback cost is set on the card
+     *  instance (`grantedFlashback`) so it becomes castable from the graveyard,
+     *  and expires at the cleanup step (CR 514.2). When `cost` is omitted the
+     *  grant uses the card's own mana cost ("The flashback cost is equal to its
+     *  mana cost"). No-op if the target card isn't in a graveyard. */
+    grantFlashback: (target: TargetSelection, cost?: ManaCost) => void;
+    /** CR 702.34 — true iff the currently-resolving spell was cast from a
+     *  graveyard via Flashback. Read by "if this spell was cast from a
+     *  graveyard, ..." resolution clauses (Sevinne's Reclamation). False for a
+     *  normal hand/exile cast and for abilities. */
+    wasCastFromGraveyard: () => boolean;
 }
 
 /** When a delayed triggered ability fires (CR 603.7). Shared by the legacy
@@ -6320,6 +6333,18 @@ export interface CardDefinition {
      *  See {@link AlternativeCost}. Used by Gush, Thwart (return Islands) and
      *  Fireblast (sacrifice Mountains). */
     alternativeCosts?: AlternativeCost[];
+    /** CR 702.34 — Flashback. A static ability that functions while the card
+     *  is in its owner's graveyard: "You may cast this card from your graveyard
+     *  by paying [this cost] rather than its mana cost", and "If the flashback
+     *  cost was paid, exile this card as it resolves or leaves the stack."
+     *  Set to the alternative flashback mana cost (e.g. Faithless Looting's
+     *  `{2}{R}` → `{ X: 2, R: 1 }`). The engine (`convex/gre/flashback.ts`)
+     *  reads this to make a graveyard card castable; the resolving stack item
+     *  is flagged `exileOnResolve` so `finalizeSpellResolution` sends the card
+     *  to exile instead of the graveyard. A temporary grant (Snapcaster Mage,
+     *  `CardInstanceState.grantedFlashback`) overrides / supplies this at the
+     *  instance level. */
+    flashback?: ManaCost;
     /** Adds this many generic mana to the total cost for each target beyond
      *  the first (CR 601.2f). Used by Fireball ("costs {1} more to cast for
      *  each target beyond the first"). */

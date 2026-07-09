@@ -213,6 +213,11 @@ function compactCard(
     if (card.castableFromExileUntilTurn !== undefined) {
         out.castableFromExileUntilTurn = card.castableFromExileUntilTurn;
     }
+    // CR 702.34 — an instance-level Flashback grant (Snapcaster Mage) on a
+    // graveyard card must survive a save/load until it expires at cleanup.
+    if (card.grantedFlashback) {
+        out.grantedFlashback = card.grantedFlashback;
+    }
     return out;
 }
 
@@ -429,6 +434,10 @@ function expandCard(
     if (compact.castableFromExileUntilTurn !== undefined) {
         result.castableFromExileUntilTurn =
             compact.castableFromExileUntilTurn as number;
+    }
+    if (compact.grantedFlashback) {
+        result.grantedFlashback =
+            compact.grantedFlashback as CardInstanceState["grantedFlashback"];
     }
     return result;
 }
@@ -672,6 +681,10 @@ function compactStackItem(item: StackItem): CompactCard {
     }
     if (item.isCopy) base.isCopy = item.isCopy;
     if (item.exileOnResolve) base.exileOnResolve = item.exileOnResolve;
+    // CR 702.34 — persist the Flashback cast marker so an "if this spell was
+    // cast from a graveyard" resolution (Sevinne's Reclamation) survives a DB
+    // round-trip mid-resolution.
+    if (item.castFromGraveyard) base.castFromGraveyard = item.castFromGraveyard;
     // Acting Player (ADR 0037): persist the controlled-cast override so a
     // suspended Word of Command resolution survives a DB round-trip.
     if (item.actingPlayerId) base.actingPlayerId = item.actingPlayerId;
@@ -740,6 +753,9 @@ function expandStackItem(compact: CompactCard): StackItem {
     if (compact.isCopy) item.isCopy = compact.isCopy as boolean;
     if (compact.exileOnResolve) {
         item.exileOnResolve = compact.exileOnResolve as boolean;
+    }
+    if (compact.castFromGraveyard) {
+        item.castFromGraveyard = compact.castFromGraveyard as boolean;
     }
     // Acting Player (ADR 0037) — rehydrate the controlled-cast override.
     if (compact.actingPlayerId) {

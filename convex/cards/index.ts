@@ -77,6 +77,7 @@ import * as tmp from "./sets/tmp";
 import * as mir from "./sets/mir";
 import * as ths from "./sets/ths";
 import * as isd from "./sets/isd";
+import * as c19 from "./sets/c19";
 import * as dsk from "./sets/dsk";
 // Stub-only home sets for this tranche's stop-and-issue cards (issue #675) —
 // no active CardDefinition yet, wired anyway per ADR 0043 (every set
@@ -271,6 +272,8 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "mir", exports: mir },
     { code: "ths", exports: ths },
     { code: "isd", exports: isd },
+    // Sevinne's Reclamation's home set (Flashback CAP, issue #693).
+    { code: "c19", exports: c19 },
     { code: "dsk", exports: dsk },
     { code: "sth", exports: sth },
     { code: "big", exports: big },
