@@ -5040,6 +5040,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Opt",
+        "scryfallId": "958262ec-8e52-40cf-a9fd-a60e42643e15",
+        "oracleId": "713332c1-5bd8-400f-bfff-c1ca0697a043",
+        "firstSet": "inv"
+    },
+    {
         "name": "Orc General",
         "scryfallId": "65a10fd5-506e-46bf-87e6-fde134c0dc04",
         "oracleId": "1f696446-30ba-42ab-b4fc-ee9c956b0a62",

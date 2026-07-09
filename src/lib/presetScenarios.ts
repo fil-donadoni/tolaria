@@ -55,6 +55,20 @@ type PresetScenario = {
 
 export const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Opt (issue #1002): {U} Instant "Scry 1. Draw a card." Cast the Opt in
+        // hand (an Island covers {U}) to raise the scry-1 order-top choice on
+        // your top card — keep it on top or drag it to the bottom — then draw.
+        // A stocked library (libraryCount) makes the top-card look/draw visible.
+        label: "Opt — scry 1 + draw (#1002)",
+        cards: [
+            { name: "Opt", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 1,
+        libraryCount: 12,
+    },
+    {
         // Copy-on-ETB Bot cast prune (issue #938): a copy-on-ETB spell (Copy
         // Artifact, Clone, Vesuvan Doppelganger, Dance of Many) enters as a copy
         // of a permanent already in play. Casting one with NO permanent it could
