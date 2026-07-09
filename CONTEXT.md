@@ -141,6 +141,14 @@ _Avoid_: Event handler, listener
 A one-shot **Triggered Ability** created during the resolution of a spell or ability rather than printed on a permanent — "at the beginning of the next end step, destroy it" (CR 603.7). It waits for its timing condition, fires exactly once, then ceases to exist. In an **Effect Script** it is written inline: the scheduling **Op** carries the delayed body (itself an Effect Script) and its **Captures**, so the whole card reads like its oracle text.
 _Avoid_: Scheduled effect, deferred callback, timer
 
+**Cast Trigger**:
+A **Triggered Ability** whose condition is "when you **Cast** this spell" — it fires from the **Stack** as the spell is announced, not from the **Battlefield**. Because ordinary trigger collection scans only battlefield (and just-left) sources, cast triggers are gathered by a dedicated pass at cast time and placed on the **Stack** _above_ the spell, so they resolve before it. **Storm** is the first cast trigger.
+_Avoid_: On-cast hook, cast listener
+
+**Storm**:
+A **Keyword** ability (CR 702.40) that is a **Cast Trigger**: "when you cast this spell, copy it for each other spell cast before it this turn; you may choose new targets for the copies." The copy count is the value of **Spells Cast This Turn** captured at the moment the spell is cast (a later spell cast before the trigger resolves does not count), and the copies are created even if the original spell has since left the **Stack** — so the trigger carries a **snapshot** of the spell rather than reading the live stack item. Each copy is a **Spell Copy** offered an optional **Copy-Retarget**.
+_Avoid_: Storm count (for the counter — that is **Spells Cast This Turn**)
+
 **Static Ability**:
 An ability that applies continuously while the **Permanent** is in the appropriate **Zone**. Does not use the **Stack**.
 _Avoid_: Passive ability, aura effect
@@ -184,6 +192,10 @@ A specific **Permanent**, **Player**, or **Spell** chosen during **Casting** tha
 **Spell Copy**:
 A **Stack Item** created by copying another spell on the **Stack** (CR 707.10, e.g. Fork). It is not a real card: it carries `isCopy`, inherits the original's resolve/targets/X, may be given a different color via `colorOverride`, and ceases to exist after resolving instead of going to a **Graveyard**. The copy's controller _may_ choose new targets for it (a **Copy-Retarget** target selection).
 _Avoid_: Token spell, duplicate
+
+**Spells Cast This Turn**:
+A running count of how many **Spells** have been **Cast** by any **Player** this **Turn**, reset at each turn change (`GameState.spellsCastThisTurn`). A **Spell Copy** is put onto the **Stack**, not cast, so it never increments the count. The count read at cast time (the tally of spells cast _before_ this one) rides on the cast event as `priorSpellCount` — the value **Storm** uses for its copy count.
+_Avoid_: Storm count, spell counter
 
 **Permanent Copy**:
 A **Permanent** that has become a copy of another (CR 707.2, e.g. Clone, Copy Artifact, Vesuvan Doppelganger). The engine overwrites the copy's `card.id` with the copied object's definition id so every characteristic reader (abilities, colors, P/T, types) observes the copy; the printed identity is kept in `copiedFrom` and restored when the copy leaves the battlefield (`revertCopy`). Copy effects copy printed/copiable values only — never counters, damage, tap state, auras, or control. Exceptions (CR 707.9d) are expressed as options: a kept color via `colorOverride`, added types via `additionalTypes`, and a retained ability via a `retainedThroughCopy`-flagged trigger.
