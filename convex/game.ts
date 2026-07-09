@@ -1082,16 +1082,23 @@ function graveyardCardMatchesExileCost(
     return card.types.includes(cardType);
 }
 
-/** True iff at least ONE player's graveyard holds `count` cards matching
+/** True iff at least ONE eligible graveyard holds `count` cards matching
  *  `cardType` (CR 118.5 — the whole cost must be paid from a SINGLE graveyard;
  *  it cannot be split across two). Gates activation legality for an
- *  `exileFromGraveyard` cost (Night Soil). */
+ *  `exileFromGraveyard` cost (Night Soil). When `restrictOwnerId` is set, only
+ *  that player's graveyard is eligible (CR 118.5 — Grim Lavamancer's "your
+ *  graveyard", `owner: "you"`); otherwise any player's graveyard qualifies. */
 function canPayExileFromGraveyard(
     state: GameState,
     count: number,
-    cardType?: CardType
+    cardType?: CardType,
+    restrictOwnerId?: string
 ): boolean {
-    return state.players.some(
+    const sources =
+        restrictOwnerId !== undefined
+            ? state.players.filter((p) => p.id === restrictOwnerId)
+            : state.players;
+    return sources.some(
         (p) =>
             p.graveyard.filter((c) =>
                 graveyardCardMatchesExileCost(c, cardType)
@@ -1233,6 +1240,9 @@ export function buildPendingActivation(opts: {
                                 cardType:
                                     ability.cost.exileFromGraveyard.cardType,
                             }
+                          : {}),
+                      ...(ability.cost.exileFromGraveyard.owner !== undefined
+                          ? { owner: ability.cost.exileFromGraveyard.owner }
                           : {}),
                   },
               }
@@ -2944,8 +2954,15 @@ export function finalizeTargetSelection(
         // CR 602.1 / 118.5 — "exile N cards from a single graveyard": illegal
         // unless one graveyard holds enough matching cards.
         if (ability.cost.exileFromGraveyard) {
-            const { count, cardType } = ability.cost.exileFromGraveyard;
-            if (!canPayExileFromGraveyard(state, count, cardType)) {
+            const { count, cardType, owner } = ability.cost.exileFromGraveyard;
+            if (
+                !canPayExileFromGraveyard(
+                    state,
+                    count,
+                    cardType,
+                    owner === "you" ? player.id : undefined
+                )
+            ) {
                 throw new Error(
                     "No single graveyard has enough cards to pay the exile cost"
                 );
@@ -3078,6 +3095,13 @@ export function finalizeTargetSelection(
                                         cardType:
                                             ability.cost.exileFromGraveyard
                                                 .cardType,
+                                    }
+                                  : {}),
+                              ...(ability.cost.exileFromGraveyard.owner !==
+                              undefined
+                                  ? {
+                                        owner: ability.cost.exileFromGraveyard
+                                            .owner,
                                     }
                                   : {}),
                           },
@@ -4951,6 +4975,11 @@ export const selectActivationExileCost = mutation({
             new Set(args.cardInstanceIds).size !== args.cardInstanceIds.length
         ) {
             throw new Error("Duplicate card selected for the exile cost");
+        }
+        // CR 118.5 — `owner: "you"` restricts the source to the activating
+        // player's OWN graveyard (Grim Lavamancer "your graveyard").
+        if (ec.owner === "you" && args.graveyardOwnerId !== pa.playerId) {
+            throw new Error("This cost must be paid from your own graveyard");
         }
         const owner = state.players.find((p) => p.id === args.graveyardOwnerId);
         if (!owner) throw new Error("Graveyard owner not in this game");
@@ -7405,8 +7434,15 @@ export const activateAbility = mutation({
         // Soil): illegal unless one graveyard holds enough matching cards.
         // Validated up-front so we never enter an unpayable pendingActivation.
         if (ability.cost.exileFromGraveyard) {
-            const { count, cardType } = ability.cost.exileFromGraveyard;
-            if (!canPayExileFromGraveyard(state, count, cardType)) {
+            const { count, cardType, owner } = ability.cost.exileFromGraveyard;
+            if (
+                !canPayExileFromGraveyard(
+                    state,
+                    count,
+                    cardType,
+                    owner === "you" ? player.id : undefined
+                )
+            ) {
                 throw new Error(
                     "No single graveyard has enough cards to pay the exile cost"
                 );

@@ -824,6 +824,48 @@ const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 3,
     },
+    {
+        // Grim Lavamancer graveyard-exile activated cost (#987, PRD #979).
+        // "{R}, {T}, Exile two cards from your graveyard: This creature deals 2
+        // damage to any target." Grim Lavamancer is in play with two Grizzly
+        // Bears in YOUR graveyard as exile fuel and three Mountains for the {R}.
+        // Activate it, pick a target (the opponent's Balduvian Bears, or the
+        // opponent's face), pay {R}+{T}, then pick the two graveyard cards to
+        // exile — 2 damage resolves. The opponent's own graveyard card is NOT
+        // an eligible source (owner: "you" — CR 118.5), so the exile picker
+        // only offers your graveyard.
+        label: "Grim Lavamancer — exile-from-your-graveyard cost (#987)",
+        cards: [
+            { name: "Grim Lavamancer", owner: "me", zone: "battlefield" },
+            { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
+            { name: "Grizzly Bears", owner: "me", zone: "graveyard", count: 2 },
+            { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
+            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+    },
+    {
+        // Annul ({U} instant, #996): "Counter target artifact or enchantment
+        // spell." The opponent holds an artifact (Black Lotus) and an
+        // enchantment (Crusade) to cast, plus a creature (Grizzly Bears) and a
+        // burn instant (Lightning Bolt) that Annul CANNOT target — the
+        // spellTypeFilter exhaustive-over-the-union check. Let the opponent put
+        // one on the stack, then respond with Annul: only the artifact /
+        // enchantment spell is a legal (clickable) target. 1 Island covers {U}.
+        label: "Annul — counter artifact/enchantment spell (#996)",
+        cards: [
+            { name: "Annul", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield" },
+            { name: "Black Lotus", owner: "opp", zone: "hand" },
+            { name: "Crusade", owner: "opp", zone: "hand" },
+            { name: "Grizzly Bears", owner: "opp", zone: "hand" },
+            { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+            { name: "Island", owner: "opp", zone: "battlefield", count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 1,
+    },
 ];
 
 type DebugPanelProps = {
