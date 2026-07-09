@@ -108,6 +108,23 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         libraryCount: 12,
     },
     {
+        // Goblin Cadets (issue #1001): {R} 2/1 Goblin — "Whenever this creature
+        // blocks or becomes blocked, target opponent gains control of it. (This
+        // removes this creature from combat.)" Goblin Cadets is on your
+        // battlefield with an opponent creature across the table. Move to combat
+        // and attack with Goblin Cadets; when the opponent blocks it, it
+        // "becomes blocked" — the trigger donates it to the opponent (CR 613.1b)
+        // and removes it from combat (CR 506.4c), so no combat damage is dealt.
+        // (Symmetrically, blocking an opponent's attacker donates it too.)
+        label: "Goblin Cadets — control-donation drawback (#1001)",
+        cards: [
+            { name: "Goblin Cadets", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+    {
         // Copy-on-ETB Bot cast prune (issue #938): a copy-on-ETB spell (Copy
         // Artifact, Clone, Vesuvan Doppelganger, Dance of Many) enters as a copy
         // of a permanent already in play. Casting one with NO permanent it could

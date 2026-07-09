@@ -2808,6 +2808,12 @@
         "firstSet": "tmp"
     },
     {
+        "name": "Goblin Cadets",
+        "scryfallId": "60081115-16bc-4924-b76d-7cfc0ad2287c",
+        "oracleId": "32dc847a-d8e9-4bc5-aa73-dfe69ff330a2",
+        "firstSet": "usg"
+    },
+    {
         "name": "Goblin Caves",
         "scryfallId": "c6a415b0-00a2-4a65-8994-4a395c50ae2d",
         "oracleId": "3ab5c3a7-12e7-4394-a495-0bc7c310bf9c",

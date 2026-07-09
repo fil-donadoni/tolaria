@@ -8,7 +8,7 @@
 // board-visible outcome (survives / sacrificed).
 
 import { describe, it, expect } from "vitest";
-import { goblinPatrol } from "..";
+import { goblinPatrol, goblinCadets } from "..";
 import {
     makeInstance,
     makePlayer,
@@ -170,5 +170,165 @@ describe("Goblin Patrol — Echo {R} (CR 702.30)", () => {
         expect(
             state.players[0].battlefield.some((c) => c.id === "patrol")
         ).toBe(true);
+    });
+});
+
+const CADETS_ABILITY = "goblin-cadets-donate";
+
+/** Push the donate trigger onto the stack with a BLOCKERS_CONFIRMED event and
+ *  resolve it (the pair details are irrelevant to the effect — it acts on
+ *  $source; `matches` already gated the pair at collection). */
+function fireDonate(
+    state: GameState,
+    source: CardInstanceState,
+    event: StackItem["triggerEvent"]
+): void {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        triggeredAbilityId: CADETS_ABILITY,
+        triggerSourceId: source.id,
+        triggerEvent: event,
+        targets: [],
+    });
+    resolveTopOfStack(state);
+}
+
+/** A BLOCKERS_CONFIRMED pair event (CR 509.1). */
+const blockPair = (
+    attackerId: string,
+    blockerId: string
+): StackItem["triggerEvent"] =>
+    ({
+        type: "BLOCKERS_CONFIRMED" as const,
+        attackerId,
+        attackerControllerId: "x",
+        attackerTypes: ["Creature"],
+        attackerSubtypes: [],
+        blockerId,
+        blockerControllerId: "x",
+        blockerTypes: ["Creature"],
+        blockerSubtypes: [],
+    }) as StackItem["triggerEvent"];
+
+describe("Goblin Cadets — control-donation drawback (CR 509.1 / 613.1b / 506.4c)", () => {
+    it("is a {R} 2/1 Goblin whose trigger donates control to the opponent", () => {
+        expect(goblinCadets.manaCost).toEqual({ R: 1 });
+        expect(goblinCadets.power).toBe(2);
+        expect(goblinCadets.toughness).toBe(1);
+        expect(goblinCadets.subtypes).toContain("Goblin");
+        const trig = (goblinCadets.triggeredAbilities ?? []).find(
+            (t) => t.id === CADETS_ABILITY
+        )!;
+        expect(trig).toBeDefined();
+        expect(trig.event).toBe("BLOCKERS_CONFIRMED");
+        // DSL-first: the effect is a gainControl Op to the opponent (no resolve()).
+        expect(trig.effects?.[0]).toMatchObject({
+            op: "gainControl",
+            controller: "opponent",
+        });
+    });
+
+    it("blocks → opponent gains control and it leaves combat, survives wire", () => {
+        // p2 attacks with A; p1's Goblin Cadets blocks it (it "blocks").
+        const cadets = makeInstance(goblinCadets.id, {
+            id: "cadets",
+            controllerId: "p1",
+            ownerId: "p1",
+            isBlocking: true,
+        });
+        const attacker = makeInstance(goblinCadets.id, {
+            id: "attacker",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const state = makeState({
+            activePlayerId: "p2",
+            phase: "COMBAT_DAMAGE" as GameState["phase"],
+            players: [
+                makePlayer("p1", { battlefield: [cadets] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+            combat: {
+                attackerIds: ["attacker"],
+                confirmed: true,
+                blockerAssignments: { cadets: ["attacker"] },
+                blockedAttackerIds: ["attacker"],
+                blockersConfirmed: true,
+            },
+        });
+        fireDonate(state, cadets, blockPair("attacker", "cadets"));
+
+        // Control moved to the opponent (p2): Cadets left p1's battlefield.
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "cadets")
+        ).toBe(false);
+        const moved = state.players[1].battlefield.find(
+            (c) => c.id === "cadets"
+        )!;
+        expect(moved).toBeDefined();
+        expect(moved.controllerId).toBe("p2");
+        // CR 506.4c — removed from combat: no longer a blocker.
+        expect(moved.isBlocking).toBeUndefined();
+        expect(state.combat!.blockerAssignments["cadets"]).toBeUndefined();
+
+        // Wire format — the donated creature shows on the opponent's board.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[0].battlefield.some((c) => c.id === "cadets")
+        ).toBe(false);
+        expect(
+            projected.players[1].battlefield.some((c) => c.id === "cadets")
+        ).toBe(true);
+    });
+
+    it("becomes blocked → opponent gains control and it leaves combat", () => {
+        // p1 attacks with Goblin Cadets; p2 blocks with B (it "becomes blocked").
+        const cadets = makeInstance(goblinCadets.id, {
+            id: "cadets",
+            controllerId: "p1",
+            ownerId: "p1",
+            isAttacking: true,
+        });
+        const blocker = makeInstance(goblinCadets.id, {
+            id: "blocker",
+            controllerId: "p2",
+            ownerId: "p2",
+            isBlocking: true,
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            phase: "COMBAT_DAMAGE" as GameState["phase"],
+            players: [
+                makePlayer("p1", { battlefield: [cadets] }),
+                makePlayer("p2", { battlefield: [blocker] }),
+            ],
+            combat: {
+                attackerIds: ["cadets"],
+                confirmed: true,
+                blockerAssignments: { blocker: ["cadets"] },
+                blockedAttackerIds: ["cadets"],
+                blockersConfirmed: true,
+            },
+        });
+        fireDonate(state, cadets, blockPair("cadets", "blocker"));
+
+        // Control moved to the opponent (p2).
+        const moved = state.players[1].battlefield.find(
+            (c) => c.id === "cadets"
+        )!;
+        expect(moved).toBeDefined();
+        expect(moved.controllerId).toBe("p2");
+        // CR 506.4c — removed from combat as an attacker in BOTH directions:
+        // dropped from attackerIds + blockedAttackerIds, and its blocker no
+        // longer points at it (deals/takes no further combat damage).
+        expect(moved.isAttacking).toBeUndefined();
+        expect(state.combat!.attackerIds).not.toContain("cadets");
+        expect(state.combat!.blockedAttackerIds).not.toContain("cadets");
+        expect(state.combat!.blockerAssignments["blocker"]).not.toContain(
+            "cadets"
+        );
     });
 });

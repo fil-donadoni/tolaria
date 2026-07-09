@@ -3849,6 +3849,45 @@ export function applyAuraControlChange(
     applyControlChange(state, hostId, aura.controllerId, aura.id);
 }
 
+/** CR 506.4c — remove a permanent from combat. CR 506.4 lists control change
+ *  as one of the events that removes a creature from combat the instant it
+ *  happens; Goblin Cadets ("target opponent gains control of it. (This removes
+ *  this creature from combat.)") is the canonical control-donation case. Strips
+ *  the permanent from the combat bookkeeping in BOTH directions so it neither
+ *  deals nor takes further combat damage this step:
+ *   - as an attacker: dropped from `attackerIds` and `blockedAttackerIds`, and
+ *     removed as a target from every blocker's assignment (the blockers that
+ *     were blocking it stop doing so — the pair dissolves, CR 509.1b);
+ *   - as a blocker: its `blockerAssignments` key is deleted (the attackers it
+ *     was blocking STAY blocked per CR 509.1h — blocked status lives in
+ *     `blockedAttackerIds`, not the live blocker count, so they still deal no
+ *     combat damage to the defender without trample).
+ *  Mirrors the `SpellContext.removeFromCombat` / regeneration-rider convention
+ *  (CR 506.4d's cascading un-block of a removed attacker's blockers is rare and
+ *  out of scope). No-op when there is no combat or the permanent is gone. */
+export function removePermanentFromCombat(
+    state: GameState,
+    cardId: string
+): void {
+    if (!state.combat) return;
+    const found = findOnBattlefield(state, cardId);
+    if (found?.card.isAttacking) found.card.isAttacking = undefined;
+    if (found?.card.isBlocking) found.card.isBlocking = undefined;
+    const combat = state.combat;
+    combat.attackerIds = combat.attackerIds.filter((id) => id !== cardId);
+    if (combat.blockedAttackerIds) {
+        combat.blockedAttackerIds = combat.blockedAttackerIds.filter(
+            (id) => id !== cardId
+        );
+    }
+    delete combat.blockerAssignments[cardId];
+    for (const blockerId of Object.keys(combat.blockerAssignments)) {
+        combat.blockerAssignments[blockerId] = combat.blockerAssignments[
+            blockerId
+        ].filter((id) => id !== cardId);
+    }
+}
+
 /** Generic control-change primitive (CR 613.1b, layer 2) shared by aura
  *  attachment and activated/triggered control-gain (Aladdin, Old Man of the
  *  Sea, Ghazbán Ogre). Pushes an entry onto the host's `controlChanges`
@@ -3896,6 +3935,10 @@ export function applyControlChange(
     }
     found.player.battlefield.splice(found.idx, 1);
     getPlayer(state, newControllerId).battlefield.push(found.card);
+    // CR 506.4c — a control change removes the permanent from combat the
+    // instant it happens (Goblin Cadets' "This removes this creature from
+    // combat" reminder is this rule made explicit). No-op outside combat.
+    removePermanentFromCombat(state, hostId);
 }
 
 /** Reverse of `applyAuraControlChange`. Removes this aura's entry from the
