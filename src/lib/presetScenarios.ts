@@ -55,6 +55,25 @@ type PresetScenario = {
 
 export const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Hibernation (issue #995): {2}{U} Instant "Return all green permanents
+        // to their owners' hands." A colour-filtered mass bounce. Cast the
+        // Hibernation in hand (two Islands cover {2}{U}) — every GREEN permanent
+        // on BOTH battlefields (your Grizzly Bears + Forest-less green here, and
+        // the opponent's green creature) returns to its owner's hand, while the
+        // colourless Ornithopter and the Islands stay put. Confirms the filter:
+        // green goes, non-green stays.
+        label: "Hibernation — mass bounce by colour (#995)",
+        cards: [
+            { name: "Hibernation", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            { name: "Ornithopter", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+    {
         // Opt (issue #1002): {U} Instant "Scry 1. Draw a card." Cast the Opt in
         // hand (an Island covers {U}) to raise the scry-1 order-top choice on
         // your top card — keep it on top or drag it to the bottom — then draw.

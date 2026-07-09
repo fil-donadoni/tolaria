@@ -29,3 +29,41 @@ export const annul: CardDefinition = {
     },
     effects: [{ op: "counter", target: { target: 0 } }],
 };
+
+// Hibernation — {2}{U} Instant. "Return all green permanents to their owners'
+// hands." (CR 400.7 zone change; CR 105 / 202.2 colour; CR 111.7 a bounced
+// token ceases to exist, SBA-enforced.) A colour-filtered mass bounce — the
+// Upheaval pattern (forEach over EVERY battlefield + `moveZone` to hand,
+// ody/blue.ts) narrowed by a `filter: { color: "G" }` on the `forEach`
+// selector. No `controller` scope — "all green permanents", every player's;
+// no type restriction — any permanent type that is green. The colour predicate
+// rides the existing `EffectCardFilter.color` field, matched against EFFECTIVE
+// colours (`getBattlefieldIds` populates layer-5 colour via the shared
+// static-effect derivation, CR 202.2), so a permanent made green by another
+// effect is caught and a green card made colourless is spared. Reuse-only Ops
+// (`forEach` + `moveZone`, both censused): the interpreter suite already
+// exercises forEach-with-filter and the forEach+moveZone mass bounce; a
+// dedicated colour-filtered-bounce assertion lives in the interpreter test.
+//
+// First printing is Urza's Saga (usg), 1998 — Hibernation was NOT printed in
+// Nemesis despite the umbrella issue's nem/blue.ts file hint, so it lives here
+// to keep the print id (`id`) consistent with its set (cf. Annul above).
+export const hibernation: CardDefinition = {
+    id: "68b7444c-fabb-4437-8db9-a1008ea09415", // USG 79
+    rarity: "uncommon",
+    name: "Hibernation",
+    oracleText: "Return all green permanents to their owners' hands.",
+    manaCost: { X: 2, U: 1 },
+    types: ["Instant"],
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { color: "G" },
+            },
+            effects: [{ op: "moveZone", target: { ref: "$each" }, to: "hand" }],
+        },
+    ],
+};
