@@ -555,6 +555,7 @@ export function buildTriggerStateView(
         life: number;
         hand: ReadonlyArray<unknown>;
         battlefield: ReadonlyArray<CardInstance>;
+        graveyard?: ReadonlyArray<CardInstance>;
     }>,
     activePlayerId?: string
 ): TriggerStateView {
@@ -563,6 +564,14 @@ export function buildTriggerStateView(
             id: p.id,
             life: p.life,
             hand: { length: p.hand.length },
+            // CR 118.5 — graveyard contents feed the exile-from-graveyard
+            // activation-cost affordability hint (Grim Lavamancer, Night Soil)
+            // in `getStackAbilities`; without it the ability is wrongly hidden.
+            graveyard: (p.graveyard ?? []).map((c) => ({
+                id: c.id,
+                ownerId: c.ownerId,
+                types: c.types ?? [],
+            })),
             battlefield: p.battlefield.map((c) => ({
                 id: c.id,
                 controllerId: c.controllerId,
@@ -622,7 +631,11 @@ export function getStackAbilities(
             life?: number;
             removeCounter?: { type: string; count: number };
             discardLastDrawn?: boolean;
-            exileFromGraveyard?: { count: number; cardType?: CardType };
+            exileFromGraveyard?: {
+                count: number;
+                cardType?: CardType;
+                owner?: "you";
+            };
         };
         activationPhaseRestriction?: ReadonlyArray<Phase>;
         activatableByOpponentsOnly?: boolean;
@@ -672,9 +685,16 @@ export function getStackAbilities(
         // cards (the whole cost must come from ONE graveyard). UI hint against
         // the viewer-visible graveyards; server validation is authoritative.
         if (a.cost.exileFromGraveyard) {
-            const { count, cardType } = a.cost.exileFromGraveyard;
-            const players = stateView?.players ?? [];
-            const payable = players.some(
+            const { count, cardType, owner } = a.cost.exileFromGraveyard;
+            // CR 118.5 — `owner: "you"` restricts the source to the activating
+            // (viewer's own) graveyard; default = any player's (Night Soil).
+            const sources =
+                owner === "you"
+                    ? (stateView?.players ?? []).filter(
+                          (p) => p.id === card.controllerId
+                      )
+                    : (stateView?.players ?? []);
+            const payable = sources.some(
                 (p) =>
                     (p.graveyard ?? []).filter(
                         (c) =>

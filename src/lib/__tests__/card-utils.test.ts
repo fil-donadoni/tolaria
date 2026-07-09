@@ -416,6 +416,81 @@ describe("getStackAbilities", () => {
         expect(abilities[0].id).toBe("night-soil-make-saproling");
     });
 
+    // Grim Lavamancer (Torment) — `exileFromGraveyard { owner: "you" }`
+    // (CR 118.5). Regression for the bug where `buildTriggerStateView` dropped
+    // each player's graveyard, so the affordability check always saw an empty
+    // graveyard and hid the ability even with 2+ cards in the viewer's own
+    // graveyard. The view MUST be built via `buildTriggerStateView` (as the UI
+    // does) — a hand-built view masks the bug.
+    describe("Grim Lavamancer exile-from-your-graveyard affordability", () => {
+        const GRIM_LAVAMANCER_ID = "5dd72697-24be-42c7-a6d9-a837bdbd4662";
+        const makeLavamancer = () =>
+            makeCardInstance({
+                card: { id: GRIM_LAVAMANCER_ID },
+                types: ["Creature"],
+                controllerId: "p1",
+                ownerId: "p1",
+                isTapped: false,
+            });
+        const gvCard = (id: string, ownerId: string): CardInstance =>
+            makeCardInstance({
+                id,
+                ownerId,
+                controllerId: ownerId,
+                types: ["Creature"],
+                zone: "graveyard",
+            });
+
+        it("surfaces the ability when the viewer's own graveyard has 2 cards (via buildTriggerStateView)", () => {
+            const view = buildTriggerStateView(
+                [
+                    {
+                        id: "p1",
+                        life: 20,
+                        hand: [],
+                        battlefield: [],
+                        graveyard: [gvCard("g1", "p1"), gvCard("g2", "p1")],
+                    },
+                ],
+                "p1"
+            );
+            const abilities = getStackAbilities(
+                makeLavamancer(),
+                undefined,
+                true,
+                view
+            );
+            expect(abilities.map((a) => a.id)).toContain(
+                "grim-lavamancer-bolt"
+            );
+        });
+
+        it("hides the ability when only the opponent's graveyard has 2 cards (owner: 'you')", () => {
+            const view = buildTriggerStateView(
+                [
+                    { id: "p1", life: 20, hand: [], battlefield: [] },
+                    {
+                        id: "p2",
+                        life: 20,
+                        hand: [],
+                        battlefield: [],
+                        graveyard: [gvCard("g1", "p2"), gvCard("g2", "p2")],
+                    },
+                ],
+                "p1"
+            );
+            const abilities = getStackAbilities(
+                makeLavamancer(),
+                undefined,
+                true,
+                view
+            );
+            expect(abilities.map((a) => a.id)).not.toContain(
+                "grim-lavamancer-bolt"
+            );
+        });
+    });
+
     // CR 118.4 — a "pay N life" activation cost is unpayable when the payer has
     // fewer than N life. The menu must hide the ability rather than offer it and
     // let the server throw "Not enough life" at commit time. Griselbrand's
