@@ -562,8 +562,11 @@ function enumerateAbilityMoves(
         // (Night Soil) is unpayable unless one graveyard holds enough matching
         // cards. The whole cost must come from ONE graveyard (CR 118.5).
         if (ability.cost.exileFromGraveyard) {
-            const { count, cardType } = ability.cost.exileFromGraveyard;
-            const payable = state.players.some(
+            const { count, cardType, owner } = ability.cost.exileFromGraveyard;
+            // CR 118.5 — `owner: "you"` restricts the source to the activating
+            // player's own graveyard (Grim Lavamancer); default = any player's.
+            const sources = owner === "you" ? [player] : state.players;
+            const payable = sources.some(
                 (p) =>
                     p.graveyard.filter(
                         (c) =>

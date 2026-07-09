@@ -20,7 +20,7 @@ export default function ExileCostDialog({
     gameId,
     playerId,
 }: {
-    choice: { count: number; cardType?: string };
+    choice: { count: number; cardType?: string; owner?: "you" };
     allPlayers: Player[];
     gameId: Id<"games">;
     playerId: string;
@@ -36,10 +36,12 @@ export default function ExileCostDialog({
         getDefinition(card.card.id).types.includes(choice.cardType as never);
 
     // Graveyards that hold enough matching cards to pay the whole cost from one
-    // pile (CR 118.5).
+    // pile (CR 118.5). When `owner === "you"` the cost is restricted to the
+    // activating player's own graveyard (Grim Lavamancer "your graveyard").
     const eligible = useMemo(
         () =>
             allPlayers
+                .filter((p) => choice.owner !== "you" || p.id === playerId)
                 .map((p) => ({
                     ownerId: p.id,
                     name: p.name,
@@ -47,7 +49,7 @@ export default function ExileCostDialog({
                 }))
                 .filter((g) => g.cards.length >= choice.count),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [allPlayers, choice.count, choice.cardType]
+        [allPlayers, choice.count, choice.cardType, choice.owner, playerId]
     );
 
     const needsOwnerChoice = eligible.length > 1 && chosenOwnerId === null;

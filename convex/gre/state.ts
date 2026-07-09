@@ -1204,6 +1204,10 @@ export type PendingActivation = {
     exileFromGraveyardChoice?: {
         count: number;
         cardType?: CardType;
+        /** When "you", only the activating player's own graveyard is an
+         *  eligible source (CR 118.5 — Grim Lavamancer "your graveyard").
+         *  Absent = any player's graveyard is eligible (Night Soil). */
+        owner?: "you";
         pickedGraveyardOwnerId?: string;
         pickedCardIds?: string[];
     };
