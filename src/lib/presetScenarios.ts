@@ -252,4 +252,27 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 3,
     },
+    {
+        // Flashback CAP (#693, CR 702.34): a card in your graveyard with a
+        // flashback cost shows a "Flashback" cast button. Golden path — Firebolt
+        // (Flashback {4}{R}) in the graveyard + 5 Mountains: flash it back for 2
+        // damage to any target, then it's EXILED (not returned to the yard).
+        // Faithless Looting (Flashback {2}{R}) is a second one-click flashback.
+        // Edge case — Snapcaster Mage in hand ({1}{U}, cast it with the Islands):
+        // its ETB grants an instant/sorcery in your graveyard flashback until end
+        // of turn (cost = its mana cost), so a card with NO printed flashback
+        // gains one. The affordance rides `legalActions` on the projected
+        // graveyard card (GraveyardFlashbackButton).
+        label: "Flashback — cast from graveyard (#693)",
+        cards: [
+            { name: "Firebolt", owner: "me", zone: "graveyard" },
+            { name: "Faithless Looting", owner: "me", zone: "graveyard" },
+            { name: "Snapcaster Mage", owner: "me", zone: "hand" },
+            { name: "Mountain", owner: "me", zone: "battlefield", count: 5 },
+            { name: "Island", owner: "me", zone: "battlefield", count: 3 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 12,
+    },
 ];

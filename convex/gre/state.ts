@@ -720,6 +720,14 @@ export type CardInstanceState = {
      *  can also express "until end of your next turn" (grant with a later turn
      *  number) without a schema change. */
     castableFromExileUntilTurn?: number;
+    /** CR 702.34 — a Flashback cost granted to this card at the instance level
+     *  (Snapcaster Mage: "target instant or sorcery card in your graveyard
+     *  gains flashback until end of turn"). When set on a card in a graveyard,
+     *  the card becomes castable from that graveyard for this cost, overriding
+     *  any printed `CardDefinition.flashback`. Cleared at the CLEANUP step
+     *  (CR 514.2 — "until end of turn"). Persisted so the grant survives a DB
+     *  round-trip. */
+    grantedFlashback?: CardManaCost;
 };
 
 /** ADR 0026 — clears persistent card knowledge over a Hidden Zone. The single
@@ -1048,6 +1056,11 @@ export type StackItem = CardInstanceState & {
      *  exile zone instead of the graveyard. Set via
      *  `SpellContext.exileSelf()`. */
     exileOnResolve?: boolean;
+    /** CR 702.34 — true iff this spell was cast from a graveyard via Flashback.
+     *  Read by resolution effects with an "if this spell was cast from a
+     *  graveyard" clause (Sevinne's Reclamation). The cast site also sets
+     *  `exileOnResolve` so the flashback card is exiled as it leaves the stack. */
+    castFromGraveyard?: boolean;
     /** Acting Player (ADR 0037): the player who answers this item's resolution
      *  choices, split off from the controller (`castById`) for a controlled
      *  cast (Word of Command — the controller of WoC decides for the opponent
@@ -5458,6 +5471,16 @@ function cloneSpellOntoStack(
     // state (CR 608.2 / 707.12).
     delete copy.resolutionStep;
     delete copy.collectedChoices;
+    // CR 707.10 — a copy is created, not *cast*. Any "cast" provenance the
+    // original carried must be cleared so the copy doesn't inherit it: a copy
+    // of a flashed-back spell (Sevinne's Reclamation) was NOT cast from a
+    // graveyard, so `wasCastFromGraveyard()` must read false for it — otherwise
+    // the copy re-offers its own "may copy this spell" clause and spirals into
+    // unbounded copies. `exileOnResolve` is likewise a cast-site artifact (the
+    // flashback card is exiled, not the copy, which ceases to exist as a
+    // one-shot effect per CR 707.10/112.5).
+    delete copy.castFromGraveyard;
+    delete copy.exileOnResolve;
     // CR 707.10b / 707.12 — the copy is controlled by the controller of the
     // effect that created it (e.g. Fork's controller, or the resolving spell's
     // own controller for "copy this spell"), unless the effect names a specific
@@ -8924,6 +8947,42 @@ export function buildSpellContext(
             if (item.isCopy) return;
             if (item.abilityId || item.triggeredAbilityId) return;
             item.exileOnResolve = true;
+        },
+        grantFlashback(target, cost): void {
+            // CR 702.34 — grant Flashback to a target instant/sorcery card in a
+            // graveyard until end of turn (Snapcaster Mage). Locate the card in
+            // the named graveyard and stamp `grantedFlashback`; the cost
+            // defaults to the card's own mana cost ("The flashback cost is equal
+            // to its mana cost"). No-op if the target isn't a graveyard card or
+            // has left the graveyard by resolution (CR 608.2b).
+            if (target.type !== "graveyard-card") return;
+            let card: CardInstanceState | undefined;
+            if (target.playerId) {
+                card = getPlayer(state, target.playerId).graveyard.find(
+                    (c) => c.id === target.id
+                );
+            } else {
+                for (const p of state.players) {
+                    const found = p.graveyard.find((c) => c.id === target.id);
+                    if (found) {
+                        card = found;
+                        break;
+                    }
+                }
+            }
+            if (!card) return;
+            const printedCostId = (card.card as { id?: string }).id;
+            const printedCost = printedCostId
+                ? tryGetDefinition(printedCostId)?.manaCost
+                : undefined;
+            const granted = cost ?? printedCost;
+            if (!granted) return;
+            card.grantedFlashback = granted;
+        },
+        wasCastFromGraveyard(): boolean {
+            // CR 702.34 — the flag is stamped on the stack item at cast commit
+            // when the spell was flashed back from the graveyard.
+            return item.castFromGraveyard === true;
         },
         getCardTargetRequirement(casterId, cardInstanceId) {
             // CR 108.1 — read the chosen card's target requirement from the

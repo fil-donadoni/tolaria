@@ -31,6 +31,8 @@ import { castProhibitionReason } from "../cards/castRestrictions";
 import { matchesPermanentFilter } from "../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { affordableAlternativeCosts } from "./alternativeCost";
+import { getFlashbackCost } from "./flashback";
+import type { ManaCost } from "../cards/types";
 import {
     landPlayLockActive,
     normalizeManaCost,
@@ -125,6 +127,33 @@ export function getLegalActions(
         ) {
             actions.push("play");
         }
+    }
+
+    // CR 702.34 — a card in the player's OWN graveyard that currently has a
+    // Flashback cost (printed or granted) is castable from there for that cost.
+    // A graveyard card is never castable any other way, so this branch fully
+    // owns the "cast" decision for it: same timing/phase gates as a hand cast,
+    // but affordability is checked against the flashback cost.
+    const flashbackCost =
+        !types.includes("Land") &&
+        player.graveyard.some((c) => c.id === card.id)
+            ? getFlashbackCost(card)
+            : undefined;
+    if (flashbackCost !== undefined) {
+        const baseLegal = hasInstantTiming(card)
+            ? true
+            : isSorceryTiming(state);
+        if (
+            baseLegal &&
+            passesCastPhaseRestriction(state, card) &&
+            castProhibitionReason(player.id, card, state) === undefined &&
+            canPotentiallyPayCost(player, card, flashbackCost) &&
+            hasEnoughLegalTargets(state, player, card) &&
+            hasPayableAdditionalCost(player, card)
+        ) {
+            actions.push("cast");
+        }
+        return actions;
     }
 
     // "Cast" is for all non-land cards
@@ -347,9 +376,12 @@ function getProducibleManaUnits(card: CardInstanceState): Set<Color>[] {
  *  the action upstream so the user isn't trapped in pendingCast). */
 function canPotentiallyPayCost(
     player: PlayerState,
-    card: CardInstanceState
+    card: CardInstanceState,
+    /** CR 702.34 — when set, affordability is checked against this cost instead
+     *  of the card's printed mana cost (a Flashback cast from the graveyard). */
+    costOverride?: ManaCost
 ): boolean {
-    const rawCost = getInstanceManaCost(card);
+    const rawCost = costOverride ?? getInstanceManaCost(card);
     if (!rawCost) return true;
     // Cost normalized without chosenX: string-X spells pay only their fixed
     // portion at the minimum (X = 0). User picks X at announcement.
@@ -678,6 +710,13 @@ export function getLegalTargets(
             (t) =>
                 t !== "player" && t !== "any" && t !== "spell" && t !== "card"
         );
+        // CR 202.3 — a mana-value bound (Sevinne's Reclamation: "mana value 3 or
+        // less") applies to graveyard cards too; a graveyard card's MV is read
+        // from its printed cost (CR 108.1). Honored alongside the type filter.
+        const graveyardMvFilter = resolveMvFilter(
+            requirement.mvFilter,
+            chosenX
+        );
         for (const player of state.players) {
             if (controllerFilter === "you" && player.id !== casterId) continue;
             if (
@@ -701,6 +740,27 @@ export function getLegalTargets(
                     !cardTypes.some((t) => card.types.includes(t as never))
                 ) {
                     continue;
+                }
+                if (graveyardMvFilter) {
+                    const mv = manaValue(getInstanceManaCost(card));
+                    if (
+                        graveyardMvFilter.min !== undefined &&
+                        mv < graveyardMvFilter.min
+                    ) {
+                        continue;
+                    }
+                    if (
+                        graveyardMvFilter.max !== undefined &&
+                        mv > graveyardMvFilter.max
+                    ) {
+                        continue;
+                    }
+                    if (
+                        graveyardMvFilter.equals !== undefined &&
+                        mv !== graveyardMvFilter.equals
+                    ) {
+                        continue;
+                    }
                 }
                 targets.push({
                     type: "graveyard-card",

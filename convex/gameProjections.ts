@@ -10,6 +10,7 @@ import { getPendingChoiceMax } from "./gre/state";
 import type { CardAction } from "./gre/types";
 import type { ActivatedAbility, ManaCost } from "./cards/types";
 import { getLegalActions } from "./gre/rules";
+import { getFlashbackCost } from "./gre/flashback";
 import { FACE_DOWN_CARD_ID, tryGetDefinition } from "./cards";
 
 /** CardInstanceState with the static card def stripped to { id } only. */
@@ -41,6 +42,15 @@ export type SlimExileCard = SlimCardInstance & {
      *  for all viewers; present only when the host permanent is on a
      *  battlefield. See {@link buildExileAssociation}. */
     exiledByPermanentId?: string;
+};
+
+/** Graveyard card in projected state: slim, plus `legalActions` when the viewer
+ *  may cast it from the graveyard via Flashback (CR 702.34). Present only on the
+ *  viewer's own graveyard cards that currently have a flashback cost (printed or
+ *  granted); drives the Flashback cast affordance's enabled state, exactly like
+ *  {@link SlimExileCard.legalActions} for an exile cast. */
+export type SlimGraveyardCard = SlimCardInstance & {
+    legalActions?: CardAction[];
 };
 
 /** ADR 0026 / PRD #338 — one viewer-known library card, projected sparsely.
@@ -89,7 +99,7 @@ export type PublicPlayer = Omit<
     librarySearch?: SlimCardInstance[];
     libraryPeek?: SlimCardInstance[];
     revealedHand?: SlimCardInstance[];
-    graveyard: SlimCardInstance[];
+    graveyard: SlimGraveyardCard[];
     exile: SlimExileCard[];
     battlefield: SlimCardInstance[];
     grantedAbilities?: PublicGrantedAbility[];
@@ -120,7 +130,7 @@ export type FullPlayer = Omit<
     /** Mirrors `PublicPlayer.revealedHand` — the zone owner's hand during an
      *  active `reveal-hand` choice (CR 401.4), for the full debug view (#262). */
     revealedHand?: SlimCardInstance[];
-    graveyard: SlimCardInstance[];
+    graveyard: SlimGraveyardCard[];
     exile: SlimExileCard[];
     battlefield: SlimCardInstance[];
     grantedAbilities?: PublicGrantedAbility[];
@@ -297,6 +307,25 @@ function projectExileCard(
         : slimmed;
 }
 
+/** CR 702.34 — projects a graveyard card, attaching `legalActions` when the
+ *  card is the viewer's own and currently has a Flashback cost (printed or
+ *  granted). This is what carries the Flashback cast affordance to the client:
+ *  the board never sees the GRE, so a graveyard card must arrive already tagged
+ *  `["cast"]` for the UI to offer (and gate) the flashback cast — mirroring the
+ *  `castableFromExileBy` exile-cast affordance. Non-flashback cards and
+ *  opponents' graveyards get a plain slim card (no affordance). */
+function projectGraveyardCard(
+    card: CardInstanceState,
+    isOwnGraveyard: boolean,
+    legalActionsFor: () => CardAction[]
+): SlimGraveyardCard {
+    const slim = slimCard(card);
+    if (isOwnGraveyard && getFlashbackCost(card) !== undefined) {
+        return { ...slim, legalActions: legalActionsFor() };
+    }
+    return slim;
+}
+
 /** Hydrate a granted ability instance with its template data for the wire. */
 function hydrateGrantedAbility(
     instance: GrantedAbilityInstance
@@ -435,7 +464,14 @@ export function projectPublicState(
                 : undefined;
         const common = {
             ...player,
-            graveyard: player.graveyard.map(slimCard),
+            // CR 702.34 — the viewer's own graveyard cards carry `legalActions`
+            // when they have a Flashback cost, so the client can offer + gate
+            // the flashback cast (the board never sees the GRE).
+            graveyard: player.graveyard.map((c) =>
+                projectGraveyardCard(c, player.id === viewerId, () =>
+                    getLegalActions(state, player, c, allActions)
+                )
+            ),
             // ADR 0026 — face-down exile (impulse-draw) is gated per-viewer by
             // `knownTo`; ordinary face-up exile is public to all.
             exile: player.exile.map((c) =>
@@ -558,7 +594,14 @@ export function projectFullState(
                 revealZoneOwner !== undefined && player.id === revealZoneOwner
                     ? player.hand.map(slimCard)
                     : undefined,
-            graveyard: player.graveyard.map(slimCard),
+            // Full debug view has no single viewer — attach Flashback
+            // legalActions for the graveyard owner so the cast affordance gates
+            // the same way as the public projection (CR 702.34).
+            graveyard: player.graveyard.map((c) =>
+                projectGraveyardCard(c, true, () =>
+                    getLegalActions(state, player, c, allActions)
+                )
+            ),
             // Full debug view has no single viewer — attach exile legalActions
             // for the card's own controller so the Cast affordance gates the
             // same way it does in the public projection (CR 601.3e), and stamp
