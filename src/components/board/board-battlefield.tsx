@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useBattlefieldInteraction } from "~/hooks/useBattlefieldInteraction";
+import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useIsPortrait } from "~/hooks/useIsPortrait";
 import { isCreature, isLand } from "~/lib/card-utils";
 import {
@@ -116,8 +117,23 @@ export default function BoardBattlefield({
         handleClickWithEvent,
         getActivatable,
         handleActivateAbility,
+        isSelectingOnThisBoard,
         overlays,
     } = useBattlefieldInteraction(player);
+    // Un-stack identical permanents while a per-instance battlefield SELECTION
+    // is active on this board (a `choose-permanents` pick like Frantic Search's
+    // untap, or a sacrifice/exile/tap-other cost pick), so each candidate leaves
+    // the fan into its own slot and its selection ring is visible — mirrors the
+    // divide-as-you-choose un-stack above.
+    const unstackForSelection = divideActive || isSelectingOnThisBoard;
+    // The client-side choice buffer (a `choose-permanents` selection) is local
+    // React state — it does NOT mutate `player.battlefield`, unlike combat /
+    // targeting which change server state and thus the card references. So a
+    // buffer toggle alone would not invalidate the `orderedItems` memo below,
+    // and the cached card nodes (with their baked-in `getVisualState` result)
+    // would keep the stale pre-selection ring. Depend on the buffer so a pick
+    // recomputes the nodes and the emerald selection ring appears.
+    const { buffer: choiceBuffer } = usePendingChoiceBuffer();
 
     // Attached auras (CR 303.4) are NOT placed as their own slot in the row —
     // they ride ON their host, overlapping up-and-left, exactly as the classic
@@ -263,17 +279,17 @@ export default function BoardBattlefield({
         const creatureGroups = groupBattlefield(
             creatures,
             attachedAurasByHost,
-            divideActive
+            unstackForSelection
         );
         const landGroups = groupBattlefield(
             lands,
             attachedAurasByHost,
-            divideActive
+            unstackForSelection
         );
         const otherGroups = groupBattlefield(
             others,
             attachedAurasByHost,
-            divideActive
+            unstackForSelection
         );
         // A fanned stack is wider than one card, so each group reserves its own
         // footprint width in the row (issue #977) — otherwise a 6-card fan
@@ -334,7 +350,8 @@ export default function BoardBattlefield({
         player.battlefield,
         hostExistsAnywhere,
         attachedAurasByHost,
-        divideActive,
+        unstackForSelection,
+        choiceBuffer,
         myPhasedCards,
     ]);
 

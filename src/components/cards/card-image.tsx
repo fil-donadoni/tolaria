@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { getImageUrl, resolveCardImageId } from "~/lib/images";
-import { tryGetDefinition } from "@convex/cards";
+import { tryGetDefinition, FACE_DOWN_CARD_ID } from "@convex/cards";
 import type { CardInstance } from "~/types/game";
 import {
     cardImageSignature,
@@ -9,6 +9,7 @@ import {
 import CardPreview from "./card-preview";
 import CardImageLoader from "./card-image-loader";
 import TokenPlaceholder from "./token-placeholder";
+import CardBack from "./card-back";
 
 // `contain: paint` + promoted layer keep Chrome's compositor from shipping
 // the bitmap as a low-res tile while ancestors are transitioning/rotating.
@@ -54,13 +55,19 @@ function CardImageImpl({
 }: CardImageProps) {
     const cardInstance = isCardInstance(card) ? card : undefined;
     const defId = getDefId(card);
+    const [loaded, setLoaded] = useState(false);
+    // A face-down permanent (CR 708.2, ADR 0013) reaches non-controller viewers
+    // as the sentinel id `face-down:2-2-vanilla` (gameProjections hides the real
+    // identity). There is no Scryfall art for the sentinel — render the card
+    // back instead of fetching a 404 URL, and skip CardPreview so hover never
+    // leaks a hidden identity. (After the hook so hook order stays stable.)
+    if (defId === FACE_DOWN_CARD_ID) return <CardBack />;
     const def = tryGetDefinition(defId);
     const name = def?.name ?? defId;
     // Tokens (CR 111, 707.1) prefer a printed token's Scryfall id for art
     // when the card defines one (e.g. The Hive → 10E Wasp print). Tokens
     // without a printed image render the in-app TokenPlaceholder.
     const imageId = resolveCardImageId(defId);
-    const [loaded, setLoaded] = useState(false);
     return (
         <CardPreview
             cardId={defId}

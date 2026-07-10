@@ -754,6 +754,19 @@ export function useBattlefieldInteraction(player: Player) {
         </>
     );
 
+    // Whether a per-instance battlefield SELECTION is active for THIS player's
+    // board — a mid-resolution `choose-permanents` pick (Frantic Search's untap),
+    // a sacrifice cost (Fireblast's two Mountains), an exile additional cost, or
+    // an activated-ability tap-other cost. When true the board must UN-STACK
+    // identical permanents (like the divide-target case) so each candidate gets
+    // its own slot and its selection ring is visible — a selected card can't read
+    // as "picked" while buried in a fan of identical copies.
+    const isSelectingOnThisBoard =
+        isSelectingChoice ||
+        isPickingSacrifice ||
+        isPickingAdditionalCost ||
+        isPickingActivationCost;
+
     return {
         getVisualState,
         canInteract,
@@ -761,6 +774,7 @@ export function useBattlefieldInteraction(player: Player) {
         handleClickWithEvent,
         getActivatable,
         handleActivateAbility,
+        isSelectingOnThisBoard,
         overlays,
     };
 }

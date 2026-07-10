@@ -10,9 +10,14 @@ import type { CardInstance, Player } from "~/types/game";
 import { GameContext } from "~/hooks/useGameContext";
 import { useBattlefieldVisualState } from "../useBattlefieldVisualState";
 
+// Mutable buffer holder (hoisted above the mock factory) so a test can seed the
+// client-side pick buffer that drives `isChoiceSelected` (the emerald selected
+// ring for a `choose-permanents` pick — Frantic Search's untap step).
+const bufferHolder = vi.hoisted(() => ({ ids: [] as string[] }));
+
 vi.mock("~/hooks/usePendingChoiceBuffer", () => ({
     usePendingChoiceBuffer: () => ({
-        buffer: [],
+        buffer: bufferHolder.ids,
         toggle: vi.fn(),
         clear: vi.fn(),
         submit: vi.fn(),
@@ -254,14 +259,14 @@ describe("useBattlefieldVisualState — multi-pick sacrifice cost selected ring 
         } as unknown as Partial<NonNullable<Ctx>>;
     }
 
-    it("already-picked permanent shows the solid selected ring", () => {
+    it("already-picked permanent shows the green (emerald) selected ring", () => {
         const m1 = mountain("m1");
         const m2 = mountain("m2");
         const me = makePlayer("me", [m1, m2]);
         const { result } = renderVisualState(me, ctxWithSacrifice());
 
         expect(result.current.getVisualState(m1).ringClass).toBe(
-            "ring-2 ring-accent rounded-sm"
+            "ring-2 ring-emerald-400 rounded-sm"
         );
     });
 
@@ -315,5 +320,76 @@ describe("useBattlefieldVisualState — multi-target selected ring is green", ()
         expect(result.current.getVisualState(c2).ringClass).toBe(
             "ring-2 ring-accent/50 rounded-sm"
         );
+    });
+});
+
+// Frantic Search's untap step is a battlefield `choose-permanents` pick over
+// lands (filter Land). Each candidate land must carry a selection ring — the
+// faded-bronze "pickable" ring before it's clicked, and the GREEN emerald ring
+// once committed to the buffer. Before the fix the selected ring was solid
+// bronze (`ring-accent`), indistinguishable from the faded-bronze pickable
+// ring, so a clicked land didn't read as selected (issue: "le terre da stappare
+// devono avere i ring di selezione").
+describe("useBattlefieldVisualState — choose-permanents (untap) selection ring", () => {
+    function land(id: string): CardInstance {
+        return {
+            id,
+            card: { id: "island-def" },
+            controllerId: "me",
+            ownerId: "me",
+            zone: "battlefield",
+            isTapped: true,
+            isSummoningSick: false,
+            types: ["Land"],
+            subtypes: ["Island"],
+            staticAbilities: [],
+        } as CardInstance;
+    }
+
+    // Frantic Search's untap pick: choose up to N lands on your own battlefield.
+    function ctxUntapLands() {
+        return {
+            phase: "PRECOMBAT_MAIN",
+            combat: undefined,
+            pendingChoices: [
+                {
+                    stackItemId: "s1",
+                    step: 2,
+                    choiceId: "frantic-untap",
+                    playerId: "me",
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    count: { min: 0, max: 3 },
+                    prompt: "Untap up to three lands (Frantic Search).",
+                    filter: { types: "Land" },
+                    candidateIds: ["L0", "L1"],
+                },
+            ],
+        } as unknown as Partial<NonNullable<Ctx>>;
+    }
+
+    it("an unpicked candidate land shows the faded-bronze pickable ring", () => {
+        bufferHolder.ids = [];
+        const me = makePlayer("me", [land("L0"), land("L1")]);
+        const { result } = renderVisualState(me, ctxUntapLands());
+
+        expect(result.current.getVisualState(me.battlefield[0]).ringClass).toBe(
+            "ring-2 ring-accent/40 rounded-sm"
+        );
+    });
+
+    it("a committed land shows the green (emerald) selected ring", () => {
+        bufferHolder.ids = ["L0"];
+        const me = makePlayer("me", [land("L0"), land("L1")]);
+        const { result } = renderVisualState(me, ctxUntapLands());
+
+        // Selected → emerald; the other candidate stays faded-bronze.
+        expect(result.current.getVisualState(me.battlefield[0]).ringClass).toBe(
+            "ring-2 ring-emerald-400 rounded-sm"
+        );
+        expect(result.current.getVisualState(me.battlefield[1]).ringClass).toBe(
+            "ring-2 ring-accent/40 rounded-sm"
+        );
+        bufferHolder.ids = [];
     });
 });

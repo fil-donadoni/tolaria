@@ -471,7 +471,13 @@ export function useBattlefieldVisualState(player: Player) {
             ringClass = "ring-2 ring-accent/50 rounded-sm";
         }
         if (!ringClass && isChoiceSelected) {
-            ringClass = "ring-2 ring-accent rounded-sm";
+            // A committed pick reads GREEN — the same emerald selection ring the
+            // card piles (`selectionRing`, cards-pile.tsx), the in-hand choice
+            // toggle (board-hand-card.tsx) and target-selection (above) use — so
+            // the selected permanents are unmistakable against the faded-bronze
+            // "valid but unpicked" ring below. Bronze-solid vs bronze/40 differ
+            // only in opacity and don't read as a distinct selection.
+            ringClass = "ring-2 ring-emerald-400 rounded-sm";
         } else if (!ringClass && isValidChoice) {
             ringClass = "ring-2 ring-accent/40 rounded-sm";
         }
@@ -493,7 +499,7 @@ export function useBattlefieldVisualState(player: Player) {
         // two Mountains, Thwart's three Islands, Hand of Justice's tap-others).
         // `matches*Pick` excludes picked ids, so without this branch a chosen
         // permanent would lose its ring — the player couldn't see what they
-        // already selected. Solid ring mirrors the choose-permanents selected
+        // already selected. Emerald ring mirrors the choose-permanents selected
         // state (`isChoiceSelected` above). CR 701.21a / 602.1.
         const isCostPicked =
             (isPickingSacrifice &&
@@ -503,7 +509,7 @@ export function useBattlefieldVisualState(player: Player) {
                     card.id
                 ));
         if (!ringClass && isCostPicked) {
-            ringClass = "ring-2 ring-accent rounded-sm";
+            ringClass = "ring-2 ring-emerald-400 rounded-sm";
         } else if (!ringClass && isValidSacrificePick) {
             ringClass = "ring-2 ring-accent/40 rounded-sm";
         }
