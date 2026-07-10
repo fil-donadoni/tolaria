@@ -25,6 +25,7 @@ import {
     getLegalActions,
     getLegalTargets,
     getProducibleManaOptions,
+    maxAffordableX,
 } from "./rules";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { MANA_COLORS, isTapLockedBySummoningSickness } from "./constants";
@@ -252,21 +253,6 @@ export function planManaPayment(
     return taps;
 }
 
-/** How much generic mana, beyond a fixed cost, the player could still pay — the
- *  ceiling on a meaningful chosen X. Bounded so X spells don't explode. */
-function maxAffordableExtra(
-    player: PlayerState,
-    fixedCost: Record<string, number>
-): number {
-    let extra = 0;
-    while (extra < MAX_COMBINATIONS) {
-        const probe = { ...fixedCost, X: (fixedCost.X ?? 0) + extra + 1 };
-        if (planManaPayment(player, probe) === null) break;
-        extra++;
-    }
-    return extra;
-}
-
 // ---------------------------------------------------------------------------
 // Combination helpers
 // ---------------------------------------------------------------------------
@@ -430,14 +416,14 @@ function enumerateCastMoves(
             : [{ modeId: undefined, req: def?.targetRequirement }];
 
     // X spells: enumerate X = 0..maxAffordable. Fixed (numeric) costs use a
-    // single X = undefined.
+    // single X = undefined. The X ceiling comes from the SHARED
+    // `maxAffordableX` (rules.ts) — the same helper the human castability gate
+    // uses — so the Bot and the gate can never disagree on the reachable range.
+    // Each X is still re-checked below via `planManaPayment`, so an X the shared
+    // greedy ceiling over-counts is filtered there (never over-offered).
     const hasX = typeof rawCost.X === "string";
-    const fixedNorm = normalizeManaCost(rawCost, { chosenX: 0 });
     const xValues: (number | undefined)[] = hasX
-        ? Array.from(
-              { length: maxAffordableExtra(player, fixedNorm) + 1 },
-              (_, i) => i
-          )
+        ? Array.from({ length: maxAffordableX(player, card) + 1 }, (_, i) => i)
         : [undefined];
 
     const moves: Move[] = [];

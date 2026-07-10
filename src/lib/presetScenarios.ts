@@ -61,25 +61,6 @@ type PresetScenario = {
 
 export const PRESET_SCENARIOS: PresetScenario[] = [
     {
-        // ICE combat-damage redirect / assign-no-damage riders (issue #732):
-        // Kjeldoran Royal Guard ({T}) redirects all combat damage unblocked
-        // attackers would deal to you onto itself (CR 614.6). Cloak of
-        // Confusion (Aura) and Gaze of Pain (Sorcery) let an unblocked
-        // attacker you control assign no combat damage — Cloak makes the
-        // defender discard at random, Gaze deals the attacker's power to a
-        // target creature. The opponent's Balduvian Bears is a ready attacker
-        // to test the Guard's redirect; your own Bears + the riders exercise
-        // the assign-no-damage seam. 5 lands cover {3}{W}{W}.
-        label: "ICE assign-no-damage (Cloak of Confusion) (#732)",
-        cards: [
-            { name: "Cloak of Confusion", owner: "me", zone: "hand" },
-            { name: "Balduvian Bears", owner: "me", zone: "battlefield" },
-            { name: "Swamp", owner: "me", zone: "battlefield", count: 4 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 5,
-    },
-    {
         // Ashen Ghoul — graveyard-source activated ability (#737, CR 113.6 /
         // 602.5b / 603.6e). The Ghoul sits at the BOTTOM of your graveyard with
         // three Balduvian Bears stacked above it (three creature cards above =

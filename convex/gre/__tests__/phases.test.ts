@@ -7,7 +7,8 @@ import {
     effectiveMaxHandSize,
     finalizeCleanupDiscard,
 } from "../phases";
-import { phaseInUntapCycleBundles } from "../state";
+import { phaseInUntapCycleBundles, resolveTopOfStack } from "../state";
+import { cloakOfConfusion } from "../../cards/sets/ice/black";
 import {
     getOpponentId,
     type GameState,
@@ -209,6 +210,52 @@ describe("advancePhase", () => {
             expect(state.phase).not.toBe("DECLARE_BLOCKERS");
             expect(state.combat?.blockersConfirmed).toBe(true);
             expect(p2.life).toBe(p2LifeBefore - 3);
+        });
+
+        it("unblockable auto-skip still fires 'attacks and isn't blocked' triggers (CR 509.1h — Cloak of Confusion regression)", () => {
+            // p2 (defender) has NO creatures → declare-blockers auto-skips.
+            // The Cloak-enchanted attacker's ATTACKER_UNBLOCKED trigger must
+            // still reach the stack (a may-choice), not be dropped on the way
+            // to combat damage.
+            const state = makeGameState({
+                phase: "DECLARE_ATTACKERS",
+                combat: {
+                    attackerIds: ["atk"],
+                    confirmed: true,
+                    blockerAssignments: {},
+                    blockersConfirmed: false,
+                },
+            });
+            const p1 = state.players.find((p) => p.id === "p1")!;
+            p1.battlefield.push(
+                makeCard({
+                    id: "atk",
+                    types: ["Creature"],
+                    power: 2,
+                    toughness: 2,
+                    isAttacking: true,
+                })
+            );
+            p1.battlefield.push(
+                makeCard({
+                    id: "cloak",
+                    card: { id: cloakOfConfusion.id },
+                    types: ["Enchantment"],
+                    subtypes: ["Aura"],
+                    attachedTo: "atk",
+                })
+            );
+            advancePhase(state);
+            // The trigger parks the flow at declare-blockers with a live stack;
+            // it must NOT have jumped straight to combat damage.
+            expect(state.phase).toBe("DECLARE_BLOCKERS");
+            expect(state.stack.length).toBe(1);
+            expect(state.priorityPlayerId).toBe("p1");
+            // Resolving the trigger opens the "may assign no combat damage"
+            // option-pick for the attacking player.
+            resolveTopOfStack(state);
+            expect(state.pendingChoices?.[0]?.kind).toBe("option-pick");
+            expect(state.pendingChoices?.[0]?.playerId).toBe("p1");
         });
 
         it("DECLARE_BLOCKERS auto-skips when all attackers fly and defender has no reach (CR 702.9b)", () => {

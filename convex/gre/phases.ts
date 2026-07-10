@@ -2552,9 +2552,18 @@ export function advancePhase(state: GameState): Phase[] {
         hadAttackers &&
         !!state.combat &&
         !defenderHasAnyLegalBlock(state);
+    // Snapshot the stack before any auto blocker-confirm so we can tell whether
+    // it pushed "attacks and isn't blocked" triggers (Cloak of Confusion,
+    // Farrel's Mantle, Murk Dwellers) that now need a priority window to resolve.
+    const stackBeforeBlockerConfirm = state.stack.length;
     if (skipUnblockableCombat && state.combat) {
         state.combat.blockersConfirmed = true;
         recordBlockedAttackers(state);
+        // CR 509.1h — even when the defender has no legal block, the
+        // ATTACKER_UNBLOCKED turn-based event still fires, so "attacks and
+        // isn't blocked" triggers reach the stack. Without this the auto-skip
+        // jumps straight to combat damage and silently drops those triggers.
+        emitBlockersConfirmedEvents(state);
     }
 
     // Camouflage (ADR 0012) — the defender's declare-blockers step is replaced:
@@ -2602,12 +2611,22 @@ export function advancePhase(state: GameState): Phase[] {
         return traversed;
     }
 
+    // A blocker-confirm auto-skip (unblockable / camouflage) may have pushed
+    // "attacks and isn't blocked" triggers onto the stack. When it did, the
+    // attacking player needs a priority window to resolve them — do NOT skip
+    // straight to combat damage. `emitBlockersConfirmedEvents` already routed
+    // priority to the active player, and the else branch below re-affirms it.
+    const blockerConfirmPushedTriggers =
+        (skipUnblockableCombat || skipCamouflageBlockers) &&
+        state.stack.length > stackBeforeBlockerConfirm;
+
     if (
-        AUTO_PHASES.has(state.phase) ||
-        skipEmptyCombat ||
-        skipUnblockableCombat ||
-        skipCamouflageBlockers ||
-        skipFirstStrikeDamage
+        !blockerConfirmPushedTriggers &&
+        (AUTO_PHASES.has(state.phase) ||
+            skipEmptyCombat ||
+            skipUnblockableCombat ||
+            skipCamouflageBlockers ||
+            skipFirstStrikeDamage)
     ) {
         // Auto-phase or empty combat: skip straight through (no priority given)
         traversed.push(...advancePhase(state));

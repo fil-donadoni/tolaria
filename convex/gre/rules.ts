@@ -285,7 +285,7 @@ function hasPayableFlashbackAdditionalCost(
  *  (`mvFilter` uses the `"X"` placeholder). Its legal-target set then shifts
  *  with the announced X, so the castability gate must probe reachable X values
  *  rather than assume X = 0. */
-function mvFilterUsesX(req: TargetRequirement): boolean {
+export function mvFilterUsesX(req: TargetRequirement): boolean {
     const f = req.mvFilter;
     return !!f && (f.min === "X" || f.max === "X" || f.equals === "X");
 }
@@ -565,8 +565,19 @@ function canPotentiallyPayCost(
  *  ({X}{1}{U}{U}, "target creature with mana value X or less") is judged
  *  castable whenever ANY reachable X exposes a legal target — not only X = 0.
  *  Cost reductions are not modeled here (mirroring `canPotentiallyPayCost`),
- *  which only ever under-estimates X, never over-offers a cast. */
-function maxAffordableX(player: PlayerState, card: CardInstanceState): number {
+ *  which only ever under-estimates X, never over-offers a cast.
+ *
+ *  Single source of truth for the X ceiling: the Bot's move enumerator
+ *  (`enumerateCastMoves` in moves.ts) consumes THIS function for its `X = 0..N`
+ *  range so the human castability gate and the Bot can never disagree on which
+ *  X are reachable. `coloredCostLeftover` and `planManaPayment` (moves.ts) are
+ *  documented mirrors — the same one-source-one-mana greedy model — so the
+ *  per-X `planManaPayment` guard the enumerator still runs only ever filters,
+ *  never widens, the range this returns. */
+export function maxAffordableX(
+    player: PlayerState,
+    card: CardInstanceState
+): number {
     const rawCost = getInstanceManaCost(card);
     if (!rawCost || typeof rawCost.X !== "string") return 0;
     const cost = normalizeManaCost(rawCost);
