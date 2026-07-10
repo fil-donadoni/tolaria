@@ -34,8 +34,6 @@ export const mineCollapse: CardDefinition = {
     effects: [{ op: "dealDamage", amount: 5, to: { target: 0 } }],
 };
 
-import type { CardDefinition } from "../../types";
-
 // TODO(issue #679 stub — Fury needs Evoke (CR 702.74): mechanicsRegistry.ts
 // lists it `status: "planned"` — same gap already flagged for Solitude
 // (mh2/white.ts) and Subtlety (mh2/blue.ts). Evoke is integral to the card
