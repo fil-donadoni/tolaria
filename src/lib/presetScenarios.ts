@@ -61,26 +61,17 @@ type PresetScenario = {
 
 export const PRESET_SCENARIOS: PresetScenario[] = [
     {
-        // Copy-on-ETB Bot cast prune (issue #938): a copy-on-ETB spell (Copy
-        // Artifact, Clone, Vesuvan Doppelganger, Dance of Many) enters as a copy
-        // of a permanent already in play. Casting one with NO permanent it could
-        // copy is legal but strictly wasteful — the vs-AI Bot must not offer it.
-        // Here Copy Artifact + Clone are in hand with a copyable artifact (Ankh
-        // of Mishra) and creature (Grizzly Bears) in play, so BOTH casts are
-        // enumerated (the working case). Remove the Ankh (or the Bears) via the
-        // board and the Bot stops offering the matching copy spell — the prune
-        // is keyed off the declarative `copySourceFilter`, not a card-id list.
-        // 8 Islands cover Clone's {3}{U} and Copy Artifact's {1}{U}.
-        label: "Copy-on-ETB Bot cast prune (Copy Artifact / Clone) (#938)",
+        label: "Exhume",
         cards: [
-            { name: "Copy Artifact", owner: "opp", zone: "hand" },
-            { name: "Clone", owner: "opp", zone: "hand" },
-            { name: "Island", owner: "opp", zone: "battlefield", count: 7 },
-            { name: "Ankh of Mishra", owner: "me", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            { name: "Exhume", owner: "me", zone: "hand" },
+            { name: "Swamp", owner: "me", zone: "battlefield", count: 3 },
+            { name: "Griselbrand", owner: "me", zone: "graveyard" },
+            { name: "Llanowar Elves", owner: "opp", zone: "graveyard" },
+            { name: "Island", owner: "me", zone: "graveyard" },
+            { name: "Thoughtseize", owner: "opp", zone: "graveyard" },
         ],
         phase: "PRECOMBAT_MAIN",
-        landCount: 8,
+        landCount: 3,
     },
     {
         // ICE computed subtype swap (issue #727, ADR 0050): Illusionary Terrain

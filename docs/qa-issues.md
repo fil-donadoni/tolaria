@@ -2,8 +2,6 @@ frantic search deve evidenziare con un ring le carte selezionate per lo stap. co
 
 Illusionary terrain non funziona: posso scegliere i 2 tipi di terra base quando entra, ma poi le terre in gioco coinvolte non cambiano tipo e nell'oracle text della card-preview di illusionary terrain non viene mostrato il tipo di terra scelto.
 
-Phase out dovrebbe mostrare le carte disabilitate e con poca opacità, non farle sparire del tutto
-
 Animate dead triggera la sua abilità left-the-battlefield nell'upkeep sucessivo a quando la sua creatura ha lasciato il battlefield. Dovrebbe succedere subito.
 
 Problema di wiring su Cloak of Confusion. Quando la creatura incantata attacca e non e' bloccata, va diretta al danno senza il prompt per scegliere tra danni e discard.
@@ -11,8 +9,6 @@ Problema di wiring su Cloak of Confusion. Quando la creatura incantata attacca e
 Nei solo game, quando fai swap tra player1 e player2, non fare l'animazione del cambio punti vita, perché è solo un cambio di view.
 
 L'abilità attivat di Ashen ghoul non risulta attivabile, anche se è nel cimitero con 3 creature sopra ed è il mio upkeep.
-
-Le carte che ti fanno scegliere nel cimitero, esilio, mano o library con filtri (es. exhume solo creature) quando mostrano le pile, devono mettere il ring solo sulle carte eleggibili e rendere meno opache le altre. se non sbaglio e' gia' implementato per le fetchlands, fallo in tutti gli altri scenari simili.
 
 Errore su Sheoldred's Edict: quando l'avversario deve decidere cosa sacrificare, esce questo errore:
 installHook.js:1 [CONVEX M(game:submitResolutionChoice)] [Request ID: ceba9efd23506d93] Server Error

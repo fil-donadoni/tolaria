@@ -46,6 +46,10 @@ type BoardBattlefieldCardProps = {
     /** Dispatches the selected ability — wired to the hook's
      *  `handleActivateAbility` (X prompt, keep-priority, mana entry). */
     onActivateAbility?: (abilityId: string, keepPriority: boolean) => void;
+    /** CR 702.26 — this permanent is phased out (set aside). It stays visible on
+     *  its controller's battlefield but rendered dimmed and fully inert: no
+     *  click, no ability menu, a "Phased" tag instead of interaction. */
+    phased?: boolean;
 };
 
 /** Battlefield card for the new spatial board (PRD #249, slice #256).
@@ -74,6 +78,7 @@ export default function BoardBattlefieldCard({
     onClick,
     activatableAbilities,
     onActivateAbility,
+    phased = false,
 }: BoardBattlefieldCardProps) {
     const { allPlayers } = useGameContext();
     const creature = isCreature(card);
@@ -126,7 +131,8 @@ export default function BoardBattlefieldCard({
             />
         ) : null;
 
-    const abilities = activatableAbilities ?? [];
+    // Phased-out permanents are set aside (CR 702.26) — no abilities, no clicks.
+    const abilities = phased ? [] : (activatableAbilities ?? []);
     const hasAbilities = abilities.length > 0;
     const activate = (abilityId: string, keepPriority: boolean) =>
         onActivateAbility?.(abilityId, keepPriority);
@@ -192,6 +198,14 @@ export default function BoardBattlefieldCard({
             : "cursor-pointer"
         : "";
 
+    const phasedBadge = phased ? (
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none z-20">
+            <span className="bg-black/75 px-1.5 py-0.5 rounded-xs text-[9px] font-bold uppercase tracking-wide text-white leading-none">
+                Phased
+            </span>
+        </div>
+    ) : null;
+
     const inner = (
         <CardTilt3D>
             <div
@@ -201,6 +215,7 @@ export default function BoardBattlefieldCard({
                 {colorOverrideOverlay}
                 {darkenOverlay}
                 {highlightRing}
+                {phasedBadge}
                 <CounterBadges card={card} />
                 <NotedManaBadge card={card} />
                 {ptDamageStack}
@@ -213,18 +228,24 @@ export default function BoardBattlefieldCard({
     // (touch → affordance, desktop → left-click menu) and the shared
     // `ActivatableAbilityMenu` wraps it — identical affordance to the classic
     // board (#278).
-    const clickHandlers = hasAbilities
-        ? { onClick: ability.onClick, onTouchStart: ability.onTouchStart }
-        : { onClick };
+    const clickHandlers = phased
+        ? {}
+        : hasAbilities
+          ? { onClick: ability.onClick, onTouchStart: ability.onTouchStart }
+          : { onClick };
 
     const cardContent = (
         <div
             data-arrow-anchor-permanent={card.id}
             data-tapped={card.isTapped ? "true" : undefined}
-            className={`w-full h-full ${vs.combatOffset} ${cursorClass} transition duration-250`}
+            data-phased={phased ? "true" : undefined}
+            className={`w-full h-full ${vs.combatOffset} ${
+                phased ? "cursor-default pointer-events-none" : cursorClass
+            } transition duration-250`}
             style={{
                 transform: tapTransform,
-                opacity: litState === "unlit" ? 0.4 : 1,
+                opacity: phased ? 0.4 : litState === "unlit" ? 0.4 : 1,
+                filter: phased ? "grayscale(0.85)" : undefined,
             }}
             onPointerEnter={onPointerEnter}
             onPointerLeave={onPointerLeave}

@@ -214,6 +214,79 @@ describe("BoardBattlefieldCard visual state + anchors (#256)", () => {
     });
 });
 
+describe("BoardBattlefieldCard phased-out treatment (CR 702.26)", () => {
+    beforeEach(() => cleanup());
+
+    it("renders a dimmed, grayscaled, inert card with a Phased tag", () => {
+        const card = makeCreature();
+        const { getByText } = renderCard(card, NEUTRAL_VS);
+        // Baseline (not phased) — no "Phased" tag rendered.
+        expect(() => getByText("Phased")).toThrow();
+
+        cleanup();
+        const me = makePlayer([card]);
+        const value = {
+            gameId: "g" as never,
+            playerId: "me",
+            activePlayerId: "me",
+            priorityPlayerId: "me",
+            phase: "PRECOMBAT_MAIN",
+            turn: 1,
+            stackCount: 0,
+            allPlayers: [me],
+            showAllCards: false,
+            debugAllActions: false,
+            onSwitchGame: () => {},
+        } as React.ContextType<typeof GameContext>;
+        const r = render(
+            <GameContext value={value}>
+                <BoardBattlefieldCard card={card} vs={NEUTRAL_VS} phased />
+            </GameContext>
+        );
+        expect(r.getByText("Phased")).toBeTruthy();
+        const anchor = r.container.querySelector<HTMLElement>(
+            `[data-arrow-anchor-permanent="${card.id}"]`
+        )!;
+        expect(anchor.getAttribute("data-phased")).toBe("true");
+        expect(anchor.className).toContain("pointer-events-none");
+        expect(anchor.style.opacity).toBe("0.4");
+        expect(anchor.style.filter).toContain("grayscale");
+    });
+
+    it("never fires onClick even when a handler is supplied", () => {
+        const card = makeCreature();
+        const onClick = vi.fn();
+        const me = makePlayer([card]);
+        const value = {
+            gameId: "g" as never,
+            playerId: "me",
+            activePlayerId: "me",
+            priorityPlayerId: "me",
+            phase: "PRECOMBAT_MAIN",
+            turn: 1,
+            stackCount: 0,
+            allPlayers: [me],
+            showAllCards: false,
+            debugAllActions: false,
+            onSwitchGame: () => {},
+        } as React.ContextType<typeof GameContext>;
+        const { container } = render(
+            <GameContext value={value}>
+                <BoardBattlefieldCard
+                    card={card}
+                    vs={NEUTRAL_VS}
+                    onClick={onClick}
+                    phased
+                />
+            </GameContext>
+        );
+        container
+            .querySelector(`[data-arrow-anchor-permanent="${card.id}"]`)!
+            .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        expect(onClick).not.toHaveBeenCalled();
+    });
+});
+
 describe("BoardBattlefieldCard click wiring (#272)", () => {
     beforeEach(() => cleanup());
 

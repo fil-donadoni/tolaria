@@ -97,7 +97,14 @@ export default function PlayerGraveyard({
                     emptyLabel="Graveyard"
                     title={
                         isGraveyardChoice
-                            ? "Return cards to your hand"
+                            ? // The choice carries a card-specific prompt: Recall
+                              // returns to hand, Exhume reanimates to the
+                              // battlefield. Never assume "to your hand" — that
+                              // default mislabels every reanimation pick. Fall
+                              // back to a destination-neutral label only when a
+                              // choice omits its prompt.
+                              (head!.prompt ??
+                              "Choose a card from your graveyard")
                             : "Graveyard"
                     }
                     zoneIcon={<GraveyardIcon className="w-8 h-8 opacity-60" />}
@@ -112,6 +119,12 @@ export default function PlayerGraveyard({
                     selectedIds={
                         isGraveyardChoice ? bufferCtx.buffer : undefined
                     }
+                    // Filtered graveyard pick (Exhume "only creatures", issue
+                    // #933 parity): gate the ring/click affordance to the
+                    // allow-listed cards, dimming the rest. `eligibleIds` is
+                    // `undefined` for an unfiltered pick, so every card stays
+                    // selectable. Mirrors the library search + hand-pick paths.
+                    eligibleIds={isGraveyardChoice ? eligibleIds : undefined}
                     footer={
                         isGraveyardChoice ? (
                             <LibrarySearchConfirm

@@ -2,6 +2,7 @@ import { createContext, useContext } from "react";
 import type { Id } from "@convex/_generated/dataModel";
 import type { Phase } from "@convex/gre/types";
 import type {
+    CardInstance,
     Combat,
     GameOver,
     PendingActivation,
@@ -32,6 +33,11 @@ type GameContext = {
     meleeCombat?: boolean;
     gameOver?: GameOver;
     allPlayers: Player[];
+    /** CR 702.26 — permanents currently phased out (host + attachments),
+     *  flattened across all bundles. Each card keeps its `controllerId` so the
+     *  battlefield renders it dimmed/inert on the controller's side rather than
+     *  letting it vanish. Empty/absent when nothing is phased. */
+    phasedOutCards?: CardInstance[];
     showAllCards: boolean;
     debugAllActions: boolean;
     /** Re-point the client session to another game in-place (state swap, no

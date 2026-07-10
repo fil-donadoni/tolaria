@@ -269,6 +269,32 @@ describe("board battlefield tap/pay parity with the classic board (#272)", () =>
         });
     });
 
+    it("renders this player's phased-out permanents dimmed/inert (CR 702.26)", () => {
+        const me = makePlayer([land("forest1")]);
+        const phasedMine = { ...land("phased-mine"), controllerId: "me" };
+        const phasedOpp = { ...land("phased-opp"), controllerId: "them" };
+        const { container } = renderSpatial(me, {
+            phasedOutCards: [phasedMine, phasedOpp],
+        });
+        // My phased permanent renders, flagged phased and non-interactive.
+        const mine = container.querySelector(
+            '[data-arrow-anchor-permanent="phased-mine"]'
+        )!;
+        expect(mine.getAttribute("data-phased")).toBe("true");
+        expect(mine.className).toContain("pointer-events-none");
+        // A phased permanent controlled by the opponent is NOT on my side.
+        expect(
+            container.querySelector(
+                '[data-arrow-anchor-permanent="phased-opp"]'
+            )
+        ).toBeNull();
+        // The live land is still interactive (tap works) alongside the phased one.
+        fireEvent.click(
+            container.querySelector('[data-arrow-anchor-permanent="forest1"]')!
+        );
+        expect(tapUntap).toHaveBeenCalledTimes(1);
+    });
+
     it("surfaces the validation toast on the spatial board when a tap is rejected", async () => {
         tapUntap.mockReturnValueOnce(
             Promise.reject(

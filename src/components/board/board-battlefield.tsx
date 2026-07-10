@@ -12,6 +12,7 @@ import {
 import { groupBattlefield } from "~/lib/battlefield-stacks";
 import SpatialZone, { type SpatialItem } from "./spatial-zone";
 import BoardBattlefieldCard from "./board-battlefield-card";
+import type { CardVisualState } from "./battlefield-card";
 import BattlefieldStack from "./battlefield-stack";
 import CombatPanels from "./combat-panels";
 
@@ -27,6 +28,18 @@ import CombatPanels from "./combat-panels";
 const CREATURES_CENTER_Y_FRAC = 0.28;
 const BACK_CENTER_Y_FRAC = 0.74;
 type BandKey = "creatures" | "back";
+
+/** Neutral visual state for a phased-out permanent (CR 702.26): no combat ring,
+ *  no tap-target highlight, not interactive — `BoardBattlefieldCard` reads
+ *  `phased` for its dim/inert treatment. */
+const INERT_VISUAL: CardVisualState = {
+    interactive: false,
+    enabled: true,
+    dimmed: false,
+    combatOffset: "",
+    ringClass: "",
+    badge: null,
+};
 
 type BoardBattlefieldProps = {
     player: Player;
@@ -83,6 +96,16 @@ export default function BoardBattlefield({
     // CR 601.2d — un-stack identical permanents while a divide-as-you-choose
     // selection is in progress, so each instance is individually dialable.
     const divideActive = ctx.pendingTarget?.divideTotal !== undefined;
+    // CR 702.26 — permanents this player controls that are phased out. They stay
+    // on the board rendered dimmed/inert (never grouped, never interactive)
+    // instead of vanishing while set aside.
+    const myPhasedCards = useMemo(
+        () =>
+            (ctx.phasedOutCards ?? []).filter(
+                (c) => c.controllerId === player.id
+            ),
+        [ctx.phasedOutCards, player.id]
+    );
     // Single high seam (#335): on portrait the right control column collapses
     // (pod → bottom bar) so the battlefield reclaims the reserved gutter and
     // uses the full screen width. Same hook the controller reads — the gutter
@@ -138,6 +161,16 @@ export default function BoardBattlefield({
                 }
             />
         );
+    }
+
+    // CR 702.26 — a phased-out permanent renders dimmed and fully inert (no
+    // interaction state, no click, no ability menu). It uses a neutral visual
+    // state so `BoardBattlefieldCard` skips every combat/target overlay.
+    function renderPhasedCard(card: CardInstance): SpatialItem {
+        return {
+            key: `phased:${card.id}`,
+            node: <BoardBattlefieldCard card={card} vs={INERT_VISUAL} phased />,
+        };
     }
 
     /** Render a single host permanent with its attached auras pinned up-and-left
@@ -247,20 +280,51 @@ export default function BoardBattlefield({
         // overflows its slot and covers the next permanent's click target.
         const widthsOf = (groups: { members: CardInstance[] }[]) =>
             groups.map((g) => stackFootprintWidth(g.members.length));
+        // CR 702.26 — phased-out permanents join their band as inert singletons
+        // (never grouped/stacked), appended AFTER the live groups so they sit at
+        // the tail of the row. Each reserves one card's footprint width.
+        const phasedCreatures: CardInstance[] = [];
+        const phasedLands: CardInstance[] = [];
+        const phasedOthers: CardInstance[] = [];
+        for (const card of myPhasedCards) {
+            if (bandOf(card) === "creatures") phasedCreatures.push(card);
+            else if (backRowRank(card) === 0) phasedLands.push(card);
+            else phasedOthers.push(card);
+        }
+        const singleWidths = (cards: CardInstance[]) =>
+            cards.map(() => stackFootprintWidth(1));
+        const creatureItems = [
+            ...creatureGroups.map(groupToItem),
+            ...phasedCreatures.map(renderPhasedCard),
+        ];
+        const landItems = [
+            ...landGroups.map(groupToItem),
+            ...phasedLands.map(renderPhasedCard),
+        ];
+        const otherItems = [
+            ...otherGroups.map(groupToItem),
+            ...phasedOthers.map(renderPhasedCard),
+        ];
         // Order: creatures, then back row = lands (left block) then others (right).
         const ordered: SpatialItem[] = [
-            ...creatureGroups,
-            ...landGroups,
-            ...otherGroups,
-        ].map(groupToItem);
+            ...creatureItems,
+            ...landItems,
+            ...otherItems,
+        ];
         return {
             orderedItems: ordered,
-            creatureCount: creatureGroups.length,
-            landCount: landGroups.length,
-            otherCount: otherGroups.length,
-            creatureWidths: widthsOf(creatureGroups),
-            landWidths: widthsOf(landGroups),
-            otherWidths: widthsOf(otherGroups),
+            creatureCount: creatureItems.length,
+            landCount: landItems.length,
+            otherCount: otherItems.length,
+            creatureWidths: [
+                ...widthsOf(creatureGroups),
+                ...singleWidths(phasedCreatures),
+            ],
+            landWidths: [...widthsOf(landGroups), ...singleWidths(phasedLands)],
+            otherWidths: [
+                ...widthsOf(otherGroups),
+                ...singleWidths(phasedOthers),
+            ],
         };
         // `groupToItem`/`renderCard` close over the per-render interaction
         // handlers; they are intentionally recomputed each render (cheap) —
@@ -271,6 +335,7 @@ export default function BoardBattlefield({
         hostExistsAnywhere,
         attachedAurasByHost,
         divideActive,
+        myPhasedCards,
     ]);
 
     // One full-height zone; the layout stacks the creature row (centered) over

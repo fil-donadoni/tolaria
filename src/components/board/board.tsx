@@ -216,13 +216,37 @@ export default function Board({
         return () => window.removeEventListener("keydown", handler);
     }, [state?.gameOver]);
 
+    // Solo viewer follows whoever owes input (computeSoloViewerId). Computed
+    // BEFORE the pending-choice buffer so the buffer submits as that seat — not
+    // the fixed join seat. In solo the join seat is p1, yet a choice can be owed
+    // by p2 (e.g. Copy Artifact's copy-target choice owed by the p2 caster);
+    // submitting it as p1 is rejected by the Expected Input gate (ADR 0047,
+    // "waiting for choice input from another player"). vs-AI / 2p stays pinned
+    // to the human's own seat (ADR 0001).
+    const viewerId =
+        solo && !vsAi && state
+            ? computeSoloViewerId({
+                  activePlayerId: state.activePlayerId,
+                  priorityPlayerId:
+                      state.priorityPlayerId ?? state.activePlayerId,
+                  phase: state.phase ?? "UPKEEP",
+                  combat: state.combat,
+                  meleeCombat: state.meleeCombat,
+                  pendingCast: state.pendingCast,
+                  pendingActivation: state.pendingActivation,
+                  pendingTarget: state.pendingTarget,
+                  pendingChoices: state.pendingChoices,
+                  playerIds: state.players.map((p) => p.id),
+              })
+            : playerId;
+
     // Client-side buffer for the active pending choice (ADR 0007). All four
     // click sites read from this single source via PendingChoiceBufferContext.
     // Hook must run unconditionally; passes through `undefined` choice while
     // state is still loading.
     const pendingChoiceBuffer = usePendingChoiceBufferState({
         gameId,
-        playerId,
+        playerId: viewerId,
         activeChoice: state?.pendingChoices?.[0],
     });
 
@@ -270,26 +294,16 @@ export default function Board({
     const mulligan = state.mulligan;
     const gameOver = state.gameOver;
     const stackItems = state.stack ?? [];
+    // CR 702.26 — flatten phased-out bundles (host + attachments) into a single
+    // list. Each card keeps its `controllerId`, so the battlefield renders it
+    // dimmed/inert on the controller's side instead of letting it vanish.
+    const phasedOutCards: Player["battlefield"] = (
+        state.phasedOut ?? []
+    ).flatMap((b) => b.cards);
 
-    // In solo mode the single user controls both players: the viewer follows
-    // whoever currently has priority (or whoever owns the next pending action).
-    // In a vs-AI game the bot drives its own seat, so the viewer stays pinned to
-    // the human's seat (ADR 0001) — never auto-following to the bot.
-    const viewerId =
-        solo && !vsAi
-            ? computeSoloViewerId({
-                  activePlayerId,
-                  priorityPlayerId,
-                  phase,
-                  combat,
-                  meleeCombat,
-                  pendingCast,
-                  pendingActivation,
-                  pendingTarget,
-                  pendingChoices,
-                  playerIds: allPlayers.map((p) => p.id),
-              })
-            : playerId;
+    // `viewerId` is computed above (before the pending-choice buffer) via
+    // computeSoloViewerId — the single source of truth for which seat the solo
+    // user is currently steering. In vs-AI / 2p it is the human's own seat.
 
     // Narrow the divide buffer's `active` to the current viewer (CR 601.2d): the
     // steppers/Done only appear for the player who owns the divide selection.
@@ -333,6 +347,7 @@ export default function Board({
                 meleeCombat,
                 gameOver,
                 allPlayers,
+                phasedOutCards,
                 showAllCards,
                 debugAllActions,
                 onSwitchGame,
