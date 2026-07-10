@@ -640,9 +640,16 @@ function alpha40Validate(
  * so the intent is documented and the intersection is auditable at a glance.
  */
 export const PREMODERN_LEGAL_SETS: readonly string[] = [
+    // Core sets
     "4ed", // Fourth Edition (earliest Premodern-legal set)
+    "5ed", // Fifth Edition
+    "6ed", // Classic Sixth Edition
+    "7ed", // Seventh Edition
+    // Expansions (Ice Age block → Scourge)
     "ice", // Ice Age
+    "chr", // Chronicles
     "hml", // Homelands
+    "all", // Alliances
     "mir", // Mirage
     "vis", // Visions
     "wth", // Weatherlight
@@ -654,15 +661,26 @@ export const PREMODERN_LEGAL_SETS: readonly string[] = [
     "uds", // Urza's Destiny
     "mmq", // Mercadian Masques
     "nem", // Nemesis
+    "pcy", // Prophecy
     "inv", // Invasion
+    "pls", // Planeshift
     "apc", // Apocalypse
     "ody", // Odyssey
     "tor", // Torment
     "jud", // Judgment
     "ons", // Onslaught
+    "lgn", // Legions
     "scg", // Scourge
+    // Portal / Starter / box sets (Premodern-legal supplemental printings)
+    "por", // Portal
+    "p02", // Portal Second Age
     "ptk", // Portal Three Kingdoms
-    "btd", // Beatdown Box Set (Premodern-legal reprint box set)
+    "s99", // Starter 1999
+    "s00", // Starter 2000
+    "brb", // Battle Royale Box Set
+    "ath", // Anthologies
+    "dkm", // Deckmasters
+    "btd", // Beatdown Box Set
 ];
 
 /**
