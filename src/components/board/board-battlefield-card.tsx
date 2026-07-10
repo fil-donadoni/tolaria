@@ -11,7 +11,9 @@ import CounterBadges from "./counter-badges";
 import NotedManaBadge from "./noted-mana-badge";
 import ExiledAssociatedCard from "./exiled-associated-card";
 import ActivatableAbilityMenu from "./activatable-ability-menu";
+import DivideTargetStepper from "./divide-target-stepper";
 import { useAbilityCardClick } from "~/hooks/useAbilityCardClick";
+import { useDivideBuffer } from "~/hooks/useDivideBuffer";
 
 type BoardBattlefieldCardProps = {
     card: CardInstance;
@@ -75,6 +77,15 @@ export default function BoardBattlefieldCard({
 }: BoardBattlefieldCardProps) {
     const { allPlayers } = useGameContext();
     const creature = isCreature(card);
+
+    // CR 601.2d — divide-as-you-choose: a legal target of an active divide spell
+    // (Pyrokinesis) carries an on-card [−] N [+] stepper driven by the shared
+    // client buffer, plus a red pip showing its assigned share. Identical
+    // permanents un-stack during the selection (board-battlefield), so the
+    // stepper is never occluded by a fan neighbour.
+    const divide = useDivideBuffer();
+    const showDivide = divide.active && vs.divideTarget;
+    const divideAssigned = showDivide ? divide.get(card.id) : 0;
 
     // Cards exiled-and-associated with THIS permanent (mechanism-agnostic via the
     // projected `exiledByPermanentId`): Banishing Light's held permanent, Ice
@@ -220,6 +231,20 @@ export default function BoardBattlefieldCard({
             {...clickHandlers}
         >
             {inner}
+            {showDivide && divideAssigned > 0 && (
+                <div className="absolute top-1 left-1 z-40 min-w-6 h-6 px-1 rounded-full bg-red-600 ring-2 ring-white text-white text-sm font-bold flex items-center justify-center shadow-[0_0_8px_rgba(0,0,0,0.9)] pointer-events-none tabular-nums">
+                    {divideAssigned}
+                </div>
+            )}
+            {showDivide && (
+                <DivideTargetStepper
+                    n={divideAssigned}
+                    canMinus={divideAssigned > 0}
+                    canPlus={divide.remaining > 0}
+                    onMinus={() => divide.dec(card.id)}
+                    onPlus={() => divide.inc(card.id, "permanent")}
+                />
+            )}
             {associatedExiled.map((exiled) => (
                 <ExiledAssociatedCard key={exiled.id} exiledCard={exiled} />
             ))}

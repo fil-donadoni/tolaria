@@ -12,6 +12,13 @@
 //   • Ponder  (`none`)           — no second zone (all kept, order only).
 // Rightmost = top of library (drawn first). On confirm the picker submits the
 // kept cards topmost-first as `cardInstanceIds` and the rest as `secondZoneIds`.
+//
+// `distribute` mode (Impulse / Stock Up, `look-distribute`) reuses the same
+// strip with different chrome: the RIGHT zone is the HAND (labelled HAND,
+// constrained to exactly `keep` cards) and the LEFT zone is the ordered BOTTOM.
+// Cards start in the BOTTOM zone; the player pulls exactly `keep` up to the
+// hand. On confirm the hand cards go out as `cardInstanceIds`, the bottom cards
+// (ordered) as `secondZoneIds`.
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { LibraryDestination } from "@convex/gre/types";
 import { SLOT_SPRING } from "~/lib/board-motion";
@@ -70,19 +77,30 @@ export default function LibraryOrderPicker({
     destination,
     prompt,
     submitting,
+    distribute,
     onConfirm,
 }: {
     lookedAt: LookedAtCard[];
     destination: LibraryDestination;
     prompt: string;
     submitting: boolean;
-    /** `topTopmostFirst` = kept cards, topmost first; `secondIds` = the rest,
-     *  ordered, sent to the destination (empty for `none`). Both are INSTANCE
-     *  ids. */
+    /** `look-distribute` mode (Impulse / Stock Up): the RIGHT zone is the HAND
+     *  (exactly `keep` cards), the LEFT zone the ordered bottom. Omit for the
+     *  scry/surveil/ponder order-top modes. */
+    distribute?: { keep: number };
+    /** `topTopmostFirst` = kept cards, topmost first (or the HAND cards in
+     *  `distribute` mode); `secondIds` = the rest, ordered, sent to the
+     *  destination (empty for `none`). Both are INSTANCE ids. */
     onConfirm: (topTopmostFirst: string[], secondIds: string[]) => void;
 }) {
-    const { leftLabel, rightLabel, hasSecond, detached } =
-        chromeFor(destination);
+    const { leftLabel, rightLabel, hasSecond, detached } = distribute
+        ? {
+              leftLabel: "BOTTOM",
+              rightLabel: "HAND",
+              hasSecond: true,
+              detached: false,
+          }
+        : chromeFor(destination);
 
     const defById = useMemo(
         () => Object.fromEntries(lookedAt.map((c) => [c.instanceId, c.defId])),
@@ -90,14 +108,19 @@ export default function LibraryOrderPicker({
     );
 
     // Committed order (instance ids), stored LEFT→RIGHT with rightmost = top of
-    // library. `lookedAt` arrives top-to-bottom (index 0 = current top), so it is
-    // REVERSED into the fan: the current top card sits rightmost, and confirming
-    // without any drag reproduces the original order exactly. Dragging moves
-    // cards between the two arrays ON RELEASE only (deferred commit).
+    // library. In order-top mode `lookedAt` arrives top-to-bottom (index 0 =
+    // current top) and is REVERSED into the fan so the current top card sits
+    // rightmost — confirming without any drag reproduces the original order
+    // exactly. In `distribute` mode every card starts in the BOTTOM (left) zone
+    // in look order; the player pulls exactly `keep` up to the HAND (right)
+    // zone. Dragging moves cards between the two arrays ON RELEASE only
+    // (deferred commit).
     const [top, setTop] = useState<string[]>(() =>
-        [...lookedAt].reverse().map((c) => c.instanceId)
+        distribute ? [] : [...lookedAt].reverse().map((c) => c.instanceId)
     );
-    const [second, setSecond] = useState<string[]>([]);
+    const [second, setSecond] = useState<string[]>(() =>
+        distribute ? lookedAt.map((c) => c.instanceId) : []
+    );
     const [drag, setDrag] = useState<Drag | null>(null);
 
     const containerRef = useRef<HTMLDivElement>(null);
@@ -285,8 +308,14 @@ export default function LibraryOrderPicker({
         if (press.current) commit();
     }, [commit]);
 
+    // `distribute` mode requires EXACTLY `keep` cards in the HAND (right) zone
+    // before Done is legal (the engine enforces count = keep; gating here avoids
+    // a rejected submit). order-top modes accept any split.
+    const confirmDisabled =
+        submitting || (distribute ? top.length !== distribute.keep : false);
+
     const handleConfirm = () => {
-        if (submitting) return;
+        if (confirmDisabled) return;
         // Rightmost = topmost, so reverse the left→right `top` array.
         const topTopmostFirst = [...top].reverse();
         onConfirm(topTopmostFirst, hasSecond ? second : []);
@@ -390,7 +419,7 @@ export default function LibraryOrderPicker({
                 <div className="flex justify-center">
                     <button
                         type="button"
-                        disabled={submitting}
+                        disabled={confirmDisabled}
                         onClick={handleConfirm}
                         className="rounded-full border border-accent bg-accent/10 px-10 py-2 font-beleren text-base tracking-wide text-accent hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-50"
                     >

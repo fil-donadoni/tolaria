@@ -27,6 +27,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "look-top": "Look",
     // order-top (scry / surveil / ponder drag picker) — order the kept top cards
     "order-top": "Scry",
+    // look-distribute (Impulse / Stock Up) — take N to hand, order the rest bottom
+    "look-distribute": "Look",
     // legend rule (CR 704.5j)
     "legend-keep": "Legend rule",
     // yes-no family

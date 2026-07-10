@@ -8270,6 +8270,10 @@ export function buildSpellContext(
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
         },
+        readOrderedSecond(choiceId): string[] {
+            const step = item.resolutionStep ?? 0;
+            return item.collectedChoices?.[`${step}:${choiceId}:second`] ?? [];
+        },
         requestMayPay(req): boolean | undefined {
             const step = item.resolutionStep ?? 0;
             const key = `${step}:${req.choiceId}`;
@@ -8796,6 +8800,13 @@ export function buildSpellContext(
                         player.library.push(c); // true bottom (CR 701.22)
                     }
                 }
+                // ADR 0026 — the controller looked at these cards and PLACED
+                // them at the bottom in a chosen order (CR 701.22 "in any
+                // order"), so their position is certain: they stay known
+                // (face-up in the controller's bottom-of-library view) until an
+                // uncertainty event (shuffle) clears them. The projection
+                // exposes them as the contiguous known run from the bottom.
+                grantKnowledge(state, playerId, second, playerId);
             }
             // After removing the un-kept cards, the kept cards are exactly the top
             // `storedTop.length` of the library — reorder them to the chosen order.
@@ -8812,11 +8823,10 @@ export function buildSpellContext(
                     return card;
                 });
                 player.library.unshift(...reordered);
-                // ADR 0026 — the controller has seen and arranged these cards;
-                // they stay known (face-up in the controller's library view) until
-                // a shuffle or a draw moves them. Bottomed / graveyard'd cards are
-                // NOT marked (bottomed = lost into the library; graveyard is
-                // public anyway).
+                // ADR 0026 — the controller has seen and arranged the kept
+                // cards; they stay known (face-up on top) until a shuffle or a
+                // draw moves them. Graveyard'd cards (surveil) are not marked
+                // here — the graveyard is public anyway.
                 grantKnowledge(state, playerId, storedTop, playerId);
             }
             return true;

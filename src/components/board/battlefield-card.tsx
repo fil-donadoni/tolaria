@@ -22,6 +22,10 @@ export type CardVisualState = {
     ringClass: string;
     badge: { color: string; index: number } | null;
     tooltip?: string;
+    /** CR 601.2d — this permanent is a legal target of an active divide-as-you-
+     *  choose selection (Pyrokinesis), so it carries an on-card `[−] N [+]`
+     *  stepper instead of being click-to-target. Absent ⇒ false. */
+    divideTarget?: boolean;
 };
 
 export type ActivatableAbility = {

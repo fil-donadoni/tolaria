@@ -392,12 +392,12 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             req.skip ??= `Op "mill" moves top-of-library cards to the graveyard — covered by the Op's interpreter tests`;
             return;
         case "digToHand":
-            // A `digToHand` Op suspends resolution for a live look-top pick
-            // (issue #984) — a canned scenario cannot submit the kept-card
-            // choice, so the script is reported as an explicit skip; execution
-            // coverage comes from the Op's own interpreter tests and any
-            // migrated cards' suspension/resume tests (per-Op regime).
-            req.skip ??= `Op "digToHand" suspends for a look-top keep choice — covered by the Op's interpreter tests`;
+            // A `digToHand` Op suspends resolution for a live look-distribute
+            // pick (issue #984) — a canned scenario cannot submit the
+            // hand/bottom choice, so the script is reported as an explicit skip;
+            // execution coverage comes from the Op's own interpreter tests and
+            // the migrated cards' suspension/resume tests (per-Op regime).
+            req.skip ??= `Op "digToHand" suspends for a look-distribute pick — covered by the Op's interpreter tests`;
             return;
         case "counter":
             // `counter` targets a SPELL on the stack (issue #806); the canned
@@ -1113,8 +1113,8 @@ const OP_ASSERTORS: Record<string, Assertor> = {
         return null;
     },
     // `digToHand` (CR 401.4, issue #984) — never reached: `analyseOp` skips
-    // every script with a digToHand Op (it suspends on a live look-top keep
-    // choice, so there is no deterministic same-resolution outcome the canned
+    // every script with a digToHand Op (it suspends on a live look-distribute
+    // pick, so there is no deterministic same-resolution outcome the canned
     // scenario can assert). Kept for the 1:1 coverage guard; the look / keep /
     // bottom is covered by the Op's own interpreter tests.
     digToHand() {

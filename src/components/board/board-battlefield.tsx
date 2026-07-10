@@ -80,6 +80,9 @@ export default function BoardBattlefield({
         () => (ctx.allPlayers?.length ? ctx.allPlayers : [player]),
         [ctx.allPlayers, player]
     );
+    // CR 601.2d — un-stack identical permanents while a divide-as-you-choose
+    // selection is in progress, so each instance is individually dialable.
+    const divideActive = ctx.pendingTarget?.divideTotal !== undefined;
     // Single high seam (#335): on portrait the right control column collapses
     // (pod → bottom bar) so the battlefield reclaims the reserved gutter and
     // uses the full screen width. Same hook the controller reads — the gutter
@@ -221,10 +224,24 @@ export default function BoardBattlefield({
         // permanent stacks BEFORE layout (PRD #621, #623). Group each band
         // independently so a stack never spans the creature/back-row split;
         // each resulting group (singleton OR stack) takes exactly one layout
-        // slot.
-        const creatureGroups = groupBattlefield(creatures, attachedAurasByHost);
-        const landGroups = groupBattlefield(lands, attachedAurasByHost);
-        const otherGroups = groupBattlefield(others, attachedAurasByHost);
+        // slot. CR 601.2d — while a divide-as-you-choose selection is active
+        // (Pyrokinesis), un-stack so every identical instance gets its own slot
+        // and its own on-card damage stepper.
+        const creatureGroups = groupBattlefield(
+            creatures,
+            attachedAurasByHost,
+            divideActive
+        );
+        const landGroups = groupBattlefield(
+            lands,
+            attachedAurasByHost,
+            divideActive
+        );
+        const otherGroups = groupBattlefield(
+            others,
+            attachedAurasByHost,
+            divideActive
+        );
         // A fanned stack is wider than one card, so each group reserves its own
         // footprint width in the row (issue #977) — otherwise a 6-card fan
         // overflows its slot and covers the next permanent's click target.
@@ -249,7 +266,12 @@ export default function BoardBattlefield({
         // handlers; they are intentionally recomputed each render (cheap) —
         // the heavy grouping deps are the battlefield and host set.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [player.battlefield, hostExistsAnywhere, attachedAurasByHost]);
+    }, [
+        player.battlefield,
+        hostExistsAnywhere,
+        attachedAurasByHost,
+        divideActive,
+    ]);
 
     // One full-height zone; the layout stacks the creature row (centered) over
     // the back row (lands flush-left, other noncreatures flush-right) so nothing

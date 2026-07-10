@@ -547,11 +547,9 @@ export function applyPendingChoiceSubmit(
                 throw new Error("Card is not an eligible choice");
             }
         }
-        if (head.kind === "order-top") {
-            // The un-kept cards (`secondZoneIds`) must also be looked-at library
-            // cards, and the two ordered lists must PARTITION the looked-at set
-            // exactly — no card lost, duplicated, or invented (CR 701.22/701.44:
-            // every looked-at card is placed).
+        if (head.kind === "order-top" || head.kind === "look-distribute") {
+            // The second-zone cards (`secondZoneIds`) must also be looked-at
+            // library cards, disjoint from the primary list.
             const second = args.secondZoneIds ?? [];
             for (const id of second) {
                 if (
@@ -567,12 +565,26 @@ export function applyPendingChoiceSubmit(
             }
             const placed = [...args.cardInstanceIds, ...second];
             const placedSet = new Set(placed);
+            if (placedSet.size !== placed.length) {
+                throw new Error("A card was placed more than once");
+            }
+            // `order-top` (CR 701.22/701.44) always places EVERY looked-at card:
+            // the two lists must partition `candidateIds` exactly. `look-
+            // distribute` (CR 401.4 — Impulse, Stock Up) partitions too WHEN the
+            // picker supplies the ordered bottom list, but a bot/auto path may
+            // submit only the hand picks and let the rest auto-bottom in look
+            // order — so the full-cover check applies to `order-top` always, and
+            // to `look-distribute` only when a second list is present.
+            const requireFullCover =
+                head.kind === "order-top" || second.length > 0;
             if (
-                placedSet.size !== placed.length ||
+                requireFullCover &&
                 placedSet.size !== (head.candidateIds?.length ?? placed.length)
             ) {
                 throw new Error(
-                    "order-top must place every looked-at card once"
+                    head.kind === "order-top"
+                        ? "order-top must place every looked-at card once"
+                        : "look-distribute must place every looked-at card once"
                 );
             }
         }
@@ -670,10 +682,10 @@ export function applyPendingChoiceSubmit(
     stackItem.collectedChoices = {
         ...(stackItem.collectedChoices ?? {}),
         [key]: args.cardInstanceIds,
-        // `order-top` carries a SECOND ordered list (the un-kept cards) under a
-        // sibling key; `SpellContext.orderTop` reads it back on resume to apply
-        // the destination split.
-        ...(head.kind === "order-top"
+        // `order-top` / `look-distribute` carry a SECOND ordered list under a
+        // sibling key; `SpellContext.orderTop` / `digToHand` read it back on
+        // resume to apply the destination split.
+        ...(head.kind === "order-top" || head.kind === "look-distribute"
             ? { [`${key}:second`]: args.secondZoneIds ?? [] }
             : {}),
     };

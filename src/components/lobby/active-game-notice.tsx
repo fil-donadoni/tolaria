@@ -92,7 +92,7 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
                         disabled={isBusy}
                         className="btn-base btn-tone-destructive px-3 py-1.5 text-xs disabled:opacity-50"
                     >
-                        Forfeit
+                        Concede Match
                     </button>
                 ) : (
                     <button
@@ -110,7 +110,7 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
                 onOpenChange={(open) => {
                     if (!open) setConfirmForfeit(false);
                 }}
-                title="Forfeit match?"
+                title="Concede match?"
                 subtitle="This ends the whole match as a loss and cannot be undone."
             >
                 <div className="flex justify-end gap-2 mt-4">
@@ -122,7 +122,7 @@ export default function ActiveGameNotice({ activeGame, userId }: Props) {
                     />
                     <ActionButton
                         onClick={() => void handleForfeit()}
-                        label="Forfeit"
+                        label="Concede Match"
                         tone="destructive"
                         disabled={isBusy}
                     />

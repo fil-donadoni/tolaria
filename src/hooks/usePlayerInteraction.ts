@@ -2,7 +2,7 @@ import type { Player } from "~/types/game";
 import { wantsPlayerTarget } from "~/lib/card-utils";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
-import { useDivideAmount } from "~/hooks/useDivideAmount";
+import { useDivideBuffer } from "~/hooks/useDivideBuffer";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 
@@ -38,8 +38,20 @@ export type PlayerInteraction = {
     isDamageTargetPickable: boolean;
     /** Whether this player is currently buffered in the damage-target pick. */
     isPlayerPicked: boolean;
+    /** CR 601.2d — this player is a legal target of an active divide-as-you-
+     *  choose spell ("any target" — Fire Covenant / Meteor Shower), so the
+     *  nameplate carries a [−] N [+] stepper instead of being click-to-target. */
+    isDivideTarget: boolean;
+    /** Points currently assigned to this player in the divide buffer. */
+    divideAssigned: number;
+    /** Whether more of the divide budget remains to assign. */
+    divideCanPlus: boolean;
+    /** Assign one more / one fewer point to this player. */
+    incDivide: () => void;
+    decDivide: () => void;
     /** Click handler: routes to `selectTarget` (target) or the choice-buffer
-     *  toggle (damage-target), or no-ops when neither applies. */
+     *  toggle (damage-target), or no-ops when neither applies (incl. divide,
+     *  which the stepper owns). */
     handleClick: () => void;
 };
 
@@ -56,7 +68,7 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
 
     const selectTargetMut = useMutation(api.game.selectTarget);
     const bufferCtx = usePendingChoiceBuffer();
-    const divideAmount = useDivideAmount();
+    const divide = useDivideBuffer();
 
     const isTargetable =
         !!pendingTarget &&
@@ -84,19 +96,23 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
     const isPlayerPicked =
         isDamageTargetPickable && bufferCtx.buffer.includes(player.id);
 
+    // CR 601.2d — divide-as-you-choose "any target" (Fire Covenant / Meteor
+    // Shower): this player is a divide target when it is a legal player target
+    // AND the active selection divides a budget. The nameplate then shows a
+    // stepper (driven by the shared divide buffer) instead of click-to-target.
+    const isDivideTarget =
+        isTargetable &&
+        divide.active &&
+        pendingTarget?.divideTotal !== undefined;
+
     function handleClick() {
-        if (isTargetable) {
+        // A divide target is dialed via its nameplate stepper, never clicked.
+        if (isTargetable && pendingTarget?.divideTotal === undefined) {
             selectTargetMut({
                 gameId,
                 playerId,
                 targetType: "player",
                 targetId: player.id,
-                // CR 601.2d — divide-as-you-choose (Meteor Shower / Fire
-                // Covenant hit "any target", so a player can take a share):
-                // send the stepper amount, omitted for non-divide spells.
-                ...(pendingTarget?.divideTotal !== undefined
-                    ? { amount: divideAmount.amount }
-                    : {}),
             });
             return;
         }
@@ -111,6 +127,11 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
         isTargetable,
         isDamageTargetPickable,
         isPlayerPicked,
+        isDivideTarget,
+        divideAssigned: isDivideTarget ? divide.get(player.id) : 0,
+        divideCanPlus: divide.remaining > 0,
+        incDivide: () => divide.inc(player.id, "player"),
+        decDivide: () => divide.dec(player.id),
         handleClick,
     };
 }

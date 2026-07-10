@@ -157,10 +157,10 @@ describe("Flash of Insight (JUD 40) — dig + flashback exile cost", () => {
         };
         state.stack.push(item);
 
-        // Suspends on a look-top pick over exactly the top X (= 2) cards.
+        // Suspends on a look-distribute pick over exactly the top X (= 2) cards.
         expect(resolveTopOfStack(state)).toBeNull();
         const head = state.pendingChoices![0];
-        expect(head.kind).toBe("look-top");
+        expect(head.kind).toBe("look-distribute");
         expect(head.candidateIds).toEqual(["a", "b"]);
 
         applyPendingChoiceSubmit(state, {
@@ -220,10 +220,11 @@ describe("Flash of Insight (JUD 40) — dig + flashback exile cost", () => {
             const { state } = flashbackState(["blue1", "blue2"]);
             tryAutoCommitPendingCast(state, "p1");
 
-            // Resolve the flashback cast: digToHand suspends on the look-top pick.
+            // Resolve the flashback cast: digToHand suspends on the
+            // look-distribute pick.
             expect(resolveTopOfStack(state)).toBeNull();
             const head = state.pendingChoices![0];
-            expect(head.kind).toBe("look-top");
+            expect(head.kind).toBe("look-distribute");
             expect(head.candidateIds).toEqual(["lib1", "lib2"]); // top X = 2
             applyPendingChoiceSubmit(state, {
                 playerId: head.playerId,

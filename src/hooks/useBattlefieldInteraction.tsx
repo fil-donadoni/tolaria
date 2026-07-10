@@ -3,7 +3,6 @@ import type { CardInstance, Player } from "~/types/game";
 import type { ManaCost } from "~/types/cards";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
-import { useDivideAmount } from "~/hooks/useDivideAmount";
 import { useBattlefieldVisualState } from "~/hooks/useBattlefieldVisualState";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -107,7 +106,6 @@ export function useBattlefieldInteraction(player: Player) {
     const activateAbility = useMutation(api.game.activateAbility);
     const activateManaAbility = useMutation(api.game.activateManaAbility);
     const bufferCtx = usePendingChoiceBuffer();
-    const divideAmount = useDivideAmount();
 
     // Board-coupled visual state (combat rings, tap, damage, legal-target
     // highlight) and the interaction predicate live in the shared visual-state
@@ -335,6 +333,11 @@ export function useBattlefieldInteraction(player: Player) {
         if (
             isSelectingTarget &&
             pendingTarget &&
+            // CR 601.2d — a divide-as-you-choose spell is NOT click-to-target:
+            // each legal target carries an on-card [−] N [+] stepper (the divide
+            // buffer) and the banner "Deal damage" finalizes. Clicking the card
+            // is inert here; the stepper owns assignment.
+            pendingTarget.divideTotal === undefined &&
             matchesTargetRequirement(card, pendingTarget.targetType) &&
             // CR 109.3 / 102.1 — don't fire selectTarget for a wrong-controller
             // permanent; `useBattlefieldVisualState` already dims it, so firing
@@ -365,14 +368,6 @@ export function useBattlefieldInteraction(player: Player) {
                     playerId,
                     targetType: "permanent",
                     targetId: card.id,
-                    // CR 601.2d — divide-as-you-choose: send the stepper amount
-                    // so the server records this target's share instead of
-                    // falling back to an equal ≥1-each split. Omitted for
-                    // non-divide spells (regression-critical: `undefined` keeps
-                    // the plain single-target behaviour).
-                    ...(pendingTarget?.divideTotal !== undefined
-                        ? { amount: divideAmount.amount }
-                        : {}),
                 })
             );
             return;

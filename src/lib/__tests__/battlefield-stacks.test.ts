@@ -259,3 +259,22 @@ describe("groupBattlefield — ordering", () => {
         expect(keys(input)).toEqual(["t1", "u1"]);
     });
 });
+
+// Divide-as-you-choose un-stacking (CR 601.2d): while a divide-damage
+// selection is active, every identical permanent must render as its OWN slot
+// so each instance is individually dialable (variant B — the chosen UX). The
+// board passes `disableStacking` for the duration of the selection.
+describe("groupBattlefield — disableStacking (divide-as-you-choose, CR 601.2d)", () => {
+    it("renders every identical permanent as its own singleton when disabled", () => {
+        const a = makeCard({ id: "a" });
+        const b = makeCard({ id: "b" });
+        const c = makeCard({ id: "c" });
+        // Without the flag these three Grizzly Bears collapse into one ×3 stack.
+        expect(groupBattlefield([a, b, c], noHosts)).toHaveLength(1);
+        // With it, three individual slots — no fan overlap to fight.
+        const groups = groupBattlefield([a, b, c], noHosts, true);
+        expect(groups).toHaveLength(3);
+        expect(groups.every((g) => !g.isStack)).toBe(true);
+        expect(keys(groups.flatMap((g) => g.members))).toEqual(["a", "b", "c"]);
+    });
+});

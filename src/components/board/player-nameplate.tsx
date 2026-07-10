@@ -2,6 +2,7 @@ import type { Player } from "~/types/game";
 import type { PlayerInteraction } from "~/hooks/usePlayerInteraction";
 import AnimatedLifeTotal from "./animated-life-total";
 import PlayerPoisonCounters from "./player-poison-counters";
+import DivideTargetStepper from "./divide-target-stepper";
 
 type PlayerNameplateProps = {
     player: Player;
@@ -58,7 +59,8 @@ export default function PlayerNameplate({
 }: PlayerNameplateProps) {
     const { hasPriority, isTargetable, isDamageTargetPickable } = interaction;
 
-    const interactive = isTargetable || isDamageTargetPickable;
+    const interactive =
+        (isTargetable && !interaction.isDivideTarget) || isDamageTargetPickable;
     const boxShadow = nameplateShadow(
         hasPriority,
         isTargetable,
@@ -84,6 +86,22 @@ export default function PlayerNameplate({
                 {player.name}
             </div>
             <PlayerPoisonCounters count={player.poisonCounters} />
+            {interaction.isDivideTarget && (
+                <>
+                    {interaction.divideAssigned > 0 && (
+                        <div className="absolute -top-2 -left-2 z-40 min-w-6 h-6 px-1 rounded-full bg-red-600 ring-2 ring-white text-white text-sm font-bold flex items-center justify-center shadow-[0_0_8px_rgba(0,0,0,0.9)] pointer-events-none tabular-nums">
+                            {interaction.divideAssigned}
+                        </div>
+                    )}
+                    <DivideTargetStepper
+                        n={interaction.divideAssigned}
+                        canMinus={interaction.divideAssigned > 0}
+                        canPlus={interaction.divideCanPlus}
+                        onMinus={interaction.decDivide}
+                        onPlus={interaction.incDivide}
+                    />
+                </>
+            )}
         </div>
     );
 }

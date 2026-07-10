@@ -187,22 +187,38 @@ function hasNonOwnerKnower(card: CardInstanceState): boolean {
  *  does NOT auto-know their own order; gating is purely by `knownTo`. Raw
  *  `knownTo` never crosses the wire (each card is slimmed).
  *
- *  Only the CONTIGUOUS known run from the top is exposed: iteration stops at the
- *  first position the viewer doesn't know. A card whose `knownTo` survived on
- *  the instance but which a later reorder/bottoming pushed BELOW an unknown card
- *  (e.g. a scry-known card sent to the bottom by a subsequent Stock Up) is no
- *  longer "still on top", so it reads as a face-down back again — the flag
+ *  Only the two CONTIGUOUS known runs from each END are exposed — the run from
+ *  the TOP (scry/Brainstorm kept on top) and the run from the BOTTOM (scry /
+ *  Impulse / Stock Up cards the controller looked at and PLACED at the bottom in
+ *  a chosen order, so their position is certain). Iteration from each end stops
+ *  at the first position the viewer doesn't know. A card whose `knownTo`
+ *  survived on the instance but which a later reorder/bottoming buried BETWEEN
+ *  unknown cards (e.g. a scry-known top card pushed down by a subsequent Stock
+ *  Up) is contiguous with NEITHER end, so it reads as a face-down back again —
+ *  position certainty is lost once an unknown card straddles it, and the flag
  *  effectively disappears in the UI without mutating the instance. Cards kept on
- *  top and merely reordered (Diabolic Vision) stay in the run and stay known. */
+ *  top and merely reordered (Diabolic Vision) stay in the top run and stay
+ *  known; cards ordered onto the bottom (CR 701.22 "in any order") stay in the
+ *  bottom run and stay known. The two runs never overlap: the bottom scan stops
+ *  at the top run's boundary, so an all-known library is emitted exactly once. */
 function projectLibrary(
     library: CardInstanceState[],
     viewerId: string
 ): PublicLibrary {
+    const knows = (card: CardInstanceState) =>
+        card.knownTo?.includes(viewerId) ?? false;
     const known: KnownLibraryCard[] = [];
-    for (let index = 0; index < library.length; index++) {
-        const card = library[index];
-        if (!card.knownTo?.includes(viewerId)) break;
-        known.push({ index, card: slimCard(card) });
+    // Top run: [0, topEnd).
+    let topEnd = 0;
+    while (topEnd < library.length && knows(library[topEnd])) {
+        known.push({ index: topEnd, card: slimCard(library[topEnd]) });
+        topEnd++;
+    }
+    // Bottom run: (bottomStart, length), scanning up but never crossing topEnd
+    // so an all-known library is not double-counted.
+    for (let index = library.length - 1; index >= topEnd; index--) {
+        if (!knows(library[index])) break;
+        known.push({ index, card: slimCard(library[index]) });
     }
     return { count: library.length, known };
 }
@@ -408,7 +424,10 @@ function computeChoiceExposure(
             head.kind === "look-top" ||
             // order-top (scry/surveil/ponder drag picker, #942) — exposes the
             // looked-at top N (`candidateIds`) so the picker can render them.
-            head.kind === "order-top") &&
+            head.kind === "order-top" ||
+            // look-distribute (Impulse / Stock Up) — same top-N peek, rendered
+            // by the unified HAND/BOTTOM drag picker.
+            head.kind === "look-distribute") &&
         head.zone === "library";
     // reorder-library shows `count` cards; draw-look-keep, look-top and
     // order-top show all the looked-at cards named in `candidateIds`.

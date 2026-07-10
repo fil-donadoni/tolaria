@@ -43,3 +43,11 @@ at handler (../convex/game.ts:6688:12)
 Le carte esiliate face-down devono mostrare card-back, non cercare una card-image "https://cards.scryfall.io/normal/front/f/a/face-down:2-2-vanilla.jpg" che non esiste.
 
 Dominate non risulta mai castabile, verifica la presenza di creature con mv <= 0. Se c'è (tipo Ornithopter), poi puoi tappare anche di più per X e prendere creature più costose. È un bug.
+
+Anche scry e tutti i dialog di choice devono poter essere abbassati per mostrare il battlefield, e poi riaperti per completare l'azione.
+
+Il bot non sa usare le fetchlands.
+
+Migliorare UI sideboard con /prototype. Card previews, possibilità di avere >60 carte nella main, miglioramento cta spostamento, visualizzazione a pile
+
+Portent deve usare la ui di ponder, ora ha ancora quella vecchia. quella vecchia dismettila e usa sempre quelle nuove.

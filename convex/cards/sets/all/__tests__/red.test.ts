@@ -64,6 +64,39 @@ describe("Pyrokinesis (divided damage — CR 120.4)", () => {
         expect(board.find((c) => c.id === "b")?.damageMarked).toBe(2);
     });
 
+    it("honours an UNEQUAL chosen split (3/1) — not an even division", () => {
+        // The crux of the divide-as-you-choose UX (variant B): the player's
+        // per-target dial must resolve verbatim. 3/1 across two creatures, NOT
+        // the 2/2 the old equal-fallback produced.
+        const a = makeInstance(treefolk.id, {
+            id: "a",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const b = makeInstance(treefolk.id, {
+            id: "b",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [a, b] }),
+            ],
+        });
+        const item = pushSpell(state, pyrokinesis.id, "p1", [
+            { type: "permanent", id: "a" },
+            { type: "permanent", id: "b" },
+        ]);
+        item.targetAmounts = { "permanent:a": 3, "permanent:b": 1 };
+        resolveTopOfStack(state);
+        const board = state.players[1].battlefield;
+        expect(board.find((c) => c.id === "a")?.damageMarked).toBe(3);
+        expect(board.find((c) => c.id === "b")?.damageMarked).toBe(1);
+    });
+
     it("marked damage survives the wire projection (client sees it)", () => {
         const a = makeInstance(treefolk.id, {
             id: "a",

@@ -85,6 +85,20 @@ export type ZonePickKind =
     // kept cards known to the controller (ADR 0026 — you know your top cards
     // after a scry).
     | "order-top"
+    // "Look at the top N, put K into your HAND and the rest on the BOTTOM in
+    // any order" (CR 401.4 — Impulse, Stock Up). The unified HAND/BOTTOM drag
+    // picker's kind. Like `order-top` the submit carries TWO ordered lists that
+    // PARTITION the looked-at `candidateIds` — the cards taken to hand
+    // (`cardInstanceIds`, exactly `count.min === count.max === keep`) and the
+    // cards ordered onto the bottom (`secondZoneIds`) — but unlike `order-top`
+    // the FIRST list goes to the HAND, not back on top, and
+    // `PendingChoice.destination` is always `library-bottom`. Applied by
+    // `SpellContext.digToHand`, which moves the kept cards to hand, bottoms the
+    // rest in the chosen order, and marks THOSE bottom cards known to the
+    // controller (ADR 0026 — you looked at and placed them, so their position
+    // is certain until a shuffle). Shares `order-top`'s submit validation and
+    // `:second` storage in `applyPendingChoiceSubmit`.
+    | "look-distribute"
     // Legend rule (CR 704.5j, #378): when a controller has 2+ legendary
     // permanents that share a name, they keep exactly one (`candidateIds` are
     // the same-name duplicates) and the rest go to their owners' graveyards.

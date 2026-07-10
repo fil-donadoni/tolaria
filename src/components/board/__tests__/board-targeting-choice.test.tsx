@@ -19,9 +19,9 @@ import {
     type PendingChoiceBuffer,
 } from "~/hooks/usePendingChoiceBuffer";
 import {
-    DivideAmountContext,
-    type DivideAmount,
-} from "~/hooks/useDivideAmount";
+    DivideBufferContext,
+    type DivideBuffer,
+} from "~/hooks/useDivideBuffer";
 
 // --- Mutation capture: each api.game.* ref resolves to its own spy ---
 type MutArgs = Record<string, unknown>;
@@ -252,54 +252,81 @@ describe("board targeting parity (#279)", () => {
     });
 });
 
-// Divide-as-you-choose (CR 601.2d, Pyrokinesis): clicking a target while a
-// `divideTotal` selection is active must send the stepper `amount` so the
-// server records the chosen split — omitting it makes the server fall back to
-// an equal ≥1-each division (the "divides evenly" bug).
-describe("board targeting — divide-as-you-choose amount dispatch (CR 601.2d)", () => {
+// Divide-as-you-choose (CR 601.2d, Pyrokinesis): while a `divideTotal`
+// selection is active, a target is NOT click-to-select — every legal target
+// carries an on-card [−] N [+] stepper that dials the shared divide buffer, and
+// the banner "Deal damage" submits the whole split. Clicking the card itself is
+// inert (the stepper owns assignment); a normal, non-divide target still
+// dispatches selectTarget on click.
+describe("board targeting — divide-as-you-choose steppers (CR 601.2d)", () => {
+    function makeDivide(overrides: Partial<DivideBuffer> = {}): DivideBuffer {
+        return {
+            active: true,
+            total: 4,
+            sum: 0,
+            remaining: 4,
+            get: () => 0,
+            inc: vi.fn(),
+            dec: vi.fn(),
+            canSubmit: false,
+            submit: vi.fn(() => Promise.resolve()),
+            isPending: false,
+            lastError: null,
+            dismissError: vi.fn(),
+            ...overrides,
+        };
+    }
+
     function renderWithDivide(
         player: Player,
         players: Player[],
         ctx: Partial<React.ContextType<typeof GameContext>>,
-        divide: DivideAmount
+        divide: DivideBuffer
     ) {
         return render(
             <GameContext value={makeContext(players, ctx)}>
                 <PendingChoiceBufferContext value={makeBuffer()}>
-                    <DivideAmountContext value={divide}>
+                    <DivideBufferContext value={divide}>
                         <BoardBattlefield player={player} />
-                    </DivideAmountContext>
+                    </DivideBufferContext>
                 </PendingChoiceBufferContext>
             </GameContext>
         );
     }
 
-    const divideValue = (amount: number): DivideAmount => ({
-        active: true,
-        amount,
-        remaining: 4,
-        setAmount: vi.fn(),
+    const divideCtx: Partial<React.ContextType<typeof GameContext>> = {
+        pendingTarget: {
+            playerId: "me",
+            targetType: "Creature",
+            selected: [],
+            divideTotal: 4,
+        } as never,
+    };
+
+    it("does NOT dispatch selectTarget when a divide target card is clicked", () => {
+        const me = makePlayer("me", [creature("bear1")]);
+        const { container } = renderWithDivide(
+            me,
+            [me],
+            divideCtx,
+            makeDivide()
+        );
+        fireEvent.click(spatialCard(container, "bear1"));
+        expect(selectTarget).not.toHaveBeenCalled();
     });
 
-    it("sends the chosen amount when the pending target divides a budget", () => {
+    it("renders an on-card stepper on a legal divide target and dials the buffer", () => {
         const me = makePlayer("me", [creature("bear1")]);
-        const ctx: Partial<React.ContextType<typeof GameContext>> = {
-            pendingTarget: {
-                playerId: "me",
-                targetType: "Creature",
-                selected: [],
-                divideTotal: 4,
-            } as never,
-        };
-        const { container } = renderWithDivide(me, [me], ctx, divideValue(3));
-        fireEvent.click(spatialCard(container, "bear1"));
-
-        expect(selectTarget).toHaveBeenCalledTimes(1);
-        expect(selectTarget.mock.calls[0][0]).toMatchObject({
-            targetType: "permanent",
-            targetId: "bear1",
-            amount: 3,
-        });
+        const inc = vi.fn();
+        const { getByLabelText } = renderWithDivide(
+            me,
+            [me],
+            divideCtx,
+            makeDivide({ inc })
+        );
+        fireEvent.click(getByLabelText("Assign one more"));
+        expect(inc).toHaveBeenCalledWith("bear1", "permanent");
+        expect(selectTarget).not.toHaveBeenCalled();
     });
 
     it("sends NO amount for a normal (non-divide) target — regression", () => {
@@ -311,7 +338,7 @@ describe("board targeting — divide-as-you-choose amount dispatch (CR 601.2d)",
                 selected: [],
             } as never,
         };
-        const { container } = renderWithDivide(me, [me], ctx, divideValue(3));
+        const { container } = renderWithDivide(me, [me], ctx, makeDivide());
         fireEvent.click(spatialCard(container, "bear1"));
 
         expect(selectTarget).toHaveBeenCalledTimes(1);

@@ -1042,15 +1042,18 @@ export const OP_EXECUTORS: {
     // `take` (default 1) into hand, the rest on the BOTTOM. A thin declarative
     // skin composed of existing primitives (the Stock Up composition
     // generalized), ONE execution path (ADR 0045). SUSPENDS like `choice` /
-    // `scryReorder`: a single `look-top` `requestChoice` over exactly the
+    // `scryReorder`: a single `look-distribute` `requestChoice` over exactly the
     // looked-at ids (candidateIds — projected face-up as `libraryPeek`, never
-    // the whole hidden library) drives the kept-card pick; the first execution
-    // enqueues it and reports "suspend", the resumed execution reads the picks
-    // back and finishes the moves. The kept cards move library→hand
-    // (`moveCardById`); the un-kept looked-at cards are bottomed
-    // (`reorderLibraryTop`) in look order — Impulse's "in any order" is a
-    // formality (the cards go face-down into the library, unknown, so no
-    // arrangement carries value). Skipped when the player is gone, `look` ≤ 0,
+    // the whole hidden library) drives the unified HAND/BOTTOM pick; the first
+    // execution enqueues it and reports "suspend", the resumed execution reads
+    // the two ordered lists back and finishes the moves. The kept cards move
+    // library→hand (`moveCardById`); the un-kept looked-at cards are bottomed
+    // (`reorderLibraryTop`) in the player's CHOSEN order (CR 401.4 "in any
+    // order") and marked known to the controller (ADR 0026 — you looked at and
+    // PLACED them, so their bottom position is certain until a shuffle; the
+    // projection exposes them as the contiguous known run from the bottom). The
+    // count is EXACTLY `keep` to hand ({min,max}=keep), so the two lists always
+    // partition the looked-at set. Skipped when the player is gone, `look` ≤ 0,
     // or the library is empty (CR 608.2b — never suspends then).
     digToHand(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
@@ -1068,30 +1071,43 @@ export const OP_EXECUTORS: {
             // `step:choiceId` and `step` IS this Op's checkpointed position, so
             // two digToHand Ops at different positions never collide.
             choiceId: "dig-to-hand",
-            kind: "look-top",
+            kind: "look-distribute",
             zone: "library",
             candidateIds: topIds,
-            count: keep,
+            // Exactly `keep` cards go to hand; the picker partitions the rest to
+            // the ordered bottom (submit validates the partition).
+            count: { min: keep, max: keep },
+            destination: "library-bottom",
             prompt:
                 op.prompt ??
-                "Choose which card(s) to put into your hand (the rest go to the bottom of your library).",
+                "Choose which card(s) to put into your hand, then order the rest on the bottom of your library.",
         });
         if (picks === undefined) return "suspend"; // enqueued — wait
         // Resume — the kept cards go to hand; the remaining looked-at cards are
-        // bottomed. A picked id that has since left the library is a no-op in
-        // `moveCardById` (CR 608.2b).
+        // bottomed in the player's chosen order. A picked id that has since left
+        // the library is a no-op in `moveCardById` (CR 608.2b).
         for (const id of picks)
             ctx.moveCardById(playerId, id, "library", "hand");
         const pickSet = new Set(picks);
-        const restTop = topIds.filter((id) => !pickSet.has(id));
+        // The player's chosen bottom order (from the unified picker). Falls back
+        // to look order for an auto/bot path that submitted only the hand picks.
+        const chosenBottom = ctx.readOrderedSecond("dig-to-hand");
+        const restTop =
+            chosenBottom.length > 0
+                ? chosenBottom
+                : topIds.filter((id) => !pickSet.has(id));
         if (restTop.length === 0) return;
         // Everything currently in the library minus the un-kept looked-at cards,
-        // then the un-kept cards appended — a full reorder that lands the rest on
-        // the true bottom (CR 401.4).
+        // then the un-kept cards appended in the chosen order — a full reorder
+        // that lands the rest on the true bottom (CR 401.4).
         const all = ctx.peekLibraryTop(playerId, Number.MAX_SAFE_INTEGER);
         const restSet = new Set(restTop);
         const below = all.filter((id) => !restSet.has(id));
         ctx.reorderLibraryTop(playerId, [...below, ...restTop]);
+        // ADR 0026 — the bottomed cards were looked at and placed by the
+        // controller, so they stay known (face-up in the bottom-of-library
+        // view) until a shuffle clears the certainty.
+        ctx.markKnown(playerId, restTop, playerId);
     },
     // CR 615 (issue #845) — establish a damage-prevention shield. A thin
     // declarative skin over three SpellContext prevention primitives, ONE

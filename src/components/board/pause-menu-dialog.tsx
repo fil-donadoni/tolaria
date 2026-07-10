@@ -151,7 +151,7 @@ export default function PauseMenuDialog({
                         onClick={() => setStep("confirm-forfeit")}
                         className="w-full py-2.5 rounded-sm bg-danger-soft border border-danger-strong text-danger font-beleren tracking-wide hover:bg-danger transition-colors cursor-pointer"
                     >
-                        Forfeit Match
+                        Concede Match
                     </button>
                 )}
             </div>

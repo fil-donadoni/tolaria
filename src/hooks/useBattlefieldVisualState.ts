@@ -542,6 +542,12 @@ export function useBattlefieldVisualState(player: Player) {
             }
         }
 
+        // CR 601.2d — a legal target of an active divide-as-you-choose spell
+        // gets an on-card [−] N [+] stepper (not click-to-target). Same
+        // legality predicate that drives the candidate ring.
+        const divideTarget =
+            !!isValidTarget && pendingTarget?.divideTotal !== undefined;
+
         return {
             interactive,
             enabled,
@@ -550,6 +556,7 @@ export function useBattlefieldVisualState(player: Player) {
             ringClass,
             badge,
             tooltip,
+            divideTarget,
         };
     }
 

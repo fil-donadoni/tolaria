@@ -12,10 +12,11 @@ import { BASIC_LAND_SUBTYPES } from "../../types";
 // Impulse — {1}{U} Instant. "Look at the top four cards of your library. Put one
 // of them into your hand and the rest on the bottom of your library in any
 // order." (CR 401.4 look.) A single already-censused `digToHand` Op (issue #984)
-// with look 4 / take 1: it reveals the top four, drives a suspending `look-top`
-// pick of one to keep (moved library→hand), and bottoms the remaining three.
-// "In any order" is a formality auto-resolved in look order — the bottomed cards
-// go face-down into the library, unknown, so no arrangement carries value.
+// with look 4 / take 1: it reveals the top four, drives the unified HAND/BOTTOM
+// pick of one to keep (moved library→hand), bottoms the remaining three in the
+// player's chosen order, and marks those bottomed cards known to the controller
+// (ADR 0026 — "in any order" is a real choice: you looked at and placed them, so
+// they stay face-up in the controller's bottom-of-library view until a shuffle).
 //
 // Canonical definition lives in its FIRST-printing set (Visions, VIS 34), per
 // the reprint convention (#1008): a card's CardDefinition sits in the earliest

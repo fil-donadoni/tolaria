@@ -115,8 +115,20 @@ function orderMembers(
  */
 export function groupBattlefield(
     permanents: ReadonlyArray<CardInstance>,
-    attachmentsByHost: ReadonlyMap<string, ReadonlyArray<CardInstance>>
+    attachmentsByHost: ReadonlyMap<string, ReadonlyArray<CardInstance>>,
+    /** When true, every permanent renders as its OWN singleton — no fanning.
+     *  Used during a divide-as-you-choose selection (CR 601.2d): identical
+     *  permanents un-stack so each instance is individually dialable via its
+     *  on-card stepper without fighting the fan overlap. */
+    disableStacking = false
 ): PermanentGroup[] {
+    if (disableStacking) {
+        return permanents.map((card) => ({
+            key: card.id,
+            isStack: false,
+            members: [card],
+        }));
+    }
     const hostIds = new Set(attachmentsByHost.keys());
 
     // Stable input-position map for deterministic member + group ordering.

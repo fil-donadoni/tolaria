@@ -69,6 +69,25 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         libraryCount: 12,
     },
     {
+        // Impulse (VIS 34): {1}{U} Instant "Look at the top four cards of your
+        // library. Put one into your hand and the rest on the bottom in any
+        // order." Cast it (two Islands cover {1}{U}) to open the unified
+        // HAND/BOTTOM drag picker: pull ONE card up to HAND, then ORDER the
+        // other three on the BOTTOM. After confirming, those three stay face-up
+        // at the bottom of your own library (ADR 0026 — you looked at and placed
+        // them, so their order is certain until a shuffle). Stock Up (look 5,
+        // take 2) exercises the same picker with two cards to hand.
+        label: "Impulse — look 4, 1 to hand + order 3 on bottom (known)",
+        cards: [
+            { name: "Impulse", owner: "me", zone: "hand" },
+            { name: "Stock Up", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+        libraryCount: 12,
+    },
+    {
         // Copy-on-ETB Bot cast prune (issue #938): a copy-on-ETB spell (Copy
         // Artifact, Clone, Vesuvan Doppelganger, Dance of Many) enters as a copy
         // of a permanent already in play. Casting one with NO permanent it could

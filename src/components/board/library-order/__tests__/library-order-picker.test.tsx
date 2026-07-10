@@ -84,4 +84,41 @@ describe("LibraryOrderPicker", () => {
         fireEvent.click(getByText("Done"));
         expect(onConfirm).not.toHaveBeenCalled();
     });
+
+    // distribute mode (Impulse / Stock Up): HAND (right) / BOTTOM (left).
+    it("renders HAND/BOTTOM chrome in distribute mode", () => {
+        const { getByText } = render(
+            <LibraryOrderPicker
+                lookedAt={looked}
+                destination="library-bottom"
+                prompt="Impulse"
+                submitting={false}
+                distribute={{ keep: 1 }}
+                onConfirm={vi.fn()}
+            />
+        );
+        expect(getByText("BOTTOM")).toBeTruthy();
+        expect(getByText("HAND")).toBeTruthy();
+    });
+
+    it("distribute mode gates Done until exactly `keep` cards are in the HAND zone", () => {
+        // Every card starts in the BOTTOM zone (hand is empty), so with keep = 1
+        // the Done button is disabled and clicking it must not submit an illegal
+        // (zero-to-hand) selection.
+        const onConfirm = vi.fn();
+        const { getByText } = render(
+            <LibraryOrderPicker
+                lookedAt={looked}
+                destination="library-bottom"
+                prompt="Impulse"
+                submitting={false}
+                distribute={{ keep: 1 }}
+                onConfirm={onConfirm}
+            />
+        );
+        const done = getByText("Done") as HTMLButtonElement;
+        expect(done.disabled).toBe(true);
+        fireEvent.click(done);
+        expect(onConfirm).not.toHaveBeenCalled();
+    });
 });

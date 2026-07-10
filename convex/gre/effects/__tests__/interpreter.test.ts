@@ -8103,10 +8103,12 @@ describe("Effect Script Op: mill (CR 701.17, issue #885)", () => {
 
 // --- digToHand Op: look at top N, put one (or K) into hand, rest on the bottom
 // (CR 401.4, issue #984) ---------------------------------------------------------
-// digToHand SUSPENDS on a `look-top` choice over exactly the looked-at top N
-// (candidateIds), then moves the kept cards library→hand and bottoms the rest.
-// The pick is consumed internally (no `bind`), like `scryReorder`. Impulse is
-// the canonical instance: look 4, take 1.
+// digToHand SUSPENDS on a `look-distribute` choice over exactly the looked-at
+// top N (candidateIds), then moves the kept cards library→hand and bottoms the
+// rest in the player's chosen order (marking them known, ADR 0026). The pick is
+// consumed internally (no `bind`), like `scryReorder`. Impulse is the canonical
+// instance: look 4, take 1. These tests submit only the kept cards (no
+// `secondZoneIds`), so the rest auto-bottom in look order (the bot/auto path).
 
 describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
     const libOf = (owner: "p1" | "p2", ids: string[]) =>
@@ -8119,7 +8121,8 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
             })
         );
 
-    // Drives the suspended look-top choice to keep `keep` and finish the Op.
+    // Drives the suspended look-distribute choice to keep `keep` and finish the
+    // Op (no second list → the rest auto-bottom in look order).
     const submitKeep = (state: GameState, keep: string[]) => {
         const head = state.pendingChoices![0];
         applyPendingChoiceSubmit(state, {
@@ -8147,9 +8150,9 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
         // First execution suspends on the look-top pick over exactly the top 4.
         expect(resolveTopOfStack(state)).toBeNull();
         const head = state.pendingChoices![0];
-        expect(head.kind).toBe("look-top");
+        expect(head.kind).toBe("look-distribute");
         expect(head.candidateIds).toEqual(["a", "b", "c", "d"]);
-        expect(head.count).toBe(1);
+        expect(head.count).toEqual({ min: 1, max: 1 });
 
         submitKeep(state, ["b"]);
         expect(state.pendingChoices ?? []).toHaveLength(0);
@@ -8197,7 +8200,7 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
         });
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
-        expect(state.pendingChoices![0].count).toBe(2);
+        expect(state.pendingChoices![0].count).toEqual({ min: 2, max: 2 });
         submitKeep(state, ["a", "c"]);
         expect(state.players[0].hand.map((c) => c.id)).toEqual(
             expect.arrayContaining(["a", "c"])

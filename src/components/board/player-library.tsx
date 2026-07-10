@@ -72,13 +72,15 @@ export default function PlayerLibrary({
         player.id === playerId &&
         !!player.libraryPeek;
 
-    // Scry / surveil / ponder ordered-top pick (`order-top`, CR 701.22/701.44):
-    // the projection exposes the looked-at top N as `libraryPeek`, and the
-    // player orders them via the drag picker (a full-screen overlay), NOT the
-    // grid/click-buffer path — so it is deliberately kept OUT of `isLibraryPick`.
+    // Scry / surveil / ponder ordered-top pick (`order-top`, CR 701.22/701.44)
+    // AND the unified take-to-hand + order-bottom pick (`look-distribute`,
+    // CR 401.4 — Impulse, Stock Up): the projection exposes the looked-at top N
+    // as `libraryPeek`, and the player arranges them via the drag picker (a
+    // full-screen overlay), NOT the grid/click-buffer path — so it is
+    // deliberately kept OUT of `isLibraryPick`.
     const isOrderTopPick =
         !!head &&
-        head.kind === "order-top" &&
+        (head.kind === "order-top" || head.kind === "look-distribute") &&
         head.zone === "library" &&
         head.playerId === playerId &&
         player.id === playerId &&
@@ -232,6 +234,19 @@ export default function PlayerLibrary({
         }
     };
 
+    // `look-distribute` (Impulse / Stock Up) mounts the picker in HAND/BOTTOM
+    // mode: the choice's `count` is exactly `keep` (min === max), the number of
+    // cards that go to hand.
+    const distribute =
+        head?.kind === "look-distribute"
+            ? {
+                  keep:
+                      typeof head.count === "number"
+                          ? head.count
+                          : head.count.min,
+              }
+            : undefined;
+
     const orderPicker = isOrderTopPick ? (
         <LibraryOrderPicker
             lookedAt={player.libraryPeek!.map((c) => ({
@@ -239,8 +254,14 @@ export default function PlayerLibrary({
                 defId: c.card.id,
             }))}
             destination={head!.destination ?? "none"}
-            prompt={head!.prompt ?? "Order the top of your library"}
+            prompt={
+                head!.prompt ??
+                (distribute
+                    ? "Take cards to your hand, then order the rest on the bottom"
+                    : "Order the top of your library")
+            }
             submitting={orderSubmitting}
+            distribute={distribute}
             onConfirm={handleOrderConfirm}
         />
     ) : null;

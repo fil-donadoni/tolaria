@@ -120,4 +120,65 @@ describe("Stock Up (look 5, two to hand, rest to bottom; CR 401.4 / 401)", () =>
         expect(projected.players[0].hand.length).toBe(2);
         expect(projected.players[0].library.count).toBe(3);
     });
+
+    it("bottoms the un-kept cards in the CHOSEN order and marks them known (ADR 0026)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: lib(["a", "b", "c", "d", "e", "f", "g"]),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, stockUp.id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspend on the pick
+
+        // Keep a,c to hand; order the rest of the looked-at five (b,d,e) on the
+        // bottom as e, b, d (e topmost of the bottomed group, d at the true
+        // bottom) — the unified HAND/BOTTOM picker's second ordered list.
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("look-distribute");
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["a", "c"],
+            secondZoneIds: ["e", "b", "d"],
+        });
+
+        // f,g (below the looked-at five) stay on top; then the chosen bottom
+        // order e,b,d at the true bottom.
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "f",
+            "g",
+            "e",
+            "b",
+            "d",
+        ]);
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "a",
+            "c",
+        ]);
+
+        // Wire: the controller sees the three bottomed cards face-up as the
+        // contiguous known run from the bottom (indices 2,3,4); f,g (never
+        // looked at) stay hidden.
+        const mine = projectPublicState(state, 1, "p1").players[0];
+        const known = mine.library.known;
+        expect(
+            known
+                .slice()
+                .sort((x, y) => x.index - y.index)
+                .map((k) => [k.index, k.card.id])
+        ).toEqual([
+            [2, "e"],
+            [3, "b"],
+            [4, "d"],
+        ]);
+        // The opponent sees none of it.
+        expect(
+            projectPublicState(state, 1, "p2").players[0].library.known
+        ).toEqual([]);
+    });
 });

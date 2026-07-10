@@ -15,12 +15,10 @@ import {
     usePendingChoiceBufferState,
 } from "~/hooks/usePendingChoiceBuffer";
 import {
-    DivideAmountContext,
-    useDivideAmountState,
-    computeRemaining,
-    clampAmount,
-    type DivideAmount,
-} from "~/hooks/useDivideAmount";
+    DivideBufferContext,
+    useDivideBufferState,
+    type DivideBuffer,
+} from "~/hooks/useDivideBuffer";
 import {
     MinimizedChoiceContext,
     useMinimizedChoiceState,
@@ -228,11 +226,14 @@ export default function Board({
         activeChoice: state?.pendingChoices?.[0],
     });
 
-    // Divide-as-you-choose stepper state (CR 601.2d, Pyrokinesis / Fire
-    // Covenant). Raw amount owned here so the banner (sets it) and the click
-    // sites (send it via selectTarget) share one source of truth. Assembled
-    // into the viewer-aware DivideAmount below, once viewerId is known.
-    const divideAmountState = useDivideAmountState(state?.pendingTarget);
+    // Divide-as-you-choose distribution buffer (CR 601.2d, Pyrokinesis / Fire
+    // Covenant). The local per-target split is owned here so the on-card
+    // steppers (dial it) and the banner "Done" (submit it) share one source of
+    // truth. Narrowed to the viewer-aware `active` below, once viewerId is known.
+    const divideBufferState = useDivideBufferState({
+        gameId,
+        pendingTarget: state?.pendingTarget,
+    });
 
     // Client-only per-choice minimize toggle for blocking choice dialogs
     // (issue #315). Shared by the banner and the library-pick modal so one
@@ -290,18 +291,12 @@ export default function Board({
               })
             : playerId;
 
-    // Assemble the viewer-aware divide-as-you-choose state (CR 601.2d) from the
-    // raw stepper amount owned above. `active` only when the divide selection
-    // belongs to the current viewer; `amount` clamped to the remaining budget.
-    const divideRemaining = computeRemaining(pendingTarget);
-    const divideAmount: DivideAmount = {
+    // Narrow the divide buffer's `active` to the current viewer (CR 601.2d): the
+    // steppers/Done only appear for the player who owns the divide selection.
+    const divideBuffer: DivideBuffer = {
+        ...divideBufferState,
         active:
-            pendingTarget?.divideTotal !== undefined &&
-            pendingTarget.playerId === viewerId,
-        remaining: divideRemaining,
-        amount: clampAmount(divideAmountState.rawAmount, divideRemaining),
-        setAmount: (n: number) =>
-            divideAmountState.setRawAmount(clampAmount(n, divideRemaining)),
+            divideBufferState.active && pendingTarget?.playerId === viewerId,
     };
 
     // vs-AI: the bot is the seat the human does not control. The driver queries
@@ -345,7 +340,7 @@ export default function Board({
         >
             <SkipPhasePrefsContext value={skipPhasePrefs}>
                 <PendingChoiceBufferContext value={pendingChoiceBuffer}>
-                    <DivideAmountContext value={divideAmount}>
+                    <DivideBufferContext value={divideBuffer}>
                         <MinimizedChoiceContext value={minimizedChoice}>
                             <main className="flex h-full w-full flex-col relative overflow-hidden">
                                 <BoardBackground />
@@ -702,7 +697,7 @@ export default function Board({
                                 />
                             </main>
                         </MinimizedChoiceContext>
-                    </DivideAmountContext>
+                    </DivideBufferContext>
                 </PendingChoiceBufferContext>
             </SkipPhasePrefsContext>
         </GameContext>

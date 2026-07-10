@@ -723,6 +723,73 @@ describe("projectPublicState — knownTo (ADR 0026)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Bidirectional known run (ADR 0026 — scry/Impulse-bottomed cards are known)
+// A card the controller looked at and PLACED at the bottom in a chosen order
+// stays known (position-certain) until an uncertainty event. The projection
+// therefore exposes the contiguous known run from the BOTTOM as well as from
+// the TOP; a card known but buried in the middle (unknown at both ends) stays
+// face-down — position certainty is lost once an unknown card straddles it.
+// ---------------------------------------------------------------------------
+describe("projectPublicState — bidirectional known run (ADR 0026)", () => {
+    function makeLib(knownFlags: boolean[]): GameState {
+        const library = knownFlags.map((known, i) =>
+            makeCard(`p1-l${i}`, {
+                zone: "library",
+                ...(known ? { knownTo: ["p1"] } : {}),
+            })
+        );
+        const state = makeState();
+        state.players.find((p) => p.id === "p1")!.library = library;
+        return state;
+    }
+
+    it("exposes the contiguous known run from the bottom at absolute indices", () => {
+        // 5-card library, viewer knows only the bottom two (indices 3,4).
+        const state = makeLib([false, false, false, true, true]);
+        const lib = projectPublicState(state, 1, "p1").players.find(
+            (p) => p.id === "p1"
+        )!.library;
+        expect(lib.count).toBe(5);
+        expect(lib.known.map((k) => k.index).sort((a, b) => a - b)).toEqual([
+            3, 4,
+        ]);
+        expect(lib.known.find((k) => k.index === 3)!.card.id).toBe("p1-l3");
+        expect(lib.known.find((k) => k.index === 4)!.card.id).toBe("p1-l4");
+    });
+
+    it("exposes top and bottom runs together, hiding a buried known card", () => {
+        // known: top(0), buried(2), bottom(4). Only 0 and 4 are contiguous from
+        // an end — index 2 is buried between unknowns and stays face-down.
+        const state = makeLib([true, false, true, false, true]);
+        const lib = projectPublicState(state, 1, "p1").players.find(
+            (p) => p.id === "p1"
+        )!.library;
+        expect(lib.known.map((k) => k.index).sort((a, b) => a - b)).toEqual([
+            0, 4,
+        ]);
+    });
+
+    it("does not double-count when the whole library is known", () => {
+        const state = makeLib([true, true, true]);
+        const lib = projectPublicState(state, 1, "p1").players.find(
+            (p) => p.id === "p1"
+        )!.library;
+        expect(lib.known.map((k) => k.index).sort((a, b) => a - b)).toEqual([
+            0, 1, 2,
+        ]);
+        expect(lib.known).toHaveLength(3); // no duplicates
+    });
+
+    it("gates the bottom run by knownTo (hidden from a non-knower)", () => {
+        const state = makeLib([false, false, true, true]);
+        const forP2 = projectPublicState(state, 1, "p2");
+        expect(forP2.players.find((p) => p.id === "p1")!.library.known).toEqual(
+            []
+        );
+    });
+});
+
+// ---------------------------------------------------------------------------
 // Face-down exile / impulse-draw — ADR 0026 / PRD #338 (slice 6, #342)
 // Exile is normally public; a face-down exile is the CR 406.3 exception, gated
 // per-viewer by `knownTo` exactly like a hidden zone.
@@ -838,5 +905,28 @@ describe("C5 named counters + draw-game projection (#384, CR 122 / 104.4a)", () 
         expect(pub.gameOver?.isDraw).toBe(true);
         expect(pub.gameOver?.reason).toBe("draw");
         expect(pub.gameOver?.winnerId).toBe("");
+    });
+});
+
+// Divide-as-you-choose wire-lock (CR 601.2d / 120.4): the client reads
+// `pendingTarget.divideTotal` (to show the steppers + un-stack identical
+// permanents) and `pendingTarget.divideAmounts` (the running split). Both must
+// survive the projection verbatim — a refactor that reshapes pendingTarget must
+// not silently drop them and re-break the "divides evenly" symptom.
+describe("divide-as-you-choose pendingTarget survives the wire (CR 601.2d)", () => {
+    it("preserves divideTotal + divideAmounts through projectPublicState", () => {
+        const state = makeState({
+            pendingTarget: {
+                playerId: "p1",
+                cardInstanceId: "pyro1",
+                targetType: "Creature",
+                selected: [{ type: "permanent", id: "a" }],
+                divideTotal: 4,
+                divideAmounts: { "permanent:a": 3 },
+            },
+        } as unknown as Partial<GameState>);
+        const pub = projectPublicState(state, 1, "p1");
+        expect(pub.pendingTarget?.divideTotal).toBe(4);
+        expect(pub.pendingTarget?.divideAmounts).toEqual({ "permanent:a": 3 });
     });
 });

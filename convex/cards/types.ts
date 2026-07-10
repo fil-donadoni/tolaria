@@ -2668,6 +2668,15 @@ export interface SpellContext {
         }
     ) => boolean;
 
+    /** Reads back the SECOND ordered list of an `order-top` / `look-distribute`
+     *  choice at the current resolution step (the `secondZoneIds` the player
+     *  submitted, stored under the `${step}:${choiceId}:second` key). Returns an
+     *  empty array when the choice carried no second list (e.g. a bot/auto path
+     *  that submitted only the primary picks). Pair with `requestChoice` for the
+     *  primary list: `digToHand` reads the hand picks via `requestChoice` and
+     *  the ordered-bottom cards via this. */
+    readOrderedSecond: (choiceId: string) => string[];
+
     /** Grants persistent card knowledge (ADR 0026, PRD #338): adds `knowerId`
      *  to the `knownTo` set of each library/hand card in `cardInstanceIds`
      *  owned by `zoneOwnerId`. A _look_ effect passes a single looker; a
