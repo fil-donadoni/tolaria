@@ -180,7 +180,6 @@ function env(c: Case, broken: boolean) {
 describe("frontend affordability wiring — catalogue sweep", () => {
     it("exercises at least one card (guards against a vacuous sweep)", () => {
         if (cases.length === 0) {
-            // eslint-disable-next-line no-console
             console.warn(
                 "No activated ability with an enumerable affordability cost " +
                     "shape found in the catalogue — sweep is vacuous."
@@ -191,7 +190,6 @@ describe("frontend affordability wiring — catalogue sweep", () => {
 
     if (skips.length > 0) {
         it("reports abilities skipped for arbitrary predicates", () => {
-            // eslint-disable-next-line no-console
             console.warn(
                 `Affordability sweep skipped ${skips.length} predicate-gated ` +
                     `ability(ies):\n  ${skips.join("\n  ")}`

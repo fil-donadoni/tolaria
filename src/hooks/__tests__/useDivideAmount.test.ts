@@ -11,9 +11,7 @@ import {
     useDivideAmountState,
 } from "../useDivideAmount";
 
-function divideTarget(
-    overrides: Partial<PendingTarget> = {}
-): PendingTarget {
+function divideTarget(overrides: Partial<PendingTarget> = {}): PendingTarget {
     return {
         playerId: "me",
         cardInstanceId: "pyro-1",
@@ -43,9 +41,9 @@ describe("computeRemaining (CR 601.2d budget)", () => {
                 divideTarget({ divideAmounts: { "permanent:a": 9 } })
             )
         ).toBe(0);
-        expect(
-            computeRemaining(divideTarget({ divideTotal: undefined }))
-        ).toBe(0);
+        expect(computeRemaining(divideTarget({ divideTotal: undefined }))).toBe(
+            0
+        );
         expect(computeRemaining(undefined)).toBe(0);
     });
 });

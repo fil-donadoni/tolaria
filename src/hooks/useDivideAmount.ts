@@ -57,7 +57,9 @@ function divideStateKey(pt: PendingTarget | undefined): string | null {
  *  new spell, or a target just committed so `remaining` shrank). The board
  *  assembles the viewer-aware {@link DivideAmount} from this — see
  *  `useDivideAmount`. */
-export function useDivideAmountState(pendingTarget: PendingTarget | undefined): {
+export function useDivideAmountState(
+    pendingTarget: PendingTarget | undefined
+): {
     rawAmount: number;
     setRawAmount: (n: number) => void;
 } {

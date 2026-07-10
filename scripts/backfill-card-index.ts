@@ -125,7 +125,7 @@ async function main() {
         );
         writeFileSync(
             lockPath,
-            JSON.stringify(merged, null, 2) + "\n",
+            JSON.stringify(merged, null, 4) + "\n",
             "utf-8"
         );
     };

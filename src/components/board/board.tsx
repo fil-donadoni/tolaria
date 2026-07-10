@@ -345,15 +345,15 @@ export default function Board({
         >
             <SkipPhasePrefsContext value={skipPhasePrefs}>
                 <PendingChoiceBufferContext value={pendingChoiceBuffer}>
-                  <DivideAmountContext value={divideAmount}>
-                    <MinimizedChoiceContext value={minimizedChoice}>
-                        <main className="flex h-full w-full flex-col relative overflow-hidden">
-                            <BoardBackground />
-                            <AutoPassController solo={solo} />
-                            {vsAi && (
-                                <VsAiDriver gameId={gameId} botId={botId} />
-                            )}
-                            {/* Spatial board surface (PRD #249): the single
+                    <DivideAmountContext value={divideAmount}>
+                        <MinimizedChoiceContext value={minimizedChoice}>
+                            <main className="flex h-full w-full flex-col relative overflow-hidden">
+                                <BoardBackground />
+                                <AutoPassController solo={solo} />
+                                {vsAi && (
+                                    <VsAiDriver gameId={gameId} botId={botId} />
+                                )}
+                                {/* Spatial board surface (PRD #249): the single
                                 source of truth for card positions is the shared
                                 pure layout math (`src/lib/board-layout.ts`) —
                                 every card in every zone is placed from
@@ -366,339 +366,343 @@ export default function Board({
                                 moving hand → battlefield animates the SAME
                                 element via a FLIP rather than unmount/remount
                                 (#252). */}
-                            <ArrowAnchorProvider>
-                                <ArrowHighlightProvider>
-                                    <LayoutGroup>
-                                        <div
-                                            className="absolute inset-0"
-                                            data-board-root
-                                            style={
-                                                {
-                                                    // Life nameplate + hand center
-                                                    // within the space that excludes
-                                                    // the right pile band, not the
-                                                    // full viewport. See
-                                                    // rightPilesWidth() above — the
-                                                    // same value is published to
-                                                    // documentElement for dialogs.
-                                                    "--right-piles-w":
-                                                        rightPilesWidth(
-                                                            isPortrait
-                                                        ),
-                                                } as CSSProperties
-                                            }
-                                        >
-                                            {/* Opponent: hand on the top edge,
+                                <ArrowAnchorProvider>
+                                    <ArrowHighlightProvider>
+                                        <LayoutGroup>
+                                            <div
+                                                className="absolute inset-0"
+                                                data-board-root
+                                                style={
+                                                    {
+                                                        // Life nameplate + hand center
+                                                        // within the space that excludes
+                                                        // the right pile band, not the
+                                                        // full viewport. See
+                                                        // rightPilesWidth() above — the
+                                                        // same value is published to
+                                                        // documentElement for dialogs.
+                                                        "--right-piles-w":
+                                                            rightPilesWidth(
+                                                                isPortrait
+                                                            ),
+                                                    } as CSSProperties
+                                                }
+                                            >
+                                                {/* Opponent: hand on the top edge,
                                                 battlefield below it — same layout
                                                 math, mirrored to the top half. */}
-                                            {opponent && (
-                                                <>
-                                                    <BoardPlayer
-                                                        player={opponent}
-                                                        side="top"
-                                                    />
-                                                    <div className="absolute left-0 right-[var(--right-piles-w)] top-0 h-[18%]">
-                                                        {isPortrait ? (
-                                                            <BoardHandPortrait
+                                                {opponent && (
+                                                    <>
+                                                        <BoardPlayer
+                                                            player={opponent}
+                                                            side="top"
+                                                        />
+                                                        <div className="absolute left-0 right-[var(--right-piles-w)] top-0 h-[18%]">
+                                                            {isPortrait ? (
+                                                                <BoardHandPortrait
+                                                                    player={
+                                                                        opponent
+                                                                    }
+                                                                    interactive={
+                                                                        opponent.id ===
+                                                                        viewerId
+                                                                    }
+                                                                    data-testid="zone-opponent-hand"
+                                                                />
+                                                            ) : (
+                                                                <BoardHand
+                                                                    player={
+                                                                        opponent
+                                                                    }
+                                                                    interactive={
+                                                                        opponent.id ===
+                                                                        viewerId
+                                                                    }
+                                                                    layout={
+                                                                        opponentHandLayout
+                                                                    }
+                                                                    cardWidth={
+                                                                        OPP_HAND_CARD_WIDTH
+                                                                    }
+                                                                    cardHeight={
+                                                                        OPP_HAND_CARD_HEIGHT
+                                                                    }
+                                                                    mirror
+                                                                    data-testid="zone-opponent-hand"
+                                                                />
+                                                            )}
+                                                        </div>
+                                                        <div className="absolute left-0 right-0 top-[18%] h-[32%]">
+                                                            <BoardBattlefield
                                                                 player={
                                                                     opponent
-                                                                }
-                                                                interactive={
-                                                                    opponent.id ===
-                                                                    viewerId
-                                                                }
-                                                                data-testid="zone-opponent-hand"
-                                                            />
-                                                        ) : (
-                                                            <BoardHand
-                                                                player={
-                                                                    opponent
-                                                                }
-                                                                interactive={
-                                                                    opponent.id ===
-                                                                    viewerId
-                                                                }
-                                                                layout={
-                                                                    opponentHandLayout
-                                                                }
-                                                                cardWidth={
-                                                                    OPP_HAND_CARD_WIDTH
-                                                                }
-                                                                cardHeight={
-                                                                    OPP_HAND_CARD_HEIGHT
                                                                 }
                                                                 mirror
-                                                                data-testid="zone-opponent-hand"
+                                                                data-testid="zone-opponent-battlefield"
                                                             />
-                                                        )}
-                                                    </div>
-                                                    <div className="absolute left-0 right-0 top-[18%] h-[32%]">
-                                                        <BoardBattlefield
-                                                            player={opponent}
-                                                            mirror
-                                                            data-testid="zone-opponent-battlefield"
-                                                        />
-                                                    </div>
-                                                </>
-                                            )}
+                                                        </div>
+                                                    </>
+                                                )}
 
-                                            {/* Viewer: battlefield on the bottom
+                                                {/* Viewer: battlefield on the bottom
                                                 half, hand on the bottom edge. */}
-                                            {me && (
-                                                <>
-                                                    <BoardPlayer
-                                                        player={me}
-                                                        side="bottom"
-                                                    />
-                                                    <div className="absolute left-0 right-0 top-1/2 h-[32%]">
-                                                        <BoardBattlefield
+                                                {me && (
+                                                    <>
+                                                        <BoardPlayer
                                                             player={me}
-                                                            data-testid="zone-player-battlefield"
+                                                            side="bottom"
                                                         />
-                                                    </div>
-                                                    <div
-                                                        className={
-                                                            isPortrait
-                                                                ? // Lifted clear of the
-                                                                  // pile chips (bottom-24)
-                                                                  // + the bottom action bar
-                                                                  // (#335) so the hand stays
-                                                                  // fully thumb-reachable.
-                                                                  "absolute left-0 right-0 bottom-32 h-[16%]"
-                                                                : "absolute left-0 right-[var(--right-piles-w)] bottom-0 h-[18%]"
-                                                        }
-                                                    >
-                                                        {isPortrait ? (
-                                                            <BoardHandPortrait
+                                                        <div className="absolute left-0 right-0 top-1/2 h-[32%]">
+                                                            <BoardBattlefield
                                                                 player={me}
-                                                                interactive={
-                                                                    me.id ===
-                                                                    viewerId
-                                                                }
-                                                                data-testid="zone-player-hand"
+                                                                data-testid="zone-player-battlefield"
                                                             />
-                                                        ) : (
-                                                            <BoardHand
-                                                                player={me}
-                                                                interactive={
-                                                                    me.id ===
-                                                                    viewerId
-                                                                }
-                                                                layout={
-                                                                    handLayout
-                                                                }
-                                                                data-testid="zone-player-hand"
-                                                            />
-                                                        )}
-                                                    </div>
-                                                </>
-                                            )}
+                                                        </div>
+                                                        <div
+                                                            className={
+                                                                isPortrait
+                                                                    ? // Lifted clear of the
+                                                                      // pile chips (bottom-24)
+                                                                      // + the bottom action bar
+                                                                      // (#335) so the hand stays
+                                                                      // fully thumb-reachable.
+                                                                      "absolute left-0 right-0 bottom-32 h-[16%]"
+                                                                    : "absolute left-0 right-[var(--right-piles-w)] bottom-0 h-[18%]"
+                                                            }
+                                                        >
+                                                            {isPortrait ? (
+                                                                <BoardHandPortrait
+                                                                    player={me}
+                                                                    interactive={
+                                                                        me.id ===
+                                                                        viewerId
+                                                                    }
+                                                                    data-testid="zone-player-hand"
+                                                                />
+                                                            ) : (
+                                                                <BoardHand
+                                                                    player={me}
+                                                                    interactive={
+                                                                        me.id ===
+                                                                        viewerId
+                                                                    }
+                                                                    layout={
+                                                                        handLayout
+                                                                    }
+                                                                    data-testid="zone-player-hand"
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    </>
+                                                )}
 
-                                            {/* Card piles (graveyard / library /
+                                                {/* Card piles (graveyard / library /
                                                 exile) for both seats.
                                                 Landscape/desktop reuse the spatial
                                                 pile columns (#255); portrait
                                                 collapses them — and the stack —
                                                 into tappable chips that open the
                                                 SAME reveal / stack views (#336). */}
-                                            {isPortrait ? (
-                                                <BoardPortraitChips
-                                                    orderedPlayers={
-                                                        orderedPlayers
-                                                    }
-                                                    stackItems={stackItems}
-                                                />
-                                            ) : (
-                                                <BoardPiles
-                                                    orderedPlayers={
-                                                        orderedPlayers
-                                                    }
-                                                />
-                                            )}
+                                                {isPortrait ? (
+                                                    <BoardPortraitChips
+                                                        orderedPlayers={
+                                                            orderedPlayers
+                                                        }
+                                                        stackItems={stackItems}
+                                                    />
+                                                ) : (
+                                                    <BoardPiles
+                                                        orderedPlayers={
+                                                            orderedPlayers
+                                                        }
+                                                    />
+                                                )}
 
-                                            {/* Spatial chrome. The controller pod
+                                                {/* Spatial chrome. The controller pod
                                                 (phase + priority cue + actions) is
                                                 mounted below on the right edge
                                                 (#331). */}
-                                            <PriorityIndicator />
-                                            {/* Portrait toggles the stack behind a
+                                                <PriorityIndicator />
+                                                {/* Portrait toggles the stack behind a
                                                 chip (above); landscape/desktop keep
                                                 it always-on. */}
-                                            {!isPortrait &&
-                                                stackItems.length > 0 && (
-                                                    <GameStack
-                                                        stack={stackItems}
-                                                    />
-                                                )}
-                                            {/* Our own SVG target arrows (#257):
+                                                {!isPortrait &&
+                                                    stackItems.length > 0 && (
+                                                        <GameStack
+                                                            stack={stackItems}
+                                                        />
+                                                    )}
+                                                {/* Our own SVG target arrows (#257):
                                                 endpoints derive from the shared
                                                 layout placements via the
                                                 arrow-anchor registry, so arrows
                                                 stay glued through the spring/tilt
                                                 motion. */}
-                                            <BoardArrows
-                                                stack={stackItems}
-                                                combat={combat}
-                                            />
-                                        </div>
-                                    </LayoutGroup>
-                                </ArrowHighlightProvider>
-                            </ArrowAnchorProvider>
-                            {pendingTarget &&
-                                pendingTarget.playerId === viewerId &&
-                                (isGraveyardTargetForViewer(
-                                    pendingTarget,
-                                    viewerId
-                                ) ? (
-                                    <GraveyardTargetDialog
-                                        pendingTarget={pendingTarget}
-                                        me={me}
-                                        allPlayers={allPlayers}
-                                        gameId={gameId}
-                                        playerId={viewerId}
-                                    />
-                                ) : (
-                                    <TargetSelectionBanner
-                                        pendingTarget={pendingTarget}
-                                        me={me}
-                                        gameId={gameId}
-                                        playerId={viewerId}
-                                    />
-                                ))}
-                            {pendingCast &&
-                                pendingCast.playerId === viewerId &&
-                                // CR 702.34a / 118.5 — the flashback "exile X
-                                // blue cards from your graveyard" cost (Flash of
-                                // Insight) needs a dedicated card picker before
-                                // the payment banner takes over.
-                                (pendingCast.exileFromGraveyardChoice &&
-                                !pendingCast.exileFromGraveyardChoice
-                                    .pickedCardIds ? (
-                                    <CastExileCostDialog
-                                        choice={
-                                            pendingCast.exileFromGraveyardChoice
-                                        }
-                                        me={me}
-                                        gameId={gameId}
-                                        playerId={viewerId}
-                                    />
-                                ) : pendingCast.alternativeCostHandChoice &&
-                                  !pendingCast.alternativeCostHandChoice
-                                      .pickedCardIds ? (
-                                    // CR 118.9 — the alternative-cost hand leg
-                                    // (Force of Will "exile a blue card", Foil
-                                    // "discard an Island card and another card")
-                                    // needs a dedicated hand-card picker before
+                                                <BoardArrows
+                                                    stack={stackItems}
+                                                    combat={combat}
+                                                />
+                                            </div>
+                                        </LayoutGroup>
+                                    </ArrowHighlightProvider>
+                                </ArrowAnchorProvider>
+                                {pendingTarget &&
+                                    pendingTarget.playerId === viewerId &&
+                                    (isGraveyardTargetForViewer(
+                                        pendingTarget,
+                                        viewerId
+                                    ) ? (
+                                        <GraveyardTargetDialog
+                                            pendingTarget={pendingTarget}
+                                            me={me}
+                                            allPlayers={allPlayers}
+                                            gameId={gameId}
+                                            playerId={viewerId}
+                                        />
+                                    ) : (
+                                        <TargetSelectionBanner
+                                            pendingTarget={pendingTarget}
+                                            me={me}
+                                            gameId={gameId}
+                                            playerId={viewerId}
+                                        />
+                                    ))}
+                                {pendingCast &&
+                                    pendingCast.playerId === viewerId &&
+                                    // CR 702.34a / 118.5 — the flashback "exile X
+                                    // blue cards from your graveyard" cost (Flash of
+                                    // Insight) needs a dedicated card picker before
                                     // the payment banner takes over.
-                                    <CastAlternativeHandCostDialog
-                                        choice={
-                                            pendingCast.alternativeCostHandChoice
-                                        }
-                                        me={me}
-                                        gameId={gameId}
-                                        playerId={viewerId}
-                                    />
-                                ) : (
-                                    <PaymentBanner
-                                        kind="cast"
-                                        pendingCast={pendingCast}
-                                        me={me}
-                                        gameId={gameId}
-                                        playerId={viewerId}
-                                    />
-                                ))}
-                            {pendingActivation &&
-                                pendingActivation.playerId === viewerId &&
-                                // CR 602.1 / 118.5 — the exile-from-graveyard
-                                // cost (Night Soil) needs a dedicated card
-                                // picker before the payment banner takes over.
-                                (pendingActivation.exileFromGraveyardChoice &&
-                                !pendingActivation.exileFromGraveyardChoice
-                                    .pickedCardIds ? (
-                                    <ExileCostDialog
-                                        choice={
-                                            pendingActivation.exileFromGraveyardChoice
-                                        }
-                                        allPlayers={allPlayers}
-                                        gameId={gameId}
-                                        playerId={viewerId}
-                                    />
-                                ) : (
-                                    <PaymentBanner
-                                        kind="activation"
-                                        pendingActivation={pendingActivation}
-                                        me={me}
-                                        gameId={gameId}
-                                        playerId={viewerId}
-                                    />
-                                ))}
-                            {/* CR 508.1c/1g / 701.21a — the attack-declaration
+                                    (pendingCast.exileFromGraveyardChoice &&
+                                    !pendingCast.exileFromGraveyardChoice
+                                        .pickedCardIds ? (
+                                        <CastExileCostDialog
+                                            choice={
+                                                pendingCast.exileFromGraveyardChoice
+                                            }
+                                            me={me}
+                                            gameId={gameId}
+                                            playerId={viewerId}
+                                        />
+                                    ) : pendingCast.alternativeCostHandChoice &&
+                                      !pendingCast.alternativeCostHandChoice
+                                          .pickedCardIds ? (
+                                        // CR 118.9 — the alternative-cost hand leg
+                                        // (Force of Will "exile a blue card", Foil
+                                        // "discard an Island card and another card")
+                                        // needs a dedicated hand-card picker before
+                                        // the payment banner takes over.
+                                        <CastAlternativeHandCostDialog
+                                            choice={
+                                                pendingCast.alternativeCostHandChoice
+                                            }
+                                            me={me}
+                                            gameId={gameId}
+                                            playerId={viewerId}
+                                        />
+                                    ) : (
+                                        <PaymentBanner
+                                            kind="cast"
+                                            pendingCast={pendingCast}
+                                            me={me}
+                                            gameId={gameId}
+                                            playerId={viewerId}
+                                        />
+                                    ))}
+                                {pendingActivation &&
+                                    pendingActivation.playerId === viewerId &&
+                                    // CR 602.1 / 118.5 — the exile-from-graveyard
+                                    // cost (Night Soil) needs a dedicated card
+                                    // picker before the payment banner takes over.
+                                    (pendingActivation.exileFromGraveyardChoice &&
+                                    !pendingActivation.exileFromGraveyardChoice
+                                        .pickedCardIds ? (
+                                        <ExileCostDialog
+                                            choice={
+                                                pendingActivation.exileFromGraveyardChoice
+                                            }
+                                            allPlayers={allPlayers}
+                                            gameId={gameId}
+                                            playerId={viewerId}
+                                        />
+                                    ) : (
+                                        <PaymentBanner
+                                            kind="activation"
+                                            pendingActivation={
+                                                pendingActivation
+                                            }
+                                            me={me}
+                                            gameId={gameId}
+                                            playerId={viewerId}
+                                        />
+                                    ))}
+                                {/* CR 508.1c/1g / 701.21a — the attack-declaration
                                 land tax (Flooded Woodlands) suspends the
                                 declaration on a parked sacrifice choice. Without
                                 a prompt the board looks frozen, so surface the
                                 pick the same way casts/activations do. */}
-                            {combat?.pendingAttackSacrifice &&
-                                combat.pendingAttackSacrifice.playerId ===
-                                    viewerId &&
-                                !isSacrificeComplete(
-                                    combat.pendingAttackSacrifice
-                                ) && (
-                                    <SacrificeBanner
-                                        selection={
-                                            combat.pendingAttackSacrifice
-                                        }
+                                {combat?.pendingAttackSacrifice &&
+                                    combat.pendingAttackSacrifice.playerId ===
+                                        viewerId &&
+                                    !isSacrificeComplete(
+                                        combat.pendingAttackSacrifice
+                                    ) && (
+                                        <SacrificeBanner
+                                            selection={
+                                                combat.pendingAttackSacrifice
+                                            }
+                                        />
+                                    )}
+                                {pendingChoices &&
+                                    pendingChoices.length > 0 &&
+                                    (minimizedChoice.isMinimized &&
+                                    pendingChoices[0].playerId === viewerId ? (
+                                        <MinimizedChoiceIndicator
+                                            choice={pendingChoices[0]}
+                                        />
+                                    ) : (
+                                        <PendingChoicePrompt
+                                            choice={pendingChoices[0]}
+                                            playerId={viewerId}
+                                            gameId={gameId}
+                                        />
+                                    ))}
+                                <HandCardPick />
+
+                                {mulligan && !mulligan.bottoming && (
+                                    <MulliganPrompt
+                                        gameId={gameId}
+                                        viewerId={viewerId}
+                                        mulligan={mulligan}
+                                        allPlayers={allPlayers}
                                     />
                                 )}
-                            {pendingChoices &&
-                                pendingChoices.length > 0 &&
-                                (minimizedChoice.isMinimized &&
-                                pendingChoices[0].playerId === viewerId ? (
-                                    <MinimizedChoiceIndicator
-                                        choice={pendingChoices[0]}
+                                <Controller
+                                    onOpenMenu={() => setPauseMenuOpen(true)}
+                                />
+                                {gameOver && (
+                                    <GameOverDialog
+                                        gameOver={gameOver}
+                                        allPlayers={allPlayers}
+                                        match={match ?? null}
+                                        viewerId={playerId}
                                     />
-                                ) : (
-                                    <PendingChoicePrompt
-                                        choice={pendingChoices[0]}
-                                        playerId={viewerId}
-                                        gameId={gameId}
-                                    />
-                                ))}
-                            <HandCardPick />
-
-                            {mulligan && !mulligan.bottoming && (
-                                <MulliganPrompt
+                                )}
+                                <PauseMenuDialog
+                                    open={pauseMenuOpen}
+                                    onOpenChange={setPauseMenuOpen}
                                     gameId={gameId}
-                                    viewerId={viewerId}
-                                    mulligan={mulligan}
-                                    allPlayers={allPlayers}
-                                />
-                            )}
-                            <Controller
-                                onOpenMenu={() => setPauseMenuOpen(true)}
-                            />
-                            {gameOver && (
-                                <GameOverDialog
-                                    gameOver={gameOver}
-                                    allPlayers={allPlayers}
+                                    playerId={viewerId}
                                     match={match ?? null}
-                                    viewerId={playerId}
                                 />
-                            )}
-                            <PauseMenuDialog
-                                open={pauseMenuOpen}
-                                onOpenChange={setPauseMenuOpen}
-                                gameId={gameId}
-                                playerId={viewerId}
-                                match={match ?? null}
-                            />
-                            <ErrorToast
-                                error={pendingChoiceBuffer.lastError}
-                                gameId={gameId}
-                                onDismiss={pendingChoiceBuffer.dismissError}
-                            />
-                        </main>
-                    </MinimizedChoiceContext>
-                  </DivideAmountContext>
+                                <ErrorToast
+                                    error={pendingChoiceBuffer.lastError}
+                                    gameId={gameId}
+                                    onDismiss={pendingChoiceBuffer.dismissError}
+                                />
+                            </main>
+                        </MinimizedChoiceContext>
+                    </DivideAmountContext>
                 </PendingChoiceBufferContext>
             </SkipPhasePrefsContext>
         </GameContext>
