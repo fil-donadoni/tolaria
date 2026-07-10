@@ -21,6 +21,12 @@ export default defineConfig([
         // current react-hooks immutability rule and are not production code, so
         // they are excluded from lint rather than retrofitted.
         "src/routes/prototype-board",
+        // Nested git worktrees (`.opencode/worktrees/*`) ship their own copy of
+        // the repo — including a `tsconfig.json`. typescript-eslint's project
+        // service auto-detects them as a second candidate `tsconfigRootDir`,
+        // which aborts parsing ("multiple candidate TSConfigRootDirs are
+        // present"). They are throwaway working copies, never linted in place.
+        ".opencode",
         "src/routes/prototype-board.route.tsx",
         "src/routes/prototype-board-full.route.tsx",
     ]),

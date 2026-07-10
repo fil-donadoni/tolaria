@@ -24,10 +24,6 @@ Phase out dovrebbe mostrare le carte disabilitate e con poca opacità, non farle
 
 Animate dead triggera la sua abilità left-the-battlefield nell'upkeep sucessivo a quando la sua creatura ha lasciato il battlefield. Dovrebbe succedere subito.
 
-Impulse, Stock Up e tutte le carte che dicono "bottom in any order" adesso non ti permettono di scegliere l'ordine.
-
-Quando faccio scry bottom con opt e poi pesco, dovrei vedere la carta in fondo al mazzo come visible nel dialog della library.
-
 Problema di wiring su Cloak of Confusion. Quando la creatura incantata attacca e non e' bloccata, va diretta al danno senza il prompt per scegliere tra danni e discard.
 
 I trigger di sheoldred che vanno in pila devono essere uno per ogni carta. E a volte succedono cose strane. L'interazione con il draw 7 di griselbrand ha fatto: -7 life, risolve e pesco 7. vedo un solo trigger di sheoldred nella stack invece di 7, e infatti guadagno solo 2 invece di 14. Stessa cosa se l'avversario pesca 7, perde solo 2 punti vita con 1 trigger invece di 14 punti vita con 7 trigger.

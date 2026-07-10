@@ -42,7 +42,7 @@ export default function CastCostDialog({
     onConfirm,
     onCancel,
 }: CastCostDialogProps) {
-    const [xRaw, setXRaw] = useState("0");
+    const [xRaw, setXRaw] = useState("");
     const [kickerCountRaw, setKickerCountRaw] = useState("0");
     const [kickerPay, setKickerPay] = useState(false);
 
