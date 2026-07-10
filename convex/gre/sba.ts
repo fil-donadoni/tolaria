@@ -2,6 +2,7 @@ import type { CardInstanceState, GameState } from "./state";
 import {
     destroyWithReplacements,
     getOpponentId,
+    processPendingActionTriggers,
     refreshLandPlayLock,
     removePermanentTo,
     revertControlChange,
@@ -609,36 +610,61 @@ export function checkWorldRuleSBA(state: GameState): boolean {
 }
 
 export function checkStateBasedActions(state: GameState): void {
-    // Worms of the Earth (CR 614 prohibition) — refresh the serializable
-    // land-play-lock cache from the live battlefield derivation. Not an SBA per
-    // se, but every stable transition runs this sweep, so it is the canonical
-    // recompute point; the flag tracks whether any lock source is in play.
-    refreshLandPlayLock(state);
-    checkAuraAttachmentSBA(state);
-    checkConditionalControlChanges(state);
-    checkSourceTappedEffects(state);
-    // CR 704.5q — +1/+1 / -1/-1 counters annihilate in equal numbers before the
-    // zero-toughness death check reads the net P/T.
-    checkCounterAnnihilationSBA(state);
-    checkZeroToughnessSBA(state);
-    // CR 704.5h / 702.2b — a creature dealt damage by a deathtouch source this
-    // turn is destroyed. Runs after zero-toughness (a creature already at 0
-    // toughness leaves via the direct move first) and respects indestructible.
-    checkDeathtouchDestroySBA(state);
-    checkTokenExistenceSBA(state);
-    // CR 704.5m — world rule. Fully automatic (no player choice): keeps the
-    // newest World permanent and graveyards the rest (all of them on a tie).
-    // Runs before the legend-rule prompt so its automatic moves settle before
-    // any choice suspends the sweep.
-    checkWorldRuleSBA(state);
-    // CR 704.5j — legend rule. Enqueues a keep-one prompt and returns early;
-    // priority is frozen until the controller commits via finalizeLegendKeep.
-    // Run before game-over so a legend death that would change life totals is
-    // resolved first; the choice itself suspends the rest of the sweep.
-    if (checkLegendRuleSBA(state)) return;
-    checkGameOverSBA(state);
-    if (state.gameOver) return;
-    // CR 117.5: state triggers go on the stack after SBA. Don't scan if the
-    // game ended — there's no priority handoff to satisfy.
+    // CR 704.4 — SBAs are performed repeatedly until none applies. A single
+    // sweep routinely CREATES the condition for another: a creature dying frees
+    // an Aura enchanting it (CR 704.5m), an Aura leaving drops a P/T buff that
+    // drops another creature to lethal toughness, etc. A one-pass sweep in the
+    // fixed order below would leave the second condition unhandled until the
+    // NEXT priority checkpoint (Animate Dead's LTB deferred to the following
+    // upkeep — the bug this loop fixes). Iterate the whole set to a fixpoint
+    // before any triggered ability is put on the stack (CR 603.3b).
+    for (;;) {
+        // Worms of the Earth (CR 614 prohibition) — refresh the serializable
+        // land-play-lock cache from the live battlefield derivation. Not an SBA
+        // per se, but every stable transition runs this sweep, so it is the
+        // canonical recompute point; the flag tracks whether any lock source is
+        // in play. Idempotent, so it does not gate the fixpoint.
+        refreshLandPlayLock(state);
+        let acted = false;
+        acted = checkAuraAttachmentSBA(state) || acted;
+        acted = checkConditionalControlChanges(state) || acted;
+        // Idempotent bookkeeping (strips stale source-tapped buffs / untap
+        // locks); no zone change or event, so it never gates the fixpoint. A
+        // buff it strips that drops a creature to 0 toughness is caught by the
+        // zero-toughness pass below in this same iteration.
+        checkSourceTappedEffects(state);
+        // CR 704.5q — +1/+1 / -1/-1 counters annihilate in equal numbers before
+        // the zero-toughness death check reads the net P/T.
+        acted = checkCounterAnnihilationSBA(state) || acted;
+        acted = checkZeroToughnessSBA(state) || acted;
+        // CR 704.5h / 702.2b — a creature dealt damage by a deathtouch source
+        // this turn is destroyed. Runs after zero-toughness (a creature already
+        // at 0 toughness leaves via the direct move first) and respects
+        // indestructible.
+        acted = checkDeathtouchDestroySBA(state) || acted;
+        acted = checkTokenExistenceSBA(state) || acted;
+        // CR 704.5m — world rule. Fully automatic (no player choice): keeps the
+        // newest World permanent and graveyards the rest (all of them on a
+        // tie). Runs before the legend-rule prompt so its automatic moves
+        // settle before any choice suspends the sweep.
+        acted = checkWorldRuleSBA(state) || acted;
+        // CR 704.5j — legend rule. Enqueues a keep-one prompt and returns early;
+        // priority is frozen until the controller commits via
+        // finalizeLegendKeep. Run before game-over so a legend death that would
+        // change life totals is resolved first; the choice itself suspends the
+        // rest of the sweep (including the trigger scan below).
+        if (checkLegendRuleSBA(state)) return;
+        acted = checkGameOverSBA(state) || acted;
+        if (state.gameOver) return;
+        if (!acted) break;
+    }
+    // CR 603.3b — triggered abilities that triggered from the SBA-driven zone
+    // changes above (an Aura's "when this leaves" LTB, a creature's death
+    // trigger from an SBA-lethal move, ...) are put on the stack now, before any
+    // player receives priority. Event-based triggers (CR 603.2) are drained
+    // from the pending-event queue first, then state-triggered abilities
+    // (CR 603.8). Reached only once the sweep has stabilised and the game has
+    // not ended (no priority handoff to satisfy otherwise).
+    processPendingActionTriggers(state);
     applyStateTriggers(state);
 }

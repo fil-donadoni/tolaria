@@ -2209,6 +2209,48 @@ describe("Animate Dead (Aura — CR 303.4i graveyard-target reanimation + CR 603
         expect(state.players[0].graveyard.map((c) => c.id)).toContain("dead");
     });
 
+    it("LTB-trigger fires immediately when the host leaves and the aura falls off via SBA (CR 704.4 + 603.3b)", () => {
+        const dead = makeInstance(grizzlyBears.id, {
+            id: "dead",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [dead] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, animateDead.id, "p1", [
+            { type: "graveyard-card", id: "dead", playerId: "p1" },
+        ]);
+        resolveTopOfStack(state);
+        const aura = state.players[0].battlefield.find(
+            (c) => (c.card as { id?: string }).id === animateDead.id
+        )!;
+        // The reanimated host leaves the battlefield (destroyed / bounced /
+        // exiled — modelled here as a direct move to graveyard). Its own
+        // PERMANENT_LEFT is scanned and settled first.
+        removePermanentTo(state, "dead", "graveyard");
+        processPendingActionTriggers(state);
+        // Now the aura is attached to a host no longer on the battlefield.
+        // The SBA sweep must detach it (CR 704.5m) AND its LTB-trigger must go
+        // on the stack in the same stable transition (CR 704.4 + 603.3b) —
+        // not be deferred to the next upkeep.
+        checkStateBasedActions(state);
+        // Aura moved to the graveyard by the aura-attachment SBA.
+        expect(
+            state.players[0].battlefield.find(
+                (c) => (c.card as { id?: string }).id === animateDead.id
+            )
+        ).toBeUndefined();
+        // Its LTB-trigger fired immediately: the ability is on the stack now.
+        expect(
+            state.stack.some((s) => s.triggeredAbilityId === "anim-dead-ltb")
+        ).toBe(true);
+    });
+
     it("fizzle when the graveyard target is removed before resolution (CR 608.2b)", () => {
         const dead = makeInstance(grizzlyBears.id, {
             id: "dead",
