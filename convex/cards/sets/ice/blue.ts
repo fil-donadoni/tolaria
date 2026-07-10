@@ -1665,7 +1665,7 @@ export const portent: CardDefinition = {
                 count: topIds.length,
                 zoneOwnerId: t.id,
                 candidateIds: topIds,
-                prompt: "Put these cards back on top in any order (first = top).",
+                prompt: "Put these cards back on top in any order (rightmost = top).",
             });
             if (ordered === undefined) return; // suspended on the reorder
             const allIds = ctx.peekLibraryTop(t.id, Number.MAX_SAFE_INTEGER);

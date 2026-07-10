@@ -49,5 +49,3 @@ Anche scry e tutti i dialog di choice devono poter essere abbassati per mostrare
 Il bot non sa usare le fetchlands.
 
 Migliorare UI sideboard con /prototype. Card previews, possibilità di avere >60 carte nella main, miglioramento cta spostamento, visualizzazione a pile
-
-Portent deve usare la ui di ponder, ora ha ancora quella vecchia. quella vecchia dismettila e usa sempre quelle nuove.

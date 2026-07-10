@@ -385,8 +385,35 @@ interface ChoiceExposure {
     peekZoneOwner: string | undefined;
     /** Number of top cards to expose for the peek (0 when no peek). */
     peekCount: number;
+    /** `reorder-library` only: the EXACT cards to reorder (the choice's
+     *  `candidateIds`), when the card pins them. The reorder picker must show
+     *  precisely these — a card may reorder cards that aren't the current top N
+     *  (Drafna's Restoration moves cards graveyard → library bottom, then lets
+     *  the player put them on top), so a blind top-N slice would surface the
+     *  wrong cards. `undefined` for count-only reorders (Natural Selection) and
+     *  every other peek kind, which fall back to the top-N slice. */
+    peekCandidateIds: string[] | undefined;
     /** `reveal-hand`: hand owner whose hand is shown to the chooser. */
     revealZoneOwner: string | undefined;
+}
+
+/** The looked-at cards a peek/reorder picker renders: the pinned `candidateIds`
+ *  (in their chosen order, wherever they sit in the library) when the choice
+ *  supplies them, else the top `peekCount` cards. Shared by both projections so
+ *  the picker pile is identical in the public and full views. */
+function projectLibraryPeek(
+    library: CardInstanceState[],
+    peekCount: number,
+    candidateIds: string[] | undefined
+): SlimCardInstance[] {
+    if (candidateIds) {
+        const byId = new Map(library.map((c) => [c.id, c]));
+        return candidateIds
+            .map((id) => byId.get(id))
+            .filter((c): c is CardInstanceState => c !== undefined)
+            .map(slimCard);
+    }
+    return library.slice(0, peekCount).map(slimCard);
 }
 
 /** Computes the peek/reveal exposure for the chooser `chooserId` from the head
@@ -439,6 +466,12 @@ function computeChoiceExposure(
     const peekZoneOwner = exposeLibraryPeek
         ? (head.zoneOwnerId ?? head.playerId)
         : undefined;
+    // A pinned `reorder-library` exposes exactly its `candidateIds` (they may
+    // sit anywhere in the library), not a blind top-N slice.
+    const peekCandidateIds =
+        exposeLibraryPeek && head.kind === "reorder-library"
+            ? head.candidateIds
+            : undefined;
 
     // CR 401.4: reveal-hand exposes the zone owner's hand to the chooser.
     const exposeRevealHand =
@@ -447,7 +480,13 @@ function computeChoiceExposure(
         ? (head.zoneOwnerId ?? head.playerId)
         : undefined;
 
-    return { searchZoneOwner, peekZoneOwner, peekCount, revealZoneOwner };
+    return {
+        searchZoneOwner,
+        peekZoneOwner,
+        peekCount,
+        peekCandidateIds,
+        revealZoneOwner,
+    };
 }
 
 /**
@@ -464,8 +503,13 @@ export function projectPublicState(
     // search-library / reorder-library / draw-look-keep / look-top / reveal-hand
     // choice, expose the looked-at zone face-up so the UI can render its picker
     // pile.
-    const { searchZoneOwner, peekZoneOwner, peekCount, revealZoneOwner } =
-        computeChoiceExposure(state, viewerId);
+    const {
+        searchZoneOwner,
+        peekZoneOwner,
+        peekCount,
+        peekCandidateIds,
+        revealZoneOwner,
+    } = computeChoiceExposure(state, viewerId);
     // Exiled-card → holding-permanent links (mechanism-agnostic), so the client
     // pins each exiled card to its permanent (Arena treatment).
     const exileAssoc = buildExileAssociation(state);
@@ -477,7 +521,11 @@ export function projectPublicState(
                 : undefined;
         const libraryPeek =
             peekZoneOwner !== undefined && player.id === peekZoneOwner
-                ? player.library.slice(0, peekCount).map(slimCard)
+                ? projectLibraryPeek(
+                      player.library,
+                      peekCount,
+                      peekCandidateIds
+                  )
                 : undefined;
         const revealedHand =
             revealZoneOwner !== undefined && player.id === revealZoneOwner
@@ -584,8 +632,13 @@ export function projectFullState(
     // (#239, #262). There is no single viewer here, so the chooser is the head
     // choice's own player.
     const head = state.pendingChoices?.[0];
-    const { searchZoneOwner, peekZoneOwner, peekCount, revealZoneOwner } =
-        computeChoiceExposure(state, head?.playerId);
+    const {
+        searchZoneOwner,
+        peekZoneOwner,
+        peekCount,
+        peekCandidateIds,
+        revealZoneOwner,
+    } = computeChoiceExposure(state, head?.playerId);
     const exileAssoc = buildExileAssociation(state);
 
     const players = state.players.map(
@@ -609,7 +662,11 @@ export function projectFullState(
                     : undefined,
             libraryPeek:
                 peekZoneOwner !== undefined && player.id === peekZoneOwner
-                    ? player.library.slice(0, peekCount).map(slimCard)
+                    ? projectLibraryPeek(
+                          player.library,
+                          peekCount,
+                          peekCandidateIds
+                      )
                     : undefined,
             revealedHand:
                 revealZoneOwner !== undefined && player.id === revealZoneOwner

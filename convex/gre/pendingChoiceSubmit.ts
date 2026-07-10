@@ -15,6 +15,7 @@ import {
     mayPaySacrificeThreshold,
     mayPaySacrificeSetPower,
     normalizeMayPayCost,
+    grantKnowledge,
     type CardInstanceState,
     type GameState,
 } from "./state";
@@ -689,6 +690,25 @@ export function applyPendingChoiceSubmit(
             ? { [`${key}:second`]: args.secondZoneIds ?? [] }
             : {}),
     };
+
+    // ADR 0026 / PRD #338 — a `reorder-library` choice is "look at the top N,
+    // then put them back in any order" (CR 401.4): the chooser SAW and PLACED
+    // these cards, so their positions are certain and stay known to the chooser
+    // until a shuffle clears the library. Granting it here (at the choice's
+    // resolution) makes it automatic for EVERY "put them back in any order" card
+    // — Portent, Drafna's Restoration, Elemental Augury, Natural Selection — so
+    // no card needs its own `markKnown`. `order-top` (Ponder/scry) already
+    // grants this inside `orderTop`; this is the parallel for the closure-driven
+    // reorder path. The cards live in `zoneOwnerId ?? playerId`'s library (the
+    // target's for a Portent aimed at the opponent), known to the chooser.
+    if (head.kind === "reorder-library") {
+        grantKnowledge(
+            state,
+            head.zoneOwnerId ?? head.playerId,
+            args.cardInstanceIds,
+            head.playerId
+        );
+    }
 
     queue.shift();
     state.pendingChoices = queue.length > 0 ? queue : undefined;

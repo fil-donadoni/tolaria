@@ -254,7 +254,7 @@ export const diabolicVision: CardDefinition = {
             zone: "library",
             count: rest.length,
             candidateIds: rest,
-            prompt: "Put the rest back on top in any order (first picked ends up on top).",
+            prompt: "Put the rest back on top in any order (rightmost = top).",
         });
         if (ordered === undefined) return; // suspended
         ctx.reorderLibraryTop(ctx.controller, ordered);
@@ -350,7 +350,7 @@ export const elementalAugury: CardDefinition = {
                     count: top.length,
                     candidateIds: top,
                     zoneOwnerId: t.id,
-                    prompt: "Put the top three cards back in any order (first picked ends up on top).",
+                    prompt: "Put the top three cards back in any order (rightmost = top).",
                 });
                 if (ordered === undefined) return; // suspended
                 ctx.reorderLibraryTop(t.id, ordered);

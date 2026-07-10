@@ -72,18 +72,30 @@ export default function PlayerLibrary({
         player.id === playerId &&
         !!player.libraryPeek;
 
-    // Scry / surveil / ponder ordered-top pick (`order-top`, CR 701.22/701.44)
-    // AND the unified take-to-hand + order-bottom pick (`look-distribute`,
-    // CR 401.4 — Impulse, Stock Up): the projection exposes the looked-at top N
-    // as `libraryPeek`, and the player arranges them via the drag picker (a
-    // full-screen overlay), NOT the grid/click-buffer path — so it is
-    // deliberately kept OUT of `isLibraryPick`.
+    // Scry / surveil / ponder ordered-top pick (`order-top`, CR 701.22/701.44),
+    // the unified take-to-hand + order-bottom pick (`look-distribute`, CR 401.4
+    // — Impulse, Stock Up), AND the "put them back in any order" reorder
+    // (`reorder-library`, CR 401.4 — Portent, Natural Selection, Elemental
+    // Augury, Drafna's Restoration): every one of these arranges a set of
+    // looked-at library cards, so they ALL use the same drag picker (a
+    // full-screen overlay) — never the old grid/click-buffer path. Routing the
+    // kind here (not card by card) is what makes the new picker the single,
+    // automatic UI for this whole family of choices. The looked-at cards are
+    // exposed on the zone OWNER's `libraryPeek`, which is the chooser's own
+    // library for Natural Selection-on-self but the TARGET player's for a
+    // Portent aimed at the opponent — so gate on the viewer being the chooser
+    // (`head.playerId === playerId`) and this component being the peeked
+    // library's owner (`zoneOwnerId ?? playerId`), never assume the chooser owns
+    // it. Kept OUT of `isLibraryPick` (the grid/buffer path).
+    const orderPickOwner = head?.zoneOwnerId ?? head?.playerId;
     const isOrderTopPick =
         !!head &&
-        (head.kind === "order-top" || head.kind === "look-distribute") &&
+        (head.kind === "order-top" ||
+            head.kind === "look-distribute" ||
+            head.kind === "reorder-library") &&
         head.zone === "library" &&
         head.playerId === playerId &&
-        player.id === playerId &&
+        player.id === orderPickOwner &&
         !!player.libraryPeek;
 
     const isLibraryPick = isLibrarySearchTarget || isLibraryPeekPick;

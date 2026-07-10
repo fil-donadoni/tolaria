@@ -128,13 +128,18 @@ export default function PendingChoicePrompt({
         );
     }
 
-    // order-top (scry / surveil / ponder) and look-distribute (Impulse /
-    // Stock Up) own their own full-screen drag picker (`LibraryOrderPicker`,
-    // mounted by `PlayerLibrary`), which carries the prompt, the ordering and
-    // the submit. Suppress this generic banner so it doesn't double up with a
-    // stale "N / max selected" counter whose buffered Done would submit an empty
-    // (illegal) selection.
-    if (choice.kind === "order-top" || choice.kind === "look-distribute")
+    // order-top (scry / surveil / ponder), look-distribute (Impulse / Stock Up)
+    // and reorder-library ("put them back in any order" — Portent, Natural
+    // Selection, Drafna's Restoration) all own the same full-screen drag picker
+    // (`LibraryOrderPicker`, mounted by `PlayerLibrary`), which carries the
+    // prompt, the ordering and the submit. Suppress this generic banner so it
+    // doesn't double up with a stale "N / max selected" counter whose buffered
+    // Done would submit an empty (illegal) selection.
+    if (
+        choice.kind === "order-top" ||
+        choice.kind === "look-distribute" ||
+        choice.kind === "reorder-library"
+    )
         return null;
 
     // A `choose-hand-card` pick from ANOTHER player's hand (Thoughtseize /

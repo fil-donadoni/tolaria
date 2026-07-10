@@ -299,6 +299,78 @@ describe("PlayerLibrary", () => {
         expect(pileProps.layout).toBe("fan");
     });
 
+    it("routes a reorder-library pick (Natural Selection on self) to the drag picker overlay, not the grid", () => {
+        // "Put them back in any order" (reorder-library) shares the ONE drag
+        // picker with order-top/look-distribute — no per-card wiring. Destination
+        // is `none` (all cards stay on top, order only), so the picker shows the
+        // order-only chrome and the underlying library pile stays a normal
+        // browse pile.
+        cardsPileSpy.mockClear();
+        const peek = [makeCard("r1"), makeCard("r2"), makeCard("r3")];
+        const player = makePlayer({ count: 6 }, {
+            libraryPeek: peek,
+        } as Partial<Player>);
+        const { getByText } = renderWithContext(
+            <PlayerLibrary player={player} />,
+            "me",
+            {
+                pendingChoices: [
+                    {
+                        stackItemId: "stk",
+                        step: 0,
+                        choiceId: "me",
+                        playerId: "me",
+                        kind: "reorder-library",
+                        zone: "library",
+                        count: 3,
+                        prompt: "Put these cards back in any order (rightmost = top).",
+                    },
+                ],
+            }
+        );
+        // The order-only picker overlay is shown (Ponder chrome), not the grid.
+        expect(getByText("Done")).toBeTruthy();
+        expect(getByText("TOP OF LIBRARY")).toBeTruthy();
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        expect(pileProps.forceOpen).toBeFalsy();
+        expect(pileProps.layout).toBe("fan");
+    });
+
+    it("routes a cross-player reorder-library (Portent on the opponent) to the picker on the target's library", () => {
+        // Portent targets the OPPONENT: the chooser ("me") looks at and reorders
+        // the TARGET's ("p2") top cards. The peeked cards live on the zone
+        // owner's `libraryPeek`, and the picker mounts on that owner's
+        // PlayerLibrary while the viewer is the chooser — the gate keys off
+        // `zoneOwnerId`, never assuming the chooser owns the library.
+        cardsPileSpy.mockClear();
+        const peek = [makeCard("p2-r1"), makeCard("p2-r2"), makeCard("p2-r3")];
+        const opponent = makePlayer({ count: 8 }, {
+            id: "p2",
+            libraryPeek: peek,
+        } as Partial<Player>);
+        const { getByText } = renderWithContext(
+            <PlayerLibrary player={opponent} />,
+            "me", // viewer/chooser is "me", not the library owner
+            {
+                pendingChoices: [
+                    {
+                        stackItemId: "stk",
+                        step: 0,
+                        choiceId: "me",
+                        playerId: "me",
+                        zoneOwnerId: "p2",
+                        kind: "reorder-library",
+                        zone: "library",
+                        count: 3,
+                        prompt: "Put these cards back on top in any order (rightmost = top).",
+                    },
+                ],
+            }
+        );
+        expect(getByText("Done")).toBeTruthy();
+        expect(getByText("TOP OF LIBRARY")).toBeTruthy();
+    });
+
     it("gates clicks to the candidateIds allow-list on a filtered search (Transmute Artifact)", () => {
         // A filtered search ("an artifact card") carries `candidateIds`; only
         // those cards are pickable. Clicking an ineligible card is a no-op.

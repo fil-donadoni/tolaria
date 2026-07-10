@@ -131,7 +131,7 @@ export const drafnasRestoration: CardDefinition = {
                 count: movedIds.length,
                 zoneOwnerId: ownerId,
                 candidateIds: movedIds,
-                prompt: "Put these artifact cards on top in any order (first = top).",
+                prompt: "Put these artifact cards on top in any order (rightmost = top).",
             });
             if (!ordered) return;
             // Build the full library order: chosen cards first (top), then the

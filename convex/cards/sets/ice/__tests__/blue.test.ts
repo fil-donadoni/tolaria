@@ -1541,6 +1541,35 @@ describe("Portent (look at top 3, reorder, may shuffle, CR 401)", () => {
         expect(portent.targetRequirement?.type).toBe("player");
         expect(portent.types).toContain("Sorcery");
     });
+
+    // ADR 0026 / PRD #338 — Portent carries NO `markKnown` of its own: the
+    // reorder-library submit path grants the knowledge globally. The chooser
+    // (p1) looked at and precisely positioned the target's (p2) top three, so
+    // those cards stay known to p1 — proving the fix is in the choice path, not
+    // per-card.
+    it("keeps the reordered top 3 known to the caster who placed them", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    library: library("p2", ["c1", "c2", "c3", "c4"]),
+                }),
+            ],
+        });
+        castCantrip(state, portent.id, "p1", [{ type: "player", id: "p2" }]);
+        // The controller reorders p2's top three (c3 on top).
+        expect(state.pendingChoices![0].kind).toBe("reorder-library");
+        submitChoice(state, ["c3", "c1", "c2"]);
+
+        const lib = state.players[1].library;
+        expect(lib.slice(0, 3).map((c) => c.id)).toEqual(["c3", "c1", "c2"]);
+        // Known to the caster (p1) only — not to the library's owner p2.
+        expect(lib[0].knownTo).toEqual(["p1"]);
+        expect(lib[1].knownTo).toEqual(["p1"]);
+        expect(lib[2].knownTo).toEqual(["p1"]);
+        // The untouched 4th card stays unknown to everyone.
+        expect(lib[3].knownTo).toBeUndefined();
+    });
 });
 
 describe("Ray of Erasure (mill a card, CR 701.13a)", () => {

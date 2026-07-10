@@ -400,6 +400,54 @@ describe("reorder/peek/reveal exposure (issue #262, CR 401.4)", () => {
         expect(chooser.revealedHand).toBeUndefined();
     });
 
+    // A pinned reorder-library (Drafna's Restoration) reorders cards that were
+    // just moved graveyard → library BOTTOM — they are NOT the current top N.
+    // The peek must follow `candidateIds` (the exact cards), not a blind top-N
+    // slice, or the picker surfaces the wrong cards.
+    function stateWithBottomReorder(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    library: [
+                        makeCard("p2-top1", { zone: "library" }),
+                        makeCard("p2-top2", { zone: "library" }),
+                        // The two reorder candidates sit at the BOTTOM.
+                        makeCard("p2-cand-a", { zone: "library" }),
+                        makeCard("p2-cand-b", { zone: "library" }),
+                    ],
+                }),
+            ],
+            pendingChoices: [
+                {
+                    stackItemId: "s1",
+                    step: 0,
+                    choiceId: "p1",
+                    playerId: "p1",
+                    zoneOwnerId: "p2",
+                    kind: "reorder-library",
+                    zone: "library",
+                    count: 2,
+                    candidateIds: ["p2-cand-a", "p2-cand-b"],
+                    prompt: "Put these cards on top in any order (rightmost = top).",
+                },
+            ],
+        });
+    }
+
+    it("exposes exactly the reorder candidates (not the top N) when the choice pins candidateIds", () => {
+        const pub = projectPublicState(stateWithBottomReorder(), 1, "p1");
+        const full = projectFullState(stateWithBottomReorder(), 1);
+        for (const result of [pub, full]) {
+            const owner = result.players.find((p) => p.id === "p2")!;
+            // The pinned bottom cards, in candidate order — NOT [top1, top2].
+            expect(owner.libraryPeek!.map((c) => c.id)).toEqual([
+                "p2-cand-a",
+                "p2-cand-b",
+            ]);
+        }
+    });
+
     it("does NOT expose peek/reveal fields when no exposing choice is active", () => {
         const full = projectFullState(makeState(), 1);
         for (const player of full.players) {

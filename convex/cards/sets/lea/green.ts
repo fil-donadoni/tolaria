@@ -880,7 +880,7 @@ export const naturalSelection: CardDefinition = {
                 zone: "library",
                 count,
                 zoneOwnerId: target.id,
-                prompt: "Put these cards back in any order (first = top).",
+                prompt: "Put these cards back in any order (rightmost = top).",
             });
             if (!ordered) return;
             ctx.reorderLibraryTop(target.id, ordered);
