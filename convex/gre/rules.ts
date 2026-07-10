@@ -291,26 +291,40 @@ function hasEnoughLegalTargets(
     const def = tryGetDefinition(cardId);
     const requirement = def?.targetRequirement;
     if (!requirement) return true;
-    // X = 0 path is always available; cast remains legal even with no targets.
-    if (requirement.count === "X") return true;
-    const required =
-        typeof requirement.count === "number"
-            ? requirement.count
-            : requirement.count.min;
-    if (required <= 0) return true;
     const sourceColors = STATIC_EFFECT_CTX.getColors(card);
-    const legalTargets = getLegalTargets(
-        state,
-        requirement,
-        sourceColors,
-        player.id,
-        undefined,
-        card.types,
-        card.subtypes,
-        // hasEnoughLegalTargets gates the Cast UI — the source is a spell.
-        true
-    );
-    return legalTargets.length >= required;
+    // Does a single target requirement have enough legal targets on the board?
+    // Preserves every prior early-return semantic: an "X" count (X = 0 path,
+    // CR 107.3) or a required count ≤ 0 leaves the cast legal regardless of
+    // board state.
+    const checkRequirement = (req: TargetRequirement): boolean => {
+        if (req.count === "X") return true;
+        const required =
+            typeof req.count === "number" ? req.count : req.count.min;
+        if (required <= 0) return true;
+        const legalTargets = getLegalTargets(
+            state,
+            req,
+            sourceColors,
+            player.id,
+            undefined,
+            card.types,
+            card.subtypes,
+            // hasEnoughLegalTargets gates the Cast UI — the source is a spell.
+            true
+        );
+        return legalTargets.length >= required;
+    };
+    // CR 702.33 — the kicker is chosen at announcement, AFTER this castability
+    // gate. A spell whose KICKED target requirement widens the legal-target set
+    // (Bloodchief's Thirst: MV ≤ 2 → any; Tear Asunder: artifact/enchantment →
+    // any nonland permanent) stays castable if EITHER the base OR the kicked
+    // requirement has enough legal targets — paying the kicker reaches the
+    // wider set. Gating on only the base requirement wrongly judged such a
+    // spell uncastable whenever only the widened set had a legal target.
+    if (checkRequirement(requirement)) return true;
+    const kicked = def?.kickedTargetRequirement;
+    if (kicked && checkRequirement(kicked)) return true;
+    return false;
 }
 
 /** Maps each color a permanent can produce when tapped to the

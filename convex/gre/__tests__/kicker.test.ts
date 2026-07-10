@@ -8,7 +8,7 @@
 
 import { describe, it, expect } from "vitest";
 import { resolveKickerCount, finalizeTargetSelection } from "../../game";
-import { getLegalTargets } from "../rules";
+import { getLegalTargets, getLegalActions } from "../rules";
 import { getPlayer, resolveTopOfStack, type PendingTarget } from "../state";
 import { compactState, expandState } from "../serialize";
 import {
@@ -20,8 +20,9 @@ import {
 import { getDefinition, registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
 import { bloodchiefsThirst } from "../../cards/sets/znr/black";
+import { tearAsunder } from "../../cards/sets/dmu/green";
 import { burstLightning } from "../../cards/sets/zen/red";
-import { serraAngel, grizzlyBears } from "../../cards/sets/lea";
+import { serraAngel, grizzlyBears, blackLotus } from "../../cards/sets/lea";
 
 // A synthetic probe card carrying BOTH a Kicker (CR 702.33a — an ADDITIONAL
 // mana cost) AND a pitch-style ALTERNATIVE cost (CR 118.9 — "pay 6 life
@@ -254,6 +255,107 @@ describe("Kicker — kickedTargetRequirement widens legal targets (CR 702.33)", 
             "p1"
         );
         expect(kicked.some((t) => t.id === "angel1")).toBe(true);
+    });
+});
+
+describe("Kicker — cast legality considers the kicked target set (CR 702.33 / 601.2c)", () => {
+    // The kicker is chosen at announcement, AFTER the castability gate
+    // (`hasEnoughLegalTargets`). A spell whose KICKED target requirement widens
+    // the legal-target set must stay castable when only the wider set has a
+    // legal target — paying the kicker reaches it. Regression: the gate used to
+    // consider ONLY the base `targetRequirement` and wrongly judged such a
+    // spell uncastable.
+    const FULL_POOL = { W: 2, U: 2, B: 2, R: 2, G: 2, C: 2 };
+
+    it("Bloodchief's Thirst is castable when only a mana-value-5 creature exists (kicked path)", () => {
+        const thirst = makeInstance(bloodchiefsThirst.id, {
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "thirst1",
+        });
+        // Serra Angel has mana value 5 — outside the unkicked MV ≤ 2 set.
+        const angel = makeInstance(serraAngel.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "angel1",
+        });
+        const p1 = makePlayer("p1", { hand: [thirst], manaPool: FULL_POOL });
+        const p2 = makePlayer("p2", { battlefield: [angel] });
+        const state = makeState({ players: [p1, p2] });
+        expect(getLegalActions(state, p1, thirst)).toContain("cast");
+    });
+
+    it("Bloodchief's Thirst is castable with a mana-value-2 creature (base path, no regression)", () => {
+        const thirst = makeInstance(bloodchiefsThirst.id, {
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "thirst2",
+        });
+        // Grizzly Bears has mana value 2 — inside the unkicked MV ≤ 2 set.
+        const bears = makeInstance(grizzlyBears.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bears1",
+        });
+        const p1 = makePlayer("p1", { hand: [thirst], manaPool: FULL_POOL });
+        const p2 = makePlayer("p2", { battlefield: [bears] });
+        const state = makeState({ players: [p1, p2] });
+        expect(getLegalActions(state, p1, thirst)).toContain("cast");
+    });
+
+    it("Bloodchief's Thirst is NOT castable with no creature/planeswalker anywhere (boundary)", () => {
+        const thirst = makeInstance(bloodchiefsThirst.id, {
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "thirst3",
+        });
+        const p1 = makePlayer("p1", { hand: [thirst], manaPool: FULL_POOL });
+        const p2 = makePlayer("p2");
+        const state = makeState({ players: [p1, p2] });
+        // Neither base nor kicked requirement has a legal target — a mandatory
+        // single-target sorcery with no legal target is uncastable.
+        expect(getLegalActions(state, p1, thirst)).not.toContain("cast");
+    });
+
+    it("Tear Asunder is castable when only a creature exists (kicked nonland-permanent path)", () => {
+        const tear = makeInstance(tearAsunder.id, {
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "tear1",
+        });
+        // Only a creature on the battlefield — outside the unkicked
+        // artifact/enchantment set, but inside the kicked nonland-permanent set.
+        const bears = makeInstance(grizzlyBears.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bears2",
+        });
+        const p1 = makePlayer("p1", { hand: [tear], manaPool: FULL_POOL });
+        const p2 = makePlayer("p2", { battlefield: [bears] });
+        const state = makeState({ players: [p1, p2] });
+        expect(getLegalActions(state, p1, tear)).toContain("cast");
+    });
+
+    it("Tear Asunder is castable with an artifact present (base path, no regression)", () => {
+        const tear = makeInstance(tearAsunder.id, {
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+            id: "tear2",
+        });
+        const lotus = makeInstance(blackLotus.id, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "lotus1",
+        });
+        const p1 = makePlayer("p1", { hand: [tear], manaPool: FULL_POOL });
+        const p2 = makePlayer("p2", { battlefield: [lotus] });
+        const state = makeState({ players: [p1, p2] });
+        expect(getLegalActions(state, p1, tear)).toContain("cast");
     });
 });
 
