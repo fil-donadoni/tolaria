@@ -2042,7 +2042,7 @@ describe("Battering Ram (banding grant + destroy blocking Wall)", () => {
         // binding name `$wall` (a $-prefixed capture key), where the legacy
         // resolve() used the payload key `targetId`.
         expect(
-            state.delayedTriggers?.some((d) => d.payload["$wall"] === "wall")
+            state.delayedTriggers?.some((d) => d.payload["wall"] === "wall")
         ).toBe(true);
     });
 });
@@ -2155,7 +2155,7 @@ describe("Rakalite (prevent next 1, return self next end step, CR 615.1)", () =>
         // template `payload.instanceId`. Same behaviour (a next-end-step return
         // trigger scheduled for "rk"), new payload representation.
         expect(
-            state.delayedTriggers?.some((d) => d.payload.$self === "rk")
+            state.delayedTriggers?.some((d) => d.payload.self === "rk")
         ).toBe(true);
     });
 });
@@ -3538,7 +3538,7 @@ describe("Rocket Launcher ({2}: 1 damage any target; destroy at end step)", () =
                 (d) =>
                     d.timing === "next-end-step" &&
                     d.effects?.some((e) => e.op === "destroy") &&
-                    d.payload.$self === "launcher"
+                    d.payload.self === "launcher"
             )
         ).toBe(true);
     });

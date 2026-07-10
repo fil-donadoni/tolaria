@@ -8,6 +8,7 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     type GameState,
+    emitCardDrawn,
     processPendingActionTriggers,
     resolveTopOfStack,
 } from "../../../../gre/state";
@@ -113,6 +114,82 @@ describe("Sheoldred, the Apocalypse (CR 121.1 draw-triggered life swing)", () =>
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players.find((p) => p.id === "p1")!.life).toBe(22);
         expect(projected.players.find((p) => p.id === "p2")!.life).toBe(20);
+    });
+
+    /** Batch draw through the REAL choke point: move `n` cards library → hand
+     *  and call `emitCardDrawn(state, id, n)` exactly as `ctx.drawCards` /
+     *  Griselbrand's "draw seven" does. Proves the per-card fanout — one
+     *  CARD_DRAWN event PER card (CR 120.3), so a per-card trigger fires `n`
+     *  times, not once. Unlike `simulateDraw`, this does NOT hand-build the
+     *  event, so it would catch a regression to single-count-N emission. */
+    function simulateBatchDraw(
+        state: GameState,
+        drawingPlayerId: string,
+        n: number
+    ) {
+        const player = state.players.find((p) => p.id === drawingPlayerId)!;
+        for (let i = 0; i < n; i++) {
+            const drawn = player.library.shift();
+            if (drawn) player.hand.push(drawn);
+        }
+        emitCardDrawn(state, drawingPlayerId, n);
+        processPendingActionTriggers(state);
+    }
+
+    it("opponent draws 7 (Griselbrand): 7 lose-life triggers, opponent loses 14 (CR 120.3)", () => {
+        const sheol = makeSheoldred("p1");
+        const p1 = makePlayer("p1", { battlefield: [sheol], life: 20 });
+        const p2 = makePlayer("p2", {
+            library: Array.from({ length: 7 }, (_, i) =>
+                makeInstance(sheoldredTheApocalypse.id, { id: `lib-${i}` })
+            ),
+            life: 20,
+        });
+        const state = makeState({ players: [p1, p2] });
+
+        simulateBatchDraw(state, "p2", 7);
+
+        // One trigger PER card drawn — not a single collapsed trigger.
+        expect(
+            state.stack.filter(
+                (s) =>
+                    s.triggeredAbilityId === "sheoldred-opponent-draw-lose-life"
+            )
+        ).toHaveLength(7);
+
+        while (state.stack.length > 0) resolveTopOfStack(state);
+
+        expect(p2.life).toBe(6); // 20 − 7×2
+        expect(p1.life).toBe(20);
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players.find((p) => p.id === "p2")!.life).toBe(6);
+    });
+
+    it("you draw 7 (Griselbrand): 7 gain-life triggers, you gain 14 (CR 120.3)", () => {
+        const sheol = makeSheoldred("p1");
+        const p1 = makePlayer("p1", {
+            battlefield: [sheol],
+            library: Array.from({ length: 7 }, (_, i) =>
+                makeInstance(sheoldredTheApocalypse.id, { id: `lib-${i}` })
+            ),
+            life: 20,
+        });
+        const p2 = makePlayer("p2", { life: 20 });
+        const state = makeState({ players: [p1, p2] });
+
+        simulateBatchDraw(state, "p1", 7);
+
+        expect(
+            state.stack.filter(
+                (s) => s.triggeredAbilityId === "sheoldred-your-draw-gain-life"
+            )
+        ).toHaveLength(7);
+
+        while (state.stack.length > 0) resolveTopOfStack(state);
+
+        expect(p1.life).toBe(34); // 20 + 7×2
+        expect(p2.life).toBe(20);
     });
 
     it("does not cross-fire: your draw never drains the opponent, their draw never gains you life", () => {

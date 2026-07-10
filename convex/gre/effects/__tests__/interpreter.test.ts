@@ -6599,7 +6599,7 @@ describe("Effect Script Op: delayedTrigger (CR 603.7)", () => {
         expect(inst.timing).toBe("next-end-step");
         expect(inst.controller).toBe("p1");
         expect(inst.triggerId).toBe(INLINE_DELAYED_TRIGGER_ID);
-        expect(inst.payload).toEqual({ $it: "dtb1" });
+        expect(inst.payload).toEqual({ it: "dtb1" });
         expect(inst.effects).toEqual([
             { op: "destroy", target: { ref: "$it" } },
         ]);
@@ -6713,7 +6713,7 @@ describe("Effect Script Op: delayedTrigger (CR 603.7)", () => {
         expect(state.delayedTriggers).toHaveLength(1);
         // $source's snapshot id — the source permanent's instance id.
         expect(state.delayedTriggers![0].payload).toEqual({
-            $self: "launcher1",
+            self: "launcher1",
         });
         // The fired trigger destroys the source itself.
         fireDelayedTriggers(state, "next-end-step");
@@ -6748,7 +6748,7 @@ describe("Effect Script Op: delayedTrigger (CR 603.7)", () => {
         });
         pushSpell(state, id, "p1", [{ type: "permanent", id: "dtp1" }]);
         resolveTopOfStack(state);
-        expect(state.delayedTriggers![0].payload).toEqual({ $p: "p2" });
+        expect(state.delayedTriggers![0].payload).toEqual({ p: "p2" });
         fireDelayedTriggers(state, "next-end-step");
         resolveTopOfStack(state);
         expect(state.players[1].life).toBe(18);
@@ -6935,7 +6935,7 @@ describe("Effect Script Op: delayedTrigger LIST capture (combatPartners, CR 509.
         resolveTopOfStack(state);
         // Freeze-at-cast: the two blockers are in the payload as a `string[]`.
         expect(state.delayedTriggers).toHaveLength(1);
-        const frozen = state.delayedTriggers![0].payload.$partners;
+        const frozen = state.delayedTriggers![0].payload.partners;
         expect(Array.isArray(frozen)).toBe(true);
         expect([...(frozen as string[])].sort()).toEqual(["blkA", "blkB"]);
         // Fire at end of combat → the inline forEach body destroys each member.
@@ -6954,7 +6954,7 @@ describe("Effect Script Op: delayedTrigger LIST capture (combatPartners, CR 509.
         // Target a BLOCKER: the inverse scan must find the attacker it blocked.
         pushSpell(state, id, "p1", [{ type: "permanent", id: "blkA" }]);
         resolveTopOfStack(state);
-        expect(state.delayedTriggers![0].payload.$partners).toEqual(["att"]);
+        expect(state.delayedTriggers![0].payload.partners).toEqual(["att"]);
         fireDelayedTriggers(state, "next-end-of-combat");
         resolveTopOfStack(state);
         // Only the attacker "att" (p1) dies; both untargeted blockers survive.
@@ -7008,8 +7008,8 @@ describe("Effect Script Op: delayedTrigger LIST capture (combatPartners, CR 509.
         // expand (JSON-pure, no scalar-only assumption).
         const reloaded = expandState(compactState(state));
         expect(reloaded.delayedTriggers).toEqual(state.delayedTriggers);
-        expect(reloaded.delayedTriggers![0].payload.$partners).toEqual(
-            state.delayedTriggers![0].payload.$partners
+        expect(reloaded.delayedTriggers![0].payload.partners).toEqual(
+            state.delayedTriggers![0].payload.partners
         );
         // The reloaded state fires and resolves identically (replay
         // determinism): both blockers destroyed.
@@ -7506,7 +7506,7 @@ describe("Effect Script value grammar: $event.<field> (ADR 0049, CR 603, issue #
         );
         // The blocker id is captured into the payload under the `$blk` binding.
         expect(state.delayedTriggers).toHaveLength(1);
-        expect(state.delayedTriggers![0].payload["$blk"]).toBe("blk2");
+        expect(state.delayedTriggers![0].payload["blk"]).toBe("blk2");
         // Still alive until end of combat.
         expect(
             state.players[1].battlefield.find((c) => c.id === "blk2")

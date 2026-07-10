@@ -10,9 +10,11 @@
 //   * "each"      — any player's draw (the drawing player is passed through).
 //   * "opponents" — only an opponent's draw.
 //
-// A single CARD_DRAWN event represents a whole draw batch (count >= 1). The
-// ability fires once per batch, matching "when you draw a card" oracle wording
-// for one-shot self-destruction (Fasting) — it does not multiply by `count`.
+// CR 120.3 — cards are drawn ONE AT A TIME. The engine emits one CARD_DRAWN
+// event per card (see `emitCardDrawn`), so a "whenever you draw a card"
+// trigger fires once per card: Sheoldred on Griselbrand's draw-7 fires 7
+// times (gain 14 / opponent loses 14), not once. Each event carries count 1;
+// a "whenever one or more" collapse is opt-in via `oncePerEventBatch`.
 
 import type {
     CardDrawnEvent,

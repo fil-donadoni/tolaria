@@ -1459,6 +1459,13 @@ export const OP_EXECUTORS: {
     delayedTrigger(ctx, op) {
         const payload: Record<string, string | string[]> = {};
         for (const [name, source] of Object.entries(op.capture ?? {})) {
+            // Persisted payload keys must NOT start with '$': Convex reserves
+            // that sigil for object field names and rejects the whole DB write
+            // ("Field name $guard starts with a '$', which is reserved"). A
+            // binding name is validated `$`-prefixed (isBindingName), so strip
+            // the sigil on store; `runDelayedTriggerBody` re-adds it when it
+            // re-binds the payload at fire time.
+            const key = name.slice(1);
             // LIST-valued capture (ADR 0049, issue #866): resolve N ids at
             // scheduling (cast) time and freeze them into the payload as a
             // `string[]` list binding. An empty list stays OUT of the payload
@@ -1466,14 +1473,14 @@ export const OP_EXECUTORS: {
             // nothing (CR 608.2b), same as a captured-but-since-emptied list.
             if (typeof source === "object" && "select" in source) {
                 const list = resolveCaptureListSource(ctx, source.select);
-                if (list.length > 0) payload[name] = list;
+                if (list.length > 0) payload[key] = list;
                 continue;
             }
             const value = resolveCaptureSource(ctx, source);
             // An unresolvable capture (target slot gone, binding never made)
             // stays OUT of the payload: the body binding is uncaptured and
             // Ops reading it skip at fire time (CR 608.2b).
-            if (value !== undefined) payload[name] = value;
+            if (value !== undefined) payload[key] = value;
         }
         const targetPlayerId =
             op.targetPlayer !== undefined
@@ -1880,8 +1887,12 @@ export function runDelayedTriggerBody(
     payload: Record<string, string | string[]>
 ): void {
     if (ctx.getScriptCheckpoint() === undefined) {
-        for (const [name, value] of Object.entries(payload)) {
-            if (!name.startsWith("$")) continue; // not a binding capture
+        for (const [key, value] of Object.entries(payload)) {
+            // Payload keys are stored with the `$` binding sigil stripped
+            // (Convex reserves a leading `$` on field names); re-add it to
+            // recover the binding name. A legacy already-`$`-prefixed key is
+            // tolerated so an in-flight payload keeps binding correctly.
+            const name = key.startsWith("$") ? key : "$" + key;
             // LIST capture (ADR 0049, issue #866): the frozen `string[]` of ids
             // becomes a list binding a `forEach { set: "bound", ref }` iterates.
             // Stored raw (member ids only) — the forEach snapshots each member

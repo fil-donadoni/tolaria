@@ -5013,26 +5013,30 @@ export function emitSpellCastEvent(state: GameState, item: StackItem): void {
     ];
 }
 
-/** Emits a CARD_DRAWN event for a player who just drew `count` cards
+/** Emits CARD_DRAWN events for a player who just drew `count` cards
  *  (CR 121.1). The single choke point for "when you draw a card" triggers
- *  (Fasting). No-op when `count <= 0` (an empty-library draw moved nothing).
- *  Callers that drive a draw at a point where pending events are later drained
- *  — `resolveTopOfStack`, the draw step's explicit drain — use this so the
- *  trigger scan picks it up. */
+ *  (Sheoldred, Underworld Dreams). CR 120.3 — cards are drawn ONE AT A TIME,
+ *  so a batch draw (Griselbrand's "draw seven") emits ONE event per card, and
+ *  a per-card trigger fires once for each. Emitting a single count-N event
+ *  would collapse the swing to a single trigger (Sheoldred gaining 2 instead
+ *  of 14 on a draw-7); each drawn card is its own draw. `count` stays on the
+ *  event (always 1 here) for a "whenever one or more" collapse via
+ *  `oncePerEventBatch`. No-op when `count <= 0` (an empty-library draw moved
+ *  nothing). Callers that drive a draw at a point where pending events are
+ *  later drained — `resolveTopOfStack`, the draw step's explicit drain — use
+ *  this so the trigger scan picks it up. */
 export function emitCardDrawn(
     state: GameState,
     playerId: string,
     count: number
 ): void {
     if (count <= 0) return;
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
-        {
-            type: "CARD_DRAWN",
-            playerId,
-            count,
-        },
-    ];
+    const perCard = Array.from({ length: count }, () => ({
+        type: "CARD_DRAWN" as const,
+        playerId,
+        count: 1,
+    }));
+    state.pendingEvents = [...(state.pendingEvents ?? []), ...perCard];
 }
 
 /** Emits a CARD_DISCARDED event for a card that just moved hand → graveyard as

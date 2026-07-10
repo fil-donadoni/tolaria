@@ -1341,7 +1341,7 @@ describe("Venomous Breath (CR 603.7a delayed combat-partner destroy, ADR 0049 li
         expect(state.delayedTriggers).toHaveLength(1);
         expect(state.delayedTriggers![0].timing).toBe("next-end-of-combat");
         // Freeze-at-cast: the partner ids are in the scheduled payload as a list.
-        const frozen = state.delayedTriggers![0].payload.$partners;
+        const frozen = state.delayedTriggers![0].payload.partners;
         expect(Array.isArray(frozen)).toBe(true);
         expect([...(frozen as string[])].sort()).toEqual(["blkA", "blkB"]);
         // Fire the delayed trigger at end of combat through the REAL path

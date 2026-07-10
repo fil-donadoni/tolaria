@@ -55,58 +55,6 @@ type PresetScenario = {
 
 export const PRESET_SCENARIOS: PresetScenario[] = [
     {
-        // Opt (issue #1002): {U} Instant "Scry 1. Draw a card." Cast the Opt in
-        // hand (an Island covers {U}) to raise the scry-1 order-top choice on
-        // your top card — keep it on top or drag it to the bottom — then draw.
-        // A stocked library (libraryCount) makes the top-card look/draw visible.
-        label: "Opt — scry 1 + draw (#1002) - Visibilità scry to bottom",
-        cards: [
-            { name: "Opt", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 1,
-        libraryCount: 12,
-    },
-    {
-        // Impulse (VIS 34): {1}{U} Instant "Look at the top four cards of your
-        // library. Put one into your hand and the rest on the bottom in any
-        // order." Cast it (two Islands cover {1}{U}) to open the unified
-        // HAND/BOTTOM drag picker: pull ONE card up to HAND, then ORDER the
-        // other three on the BOTTOM. After confirming, those three stay face-up
-        // at the bottom of your own library (ADR 0026 — you looked at and placed
-        // them, so their order is certain until a shuffle). Stock Up (look 5,
-        // take 2) exercises the same picker with two cards to hand.
-        label: "Impulse — look 4, 1 to hand + order 3 on bottom (known)",
-        cards: [
-            { name: "Impulse", owner: "me", zone: "hand" },
-            { name: "Stock Up", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 2,
-        libraryCount: 12,
-    },
-    {
-        // Portent — {U} Sorcery, "Look at the top three cards of TARGET
-        // player's library, then put them back in any order." Cast it (an Island
-        // covers {U}) and target the opponent to open the SAME full-screen drag
-        // picker Ponder uses (the `reorder-library` choice now routes to
-        // `LibraryOrderPicker`, not the old grid — one systemic fix for every
-        // "put them back in any order" card: Portent, Natural Selection,
-        // Elemental Augury, Drafna's Restoration). Drag to reorder the target's
-        // top three (rightmost = top), Done, then optionally shuffle. Both
-        // libraries are stocked so the top three are real cards to arrange.
-        label: "Portent — reorder opponent's top 3 via the new drag picker",
-        cards: [
-            { name: "Portent", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 1,
-        libraryCount: 12,
-    },
-    {
         // Copy-on-ETB Bot cast prune (issue #938): a copy-on-ETB spell (Copy
         // Artifact, Clone, Vesuvan Doppelganger, Dance of Many) enters as a copy
         // of a permanent already in play. Casting one with NO permanent it could
@@ -127,29 +75,6 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 8,
-    },
-    {
-        // ICE instance leave-watch delayed trigger (issue #731): Kjeldoran
-        // Elite Guard's "{T}: Target creature gets +2/+2 until end of turn. When
-        // that creature leaves the battlefield this turn, sacrifice this
-        // creature. Activate only during combat." Tap the Guard targeting the
-        // Balduvian Bears to pump it +2/+2 (a leaves-battlefield watch is
-        // scheduled keyed to the Bears), then kill / bounce the Bears — the
-        // delayed trigger fires and the Guard is sacrificed. If the Bears
-        // survive the turn the watch expires unfired at cleanup. Phantasmal
-        // Mount (blue) is the bidirectional variant. Starts in combat so the
-        // Guard's combat-only activation is legal immediately.
-        label: "ICE instance leave-watch (Kjeldoran Elite Guard) (#731)",
-        cards: [
-            {
-                name: "Kjeldoran Elite Guard",
-                owner: "me",
-                zone: "battlefield",
-            },
-            { name: "Balduvian Bears", owner: "me", zone: "battlefield" },
-        ],
-        phase: "BEGINNING_OF_COMBAT",
-        landCount: 4,
     },
     {
         // ICE computed subtype swap (issue #727, ADR 0050): Illusionary Terrain

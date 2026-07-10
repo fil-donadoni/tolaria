@@ -334,7 +334,7 @@ describe("Nafs Asp (damage → next-draw-step pay {1} or lose 1 life)", () => {
         expect(dt?.timing).toBe("next-draw-step");
         // targetPlayer + capture both resolve through $event.damagedPlayer.
         expect(dt?.targetPlayerId).toBe("p2");
-        expect(dt?.payload["$victim"]).toBe("p2");
+        expect(dt?.payload["victim"]).toBe("p2");
     });
 
     it("fires only on the target player's draw step; declining loses 1 life", () => {

@@ -2587,9 +2587,9 @@ describe("Phantasmal Mount (bidirectional leave-watch, CR 603.7a / 603.10)", () 
         // One watches the Mount (sacrifices the buffed creature); the other
         // watches the buffed creature (sacrifices the Mount).
         const watchMount = watches.find((t) => t.watchInstanceId === mountId)!;
-        expect(watchMount.payload.$mounted).toBe(steedId);
+        expect(watchMount.payload.mounted).toBe(steedId);
         const watchSteed = watches.find((t) => t.watchInstanceId === steedId)!;
-        expect(watchSteed.payload.$mount).toBe(mountId);
+        expect(watchSteed.payload.mount).toBe(mountId);
     });
 
     it("sacrifices the buffed creature when the Mount leaves", () => {

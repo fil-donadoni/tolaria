@@ -339,13 +339,15 @@ describe("game_state serialize round-trip", () => {
                 zone: "stack",
                 castById: "p1",
                 delayedTriggerId: "$inline-effects",
-                delayedPayload: { $it: "target-7" },
+                // Payload keys drop the `$` sigil (Convex reserves leading
+                // `$`); the ref VALUE inside the effects keeps it.
+                delayedPayload: { it: "target-7" },
                 delayedEffects: [{ op: "destroy", target: { ref: "$it" } }],
             },
         ];
         const expanded = expandState(compactState(state));
         expect(expanded.stack[0].delayedTriggerId).toBe("$inline-effects");
-        expect(expanded.stack[0].delayedPayload).toEqual({ $it: "target-7" });
+        expect(expanded.stack[0].delayedPayload).toEqual({ it: "target-7" });
         expect(expanded.stack[0].delayedEffects).toEqual([
             { op: "destroy", target: { ref: "$it" } },
         ]);
@@ -1435,7 +1437,9 @@ describe("optional field round-trip smoke tests", () => {
                 controller: "p1",
                 timing: "leaves-battlefield",
                 watchInstanceId: "target1",
-                payload: { $guard: "guard1" },
+                // Payload keys drop the `$` binding sigil (Convex reserves a
+                // leading `$` on field names); the ref VALUE keeps it.
+                payload: { guard: "guard1" },
                 effects: [{ op: "sacrifice", target: { ref: "$guard" } }],
                 oracleText:
                     "When that creature leaves the battlefield this turn, sacrifice Kjeldoran Elite Guard.",

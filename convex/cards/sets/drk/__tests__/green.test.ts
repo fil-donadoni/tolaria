@@ -976,7 +976,7 @@ describe("Venom — Aura: combat kill at end of combat (CR 509.1h / 511.3 / 701.
         // The inline delayedTrigger Op (ADR 0048/0049) captures the "other"
         // creature under the binding name `$other`, where the legacy resolve()
         // used the payload key `targetId`.
-        expect(state.delayedTriggers![0].payload["$other"]).toBe("other");
+        expect(state.delayedTriggers![0].payload["other"]).toBe("other");
         state.phase = "COMBAT_DAMAGE";
         advancePhase(state);
         expect(state.phase).toBe("END_OF_COMBAT");

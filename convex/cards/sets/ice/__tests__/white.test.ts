@@ -2586,8 +2586,16 @@ describe("Kjeldoran Elite Guard (instance leave-watch, CR 603.7a / 603.10)", () 
         );
         expect(watch).toBeDefined();
         expect(watch!.watchInstanceId).toBe(targetId);
-        // The captured guard-to-sacrifice is the activating source.
-        expect(watch!.payload.$guard).toBe(guardId);
+        // The captured guard-to-sacrifice is the activating source. The `$`
+        // binding sigil is stripped in the persisted payload (Convex reserves
+        // leading `$` on field names) and re-added when the trigger fires.
+        expect(watch!.payload.guard).toBe(guardId);
+        // Regression (Convex "$guard starts with a '$', which is reserved"):
+        // NO persisted payload key may begin with the binding sigil, else the
+        // whole game-state DB write is rejected at passPriority time.
+        for (const key of Object.keys(watch!.payload)) {
+            expect(key.startsWith("$")).toBe(false);
+        }
     });
 
     it("sacrifices the guard when the buffed creature leaves the battlefield", () => {
