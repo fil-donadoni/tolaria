@@ -7,8 +7,10 @@
 import { describe, it, expect } from "vitest";
 import { accumulatedKnowledge, dominate, daze } from "..";
 import { grizzlyBears, serraAngel } from "../../lea";
+import { ornithopter } from "../../atq/colorless";
+import { island } from "../../lea/colorless";
 import { resolveTopOfStack } from "../../../../gre/state";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalActions, getLegalTargets } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     makeInstance,
@@ -159,6 +161,80 @@ describe("Dominate ({X}{1}{U}{U}: gain control of target creature with MV <= X)"
             (c) => c.id === "bear"
         );
         expect(slim?.controllerId).toBe("p1");
+    });
+
+    // CR 107.3 / 202.3 — castability gate for an X-dependent mv ceiling. The
+    // `hasEnoughLegalTargets` gate (getLegalActions) used to resolve `mvFilter
+    // { max: "X" }` at X = 0 only, so Dominate was offered "cast" solely when a
+    // mana-value-0 creature existed — otherwise dead in hand despite a payable,
+    // higher X reaching the real targets. Regression: the gate now probes every
+    // announceable X (0..maxAffordableX). This is a bug-CLASS fix — any card
+    // whose target legality rides an X-parametrized mv bound benefits.
+    describe("cast affordance respects raise-X-to-reach targets (bug class)", () => {
+        const dom = () =>
+            makeInstance(dominate.id, {
+                id: "dom",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+        const islands = (n: number) =>
+            Array.from({ length: n }, (_, i) =>
+                makeInstance(island.id, {
+                    id: `land${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                })
+            );
+        const gate = (
+            p1Lands: number,
+            p2Board: ReturnType<typeof makeInstance>[]
+        ) => {
+            const hand = dom();
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        hand: [hand],
+                        battlefield: islands(p1Lands),
+                    }),
+                    makePlayer("p2", { battlefield: p2Board }),
+                ],
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                phase: "PRECOMBAT_MAIN",
+            });
+            return getLegalActions(state, state.players[0], hand);
+        };
+
+        it("castable when only an mv>=1 creature exists but X can be raised to reach it", () => {
+            const bears = makeInstance(grizzlyBears.id, {
+                id: "bears",
+                controllerId: "p2",
+                ownerId: "p2",
+            }); // MV 2; 6 lands → X up to 3 reaches it
+            expect(gate(6, [bears])).toContain("cast");
+        });
+
+        it("castable at X = 0 when an mv<=0 creature (Ornithopter) exists", () => {
+            const orn = makeInstance(ornithopter.id, {
+                id: "orn",
+                controllerId: "p2",
+                ownerId: "p2",
+            }); // MV 0
+            expect(gate(3, [orn])).toContain("cast");
+        });
+
+        it("NOT castable when X can't be raised high enough to reach any creature", () => {
+            const bears = makeInstance(grizzlyBears.id, {
+                id: "bears",
+                controllerId: "p2",
+                ownerId: "p2",
+            }); // MV 2; exactly {1}{U}{U} → X = 0, out of reach
+            expect(gate(3, [bears])).not.toContain("cast");
+        });
+
+        it("NOT castable with no creatures on board", () => {
+            expect(gate(6, [])).not.toContain("cast");
+        });
     });
 });
 

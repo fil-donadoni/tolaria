@@ -1124,7 +1124,19 @@ export function manaCostToString(cost?: ManaCost): string {
                 ? cost.xFactor
                 : 1;
         for (let i = 0; i < factor; i++) parts.push(`{${x}}`);
-    } else if (typeof x === "number" && x > 0) parts.push(`{${x}}`);
+    }
+    // Fixed generic mana renders as ONE numeral symbol, ordered after {X} and
+    // before the colored pips (CR 107.4 / 202.1). Two encodings feed it: numeric
+    // `X` (the fixed-generic convention when there is no variable X — Grizzly
+    // Bears `{ X: 1, G: 1 }`) and the explicit `generic` key (used when a
+    // variable {X} coexists with fixed generic — Dominate
+    // `{ X: "X", generic: 1, U: 2 }` → {X}{1}{U}{U}). Summing them collapses
+    // both — and the rare both-at-once — into a single {N}; the `generic` key
+    // was previously dropped entirely, so any card using it lost its generic
+    // pip (Dominate showed {X}{U}{U}, Soul Burn `{ generic: 2, ... }` lost {2}).
+    const genericFromX = typeof x === "number" && x > 0 ? x : 0;
+    const generic = genericFromX + (cost.generic ?? 0);
+    if (generic > 0) parts.push(`{${generic}}`);
     for (const c of MANA_DISPLAY_COLORS) {
         const n = cost[c] ?? 0;
         for (let i = 0; i < n; i++) parts.push(`{${c}}`);

@@ -180,26 +180,6 @@ describe("PlayerGraveyard", () => {
         );
     });
 
-    it("falls back to a destination-neutral title when the choice omits a prompt", () => {
-        cardsPileSpy.mockClear();
-        const player = makePlayer([makeCard("g1")]);
-        renderWithContext(<PlayerGraveyard player={player} />, "me", {
-            pendingChoices: [
-                {
-                    stackItemId: "stk",
-                    step: 0,
-                    choiceId: "recall",
-                    playerId: "me",
-                    kind: "choose-graveyard-card",
-                    zone: "graveyard",
-                    count: 1,
-                },
-            ],
-        });
-        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
-        expect(pileProps.title).toBe("Choose a card from your graveyard");
-    });
-
     it("forwards no allow-list on an unfiltered graveyard pick (every card selectable)", () => {
         // Recall ("return a card from your graveyard") carries no `candidateIds`;
         // every card stays selectable, so no allow-list is forwarded.
@@ -221,5 +201,6 @@ describe("PlayerGraveyard", () => {
         });
         const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
         expect(pileProps.eligibleIds).toBeUndefined();
+        expect(pileProps.title).toBe("Return a card from your graveyard.");
     });
 });

@@ -281,6 +281,15 @@ function hasPayableFlashbackAdditionalCost(
  *  players are normally targetable). For "X" target counts the player can
  *  still pick X = 0 and skip target selection (CR 107.3), so cast stays
  *  legal regardless of board state. */
+/** CR 107.3 — true when a requirement's mana-value bound is X-dependent
+ *  (`mvFilter` uses the `"X"` placeholder). Its legal-target set then shifts
+ *  with the announced X, so the castability gate must probe reachable X values
+ *  rather than assume X = 0. */
+function mvFilterUsesX(req: TargetRequirement): boolean {
+    const f = req.mvFilter;
+    return !!f && (f.min === "X" || f.max === "X" || f.equals === "X");
+}
+
 function hasEnoughLegalTargets(
     state: GameState,
     player: PlayerState,
@@ -301,18 +310,35 @@ function hasEnoughLegalTargets(
         const required =
             typeof req.count === "number" ? req.count : req.count.min;
         if (required <= 0) return true;
-        const legalTargets = getLegalTargets(
-            state,
-            req,
-            sourceColors,
-            player.id,
-            undefined,
-            card.types,
-            card.subtypes,
-            // hasEnoughLegalTargets gates the Cast UI — the source is a spell.
-            true
-        );
-        return legalTargets.length >= required;
+        // CR 107.3 / 202.3 — an X-dependent mv ceiling (Dominate, Spell Blast:
+        // `mvFilter { max: "X" }`) exposes a wider legal-target set as X rises.
+        // Probing only X = 0 (the historical `undefined` → 0 resolution) judged
+        // the spell uncastable whenever no target sat under the X = 0 ceiling,
+        // even though a larger — and affordable — X would reach one. Probe every
+        // announceable X (0..maxAffordableX) and accept if ANY yields enough
+        // legal targets, mirroring the move enumerator's X loop. Non-X
+        // requirements keep the single X-agnostic pass.
+        const xValues = mvFilterUsesX(req)
+            ? Array.from(
+                  { length: maxAffordableX(player, card) + 1 },
+                  (_, i) => i
+              )
+            : [undefined];
+        return xValues.some((chosenX) => {
+            const legalTargets = getLegalTargets(
+                state,
+                req,
+                sourceColors,
+                player.id,
+                chosenX,
+                card.types,
+                card.subtypes,
+                // hasEnoughLegalTargets gates the Cast UI — the source is a
+                // spell.
+                true
+            );
+            return legalTargets.length >= required;
+        });
     };
     // CR 702.33 — the kicker is chosen at announcement, AFTER this castability
     // gate. A spell whose KICKED target requirement widens the legal-target set
@@ -442,22 +468,20 @@ function getProducibleManaUnits(card: CardInstanceState): Set<Color>[] {
  *  Used by getLegalActions to suppress the Cast UI for spells the player
  *  cannot pay for (CR 601.2f — failure to pay aborts the cast, but we hide
  *  the action upstream so the user isn't trapped in pendingCast). */
-function canPotentiallyPayCost(
+/** Builds the mana-source color sets `player` could tap toward casting `card`
+ *  (pool + restricted mana permitted for this spell + untapped mana permanents)
+ *  and greedily pays the colored portion of a normalized `cost`. Returns the
+ *  number of sources left over once every colored requirement is met, or `null`
+ *  when the colored portion itself can't be covered. That leftover is what the
+ *  generic portion ({cost.X}) — and any additional {X} the player might still
+ *  announce — draws from. Shared by {@link canPotentiallyPayCost} and
+ *  {@link maxAffordableX} so the "can I cast it" and "how big can X be" gates
+ *  never diverge. */
+function coloredCostLeftover(
     player: PlayerState,
     card: CardInstanceState,
-    /** CR 702.34 — when set, affordability is checked against this cost instead
-     *  of the card's printed mana cost (a Flashback cast from the graveyard). */
-    costOverride?: ManaCost
-): boolean {
-    const rawCost = costOverride ?? getInstanceManaCost(card);
-    if (!rawCost) return true;
-    // Cost normalized without chosenX: string-X spells pay only their fixed
-    // portion at the minimum (X = 0). User picks X at announcement.
-    const cost = normalizeManaCost(rawCost);
-    const totalRequired =
-        (cost.X ?? 0) + MANA_COLORS.reduce((sum, c) => sum + (cost[c] ?? 0), 0);
-    if (totalRequired === 0) return true;
-
+    cost: Record<string, number>
+): number | null {
     // Each source is the set of colors it can supply for this cost slot.
     const sources: Set<Color>[] = [];
     for (const c of MANA_COLORS) {
@@ -488,11 +512,8 @@ function canPotentiallyPayCost(
         for (const unit of getProducibleManaUnits(perm)) sources.push(unit);
     }
 
-    if (sources.length < totalRequired) return false;
-
-    // Greedy: assign colored requirements first, picking the
-    // least-flexible source able to produce that color. Then count remaining
-    // sources for the generic portion. Optimal for the common case where each
+    // Greedy: assign colored requirements first, picking the least-flexible
+    // source able to produce that color. Optimal for the common case where each
     // source produces a small color set (basic lands, duals, Mox).
     const remaining = sources.map((s) => new Set(s));
     for (const c of MANA_COLORS) {
@@ -507,12 +528,51 @@ function canPotentiallyPayCost(
                     bestSize = s.size;
                 }
             }
-            if (bestIdx === -1) return false;
+            if (bestIdx === -1) return null;
             remaining.splice(bestIdx, 1);
             need--;
         }
     }
-    return remaining.length >= (cost.X ?? 0);
+    return remaining.length;
+}
+
+function canPotentiallyPayCost(
+    player: PlayerState,
+    card: CardInstanceState,
+    /** CR 702.34 — when set, affordability is checked against this cost instead
+     *  of the card's printed mana cost (a Flashback cast from the graveyard). */
+    costOverride?: ManaCost
+): boolean {
+    const rawCost = costOverride ?? getInstanceManaCost(card);
+    if (!rawCost) return true;
+    // Cost normalized without chosenX: string-X spells pay only their fixed
+    // portion at the minimum (X = 0). User picks X at announcement.
+    const cost = normalizeManaCost(rawCost);
+    const totalRequired =
+        (cost.X ?? 0) + MANA_COLORS.reduce((sum, c) => sum + (cost[c] ?? 0), 0);
+    if (totalRequired === 0) return true;
+    const leftover = coloredCostLeftover(player, card, cost);
+    // Remaining sources after the colored portion must cover the generic
+    // ({cost.X}) portion.
+    return leftover !== null && leftover >= (cost.X ?? 0);
+}
+
+/** CR 107.3 — the largest X the player could announce when casting `card` from
+ *  hand: the mana left over once the fixed (X = 0) portion of the printed cost
+ *  is covered. Returns 0 when the card has no variable {X} in its cost or the
+ *  fixed portion is itself unaffordable. Used to widen the X-dependent
+ *  target-legality gate ({@link hasEnoughLegalTargets}) so a spell like Dominate
+ *  ({X}{1}{U}{U}, "target creature with mana value X or less") is judged
+ *  castable whenever ANY reachable X exposes a legal target — not only X = 0.
+ *  Cost reductions are not modeled here (mirroring `canPotentiallyPayCost`),
+ *  which only ever under-estimates X, never over-offers a cast. */
+function maxAffordableX(player: PlayerState, card: CardInstanceState): number {
+    const rawCost = getInstanceManaCost(card);
+    if (!rawCost || typeof rawCost.X !== "string") return 0;
+    const cost = normalizeManaCost(rawCost);
+    const leftover = coloredCostLeftover(player, card, cost);
+    if (leftover === null) return 0;
+    return Math.max(0, leftover - (cost.X ?? 0));
 }
 
 /** CR 117.1b: some spells have phase-limited casting windows (e.g. Berserk

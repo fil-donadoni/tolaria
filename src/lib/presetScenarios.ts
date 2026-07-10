@@ -61,19 +61,6 @@ type PresetScenario = {
 
 export const PRESET_SCENARIOS: PresetScenario[] = [
     {
-        label: "Exhume",
-        cards: [
-            { name: "Exhume", owner: "me", zone: "hand" },
-            { name: "Swamp", owner: "me", zone: "battlefield", count: 3 },
-            { name: "Griselbrand", owner: "me", zone: "graveyard" },
-            { name: "Llanowar Elves", owner: "opp", zone: "graveyard" },
-            { name: "Island", owner: "me", zone: "graveyard" },
-            { name: "Thoughtseize", owner: "opp", zone: "graveyard" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 3,
-    },
-    {
         // ICE computed subtype swap (issue #727, ADR 0050): Illusionary Terrain
         // in hand. As it enters, choose two basic land types — pick Forest then
         // Island. Your basic Forests immediately become Islands and tap for {U}
@@ -128,41 +115,6 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Swamp", owner: "me", zone: "battlefield" },
         ],
         phase: "UPKEEP",
-        landCount: 0,
-    },
-    {
-        // Cube FREE: edict (#682) — Sheoldred's Edict is the 3-mode
-        // `optionChoice` — its nontoken-creature mode has Balduvian Bears to
-        // sacrifice.
-        label: "Edict (#682) — Sheoldred's Edict",
-        cards: [
-            { name: "Sheoldred's Edict", owner: "me", zone: "hand" },
-            { name: "Swamp", owner: "opp", zone: "hand" },
-            { name: "Balduvian Bears", owner: "opp", zone: "battlefield" },
-            { name: "Swamp", owner: "me", zone: "battlefield", count: 6 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Dominate — targeted control change filtered by mana value (issue
-        // #994). Dominate ({X}{1}{U}{U} instant, "Gain control of target
-        // creature with mana value X or less") sits in hand. The opponent
-        // controls a Grizzly Bears (MV 2) and a Serra Angel (MV 5). Cast
-        // Dominate with X = 3: only the Bears is a legal target (MV 2 <= 3),
-        // the Serra Angel is filtered out (MV 5 > 3) — the mana-value gate in
-        // getLegalTargets (CR 202.3). On resolution the Bears moves under your
-        // control indefinitely (CR 613.1b layer-2 control change). 6 Islands
-        // cover {X=3}{1}{U}{U} = 6 mana.
-        label: "Dominate: control change filtered by mana value (#994)",
-        cards: [
-            { name: "Dominate", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield", count: 6 },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-            // { name: "Ornithopter", owner: "opp", zone: "battlefield" },
-            { name: "Serra Angel", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
 ];

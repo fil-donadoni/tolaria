@@ -28,6 +28,7 @@ import {
     mayPayCostLabel,
     mayPaySacrificeCount,
     normalizeMayPayCost,
+    manaCostToString,
     type DisplayAbilities,
 } from "../card-utils";
 import type { CardInstance } from "~/types/game";
@@ -1957,5 +1958,34 @@ describe("shouldShowOracleText — preview Oracle-text gate", () => {
         expect(show(ability)).toBe(true);
         // Empty oracleText → nothing to show even though ability-less.
         expect(show(vanilla)).toBe(false);
+    });
+});
+
+// CR 107.4 / 202.1 — mana-cost symbol rendering for the card preview. The
+// `generic` key (fixed generic mana that coexists with a variable {X}) was
+// dropped, so any card using it lost its generic pip. This is a bug CLASS:
+// every card encoding fixed generic via `generic` — not just Dominate.
+describe("manaCostToString renders fixed generic mana (bug class)", () => {
+    it("renders Dominate's {X}{1}{U}{U} — the generic:1 is not dropped", () => {
+        expect(manaCostToString(dominate.manaCost)).toBe("{X}{1}{U}{U}");
+    });
+
+    it("renders a variable-X + fixed-generic + colored cost in {X}{N}{C} order", () => {
+        // Soul Burn shape: { X: "X", generic: 2, B: 1 } → {X}{2}{B}.
+        expect(manaCostToString({ X: "X", generic: 2, B: 1 })).toBe(
+            "{X}{2}{B}"
+        );
+    });
+
+    it("renders a generic-only key with a color ({generic:2, R:1} → {2}{R})", () => {
+        expect(manaCostToString({ generic: 2, R: 1 })).toBe("{2}{R}");
+    });
+
+    it("still renders the numeric-X fixed-generic convention ({X:1, G:1} → {1}{G})", () => {
+        expect(manaCostToString({ X: 1, G: 1 })).toBe("{1}{G}");
+    });
+
+    it("collapses numeric-X and generic-key into a single {N} if both present", () => {
+        expect(manaCostToString({ X: 1, generic: 2, U: 1 })).toBe("{3}{U}");
     });
 });
