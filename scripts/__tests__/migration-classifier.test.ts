@@ -528,8 +528,12 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // 377→378, Op-blocked 226→225, X-only 14 (Everflowing Chalice's mana
         // ability is a {T}-mana closure, excluded from the migration census, so
         // it does not add to the total). Partition still holds: 411+14+225=650.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(650);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(411);
+        // #691 (Threshold/Delirium/Revolt CAP) adds Fatal Push as a resolve()
+        // closure (FREE, +1; no per-card test yet, so AFK-ready stays 378).
+        // Combined tree: total 650→651, FREE 411→412, AFK-ready 378,
+        // X-only 14, Op-blocked 225.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(651);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(412);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(378);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(225);

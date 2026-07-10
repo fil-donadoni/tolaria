@@ -375,4 +375,34 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 4,
         libraryCount: 10,
     },
+    {
+        // Threshold / Delirium / Revolt CAP (#691): Cabal Ritual in hand with
+        // 8+ cards in graveyard (threshold active). Two Swamps cover {1}{B};
+        // casting Cabal Ritual produces {B}{B}{B}{B}{B} instead of {B}{B}{B}.
+        // Graveyard also contains cards of different types to demonstrate
+        // delirium for Unholy Heat (also in hand).
+        label: "Threshold / Delirium — Cabal Ritual + Unholy Heat (#691)",
+        cards: [
+            { name: "Cabal Ritual", owner: "me", zone: "hand" },
+            { name: "Unholy Heat", owner: "me", zone: "hand" },
+            { name: "Swamp", owner: "me", zone: "battlefield", count: 3 },
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+            {
+                name: "Grizzly Bears",
+                owner: "me",
+                zone: "graveyard",
+                count: 3,
+            },
+            { name: "Swamp", owner: "me", zone: "graveyard", count: 2 },
+            {
+                name: "Balduvian Bears",
+                owner: "me",
+                zone: "graveyard",
+                count: 2,
+            },
+            { name: "Cabal Ritual", owner: "me", zone: "graveyard" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];

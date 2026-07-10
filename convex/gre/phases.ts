@@ -2422,6 +2422,10 @@ function advanceTurn(state: GameState): void {
             if (c.activationsThisTurn) c.activationsThisTurn = undefined;
         }
     }
+    // Revolt (CR 702.RV): reset the per-player "a permanent you controlled
+    // left the battlefield this turn" flag at the start of each turn.
+    for (const p of state.players)
+        p.permanentYouControlledLeftThisTurn = undefined;
     // Island Sanctuary: clear protection when the protected player's turn starts
     if (
         state.islandSanctuaryProtection &&

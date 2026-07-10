@@ -34,6 +34,8 @@ export const mineCollapse: CardDefinition = {
     effects: [{ op: "dealDamage", amount: 5, to: { target: 0 } }],
 };
 
+import type { CardDefinition } from "../../types";
+
 // TODO(issue #679 stub — Fury needs Evoke (CR 702.74): mechanicsRegistry.ts
 // lists it `status: "planned"` — same gap already flagged for Solitude
 // (mh2/white.ts) and Subtlety (mh2/blue.ts). Evoke is integral to the card
@@ -51,5 +53,41 @@ export const mineCollapse: CardDefinition = {
 //     power: 3,
 //     toughness: 3,
 // };
+
+// Unholy Heat — {R} Instant. "Unholy Heat deals 2 damage to target creature or
+// planeswalker. Delirium — Unholy Heat deals 6 damage instead if there are four
+// or more card types among cards in your graveyard." (Delirium ability word —
+// engine infra, no registry row.)
+export const unholyHeat: CardDefinition = {
+    id: "4e879386-b1f8-4f2a-9820-6e1291746f88",
+    rarity: "common",
+    name: "Unholy Heat",
+    oracleText:
+        "Unholy Heat deals 2 damage to target creature or planeswalker.\nDelirium — Unholy Heat deals 6 damage instead if there are four or more card types among cards in your graveyard.",
+    manaCost: { R: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: ["Creature", "Planeswalker"],
+        count: 1,
+    },
+    effects: [
+        {
+            op: "if",
+            predicate: {
+                left: {
+                    count: {
+                        zone: "graveyard",
+                        controller: "controller",
+                        countTypes: true,
+                    },
+                },
+                op: "ge",
+                right: 4,
+            },
+            then: [{ op: "dealDamage", amount: 6, to: { target: 0 } }],
+            else: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
+        },
+    ],
+};
 
 export {};

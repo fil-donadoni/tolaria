@@ -2786,6 +2786,11 @@ export interface SpellContext {
      *  to a `graveyard-card` selection without a battlefield presence check. */
     getGraveyardCardOwner: (id: string) => string | undefined;
 
+    /** Revolt (CR 702.RV): true when a permanent the given player controlled
+     *  left the battlefield this turn. Read by cards with the Revolt ability
+     *  word (Fatal Push). */
+    hasRevolt: (playerId: string) => boolean;
+
     /** Casts a card from the caster's hand face down as a 2/2 colourless
      *  creature spell paying no mana cost (CR 708.2 / 707; Illusionary Mask).
      *  The card is moved hand → stack, turned face down (its real id retained
@@ -4595,6 +4600,8 @@ export interface TriggerStateView {
             types: ReadonlyArray<string>;
             subtypes: ReadonlyArray<string>;
             staticAbilities: ReadonlyArray<string>;
+            power?: number;
+            toughness?: number;
             /** True for tokens (CR 111). Exposed so state-trigger conditions
              *  can scope to "nontoken permanents" — Jihad's self-sacrifice
              *  clause. Populated from the raw `CardInstanceState`. */
@@ -5083,6 +5090,12 @@ export interface EffectCountSpec {
      *  else composes it). Defaults to 1 (plain "the number of …"); `times: 2` is
      *  "twice the number of …". Must be a positive integer. */
     times?: number;
+    /** Count distinct card types among cards in the graveyard instead of total
+     *  cards (CR 205 — card types are Artifact, Battle, Creature, Enchantment,
+     *  Land, Kindred, Planeswalker, Sorcery, and Instant). Meaningful only for
+     *  `zone: "graveyard"`; ignored for `zone: "battlefield"`. Used by
+     *  Delirium: "four or more card types among cards in your graveyard". */
+    countTypes?: boolean;
 }
 
 /** Minimal JSON-pure card filter for `count` sets and a `choice` Op's

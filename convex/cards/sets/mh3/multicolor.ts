@@ -1,6 +1,8 @@
-// Modern Horizons 3 (MH3) — multicolor cards, split by colour per ADR 0043. The
-// registry's `import * as mh3 from "./sets/mh3"` resolves through mh3/index.ts.
-// Modern Scryfall oracle text is authoritative (ADR 0004).
+// MH3 — multicolor cards, split by colour per ADR 0043. The registry's
+// `import * as mh3 from "./sets/mh3"` resolves through mh3/index.ts.
+// Cards are classified by the colour identity of their mana cost (CR 202.2):
+// lands and colourless artifacts (no coloured cost) live in colorless.ts.
+
 import type { CardDefinition, SpellContext } from "../../types";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 
