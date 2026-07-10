@@ -13,6 +13,7 @@ import {
     matchesStackObjectFilter,
     wantsSpellTarget,
     getStackAbilities,
+    getGraveyardStackAbilities,
     getAnyPlayerStackAbilities,
     buildTriggerStateView,
     getAbilityOracleText,
@@ -536,6 +537,99 @@ describe("getStackAbilities", () => {
             expect(abilities).toHaveLength(1);
             expect(abilities[0].id).toBe("griselbrand-pay-life-draw");
         });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getGraveyardStackAbilities — activate-from-graveyard affordance (CR 113.6 /
+// 602.5b / 603.6e, Ashen Ghoul, #737). The board never sees the GRE, so the
+// Activate button in the Graveyard reveal dialog is driven entirely by this
+// client helper. It must agree with the server `activateAbility` mutation:
+// surface the reanimate ability only during the owner's upkeep AND when three
+// or more creature cards sit above the Ghoul in its owner's graveyard. The view
+// is built via `buildTriggerStateView` (as the UI does) — a hand-built view
+// would mask a dropped graveyard-order field.
+// ---------------------------------------------------------------------------
+
+describe("getGraveyardStackAbilities (CR 113.6 — Ashen Ghoul, #737)", () => {
+    const ASHEN_GHOUL_ID = "6bb83301-5662-4628-b536-6a3ee0296f2e";
+
+    /** Ashen Ghoul instance in p1's graveyard. */
+    const makeGhoul = () =>
+        makeCardInstance({
+            id: "ghoul-1",
+            card: { id: ASHEN_GHOUL_ID },
+            types: ["Creature"],
+            subtypes: ["Zombie"],
+            ownerId: "p1",
+            controllerId: "p1",
+            zone: "graveyard",
+        });
+
+    const creatureAbove = (id: string): CardInstance =>
+        makeCardInstance({
+            id,
+            ownerId: "p1",
+            controllerId: "p1",
+            types: ["Creature"],
+            zone: "graveyard",
+        });
+
+    /** View with the Ghoul at the BOTTOM (index 0) and `above` creatures stacked
+     *  on top of it, at `phase` on `activePlayerId`'s turn. */
+    const viewWith = (above: number, activePlayerId = "p1") =>
+        buildTriggerStateView(
+            [
+                {
+                    id: "p1",
+                    life: 20,
+                    hand: [],
+                    battlefield: [],
+                    graveyard: [
+                        makeGhoul(),
+                        ...Array.from({ length: above }, (_, i) =>
+                            creatureAbove(`bear-${i}`)
+                        ),
+                    ],
+                },
+            ],
+            activePlayerId
+        );
+
+    it("surfaces the reanimate ability during the owner's upkeep with 3 creatures above", () => {
+        const abilities = getGraveyardStackAbilities(
+            makeGhoul(),
+            "UPKEEP",
+            viewWith(3)
+        );
+        expect(abilities.map((a) => a.id)).toEqual(["ashen-ghoul-reanimate"]);
+    });
+
+    it("hides it when only 2 creature cards are above (CR 603.6e gate)", () => {
+        const abilities = getGraveyardStackAbilities(
+            makeGhoul(),
+            "UPKEEP",
+            viewWith(2)
+        );
+        expect(abilities).toHaveLength(0);
+    });
+
+    it("hides it outside the upkeep (activationPhaseRestriction)", () => {
+        const abilities = getGraveyardStackAbilities(
+            makeGhoul(),
+            "PRECOMBAT_MAIN",
+            viewWith(3)
+        );
+        expect(abilities).toHaveLength(0);
+    });
+
+    it("hides it on the opponent's turn (controllerTurnOnly)", () => {
+        const abilities = getGraveyardStackAbilities(
+            makeGhoul(),
+            "UPKEEP",
+            viewWith(3, "p2")
+        );
+        expect(abilities).toHaveLength(0);
     });
 });
 

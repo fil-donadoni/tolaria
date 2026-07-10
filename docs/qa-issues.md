@@ -4,6 +4,4 @@ Nei solo game, quando fai swap tra player1 e player2, non fare l'animazione del 
 
 Le carte esiliate face-down devono mostrare card-back, non cercare una card-image "https://cards.scryfall.io/normal/front/f/a/face-down:2-2-vanilla.jpg" che non esiste.
 
-Anche scry e tutti i dialog di choice devono poter essere abbassati per mostrare il battlefield, e poi riaperti per completare l'azione.
-
 Migliorare UI sideboard con /prototype. Card previews, possibilità di avere >60 carte nella main, miglioramento cta spostamento, visualizzazione a pile

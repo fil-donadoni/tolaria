@@ -777,6 +777,64 @@ export function getStackAbilities(
     return [...native, ...granted];
 }
 
+/** CR 113.6 / 602.5b — activated abilities the viewer may announce on a card in
+ *  their OWN graveyard (Ashen Ghoul's "{B}: Return this card from your graveyard
+ *  to the battlefield. Activate only during your upkeep and only if three or
+ *  more creature cards are above this card"). The board never sees the GRE, so
+ *  this mirrors {@link getStackAbilities} for the graveyard zone: only abilities
+ *  that opt in via `activateFromGraveyard` are eligible, gated as UI hints on
+ *  the same predicates the server enforces (`activateAbility` in game.ts is
+ *  authoritative regardless):
+ *   - `activationPhaseRestriction` (CR 602.5) narrows to the current `phase`;
+ *   - `controllerTurnOnly` ("only during your upkeep/turn") requires the
+ *     graveyard owner to be the active player (CR 602.5 — "your" = the card's
+ *     owner while it sits in the graveyard);
+ *   - `canActivate` (CR 602.5b) evaluates the ability precondition against the
+ *     viewer-visible `stateView` — for Ashen Ghoul, the
+ *     `creatureCardsAboveInGraveyard` count, which reads the projected graveyard
+ *     order carried by `buildTriggerStateView`.
+ *  Mana is deferred to the `pendingActivation` payment phase (the server opens
+ *  it), exactly like the battlefield activated-ability flow. */
+export function getGraveyardStackAbilities(
+    card: CardInstance,
+    phase: Phase | undefined,
+    stateView: TriggerStateView
+): { id: string; oracleText: string }[] {
+    // A card whose id resolves to no definition (synthetic tokens, test
+    // fixtures) has no graveyard-activatable ability — never throw here, since
+    // this runs while merely rendering the graveyard reveal for every card.
+    const cardDef = tryGetDefinition(card.card.id);
+    return (cardDef?.activatedAbilities ?? [])
+        .filter((a) => {
+            if (!a.activateFromGraveyard || !a.useStack || !a.oracleText) {
+                return false;
+            }
+            if (
+                a.activationPhaseRestriction &&
+                phase !== undefined &&
+                !a.activationPhaseRestriction.includes(phase)
+            ) {
+                return false;
+            }
+            // CR 602.5 — "Activate only during your upkeep/turn": while the card
+            // is in the graveyard its controller is its owner, so the owner must
+            // be the active player.
+            if (
+                a.controllerTurnOnly &&
+                stateView.activePlayerId !== undefined &&
+                stateView.activePlayerId !== card.ownerId
+            ) {
+                return false;
+            }
+            if (a.canActivate) {
+                if (!a.canActivate(card as unknown as PermanentView, stateView))
+                    return false;
+            }
+            return true;
+        })
+        .map((a) => ({ id: a.id, oracleText: a.oracleText }));
+}
+
 /** Filters `getStackAbilities` to those a NON-controller may activate on an
  *  OPPONENT's permanent while holding priority — the only case where a
  *  non-controller may activate. Two flags qualify: "any player may activate"

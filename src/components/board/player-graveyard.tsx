@@ -6,8 +6,13 @@ import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import { isGraveyardChoiceActive } from "~/lib/graveyard-choice";
+import {
+    buildTriggerStateView,
+    getGraveyardStackAbilities,
+} from "~/lib/card-utils";
 import CardsPile from "./cards-pile";
 import GraveyardFlashbackButton from "./graveyard-flashback-button";
+import GraveyardActivateButton from "./graveyard-activate-button";
 import LibrarySearchConfirm from "./library-search-confirm";
 
 export default function PlayerGraveyard({
@@ -21,8 +26,15 @@ export default function PlayerGraveyard({
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
 }) {
-    const { gameId, playerId, pendingTarget, pendingChoices } =
-        useGameContext();
+    const {
+        gameId,
+        playerId,
+        pendingTarget,
+        pendingChoices,
+        phase,
+        activePlayerId,
+        allPlayers,
+    } = useGameContext();
     const selectTarget = useMutation(api.game.selectTarget);
     const bufferCtx = usePendingChoiceBuffer();
     const { isMinimized, minimize } = useMinimizedChoice();
@@ -135,20 +147,43 @@ export default function PlayerGraveyard({
                     }
                     // CR 702.34 — a card in the viewer's own graveyard with a
                     // Flashback cost (printed or granted, projected as
-                    // `legalActions`) surfaces a Flashback cast button. Suppress
-                    // it while a graveyard target/choice owns the pile so the two
-                    // interactions never collide.
+                    // `legalActions`) surfaces a Flashback cast button. CR 113.6
+                    // — a card with an `activateFromGraveyard` activated ability
+                    // (Ashen Ghoul) surfaces an Activate button when the ability
+                    // is currently legal (computed client-side from the bundled
+                    // card def, same as the battlefield path). Both are
+                    // suppressed while a graveyard target/choice owns the pile so
+                    // the interactions never collide.
                     renderCardAction={
                         player.id === playerId &&
                         !isGraveyardChoice &&
                         !isGraveyardTarget
-                            ? (card, onClose) =>
-                                  card.legalActions !== undefined ? (
+                            ? (card, onClose) => {
+                                  const graveyardAbilities =
+                                      getGraveyardStackAbilities(
+                                          card,
+                                          phase,
+                                          buildTriggerStateView(
+                                              allPlayers,
+                                              activePlayerId
+                                          )
+                                      );
+                                  if (graveyardAbilities.length > 0) {
+                                      return (
+                                          <GraveyardActivateButton
+                                              cardInstanceId={card.id}
+                                              abilities={graveyardAbilities}
+                                              onCommitted={onClose}
+                                          />
+                                      );
+                                  }
+                                  return card.legalActions !== undefined ? (
                                       <GraveyardFlashbackButton
                                           card={card}
                                           onCommitted={onClose}
                                       />
-                                  ) : null
+                                  ) : null;
+                              }
                             : undefined
                     }
                     // Portrait chip control only drives the normal browse — never

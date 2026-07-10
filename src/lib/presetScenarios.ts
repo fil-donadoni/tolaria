@@ -59,27 +59,4 @@ type PresetScenario = {
     poison?: { me?: number; opp?: number };
 };
 
-export const PRESET_SCENARIOS: PresetScenario[] = [
-    {
-        // Ashen Ghoul — graveyard-source activated ability (#737, CR 113.6 /
-        // 602.5b / 603.6e). The Ghoul sits at the BOTTOM of your graveyard with
-        // three Balduvian Bears stacked above it (three creature cards above =
-        // the activation gate). It's your UPKEEP and a Swamp covers the {B}, so
-        // "{B}: Return this card from your graveyard to the battlefield" is
-        // legal — activate it to reanimate the Ghoul. Remove a Bears (or move
-        // to a later phase) to watch the gate lock the ability out.
-        label: "Ashen Ghoul — graveyard-activated reanimation (#737)",
-        cards: [
-            { name: "Ashen Ghoul", owner: "me", zone: "graveyard" },
-            {
-                name: "Balduvian Bears",
-                owner: "me",
-                zone: "graveyard",
-                count: 3,
-            },
-            { name: "Swamp", owner: "me", zone: "battlefield" },
-        ],
-        phase: "UPKEEP",
-        landCount: 0,
-    },
-];
+export const PRESET_SCENARIOS: PresetScenario[] = [];

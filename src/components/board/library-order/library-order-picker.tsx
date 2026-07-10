@@ -22,6 +22,8 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { LibraryDestination } from "@convex/gre/types";
 import { SLOT_SPRING } from "~/lib/board-motion";
+import { Minus } from "lucide-react";
+import { useMinimizedChoice } from "~/hooks/useMinimizedChoice";
 import OrderCard from "./order-card";
 import DeckMock, { DECK_W, DECK_H } from "./deck-mock";
 import { CARD_W, CARD_H, LIFT, DRAG_START_PX } from "./constants";
@@ -93,6 +95,12 @@ export default function LibraryOrderPicker({
      *  destination (empty for `none`). Both are INSTANCE ids. */
     onConfirm: (topTopmostFirst: string[], secondIds: string[]) => void;
 }) {
+    // Issue #315 — collapse this full-screen picker to the board indicator so
+    // the chooser can inspect the battlefield mid-order, then restore. Hidden
+    // via `display:none` (not unmounted) so the drag-ordering state survives a
+    // minimize/restore cycle; the Pending Choice (CR 608.2) stays active.
+    const { isMinimized, minimize } = useMinimizedChoice();
+
     const { leftLabel, rightLabel, hasSecond, detached } = distribute
         ? {
               leftLabel: "BOTTOM",
@@ -324,8 +332,23 @@ export default function LibraryOrderPicker({
     const containerH = CARD_H + LIFT;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
+        <div
+            className={`fixed inset-0 z-50 items-center justify-center bg-black/70 p-6 ${
+                isMinimized ? "hidden" : "flex"
+            }`}
+        >
             <div className="flex max-w-full flex-col gap-4">
+                <div className="flex items-center justify-end">
+                    <button
+                        type="button"
+                        onClick={minimize}
+                        aria-label="Minimize choice dialog"
+                        title="Minimize — inspect the battlefield"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-accent bg-accent/10 text-accent hover:bg-accent/20 transition-colors cursor-pointer"
+                    >
+                        <Minus className="h-4 w-4" />
+                    </button>
+                </div>
                 <p className="text-center text-sm text-muted-foreground">
                     {prompt}
                 </p>
