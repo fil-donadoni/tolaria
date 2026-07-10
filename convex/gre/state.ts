@@ -5700,7 +5700,16 @@ export function buildSpellContext(
                 state,
                 item.triggerSourceId ?? item.id
             );
-            if (src) src.card.chosenSubtypes = [...pair];
+            if (!src) return;
+            src.card.chosenSubtypes = [...pair];
+            // CR 611.2c — the enchantment's continuous subtype-set static is
+            // materialised (ADR 0050), not read at query time, so it was already
+            // applied when the permanent entered — with no pair chosen yet, a
+            // no-op. Now that the pair exists, re-materialise so basic lands of
+            // the first type swap on the live board. Idempotent: the ETB pass
+            // recorded no grant (subtypesFor returned null), so this is the
+            // first and only materialisation for this source.
+            applySourceStaticEffects(state, src.card);
         },
 
         getChosenModeId(): string | undefined {

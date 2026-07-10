@@ -2226,9 +2226,6 @@ describe("Animate Dead (Aura — CR 303.4i graveyard-target reanimation + CR 603
             { type: "graveyard-card", id: "dead", playerId: "p1" },
         ]);
         resolveTopOfStack(state);
-        const aura = state.players[0].battlefield.find(
-            (c) => (c.card as { id?: string }).id === animateDead.id
-        )!;
         // The reanimated host leaves the battlefield (destroyed / bounced /
         // exiled — modelled here as a direct move to graveyard). Its own
         // PERMANENT_LEFT is scanned and settled first.

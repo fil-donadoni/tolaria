@@ -91,7 +91,10 @@ export function buildPreviewBody(
     const isCreatureCard = types.includes("Creature");
     const showOracleText = shouldShowOracleText(def, types, subtypes);
     const oracleParagraphs = showOracleText
-        ? def!.oracleText!.split("\n").filter((p) => p.length > 0)
+        ? resolveChosenSubtypes(
+              def!.oracleText!.split("\n").filter((p) => p.length > 0),
+              cardInstance?.chosenSubtypes
+          )
         : null;
     const basePower = def?.power;
     const baseToughness = def?.toughness;
@@ -177,6 +180,25 @@ export function buildPreviewBody(
         ownerName,
         milestones,
     };
+}
+
+/** Splices an on-entry ordered pair of basic land types (CR 614.12, ADR 0050 —
+ *  Illusionary Terrain's `chosenSubtypes`) into the printed oracle text so the
+ *  preview reflects the actual choice: "the first chosen type" → "the Forest
+ *  type", "the second chosen type" → "the Island type". Until the pair is
+ *  chosen (or on a card without this template) the paragraphs pass through
+ *  unchanged. */
+function resolveChosenSubtypes(
+    paragraphs: string[],
+    pair: string[] | undefined
+): string[] {
+    if (!pair || pair.length < 2) return paragraphs;
+    const [first, second] = pair;
+    return paragraphs.map((p) =>
+        p
+            .replace(/first chosen type/g, `${first} type`)
+            .replace(/second chosen type/g, `${second} type`)
+    );
 }
 
 /** Graveyard milestones (delirium/threshold) read from the CONTROLLER's

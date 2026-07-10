@@ -12,6 +12,13 @@ export type ManaCost = {
     R?: number;
     G?: number;
     C?: number;
+    /** Fixed generic mana that coexists with a VARIABLE `{X}` pip (CR 107.3 /
+     *  202.3). The `X` field doubles as the generic-mana slot when it is a
+     *  number, so a cost with BOTH a variable `{X}` and printed generic (Soul
+     *  Burn `{X}{2}{B}`, Dominate `{X}{1}{U}{U}`) puts the variable marker in
+     *  `X: "X"` and the fixed portion here. Mirrors `ManaCost.generic` in
+     *  `convex/cards/types.ts` (the source of truth). */
+    generic?: number;
     /** How many times the chosen X is added to the generic cost for a variable
      *  `{X}` cost (CR 107.3). Defaults to 1; `2` for `{X}{X}` (Recall). */
     xFactor?: number;

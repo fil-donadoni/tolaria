@@ -1863,6 +1863,46 @@ describe("Illusionary Terrain ({U}{U} — CR 305.7 computed subtype swap, ADR 00
         expect(getBasicLandMana(land)).toBe("B");
     });
 
+    // Regression (#727 QA): the REAL runtime order is ETB-statics-first,
+    // choice-second. The terrain's statics are materialised when it enters
+    // (chosenSubtypes still empty → no swap), THEN the ETB choose-types trigger
+    // resolves and sets the pair. If the setter doesn't re-materialise the
+    // static, the land never swaps on the actual board. The other cases here
+    // set chosenSubtypes BEFORE applying statics, so they mask this ordering.
+    it("swaps a land already on the board when the pair is chosen AFTER entry (real order)", () => {
+        const state = makeState();
+        state.activePlayerId = "p1";
+        const land = makeInstance(forest.id, {
+            id: "land-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(land);
+        const terrain = makeInstance(illusionaryTerrain.id, {
+            id: "terr-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        state.players[0].battlefield.push(terrain);
+        // Terrain enters: statics materialise with no pair chosen yet → no swap.
+        applySourceStaticEffects(state, terrain);
+        expect(land.subtypes).toEqual(["Forest"]);
+        // ETB choose-types trigger resolves and picks the pair.
+        resolveTrigger(state, terrain, "illusionary-terrain-choose-types", {
+            type: "PERMANENT_ENTERED",
+            instanceId: "terr-1",
+            controllerId: "p1",
+            types: ["Enchantment"],
+        } as unknown as StackItem["triggerEvent"]);
+        submitChoice(state, ["Forest"]);
+        submitChoice(state, ["Island"]);
+        const swapped = state.players[0].battlefield.find(
+            (c) => c.id === "land-1"
+        )!;
+        expect(swapped.subtypes).toEqual(["Island"]);
+        expect(getBasicLandMana(swapped)).toBe("U");
+    });
+
     // Wire format (MANDATORY for staticEffects): the swapped subtype and the
     // producible mana must survive projection to the client.
     it("wire format: swapped Island subtype + producible {U} survive projectPublicState", () => {
@@ -1875,6 +1915,29 @@ describe("Illusionary Terrain ({U}{U} — CR 305.7 computed subtype swap, ADR 00
         expect(getBasicLandMana(slim as unknown as CardInstanceState)).toBe(
             "U"
         );
+    });
+
+    // Wire format for the preview: the chosen pair itself must survive
+    // projection so the card-preview can splice it into the oracle text
+    // ("the first chosen type" → "the Forest type"). The slimCard spread keeps
+    // top-level instance fields; this pins that chosenSubtypes is one of them.
+    it("wire format: chosenSubtypes survives projectPublicState (drives preview oracle)", () => {
+        const state = makeState();
+        const terr = makeInstance(illusionaryTerrain.id, {
+            id: "terr-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        terr.chosenSubtypes = ["Forest", "Island"];
+        state.players[0].battlefield.push(terr);
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "terr-1"
+        )!;
+        expect((slim as unknown as CardInstanceState).chosenSubtypes).toEqual([
+            "Forest",
+            "Island",
+        ]);
     });
 });
 

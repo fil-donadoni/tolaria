@@ -1,7 +1,5 @@
 frantic search deve evidenziare con un ring le carte selezionate per lo stap. così tutte le carte che fanno una selezione simile.
 
-Illusionary terrain non funziona: posso scegliere i 2 tipi di terra base quando entra, ma poi le terre in gioco coinvolte non cambiano tipo e nell'oracle text della card-preview di illusionary terrain non viene mostrato il tipo di terra scelto.
-
 Problema di wiring su Cloak of Confusion. Quando la creatura incantata attacca e non e' bloccata, va diretta al danno senza il prompt per scegliere tra danni e discard.
 
 Nei solo game, quando fai swap tra player1 e player2, non fare l'animazione del cambio punti vita, perché è solo un cambio di view.

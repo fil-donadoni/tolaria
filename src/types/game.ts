@@ -165,6 +165,12 @@ export interface CardInstance {
      *  present on own-hand projected cards; raw `knownTo` never reaches the
      *  client. */
     seenByOpponent?: boolean;
+    /** Two basic land types chosen as a permanent entered and stored for the
+     *  rest of the game (CR 603.6b / 614.12 — Illusionary Terrain). Forwarded by
+     *  `slimCard` (the projection only strips `card`/`knownTo`); read by the
+     *  card preview to render the chosen-subtype text. Mirrors
+     *  `CardInstanceState.chosenSubtypes` in `convex/gre/state.ts`. */
+    chosenSubtypes?: string[];
     /** Layer 5 color override (CR 305.7, 613.1d). Set by lace instants. */
     colorOverride?: string[];
     /** Copy effect anchor (CR 707.2). When set, this permanent is a copy and

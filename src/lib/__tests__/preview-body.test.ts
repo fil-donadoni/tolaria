@@ -10,6 +10,7 @@ import type { CardInstance } from "~/types/game";
 
 const CLONE = getCardByName("Clone");
 const SERRA = getCardByName("Serra Angel");
+const TERRAIN = getCardByName("Illusionary Terrain");
 
 describe("buildPreviewBody — original (printed) face (CR 707.2)", () => {
     it("returns the printed identity of the copiedFrom card", () => {
@@ -81,5 +82,48 @@ describe("buildPreviewBody — original (printed) face (CR 707.2)", () => {
         );
         expect(current.displayName).toBe("Serra Angel");
         expect(current.hasPT).toBe(true);
+    });
+});
+
+describe("buildPreviewBody — Illusionary Terrain chosen types (CR 614.12, ADR 0050)", () => {
+    function terrainInstance(chosenSubtypes?: string[]): CardInstance {
+        return {
+            id: "terr-1",
+            card: { id: TERRAIN.id },
+            types: TERRAIN.types,
+            subtypes: TERRAIN.subtypes ?? [],
+            staticAbilities: TERRAIN.staticAbilities ?? [],
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+            isTapped: false,
+            isSummoningSick: false,
+            ...(chosenSubtypes ? { chosenSubtypes } : {}),
+        } as unknown as CardInstance;
+    }
+
+    it("splices the chosen pair into the oracle text once picked", () => {
+        const body = buildPreviewBody(
+            TERRAIN.id,
+            terrainInstance(["Forest", "Island"]),
+            { allPlayers: [], playerId: "p1" }
+        );
+        const joined = (body.oracleParagraphs ?? []).join("\n");
+        expect(joined).toContain(
+            "Basic lands of the Forest type are the Island type."
+        );
+        expect(joined).not.toContain("first chosen type");
+        expect(joined).not.toContain("second chosen type");
+    });
+
+    it("shows the printed placeholder text before a pair is chosen", () => {
+        const body = buildPreviewBody(TERRAIN.id, terrainInstance(), {
+            allPlayers: [],
+            playerId: "p1",
+        });
+        const joined = (body.oracleParagraphs ?? []).join("\n");
+        expect(joined).toContain(
+            "Basic lands of the first chosen type are the second chosen type."
+        );
     });
 });
