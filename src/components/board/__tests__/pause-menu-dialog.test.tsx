@@ -62,8 +62,9 @@ describe("PauseMenuDialog Concede vs Forfeit (issue #396)", () => {
                 match={bo(1)}
             />
         );
-        // No separate Forfeit action in a Bo1.
-        expect(queryByRole("button", { name: "Forfeit Match" })).toBeNull();
+        // No separate match-ending action in a Bo1 (the "Concede Match" button,
+        // which dispatches forfeitMatch, is Bo3-only).
+        expect(queryByRole("button", { name: "Concede Match" })).toBeNull();
         fireEvent.click(getByRole("button", { name: "Concede" }));
         fireEvent.click(getByRole("button", { name: "Yes" }));
         await Promise.resolve();
@@ -89,7 +90,7 @@ describe("PauseMenuDialog Concede vs Forfeit (issue #396)", () => {
         expect(forfeitMatch).not.toHaveBeenCalled();
     });
 
-    it("Bo3: Forfeit Match dispatches forfeitMatch and clears the session", async () => {
+    it("Bo3: Concede Match dispatches forfeitMatch and clears the session", async () => {
         const { getByRole } = render(
             <PauseMenuDialog
                 open
@@ -99,7 +100,8 @@ describe("PauseMenuDialog Concede vs Forfeit (issue #396)", () => {
                 match={bo(3)}
             />
         );
-        fireEvent.click(getByRole("button", { name: "Forfeit Match" }));
+        // "Concede Match" is the UI label; it still dispatches forfeitMatch.
+        fireEvent.click(getByRole("button", { name: "Concede Match" }));
         fireEvent.click(getByRole("button", { name: "Yes" }));
         await Promise.resolve();
         expect(forfeitMatch).toHaveBeenCalledWith({

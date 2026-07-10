@@ -532,11 +532,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // closure (FREE, +1; no per-card test yet, so AFK-ready stays 378).
         // Combined tree: total 650→651, FREE 411→412, AFK-ready 378,
         // X-only 14, Op-blocked 225.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(651);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(412);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(378);
+        // Known-bottom library (this PR, ADR 0026 — scry/Impulse-bottomed cards
+        // become known and orderable): two deltas.
+        //  1. Stock Up migrated resolve() → the `digToHand` Op, removing one
+        //     FREE + AFK-ready closure (total −1, FREE −1, AFK-ready −1).
+        //  2. `digToHand`'s binding now folds `markKnown` (+ `readOrderedSecond`)
+        //     — those primitives become COVERED live (the classifier reads every
+        //     Op binding as its covered-primitive set). Five resolve() closures
+        //     that were Op-blocked ONLY on `markKnown` reclassify Op-blocked →
+        //     FREE, and all five carry a per-card test → AFK-ready too
+        //     (Op-blocked −5, FREE +5, AFK-ready +5).
+        // Net from #691: total 651→650, FREE 412→416, AFK-ready 378→382,
+        // Op-blocked 225→220, X-only 14. Partition holds: 416+14+220=650.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(650);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(416);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(382);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(225);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(220);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
@@ -546,8 +558,9 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // grantStaticAbility, applyRegenerationShield and now
         // peekLibraryTop / orderTop are COVERED Ops (they appear in the "Covered
         // Ops" line, no longer in the backlog). peekLibraryTop was the top
-        // blocker before #885; the backlog still surfaces the next primitives
-        // (moveZone / markKnown / …), a stable signal that it is being read.
+        // blocker before #885, and `markKnown` folded into a covered Op with the
+        // known-bottom PR (`digToHand`'s binding); the backlog still surfaces the
+        // next primitives (moveZone / …), a stable signal that it is being read.
         expect(summary).toMatch(/New-Op backlog/);
         expect(summary).toMatch(/Covered Ops[^\n]*applyRegenerationShield/);
         expect(summary).toMatch(/Covered Ops[^\n]*peekLibraryTop/);
