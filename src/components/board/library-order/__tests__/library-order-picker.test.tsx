@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
+import type { ReactElement } from "react";
 import LibraryOrderPicker from "../library-order-picker";
+import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
 
 const looked = [
     { instanceId: "a", defId: "def-a" },
@@ -8,12 +10,23 @@ const looked = [
     { instanceId: "c", defId: "def-c" },
 ];
 
+// Issue #315 — the picker reads `useMinimizedChoice` (minimize-to-board). The
+// board mounts the real provider; these tests only need a no-op so the hook
+// resolves. Mirrors the wrapper in player-graveyard / board-piles tests.
+const noopMinimized = { isMinimized: false, minimize: () => {} };
+const renderPicker = (ui: ReactElement) =>
+    render(
+        <MinimizedChoiceContext value={noopMinimized}>
+            {ui}
+        </MinimizedChoiceContext>
+    );
+
 describe("LibraryOrderPicker", () => {
     it("confirming without dragging preserves the current top order and keeps everything on top", () => {
         // `lookedAt` is top-to-bottom (a = current top). No drag → the submit
         // must reproduce that order (topmost first) with nothing sent away.
         const onConfirm = vi.fn();
-        const { getByText } = render(
+        const { getByText } = renderPicker(
             <LibraryOrderPicker
                 lookedAt={looked}
                 destination="library-bottom"
@@ -27,7 +40,7 @@ describe("LibraryOrderPicker", () => {
     });
 
     it("renders scry chrome for library-bottom", () => {
-        const { getByText } = render(
+        const { getByText } = renderPicker(
             <LibraryOrderPicker
                 lookedAt={looked}
                 destination="library-bottom"
@@ -41,7 +54,7 @@ describe("LibraryOrderPicker", () => {
     });
 
     it("renders surveil chrome for graveyard", () => {
-        const { getByText } = render(
+        const { getByText } = renderPicker(
             <LibraryOrderPicker
                 lookedAt={looked}
                 destination="graveyard"
@@ -56,7 +69,7 @@ describe("LibraryOrderPicker", () => {
 
     it("order-only (none) shows a single top label and submits an empty second list", () => {
         const onConfirm = vi.fn();
-        const { getByText } = render(
+        const { getByText } = renderPicker(
             <LibraryOrderPicker
                 lookedAt={looked}
                 destination="none"
@@ -72,7 +85,7 @@ describe("LibraryOrderPicker", () => {
 
     it("does not fire onConfirm while a submission is in flight", () => {
         const onConfirm = vi.fn();
-        const { getByText } = render(
+        const { getByText } = renderPicker(
             <LibraryOrderPicker
                 lookedAt={looked}
                 destination="library-bottom"
@@ -87,7 +100,7 @@ describe("LibraryOrderPicker", () => {
 
     // distribute mode (Impulse / Stock Up): HAND (right) / BOTTOM (left).
     it("renders HAND/BOTTOM chrome in distribute mode", () => {
-        const { getByText } = render(
+        const { getByText } = renderPicker(
             <LibraryOrderPicker
                 lookedAt={looked}
                 destination="library-bottom"
@@ -106,7 +119,7 @@ describe("LibraryOrderPicker", () => {
         // the Done button is disabled and clicking it must not submit an illegal
         // (zero-to-hand) selection.
         const onConfirm = vi.fn();
-        const { getByText } = render(
+        const { getByText } = renderPicker(
             <LibraryOrderPicker
                 lookedAt={looked}
                 destination="library-bottom"
