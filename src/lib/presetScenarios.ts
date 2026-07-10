@@ -65,7 +65,7 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         label: "X mana cost (CR 601.2b) — cost dialog X stepper",
         cards: [
             { name: "Disintegrate", owner: "me", zone: "hand" },
-            { name: "Green Sun's Zenith", owner: "me", zone: "hand" },
+            // { name: "Green Sun's Zenith", owner: "me", zone: "hand" },
             { name: "Mountain", owner: "me", zone: "battlefield", count: 5 },
             { name: "Forest", owner: "me", zone: "battlefield", count: 2 },
             { name: "Serra Angel", owner: "opp", zone: "battlefield" },
@@ -98,6 +98,7 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Island", owner: "me", zone: "battlefield", count: 2 },
             { name: "Forest", owner: "me", zone: "battlefield", count: 2 },
             { name: "Sol Ring", owner: "opp", zone: "battlefield" },
+            { name: "Jayemdae Tome", owner: "opp", zone: "battlefield" },
             { name: "Serra Angel", owner: "opp", zone: "battlefield" },
         ],
         phase: "PRECOMBAT_MAIN",
