@@ -13,7 +13,11 @@ const looked = [
 // Issue #315 — the picker reads `useMinimizedChoice` (minimize-to-board). The
 // board mounts the real provider; these tests only need a no-op so the hook
 // resolves. Mirrors the wrapper in player-graveyard / board-piles tests.
-const noopMinimized = { isMinimized: false, minimize: () => {} };
+const noopMinimized = {
+    isMinimized: false,
+    minimize: () => {},
+    restore: () => {},
+};
 const renderPicker = (ui: ReactElement) =>
     render(
         <MinimizedChoiceContext value={noopMinimized}>
