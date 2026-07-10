@@ -1,171 +1,70 @@
-import { ART_CROP_RATIO } from "~/lib/images";
-import { formatOracleText } from "~/lib/oracle-text";
-import CardImageLoader from "./card-image-loader";
-import TokenPlaceholder from "./token-placeholder";
-import CardPreviewAbilities from "./card-preview-abilities";
-import CardPreviewCounters from "./card-preview-counters";
-import CardPreviewNotedMana from "./card-preview-noted-mana";
-import type { DisplayAbilities } from "~/lib/card-utils";
-import type { CounterDisplay } from "~/lib/counters";
+import CardPreviewFace from "./card-preview-face";
+import type { PreviewBodyContent } from "~/lib/preview-body";
 
-// Shared visual body for both card preview surfaces: the desktop center-left
-// fixed dock and the mobile centered long-press overlay (ADR 0009). Both show
-// the same art + rules content; only the framing/positioning differs, so the
-// content lives here once and each surface wraps it. `size` scales the text
-// chrome ("sm" = compact desktop dock, "md" = larger mobile overlay).
-export type CardPreviewBodyProps = {
-    cardName: string;
-    displayName: string;
-    imageSrc: string | null;
-    types: string[];
-    subtypes: string[];
-    staticAbilities: string[];
-    manaCost: string | null;
-    typeLine: string;
-    oracleParagraphs: string[] | null;
-    bodyAbilities: DisplayAbilities;
-    hasBody: boolean;
-    hasPT: boolean;
-    effPower?: number;
-    effToughness?: number;
-    basePower?: number;
-    baseToughness?: number;
-    ptModified: boolean;
-    counterDisplays: CounterDisplay[];
-    notedMana?: { mana: Record<string, number>; castableCardId?: string };
-    colorName: string | null;
-    ownerName: string | null;
+// Composes the card-preview content shown by all three surfaces (desktop
+// anchored dock, hold-zoom dock, mobile overlay). Normally one face; for a copy
+// permanent (CR 707.2) it renders TWO faces side by side — the CURRENT
+// (presented) identity and the ORIGINAL (printed) identity — each with a small
+// label, mirroring Arena's copy treatment. A spell copy on the stack (CR
+// 707.10 — Fork, storm) has no distinct printed identity, so it gets a `Copy`
+// badge on the single face instead of a second face.
+export type CardPreviewBodyProps = PreviewBodyContent & {
     size: "sm" | "md";
     onImageLoaded?: () => void;
     imageLoaded?: boolean;
+    /** Printed original identity of a copy permanent (from `copiedFrom`). When
+     *  present the preview renders two labeled faces (Current + Original). */
+    originalBody?: PreviewBodyContent | null;
+    /** Render a `Copy` badge on the single face (spell copy on the stack). */
+    showCopyBadge?: boolean;
 };
 
+const LABEL_CLASS =
+    "px-3 pt-2 text-[10px] font-semibold uppercase tracking-wide text-text-muted";
+
 export default function CardPreviewBody({
-    cardName,
-    displayName,
-    imageSrc,
-    types,
-    subtypes,
-    staticAbilities,
-    manaCost,
-    typeLine,
-    oracleParagraphs,
-    bodyAbilities,
-    hasBody,
-    hasPT,
-    effPower,
-    effToughness,
-    basePower,
-    baseToughness,
-    ptModified,
-    counterDisplays,
-    notedMana,
-    colorName,
-    ownerName,
     size,
     onImageLoaded,
-    imageLoaded = true,
+    imageLoaded,
+    originalBody,
+    showCopyBadge,
+    ...content
 }: CardPreviewBodyProps) {
-    const compact = size === "sm";
-    const textPad = compact ? "p-3" : "p-4";
-    const textBase = compact ? "text-xs" : "text-sm";
-    const nameSize = compact ? "" : "text-base";
-    const manaSize = compact ? "text-sm" : "text-base";
-    const ptSize = compact ? "text-sm" : "text-base";
-    const ptBaseSize = compact ? "text-xs" : "text-sm";
-    const sectionSize = compact ? "text-xs" : "text-sm";
+    if (originalBody) {
+        return (
+            <div className="flex w-full items-stretch">
+                <div className="flex flex-1 min-w-0 flex-col border-r border-border-subtle">
+                    <div className={LABEL_CLASS}>Current</div>
+                    <CardPreviewFace
+                        {...content}
+                        size={size}
+                        onImageLoaded={onImageLoaded}
+                        imageLoaded={imageLoaded}
+                    />
+                </div>
+                <div className="flex flex-1 min-w-0 flex-col">
+                    <div className={LABEL_CLASS}>Original</div>
+                    <CardPreviewFace {...originalBody} size={size} />
+                </div>
+            </div>
+        );
+    }
 
     return (
         <>
-            <div
-                className="relative w-full"
-                style={{ aspectRatio: ART_CROP_RATIO }}
-            >
-                {imageSrc ? (
-                    <>
-                        <img
-                            src={imageSrc}
-                            className="w-full h-full block select-none"
-                            alt={cardName}
-                            style={{
-                                objectFit: "cover",
-                                WebkitTouchCallout: "none",
-                            }}
-                            onLoad={onImageLoaded}
-                            onError={onImageLoaded}
-                        />
-                        {!imageLoaded && <CardImageLoader />}
-                    </>
-                ) : (
-                    <TokenPlaceholder
-                        name={displayName}
-                        types={types}
-                        subtypes={subtypes}
-                        power={effPower ?? basePower}
-                        toughness={effToughness ?? baseToughness}
-                        staticAbilities={staticAbilities}
-                    />
-                )}
-            </div>
-            <div
-                className={`${textPad} ${textBase} text-text space-y-2 overflow-y-auto`}
-            >
-                <div className="flex items-baseline justify-between gap-2">
-                    <span className={`font-semibold ${nameSize} truncate`}>
-                        {displayName}
+            {showCopyBadge && (
+                <div className="px-3 pt-2">
+                    <span className="inline-block rounded-sm bg-accent-strong/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent-strong">
+                        Copy
                     </span>
-                    {manaCost && (
-                        <span className={`shrink-0 ${manaSize} leading-none`}>
-                            {formatOracleText(manaCost)}
-                        </span>
-                    )}
                 </div>
-                <div className="text-text-muted">{typeLine}</div>
-                {oracleParagraphs && (
-                    <div className="border-t border-border-subtle pt-2 space-y-1.5 text-text">
-                        {oracleParagraphs.map((p, i) => (
-                            <div key={`oracle-${i}`}>{formatOracleText(p)}</div>
-                        ))}
-                    </div>
-                )}
-                {hasBody && <CardPreviewAbilities abilities={bodyAbilities} />}
-                {hasPT && (
-                    <div
-                        className={`text-right font-semibold ${ptSize} border-t border-border-subtle pt-2 flex justify-end items-baseline gap-2`}
-                    >
-                        <span
-                            className={
-                                ptModified ? "text-emerald-400" : "text-text"
-                            }
-                        >
-                            {effPower ?? 0}/{effToughness ?? 0}
-                        </span>
-                        {ptModified && (
-                            <span
-                                className={`text-red-400 ${ptBaseSize} font-normal`}
-                            >
-                                ({basePower}/{baseToughness})
-                            </span>
-                        )}
-                    </div>
-                )}
-                <CardPreviewCounters counters={counterDisplays} />
-                <CardPreviewNotedMana noted={notedMana} />
-                {colorName && (
-                    <div
-                        className={`border-t border-border-subtle pt-2 ${sectionSize} font-semibold text-accent-strong`}
-                    >
-                        Color: {colorName}
-                    </div>
-                )}
-                {ownerName && (
-                    <div
-                        className={`text-text-muted border-t border-border-subtle pt-2 ${sectionSize} italic`}
-                    >
-                        Owner: {ownerName}
-                    </div>
-                )}
-            </div>
+            )}
+            <CardPreviewFace
+                {...content}
+                size={size}
+                onImageLoaded={onImageLoaded}
+                imageLoaded={imageLoaded}
+            />
         </>
     );
 }

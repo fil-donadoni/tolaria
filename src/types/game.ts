@@ -231,6 +231,12 @@ export interface StackItem extends CardInstance {
         id: string;
         playerId?: string;
     }[];
+    /** If set, this stack item is a copy of a spell (CR 707.10 — Fork,
+     *  storm copies). A spell copy has no distinct printed identity, so the
+     *  preview shows a `Copy` badge rather than a second (original) face.
+     *  Survives the wire projection via `slimCard`; declared here so the
+     *  client can read it. */
+    isCopy?: boolean;
     /** If set, this stack item is an activated ability (not a spell). */
     abilityId?: string;
     /** If set, this stack item is a triggered ability (CR 603). */

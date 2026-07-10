@@ -29,6 +29,12 @@ type CardImageProps = {
      * sets it so off-screen results only fetch art as they near the viewport.
      */
     lazy?: boolean;
+    /**
+     * Show a `Copy` badge on the hover/zoom preview (spell copy on the stack,
+     * CR 707.10). Forwarded to CardPreview. Permanent copies show a second
+     * printed face instead, driven by `cardInstance.copiedFrom`.
+     */
+    showCopyBadge?: boolean;
 };
 
 function isCardInstance(
@@ -41,7 +47,11 @@ function getDefId(card: CardInstance | { id: string }): string {
     return getCardImageDefId(card);
 }
 
-function CardImageImpl({ card, lazy = false }: CardImageProps) {
+function CardImageImpl({
+    card,
+    lazy = false,
+    showCopyBadge = false,
+}: CardImageProps) {
     const cardInstance = isCardInstance(card) ? card : undefined;
     const defId = getDefId(card);
     const def = tryGetDefinition(defId);
@@ -52,7 +62,12 @@ function CardImageImpl({ card, lazy = false }: CardImageProps) {
     const imageId = resolveCardImageId(defId);
     const [loaded, setLoaded] = useState(false);
     return (
-        <CardPreview cardId={defId} cardName={name} cardInstance={cardInstance}>
+        <CardPreview
+            cardId={defId}
+            cardName={name}
+            cardInstance={cardInstance}
+            showCopyBadge={showCopyBadge}
+        >
             <div
                 className="relative w-full h-full rounded-[7%] overflow-hidden"
                 style={STABLE_LAYER}
@@ -99,6 +114,7 @@ const CardImage = memo(
     CardImageImpl,
     (prev, next) =>
         prev.lazy === next.lazy &&
+        prev.showCopyBadge === next.showCopyBadge &&
         cardImageSignature(prev.card) === cardImageSignature(next.card)
 );
 export default CardImage;

@@ -32,6 +32,8 @@ const DOCK_WIDTH = 128 * 2;
 const VIEWPORT_PAD = 8;
 
 export default function CardPreviewDock(props: CardPreviewBodyProps) {
+    // A copy permanent shows two faces (Current + Original) — double the width.
+    const width = props.originalBody ? DOCK_WIDTH * 2 : DOCK_WIDTH;
     return createPortal(
         <div
             data-card-preview-dock
@@ -43,7 +45,7 @@ export default function CardPreviewDock(props: CardPreviewBodyProps) {
         >
             <div
                 className="card-preview-dock pointer-events-none flex max-h-full flex-col overflow-hidden rounded-2xl bg-surface"
-                style={{ width: DOCK_WIDTH }}
+                style={{ width }}
             >
                 <CardPreviewBody {...props} />
             </div>

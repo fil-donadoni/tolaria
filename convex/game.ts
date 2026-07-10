@@ -57,6 +57,7 @@ import {
     dealDamageFromPermanentToPlayer,
     loseLifeEmitting,
 } from "./gre/state";
+import { applyCopy } from "./gre/copy";
 import {
     type SacrificeSelection,
     type SacrificeRequirement,
@@ -9311,6 +9312,13 @@ export const debugSetupScenario = mutation({
                  *  summoning-sick: the animated creature can't attack and can't
                  *  pay {T}. Battlefield default is `false`. #545. */
                 summoningSick: v.optional(v.boolean()),
+                /** Make this battlefield permanent a COPY of another card by
+                 *  name (CR 707.2 — Clone, Copy Artifact, Vesuvan Doppelganger).
+                 *  `name` is the copy's printed identity (preserved in
+                 *  `copiedFrom`); `copyOf` is the copied object it presents. The
+                 *  card-preview then shows both faces (Current + Original).
+                 *  Battlefield only. */
+                copyOf: v.optional(v.string()),
             })
         ),
         phase: v.optional(v.string()),
@@ -9452,6 +9460,18 @@ export const debugSetupScenario = mutation({
                     // clock so a manland animated the same turn reads sick (#545).
                     if (entry.summoningSick) {
                         (instance as CardInstanceState).isSummoningSick = true;
+                    }
+                    // CR 707.2 — make this permanent a copy of another card, so
+                    // the debug board can exercise the two-face copy preview
+                    // (Current = copied object, Original = printed identity).
+                    if (entry.copyOf) {
+                        const sourceDef = getCardByName(entry.copyOf);
+                        // applyCopy only reads the source's presented def id
+                        // (`source.card.id`), so a minimal stand-in suffices.
+                        const source = {
+                            card: { id: sourceDef.id },
+                        } as unknown as CardInstanceState;
+                        applyCopy(instance as CardInstanceState, source);
                     }
                     player.battlefield.push(instance);
                 }

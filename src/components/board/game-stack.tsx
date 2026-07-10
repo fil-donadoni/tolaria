@@ -187,7 +187,10 @@ export default function GameStack({ stack }: GameStackProps) {
                                         kind={abilityKind}
                                     />
                                 ) : (
-                                    <ColorOverlayCardImage card={item} />
+                                    <ColorOverlayCardImage
+                                        card={item}
+                                        showCopyBadge={item.isCopy}
+                                    />
                                 )}
                             </button>
                         );

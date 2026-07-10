@@ -4,8 +4,11 @@ import CardImage from "./card-image";
 
 export default function ColorOverlayCardImage({
     card,
+    showCopyBadge,
 }: {
     card: CardInstance;
+    /** Spell copy on the stack (CR 707.10) — forwarded to the preview badge. */
+    showCopyBadge?: boolean;
 }) {
     const colorDisplay = card.colorOverride?.length
         ? getColorOverrideDisplay(card.colorOverride)
@@ -13,7 +16,7 @@ export default function ColorOverlayCardImage({
 
     return (
         <div className="relative">
-            <CardImage card={card} />
+            <CardImage card={card} showCopyBadge={showCopyBadge} />
             {colorDisplay && (
                 <div
                     className="absolute inset-0 pointer-events-none rounded-[7%] z-[5]"

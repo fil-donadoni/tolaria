@@ -1,21 +1,10 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { tryGetDefinition } from "@convex/cards";
-import { getArtCropImageUrl, resolveCardImageId } from "~/lib/images";
-import {
-    formatTypeLine,
-    getDisplayAbilities,
-    shouldShowOracleText,
-    manaCostToString,
-    resolvePreviewAbilities,
-} from "~/lib/card-utils";
-import { effectivePower, effectiveToughness } from "~/lib/effective-stats";
 import { GameContext } from "~/hooks/useGameContext";
 import { useLongPress } from "~/hooks/useLongPress";
 import { useRightPressPreview } from "~/hooks/useRightPressPreview";
 import type { CardInstance } from "~/types/game";
-import { getColorOverrideDisplay } from "~/lib/color-override";
-import { getCounterDisplays } from "~/lib/counters";
+import { buildPreviewBody } from "~/lib/preview-body";
 import { releasePreview, requestOpenPreview } from "./card-preview-singleton";
 import CardPreviewBody from "./card-preview-body";
 import CardPreviewDock from "./card-preview-dock";
@@ -27,6 +16,10 @@ type CardPreviewProps = {
     cardId: string;
     cardName: string;
     cardInstance?: CardInstance;
+    /** Render a `Copy` badge on the preview (spell copy on the stack, CR
+     *  707.10). Permanent copies show a second face instead — driven by
+     *  `cardInstance.copiedFrom`, not this flag. */
+    showCopyBadge?: boolean;
     children: React.ReactNode;
 };
 
@@ -34,6 +27,7 @@ export default function CardPreview({
     cardId,
     cardName,
     cardInstance,
+    showCopyBadge,
     children,
 }: CardPreviewProps) {
     // Desktop preview is CLICK-driven (Arena model, #332). The RIGHT button
@@ -177,110 +171,28 @@ export default function CardPreview({
         };
     }, [onRightPress]);
 
-    const def = tryGetDefinition(cardId);
-    const abilities = def
-        ? getDisplayAbilities(cardId, cardInstance)
-        : { keywords: [], activated: [], triggered: [] };
-    const manaCost = manaCostToString(def?.manaCost);
-    const typeLine = formatTypeLine(
-        cardInstance?.types ?? def?.types,
-        cardInstance?.subtypes ?? def?.subtypes,
-        def?.supertypes
-    );
-    const types = cardInstance?.types ?? def?.types ?? [];
-    const subtypes = cardInstance?.subtypes ?? def?.subtypes ?? [];
-    const isCreatureCard = types.includes("Creature");
-    // Whether to print the Oracle text vs the structured ability rows. The
-    // gate lives in card-utils (`shouldShowOracleText`) so it is unit-tested
-    // directly — it covers spells, auras, ability-less cards, and cards whose
-    // behavior is oracle-text-only (staticEffects, replacementEffects,
-    // enter-tapped mechanics — CR 611/613/614). See the helper for detail.
-    const showOracleText = shouldShowOracleText(def, types, subtypes);
-    const oracleParagraphs = showOracleText
-        ? def!.oracleText!.split("\n").filter((p) => p.length > 0)
-        : null;
-    const basePower = def?.power;
-    const baseToughness = def?.toughness;
-    // Effective P/T (CR 611, 613 — layer 7c static buffs + counters) only
-    // computable when the preview is mounted under a game context with the
-    // full battlefield. Outside (deck builder), fall back to printed P/T.
-    const effPower =
-        cardInstance && gameCtx
-            ? effectivePower(gameCtx.allPlayers, cardInstance)
-            : (cardInstance?.power ?? basePower);
-    const effToughness =
-        cardInstance && gameCtx
-            ? effectiveToughness(gameCtx.allPlayers, cardInstance)
-            : (cardInstance?.toughness ?? baseToughness);
-    const ptModified =
-        basePower !== undefined &&
-        baseToughness !== undefined &&
-        (effPower !== basePower || effToughness !== baseToughness);
-    const hasPT =
-        isCreatureCard &&
-        (effPower !== undefined || effToughness !== undefined);
-    // When Oracle text is shown it covers native abilities; only runtime-grant
-    // deltas (granted/lost keywords, granted activated abilities) need to be
-    // surfaced alongside it (#156). When it isn't, render the full set.
-    const bodyAbilities = resolvePreviewAbilities(abilities, showOracleText);
-    const hasBody =
-        bodyAbilities.keywords.length > 0 ||
-        bodyAbilities.activated.length > 0 ||
-        bodyAbilities.triggered.length > 0;
-    const displayName = def?.name ?? cardName;
-    // Tokens (CR 111) without a printed art id render an in-app placeholder
-    // in the preview — Scryfall has no entry for synthesized `token:` ids
-    // and would 404. `resolveCardImageId` returns null in that case.
-    const imageId = resolveCardImageId(cardId);
-    const imageSrc = imageId ? getArtCropImageUrl(imageId) : null;
-    const showOwner =
-        !!cardInstance &&
-        !!gameCtx &&
-        cardInstance.zone === "battlefield" &&
-        cardInstance.controllerId !== gameCtx.playerId;
-    const ownerName = showOwner
-        ? (gameCtx.allPlayers.find((p) => p.id === cardInstance.ownerId)
-              ?.name ?? null)
-        : null;
-
-    const colorDisplay = cardInstance?.colorOverride?.length
-        ? getColorOverrideDisplay(cardInstance.colorOverride)
-        : null;
-
-    const counterDisplays = cardInstance
-        ? getCounterDisplays(cardInstance)
-        : [];
-
     const dismissOverlay = useCallback(() => {
         longPress.dismiss();
     }, [longPress]);
 
-    // Shared content props for both preview surfaces (desktop dock + mobile
-    // overlay) — same art + rules text, only the framing differs.
-    const sharedBody = {
-        cardName,
-        displayName,
-        imageSrc,
-        types,
-        subtypes,
-        staticAbilities:
-            cardInstance?.staticAbilities ?? def?.staticAbilities ?? [],
-        manaCost,
-        typeLine,
-        oracleParagraphs,
-        bodyAbilities,
-        hasBody,
-        hasPT,
-        effPower,
-        effToughness,
-        basePower,
-        baseToughness,
-        ptModified,
-        counterDisplays,
-        notedMana: cardInstance?.notedMana,
-        colorName: colorDisplay?.name ?? null,
-        ownerName,
-    };
+    // Current (presented) face — identical to the pre-refactor behavior:
+    // effective P/T, counters, color override, owner, granted abilities.
+    const currentBody = buildPreviewBody(
+        cardId,
+        cardInstance,
+        gameCtx,
+        cardName
+    );
+    // Original (printed) face — only for a copy permanent (CR 707.2). Built
+    // from the preserved printed id with NO instance/context, so it is the
+    // pure printed identity (name, art, type line, oracle, printed P/T).
+    const originalBody = cardInstance?.copiedFrom
+        ? buildPreviewBody(cardInstance.copiedFrom)
+        : null;
+    const imageSrc = currentBody.imageSrc;
+    // Two faces double the surface width; keep the mobile overlay clamped by
+    // its max-w so it never exceeds the viewport.
+    const overlayFactor = originalBody ? 3 : 1.5;
 
     return (
         <div
@@ -308,11 +220,16 @@ export default function CardPreview({
                     >
                         <div
                             className="flex flex-col rounded-2xl shadow-2xl bg-surface overflow-hidden max-h-[90vh] max-w-[90vw]"
-                            style={{ width: OVERLAY_WIDTH * 1.5 }}
+                            style={{ width: OVERLAY_WIDTH * overlayFactor }}
                             onTouchEnd={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <CardPreviewBody {...sharedBody} size="md" />
+                            <CardPreviewBody
+                                {...currentBody}
+                                originalBody={originalBody}
+                                showCopyBadge={showCopyBadge}
+                                size="md"
+                            />
                         </div>
                     </div>,
                     document.body
@@ -322,7 +239,9 @@ export default function CardPreview({
                 the anchored preview — only one desktop surface shows at a time. */}
             {showZoomDock && gameCtx && (
                 <CardPreviewDock
-                    {...sharedBody}
+                    {...currentBody}
+                    originalBody={originalBody}
+                    showCopyBadge={showCopyBadge}
                     size="md"
                     imageLoaded={imageSrc ? imgLoaded : true}
                     onImageLoaded={() => setImgLoaded(true)}
@@ -333,7 +252,9 @@ export default function CardPreview({
                 hold-zoom dock is up. */}
             {showAnchored && !showZoomDock && (
                 <CardPreviewAnchored
-                    {...sharedBody}
+                    {...currentBody}
+                    originalBody={originalBody}
+                    showCopyBadge={showCopyBadge}
                     size="sm"
                     imageLoaded={imageSrc ? imgLoaded : true}
                     onImageLoaded={() => setImgLoaded(true)}

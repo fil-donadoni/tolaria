@@ -1,10 +1,6 @@
 frantic search deve evidenziare con un ring le carte selezionate per lo stap. così tutte le carte che fanno una selezione simile.
 
-quando una carta tipo Copy artifact diventa una copia, la card-preview deve mostrare accanto allo stato attuale anche la carta originale. vedi ui arena.
-
 Illusionary terrain non funziona: posso scegliere i 2 tipi di terra base quando entra, ma poi le terre in gioco coinvolte non cambiano tipo e nell'oracle text della card-preview di illusionary terrain non viene mostrato il tipo di terra scelto.
-
-Manca la seconda abilità attivata di Psychic frog
 
 Phase out dovrebbe mostrare le carte disabilitate e con poca opacità, non farle sparire del tutto
 

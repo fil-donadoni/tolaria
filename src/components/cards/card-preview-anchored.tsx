@@ -66,6 +66,9 @@ export default function CardPreviewAnchored({
 }: CardPreviewAnchoredProps) {
     const [position, setPosition] = useState({ top: 0, left: 0 });
     const [measured, setMeasured] = useState(false);
+    // A copy permanent shows two faces (Current + Original) — double the width;
+    // the viewport-clamp below keeps it on screen.
+    const width = body.originalBody ? DOCK_WIDTH * 2 : DOCK_WIDTH;
 
     // Callback ref measures synchronously when the panel mounts, so the first
     // paint already has the correct (clamped) position. Variable-height oracle
@@ -93,7 +96,7 @@ export default function CardPreviewAnchored({
             style={{
                 top: position.top,
                 left: position.left,
-                width: DOCK_WIDTH,
+                width,
                 maxHeight: `calc(100vh - ${VIEWPORT_PAD * 2}px)`,
                 opacity: measured ? 1 : 0,
             }}

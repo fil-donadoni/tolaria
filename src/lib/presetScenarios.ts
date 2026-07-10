@@ -32,6 +32,12 @@ type PresetScenario = {
          *  creature can't attack and can't pay {T}. Battlefield default is
          *  `false` (controlled since a prior turn). #545. */
         summoningSick?: boolean;
+        /** Make this battlefield permanent a copy of another card by name (CR
+         *  707.2 — Clone / Copy Artifact / Vesuvan Doppelganger). `name` is the
+         *  copy's printed identity (kept as `copiedFrom`); `copyOf` is the
+         *  copied object it presents. Exercises the two-face copy preview.
+         *  Battlefield only. */
+        copyOf?: string;
     }[];
     phase: string;
     landCount: number;
@@ -112,38 +118,6 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 5,
     },
     {
-        // #674 card-draw / card-advantage FREE tranche golden path: Sheoldred,
-        // the Apocalypse is already on the battlefield watching every draw
-        // (CR 121.1 draw-triggered life swing via `drawTrigger`). Cast Baleful
-        // Strix (Island + Swamp cover {U}{B}) — its ETB `draw` Op fires
-        // Sheoldred's "you draw" clause for +2 life. Then activate
-        // Griselbrand's "Pay 7 life: Draw seven cards" — the same clause
-        // fires again for +14 life, exercising a stacked/repeated trigger on
-        // one draw-Op source. Passing to the opponent's draw step shows the
-        // "an opponent draws a card" clause (-2 life) on the other side. A
-        // stocked library (15) covers Griselbrand's 7-card draw plus normal
-        // draw steps for both players.
-        label: "Sheoldred + Baleful Strix + Griselbrand — draw triggers (#674)",
-        cards: [
-            {
-                name: "Sheoldred, the Apocalypse",
-                owner: "me",
-                zone: "battlefield",
-            },
-            { name: "Griselbrand", owner: "me", zone: "battlefield" },
-            { name: "Baleful Strix", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield" },
-            { name: "Swamp", owner: "me", zone: "battlefield" },
-            { name: "Griselbrand", owner: "opp", zone: "battlefield" },
-            { name: "Baleful Strix", owner: "opp", zone: "hand" },
-            { name: "Island", owner: "opp", zone: "battlefield" },
-            { name: "Swamp", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-        libraryCount: 15,
-    },
-    {
         // Ashen Ghoul — graveyard-source activated ability (#737, CR 113.6 /
         // 602.5b / 603.6e). The Ghoul sits at the BOTTOM of your graveyard with
         // three Balduvian Bears stacked above it (three creature cards above =
@@ -196,123 +170,6 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
             // { name: "Ornithopter", owner: "opp", zone: "battlefield" },
             { name: "Serra Angel", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // digToHand Effect Script Op (#984). Impulse ({1}{U} instant): "Look at
-        // the top four cards of your library. Put one of them into your hand and
-        // the rest on the bottom of your library in any order." Cast it and the
-        // look-top picker shows exactly the top four face-up — keep one (it goes
-        // to hand), the other three drop to the bottom of the library. 3 Islands
-        // cover the {1}{U}; the library is the shared draw pile.
-        label: "Impulse (#984) - Verificare put to bottom",
-        cards: [
-            { name: "Impulse", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield", count: 3 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 3,
-    },
-    {
-        // Flashback CAP (#693, CR 702.34): a card in your graveyard with a
-        // flashback cost shows a "Flashback" cast button. Golden path — Firebolt
-        // (Flashback {4}{R}) in the graveyard + 5 Mountains: flash it back for 2
-        // damage to any target, then it's EXILED (not returned to the yard).
-        // Faithless Looting (Flashback {2}{R}) is a second one-click flashback.
-        // Edge case — Snapcaster Mage in hand ({1}{U}, cast it with the Islands):
-        // its ETB grants an instant/sorcery in your graveyard flashback until end
-        // of turn (cost = its mana cost), so a card with NO printed flashback
-        // gains one. The affordance rides `legalActions` on the projected
-        // graveyard card (GraveyardFlashbackButton).
-        label: "Flashback — cast from graveyard (#693)",
-        cards: [
-            { name: "Firebolt", owner: "me", zone: "graveyard" },
-            // { name: "Faithless Looting", owner: "me", zone: "graveyard" },
-            { name: "Snapcaster Mage", owner: "me", zone: "hand" },
-            { name: "Mountain", owner: "me", zone: "battlefield", count: 5 },
-            { name: "Island", owner: "me", zone: "battlefield", count: 3 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-        libraryCount: 12,
-    },
-    {
-        // Free pitch — alternative casting cost (CR 118.9, issue #690). Cast a
-        // pitch spell by giving up a NON-mana resource instead of paying mana.
-        // The cast-option picker (click the spell) offers "Pay mana cost" + the
-        // alternative; picking the alternative pays it at commit. Golden paths
-        // castable on YOUR turn with no stacked spell:
-        //   • Snuff Out — "Pay 4 life" (you control a Swamp): destroy the
-        //     opponent's Grizzly Bears (can't be regenerated).
-        //   • Mine Collapse — "Sacrifice a Mountain" (it's your turn): 5 damage
-        //     to a creature.
-        //   • Pyrokinesis — "Exile a red card from your hand": pick Lightning
-        //     Bolt in the hand-cost picker, then divide 4 damage among the
-        //     opponent's creatures (the exile-from-hand leg — the new infra).
-        // Force of Will (pay 1 life + exile a blue card) also appears in hand —
-        // its counter needs an opponent spell on the stack, so use it against a
-        // spell you bait out. Edge case — Force of Vigor pitch is gated on "if
-        // it's not your turn", so the cast-option picker filters its alternative
-        // OUT here (it's your turn) and only "Pay mana cost" is offered; pass
-        // priority to the opponent's turn and the "exile a green card" pitch
-        // appears (a green card — Giant Growth — is in hand to pay it).
-        label: "Free pitch alt-cost (#690) — Snuff Out / Mine Collapse / Pyrokinesis",
-        cards: [
-            { name: "Snuff Out", owner: "me", zone: "hand" },
-            { name: "Mine Collapse", owner: "me", zone: "hand" },
-            { name: "Pyrokinesis", owner: "me", zone: "hand" },
-            { name: "Force of Will", owner: "me", zone: "hand" },
-            { name: "Force of Vigor", owner: "me", zone: "hand" },
-            // Pitch fodder: a red card (Pyrokinesis) and a blue card (Force of
-            // Will) to exile from hand; a green card for Force of Vigor.
-            { name: "Lightning Bolt", owner: "me", zone: "hand" },
-            { name: "Sol Ring", owner: "opp", zone: "battlefield", count: 2 },
-            { name: "Counterspell", owner: "me", zone: "hand" },
-            { name: "Foil", owner: "me", zone: "hand" },
-            { name: "Giant Growth", owner: "me", zone: "hand" },
-            { name: "Swamp", owner: "me", zone: "battlefield" },
-            { name: "Mountain", owner: "me", zone: "battlefield" },
-            { name: "Island", owner: "me", zone: "battlefield", count: 3 },
-            { name: "Island", owner: "me", zone: "hand" },
-            {
-                name: "Grizzly Bears",
-                owner: "opp",
-                zone: "battlefield",
-                count: 2,
-            },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 4,
-        libraryCount: 10,
-    },
-    {
-        // Threshold / Delirium / Revolt CAP (#691): Cabal Ritual in hand with
-        // 8+ cards in graveyard (threshold active). Two Swamps cover {1}{B};
-        // casting Cabal Ritual produces {B}{B}{B}{B}{B} instead of {B}{B}{B}.
-        // Graveyard also contains cards of different types to demonstrate
-        // delirium for Unholy Heat (also in hand).
-        label: "Threshold / Delirium — Cabal Ritual + Unholy Heat (#691)",
-        cards: [
-            { name: "Cabal Ritual", owner: "me", zone: "hand" },
-            { name: "Unholy Heat", owner: "me", zone: "hand" },
-            { name: "Swamp", owner: "me", zone: "battlefield", count: 3 },
-            { name: "Mountain", owner: "me", zone: "battlefield" },
-            {
-                name: "Grizzly Bears",
-                owner: "me",
-                zone: "graveyard",
-                count: 3,
-            },
-            { name: "Swamp", owner: "me", zone: "graveyard", count: 2 },
-            {
-                name: "Balduvian Bears",
-                owner: "me",
-                zone: "graveyard",
-                count: 2,
-            },
-            { name: "Cabal Ritual", owner: "me", zone: "graveyard" },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
