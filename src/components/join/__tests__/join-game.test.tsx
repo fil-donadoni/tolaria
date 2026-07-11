@@ -109,6 +109,21 @@ describe("JoinGame antechamber", () => {
         expect(queryByText("Future Blue")).toBeNull();
     });
 
+    it("renders both the Your Decks and Preset Decks panels", () => {
+        const { getByText } = renderJoin(JOINABLE_INFO);
+        expect(getByText("Your Decks")).toBeTruthy();
+        expect(getByText("Preset Decks")).toBeTruthy();
+    });
+
+    it("links to the deck builder seeded with the game's format", () => {
+        const { getByText } = renderJoin(JOINABLE_INFO);
+        fireEvent.click(getByText("+ New Deck"));
+        expect(navigate).toHaveBeenCalledWith({
+            to: "/decks/create",
+            search: { format: "old-school" },
+        });
+    });
+
     it("joins with the selected deck, then enters the game", async () => {
         const { getByText, getAllByText } = renderJoin(JOINABLE_INFO);
         // Select the deck via its row "Select" control.

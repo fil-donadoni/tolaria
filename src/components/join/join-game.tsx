@@ -22,6 +22,7 @@ import {
 } from "~/components/ui/panel";
 import { Button } from "~/components/ui/button";
 import LoadingScreen from "~/components/ui/loading-screen";
+import AmbientPageGround from "~/components/ui/ambient-page-ground";
 import DeckList from "~/components/lobby/deck-list";
 import JoinAntechamberShell from "./join-antechamber-shell";
 
@@ -31,9 +32,10 @@ type JoinGameProps = {
 
 /** Invite antechamber (`/join/<gameId>`). Reached from a shared invite link
  *  instead of the lobby: it names the host, states the game's format, and lets
- *  the visitor pick a deck (their own + presets) pre-filtered to that format
- *  before being credited into the match. The host's decklist is never fetched
- *  here — `getJoinInfo` returns only join metadata (no cards). */
+ *  the visitor pick a deck — from their own decks OR the presets, each shown in
+ *  the lobby's deck panels and pre-filtered to that format (ADR 0036) — before
+ *  being credited into the match. The host's decklist is never fetched here
+ *  (`getJoinInfo` returns only join metadata, no cards). */
 export default function JoinGame({ gameId }: JoinGameProps) {
     const navigate = useNavigate();
     const user = useCurrentUser();
@@ -48,22 +50,46 @@ export default function JoinGame({ gameId }: JoinGameProps) {
 
     const format = info?.format as FormatId | undefined;
 
-    // Decks the visitor may bring, pre-filtered to the game's format (ADR 0036).
-    const eligibleDecks = useMemo<LobbyDeck[]>(() => {
-        if (!format) return [];
-        const all: LobbyDeck[] = [
-            ...(userDecks ?? []),
-            ...(presetDecks ?? []).map(toPresetLobbyDeck),
-        ];
-        return filterDecksByFormat(all, format);
-    }, [userDecks, presetDecks, format]);
+    // The visitor's own decks and the presets, each pre-filtered to the game's
+    // format and kept in their own list (the two lobby deck panels).
+    const eligibleUserDecks = useMemo<LobbyDeck[]>(
+        () => (format ? filterDecksByFormat(userDecks ?? [], format) : []),
+        [userDecks, format]
+    );
+    const eligiblePresetDecks = useMemo<LobbyDeck[]>(
+        () =>
+            format
+                ? filterDecksByFormat(
+                      (presetDecks ?? []).map(toPresetLobbyDeck),
+                      format
+                  )
+                : [],
+        [presetDecks, format]
+    );
 
     const selectedDeck = useMemo(
-        () => selectPreset(eligibleDecks, selectedId),
-        [eligibleDecks, selectedId]
+        () =>
+            selectPreset(
+                [...eligibleUserDecks, ...eligiblePresetDecks],
+                selectedId
+            ),
+        [eligibleUserDecks, eligiblePresetDecks, selectedId]
     );
 
     const backToLobby = () => void navigate({ to: "/" });
+
+    // Select only legal decks (the row click); the DeckList "Select" button is
+    // already disabled for illegal decks.
+    const selectIfLegal = (decks: LobbyDeck[]) => (id: string) => {
+        const d = decks.find((x) => x.presetId === id);
+        if (d?.isLegal) setSelectedId(id);
+    };
+
+    const handleNewDeck = () =>
+        void navigate({
+            to: "/decks/create",
+            search: format ? { format } : {},
+        });
 
     const handleJoin = async () => {
         if (isBusy || !user || !selectedDeck || !selectedDeck.isLegal) return;
@@ -113,43 +139,76 @@ export default function JoinGame({ gameId }: JoinGameProps) {
     const formatLabel = format ? FORMAT_RULES[format].label : "";
 
     return (
-        <JoinAntechamberShell>
-            <Panel className="relative z-10 flex max-h-[85vh] w-full max-w-lg flex-col">
-                <PanelHeader
-                    title="Join game"
-                    subtitle={
-                        <>
-                            <span className="text-text">{info.hostName}</span>{" "}
-                            invited you · {formatLabel}
-                        </>
-                    }
-                />
-                <PanelBody className="min-h-0 flex-1">
-                    <p className="text-sm text-text-muted">
-                        Pick a deck to join. Only your {formatLabel} decks are
-                        shown.
-                    </p>
-                    <div className="min-h-0 flex-1 overflow-y-auto">
-                        <DeckList
-                            decks={eligibleDecks}
-                            selectedPresetId={selectedId}
-                            onFocus={(id) => {
-                                const d = eligibleDecks.find(
-                                    (x) => x.presetId === id
-                                );
-                                if (d?.isLegal) setSelectedId(id);
-                            }}
-                            onSelect={setSelectedId}
-                            emptyLabel={`You have no legal ${formatLabel} deck. Build one from the lobby first.`}
-                        />
-                    </div>
-                    {error && (
-                        <p className="rounded-sm border border-danger/50 bg-danger/10 px-3 py-2 text-sm text-danger">
-                            {error}
+        <div className="relative min-h-dvh overflow-hidden bg-surface-base text-text">
+            <AmbientPageGround ring />
+            <div className="relative z-10 mx-auto flex max-w-4xl flex-col gap-6 px-6 py-8">
+                <Panel>
+                    <PanelHeader
+                        title="Join game"
+                        subtitle={
+                            <>
+                                <span className="text-text">
+                                    {info.hostName}
+                                </span>{" "}
+                                invited you · {formatLabel}
+                            </>
+                        }
+                    />
+                    <PanelBody className="items-center text-center">
+                        <p className="text-sm text-text-muted">
+                            Pick a deck to join. Only your {formatLabel} decks
+                            are shown.
                         </p>
-                    )}
-                </PanelBody>
-                <PanelFooter>
+                    </PanelBody>
+                </Panel>
+
+                {error && (
+                    <div className="rounded-sm border border-danger/50 bg-danger/10 px-4 py-3 text-sm text-danger">
+                        {error}
+                    </div>
+                )}
+
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    <Panel className="flex max-h-[28rem] flex-col">
+                        <PanelHeader title="Your Decks" />
+                        <PanelBody className="min-h-0 flex-1">
+                            <div className="flex justify-end">
+                                <button
+                                    onClick={handleNewDeck}
+                                    className="btn-base btn-tone-primary px-3 py-1.5 text-xs"
+                                >
+                                    + New Deck
+                                </button>
+                            </div>
+                            <div className="min-h-0 flex-1 overflow-auto">
+                                <DeckList
+                                    decks={eligibleUserDecks}
+                                    selectedPresetId={selectedId}
+                                    onFocus={selectIfLegal(eligibleUserDecks)}
+                                    onSelect={setSelectedId}
+                                    emptyLabel={`You have no ${formatLabel} deck. Create one to join.`}
+                                />
+                            </div>
+                        </PanelBody>
+                    </Panel>
+
+                    <Panel className="flex max-h-[28rem] flex-col">
+                        <PanelHeader title="Preset Decks" />
+                        <PanelBody className="min-h-0 flex-1">
+                            <div className="min-h-0 flex-1 overflow-auto">
+                                <DeckList
+                                    decks={eligiblePresetDecks}
+                                    selectedPresetId={selectedId}
+                                    onFocus={selectIfLegal(eligiblePresetDecks)}
+                                    onSelect={setSelectedId}
+                                    emptyLabel={`No ${formatLabel} preset decks.`}
+                                />
+                            </div>
+                        </PanelBody>
+                    </Panel>
+                </div>
+
+                <div className="flex justify-end gap-2">
                     <Button variant="secondary" onClick={backToLobby}>
                         Cancel
                     </Button>
@@ -161,8 +220,8 @@ export default function JoinGame({ gameId }: JoinGameProps) {
                     >
                         {isBusy ? "Joining…" : "Join game"}
                     </Button>
-                </PanelFooter>
-            </Panel>
-        </JoinAntechamberShell>
+                </div>
+            </div>
+        </div>
     );
 }
