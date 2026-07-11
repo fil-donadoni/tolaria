@@ -1249,6 +1249,10 @@ export type PendingActivation = {
      *  battlefield (Ashen Ghoul's `activateFromGraveyard` ability). Gates the
      *  deferred-commit source lookup to also search graveyards. */
     fromGraveyard?: boolean;
+    /** CR 113.6 / 702.29a — the source is in the activator's HAND, not on the
+     *  battlefield (Cycling's `activateFromHand` ability). Gates the
+     *  deferred-commit source lookup to also search hands. */
+    fromHand?: boolean;
     /** Ability id on the source's card definition. */
     abilityId: string;
     manaCost: Record<string, number>;
@@ -1307,6 +1311,11 @@ export type PendingActivation = {
     /** True iff the ability has a "discard the last card you drew this turn"
      *  cost (Jandor's Ring). The card is discarded at commit. */
     discardLastDrawnSource?: boolean;
+    /** CR 702.29a / 118.3 — the Cycling "Discard this card" cost. When set, the
+     *  SOURCE card is discarded from its owner's hand at commit (routed through
+     *  `discardToGraveyard` so CARD_DISCARDED fires — Marauding Mako). Deferred
+     *  to commit so a cancelled payment leaves the card in hand. */
+    discardThisSource?: boolean;
     /** "Discard N cards at random" cost (CR 118.3 — Coral Helm). The cards are
      *  discarded at commit via the seeded PRNG. */
     discardAtRandomCount?: number;

@@ -835,6 +835,60 @@ export function getGraveyardStackAbilities(
         .map((a) => ({ id: a.id, oracleText: a.oracleText }));
 }
 
+/** CR 113.6 / 702.29a — activated abilities the viewer may announce on a card in
+ *  their OWN hand (Cycling's "{cost}, Discard this card: Draw a card"). The board
+ *  never sees the GRE, so this mirrors {@link getGraveyardStackAbilities} for the
+ *  hand zone: only abilities that opt in via `activateFromHand` are eligible,
+ *  gated as UI hints on the same predicates the server enforces (`activateAbility`
+ *  in game.ts is authoritative regardless). Cycling's discard-this cost is always
+ *  payable (the source is in hand) and its mana is deferred to the
+ *  `pendingActivation` payment phase, so the only client-side gates are the
+ *  standard phase / turn / precondition ones:
+ *   - `activationPhaseRestriction` (CR 602.5) narrows to the current `phase`
+ *     (Cycling is instant-speed and declares none, so this never hides it);
+ *   - `controllerTurnOnly` — none of the Cycling cards use it, but honored for
+ *     any future hand-activated ability that does;
+ *   - `canActivate` (CR 602.5b) evaluates the ability precondition against the
+ *     viewer-visible `stateView`. */
+export function getHandStackAbilities(
+    card: CardInstance,
+    phase: Phase | undefined,
+    stateView: TriggerStateView
+): { id: string; oracleText: string }[] {
+    // A card whose id resolves to no definition (synthetic tokens, test
+    // fixtures) has no hand-activatable ability — never throw here, since this
+    // runs while merely rendering the hand for every card.
+    const cardDef = tryGetDefinition(card.card.id);
+    return (cardDef?.activatedAbilities ?? [])
+        .filter((a) => {
+            if (!a.activateFromHand || !a.useStack || !a.oracleText) {
+                return false;
+            }
+            if (
+                a.activationPhaseRestriction &&
+                phase !== undefined &&
+                !a.activationPhaseRestriction.includes(phase)
+            ) {
+                return false;
+            }
+            // CR 602.5 — "Activate only during your turn": while the card is in
+            // hand its controller is its owner, so the owner must be active.
+            if (
+                a.controllerTurnOnly &&
+                stateView.activePlayerId !== undefined &&
+                stateView.activePlayerId !== card.ownerId
+            ) {
+                return false;
+            }
+            if (a.canActivate) {
+                if (!a.canActivate(card as unknown as PermanentView, stateView))
+                    return false;
+            }
+            return true;
+        })
+        .map((a) => ({ id: a.id, oracleText: a.oracleText }));
+}
+
 /** Filters `getStackAbilities` to those a NON-controller may activate on an
  *  OPPONENT's permanent while holding priority — the only case where a
  *  non-controller may activate. Two flags qualify: "any player may activate"

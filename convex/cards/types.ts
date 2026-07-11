@@ -568,6 +568,18 @@ export interface ActivatedAbility {
          *  exact card is discarded at activation commit. Used by Jandor's
          *  Ring. */
         discardLastDrawn?: boolean;
+        /** "Discard this card" as an activation cost (CR 702.29a / 118.3 — the
+         *  Cycling cost's non-mana component). The SOURCE card itself is
+         *  discarded from its owner's hand as the ability goes on the stack.
+         *  Only meaningful together with `activateFromHand: true` (the source
+         *  lives in hand). Routed through the shared discard choke point
+         *  (`discardToGraveyard`) so it honors CR 614 discard replacements
+         *  (Library of Leng) and emits CARD_DISCARDED (CR 701.8) — a card
+         *  cycled while Marauding Mako is in play triggers its
+         *  "whenever you discard" ability. Distinct from `sacrifice` (which
+         *  sacrifices THIS source from the battlefield). Used by every Cycling
+         *  card. */
+        discardThis?: boolean;
         /** "Discard N cards at random" cost (CR 118.3 / 701.8 — an additional
          *  cost paid by discarding randomly-chosen cards). The ability is only
          *  legal to activate while the activating player has at least one card
@@ -849,6 +861,18 @@ export interface ActivatedAbility {
      *  your upkeep and only if three or more creature cards are above this
      *  card."). */
     activateFromGraveyard?: boolean;
+    /** "Activate this ability while its source is in your HAND" (CR 113.6 /
+     *  702.29a). By default an activated ability functions only while its
+     *  source is on the battlefield; this flag lets the engine locate the
+     *  source in a hand and activate it from there. Only the hand's owner may
+     *  activate (checked in `activateAbility`). This is the seam Cycling
+     *  (CR 702.29 — "[cost], Discard this card: Draw a card") rides: the
+     *  Cycling ability declares `activateFromHand: true`, a mana `cost`, and
+     *  `cost.discardThis: true`, so the source is discarded from hand as part
+     *  of the activation cost and the ability resolves (drawing a card) on the
+     *  stack. Usable any time its controller has priority (instant speed,
+     *  CR 702.29b) unless narrowed by `activationPhaseRestriction`. */
+    activateFromHand?: boolean;
 }
 
 // --- Temporary-effect durations (CR 611.2, 514.2, 511.3) ---

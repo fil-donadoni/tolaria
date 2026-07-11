@@ -51,6 +51,10 @@ let cardDef: { name: string; manaCost?: { X?: string }; modes?: unknown[] } = {
 };
 vi.mock("@convex/cards", () => ({
     getDefinition: () => cardDef,
+    // getHandStackAbilities (Cycling affordance, #689) resolves the card def via
+    // tryGetDefinition; the default vanilla `cardDef` has no activatedAbilities,
+    // so no Cycle button appears (preserving these tests' cast/play behavior).
+    tryGetDefinition: () => cardDef,
 }));
 
 // Inert visuals / tilt / picker so the test sees only the gesture + dispatch.

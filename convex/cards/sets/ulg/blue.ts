@@ -2,6 +2,7 @@
 // registry's `import * as ulg from "./sets/ulg"` resolves through ulg/index.ts.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 import type { CardDefinition, SpellContext } from "../../types";
+import { cyclingAbility } from "../../abilities/cycling";
 
 // Frantic Search — {2}{U} Instant. "Draw two cards, then discard two cards.
 // Untap up to three lands." (CR 121.1 draw, CR 701.8 discard, CR 701.20 untap.)
@@ -94,4 +95,38 @@ export const tinker: CardDefinition = {
         },
         { op: "libraryLook", action: "shuffle", player: "controller" },
     ],
+};
+
+// Miscalculation — {1}{U} Instant. "Counter target spell unless its controller
+// pays {2}." plus Cycling {2} (CR 702.29). Same counter-unless-pay shape as
+// Mana Leak (mayPay by the target spell's controller + if(not paid) → counter,
+// CR 701.5a / 117.3a); the Cycling ability is the engine/cost capability from
+// issue #689, declared via the shared `cyclingAbility` factory.
+export const miscalculation: CardDefinition = {
+    id: "4b4956a2-9a39-4152-9c98-70e4b2acfa26",
+    name: "Miscalculation",
+    rarity: "common",
+    oracleText:
+        "Counter target spell unless its controller pays {2}.\nCycling {2} ({2}, Discard this card: Draw a card.)",
+    manaCost: { X: 1, U: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "spell", count: 1 },
+    effects: [
+        {
+            op: "mayPay",
+            // CR 117.3a — the spell's controller decides whether to pay.
+            player: { controllerOf: { target: 0 } },
+            cost: { X: 2 },
+            prompt: "Pay {2} to prevent your spell from being countered?",
+            bind: "$paid",
+        },
+        {
+            // CR 701.5a — counter unless the payment was made.
+            op: "if",
+            predicate: { not: { binding: "$paid" } },
+            then: [{ op: "counter", target: { target: 0 } }],
+        },
+    ],
+    // CR 702.29 — Cycling {2}. Usable only from hand at instant speed.
+    activatedAbilities: [cyclingAbility({ generic: 2 })],
 };

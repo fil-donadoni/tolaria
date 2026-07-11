@@ -1,7 +1,7 @@
 // Urza's Legacy (ULG) — blue behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { franticSearch, tinker } from "../blue";
+import { franticSearch, tinker, miscalculation } from "../blue";
 import { ornithopter } from "../../atq/colorless";
 import {
     makeInstance,
@@ -128,5 +128,40 @@ describe("Tinker (CR 117.9 additional cost / 701.19 / 400.7 / 701.20, issue #677
         });
         expect(state.players[0].battlefield.map((c) => c.id)).toContain("orn1");
         expect(state.players[0].library).toHaveLength(0);
+    });
+});
+
+describe("Miscalculation (CR 701.5a counter-unless-pay, CR 702.29 Cycling)", () => {
+    it("counters target spell unless its controller pays {2} (DSL shape)", () => {
+        // DSL card reusing the mayPay + if(not paid) + counter Ops (exercised by
+        // the interpreter suite and the catalogue smoke sweep). Lock the shape:
+        // targets any spell, the may-pay is by the target spell's controller for
+        // {2}, and the counter fires only when unpaid.
+        expect(miscalculation.targetRequirement).toEqual({
+            type: "spell",
+            count: 1,
+        });
+        expect(miscalculation.effects).toEqual([
+            {
+                op: "mayPay",
+                player: { controllerOf: { target: 0 } },
+                cost: { X: 2 },
+                prompt: "Pay {2} to prevent your spell from being countered?",
+                bind: "$paid",
+            },
+            {
+                op: "if",
+                predicate: { not: { binding: "$paid" } },
+                then: [{ op: "counter", target: { target: 0 } }],
+            },
+        ]);
+    });
+
+    it("has Cycling {2}", () => {
+        const cycling = miscalculation.activatedAbilities?.find(
+            (a) => a.id === "cycling"
+        );
+        expect(cycling?.activateFromHand).toBe(true);
+        expect(cycling?.cost.mana).toEqual({ generic: 2 });
     });
 });

@@ -14,6 +14,7 @@ import {
     wantsSpellTarget,
     getStackAbilities,
     getGraveyardStackAbilities,
+    getHandStackAbilities,
     getAnyPlayerStackAbilities,
     buildTriggerStateView,
     getAbilityOracleText,
@@ -2081,5 +2082,74 @@ describe("manaCostToString renders fixed generic mana (bug class)", () => {
 
     it("collapses numeric-X and generic-key into a single {N} if both present", () => {
         expect(manaCostToString({ X: 1, generic: 2, U: 1 })).toBe("{3}{U}");
+    });
+});
+
+// getHandStackAbilities — activate-from-hand affordance (CR 113.6 / 702.29a,
+// Cycling, #689). The board never sees the GRE, so the "Cycle" button on a hand
+// card is driven entirely by this client helper. It must agree with the server
+// `activateAbility` mutation: surface a Cycling ability only for a card in the
+// viewer's own hand that opts in via `activateFromHand`. The view is built via
+// `buildTriggerStateView` (as the UI does) — a hand-built view would mask a
+// dropped field. Raugrin Triome (Cycling {3}) is the exemplar.
+// ---------------------------------------------------------------------------
+
+describe("getHandStackAbilities (CR 113.6 / 702.29a — Cycling, #689)", () => {
+    const RAUGRIN_TRIOME_ID = "c303a627-cce3-4045-81f8-fe7427e0a941";
+    const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
+
+    const makeTriomeInHand = () =>
+        makeCardInstance({
+            id: "triome-1",
+            card: { id: RAUGRIN_TRIOME_ID },
+            types: ["Land"],
+            ownerId: "p1",
+            controllerId: "p1",
+            zone: "hand",
+        });
+
+    const viewFor = (card: CardInstance, activePlayerId = "p1") =>
+        buildTriggerStateView(
+            [
+                {
+                    id: "p1",
+                    life: 20,
+                    hand: [card],
+                    battlefield: [],
+                    graveyard: [],
+                },
+            ],
+            activePlayerId
+        );
+
+    it("surfaces the Cycling ability for a Triome in the viewer's own hand (through the reducer)", () => {
+        const triome = makeTriomeInHand();
+        const abilities = getHandStackAbilities(
+            triome,
+            "PRECOMBAT_MAIN",
+            viewFor(triome)
+        );
+        expect(abilities.map((a) => a.id)).toEqual(["cycling"]);
+        // Instant speed — it is also offered in a later phase.
+        const postcombat = getHandStackAbilities(
+            triome,
+            "POSTCOMBAT_MAIN",
+            viewFor(triome)
+        );
+        expect(postcombat.map((a) => a.id)).toEqual(["cycling"]);
+    });
+
+    it("offers nothing for a card in hand with no activateFromHand ability", () => {
+        const bears = makeCardInstance({
+            id: "bears-1",
+            card: { id: GRIZZLY_BEARS_ID },
+            types: ["Creature"],
+            ownerId: "p1",
+            controllerId: "p1",
+            zone: "hand",
+        });
+        expect(
+            getHandStackAbilities(bears, "PRECOMBAT_MAIN", viewFor(bears))
+        ).toHaveLength(0);
     });
 });
