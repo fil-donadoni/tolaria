@@ -1,5 +1,11 @@
 import { memo, useState } from "react";
-import { getImageUrl, resolveCardImageId } from "~/lib/images";
+import {
+    DEFAULT_CARD_IMAGE_SIZES,
+    getImageFallbackUrl,
+    getImageSrcSet,
+    getImageUrl,
+    resolveCardImageId,
+} from "~/lib/images";
 import { tryGetDefinition, FACE_DOWN_CARD_ID } from "@convex/cards";
 import type { CardInstance } from "~/types/game";
 import {
@@ -36,6 +42,13 @@ type CardImageProps = {
      * printed face instead, driven by `cardInstance.copiedFrom`.
      */
     showCopyBadge?: boolean;
+    /**
+     * `sizes` hint for the responsive srcset — the card's rendered CSS width.
+     * Defaults to the board's upper bound (140px); pass the real width when a
+     * surface renders cards substantially larger (dialogs, deck builder) so
+     * the browser upgrades to the `display` rendition instead of upscaling.
+     */
+    sizes?: string;
 };
 
 function isCardInstance(
@@ -52,10 +65,15 @@ function CardImageImpl({
     card,
     lazy = false,
     showCopyBadge = false,
+    sizes = DEFAULT_CARD_IMAGE_SIZES,
 }: CardImageProps) {
     const cardInstance = isCardInstance(card) ? card : undefined;
     const defId = getDefId(card);
     const [loaded, setLoaded] = useState(false);
+    // WebP-first with jpg fallback. Keyed to the image id (not a boolean) so a
+    // memo-retained component that switches identity re-tries WebP for the new
+    // card instead of inheriting the previous card's failure.
+    const [jpgFallbackFor, setJpgFallbackFor] = useState<string | null>(null);
     // A face-down permanent (CR 708.2, ADR 0013) reaches non-controller viewers
     // as the sentinel id `face-down:2-2-vanilla` (gameProjections hides the real
     // identity). There is no Scryfall art for the sentinel — render the card
@@ -81,7 +99,13 @@ function CardImageImpl({
             >
                 {imageId ? (
                     <img
-                        src={getImageUrl(imageId)}
+                        {...(jpgFallbackFor === imageId
+                            ? { src: getImageFallbackUrl(imageId) }
+                            : {
+                                  src: getImageUrl(imageId),
+                                  srcSet: getImageSrcSet(imageId),
+                                  sizes,
+                              })}
                         className="w-full h-full object-cover block select-none"
                         style={{ WebkitTouchCallout: "none" }}
                         alt={name}
@@ -89,7 +113,13 @@ function CardImageImpl({
                         {...(lazy ? { loading: "lazy" as const } : {})}
                         draggable={false}
                         onLoad={() => setLoaded(true)}
-                        onError={() => setLoaded(true)}
+                        onError={() => {
+                            // WebP missing (spoiler/lowres printing) → retry
+                            // as jpg; a second failure ends the loader.
+                            if (jpgFallbackFor !== imageId)
+                                setJpgFallbackFor(imageId);
+                            else setLoaded(true);
+                        }}
                     />
                 ) : (
                     <TokenPlaceholder
@@ -122,6 +152,7 @@ const CardImage = memo(
     (prev, next) =>
         prev.lazy === next.lazy &&
         prev.showCopyBadge === next.showCopyBadge &&
+        prev.sizes === next.sizes &&
         cardImageSignature(prev.card) === cardImageSignature(next.card)
 );
 export default CardImage;

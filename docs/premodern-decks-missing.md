@@ -8,7 +8,6 @@ ENCHANTRESS
 2 Opalescence
 2 Parallax Wave
 2 Solitary Confinement
-1 Elephant Grass
 
 2 Abeyance
 2 Xantid Swarm

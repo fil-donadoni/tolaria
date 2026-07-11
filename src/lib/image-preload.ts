@@ -1,4 +1,10 @@
-import { getArtCropImageUrl, getImageUrl, resolveCardImageId } from "./images";
+import {
+    DEFAULT_CARD_IMAGE_SIZES,
+    getArtCropImageUrl,
+    getImageSrcSet,
+    getImageUrl,
+    resolveCardImageId,
+} from "./images";
 
 const preloaded = new Set<string>();
 const preloadedArtCrop = new Set<string>();
@@ -12,6 +18,11 @@ export function preloadCardImage(cardId: string): void {
     if (!imageId) return;
     const img = new Image();
     img.decoding = "async";
+    // Mirror CardImage's responsive attributes so the browser resolves the
+    // SAME srcset candidate it will render later — a bare `src` preload would
+    // warm `grid` while a 1× screen then fetches `thumb` (double download).
+    img.srcset = getImageSrcSet(imageId);
+    img.sizes = DEFAULT_CARD_IMAGE_SIZES;
     img.src = getImageUrl(imageId);
 }
 

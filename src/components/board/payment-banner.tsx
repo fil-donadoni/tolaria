@@ -92,9 +92,19 @@ export default function PaymentBanner(props: Props) {
             subtitle = "pay the casting costs";
         }
     } else {
-        const source = props.me?.battlefield.find(
-            (c) => c.id === props.pendingActivation.cardInstanceId
-        );
+        // CR 113.6 / 702.29a — the source is normally on the battlefield, but a
+        // zone-restricted activated ability pays from another zone while its
+        // source still sits there: Cycling (`fromHand`) from the hand, Ashen
+        // Ghoul (`fromGraveyard`) from the graveyard. Search all three so the
+        // banner names the card (e.g. "Raugrin Triome") instead of a bare
+        // "ability".
+        const pa = props.pendingActivation;
+        const source =
+            props.me?.battlefield.find((c) => c.id === pa.cardInstanceId) ??
+            props.me?.hand.find(
+                (c) => c !== null && c.id === pa.cardInstanceId
+            ) ??
+            props.me?.graveyard?.find((c) => c.id === pa.cardInstanceId);
         cardName = source ? getDefinition(source.card.id).name : "ability";
         manaOwed =
             Object.keys(props.pendingActivation.manaCost).length > 0 &&

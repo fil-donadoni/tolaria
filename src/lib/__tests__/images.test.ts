@@ -10,7 +10,13 @@
 // don't (so the caller skips the network and renders a placeholder).
 
 import { describe, it, expect } from "vitest";
-import { getArtCropImageUrl, getImageUrl, resolveCardImageId } from "../images";
+import {
+    getArtCropImageUrl,
+    getImageFallbackUrl,
+    getImageSrcSet,
+    getImageUrl,
+    resolveCardImageId,
+} from "../images";
 
 describe("resolveCardImageId", () => {
     it("printed cards (no `token:` prefix) resolve to their own id", () => {
@@ -43,9 +49,28 @@ describe("resolveCardImageId", () => {
         expect(url).not.toContain("token:");
         expect(url).not.toContain("|");
         // Scryfall path layout: first two chars of the Scryfall id make the
-        // shard directories.
-        expect(url).toContain("/normal/front/0/9/");
+        // shard directories. Primary rendition is the `grid` WebP (488×680).
+        expect(url).toContain("/grid/front/0/9/");
+        expect(url).toMatch(/\.webp$/);
         expect(url).toContain(resolved);
+    });
+
+    it("getImageFallbackUrl mirrors getImageUrl as the legacy `normal` jpg", () => {
+        const id = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // grizzlyBears
+        const url = getImageFallbackUrl(id);
+        expect(url).toContain("/normal/front/c/e/");
+        expect(url).toMatch(/\.jpg$/);
+        expect(url).toContain(id);
+    });
+
+    it("getImageSrcSet describes the three WebP renditions by width", () => {
+        const id = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // grizzlyBears
+        const srcSet = getImageSrcSet(id);
+        const entries = srcSet.split(", ");
+        expect(entries).toHaveLength(3);
+        expect(entries[0]).toMatch(/\/thumb\/front\/c\/e\/.*\.webp 146w$/);
+        expect(entries[1]).toMatch(/\/grid\/front\/c\/e\/.*\.webp 488w$/);
+        expect(entries[2]).toMatch(/\/display\/front\/c\/e\/.*\.webp 672w$/);
     });
 
     it("getArtCropImageUrl built from a resolved token id targets the printed token", () => {
