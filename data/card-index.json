@@ -4050,6 +4050,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Karmic Justice",
+        "scryfallId": "c2ffb8e7-7ae3-4846-b3da-ca6b4598eb7c",
+        "oracleId": "9ea58595-fcb9-455c-9558-b6a3fb2b83c5",
+        "firstSet": "ody"
+    },
+    {
         "name": "Karplusan Forest",
         "scryfallId": "ba6f1263-d598-49fb-b5f8-09f11822ebd0",
         "oracleId": "bd912666-f37f-4767-af6f-9e6d0fcccacf",
@@ -6232,6 +6238,12 @@
         "scryfallId": "168ef687-5797-4b45-b75b-393d8117cebd",
         "oracleId": "45181cb8-2090-4471-ba90-e5a8f04d525f",
         "firstSet": "rav"
+    },
+    {
+        "name": "Sacred Ground",
+        "scryfallId": "37ae4b01-a9c1-4eec-9204-78cb2508e0df",
+        "oracleId": "b18e773c-611b-4c18-8b2d-8d3a7e5ddc93",
+        "firstSet": "sth"
     },
     {
         "name": "Sacrifice",

@@ -4516,7 +4516,13 @@ export function tapPermanent(state: GameState, card: CardInstanceState): void {
 export function regenerateOrDestroy(
     state: GameState,
     cardId: string,
-    opts?: { cantBeRegenerated?: boolean }
+    opts?: {
+        cantBeRegenerated?: boolean;
+        /** Controller of the resolving spell/ability that caused this destroy
+         *  (issue #1054), threaded onto the emitted `PERMANENT_LEFT` event.
+         *  Undefined for SBA-driven destroys with no resolving causer. */
+        causerControllerId?: string;
+    }
 ): boolean {
     const found = findOnBattlefield(state, cardId);
     if (!found) return false;
@@ -4582,7 +4588,18 @@ export function regenerateOrDestroy(
         }
         return false;
     }
-    removePermanentTo(state, cardId, exileOnDeath ? "exile" : "graveyard");
+    // CR 701.8 / issue #1054 — every path through `regenerateOrDestroy` (the
+    // shield-consuming path above already returned) is a destroy, whichever
+    // zone it lands in; stamp `cause: "destroy"` + the causer so "destroyed by
+    // an opponent's spell/ability"-style triggers (Karmic Justice) can gate on
+    // it precisely (never confused with a sacrifice or a bare bounce).
+    removePermanentTo(
+        state,
+        cardId,
+        exileOnDeath ? "exile" : "graveyard",
+        "destroy",
+        opts?.causerControllerId
+    );
     return true;
 }
 
@@ -4600,7 +4617,13 @@ export function regenerateOrDestroy(
 export function destroyWithReplacements(
     state: GameState,
     cardId: string,
-    opts?: { cantBeRegenerated?: boolean }
+    opts?: {
+        cantBeRegenerated?: boolean;
+        /** Controller of the resolving spell/ability that caused this destroy
+         *  (issue #1054). Threaded straight through to `regenerateOrDestroy`
+         *  and onto the emitted `PERMANENT_LEFT` event. */
+        causerControllerId?: string;
+    }
 ): boolean {
     if (!findOnBattlefield(state, cardId)) return false;
     const replaced = applyDestroyReplacements(state, {
@@ -4659,10 +4682,17 @@ export function removePermanentTo(
     cardId: string,
     toZone: "graveyard" | "exile" | "hand" | "library",
     /** Why the permanent is leaving (CR 603.10). Pass `"sacrifice"` from
-     *  sacrifice paths (CR 701.16) so leave-the-battlefield triggers can
-     *  distinguish sacrifice from destruction / bounce (Urza's Miter). Any
+     *  sacrifice paths (CR 701.16) or `"destroy"` from the replacement-aware
+     *  destroy path (CR 701.8, issue #1054) so leave-the-battlefield triggers
+     *  can distinguish sacrifice/destruction from bounce (Urza's Miter). Any
      *  other departure leaves it undefined. */
-    cause?: "sacrifice"
+    cause?: "sacrifice" | "destroy",
+    /** Controller of the spell/ability that directly caused this departure
+     *  (issue #1054), when the removal is driven by a resolving spell/ability
+     *  (`SpellContext.destroy` / `destroyAll` / `sacrifice`). Undefined for
+     *  automatic SBA sweeps and other non-spell/ability departures. Read by
+     *  "caused by an opponent"-style leftTrigger conditions. */
+    causerControllerId?: string
 ): void {
     const initial = findOnBattlefield(state, cardId);
     if (!initial) return;
@@ -4776,6 +4806,7 @@ export function removePermanentTo(
             attachedToBeforeLeave: lkiAttachedTo,
             toZone,
             ...(cause ? { cause } : {}),
+            ...(causerControllerId ? { causerControllerId } : {}),
         },
     ];
     // Revolt (CR 702.RV): set the per-player flag when a permanent a player
@@ -5948,8 +5979,12 @@ export function buildSpellContext(
                 ) {
                     // CR 704.5g lethal → destroy replacement (CR 614, ADR
                     // 0020) then regen shield gets a chance to replace the
-                    // destroy (CR 614.5, 701.15a).
-                    destroyWithReplacements(state, target.id);
+                    // destroy (CR 614.5, 701.15a). issue #1054 — this lethal
+                    // damage was dealt by the resolving item, so its
+                    // controller is the causer.
+                    destroyWithReplacements(state, target.id, {
+                        causerControllerId: item.controllerId,
+                    });
                 }
             }
         },
@@ -6443,7 +6478,14 @@ export function buildSpellContext(
             // Return value reports whether the permanent actually moved to
             // the graveyard (false if a shield saved it, indestructible
             // protected it, or the target had already left play).
-            return destroyWithReplacements(state, target.id, opts);
+            // issue #1054 — the resolving spell/ability's controller is the
+            // causer; threaded onto the emitted PERMANENT_LEFT event so
+            // "destroyed by an opponent's spell/ability" triggers (Karmic
+            // Justice) can gate on it.
+            return destroyWithReplacements(state, target.id, {
+                ...opts,
+                causerControllerId: ctx.controller,
+            });
         },
         exile(target: TargetSelection): void {
             if (target.type === "player")
@@ -6637,8 +6679,13 @@ export function buildSpellContext(
                 // Each victim independently gets a chance to consume a destroy
                 // replacement (CR 614, ADR 0020) or a regeneration shield
                 // (CR 614.5, 701.15a) — unless the caller opts out via
-                // `cantBeRegenerated` (CR 701.15c).
-                destroyWithReplacements(state, id, opts);
+                // `cantBeRegenerated` (CR 701.15c). issue #1054 — the
+                // resolving spell/ability's controller is the causer for
+                // every victim (Wrath of God-style mass destroy).
+                destroyWithReplacements(state, id, {
+                    ...opts,
+                    causerControllerId: ctx.controller,
+                });
             }
         },
         // CR 121.1: cards are drawn one at a time. Stops if the library empties
@@ -8662,8 +8709,20 @@ export function buildSpellContext(
         // CR 701.16: to sacrifice a permanent is for its controller to put
         // it into its owner's graveyard. Indestructible does not prevent
         // sacrifice (CR 701.16a). No-op if the id is not on the battlefield.
+        // issue #1054 — the resolving spell/ability's controller is the
+        // causer (an Edict effect forcing an opponent's sacrifice, or a
+        // card's own "sacrifice a permanent: ..." ability sacrificing its
+        // own controller's permanent — either way `ctx.controller` is
+        // correct: "caused by an opponent" conditions compare it against the
+        // sacrificed permanent's OWN controller, never assume it here).
         sacrifice(cardInstanceId: string): void {
-            removePermanentTo(state, cardInstanceId, "graveyard", "sacrifice");
+            removePermanentTo(
+                state,
+                cardInstanceId,
+                "graveyard",
+                "sacrifice",
+                ctx.controller
+            );
         },
         // CR 702.30a — Echo: clear the resolving trigger source's `echoPending`
         // flag once its echo cost is paid, so the trigger's intervening-if

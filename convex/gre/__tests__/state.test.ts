@@ -1066,6 +1066,38 @@ describe("regenerateOrDestroy (CR 614.5, 701.15a, 702.12)", () => {
         expect(state.players[0].battlefield).toHaveLength(0);
         expect(state.players[0].graveyard).toHaveLength(1);
     });
+
+    // issue #1054 — every path through regenerateOrDestroy (the shield case
+    // already asserted above) stamps `cause: "destroy"` on the emitted
+    // PERMANENT_LEFT event, and threads the caller-supplied causer controller
+    // through unchanged so "destroyed by an opponent's spell/ability"
+    // triggers (Karmic Justice) can gate on it precisely.
+    it("stamps cause: 'destroy' and the causer controller on the emitted PERMANENT_LEFT event", () => {
+        const { state, cardId } = setup();
+        regenerateOrDestroy(state, cardId, { causerControllerId: "p2" });
+        const ev = state.pendingEvents?.find(
+            (e) => e.type === "PERMANENT_LEFT"
+        );
+        expect(ev).toMatchObject({
+            type: "PERMANENT_LEFT",
+            instanceId: cardId,
+            cause: "destroy",
+            causerControllerId: "p2",
+        });
+    });
+
+    it("omits causerControllerId when no causer is supplied (an SBA sweep)", () => {
+        const { state, cardId } = setup();
+        regenerateOrDestroy(state, cardId);
+        const ev = state.pendingEvents?.find(
+            (e) => e.type === "PERMANENT_LEFT"
+        );
+        expect(ev).toMatchObject({ cause: "destroy" });
+        expect(
+            (ev as { causerControllerId?: string } | undefined)
+                ?.causerControllerId
+        ).toBeUndefined();
+    });
 });
 
 describe("tickDuration (CR 514.2, 511.3)", () => {
