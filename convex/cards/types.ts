@@ -3694,6 +3694,44 @@ export interface StaticAttackSacrificeTax {
     oracleText: string;
 }
 
+/** Battlefield-scanned per-attacker MANA attack tax directed at the host's
+ *  controller (CR 508.1c/1g — Propaganda / Ghostly Prison / Windborn Muse /
+ *  Elephant Grass). The mana analogue of `attack-sacrifice-tax` (#733): a taxed
+ *  creature CAN attack the source's controller, but its own controller must pay
+ *  `costPerAttacker` for EACH such attacker they declare against that player.
+ *  Unlike `attack-sacrifice-tax` (a global "can't attack" that fires regardless
+ *  of who is being attacked), this kind is DIRECTED — it only taxes attacks
+ *  whose defending player is the source's controller ("can't attack YOU"). The
+ *  engine enforces the direction at the collector (`collectAttackManaTax`,
+ *  `convex/gre/combat.ts`) by scanning only sources controlled by the player
+ *  being attacked.
+ *
+ *  Charged at declare-attackers confirmation (`confirmAttackers`) via the same
+ *  auto-tap mana path as the Hipparion pay-to-block `bypassCost` — the cost is
+ *  generic/fungible, auto-tapped from the payer's mana sources; if it cannot be
+ *  paid the whole attack declaration is rejected (CR 508.1c — the declaration
+ *  is illegal, so the player must re-declare). */
+export interface StaticAttackManaTax {
+    kind: "attack-mana-tax";
+    id: string;
+    /** Returns `true` when `attacker` is subject to this tax (Propaganda: every
+     *  creature; Elephant Grass clause 3: nonblack creatures). Each matching
+     *  attacker its controller declares against the source's controller forces
+     *  one `costPerAttacker` payment. */
+    taxes: (
+        attacker: PermanentView,
+        source: PermanentView,
+        state: StaticEffectStateView,
+        ctx: StaticEffectContext
+    ) => boolean;
+    /** Mana cost charged once per taxed attacker (Propaganda / Ghostly Prison:
+     *  {2}; Windborn Muse: {2}; Sphere of Safety: {X} where X is enchantments). */
+    costPerAttacker: ManaCost;
+    /** Oracle text surfaced as the rejection reason when the controller cannot
+     *  pay the tax for every taxed attacker declared. */
+    oracleText: string;
+}
+
 /** Battlefield-scanned landwalk-negation static (CR 509.1b / 702.13). The
  *  source permanent declares that one or more named landwalk keywords can be
  *  blocked "as though the attacker didn't have it" — i.e. the matching
@@ -4127,6 +4165,7 @@ export type StaticEffect =
     | StaticDeclaredBlockRestriction
     | StaticGlobalAttackRestriction
     | StaticAttackSacrificeTax
+    | StaticAttackManaTax
     | StaticLandwalkNegation
     | StaticEntersTappedRestriction
     | StaticAttackRequirement
