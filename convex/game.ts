@@ -1297,6 +1297,7 @@ export function buildPendingActivation(opts: {
     keepPriority?: boolean;
     grantedSourceCardId?: string;
     fromGraveyard?: boolean;
+    fromHand?: boolean;
     /** Unified filtered-sacrifice choice (own cost + static Drought), built by
      *  the caller which has `state` (CR 701.21a). */
     sacrificeSelection?: SacrificeSelection;
@@ -1306,11 +1307,13 @@ export function buildPendingActivation(opts: {
         playerId: opts.playerId,
         cardInstanceId: opts.cardInstanceId,
         ...(opts.fromGraveyard ? { fromGraveyard: true } : {}),
+        ...(opts.fromHand ? { fromHand: true } : {}),
         abilityId: opts.abilityId,
         manaCost: opts.manaCost ?? {},
         tappedLandIds: [],
         tapSource: !!ability.cost.tap,
         sacrificeSource: !!ability.cost.sacrifice,
+        ...(ability.cost.discardThis ? { discardThisSource: true } : {}),
         ...(ability.cost.removeCounter
             ? { removeCounterCost: { ...ability.cost.removeCounter } }
             : {}),
@@ -1444,6 +1447,14 @@ export function tryAutoCommitPendingActivation(
             }
         }
     }
+    // CR 113.6 / 702.29a — a hand-source activation (Cycling): the source is
+    // not on any battlefield. Search the activator's hand only when the payment
+    // was flagged `fromHand`, so a battlefield source that left mid-payment
+    // still drops silently (below) rather than resurrecting from a hand.
+    if (!card && pa.fromHand) {
+        const found = player.hand.find((c) => c.id === pa.cardInstanceId);
+        if (found) card = found;
+    }
     if (!card) {
         // Source vanished (e.g. removed by an opposing effect). Drop the
         // payment silently — lands stay tapped (same policy as cancelCast for
@@ -1511,6 +1522,19 @@ export function tryAutoCommitPendingActivation(
     }
     if (pa.sacrificeSource) {
         removePermanentTo(state, card.id, "graveyard", "sacrifice");
+    }
+    // CR 702.29a / 118.3 — the Cycling "Discard this card" cost. The source is
+    // discarded from hand as the ability goes on the stack, routed through the
+    // shared choke point so CARD_DISCARDED fires (Marauding Mako). Re-check at
+    // commit: the card may have left the hand while mana was tapped; if so,
+    // drop the payment silently (lands stay tapped, mirroring the
+    // vanished-source policy above). Runs BEFORE the stack-item clone below so
+    // the ability's source is captured while still valid.
+    if (pa.discardThisSource) {
+        if (!discardToGraveyard(state, playerId, card.id)) {
+            state.pendingActivation = undefined;
+            return null;
+        }
     }
     // CR 602.1 / 118.5 / 701.21a — execute the player-chosen filtered
     // sacrifice(s) (own cost + Drought) through the unified layer. The own-cost
@@ -7738,6 +7762,21 @@ export const activateAbility = mutation({
                 }
             }
         }
+        // CR 113.6 / 702.29a — a hand-source activated ability (Cycling's
+        // `activateFromHand`). When the source is on no battlefield and in no
+        // graveyard, look for it in a hand; the `activateFromHand` flag on the
+        // resolved ability gates whether it may be activated there. Only the
+        // owner's OWN hand is searched (a card is never in an opponent's hand
+        // from this player's perspective, and CR 702.29a scopes it to "your
+        // hand").
+        let fromHand = false;
+        if (!card) {
+            const found = player.hand.find((c) => c.id === args.cardInstanceId);
+            if (found) {
+                card = found;
+                fromHand = true;
+            }
+        }
         if (!card) throw new Error("Card not on battlefield");
 
         const cardId = (card.card as { id?: string }).id;
@@ -7754,6 +7793,19 @@ export const activateAbility = mutation({
             if (!ability.activateFromGraveyard) {
                 throw new Error(
                     "This ability can't be activated from the graveyard"
+                );
+            }
+            if (card.ownerId !== args.playerId) {
+                throw new Error("You do not own this card");
+            }
+        } else if (fromHand) {
+            // CR 113.6 / 702.29a — the source is in a hand: legal only for an
+            // ability that opts in via `activateFromHand` (Cycling), and only
+            // its owner may activate it (CR 702.29a — "from your hand"). The
+            // battlefield controller-only checks below are skipped.
+            if (!ability.activateFromHand) {
+                throw new Error(
+                    "This ability can't be activated from your hand"
                 );
             }
             if (card.ownerId !== args.playerId) {
@@ -8101,6 +8153,7 @@ export const activateAbility = mutation({
                 keepPriority: args.keepPriority,
                 grantedSourceCardId,
                 fromGraveyard,
+                fromHand,
                 ...(activationSac ? { sacrificeSelection: activationSac } : {}),
             });
             state.pendingActivation = pending;
@@ -8160,6 +8213,13 @@ export const activateAbility = mutation({
         }
         if (ability.cost.sacrifice) {
             removePermanentTo(state, card.id, "graveyard", "sacrifice");
+        }
+        // CR 702.29a / 118.3 — the Cycling "Discard this card" cost: discard the
+        // source from hand as the ability commits, routed through the shared
+        // choke point so CARD_DISCARDED fires (Marauding Mako). Runs BEFORE the
+        // stack-item clone below (the card object persists after the move).
+        if (ability.cost.discardThis) {
+            discardToGraveyard(state, player.id, card.id);
         }
         // CR 601.2f / 118.5 / 701.21a — apply the auto-resolved filtered
         // sacrifice (Drought / fungible own cost) as the ability commits.

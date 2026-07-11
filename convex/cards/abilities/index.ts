@@ -13,6 +13,7 @@ import type {
     SpellContext,
     TargetRequirement,
 } from "../types";
+import { cyclingAbility } from "./cycling";
 
 /** Builds a `{T}: Add <mana>` mana ability (CR 605.1a, 605.3a — useStack false).
  *  Used by Mox Pearl/Sapphire/Jet/Ruby/Emerald, Sol Ring, Llanowar Elves and
@@ -313,6 +314,60 @@ export function makeDualLand(args: {
                 useStack: false,
                 manaChoices: [{ [c1]: 1 }, { [c2]: 1 }],
             },
+        ],
+    };
+}
+
+/** Builds a "Triome" (the IKO / SNC triple-typed cycling land cycle, CR 305.6):
+ *  a non-basic land with three basic land subtypes that always enters tapped,
+ *  taps for one of its three colors, and has Cycling {3} (CR 702.29). The three
+ *  colors are given in the printed mana-ability order ("Add {c1}, {c2}, or
+ *  {c3}") — the subtypes follow the same order, matching the printed type line.
+ *  All ten Triomes share this exact shape, so the factory is the single source
+ *  (rule-of-two extraction). */
+export function makeTriome(args: {
+    id: string;
+    name: string;
+    rarity: Rarity;
+    /** The three colors in printed mana-ability order. The land's basic land
+     *  subtypes are derived from these via `COLOR_TO_LAND_SUBTYPE`, in the same
+     *  order (matching the printed type line). */
+    colors: [Color, Color, Color];
+    /** The Cycling cost (CR 702.29). All printed Triomes are Cycling {3}. */
+    cyclingCost?: ManaCost;
+}): CardDefinition {
+    const [c1, c2, c3] = args.colors;
+    const slug = args.name.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-");
+    const cyclingCost = args.cyclingCost ?? { generic: 3 };
+    return {
+        id: args.id,
+        name: args.name,
+        rarity: args.rarity,
+        oracleText:
+            `({T}: Add {${c1}}, {${c2}}, or {${c3}}.)\n` +
+            "This land enters tapped.\n" +
+            "Cycling {3} ({3}, Discard this card: Draw a card.)",
+        types: ["Land"],
+        subtypes: [
+            COLOR_TO_LAND_SUBTYPE[c1],
+            COLOR_TO_LAND_SUBTYPE[c2],
+            COLOR_TO_LAND_SUBTYPE[c3],
+        ],
+        // CR 305.6b — Triomes always enter the battlefield tapped.
+        entersTapped: true,
+        activatedAbilities: [
+            {
+                id: `${slug}-mana`,
+                oracleText: `{T}: Add {${c1}}, {${c2}}, or {${c3}}.`,
+                cost: { tap: true },
+                effect: (ctx) => {
+                    ctx.addMana({ [c1]: 1 });
+                },
+                useStack: false,
+                manaChoices: [{ [c1]: 1 }, { [c2]: 1 }, { [c3]: 1 }],
+            },
+            // CR 702.29 — Cycling {3}. Usable only from hand at instant speed.
+            cyclingAbility(cyclingCost),
         ],
     };
 }

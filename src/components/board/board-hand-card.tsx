@@ -6,9 +6,11 @@ import { isSelectableHandChoiceCard } from "~/lib/hand-choice";
 import { isSeenByOpponent } from "~/lib/hand-knowledge";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
 import { useDragToCommit } from "~/hooks/useDragToCommit";
+import { buildTriggerStateView, getHandStackAbilities } from "~/lib/card-utils";
 import CardImage from "../cards/card-image";
 import CardTilt3D from "./card-tilt-3d";
 import SeenByOpponentBadge from "./seen-by-opponent-badge";
+import HandActivateButton from "./hand-activate-button";
 
 type BoardHandCardProps = {
     /** The viewer's own hand card (never null — opponent/back slots render the
@@ -64,7 +66,17 @@ export default function BoardHandCard({
     onDragEnd,
     dragTranslateX,
 }: BoardHandCardProps) {
-    const { playerId, pendingChoices } = useGameContext();
+    const {
+        playerId,
+        pendingChoices,
+        phase,
+        activePlayerId,
+        allPlayers,
+        priorityPlayerId,
+        pendingCast,
+        pendingActivation,
+        pendingTarget,
+    } = useGameContext();
     const bufferCtx = usePendingChoiceBuffer();
 
     // Mid-resolution hand pick (CR 608.2, ADR 0007). When the active choice
@@ -91,6 +103,26 @@ export default function BoardHandCard({
     const canPlay = legal.includes("play");
     const canCast = legal.includes("cast");
     const commitEnabled = !isHandChoice && (canPlay || canCast);
+
+    // CR 702.29a — Cycling (and any future hand-activated ability). A card in
+    // the viewer's own hand surfaces a "Cycle" button when the ability is
+    // currently legal AND the viewer holds priority with no other interaction
+    // pending (so the affordance can't collide with a cast/target/payment in
+    // flight). The list is computed from the bundled card def, exactly like the
+    // graveyard/battlefield paths; the server (`activateAbility`) is
+    // authoritative. Suppressed during a hand-choice (handled by the early
+    // return below, which never reaches this render).
+    const hasPriority = priorityPlayerId === playerId;
+    const noPendingInteraction =
+        !pendingCast && !pendingActivation && !pendingTarget;
+    const handAbilities =
+        hasPriority && noPendingInteraction && !isHandChoice
+            ? getHandStackAbilities(
+                  card,
+                  phase,
+                  buildTriggerStateView(allPlayers, activePlayerId)
+              )
+            : [];
 
     const {
         onPlayClick,
@@ -210,6 +242,12 @@ export default function BoardHandCard({
                 </div>
             </CardTilt3D>
             {seen && <SeenByOpponentBadge />}
+            {handAbilities.length > 0 && (
+                <HandActivateButton
+                    cardInstanceId={card.id}
+                    abilities={handAbilities}
+                />
+            )}
             {modePickerOverlay}
             {altCostPickerOverlay}
             {costDialogOverlay}

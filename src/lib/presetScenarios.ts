@@ -85,4 +85,26 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 4,
     },
+    {
+        // Cycling (CR 702.29, #689) — the "Cycle" button appears on every hand
+        // card with a Cycling ability. Golden path + edge case in one board:
+        //   • Cycle Raugrin Triome ({3}, discard → draw a card): the discard
+        //     also triggers Marauding Mako on the battlefield, putting a +1/+1
+        //     counter on it (a 1/1 → 2/2).
+        //   • Cycle Unearth ({2}) to dig, OR cast it ({B}) to reanimate the
+        //     Grizzly Bears in the graveyard (mana value 2 ≤ 3).
+        //   • Miscalculation ({1}{U}) can be cycled ({2}) or held as a counter.
+        // Five lands (one of each basic) pay every cycling cost.
+        label: "Cycling — Triome / Unearth / Mako (CR 702.29)",
+        cards: [
+            { name: "Marauding Mako", owner: "me", zone: "battlefield" },
+            { name: "Raugrin Triome", owner: "me", zone: "hand" },
+            { name: "Unearth", owner: "me", zone: "hand" },
+            { name: "Miscalculation", owner: "me", zone: "hand" },
+            { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 5,
+        libraryCount: 10,
+    },
 ];

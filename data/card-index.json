@@ -3732,6 +3732,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Indatha Triome",
+        "scryfallId": "9bf2b208-79c6-4c4c-bf66-871352ed600f",
+        "oracleId": "ec2b3779-55f7-4169-aa66-6312fb52721f",
+        "firstSet": "iko"
+    },
+    {
         "name": "Indestructible Aura",
         "scryfallId": "ed2a7333-c9ce-4011-b00e-1304e1eec25e",
         "oracleId": "e10e8d56-bba6-412d-970e-c24969f32b5b",
@@ -3960,6 +3966,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Jetmir's Garden",
+        "scryfallId": "ca9203fa-12db-4fa0-affd-4db277c871b7",
+        "oracleId": "f5896356-5744-4f7e-a4e5-1cc36dde5958",
+        "firstSet": "snc"
+    },
+    {
         "name": "Jeweled Amulet",
         "scryfallId": "34f7bad2-d28f-42d2-9246-fe3545ef49a7",
         "oracleId": "e2ad4b4d-d5fe-4a64-9b40-296c8fc8bcce",
@@ -4078,6 +4090,12 @@
         "scryfallId": "8402543e-5406-404f-95c4-800a1dce35f1",
         "oracleId": "4d47e598-690e-4850-97e4-7136bc7b497e",
         "firstSet": "ice"
+    },
+    {
+        "name": "Ketria Triome",
+        "scryfallId": "f5b5b9bb-ee9f-4a52-bd74-fd2759c8e3d3",
+        "oracleId": "6bae00e8-06cf-4ac4-a1cc-757e454109fe",
+        "firstSet": "iko"
     },
     {
         "name": "Khabál Ghoul",
@@ -4620,6 +4638,12 @@
         "firstSet": "m20"
     },
     {
+        "name": "Marauding Mako",
+        "scryfallId": "194ebb23-fecd-4aa5-96b7-447c9768794e",
+        "oracleId": "e349be42-5f14-44a9-9608-281985c10e2d",
+        "firstSet": "dft"
+    },
+    {
         "name": "Marhault Elsdragon",
         "scryfallId": "67330004-6720-46d9-9de0-c79230110583",
         "oracleId": "c202f124-4283-48f6-aef1-470ad9ded22b",
@@ -4870,6 +4894,12 @@
         "scryfallId": "a8f05d5e-bb7d-4554-b880-f0c6b4688357",
         "oracleId": "8d231d2f-5274-4b55-8262-9eb95654d183",
         "firstSet": "leg"
+    },
+    {
+        "name": "Miscalculation",
+        "scryfallId": "4b4956a2-9a39-4152-9c98-70e4b2acfa26",
+        "oracleId": "9078db26-3a54-4a11-9aae-e45c38da7226",
+        "firstSet": "ulg"
     },
     {
         "name": "Mishra's Bauble",
@@ -5814,6 +5844,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Raffine's Tower",
+        "scryfallId": "a2c56479-4bee-4edb-80d7-4af010b7c793",
+        "oracleId": "6e9ef5ef-6aed-4d3e-a59b-9e3dc8740b1b",
+        "firstSet": "snc"
+    },
+    {
         "name": "Rag Man",
         "scryfallId": "f4c133b8-8383-433f-be96-c47a937287b7",
         "oracleId": "8132c521-44e2-4fc0-b3de-e5b92d04463a",
@@ -5890,6 +5926,12 @@
         "scryfallId": "b598c93e-dae1-4d71-a9e4-917abf76d2d0",
         "oracleId": "04e5e84f-8fd4-43ab-8f9d-5b24646f7ae5",
         "firstSet": "mkm"
+    },
+    {
+        "name": "Raugrin Triome",
+        "scryfallId": "c303a627-cce3-4045-81f8-fe7427e0a941",
+        "oracleId": "c7fa1dda-9312-4ec8-82cd-a1ba7bc33497",
+        "firstSet": "iko"
     },
     {
         "name": "Ray of Command",
@@ -6226,6 +6268,12 @@
         "scryfallId": "38fb3014-f631-4a75-92cd-7e626b13a4c3",
         "oracleId": "330e109c-1885-4946-9edc-895408519b3d",
         "firstSet": "drk"
+    },
+    {
+        "name": "Savai Triome",
+        "scryfallId": "d21ef9e6-e2dd-4e0a-a36c-e07034ac4ba3",
+        "oracleId": "00625242-9348-4ef4-b975-f2ac82fee21d",
+        "firstSet": "iko"
     },
     {
         "name": "Savannah",
@@ -6760,6 +6808,12 @@
         "scryfallId": "7c850b94-75c9-4457-8b5e-1193352d6fcb",
         "oracleId": "1b5e6560-ff2e-4475-96cb-63f64c8a86db",
         "firstSet": "thb"
+    },
+    {
+        "name": "Spara's Headquarters",
+        "scryfallId": "0ddd6093-eb29-4a1a-a0af-debb86c9cadd",
+        "oracleId": "3123ec89-8e95-4761-ba17-747ec667509f",
+        "firstSet": "snc"
     },
     {
         "name": "Spectral Cloak",
@@ -7704,6 +7758,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Unearth",
+        "scryfallId": "b6cb2549-e485-44d6-9d65-7605c568909e",
+        "oracleId": "4e0b647a-6e1a-421b-bca9-8d5e346bda80",
+        "firstSet": "ulg"
+    },
+    {
         "name": "Unholy Citadel",
         "scryfallId": "9de534ff-fb48-4692-bd0f-dd237ca28502",
         "oracleId": "d410027b-1c22-461e-939d-06a2c851352e",
@@ -8376,6 +8436,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Xander's Lounge",
+        "scryfallId": "1d96f496-1fc1-4e66-878a-b0905e920cdc",
+        "oracleId": "8291543f-d086-48aa-b2b7-5481ca8c9198",
+        "firstSet": "snc"
+    },
+    {
         "name": "Xenic Poltergeist",
         "scryfallId": "5149ffff-d38f-458e-bcfa-a4b6b332a0b4",
         "oracleId": "fb8f80cc-6214-4ab9-a9a9-1873ab9feb0c",
@@ -8418,6 +8484,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Zagoth Triome",
+        "scryfallId": "cc520518-2063-4b57-a0d4-10cf62a7175e",
+        "oracleId": "fdd46004-eaba-4024-8687-39b23dc6a58c",
+        "firstSet": "iko"
+    },
+    {
         "name": "Zelyon Sword",
         "scryfallId": "4137160b-5248-4fbd-8ae8-25e9afd8fb5c",
         "oracleId": "991038e0-f8d6-42e6-b8a2-3d77aae7a256",
@@ -8428,6 +8500,12 @@
         "scryfallId": "25a173fd-e10c-45f8-a6e5-ad7a747a8050",
         "oracleId": "b5e44bd6-0b67-4770-868d-c46af5b6a42f",
         "firstSet": "leg"
+    },
+    {
+        "name": "Ziatora's Proving Ground",
+        "scryfallId": "307c4a30-a859-487c-b72d-f10eebcd01c4",
+        "oracleId": "f7e7b78c-c769-4720-8585-1874773eb342",
+        "firstSet": "snc"
     },
     {
         "name": "Zombie Master",

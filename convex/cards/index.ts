@@ -191,6 +191,9 @@ import * as inv from "./sets/inv";
 // Alliances (Force of Will, Pyrokinesis), Prophecy (Foil).
 import * as all from "./sets/all";
 import * as pcy from "./sets/pcy";
+// Cycling CAP (CR 702.29, issue #689): IKO + SNC Triomes (colorless taplands).
+import * as iko from "./sets/iko";
+import * as snc from "./sets/snc";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -372,6 +375,9 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "inv", exports: inv },
     { code: "all", exports: all },
     { code: "pcy", exports: pcy },
+    // Cycling CAP (CR 702.29, issue #689): IKO + SNC Triomes.
+    { code: "iko", exports: iko },
+    { code: "snc", exports: snc },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>
