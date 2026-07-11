@@ -2052,9 +2052,7 @@ export const getJoinInfo = query({
             // Joinable only while open, not yet full, and not the caller's own
             // game — mirrors the `joinGame` mutation guards (authoritative there).
             joinable:
-                game.status === "waiting" &&
-                game.players.length < 2 &&
-                !isHost,
+                game.status === "waiting" && game.players.length < 2 && !isHost,
         };
     },
 });

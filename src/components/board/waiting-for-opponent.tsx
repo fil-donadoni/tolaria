@@ -17,9 +17,9 @@ type WaitingForOpponentProps = {
 
 /** Multiplayer holding screen shown while a created game waits for its second
  *  player (`game.status === "waiting"`). Shares the general page layout
- *  (ambient ground + opaque signal Panel, PRD #589). "Share" copies a deep-link
- *  invite (`/?join=<gameId>`) — a friend who opens it is auto-credited into
- *  this game from the lobby once they pick a deck. */
+ *  (ambient ground + opaque signal Panel, PRD #589). "Share" copies an invite
+ *  link (`/join/<gameId>`) — a friend who opens it lands on the join
+ *  antechamber, picks a deck, and is credited into this game. */
 export default function WaitingForOpponent({
     gameId,
     onLeave,
@@ -27,7 +27,7 @@ export default function WaitingForOpponent({
     const [copied, setCopied] = useState(false);
 
     function handleShare() {
-        const link = `${window.location.origin}/?join=${gameId}`;
+        const link = `${window.location.origin}/join/${gameId}`;
         void copyText(link);
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);

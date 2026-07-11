@@ -3,7 +3,7 @@
 // `createSoloGame` with the chosen `bestOf` + `deck2`; Cancel closes without
 // firing. The player's OWN deck stays the Lobby hero selection. See `../lobby`.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { render, fireEvent, cleanup } from "@testing-library/react";
 // Static import: `vi.mock` is hoisted above all imports, so the lobby module
 // graph (dnd-kit, base-ui, deck-builder, AI) loads fully mocked. Importing it
 // here — during collection, not inside a test — keeps its heavy one-time
@@ -50,11 +50,8 @@ const PRESET_DECKS = [
 const useQueryMock = vi.fn();
 const useMutationMock = vi.fn();
 
-const searchMock = vi.fn(() => ({}) as Record<string, unknown>);
-
 vi.mock("@tanstack/react-router", () => ({
     useNavigate: () => navigate,
-    useSearch: (...args: unknown[]) => searchMock(...args),
 }));
 
 vi.mock("convex/react", () => ({
@@ -93,7 +90,6 @@ vi.mock("~/lib/adminGating", () => ({ canEditPresets: () => false }));
 // DashboardTopBar pulls in auth/profile wiring irrelevant here.
 vi.mock("../dashboard-top-bar", () => ({ default: () => null }));
 vi.mock("../lobby-background", () => ({ default: () => null }));
-vi.mock("../active-game-notice", () => ({ default: () => null }));
 
 // Persisted lobby state: start with a known hero deck selected, Bo3 format.
 beforeEach(() => {
@@ -103,9 +99,7 @@ beforeEach(() => {
     localStorage.setItem("tolaria:matchFormat", "3");
 });
 
-async function renderLobby({
-    activeGame = null as unknown,
-}: { activeGame?: unknown } = {}) {
+async function renderLobby() {
     // `api` is mocked to `{}`, so queries can't be distinguished by reference;
     // route by per-render call order instead. The lobby issues exactly three
     // useQuery calls per render, in this order: presetDecks, openGames,
@@ -115,7 +109,7 @@ async function renderLobby({
         const idx = queryCall++;
         if (idx % 3 === 0) return PRESET_DECKS;
         if (idx % 3 === 1) return [];
-        return activeGame;
+        return null;
     });
     let mutCall = 0;
     useMutationMock.mockImplementation(() => {
@@ -198,41 +192,5 @@ describe("Lobby vs-AI two-step flow", () => {
         expect(document.querySelectorAll('[data-slot^="dialog"]').length).toBe(
             0
         );
-    });
-});
-
-// Deep-link invite auto-join (`/?join=<gameId>`): a visitor landing on the
-// lobby with the param is credited straight into that game — provided they are
-// authenticated, hold a selected deck, and aren't already in an active game.
-describe("Lobby deep-link auto-join", () => {
-    it("fires joinGame for the invited game once a deck is selected", async () => {
-        searchMock.mockReturnValue({ join: "game-42" });
-        await renderLobby();
-        await waitFor(() => expect(joinGame).toHaveBeenCalledTimes(1));
-        expect(joinGame.mock.calls[0][0].gameId).toBe("game-42");
-        // The param is stripped after firing so a back-nav can't retry.
-        expect(navigate).toHaveBeenCalledWith(
-            expect.objectContaining({ search: {}, replace: true })
-        );
-    });
-
-    it("does not auto-join when no deck is selected; prompts instead", async () => {
-        localStorage.removeItem("tolaria:selectedDeckId");
-        searchMock.mockReturnValue({ join: "game-42" });
-        const { getByText } = await renderLobby();
-        await Promise.resolve();
-        expect(joinGame).not.toHaveBeenCalled();
-        expect(
-            getByText(
-                "Select a deck below to join the game you were invited to."
-            )
-        ).toBeTruthy();
-    });
-
-    it("does not auto-join when the user already has an active game", async () => {
-        searchMock.mockReturnValue({ join: "game-42" });
-        await renderLobby({ activeGame: { _id: "other-game" } });
-        await Promise.resolve();
-        expect(joinGame).not.toHaveBeenCalled();
     });
 });

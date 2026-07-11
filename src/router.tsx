@@ -12,6 +12,7 @@ import LobbyRoute from "./routes/lobby.route";
 import DeckBuilderRoute from "./routes/deck-builder.route";
 import DeckDetailRoute from "./routes/deck-detail.route";
 import GameRoute from "./routes/game.route";
+import JoinRoute from "./routes/join.route";
 
 const rootRoute = createRootRoute({
     component: () => (
@@ -25,13 +26,6 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/",
-    // Optional `?join=` deep link (invite link from the "Waiting for opponent"
-    // screen): a visitor landing here is auto-credited into that game once
-    // authenticated and holding a selected deck. A non-string value is dropped.
-    validateSearch: (search): { join?: string } => {
-        const raw = search.join;
-        return typeof raw === "string" && raw ? { join: raw } : {};
-    },
     component: LobbyRoute,
 });
 
@@ -87,6 +81,15 @@ const gameRoute = createRoute({
     component: GameRoute,
 });
 
+// Invite antechamber (`/join/<gameId>`): a shared invite link lands here — the
+// visitor sees the host + game format and picks a deck before being credited
+// into the match (instead of routing through the lobby).
+const joinRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/join/$gameId",
+    component: JoinRoute,
+});
+
 const routeTree = rootRoute.addChildren([
     indexRoute,
     decksCreateRoute,
@@ -95,6 +98,7 @@ const routeTree = rootRoute.addChildren([
     presetCreateRoute,
     presetEditRoute,
     gameRoute,
+    joinRoute,
 ]);
 
 const router = createRouter({ routeTree });
