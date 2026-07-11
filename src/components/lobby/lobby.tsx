@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -47,11 +47,6 @@ import ActiveGameNotice from "./active-game-notice";
 
 function Lobby() {
     const navigate = useNavigate();
-    // Deep-link invite (`/?join=<gameId>`): a loosely-typed read so this stays
-    // decoupled from the router module (which imports this component).
-    const { join: joinParam } = useSearch({ strict: false }) as {
-        join?: string;
-    };
     const user = useCurrentUser();
     const [storedPresetId, setStoredPresetId] = useState<string | null>(() =>
         getStoredDeckPresetId()

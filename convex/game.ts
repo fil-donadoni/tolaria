@@ -2024,6 +2024,41 @@ export const getGame = query({
     },
 });
 
+/** Lightweight info for the invite antechamber (`/join/<gameId>`). Deliberately
+ *  does NOT return either player's decklist — a prospective joiner must never
+ *  see the host's cards. Exposes only what the join page renders: who created
+ *  the game, its format (for pre-filtering the joiner's deck list), and whether
+ *  the game is still joinable. Returns `null` for an unknown id. */
+export const getJoinInfo = query({
+    args: {
+        gameId: v.id("games"),
+    },
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        const game = await ctx.db.get(args.gameId);
+        if (!game) return null;
+        const host = game.players[0];
+        const isHost = game.players.some((p) => p.id === user._id);
+        return {
+            gameId: game._id,
+            name: game.name,
+            hostName: host?.name ?? "Unknown",
+            // Game format = the host deck's declared format (ADR 0036). Solo
+            // games shouldn't surface here, but fall back defensively.
+            format: host?.deck.format ?? "freeform",
+            status: game.status,
+            playerCount: game.players.length,
+            isHost,
+            // Joinable only while open, not yet full, and not the caller's own
+            // game — mirrors the `joinGame` mutation guards (authoritative there).
+            joinable:
+                game.status === "waiting" &&
+                game.players.length < 2 &&
+                !isHost,
+        };
+    },
+});
+
 /** Returns the unique set of card IDs across both players' decks for a game.
  *  Used by the client to preload all card images at game start. */
 export const getGameCardIds = query({
