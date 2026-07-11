@@ -59,4 +59,30 @@ type PresetScenario = {
     poison?: { me?: number; opp?: number };
 };
 
-export const PRESET_SCENARIOS: PresetScenario[] = [];
+export const PRESET_SCENARIOS: PresetScenario[] = [
+    {
+        // Enchantress shell: cast an enchantment from hand → Enchantress's
+        // Presence draws (spell-cast trigger); Serra's Sanctum taps for W per
+        // enchantment; Seal of Cleansing / Ray of Revelation destroy the
+        // opponent's enchantment; Krosan Reclamation exercises flashback from
+        // the graveyard; Mirri's Guile reorders the top three on upkeep.
+        label: "Enchantress: cast-draw + sac-destroy + Serra's mana",
+        cards: [
+            {
+                name: "Enchantress's Presence",
+                owner: "me",
+                zone: "battlefield",
+            },
+            { name: "Serra's Sanctum", owner: "me", zone: "battlefield" },
+            { name: "Seal of Cleansing", owner: "me", zone: "battlefield" },
+            { name: "Mirri's Guile", owner: "me", zone: "battlefield" },
+            { name: "Exploration", owner: "me", zone: "hand" },
+            { name: "Aura of Silence", owner: "me", zone: "hand" },
+            { name: "Ray of Revelation", owner: "me", zone: "hand" },
+            { name: "Krosan Reclamation", owner: "me", zone: "graveyard" },
+            { name: "Aura of Silence", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
+];

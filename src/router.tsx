@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { type FormatId, isFormatId } from "@convex/formats";
 import { AuthGate } from "./components/auth/auth-gate";
+import BugReportButton from "./components/bug-report/bug-report-button";
 import LobbyRoute from "./routes/lobby.route";
 import DeckBuilderRoute from "./routes/deck-builder.route";
 import DeckDetailRoute from "./routes/deck-detail.route";
@@ -16,6 +17,7 @@ const rootRoute = createRootRoute({
     component: () => (
         <AuthGate>
             <Outlet />
+            <BugReportButton />
         </AuthGate>
     ),
 });
