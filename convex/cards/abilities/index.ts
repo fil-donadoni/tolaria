@@ -231,6 +231,15 @@ export function makeDualLand(args: {
      *  `entersTappedUnlessPay: { life: 2 }`. Mutually exclusive with
      *  `fastLand`. */
     shockLand?: boolean;
+    /** The MKM "surveil land" cycle (CR 701.44 Surveil): "This land enters
+     *  tapped. When this land enters, surveil 1." A plain unconditional
+     *  `entersTapped: true` (no board predicate, no pay-choice) plus a
+     *  self-ETB triggered ability whose effect is the shared `scryReorder`
+     *  Op with `count: 1, destination: "graveyard"` (surveil = scry-into-
+     *  graveyard, CR 701.44 modelled over CR 701.22, ADR 0045). Keeps the
+     *  basic land subtypes (the printed cards are `Land — <basic> <basic>`).
+     *  Mutually exclusive with `fastLand` / `shockLand`. */
+    surveilLand?: boolean;
 }): CardDefinition {
     const [c1, c2] = args.colors;
     const slug = args.name.toLowerCase().replaceAll(/\s+/g, "-");
@@ -241,11 +250,17 @@ export function makeDualLand(args: {
         `As ${args.name} enters the battlefield, you may pay 2 life. If you ` +
         "don't, it enters the battlefield tapped.\n" +
         `{T}: Add {${c1}} or {${c2}}.`;
+    const surveilLandOracle =
+        `({T}: Add {${c1}} or {${c2}}.)\n` +
+        "This land enters tapped.\n" +
+        "When this land enters, surveil 1.";
     const oracleText = args.fastLand
         ? fastLandOracle
         : args.shockLand
           ? shockLandOracle
-          : args.oracleText;
+          : args.surveilLand
+            ? surveilLandOracle
+            : args.oracleText;
     return {
         id: args.id,
         name: args.name,
@@ -255,6 +270,28 @@ export function makeDualLand(args: {
         subtypes: args.fastLand
             ? undefined
             : [COLOR_TO_LAND_SUBTYPE[c1], COLOR_TO_LAND_SUBTYPE[c2]],
+        entersTapped: args.surveilLand ? true : undefined,
+        // CR 701.44 — the ETB surveil 1 trigger, shared shape across the cycle.
+        triggeredAbilities: args.surveilLand
+            ? [
+                  {
+                      id: `${slug}-surveil`,
+                      oracleText: "When this land enters, surveil 1.",
+                      event: "PERMANENT_ENTERED",
+                      matches: (event, self) =>
+                          event.type === "PERMANENT_ENTERED" &&
+                          event.instanceId === self.id,
+                      effects: [
+                          {
+                              op: "scryReorder",
+                              player: "controller",
+                              count: 1,
+                              destination: "graveyard",
+                          },
+                      ],
+                  },
+              ]
+            : undefined,
         entersTappedUnless: args.fastLand
             ? (view, controllerId) => {
                   const own = view.players.find((p) => p.id === controllerId);

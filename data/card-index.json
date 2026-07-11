@@ -1302,6 +1302,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Commercial District",
+        "scryfallId": "bf220c06-3cce-4bdd-aa58-83940c223e9c",
+        "oracleId": "b33656ae-3473-4223-845f-f9147f87678b",
+        "firstSet": "mkm"
+    },
+    {
         "name": "Concealed Courtyard",
         "scryfallId": "c8769e97-aee8-4466-a9d7-0f4245ae4a97",
         "oracleId": "2d899466-b1eb-4901-b626-1f2fb09b786d",
@@ -2008,6 +2014,12 @@
         "scryfallId": "b8834c18-0e4e-4785-9d15-b33345e3789b",
         "oracleId": "ad8213db-074d-475c-b94a-9f1e81c8f4fd",
         "firstSet": "drk"
+    },
+    {
+        "name": "Elegant Parlor",
+        "scryfallId": "72c6d541-e2cb-4d6e-acac-90a8f53b7006",
+        "oracleId": "9ea747cf-5d04-4aa7-bdc3-8145860cd1ba",
+        "firstSet": "mkm"
     },
     {
         "name": "Elemental Augury",
@@ -3282,6 +3294,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Hedge Maze",
+        "scryfallId": "5260f8ae-805b-4eae-badf-62de0f768867",
+        "oracleId": "ca4b6689-04ee-4227-9bdc-cb5a9590c745",
+        "firstSet": "mkm"
+    },
+    {
         "name": "Hell Swarm",
         "scryfallId": "64164d1b-75f4-456e-a717-90ce554dc16c",
         "oracleId": "f8df23ed-e239-435a-a4a9-cf10da6df28f",
@@ -4464,6 +4482,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Lush Portico",
+        "scryfallId": "c17816e8-28b1-4295-a637-efb0e5c18873",
+        "oracleId": "d51831b1-7394-456e-a1de-6787a59f5932",
+        "firstSet": "mkm"
+    },
+    {
         "name": "Maddening Wind",
         "scryfallId": "5277656c-70f5-4660-bd58-7d9261d53fb5",
         "oracleId": "c9798915-3f9e-466b-bbd6-f4e126bdb67d",
@@ -4714,6 +4738,12 @@
         "scryfallId": "50b4851e-677b-468e-9baa-e47a3b4b8339",
         "oracleId": "d2110083-b30f-43f1-9352-7536f5e19d3c",
         "firstSet": "ice"
+    },
+    {
+        "name": "Meticulous Archive",
+        "scryfallId": "652236c2-84ef-45e4-b5fc-ed6170bc3d6c",
+        "oracleId": "ccfb8b4d-651c-418a-aa19-cb23105b3f2f",
+        "firstSet": "mkm"
     },
     {
         "name": "Mightstone",
@@ -5826,6 +5856,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Raucous Theater",
+        "scryfallId": "b598c93e-dae1-4d71-a9e4-917abf76d2d0",
+        "oracleId": "04e5e84f-8fd4-43ab-8f9d-5b24646f7ae5",
+        "firstSet": "mkm"
+    },
+    {
         "name": "Ray of Command",
         "scryfallId": "638abe5f-2a8a-42ca-bcdf-a52a3df66946",
         "oracleId": "adf41d29-403d-4936-9689-3148d103e700",
@@ -6346,6 +6382,12 @@
         "scryfallId": "7e68f4df-88ce-4e09-a03c-7edf40bff167",
         "oracleId": "1b9f9f5b-8712-4f00-90cb-1b7b9970eccc",
         "firstSet": "c19"
+    },
+    {
+        "name": "Shadowy Backstreet",
+        "scryfallId": "69c1b656-1d67-499c-bf0f-417682a86c7d",
+        "oracleId": "216a2a92-9ca3-4ca3-8af7-686c13b04290",
+        "firstSet": "mkm"
     },
     {
         "name": "Shambling Strider",
@@ -7320,6 +7362,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Thundering Falls",
+        "scryfallId": "17260fff-b239-4af4-9306-3236ae3fa5a5",
+        "oracleId": "d2bcff58-7a8a-46ef-b6b3-39501d4c8e6e",
+        "firstSet": "mkm"
+    },
+    {
         "name": "Thwart",
         "scryfallId": "c12a0717-e9ea-4be3-a29f-179671ed4489",
         "oracleId": "615a149a-2869-4b18-bbbe-9ec1825049d7",
@@ -7576,6 +7624,18 @@
         "scryfallId": "848ad6d5-3a7e-4d6b-9929-36465796871f",
         "oracleId": "44e855a4-95f9-4515-a868-a8ad7a2db751",
         "firstSet": "drk"
+    },
+    {
+        "name": "Undercity Sewers",
+        "scryfallId": "2b5801fb-2026-4f25-98bc-ebb2f99684b9",
+        "oracleId": "08d80efc-9542-4ba2-824c-c8615d8d07f2",
+        "firstSet": "mkm"
+    },
+    {
+        "name": "Underground Mortuary",
+        "scryfallId": "f6ca59cd-8779-4a84-a54b-e863b79c61f0",
+        "oracleId": "840119bf-e60f-4ff7-9c9b-d420d09df545",
+        "firstSet": "mkm"
     },
     {
         "name": "Underground River",

@@ -28,11 +28,20 @@ export default function DeckImportDialog({
 }: DeckImportDialogProps) {
     const [text, setText] = useState("");
     const [parsed, setParsed] = useState<ParsedDecklist | null>(null);
+    const [copied, setCopied] = useState(false);
 
     const reset = useCallback(() => {
         setText("");
         setParsed(null);
+        setCopied(false);
     }, []);
+
+    const handleCopyUnresolved = useCallback(() => {
+        if (!parsed || parsed.unresolved.length === 0) return;
+        void navigator.clipboard
+            .writeText(parsed.unresolved.join("\n"))
+            .then(() => setCopied(true));
+    }, [parsed]);
 
     const close = useCallback(() => {
         reset();
@@ -64,6 +73,7 @@ export default function DeckImportDialog({
                     onChange={(e) => {
                         setText(e.target.value);
                         setParsed(null);
+                        setCopied(false);
                     }}
                     placeholder={PLACEHOLDER}
                     rows={12}
@@ -79,14 +89,23 @@ export default function DeckImportDialog({
                         </p>
                         {parsed.unresolved.length > 0 && (
                             <div className="rounded-sm border border-danger/40 bg-danger/10 px-3 py-2">
-                                <p className="text-label text-danger">
-                                    {parsed.unresolved.length} line
-                                    {parsed.unresolved.length === 1
-                                        ? ""
-                                        : "s"}{" "}
-                                    not recognised — skipped:
-                                </p>
-                                <ul className="mt-1 max-h-32 overflow-auto font-mono text-xs text-text-muted">
+                                <div className="flex items-start justify-between gap-2">
+                                    <p className="text-label text-danger">
+                                        {parsed.unresolved.length} line
+                                        {parsed.unresolved.length === 1
+                                            ? ""
+                                            : "s"}{" "}
+                                        not recognised — skipped:
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={handleCopyUnresolved}
+                                        className="btn-base btn-tone-ghost shrink-0 px-2 py-0.5 text-xs"
+                                    >
+                                        {copied ? "Copied" : "Copy"}
+                                    </button>
+                                </div>
+                                <ul className="mt-1 max-h-32 select-text overflow-auto font-mono text-xs text-text-muted">
                                     {parsed.unresolved.map((line, i) => (
                                         <li key={i}>{line}</li>
                                     ))}

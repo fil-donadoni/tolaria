@@ -59,46 +59,4 @@ type PresetScenario = {
     poison?: { me?: number; opp?: number };
 };
 
-export const PRESET_SCENARIOS: PresetScenario[] = [
-    {
-        // Frantic Search (ULG) spans two selection steps in ONE card: an
-        // own-hand discard pick (`choose-hand-card`) and a battlefield untap
-        // pick (`choose-permanents`). Both must ring the SELECTED cards green
-        // (emerald), distinct from the faded-bronze "pickable" ring, so the
-        // player can read what they've committed. Untapped Islands pay {2}{U};
-        // the three tapped Islands are the untap targets; the Ornithopters are
-        // discard fodder for the draw-two-then-discard-two step.
-        label: "Frantic Search — selection ring (discard + untap)",
-        cards: [
-            { name: "Frantic Search", owner: "me", zone: "hand" },
-            { name: "Ornithopter", owner: "me", zone: "hand", count: 2 },
-            { name: "Island", owner: "me", zone: "battlefield", count: 3 },
-            {
-                name: "Island",
-                owner: "me",
-                zone: "battlefield",
-                tapped: true,
-                count: 3,
-            },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-        libraryCount: 10,
-    },
-    {
-        // Memory Jar (ULG, #682) — activating it exiles every hand FACE DOWN,
-        // so the opponent's exile pile fills with face-down cards. Their
-        // projected identity is the `face-down:2-2-vanilla` sentinel, which has
-        // no Scryfall art: the client must render the card back, not fetch a
-        // 404 image URL. This scenario reaches that state in one activation.
-        label: "Memory Jar — face-down exile",
-        cards: [
-            { name: "Memory Jar", owner: "me", zone: "battlefield" },
-            { name: "Gray Ogre", owner: "me", zone: "hand", count: 2 },
-            { name: "Grizzly Bears", owner: "opp", zone: "hand", count: 2 },
-            { name: "Ornithopter", owner: "opp", zone: "hand" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 5,
-    },
-];
+export const PRESET_SCENARIOS: PresetScenario[] = [];
