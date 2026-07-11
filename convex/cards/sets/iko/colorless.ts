@@ -9,28 +9,28 @@ import type { CardDefinition } from "../../types";
 import { makeTriome } from "../../abilities";
 
 export const raugrinTriome: CardDefinition = makeTriome({
-    id: "c303a627-cce3-4045-81f8-fe7427e0a941",
+    id: "02138fbb-3962-4348-8d31-faaefba0b8b2",
     name: "Raugrin Triome",
     rarity: "rare",
     colors: ["U", "R", "W"],
 });
 
 export const indathaTriome: CardDefinition = makeTriome({
-    id: "9bf2b208-79c6-4c4c-bf66-871352ed600f",
+    id: "2b74bb81-fb9a-40e5-a941-e517430b52f5",
     name: "Indatha Triome",
     rarity: "rare",
     colors: ["W", "B", "G"],
 });
 
 export const savaiTriome: CardDefinition = makeTriome({
-    id: "d21ef9e6-e2dd-4e0a-a36c-e07034ac4ba3",
+    id: "748e6a61-9c1f-4225-9f04-e54002f63ac3",
     name: "Savai Triome",
     rarity: "rare",
     colors: ["R", "W", "B"],
 });
 
 export const ketriaTriome: CardDefinition = makeTriome({
-    id: "f5b5b9bb-ee9f-4a52-bd74-fd2759c8e3d3",
+    id: "a249b1f4-2b22-4b67-a207-e0c4ae95d2e1",
     name: "Ketria Triome",
     rarity: "rare",
     colors: ["G", "U", "R"],

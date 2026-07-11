@@ -31,22 +31,33 @@ const noopBuffer: PendingChoiceBuffer = {
 // returns one of these spies keyed by the function reference's marker.
 const playCard = vi.fn();
 const announceCast = vi.fn();
+const activateAbility = vi.fn(() => Promise.resolve());
 vi.mock("convex/react", () => ({
     useMutation: (ref: { _name: string }) =>
-        ref._name === "playCard" ? playCard : announceCast,
+        ref._name === "playCard"
+            ? playCard
+            : ref._name === "activateAbility"
+              ? activateAbility
+              : announceCast,
 }));
 vi.mock("@convex/_generated/api", () => ({
     api: {
         game: {
             playCard: { _name: "playCard" },
             announceCast: { _name: "announceCast" },
+            activateAbility: { _name: "activateAbility" },
         },
     },
 }));
 
 // Controllable card definition: default = vanilla (no X, no modes) so the simple
 // parity path runs without a prompt or picker. Individual tests override.
-let cardDef: { name: string; manaCost?: { X?: string }; modes?: unknown[] } = {
+let cardDef: {
+    name: string;
+    manaCost?: { X?: string };
+    modes?: unknown[];
+    activatedAbilities?: unknown[];
+} = {
     name: "Test Card",
 };
 vi.mock("@convex/cards", () => ({
@@ -165,6 +176,7 @@ function drag(lift: number) {
 beforeEach(() => {
     playCard.mockClear();
     announceCast.mockClear();
+    activateAbility.mockClear();
     cardDef = { name: "Test Card" };
     cleanup();
 });
@@ -434,6 +446,49 @@ describe("BoardHandCard drag containment (#271 fix 4)", () => {
         // regardless of the visual clamp).
         expect(target.getAttribute("data-drag-armed")).toBe("true");
         fireEvent.pointerUp(target, { clientX: 100, clientY: 0 });
+    });
+});
+
+// CR 113.6 / 702.29a — the "Cycle" button (Cycling, #689) renders on the
+// viewer's OWN hand card through the real component gate
+// (`hasPriority && noPendingInteraction`), which the getHandStackAbilities unit
+// test does NOT exercise. Reproduces the reported bug: cycling ability not
+// activatable from hand despite holding priority.
+describe("BoardHandCard Cycling affordance (CR 702.29a, #689)", () => {
+    const cyclingDef = {
+        name: "Raugrin Triome",
+        activatedAbilities: [
+            {
+                id: "cycling",
+                oracleText:
+                    "Cycling {3} ({3}, Discard this card: Draw a card.)",
+                cost: { mana: { generic: 3 }, discardThis: true },
+                activateFromHand: true,
+                useStack: true,
+                effects: [{ op: "draw", player: "controller", count: 1 }],
+            },
+        ],
+    };
+
+    it("shows the Cycle button on an own hand card while the viewer holds priority", () => {
+        cardDef = cyclingDef;
+        const card = makeCard("triome", ["play"]);
+        renderCard(card);
+        expect(screen.getByText("Cycle")).toBeTruthy();
+    });
+
+    it("dispatches activateAbility(cycling) when the Cycle button is clicked", () => {
+        cardDef = cyclingDef;
+        const card = makeCard("triome", ["play"]);
+        renderCard(card);
+        fireEvent.click(screen.getByText("Cycle"));
+        expect(activateAbility).toHaveBeenCalledTimes(1);
+        expect(activateAbility.mock.calls[0][0]).toMatchObject({
+            cardInstanceId: "triome",
+            abilityId: "cycling",
+        });
+        // The land-play commit must NOT also fire (button stops propagation).
+        expect(playCard).not.toHaveBeenCalled();
     });
 });
 

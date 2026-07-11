@@ -2095,7 +2095,7 @@ describe("manaCostToString renders fixed generic mana (bug class)", () => {
 // ---------------------------------------------------------------------------
 
 describe("getHandStackAbilities (CR 113.6 / 702.29a — Cycling, #689)", () => {
-    const RAUGRIN_TRIOME_ID = "c303a627-cce3-4045-81f8-fe7427e0a941";
+    const RAUGRIN_TRIOME_ID = "02138fbb-3962-4348-8d31-faaefba0b8b2";
     const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
 
     const makeTriomeInHand = () =>

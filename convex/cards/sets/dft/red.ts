@@ -17,7 +17,7 @@ import { discardTrigger } from "../../abilities/triggers/discardTrigger";
 // each) rather than once with a count of N. The net counter total is identical;
 // only single-card discards occur in this batch (Cycling always discards one).
 export const maraudingMako: CardDefinition = {
-    id: "194ebb23-fecd-4aa5-96b7-447c9768794e",
+    id: "9efbfd67-e0f5-43e0-9fff-1eb4a2bed0d8",
     name: "Marauding Mako",
     rarity: "common",
     oracleText:
