@@ -438,6 +438,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Aura of Silence",
+        "scryfallId": "57e6c366-b8c7-4f66-b8e1-82dc69c0081c",
+        "oracleId": "e7faf8eb-e829-4109-8dfe-42865a23ba86",
+        "firstSet": "wth"
+    },
+    {
         "name": "Aurochs",
         "scryfallId": "7e973a84-7f7d-4524-9f2f-ec9a014d52ee",
         "oracleId": "3961ef7c-4eb4-482e-9cda-d49d6a29c5a9",
@@ -2112,6 +2118,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Enchantress's Presence",
+        "scryfallId": "75def198-99d6-4b0a-8878-5151f44bc0a4",
+        "oracleId": "795b096a-2bce-4588-a2c9-abc5ea40dc0c",
+        "firstSet": "ons"
+    },
+    {
         "name": "Energy Flux",
         "scryfallId": "bd1f624b-e8f2-462f-838a-7cb9e8fda988",
         "oracleId": "7a756cd1-29a8-4edf-bb74-fbb5b4020022",
@@ -2242,6 +2254,12 @@
         "scryfallId": "c55bee97-593f-441f-b96c-a998d5212a55",
         "oracleId": "8fcf50cd-e6d0-4516-850f-d42ee75dcc3a",
         "firstSet": "zen"
+    },
+    {
+        "name": "Exploration",
+        "scryfallId": "2f09e451-0246-45a2-8bfd-07d3c65ddfe6",
+        "oracleId": "0c2841bb-038c-4fbf-8360-bc0a1522b58d",
+        "firstSet": "usg"
     },
     {
         "name": "Expressive Iteration",
@@ -4194,6 +4212,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Krosan Reclamation",
+        "scryfallId": "5b3c5144-7e15-46c6-b819-d729ecb30bb1",
+        "oracleId": "e69252a6-8c27-4af9-8cbe-11eb416a6a46",
+        "firstSet": "jud"
+    },
+    {
         "name": "Krovikan Elementalist",
         "scryfallId": "bbedca18-a074-4441-b0a9-7b14fdb07412",
         "oracleId": "43e6fc44-8b23-4bff-91da-936019efe84b",
@@ -4834,6 +4858,12 @@
         "scryfallId": "35d29bda-096c-44d4-b45e-c2c507f8efbe",
         "oracleId": "86ddbc56-3318-49cf-be95-78772ef87637",
         "firstSet": "drk"
+    },
+    {
+        "name": "Mirri's Guile",
+        "scryfallId": "73d51a3c-95c0-4810-b847-4b8afd12fd64",
+        "oracleId": "7f89c0ee-b914-406c-8a3f-98424a52ae14",
+        "firstSet": "tmp"
     },
     {
         "name": "Mirror Universe",
@@ -5874,6 +5904,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Ray of Revelation",
+        "scryfallId": "6d762c8c-6172-4dc0-8fcc-d0f6dd8ca013",
+        "oracleId": "4620bfa8-7198-44ae-a162-51a19ca0f555",
+        "firstSet": "jud"
+    },
+    {
         "name": "Razorverge Thicket",
         "scryfallId": "345e053a-3178-485c-8602-1624bbf2f064",
         "oracleId": "94f6c407-e665-4032-be13-a01e40c1f306",
@@ -6300,6 +6336,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Seal of Cleansing",
+        "scryfallId": "af6c921e-1b82-412c-9979-adfdf83440f7",
+        "oracleId": "a75dbe70-7e3e-446f-9a76-9fbb414f2e7c",
+        "firstSet": "nem"
+    },
+    {
         "name": "Seal of Fire",
         "scryfallId": "37eaf1f6-4bdc-4669-9a15-50b65e016ccf",
         "oracleId": "348a345e-4639-41ca-b015-a5d43459eb64",
@@ -6376,6 +6418,12 @@
         "scryfallId": "f8ac5006-91bd-4803-93da-f87cf196dd2f",
         "oracleId": "4b7ac066-e5c7-43e6-9e7e-2739b24a905d",
         "firstSet": "lea"
+    },
+    {
+        "name": "Serra's Sanctum",
+        "scryfallId": "f7a18130-dbaa-4657-a885-3a96a985935a",
+        "oracleId": "34187c71-6033-4058-aadc-2bc266f762be",
+        "firstSet": "usg"
     },
     {
         "name": "Sevinne's Reclamation",

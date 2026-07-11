@@ -5,6 +5,7 @@ import {
     createRoute,
     createRouter,
 } from "@tanstack/react-router";
+import { type FormatId, isFormatId } from "@convex/formats";
 import { AuthGate } from "./components/auth/auth-gate";
 import LobbyRoute from "./routes/lobby.route";
 import DeckBuilderRoute from "./routes/deck-builder.route";
@@ -28,6 +29,15 @@ const indexRoute = createRoute({
 const decksCreateRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/decks/create",
+    // Optional `?format=` seed carried from the lobby's format filter, so New
+    // Deck opens on the selected format instead of resetting to Freeform. An
+    // unknown value is dropped (falls back to the builder's default).
+    validateSearch: (search): { format?: FormatId } => {
+        const raw = search.format;
+        return typeof raw === "string" && isFormatId(raw)
+            ? { format: raw }
+            : {};
+    },
     component: () => <DeckBuilderRoute mode="create" />,
 });
 

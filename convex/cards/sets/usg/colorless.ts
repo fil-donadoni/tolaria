@@ -70,3 +70,34 @@ export const tolarianAcademy: CardDefinition = {
         },
     ],
 };
+
+// Serra's Sanctum — "{T}: Add {W} for each enchantment you control." (CR
+// 605.1a mana ability, `useStack: false`.) Same `manaAmount` shape as Gaea's
+// Cradle / Tolarian Academy, counting enchantments instead of creatures /
+// artifacts. Vintage Cube free tranche (issue #675, ADR 0041).
+export const serrasSanctum: CardDefinition = {
+    id: "f7a18130-dbaa-4657-a885-3a96a985935a",
+    rarity: "rare",
+    name: "Serra's Sanctum",
+    oracleText: "{T}: Add {W} for each enchantment you control.",
+    manaCost: {},
+    types: ["Land"],
+    supertypes: ["Legendary"],
+    activatedAbilities: [
+        {
+            id: "serras-sanctum-mana",
+            oracleText: "{T}: Add {W} for each enchantment you control.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => {
+                ctx.addMana({ W: 1 });
+            },
+            manaProduced: { W: 1 },
+            manaAmount: (_source, battlefield) => ({
+                W: battlefield.filter((p: PermanentView) =>
+                    p.types.includes("Enchantment")
+                ).length,
+            }),
+        },
+    ],
+};

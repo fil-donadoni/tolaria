@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { getAllCardNames, getCardByName } from "@convex/cards";
+import {
+    getAllCardNames,
+    getCardByName,
+    resolveDeckCardMeta,
+} from "@convex/cards";
+import { PREMODERN_LEGAL_SETS } from "@convex/formats";
 import type { DeckCard } from "~/types/game";
 import { deckToText, parseDecklist } from "../deckImport";
 
@@ -71,6 +76,37 @@ describe("parseDecklist", () => {
         expect(result.cards).toHaveLength(1);
         expect(result.sideboard).toHaveLength(1);
         expect(result.unresolved).toEqual([]);
+    });
+});
+
+describe("parseDecklist — format-aware printing selection", () => {
+    // Counterspell's home printing is LEA (out of the Premodern pool), but it has
+    // built reprints in Premodern-legal sets (4ed/ice/tmp/…). The importer must
+    // pick the earliest legal one, never the illegal LEA original.
+    const counterspell = getCardByName("Counterspell");
+
+    it("keeps the home printing under an unrestricted format (Freeform default)", () => {
+        const result = parseDecklist("1 Counterspell");
+        expect(result.cards[0].cardId).toBe(counterspell.id);
+        // LEA is the home printing — legal in Freeform.
+        expect(resolveDeckCardMeta(result.cards[0].cardId)?.setCode).toBe(
+            "lea"
+        );
+    });
+
+    it("remaps to the earliest legal printing under a restricted format (Premodern)", () => {
+        const result = parseDecklist("1 Counterspell", "premodern");
+        const meta = resolveDeckCardMeta(result.cards[0].cardId);
+
+        // Never the out-of-pool LEA original...
+        expect(result.cards[0].cardId).not.toBe(counterspell.id);
+        expect(meta?.setCode).not.toBe("lea");
+        // ...and legal by construction: the printing's set is in the pool.
+        expect(PREMODERN_LEGAL_SETS).toContain(meta?.setCode);
+        // Earliest in the format's set order — 4th Edition heads the pool.
+        expect(meta?.setCode).toBe("4ed");
+        // Display name is preserved regardless of the picked printing.
+        expect(result.cards[0].cardName).toBe("Counterspell");
     });
 });
 

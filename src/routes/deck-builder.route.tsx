@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import type { FormatId } from "@convex/formats";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -35,6 +36,11 @@ export default function DeckBuilderRoute({
     const navigate = useNavigate();
     const params = useParams({ strict: false }) as { slug?: string };
     const slug = mode === "edit" ? params.slug : undefined;
+    // New-deck seed format, carried from the lobby's format filter through the
+    // `/decks/create` search param (validated there). Absent for edit routes.
+    const { format: defaultFormat } = useSearch({ strict: false }) as {
+        format?: FormatId;
+    };
     const [deleting, setDeleting] = useState(false);
 
     const userDecks = useUserDecks();
@@ -199,6 +205,7 @@ export default function DeckBuilderRoute({
         <DeckBuilder
             kind="user"
             mode="create"
+            defaultFormat={defaultFormat}
             initialDeck={null}
             initialIdentity={null}
             initialDeckList={userDecks}

@@ -1,10 +1,16 @@
 import { useCallback, useState } from "react";
+import type { FormatId } from "@convex/formats";
 import GameDialog from "~/components/ui/game-dialog";
 import { type ParsedDecklist, parseDecklist } from "~/lib/deckImport";
 
 interface DeckImportDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    // The working deck's format. Drives which printing each pasted name resolves
+    // to: the earliest one legal in this format, so the import is legal by
+    // construction (e.g. a Premodern import picks Counterspell's 4ed/Ice-Age
+    // print, never LEA).
+    format: FormatId;
     // Append the parsed piles to the working deck. Called with the resolved
     // cards only; the dialog has already surfaced any unresolved lines.
     onImport: (parsed: ParsedDecklist) => void;
@@ -24,6 +30,7 @@ Sideboard
 export default function DeckImportDialog({
     open,
     onOpenChange,
+    format,
     onImport,
 }: DeckImportDialogProps) {
     const [text, setText] = useState("");
@@ -51,8 +58,8 @@ export default function DeckImportDialog({
     const total = parsed ? parsed.cards.length + parsed.sideboard.length : 0;
 
     const handleParse = useCallback(() => {
-        setParsed(parseDecklist(text));
-    }, [text]);
+        setParsed(parseDecklist(text, format));
+    }, [text, format]);
 
     const handleConfirm = useCallback(() => {
         if (parsed) onImport(parsed);

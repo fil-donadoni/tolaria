@@ -80,6 +80,10 @@ interface DeckBuilderProps {
     // one. Drives the save dispatch: a preset in create mode persists via
     // `createPreset` on first flush, then patches by the derived slug.
     mode?: DeckBuilderMode;
+    // Format to seed a brand-new deck with (create mode, `initialDeck === null`).
+    // Carries the lobby's selected format filter through the New Deck action so
+    // it isn't reset to Freeform. Ignored when editing an existing deck.
+    defaultFormat?: FormatId;
     initialDeck: LobbyDeck | null;
     // Stable identity of the deck being edited: a `userDeckId` for an existing
     // user deck, the slug for a preset, or null for a brand-new user deck.
@@ -115,6 +119,7 @@ function computeDeckColors(cards: DeckCard[]): string[] {
 export default function DeckBuilder({
     kind,
     mode = "edit",
+    defaultFormat = DEFAULT_FORMAT,
     initialDeck,
     initialIdentity,
     initialDeckList,
@@ -142,7 +147,7 @@ export default function DeckBuilder({
               }
             : {
                   name: nextDeckName(initialDeckList),
-                  format: DEFAULT_FORMAT,
+                  format: defaultFormat,
                   colors: [],
                   cards: [],
                   sideboard: [],
@@ -758,6 +763,7 @@ export default function DeckBuilder({
             <DeckImportDialog
                 open={importOpen}
                 onOpenChange={setImportOpen}
+                format={deck.format}
                 onImport={handleImport}
             />
 

@@ -1,4 +1,5 @@
-import { tryGetCardByName } from "@convex/cards";
+import { getPrintingsForCard, tryGetCardByName } from "@convex/cards";
+import { FORMAT_RULES, type FormatId } from "@convex/formats";
 import type { DeckCard } from "~/types/game";
 
 /** Result of parsing a pasted decklist. `cards`/`sideboard` are flat lists with
@@ -29,6 +30,39 @@ function isSectionHeader(line: string): Section | null {
     return null;
 }
 
+/** Pick the deck-card id to import for a resolved card, given the target format.
+ *
+ * A pasted line carries only a NAME, which resolves to the canonical
+ * `CardDefinition` — whose id is the ORIGINAL printing (e.g. Counterspell → LEA).
+ * That original set is often out of the target format's pool, so importing the
+ * home printing would seed an illegal deck (LEA Counterspell in Premodern). To
+ * keep the import legal by construction, we remap the id to the card's EARLIEST
+ * printing that is legal in the format — "earliest" meaning first in the format's
+ * `allowedSets` order (the format-author-defined precedence; Premodern lists
+ * 4th Edition → Scourge, so Counterspell resolves to its 4ed/Ice-Age-era print,
+ * never LEA).
+ *
+ * Falls back to the home printing (`defId`) when the format is unrestricted
+ * (`allowedSets === null`, Freeform) or when no built printing of the card is in
+ * the pool — in the latter case the deck's validator surfaces the illegality,
+ * exactly as before. */
+function pickPrintingForFormat(defId: string, format: FormatId): string {
+    const allowedSets = FORMAT_RULES[format].allowedSets;
+    if (!allowedSets) return defId;
+    const order = new Map(allowedSets.map((set, i) => [set, i]));
+
+    let bestId = defId;
+    let bestRank = Infinity;
+    for (const printing of getPrintingsForCard(defId)) {
+        const rank = order.get(printing.setCode);
+        if (rank !== undefined && rank < bestRank) {
+            bestRank = rank;
+            bestId = printing.printId;
+        }
+    }
+    return bestId;
+}
+
 /** Parse a pasted decklist into Maindeck and Sideboard piles.
  *
  * Format (MTGA / Scryfall style):
@@ -48,8 +82,14 @@ function isSectionHeader(line: string): Section | null {
  *   in the registry (unknown or not-yet-implemented) and any non-blank line
  *   that is neither a header nor a card line go to `unresolved`.
  * - Blank lines are ignored.
+ * - `format` picks the printing per resolved name: the earliest one legal in the
+ *   format (see `pickPrintingForFormat`), so the import is legal by construction
+ *   instead of always seeding the original (often out-of-pool) printing.
  */
-export function parseDecklist(text: string): ParsedDecklist {
+export function parseDecklist(
+    text: string,
+    format: FormatId = "freeform"
+): ParsedDecklist {
     const cards: DeckCard[] = [];
     const sideboard: DeckCard[] = [];
     const unresolved: string[] = [];
@@ -79,9 +119,10 @@ export function parseDecklist(text: string): ParsedDecklist {
             continue;
         }
 
+        const cardId = pickPrintingForFormat(def.id, format);
         const target = section === "side" ? sideboard : cards;
         for (let i = 0; i < count; i++) {
-            target.push({ cardId: def.id, cardName: def.name });
+            target.push({ cardId, cardName: def.name });
         }
     }
 

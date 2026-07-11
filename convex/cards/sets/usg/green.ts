@@ -37,3 +37,17 @@ export const argothianEnchantress: CardDefinition = {
         }),
     ],
 };
+
+// Exploration — {G} Enchantment. "You may play an additional land on each of
+// your turns." (CR 305.2 — extra land drops.) One additional land drop (total
+// 2/turn), the bounded analogue of Fastbond's `extraLandDrops: 999`
+// (lea/green.ts).
+export const exploration: CardDefinition = {
+    id: "2f09e451-0246-45a2-8bfd-07d3c65ddfe6",
+    rarity: "rare",
+    name: "Exploration",
+    oracleText: "You may play an additional land on each of your turns.",
+    manaCost: { G: 1 },
+    types: ["Enchantment"],
+    extraLandDrops: 1,
+};

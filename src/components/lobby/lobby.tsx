@@ -313,7 +313,14 @@ function Lobby() {
     };
 
     const handleNewDeck = () => {
-        void navigate({ to: "/decks/create" });
+        // Carry the selected format filter into the new deck so it opens on that
+        // format instead of resetting to Freeform. "all" seeds nothing (the
+        // builder falls back to its default).
+        void navigate({
+            to: "/decks/create",
+            search:
+                deckFormatFilter === "all" ? {} : { format: deckFormatFilter },
+        });
     };
 
     // Admin-only: open the shared editor to author a brand-new preset (issue
