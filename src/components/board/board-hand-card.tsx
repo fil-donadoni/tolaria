@@ -1,4 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@convex/_generated/api";
 import type { CardInstance } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
@@ -7,10 +9,13 @@ import { isSeenByOpponent } from "~/lib/hand-knowledge";
 import { useHandCardCommit } from "~/hooks/useHandCardCommit";
 import { useDragToCommit } from "~/hooks/useDragToCommit";
 import { buildTriggerStateView, getHandStackAbilities } from "~/lib/card-utils";
+import { extractMutationErrorMessage } from "~/lib/mutation-error";
 import CardImage from "../cards/card-image";
 import CardTilt3D from "./card-tilt-3d";
 import SeenByOpponentBadge from "./seen-by-opponent-badge";
-import HandActivateButton from "./hand-activate-button";
+import HandCardActionMenu, {
+    type HandCardPrimaryAction,
+} from "./hand-card-action-menu";
 
 type BoardHandCardProps = {
     /** The viewer's own hand card (never null — opponent/back slots render the
@@ -67,6 +72,7 @@ export default function BoardHandCard({
     dragTranslateX,
 }: BoardHandCardProps) {
     const {
+        gameId,
         playerId,
         pendingChoices,
         phase,
@@ -77,6 +83,7 @@ export default function BoardHandCard({
         pendingActivation,
         pendingTarget,
     } = useGameContext();
+    const activateAbility = useMutation(api.game.activateAbility);
     const bufferCtx = usePendingChoiceBuffer();
 
     // Mid-resolution hand pick (CR 608.2, ADR 0007). When the active choice
@@ -105,13 +112,13 @@ export default function BoardHandCard({
     const commitEnabled = !isHandChoice && (canPlay || canCast);
 
     // CR 702.29a — Cycling (and any future hand-activated ability). A card in
-    // the viewer's own hand surfaces a "Cycle" button when the ability is
-    // currently legal AND the viewer holds priority with no other interaction
-    // pending (so the affordance can't collide with a cast/target/payment in
-    // flight). The list is computed from the bundled card def, exactly like the
-    // graveyard/battlefield paths; the server (`activateAbility`) is
-    // authoritative. Suppressed during a hand-choice (handled by the early
-    // return below, which never reaches this render).
+    // the viewer's own hand can activate its hand ability when the viewer holds
+    // priority with no other interaction pending (so the affordance can't
+    // collide with a cast/target/payment in flight). The list is computed from
+    // the bundled card def, exactly like the graveyard/battlefield paths; the
+    // server (`activateAbility`) is authoritative. Suppressed during a
+    // hand-choice (handled by the early return below, which never reaches this
+    // render).
     const hasPriority = priorityPlayerId === playerId;
     const noPendingInteraction =
         !pendingCast && !pendingActivation && !pendingTarget;
@@ -138,6 +145,47 @@ export default function BoardHandCard({
         if (canPlay) onPlayClick();
         else if (canCast) onCastClick(e);
     };
+
+    // Left-click affordance model (the user's requested UX):
+    //  - the card's options are its hand abilities (Cycling) + its primary
+    //    play/cast action when currently legal;
+    //  - MORE THAN ONE option → a left click opens a menu (desktop context
+    //    menu / mobile action-sheet) listing every option, so a low hand row
+    //    can never hide an option off-screen (the old bottom-anchored button
+    //    was clipped below the viewport);
+    //  - EXACTLY ONE option → the left click performs it directly (a normal
+    //    spell casts as before; a Cycling-only card — e.g. Miscalculation with
+    //    no legal cast at an empty stack — cycles);
+    //  - drag always commits the primary play/cast (unchanged).
+    const activateHandAbility = (abilityId: string, keepPriority: boolean) => {
+        void activateAbility({
+            gameId,
+            playerId,
+            cardInstanceId: card.id,
+            abilityId,
+            ...(keepPriority ? { keepPriority: true } : {}),
+        }).catch((err) => console.error(extractMutationErrorMessage(err)));
+    };
+    const primaryAvailable = canPlay || canCast;
+    const optionCount = handAbilities.length + (primaryAvailable ? 1 : 0);
+    const useMenu = !isHandChoice && optionCount > 1;
+    const cyclingOnlyClick =
+        !useMenu && handAbilities.length === 1 && !primaryAvailable;
+    const primaryAction: HandCardPrimaryAction | undefined = canPlay
+        ? { label: "Play land", onSelect: () => onPlayClick() }
+        : canCast
+          ? {
+                label: "Cast",
+                onSelect: (e) => onCastClick(e as React.MouseEvent),
+            }
+          : undefined;
+
+    // Touch-vs-desktop tap detection for the menu (mirrors
+    // `useAbilityCardClick` on the battlefield): touchstart flags the next
+    // click as a tap so it opens the action-sheet, while a desktop left click
+    // falls through to the ContextMenuTrigger which synthesizes the menu.
+    const [sheetOpen, setSheetOpen] = useState(false);
+    const isTouchRef = useRef(false);
 
     const { state, handlers } = useDragToCommit({
         commitEnabled,
@@ -198,14 +246,42 @@ export default function BoardHandCard({
         ? `translate(${liftX}px, ${state.offset.y}px) scale(1.06)`
         : undefined;
 
-    return (
+    // Non-drag left click. With a menu, a desktop click falls through to the
+    // ContextMenuTrigger (opens the menu) and a touch tap opens the action-sheet;
+    // with a single option the click performs it directly (cycling-only card, or
+    // the normal play/cast commit).
+    const onRootClick = (e: React.MouseEvent) => {
+        if (useMenu) {
+            if (isTouchRef.current) {
+                isTouchRef.current = false;
+                e.preventDefault();
+                e.stopPropagation();
+                setSheetOpen(true);
+            }
+            return;
+        }
+        if (cyclingOnlyClick) {
+            activateHandAbility(handAbilities[0].id, e.ctrlKey || e.metaKey);
+            return;
+        }
+        if (commitEnabled) commit(e);
+    };
+
+    const cardEl = (
         <div
             data-board-hand-card={card.id}
             data-drag-armed={state.armed ? "true" : undefined}
             className={
-                commitEnabled ? "cursor-pointer touch-none" : "touch-none"
+                optionCount > 0 ? "cursor-pointer touch-none" : "touch-none"
             }
-            onClick={commitEnabled ? commit : undefined}
+            onClick={onRootClick}
+            onTouchStart={
+                useMenu
+                    ? () => {
+                          isTouchRef.current = true;
+                      }
+                    : undefined
+            }
             onPointerDown={handlers.onPointerDown}
             onPointerMove={handlers.onPointerMove}
             onPointerUp={handlers.onPointerUp}
@@ -242,15 +318,25 @@ export default function BoardHandCard({
                 </div>
             </CardTilt3D>
             {seen && <SeenByOpponentBadge />}
-            {handAbilities.length > 0 && (
-                <HandActivateButton
-                    cardInstanceId={card.id}
-                    abilities={handAbilities}
-                />
-            )}
             {modePickerOverlay}
             {altCostPickerOverlay}
             {costDialogOverlay}
         </div>
+    );
+
+    // A card with two or more options (Cycling + a legal play/cast) wraps its
+    // clickable element in the action menu; a card with one option keeps the
+    // direct click-to-act behaviour (no one-item menu).
+    if (!useMenu) return cardEl;
+    return (
+        <HandCardActionMenu
+            abilities={handAbilities}
+            onActivate={activateHandAbility}
+            primaryAction={primaryAction}
+            sheetOpen={sheetOpen}
+            onSheetClose={() => setSheetOpen(false)}
+        >
+            {cardEl}
+        </HandCardActionMenu>
     );
 }

@@ -76,6 +76,7 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Raugrin Triome", owner: "me", zone: "hand" },
             { name: "Unearth", owner: "me", zone: "hand" },
             { name: "Miscalculation", owner: "me", zone: "hand" },
+            { name: "Swamp", owner: "me", zone: "battlefield" },
             { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
         ],
         phase: "PRECOMBAT_MAIN",

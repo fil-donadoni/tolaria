@@ -349,6 +349,21 @@ describe("getStackAbilities", () => {
         expect(getStackAbilities(card)).toHaveLength(0);
     });
 
+    it("excludes a hand-only ability (Cycling) from a battlefield permanent's menu — Marauding Mako", () => {
+        // CR 113.6 / 702.29a — Marauding Mako carries a Cycling ability
+        // (`activateFromHand`), usable only while the card is in hand. Once it
+        // has resolved onto the battlefield it can never pay the discard-this
+        // cost, so its battlefield menu must be empty (the ability belongs to
+        // `getHandStackAbilities`, not here). Regression for the reported bug:
+        // the cycling menu wrongly appearing on Mako in play.
+        const card = makeCardInstance({
+            card: { id: "9efbfd67-e0f5-43e0-9fff-1eb4a2bed0d8" },
+            types: ["Creature"],
+            isTapped: false,
+        });
+        expect(getStackAbilities(card)).toHaveLength(0);
+    });
+
     it("filters out phase-restricted abilities outside their allow-list (Jade Statue)", () => {
         // Jade Statue's animate is activationPhaseRestriction-limited to
         // combat. Outside combat the menu must hide it (CR 602.5).

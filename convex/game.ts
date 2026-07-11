@@ -7811,6 +7811,17 @@ export const activateAbility = mutation({
             if (card.ownerId !== args.playerId) {
                 throw new Error("You do not own this card");
             }
+        } else if (ability.activateFromHand || ability.activateFromGraveyard) {
+            // CR 113.6 / 702.29a — the source was located on the battlefield
+            // (neither `fromHand` nor `fromGraveyard`), but this ability
+            // functions ONLY from the hand (Cycling) or graveyard (Ashen
+            // Ghoul). A permanent can never pay its discard-this / graveyard
+            // cost, so activating it here is illegal — reject before any cost
+            // is locked. The client already omits it from the battlefield menu
+            // (`getStackAbilities`); this is the authoritative backstop.
+            throw new Error(
+                "This ability can't be activated from the battlefield"
+            );
         } else if (ability.activatableByEnchantedController) {
             // CR 602.1 — "Only the controller of the enchanted creature may
             // activate this ability" (FEM Merseine). The Aura's host decides

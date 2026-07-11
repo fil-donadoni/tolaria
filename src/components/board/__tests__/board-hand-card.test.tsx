@@ -31,7 +31,7 @@ const noopBuffer: PendingChoiceBuffer = {
 // returns one of these spies keyed by the function reference's marker.
 const playCard = vi.fn();
 const announceCast = vi.fn();
-const activateAbility = vi.fn(() => Promise.resolve());
+const activateAbility = vi.fn().mockResolvedValue(undefined);
 vi.mock("convex/react", () => ({
     useMutation: (ref: { _name: string }) =>
         ref._name === "playCard"
@@ -449,46 +449,63 @@ describe("BoardHandCard drag containment (#271 fix 4)", () => {
     });
 });
 
-// CR 113.6 / 702.29a — the "Cycle" button (Cycling, #689) renders on the
-// viewer's OWN hand card through the real component gate
-// (`hasPriority && noPendingInteraction`), which the getHandStackAbilities unit
-// test does NOT exercise. Reproduces the reported bug: cycling ability not
-// activatable from hand despite holding priority.
+// CR 113.6 / 702.29a — Cycling (#689) affordance on the viewer's OWN hand card
+// through the real component gate (`hasPriority && noPendingInteraction`). The
+// old bottom-anchored "Cycle" button was clipped below the low hand row's
+// viewport; the affordance is now a left-click action menu (>1 option) or a
+// direct click (a single option). These drive the real component so a dropped
+// option or a wrong gate can't slip through.
 describe("BoardHandCard Cycling affordance (CR 702.29a, #689)", () => {
-    const cyclingDef = {
-        name: "Raugrin Triome",
-        activatedAbilities: [
-            {
-                id: "cycling",
-                oracleText:
-                    "Cycling {3} ({3}, Discard this card: Draw a card.)",
-                cost: { mana: { generic: 3 }, discardThis: true },
-                activateFromHand: true,
-                useStack: true,
-                effects: [{ op: "draw", player: "controller", count: 1 }],
-            },
-        ],
+    const cyclingAbility = {
+        id: "cycling",
+        oracleText: "Cycling {3} ({3}, Discard this card: Draw a card.)",
+        cost: { mana: { generic: 3 }, discardThis: true },
+        activateFromHand: true,
+        useStack: true,
+        effects: [{ op: "draw", player: "controller", count: 1 }],
     };
 
-    it("shows the Cycle button on an own hand card while the viewer holds priority", () => {
-        cardDef = cyclingDef;
-        const card = makeCard("triome", ["play"]);
+    it("cycling-only card (no legal play/cast): a left click activates cycling directly, no menu", () => {
+        // Miscalculation at an empty stack — not castable, so Cycling is the
+        // ONLY option and a click must cycle it directly (no one-item menu).
+        cardDef = {
+            name: "Miscalculation",
+            activatedAbilities: [cyclingAbility],
+        };
+        const card = makeCard("miscalc", []); // no play/cast legal
         renderCard(card);
-        expect(screen.getByText("Cycle")).toBeTruthy();
-    });
-
-    it("dispatches activateAbility(cycling) when the Cycle button is clicked", () => {
-        cardDef = cyclingDef;
-        const card = makeCard("triome", ["play"]);
-        renderCard(card);
-        fireEvent.click(screen.getByText("Cycle"));
+        fireEvent.click(el());
         expect(activateAbility).toHaveBeenCalledTimes(1);
         expect(activateAbility.mock.calls[0][0]).toMatchObject({
-            cardInstanceId: "triome",
+            cardInstanceId: "miscalc",
             abilityId: "cycling",
         });
-        // The land-play commit must NOT also fire (button stops propagation).
         expect(playCard).not.toHaveBeenCalled();
+        expect(announceCast).not.toHaveBeenCalled();
+    });
+
+    it("cycling + legal play (2 options): a plain left click opens the menu instead of acting directly", () => {
+        // Raugrin Triome — a land (play) that can also be cycled. Two options,
+        // so the click opens the menu; it must NOT immediately play the land or
+        // fire cycling.
+        cardDef = {
+            name: "Raugrin Triome",
+            activatedAbilities: [cyclingAbility],
+        };
+        const card = makeCard("triome", ["play"]);
+        renderCard(card);
+        fireEvent.click(el());
+        expect(playCard).not.toHaveBeenCalled();
+        expect(activateAbility).not.toHaveBeenCalled();
+    });
+
+    it("no cycling: an ordinary spell still casts directly on click (menu path untouched)", () => {
+        cardDef = { name: "Lightning Bolt" };
+        const card = makeCard("bolt", ["cast"]);
+        renderCard(card);
+        fireEvent.click(el());
+        expect(announceCast).toHaveBeenCalledTimes(1);
+        expect(activateAbility).not.toHaveBeenCalled();
     });
 });
 

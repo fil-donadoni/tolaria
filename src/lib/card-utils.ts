@@ -681,12 +681,21 @@ export function getStackAbilities(
         };
         activationPhaseRestriction?: ReadonlyArray<Phase>;
         activatableByOpponentsOnly?: boolean;
+        activateFromHand?: boolean;
+        activateFromGraveyard?: boolean;
         canActivate?: (
             source: PermanentView,
             state: TriggerStateView
         ) => boolean;
     }): boolean => {
         if (!a.useStack || !a.oracleText) return false;
+        // CR 113.6 / 702.29a — a zone-restricted ability functions ONLY from the
+        // zone it opts into: Cycling (`activateFromHand`) from the hand, Ashen
+        // Ghoul (`activateFromGraveyard`) from the graveyard. Neither is a
+        // battlefield ability, so a permanent whose definition carries one (a
+        // Marauding Mako that resolved onto the battlefield) must NOT surface it
+        // in its battlefield menu — the server rejects it there regardless.
+        if (a.activateFromHand || a.activateFromGraveyard) return false;
         // CR 602.1 — "only your opponents may activate" abilities are never
         // surfaced on the controller's OWN permanent (this function is called
         // only for `isMe` cards); the opponent's view uses
