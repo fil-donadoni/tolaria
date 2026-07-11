@@ -83,4 +83,29 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 5,
         libraryCount: 10,
     },
+    {
+        // Elephant Grass (VIS, #1053) — the opponent's enchantment directs a
+        // mana-pay per-attacker attack tax + a colour ban at its controller.
+        // Advance to combat and declare attackers against the opponent:
+        //   • Each Grizzly Bears (nonblack) costs its controller {2} to attack,
+        //     auto-tapped from your lands at declare-attackers (CR 508.1c/1g).
+        //     Two bears = {4}; five lands cover it (and leave the third bear's
+        //     tax unpayable if you send all three — the declaration is rejected).
+        //   • Scathe Zombies (black) can't attack the opponent at all (clause 2).
+        // The opponent's own upkeep charges Elephant Grass' cumulative upkeep {1}.
+        label: "Elephant Grass — mana attack tax + colour ban (#1053)",
+        cards: [
+            {
+                name: "Grizzly Bears",
+                owner: "me",
+                zone: "battlefield",
+                count: 3,
+            },
+            { name: "Scathe Zombies", owner: "me", zone: "battlefield" },
+            { name: "Elephant Grass", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 5,
+        libraryCount: 10,
+    },
 ];

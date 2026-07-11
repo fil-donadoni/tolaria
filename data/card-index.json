@@ -2034,6 +2034,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Elephant Grass",
+        "scryfallId": "f4c1f5a7-0d28-43ab-9b66-937e963f42cd",
+        "oracleId": "53cc4b93-538d-4193-8bbb-5b73d3ce9d79",
+        "firstSet": "vis"
+    },
+    {
         "name": "Elephant Graveyard",
         "scryfallId": "18348df2-9037-4db4-bddb-76dc933229bf",
         "oracleId": "8ada7388-fd8b-434c-a17a-bce19cf3e615",

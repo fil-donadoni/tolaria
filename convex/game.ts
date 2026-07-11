@@ -174,6 +174,7 @@ import {
     validateDeclaredBlockers,
     collectBlockBypassCharges,
     collectAttackSacrificeTax,
+    collectAttackManaTax,
 } from "./gre/combat";
 import {
     getEffectiveBlockGraph,
@@ -6472,6 +6473,45 @@ export const removeBand = mutation({
  *  "when creatures attack" triggers, and hand priority to the active player.
  *  Shared by the inline path (fungible/no tax) and the selectSacrifice resume
  *  path (attack sacrifice tax chosen). */
+/** Charges `rawCost` to `controllerId` by auto-tapping their mana sources
+ *  (generic/fungible; CR 605.1a taps produce mana into the pool, CR 601.2g pays
+ *  from it) and committing lands used for the cost. Throws `reason` when the
+ *  cost cannot be covered — the caller's mutation clone is discarded, so no
+ *  partial state persists. Shared by the pay-to-block bypass (Hipparion
+ *  `bypassCost`, `collectBlockBypassCharges`) and the per-attacker mana attack
+ *  tax (Propaganda / Elephant Grass, `collectAttackManaTax`). Pure apart from
+ *  mutating `state` in place. */
+function chargeManaCostOrThrow(
+    state: GameState,
+    controllerId: string,
+    rawCost: ManaCost,
+    reason: string
+): void {
+    const payer = getPlayer(state, controllerId);
+    const subs = getManaSubstitutions(state, controllerId);
+    const sources = buildAutoTapSources(payer.battlefield);
+    const cost = normalizeManaCost(rawCost);
+    const plan = solveSmartAutoTap(payer.manaPool, cost, subs, sources);
+    if (plan === null) {
+        throw new Error(reason);
+    }
+    // Execute the plan: tap the chosen sources and add their mana to the pool
+    // (CR 605.1a), then pay the cost from the pool (CR 601.2g).
+    const tappedIds = new Set(plan.map((step) => step.cardId));
+    for (const src of payer.battlefield) {
+        if (tappedIds.has(src.id)) src.isTapped = true;
+    }
+    const produced = manaFromPlan(sources, plan);
+    for (const color of Object.keys(produced)) {
+        const v = produced[color as keyof typeof produced];
+        if (v) {
+            payer.manaPool[color] = (payer.manaPool[color] ?? 0) + v;
+        }
+    }
+    payManaCost(payer.manaPool, cost, subs);
+    commitLandsForCost(payer, cost);
+}
+
 export function finalizeConfirmAttackers(state: GameState): void {
     const player = getPlayer(state, state.activePlayerId);
     const combat = state.combat;
@@ -6552,6 +6592,26 @@ export const confirmAttackers = mutation({
         const declaredAttackCheck = validateDeclaredAttackers(state);
         if (!declaredAttackCheck.ok) {
             throw new Error(declaredAttackCheck.reason);
+        }
+
+        // CR 508.1c/1g — per-attacker MANA attack tax directed at the taxing
+        // player (Propaganda / Ghostly Prison / Windborn Muse / Elephant Grass
+        // clause 3, #1053). Each attacker declared against a taxing player forces
+        // its controller to pay the tax cost; the engine auto-taps the payer's
+        // mana sources (generic/fungible), the attack-side analogue of the
+        // Hipparion pay-to-block bypass. Charged BEFORE the land-sacrifice tax
+        // (which can PARK on a real land choice): the mana tax never parks, and a
+        // failed payment throws to reject the whole declaration (the mutation
+        // clone is discarded, so nothing persists — CR 508.1c the declaration is
+        // illegal and the player must re-declare). If both taxes are unpayable
+        // the sacrifice tax below still throws before any save.
+        for (const charge of collectAttackManaTax(state)) {
+            chargeManaCostOrThrow(
+                state,
+                charge.controllerId,
+                charge.cost,
+                charge.reason
+            );
         }
 
         // CR 508.1c/1g / 701.21a — per-attacker sacrifice-a-land attack tax
@@ -6877,29 +6937,12 @@ export const confirmBlockers = mutation({
         // player's mana sources (generic-only). If a charge can't be paid, the
         // block declaration is rejected and the player must reassign.
         for (const charge of collectBlockBypassCharges(state)) {
-            const payer = getPlayer(state, charge.controllerId);
-            const subs = getManaSubstitutions(state, charge.controllerId);
-            const sources = buildAutoTapSources(payer.battlefield);
-            const cost = normalizeManaCost(charge.cost);
-            const plan = solveSmartAutoTap(payer.manaPool, cost, subs, sources);
-            if (plan === null) {
-                throw new Error(charge.reason);
-            }
-            // Execute the plan: tap the chosen sources and add their mana to the
-            // pool (CR 605.1a), then pay the cost from the pool (CR 601.2g).
-            const tappedIds = new Set(plan.map((step) => step.cardId));
-            for (const src of payer.battlefield) {
-                if (tappedIds.has(src.id)) src.isTapped = true;
-            }
-            const produced = manaFromPlan(sources, plan);
-            for (const color of Object.keys(produced)) {
-                const v = produced[color as keyof typeof produced];
-                if (v) {
-                    payer.manaPool[color] = (payer.manaPool[color] ?? 0) + v;
-                }
-            }
-            payManaCost(payer.manaPool, cost, subs);
-            commitLandsForCost(payer, cost);
+            chargeManaCostOrThrow(
+                state,
+                charge.controllerId,
+                charge.cost,
+                charge.reason
+            );
         }
 
         // Mark each assigned blocker

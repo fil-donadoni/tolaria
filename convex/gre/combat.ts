@@ -681,6 +681,80 @@ export function collectAttackSacrificeTax(
     }));
 }
 
+/** A mana cost the attacking player must pay to legalize an attack against the
+ *  taxing player (CR 508.1c/1g — Propaganda, Ghostly Prison, Windborn Muse,
+ *  Elephant Grass). One charge per taxed attacker per active tax source; each
+ *  charge is `costPerAttacker`, paid by auto-tapping the payer's mana sources at
+ *  declare-attackers confirmation. */
+export interface AttackManaCharge {
+    controllerId: string;
+    cost: ManaCost;
+    reason: string;
+}
+
+/** Scans the confirmed declared attackers for the battlefield-scanned
+ *  `attack-mana-tax` static effect (Propaganda / Ghostly Prison / Elephant
+ *  Grass clause 3) and returns the per-attacker mana charges. Unlike
+ *  `collectAttackSacrificeTax` — a global "green/black creatures can't attack"
+ *  tax that fires regardless of the defending player — this kind is DIRECTED at
+ *  the source's controller ("creatures can't attack YOU"), so only sources
+ *  controlled by the player being ATTACKED (the non-active player in 2-player
+ *  combat) impose the tax. Each taxed attacker yields one `costPerAttacker`
+ *  charge; the tax is imposed independently by EACH active tax source (two
+ *  Propagandas each charge their own {2} per attacker — each is a separate CR
+ *  508.1c restriction). Read-only — the mana payment itself is executed by the
+ *  caller at declare-attackers confirmation (`confirmAttackers`), the same
+ *  auto-tap path as `collectBlockBypassCharges` (Hipparion `bypassCost`). */
+export function collectAttackManaTax(state: GameState): AttackManaCharge[] {
+    const combat = state.combat;
+    if (!combat) return [];
+    const activePlayer = state.players.find(
+        (p) => p.id === state.activePlayerId
+    );
+    if (!activePlayer) return [];
+
+    const declared = combat.attackerIds
+        .map((id) => activePlayer.battlefield.find((c) => c.id === id))
+        .filter((c): c is CardInstanceState => c !== undefined);
+    if (declared.length === 0) return [];
+
+    const charges: AttackManaCharge[] = [];
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            // "Creatures can't attack YOU": only a source controlled by the
+            // player BEING attacked (the defending, non-active player in
+            // 2-player combat) taxes the attack. A source the attacking player
+            // controls taxes nobody.
+            if (source.controllerId === state.activePlayerId) continue;
+            const cardId = (source.card as { id?: string }).id;
+            if (!cardId) continue;
+            const def = tryGetDefinition(cardId);
+            if (!def?.staticEffects) continue;
+            for (const effect of def.staticEffects) {
+                if (effect.kind !== "attack-mana-tax") continue;
+                for (const attacker of declared) {
+                    if (
+                        !effect.taxes(
+                            attacker as unknown as PermanentView,
+                            source as unknown as PermanentView,
+                            state as never,
+                            ATTACK_RESTRICTION_CTX
+                        )
+                    ) {
+                        continue;
+                    }
+                    charges.push({
+                        controllerId: attacker.controllerId,
+                        cost: effect.costPerAttacker,
+                        reason: effect.oracleText,
+                    });
+                }
+            }
+        }
+    }
+    return charges;
+}
+
 /** True if `card` carries an `attack-requirement` static effect
  *  (CR 508.1d) or has been forced to attack this turn by an external
  *  effect (Nettling Imp — `mustAttackThisTurn`). */
