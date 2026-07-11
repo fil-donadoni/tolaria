@@ -791,6 +791,14 @@ export const OP_EXECUTORS: {
         if (amount === undefined || amount <= 0) return;
         ctx.loseLife(playerId, amount);
     },
+    // CR 601.3a (issue #1057) — impose a turn-scoped per-player "can't cast
+    // spells this turn" restriction (Xantid Swarm locks the defending player via
+    // `player: "opponent"`). Skipped when the player is gone (CR 608.2b).
+    restrictCasting(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.restrictSpellCasting(playerId);
+    },
     // CR 106.1 (issue #850) — add mana to a player's mana pool. A thin
     // declarative skin over the SpellContext primitive `addManaTo`, ONE
     // execution path (ADR 0045): the JSON-pure `mana` map is passed straight

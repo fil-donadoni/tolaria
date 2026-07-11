@@ -834,6 +834,56 @@ describe("Effect Script Op: loseLife (CR 119.3b)", () => {
     });
 });
 
+// New Op (issue #1057) → full per-Op regime: interpreter coverage of the
+// construct combinations it participates in (controller / opponent / announced
+// player slot), plus a wire-format assertion through projectPublicState.
+describe("Effect Script Op: restrictCasting (CR 601.3a, issue #1057)", () => {
+    it("adds the opponent to state.cannotCastSpellsThisTurn (Xantid Swarm's defending-player lock)", () => {
+        const id = registerScript("test-op-restrict-opp", [
+            { op: "restrictCasting", player: "opponent" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.cannotCastSpellsThisTurn).toEqual(["p2"]);
+    });
+
+    it("locks the announced player target", () => {
+        const id = registerScript(
+            "test-op-restrict-target",
+            [{ op: "restrictCasting", player: { target: 0 } }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p1" }]);
+        resolveTopOfStack(state);
+        expect(state.cannotCastSpellsThisTurn).toEqual(["p1"]);
+    });
+
+    it("is idempotent — a second resolution does not duplicate the id", () => {
+        const id = registerScript("test-op-restrict-idem", [
+            { op: "restrictCasting", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.cannotCastSpellsThisTurn).toEqual(["p1"]);
+    });
+
+    it("the cast lock survives projection (wire format)", () => {
+        const id = registerScript("test-op-restrict-wire", [
+            { op: "restrictCasting", player: "opponent" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.cannotCastSpellsThisTurn).toEqual(["p2"]);
+    });
+});
+
 describe("Effect Script Op: addMana (CR 106.1, issue #850)", () => {
     it("adds fixed mana to the controller's pool by default (a ritual — Dark Ritual)", () => {
         const id = registerScript("test-op-addmana-ritual", [

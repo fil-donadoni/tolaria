@@ -2062,6 +2062,13 @@ export interface SpellContext {
     /** Prevents all combat damage for the remainder of this turn (CR 615,
      *  Fog). Cleared at CLEANUP. Non-combat damage is unaffected. */
     preventAllCombatDamage: () => void;
+    /** CR 601.3a — marks `playerId` unable to cast spells for the remainder of
+     *  this turn (Xantid Swarm's "defending player can't cast spells this
+     *  turn"). A turn-scoped per-player restriction, cleared at CLEANUP
+     *  (CR 514.2); unlike a permanent-sourced `cast-restriction` static it does
+     *  not revert when a source leaves play. Enforced by the shared cast gate
+     *  `castProhibitionReason` (read by the GRE and the client alike). */
+    restrictSpellCasting: (playerId: string) => void;
     /** Replaces the mana produced by `playerId`'s LANDS with {U} until end of
      *  turn (CR 614 — Deep Water: "if you tap a land you control for mana, it
      *  produces {U} instead of any other type"). The same total quantity of mana
@@ -5478,6 +5485,14 @@ export type EffectOp =
     /** CR 119.3b — `player` loses `amount` life (not damage — no
      *  damage-replacement interaction). */
     | { op: "loseLife"; player: EffectPlayerRef; amount: EffectValue }
+    /** CR 601.3a (issue #1057) — impose a turn-scoped "can't cast spells this
+     *  turn" restriction on `player` (Xantid Swarm's attack trigger targets the
+     *  defending player via `player: "opponent"`). A thin declarative skin over
+     *  `SpellContext.restrictSpellCasting`, one execution path (ADR 0045): the
+     *  player's id is added to `state.cannotCastSpellsThisTurn`, checked by the
+     *  shared cast gate `castProhibitionReason` and cleared at CLEANUP
+     *  (CR 514.2). Skipped when the player cannot be resolved (CR 608.2b). */
+    | { op: "restrictCasting"; player: EffectPlayerRef }
     /** CR 106.1 (issue #850) — add mana to a player's mana pool (a one-shot
      *  effect that produces mana: a ritual like Dark Ritual "Add {B}{B}{B}").
      *  A thin declarative skin over the SpellContext mana-add primitives

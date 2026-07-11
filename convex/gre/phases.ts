@@ -2294,6 +2294,14 @@ function tickAllDurations(state: GameState): void {
     if (state.combatDamageRedirectToPermanent) {
         state.combatDamageRedirectToPermanent = undefined;
     }
+    // CR 601.3a / 514.2 (issue #1057) — a turn-scoped per-player "can't cast
+    // spells this turn" lock (Xantid Swarm) expires at end of turn. Unlike the
+    // combat-damage flags above, this MUST survive END_OF_COMBAT (this function
+    // also ticks there, CR 511.3): the defending player still can't cast during
+    // the postcombat main phase. Cleared only at the CLEANUP boundary.
+    if (view.phase === "CLEANUP" && state.cannotCastSpellsThisTurn) {
+        state.cannotCastSpellsThisTurn = undefined;
+    }
     // ICE Gaze of Pain — the "until end of turn" floating rider expires.
     if (state.gazeOfPainActiveThisTurn) {
         state.gazeOfPainActiveThisTurn = undefined;

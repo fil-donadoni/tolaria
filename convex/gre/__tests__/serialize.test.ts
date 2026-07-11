@@ -1641,6 +1641,12 @@ describe("optional field round-trip smoke tests", () => {
         ]);
     });
 
+    it("cannotCastSpellsThisTurn (Xantid Swarm, CR 601.3a / 514.2)", () => {
+        const state = freshState();
+        state.cannotCastSpellsThisTurn = ["p2"];
+        expect(roundTrip(state).cannotCastSpellsThisTurn).toEqual(["p2"]);
+    });
+
     it("combatDamageRedirectToPermanent (Kjeldoran Royal Guard, CR 614.6)", () => {
         const state = freshState();
         state.combatDamageRedirectToPermanent = [

@@ -2314,6 +2314,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.loseLife",
     },
     {
+        op: "restrictCasting",
+        status: "implemented",
+        cr: "601.3a",
+        binding: "SpellContext.restrictSpellCasting",
+        note: 'Impose a turn-scoped per-player "can\'t cast spells this turn" restriction (CR 601.3a, issue #1057 — Xantid Swarm: "defending player can\'t cast spells this turn"). A thin declarative skin over the single SpellContext primitive `restrictSpellCasting`, one execution path (ADR 0045): `player` names whom to lock — Xantid Swarm\'s ATTACKERS_DECLARED trigger uses `player: "opponent"` (the defending player in a 2-player game, CR 102.2). Adds the player id to `state.cannotCastSpellsThisTurn`, enforced by the SHARED cast gate `castProhibitionReason` (convex/cards/castRestrictions.ts) that both the GRE `getLegalActions` and the client read, and cleared unconditionally at CLEANUP (CR 514.2). Distinct from the permanent-sourced `cast-restriction` statics (Brand of Ill Omen), which are battlefield-scanned, class-filtered and auto-revert when their source leaves play; this is a per-player turn flag that does not revert on a source leaving. Lands are unaffected (playing a land is not casting a spell, CR 601 / 305).',
+    },
+    {
         op: "destroy",
         status: "implemented",
         cr: "701.8",
