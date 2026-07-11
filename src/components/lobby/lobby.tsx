@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -47,6 +47,11 @@ import ActiveGameNotice from "./active-game-notice";
 
 function Lobby() {
     const navigate = useNavigate();
+    // Deep-link invite (`/?join=<gameId>`): a loosely-typed read so this stays
+    // decoupled from the router module (which imports this component).
+    const { join: joinParam } = useSearch({ strict: false }) as {
+        join?: string;
+    };
     const user = useCurrentUser();
     const [storedPresetId, setStoredPresetId] = useState<string | null>(() =>
         getStoredDeckPresetId()
@@ -213,6 +218,28 @@ function Lobby() {
             });
             return { gameId: targetGameId, playerId: user._id };
         });
+
+    // Deep-link auto-join (`/?join=<gameId>`). Fires once, only when the
+    // visitor is ready to be credited: authenticated, holding a selected deck,
+    // and not already tied to an active game (#155 — a host visiting their own
+    // link, or a user mid-game, falls through to the ActiveGameNotice/lobby
+    // instead of a rejected join). Missing deck keeps the link pending and
+    // surfaces a prompt (below); the effect re-fires once a deck is picked.
+    const joinFiredRef = useRef(false);
+    useEffect(() => {
+        if (joinFiredRef.current) return;
+        if (!joinParam || !user || !selectedDeck || activeGame || isBusy)
+            return;
+        joinFiredRef.current = true;
+        // Strip the param so a later back-navigation doesn't retry the join.
+        void navigate({ to: "/", search: {}, replace: true });
+        // Deferred out of the effect body: handleJoin → enterGame sets state
+        // synchronously, which must not run during the effect's commit phase.
+        queueMicrotask(() => void handleJoin(joinParam as Id<"games">));
+        // handleJoin is recreated each render; the ref guard makes this fire-once
+        // regardless, so it is intentionally excluded from the deps.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [joinParam, user, selectedDeck, activeGame, isBusy, navigate]);
 
     const handleFocusDeck = (presetId: string) => {
         void navigate({ to: "/decks/$slug", params: { slug: presetId } });
@@ -394,6 +421,13 @@ function Lobby() {
                 {actionError && (
                     <div className="rounded-sm border border-danger/50 bg-danger/10 px-4 py-3 text-sm text-danger">
                         {actionError}
+                    </div>
+                )}
+
+                {joinParam && !selectedDeck && !activeGame && (
+                    <div className="rounded-sm border border-accent/50 bg-accent/10 px-4 py-3 text-sm text-text">
+                        Select a deck below to join the game you were invited
+                        to.
                     </div>
                 )}
 

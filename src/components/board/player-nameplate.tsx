@@ -81,7 +81,11 @@ export default function PlayerNameplate({
             <span className="absolute top-1 right-1 w-2.5 h-2.5 border-t border-r border-border-accent/50" />
             <span className="absolute bottom-1 left-1 w-2.5 h-2.5 border-b border-l border-border-accent/50" />
             <span className="absolute bottom-1 right-1 w-2.5 h-2.5 border-b border-r border-border-accent/50" />
-            <AnimatedLifeTotal life={player.life} />
+            {/* key by player.id so a solo-mode viewer swap (different player
+             *  rendered at the same seat position) remounts the animator with a
+             *  fresh baseline instead of animating a phantom life delta — the
+             *  swap is only a change of view, not a real life change. */}
+            <AnimatedLifeTotal key={player.id} life={player.life} />
             <div className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-text-muted">
                 {player.name}
             </div>

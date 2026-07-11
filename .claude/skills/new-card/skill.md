@@ -221,16 +221,20 @@ against. It does **not** auto-update — adding a card leaves it stale until you
 regenerate it from the registry:
 
 ```sh
-printf '[]\n' > data/card-index.json && bun run scripts/backfill-card-index.ts
+bun run scripts/backfill-card-index.ts
 ```
 
-(Reset to `[]` first: `backfill` is additive and cannot remove stale/pollution
-entries on its own. The fetch is online — Scryfall, ~1 req/75 cards.)
+(Incremental and idempotent: existing entries are preserved, only missing
+scryfallIds are fetched — adding one card costs one Scryfall request, not a
+full-catalogue refetch. The full reset — `printf '[]\n' > data/card-index.json
+&& bun run scripts/backfill-card-index.ts` — re-downloads everything and is
+needed ONLY to purge **pollution** (indexed-but-not-implemented entries),
+which the additive backfill can't remove.)
 
 The drift guard `bun run check:index` (part of `check:all`) fails when the
 lockfile is out of sync — both directions: implemented-but-not-indexed
-(stale) and indexed-but-not-implemented (pollution). If it fails, run the
-command above; never hand-edit the lockfile.
+(stale → incremental backfill above) and indexed-but-not-implemented
+(pollution → full reset). Never hand-edit the lockfile.
 
 ## Validation checklist
 
@@ -245,7 +249,7 @@ command above; never hand-edit the lockfile.
 - [ ] `id` == the card's `identifiers.scryfallId` from `data/json/<SET>.json` (NOT a generated UUID)
 - [ ] All matching `CardPrint` stubs in `convex/cards/sets/<code>/<colour>.ts` uncommented (Step 7b)
 - [ ] Frontend wiring walked (Step 7c): any affordability/target/instance-field the card adds is preserved through `buildTriggerStateView` / `projectPublicState`, and a new cost shape (if any) is added to the affordability catalogue sweep + gated in `getStackAbilities`
-- [ ] `data/card-index.json` regenerated via `backfill-card-index.ts` (Step 8) — `bun run check:index` passes
+- [ ] `data/card-index.json` refreshed via incremental `backfill-card-index.ts` (Step 8) — `bun run check:index` passes
 
 The deck builder's card list is computed in-memory from the colour-split set
 modules `convex/cards/sets/<code>/<colour>.ts` on every query call (see

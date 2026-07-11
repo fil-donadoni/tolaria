@@ -8,6 +8,7 @@ import PregameDialog from "~/components/board/pregame-dialog";
 import DebugPanel from "~/components/debug/debug-panel";
 import AiDecisionTraceBox from "~/components/debug/ai-decision-trace-box";
 import LoadingScreen from "~/components/ui/loading-screen";
+import WaitingForOpponent from "~/components/board/waiting-for-opponent";
 import { usePageVisible } from "~/hooks/usePageVisible";
 import { clearSession, getStoredSession } from "~/lib/session";
 
@@ -46,20 +47,7 @@ export default function GameRoute() {
     const { gameId, playerId } = session;
 
     if (game && game.status === "waiting") {
-        return (
-            <div className="flex h-dvh flex-col items-center justify-center gap-4 text-white">
-                <p>Waiting for opponent...</p>
-                <p className="font-mono text-sm text-white/50">
-                    Game ID: {gameId}
-                </p>
-                <button
-                    onClick={handleLeave}
-                    className="rounded bg-white/10 px-4 py-2 text-sm hover:bg-white/20"
-                >
-                    Leave
-                </button>
-            </div>
-        );
+        return <WaitingForOpponent gameId={gameId} onLeave={handleLeave} />;
     }
 
     if (game && game.status === "pregame" && game.matchId) {

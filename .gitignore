@@ -34,3 +34,4 @@ convex/_generated
 # list-to-cards staging output (regenerated; lockfile data/card-index.json IS committed)
 data/worklists/*.out/
 data/worklists/*.resolved.jsonl
+.claude/telemetry/

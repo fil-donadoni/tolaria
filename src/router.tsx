@@ -25,6 +25,13 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/",
+    // Optional `?join=` deep link (invite link from the "Waiting for opponent"
+    // screen): a visitor landing here is auto-credited into that game once
+    // authenticated and holding a selected deck. A non-string value is dropped.
+    validateSearch: (search): { join?: string } => {
+        const raw = search.join;
+        return typeof raw === "string" && raw ? { join: raw } : {};
+    },
     component: LobbyRoute,
 });
 
