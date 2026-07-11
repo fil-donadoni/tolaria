@@ -544,9 +544,16 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         //     (Op-blocked −5, FREE +5, AFK-ready +5).
         // Net from #691: total 651→650, FREE 412→416, AFK-ready 378→382,
         // Op-blocked 225→220, X-only 14. Partition holds: 416+14+220=650.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(650);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(416);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(382);
+        // #689 (Cycling CAP) adds Marauding Mako as a resolve() closure — its
+        // "whenever you discard" discardTrigger body puts a +1/+1 counter (the
+        // covered addCounter Op), so it classifies FREE, and it carries a
+        // per-card test (dft/red.test.ts) so it is AFK-ready too. Total 650→651,
+        // FREE 416→417, AFK-ready 382→383, Op-blocked 220, X-only 14 (the ten
+        // Triome {T}-mana closures and the DSL Miscalculation/Unearth are all
+        // excluded). Partition holds: 417+14+220=651.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(651);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(417);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(383);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(220);
     });

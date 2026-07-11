@@ -891,7 +891,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Cycling",
         kind: "keyword-ability",
         cr: "702.29",
-        status: "planned",
+        status: "implemented",
+        binding: "cycling",
+        note: 'Cost-system / keyword-cast capability (engine/cost infra, NOT an Effect Script Op): an activated ability usable only from the hand at instant speed (CR 702.29a-b). Modeled as a normal `useStack: true` activated ability declared via the `cyclingAbility(cost)` factory (convex/cards/abilities/cycling.ts): `activateFromHand: true` (new ActivatedAbility flag, twin of activateFromGraveyard) + `cost: { mana, discardThis: true }` + `effects: [{ op: "draw", amount: 1 }]`. activateAbility locates the source in hand, gates on activateFromHand + ownership; the discard-this cost routes through discardToGraveyard (emitting CARD_DISCARDED, CR 701.8) so "whenever you discard" triggers fire (Marauding Mako). Used by the IKO/SNC Triomes, Miscalculation, Unearth, Marauding Mako.',
     },
     // 702.30 Echo
     {
