@@ -86,6 +86,13 @@ export const CAST_RESTRICTION_CTX: StaticEffectContext = {
  *  client's `Player[]` satisfy this structurally. */
 export interface CastRestrictionStateView {
     players: ReadonlyArray<{ battlefield: ReadonlyArray<PermanentView> }>;
+    /** CR 601.3a / 514.2 — player ids under a turn-scoped "can't cast spells
+     *  this turn" lock (Xantid Swarm, issue #1057). A per-player turn flag set
+     *  by an effect and cleared at CLEANUP — distinct from the battlefield-
+     *  scanned, permanent-sourced `cast-restriction` statics below. Survives the
+     *  wire projection (`projectPublicState` spreads it), so the client's cast
+     *  gate reads it too. */
+    cannotCastSpellsThisTurn?: readonly string[];
 }
 
 /** Scans EVERY permanent on the battlefield for `cast-restriction` static
@@ -98,6 +105,15 @@ export function castProhibitionReason(
     spell: PermanentView,
     state: CastRestrictionStateView
 ): string | undefined {
+    // CR 601.3a (issue #1057) — a turn-scoped per-player cast lock (Xantid
+    // Swarm: "defending player can't cast spells this turn"). Unlike the
+    // permanent-sourced statics scanned below, this is a PlayerState-turn flag
+    // set by an effect and cleared at CLEANUP (CR 514.2), so it is checked
+    // directly rather than via a battlefield scan. Lands are unaffected —
+    // rules.ts only calls this on the spell-cast path, never on land plays.
+    if (state.cannotCastSpellsThisTurn?.includes(casterId)) {
+        return "That player can't cast spells this turn.";
+    }
     for (const player of state.players) {
         for (const source of player.battlefield) {
             const cardId = (source.card as { id?: string }).id;

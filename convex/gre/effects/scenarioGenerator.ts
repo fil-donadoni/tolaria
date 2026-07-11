@@ -327,6 +327,12 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             analysePlayer(op.player, req, false);
             analyseValue(op.amount, req);
             return;
+        case "restrictCasting":
+            // CR 601.3a (issue #1057) — a turn-scoped cast lock on a player; the
+            // deterministic outcome is the player id landing in
+            // state.cannotCastSpellsThisTurn (asserted below).
+            analysePlayer(op.player, req, false);
+            return;
         case "addMana":
             // CR 106.1 (issue #850) — mana added to a player's pool is a
             // deterministic same-resolution outcome. The default recipient is
@@ -838,6 +844,26 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 return {
                     ok: life === expected,
                     detail: `life ${life}, expected ${expected}`,
+                };
+            },
+        };
+    },
+    // `restrictCasting` (CR 601.3a, issue #1057) — a deterministic
+    // same-resolution state change: the named player's id lands in
+    // state.cannotCastSpellsThisTurn (the turn-scoped cast lock the shared cast
+    // gate reads). Asserted directly.
+    restrictCasting(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "restrictCasting" }>;
+        const pid = assertionPlayerId(op.player);
+        const wasLocked = pre.cannotCastSpellsThisTurn?.includes(pid) ?? false;
+        return {
+            label: `restrictCasting locks player ${pid} out of casting this turn`,
+            check: (post) => {
+                const locked =
+                    post.cannotCastSpellsThisTurn?.includes(pid) ?? false;
+                return {
+                    ok: locked && !wasLocked,
+                    detail: `locked=${locked} (was ${wasLocked})`,
                 };
             },
         };

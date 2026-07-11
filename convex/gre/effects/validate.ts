@@ -941,6 +941,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     draw: { required: { player: isPlayerRef, count: isEffectValue } },
     gainLife: { required: { player: isPlayerRef, amount: isEffectValue } },
     loseLife: { required: { player: isPlayerRef, amount: isEffectValue } },
+    // CR 601.3a (issue #1057) — a turn-scoped per-player cast lock (Xantid
+    // Swarm). `player` names whom to lock (the defending player via "opponent").
+    restrictCasting: { required: { player: isPlayerRef } },
     // CR 106.1 (issue #850) — add mana to a player's mana pool. `mana` is the
     // JSON-pure per-colour amount map (WUBRGC, positive integers); `player`
     // (optional) names whose pool (default the resolving controller).

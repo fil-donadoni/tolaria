@@ -108,4 +108,21 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 5,
         libraryCount: 10,
     },
+    {
+        // Xantid Swarm (SCG, CR 601.3a, #1057) — attacking with the 0/1 flyer
+        // locks the DEFENDING player out of casting for the rest of the turn.
+        // Golden path: move to combat, declare Xantid Swarm as an attacker, let
+        // the trigger resolve, then note the opponent's Lightning Bolt shows NO
+        // Cast affordance (its untapped Mountain would otherwise pay for it)
+        // until the turn ends. Xantid Swarm entered a prior turn (not summoning
+        // sick), so it can attack immediately.
+        label: "Xantid Swarm — defending player can't cast (CR 601.3a)",
+        cards: [
+            { name: "Xantid Swarm", owner: "me", zone: "battlefield" },
+            { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+            { name: "Mountain", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
 ];

@@ -2146,6 +2146,15 @@ export type GameState = {
      *  assignment is skipped, so it can't be lethal to a blocker either).
      *  Cleared at CLEANUP. */
     assignsNoCombatDamageThisTurn?: string[];
+    /** CR 601.3a / 514.2 — player ids under a turn-scoped "can't cast spells
+     *  this turn" restriction (Xantid Swarm's attack trigger locks the
+     *  defending player). Enforced by the shared cast gate
+     *  `castProhibitionReason` (read by both the GRE `getLegalActions` and the
+     *  client). Distinct from the permanent-sourced `cast-restriction` statics
+     *  in `castRestrictions.ts`: this is a per-player turn flag set by an
+     *  effect, so it does NOT revert when a source leaves play — it is cleared
+     *  unconditionally at CLEANUP. */
+    cannotCastSpellsThisTurn?: string[];
     /** Turn-scoped all-unblocked combat-damage redirects (CR 614.6 — Kjeldoran
      *  Royal Guard). Each entry redirects ALL combat damage that unblocked
      *  attackers would deal to `playerId` onto the permanent `toPermanentId`
@@ -7507,6 +7516,15 @@ export function buildSpellContext(
 
         preventAllCombatDamage(): void {
             state.preventAllCombatDamageThisTurn = true;
+        },
+
+        restrictSpellCasting(playerId: string): void {
+            // CR 601.3a — mark `playerId` unable to cast spells for the rest of
+            // this turn (Xantid Swarm: "defending player can't cast spells this
+            // turn"). Idempotent; cleared unconditionally at CLEANUP (CR 514.2).
+            const list = state.cannotCastSpellsThisTurn ?? [];
+            if (!list.includes(playerId)) list.push(playerId);
+            state.cannotCastSpellsThisTurn = list;
         },
 
         markAssignsNoCombatDamage(target: TargetSelection): void {

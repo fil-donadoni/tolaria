@@ -114,4 +114,33 @@ describe("castProhibitionReason (client-side cast gate, CR 601.3a)", () => {
             })
         ).toBeUndefined();
     });
+
+    // Xantid Swarm's turn-scoped per-player cast lock (CR 601.3a / 514.2,
+    // #1057) — a PlayerState-turn flag, not a battlefield-scanned static. The
+    // client reads the same helper over the projected state, which carries the
+    // flag (projectPublicState spreads it), so the affordance is suppressed.
+    it("Xantid Swarm: a locked player can't cast ANY spell this turn", () => {
+        const board = [player("p1", []), player("p2", [])];
+        // Locked: p2 is in the turn-scoped list.
+        expect(
+            castProhibitionReason("p2", creatureSpell as never, {
+                players: board as never,
+                cannotCastSpellsThisTurn: ["p2"],
+            })
+        ).toBeDefined();
+        // The lock is per-player: the attacker (p1) is unaffected.
+        expect(
+            castProhibitionReason("p1", creatureSpell as never, {
+                players: board as never,
+                cannotCastSpellsThisTurn: ["p2"],
+            })
+        ).toBeUndefined();
+        // Not locked (empty list) → casts freely.
+        expect(
+            castProhibitionReason("p2", noncreatureSpell as never, {
+                players: board as never,
+                cannotCastSpellsThisTurn: [],
+            })
+        ).toBeUndefined();
+    });
 });
