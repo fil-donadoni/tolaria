@@ -1560,7 +1560,7 @@
         "firstSet": "arn"
     },
     {
-        "name": "Dandân",
+        "name": "Dand\u00e2n",
         "scryfallId": "414d3cae-b8cf-4d53-bd6b-1aa83a828ba9",
         "oracleId": "88929373-b2c8-4a81-a809-fed87fd5b0d7",
         "firstSet": "arn"
@@ -2004,7 +2004,7 @@
         "firstSet": "mh1"
     },
     {
-        "name": "El-Hajjâj",
+        "name": "El-Hajj\u00e2j",
         "scryfallId": "c4b610d3-2005-4347-bcda-c30b5b7972e5",
         "oracleId": "f92c9a5d-853f-4157-89ba-8d8c8033c533",
         "firstSet": "arn"
@@ -2826,7 +2826,7 @@
         "firstSet": "ice"
     },
     {
-        "name": "Ghazbán Ogre",
+        "name": "Ghazb\u00e1n Ogre",
         "scryfallId": "f9d613d5-36a2-4633-b5af-64511bb29cc2",
         "oracleId": "d361bdd4-afb8-493d-9091-ebe22f215834",
         "firstSet": "arn"
@@ -3666,7 +3666,7 @@
         "firstSet": "ice"
     },
     {
-        "name": "Ifh-Bíff Efreet",
+        "name": "Ifh-B\u00edff Efreet",
         "scryfallId": "c0b10fb7-8667-42bf-aeb6-35767a82917b",
         "oracleId": "e503a4f2-a785-4e7a-89a7-a9b24fb98831",
         "firstSet": "arn"
@@ -4032,7 +4032,7 @@
         "firstSet": "ice"
     },
     {
-        "name": "Junún Efreet",
+        "name": "Jun\u00fan Efreet",
         "scryfallId": "5f46783a-b91e-4829-a173-5515b09ca615",
         "oracleId": "afda663e-c5f7-4182-86f7-d95d71793717",
         "firstSet": "arn"
@@ -4044,7 +4044,7 @@
         "firstSet": "ice"
     },
     {
-        "name": "Juzám Djinn",
+        "name": "Juz\u00e1m Djinn",
         "scryfallId": "31bf3f14-b5df-498b-a1bb-965885c82401",
         "oracleId": "4e81596c-9225-43d1-bd35-798212144f2c",
         "firstSet": "arn"
@@ -4116,7 +4116,7 @@
         "firstSet": "iko"
     },
     {
-        "name": "Khabál Ghoul",
+        "name": "Khab\u00e1l Ghoul",
         "scryfallId": "18607bf6-ce11-41cb-b001-0c9538406ba0",
         "oracleId": "cb558dda-0c05-426d-aedc-bc07cc54db76",
         "firstSet": "arn"
@@ -4338,7 +4338,7 @@
         "firstSet": "ice"
     },
     {
-        "name": "Legions of Lim-Dûl",
+        "name": "Legions of Lim-D\u00fbl",
         "scryfallId": "75b67eb2-b60e-46b4-9d48-11c284957bec",
         "oracleId": "70b69803-1870-4441-954b-dba5b433fcb2",
         "firstSet": "ice"
@@ -4422,13 +4422,13 @@
         "firstSet": "lea"
     },
     {
-        "name": "Lim-Dûl's Cohort",
+        "name": "Lim-D\u00fbl's Cohort",
         "scryfallId": "3d0006f6-2f96-453d-9145-eaefa588efbc",
         "oracleId": "1e3b97d2-8fda-4510-9697-f36ca9ca2ab0",
         "firstSet": "ice"
     },
     {
-        "name": "Lim-Dûl's Hex",
+        "name": "Lim-D\u00fbl's Hex",
         "scryfallId": "af976f42-3d56-4e32-8294-970a276a4bf3",
         "oracleId": "7f9116e1-9aab-470b-90eb-f51a3fbb3c0e",
         "firstSet": "ice"
@@ -4500,7 +4500,7 @@
         "firstSet": "lea"
     },
     {
-        "name": "Lórien Revealed",
+        "name": "L\u00f3rien Revealed",
         "scryfallId": "0ce44270-a684-4489-9077-521456e6dfaa",
         "oracleId": "66f28905-c7fc-4ada-8fa0-199626d9bedb",
         "firstSet": "ltr"
@@ -4692,7 +4692,7 @@
         "firstSet": "drk"
     },
     {
-        "name": "Márton Stromgald",
+        "name": "M\u00e1rton Stromgald",
         "scryfallId": "7880e815-53e7-43e0-befd-e368f00a75d8",
         "oracleId": "8364cf93-c323-46f4-854f-ae872e484438",
         "firstSet": "ice"
@@ -5256,7 +5256,7 @@
         "firstSet": "arn"
     },
     {
-        "name": "Oath of Lim-Dûl",
+        "name": "Oath of Lim-D\u00fbl",
         "scryfallId": "f16df768-06de-43a0-b548-44fb0887490b",
         "oracleId": "64e163c2-2378-4e4c-aefe-5e0d2fd19988",
         "firstSet": "ice"
@@ -8560,5 +8560,29 @@
         "scryfallId": "152a72b1-a7b7-4e5c-8558-fab97465f549",
         "oracleId": "bc7b90b1-3517-4e5d-9bd8-68b4d8a259fd",
         "firstSet": "ice"
+    },
+    {
+        "name": "Obliterate",
+        "scryfallId": "cdabde40-2143-4677-b7b4-ea8fbf9b1f25",
+        "oracleId": "47496941-8007-45a0-a981-76c683cbddc1",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Urza's Rage",
+        "scryfallId": "61a25a35-3ae4-471e-adcd-d8baf2f77b68",
+        "oracleId": "363f8c66-fe0c-44b9-987d-1d160e3f9c54",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Blurred Mongoose",
+        "scryfallId": "4b073e3f-6a6f-495a-ab16-39d906b660f1",
+        "oracleId": "588a5bac-dcad-410e-8878-0230500c2e3a",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Kavu Chameleon",
+        "scryfallId": "f726437b-a41a-4ee9-b0ee-e09327508615",
+        "oracleId": "82c583ab-8158-4074-a3ff-b7a05ecc8ab1",
+        "firstSet": "inv"
     }
 ]

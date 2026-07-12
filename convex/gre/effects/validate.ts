@@ -937,7 +937,14 @@ function isCaptureMap(value: unknown): boolean {
  *  test fails CI when the three drift apart. `bind` (ADR 0045) is an optional
  *  field on the object-moving Ops that can snapshot their target. */
 const OP_SCHEMAS: Record<string, OpSchema> = {
-    dealDamage: { required: { amount: isEffectValue, to: isDamageRecipient } },
+    // CR 615 (issue #1065) — `unpreventable` skips prevention shields only
+    // (Urza's Rage's kicked mode: "the damage can't be prevented"); CR 614
+    // replacement and CR 702.16 protection are unaffected. Omitted/false is
+    // the default preventable path every other `dealDamage` card uses.
+    dealDamage: {
+        required: { amount: isEffectValue, to: isDamageRecipient },
+        optional: { unpreventable: isBoolean },
+    },
     draw: { required: { player: isPlayerRef, count: isEffectValue } },
     gainLife: { required: { player: isPlayerRef, amount: isEffectValue } },
     loseLife: { required: { player: isPlayerRef, amount: isEffectValue } },

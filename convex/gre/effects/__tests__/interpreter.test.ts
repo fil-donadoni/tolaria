@@ -7678,6 +7678,209 @@ describe("Effect Script Op: counter + destination (CR 701.5a, issue #683)", () =
     });
 });
 
+// --- CardDefinition.cantBeCountered (CR 701.5c, issue #1065) ---------------
+//
+// "This spell can't be countered" (Obliterate, Urza's Rage, Blurred Mongoose,
+// Kavu Chameleon). The flag is checked at the single choke point every
+// counter card routes through — `SpellContext.counter`, called by both the
+// DSL `counter` Op and a `resolve()` closure alike — so this is engine-level
+// coverage, not per-card.
+const UNCOUNTERABLE_ID = "test-cant-be-countered-spell";
+registerTokenDefinition({
+    id: UNCOUNTERABLE_ID,
+    name: UNCOUNTERABLE_ID,
+    rarity: "common",
+    manaCost: { X: 1, R: 1 },
+    types: ["Sorcery"],
+    cantBeCountered: true,
+    effects: [{ op: "draw", player: "controller", count: 1 }],
+});
+describe("CardDefinition.cantBeCountered (CR 701.5c, issue #1065)", () => {
+    it("a flagged spell is a legal target for counter, but the counter fizzles — the spell stays on the stack", () => {
+        const id = registerScript(
+            "test-cant-be-countered-counterspell",
+            [{ op: "counter", target: { target: 0 } }],
+            { targetRequirement: { type: "spell", count: 1 } }
+        );
+        const libCard = makeInstance(BEAR_ID, {
+            id: "lib1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "library",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { library: [libCard] }),
+            ],
+        });
+        const uncounterable = pushSpell(state, UNCOUNTERABLE_ID, "p2");
+        pushSpell(state, id, "p1", [{ type: "spell", id: uncounterable.id }]);
+        resolveTopOfStack(state); // resolves the counterspell
+        // The countering spell targeted it fine (no illegal-target fizzle) —
+        // it simply fails to remove the flagged spell from the stack.
+        expect(
+            state.stack.find((s) => s.id === uncounterable.id)
+        ).toBeDefined();
+        expect(
+            state.players[1].graveyard.some((c) => c.id === uncounterable.id)
+        ).toBe(false);
+        resolveTopOfStack(state); // the surviving spell resolves normally
+        expect(state.players[1].hand).toHaveLength(1); // p2 (its controller) drew
+    });
+
+    it("an UNFLAGGED spell is still countered normally (regression guard)", () => {
+        const id = registerScript(
+            "test-cant-be-countered-control-counterspell",
+            [{ op: "counter", target: { target: 0 } }],
+            { targetRequirement: { type: "spell", count: 1 } }
+        );
+        const state = makeState();
+        const bolt = pushSpell(state, BEAR_ID, "p2");
+        pushSpell(state, id, "p1", [{ type: "spell", id: bolt.id }]);
+        resolveTopOfStack(state);
+        expect(state.stack.find((s) => s.id === bolt.id)).toBeUndefined();
+        expect(state.players[1].graveyard.some((c) => c.id === bolt.id)).toBe(
+            true
+        );
+    });
+
+    it("wire format: the surviving flagged spell stays visible on the projected stack", () => {
+        const id = registerScript(
+            "test-cant-be-countered-wire",
+            [{ op: "counter", target: { target: 0 } }],
+            { targetRequirement: { type: "spell", count: 1 } }
+        );
+        const state = makeState();
+        const uncounterable = pushSpell(state, UNCOUNTERABLE_ID, "p2");
+        pushSpell(state, id, "p1", [{ type: "spell", id: uncounterable.id }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.stack.find((s) => s.id === uncounterable.id)
+        ).toBeDefined();
+    });
+});
+
+// --- dealDamage Op: `unpreventable` (CR 615, issue #1065) -------------------
+//
+// Urza's Rage's kicked mode ("the damage can't be prevented") generalizes the
+// already-implemented `dealDamage` Op with an optional flag that skips CR 615
+// prevention shields only — CR 614 replacement and CR 702.16 protection are
+// untouched (per the "new param shape" full-regime rule, mirroring counter's
+// `destination` param).
+describe("Effect Script Op: dealDamage unpreventable (CR 615, issue #1065)", () => {
+    it("skips a target-keyed prevention shield on a PLAYER when unpreventable", () => {
+        const id = registerScript(
+            "test-op-dealdamage-unpreventable-player",
+            [
+                {
+                    op: "dealDamage",
+                    amount: 10,
+                    to: { target: 0 },
+                    unpreventable: true,
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState();
+        state.targetPreventionShields = [
+            {
+                targetType: "player",
+                targetId: "p2",
+                remaining: 100,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(10); // 20 - 10, shield ignored
+    });
+
+    it("skips a target-keyed prevention shield on a PERMANENT when unpreventable", () => {
+        const id = registerScript(
+            "test-op-dealdamage-unpreventable-permanent",
+            [
+                {
+                    op: "dealDamage",
+                    amount: 10,
+                    to: { target: 0 },
+                    unpreventable: true,
+                },
+            ],
+            { targetRequirement: { type: "Creature", count: 1 } }
+        );
+        const bear = makeInstance(BEAR_ID, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        state.targetPreventionShields = [
+            {
+                targetType: "permanent",
+                targetId: "bear",
+                remaining: 100,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bear" }]);
+        resolveTopOfStack(state);
+        expect(bear.damageMarked).toBe(10); // shield ignored, lethal (5 toughness)
+    });
+
+    it("WITHOUT unpreventable, the same shield still prevents damage (default path unaffected)", () => {
+        const id = registerScript("test-op-dealdamage-preventable-default", [
+            { op: "dealDamage", amount: 10, to: { target: 0 } },
+        ]);
+        const state = makeState();
+        state.targetPreventionShields = [
+            {
+                targetType: "player",
+                targetId: "p2",
+                remaining: 100,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(20); // fully prevented
+    });
+
+    it("wire format: unpreventable damage to a player survives projection", () => {
+        const id = registerScript(
+            "test-op-dealdamage-unpreventable-wire",
+            [
+                {
+                    op: "dealDamage",
+                    amount: 10,
+                    to: { target: 0 },
+                    unpreventable: true,
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState();
+        state.targetPreventionShields = [
+            {
+                targetType: "player",
+                targetId: "p2",
+                remaining: 100,
+                duration: { phase: "end-of-turn" },
+            },
+        ];
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].life).toBe(10);
+    });
+});
+
 // ADR 0026 (revised) — a reveal→discard (Thoughtseize / Duress / Hymn to
 // Tourach) must NOT hide the cards it revealed. `reveal` stamps the whole
 // target hand `knownTo` all players; discarding the chosen card leaves the

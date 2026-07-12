@@ -648,6 +648,20 @@ export type CardInstanceState = {
      *  returns this array instead of mana-cost-derived + grantedColors.
      *  Set by lace instants ("target spell or permanent becomes [color]"). */
     colorOverride?: Color[];
+    /** Timed color override (CR 305.7 / 613.1d — "becomes the color of your
+     *  choice until end of turn", Kavu Chameleon, issue #1065). While
+     *  present, `colorOverride` above has been overwritten with `colors`;
+     *  `restoreColorOverride` captures the prior override (undefined if there
+     *  wasn't one) so the phase-boundary purge (`tickAllDurations`) can splice
+     *  it back — or clear `colorOverride` entirely — when `duration` expires.
+     *  Distinct from the indefinite `setColorOverride` call (no duration,
+     *  Dream Coat / Shyft's "lasts indefinitely"). Pushed by
+     *  `SpellContext.setColorOverride`'s optional `duration` parameter. */
+    temporaryColorOverride?: {
+        colors: Color[];
+        restoreColorOverride?: Color[];
+        duration: Duration;
+    };
     /** Text-changing effects (CR 612, layer 3). Each entry replaces every
      *  instance of one word with another inside this object's structured text.
      *  Applied at read time by `applySubstitution` (gre/textChanges.ts) at the
@@ -5867,11 +5881,21 @@ export function buildSpellContext(
             return randomInt(state, 2) === 1;
         },
 
-        dealDamage(target: TargetSelection, amount: number) {
+        dealDamage(
+            target: TargetSelection,
+            amount: number,
+            unpreventable = false
+        ) {
             // CR 614 replacement effects run BEFORE CR 615 prevention. May
             // rewrite target (Simulacrum / Veteran Bodyguard / Personal
             // Incarnation redirect damage to themselves) or cancel
             // (Jade Monolith's activated redirect cancels by rewriting).
+            // `unpreventable` (Urza's Rage's kicked mode: "the damage can't be
+            // prevented") only suppresses CR 615 PREVENTION shields below —
+            // CR 614 replacement/redirection effects are a distinct rule and
+            // still apply, and so does CR 702.16 protection (a card would need
+            // to say so explicitly to override protection too; no card in the
+            // catalogue does).
             const replaced = runDamageReplacement(
                 state,
                 item.id,
@@ -5887,27 +5911,35 @@ export function buildSpellContext(
                 // CR 615.1: a prevention effect replaces the would-be damage
                 // with nothing. Matched against the current stack item's id
                 // (the spell/ability dealing the damage).
-                if (consumePreventionIfAny(state, item.id, target.id)) return;
+                if (
+                    !unpreventable &&
+                    consumePreventionIfAny(state, item.id, target.id)
+                )
+                    return;
                 const desc = describeDamageSource(state, item.id);
                 // CR 615.1: per-player source-matched shields (Dark Sphere /
                 // Scarecrow). Run before target-keyed shields so a half/all
                 // prevention shapes the amount the N-absorption then sees.
-                let reduced = applyPlayerDamagePrevention(
-                    state,
-                    target.id,
-                    item.id,
-                    desc.staticAbilities,
-                    amount
-                );
+                let reduced = unpreventable
+                    ? amount
+                    : applyPlayerDamagePrevention(
+                          state,
+                          target.id,
+                          item.id,
+                          desc.staticAbilities,
+                          amount
+                      );
                 if (reduced <= 0) return;
                 // CR 615.1: target-keyed prevention shields absorb up to N
                 // damage per event regardless of source.
-                reduced = applyTargetPrevention(
-                    state,
-                    "player",
-                    target.id,
-                    reduced
-                );
+                reduced = unpreventable
+                    ? reduced
+                    : applyTargetPrevention(
+                          state,
+                          "player",
+                          target.id,
+                          reduced
+                      );
                 if (reduced <= 0) return;
                 getPlayer(state, target.id).life -= reduced;
                 // CR 119.3 — damage dealt to a player causes life loss.
@@ -5955,12 +5987,14 @@ export function buildSpellContext(
                 // prevented. `item` is the stack item resolving (spell or
                 // ability); its colors come from its mana cost (CR 202.2).
                 if (isProtectedFromSource(found.card, item)) return;
-                const reduced = applyTargetPrevention(
-                    state,
-                    "permanent",
-                    target.id,
-                    amount
-                );
+                const reduced = unpreventable
+                    ? amount
+                    : applyTargetPrevention(
+                          state,
+                          "permanent",
+                          target.id,
+                          amount
+                      );
                 if (reduced <= 0) return;
                 // CR 120.3: damage is marked on the creature and accumulates
                 // until CLEANUP (CR 514.2). Lethal damage (CR 704.5g) is
@@ -6834,6 +6868,16 @@ export function buildSpellContext(
             }
             const idx = state.stack.findIndex((s) => s.id === target.id);
             if (idx === -1) return; // target no longer on stack — fizzle silently
+            const found = state.stack[idx];
+            // CR 701.5c — "can't be countered": the countering spell/ability
+            // still legally targets this spell (targeting is unaffected — see
+            // CardDefinition.cantBeCountered's doc comment for the Obliterate
+            // ruling), but the counter itself fizzles: the spell is NOT
+            // removed from the stack. Abilities have no card definition to
+            // flag, so only a spell (a card id) can carry this.
+            const foundCardId = (found.card as { id?: string }).id;
+            const foundDef = foundCardId ? tryGetDefinition(foundCardId) : null;
+            if (foundDef?.cantBeCountered) return;
             const [item] = state.stack.splice(idx, 1);
             const owner = getPlayer(state, item.ownerId);
             // Abilities on the stack are not cards: activated (CR 113.7a),
@@ -8001,10 +8045,35 @@ export function buildSpellContext(
             found.card.cantBeBlockedBySubtypesThisTurn = [...existing, subtype];
         },
 
-        setColorOverride(target: TargetSelection, colors: Color[]): void {
+        setColorOverride(
+            target: TargetSelection,
+            colors: Color[],
+            duration?: DurationSpec
+        ): void {
             if (target.type === "permanent") {
                 const found = findOnBattlefield(state, target.id);
                 if (!found) return;
+                // issue #1065 — a timed override ("becomes the color of your
+                // choice UNTIL END OF TURN", Kavu Chameleon) records what to
+                // restore on expiry; an indefinite call (no duration, Dream
+                // Coat / Shyft) behaves exactly as before.
+                if (duration) {
+                    found.card.temporaryColorOverride = {
+                        colors: [...colors],
+                        ...(found.card.colorOverride
+                            ? {
+                                  restoreColorOverride: [
+                                      ...found.card.colorOverride,
+                                  ],
+                              }
+                            : {}),
+                        duration: resolveDuration(
+                            duration,
+                            item.controllerId,
+                            state
+                        ),
+                    };
+                }
                 found.card.colorOverride = colors;
             } else if (target.type === "spell") {
                 const si = state.stack.find((s) => s.id === target.id);

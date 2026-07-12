@@ -128,6 +128,9 @@ function compactCard(
     if (card.temporarySubtypeChange) {
         out.temporarySubtypeChange = card.temporarySubtypeChange;
     }
+    if (card.temporaryColorOverride) {
+        out.temporaryColorOverride = card.temporaryColorOverride;
+    }
     if (card.sourceTappedPTMods?.length) {
         out.sourceTappedPTMods = card.sourceTappedPTMods;
     }
@@ -341,6 +344,10 @@ function expandCard(
     if (compact.temporarySubtypeChange) {
         result.temporarySubtypeChange =
             compact.temporarySubtypeChange as CardInstanceState["temporarySubtypeChange"];
+    }
+    if (compact.temporaryColorOverride) {
+        result.temporaryColorOverride =
+            compact.temporaryColorOverride as CardInstanceState["temporaryColorOverride"];
     }
     if (compact.sourceTappedPTMods) {
         result.sourceTappedPTMods =
