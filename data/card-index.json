@@ -6588,6 +6588,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Recoil",
+        "scryfallId": "b6a77be3-e3b0-40f5-a470-414bac49da60",
+        "oracleId": "1579bf86-4400-4467-88e8-1c5ba1209804",
+        "firstSet": "inv"
+    },
+    {
         "name": "Reconstruction",
         "scryfallId": "1aa2d27b-cc25-4baa-86f4-4db45b30e2a4",
         "oracleId": "ad8fb78b-5ca5-4ef1-8c68-ee57d1e32fec",
@@ -7398,6 +7404,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Sleeper's Robe",
+        "scryfallId": "3411f0fd-8b85-4d0d-a202-701a24ffac9f",
+        "oracleId": "d82783d9-9bfe-4fcd-a7d2-6e2477f99edc",
+        "firstSet": "inv"
+    },
+    {
         "name": "Sleight of Mind",
         "scryfallId": "d427790c-e322-446e-8d7d-a6b48ad41a42",
         "oracleId": "99dba614-40d3-41c1-a3b2-edc8777b010f",
@@ -7407,6 +7419,12 @@
         "name": "Slimy Kavu",
         "scryfallId": "8e82044d-88cd-4ee4-8ec9-e71a0a85ed46",
         "oracleId": "95625072-c457-4224-b509-5feaa35e9ca6",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Slinking Serpent",
+        "scryfallId": "070a7004-5a28-4ccb-8640-ad6b07b51ece",
+        "oracleId": "23875679-5c08-44ff-90b3-13a1a758e5f7",
         "firstSet": "inv"
     },
     {
@@ -7608,6 +7626,12 @@
         "firstSet": "bbd"
     },
     {
+        "name": "Spinal Embrace",
+        "scryfallId": "692ad1eb-62a3-4560-bf8e-35f7db73c7a3",
+        "oracleId": "4cf3fb65-9107-428a-8853-029ec97112b5",
+        "firstSet": "inv"
+    },
+    {
         "name": "Spinal Villain",
         "scryfallId": "d6d5e36f-0049-4be8-bf85-8dc0186339a4",
         "oracleId": "990c0359-c2d6-4a3c-aa0b-1904da805e15",
@@ -7708,6 +7732,12 @@
         "scryfallId": "a6bf858d-bba9-4a16-9045-55384b1de633",
         "oracleId": "52c53132-146a-4912-8e0f-1d4d9937fff3",
         "firstSet": "atq"
+    },
+    {
+        "name": "Stalking Assassin",
+        "scryfallId": "ff8cc71f-3070-497f-908f-35aa13a8a857",
+        "oracleId": "12117089-67f7-4d0e-88db-82b27a4c7cdc",
+        "firstSet": "inv"
     },
     {
         "name": "Stampede",
@@ -8622,6 +8652,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Undermine",
+        "scryfallId": "2334bc71-5f85-47ff-b393-601a1e746a4e",
+        "oracleId": "6bcfe240-c165-49f2-a90a-be05c05498a1",
+        "firstSet": "inv"
+    },
+    {
         "name": "Undertow",
         "scryfallId": "cf05e5c9-b7e4-4bd8-ab73-b54565710527",
         "oracleId": "1dc51112-ee5d-492a-9c79-80ebcad60bc8",
@@ -8674,6 +8710,12 @@
         "scryfallId": "9e201229-34a6-48c8-a07c-d8aefcf5f8a7",
         "oracleId": "7cafc972-a6f5-4cac-a3d3-8a3ae36ffb1e",
         "firstSet": "ody"
+    },
+    {
+        "name": "Urborg Drake",
+        "scryfallId": "97d1327e-bf87-423f-8a04-8124e45b9ae0",
+        "oracleId": "57d93683-8739-49ef-856a-5a70f92d8763",
+        "firstSet": "inv"
     },
     {
         "name": "Urborg Shambler",
@@ -8832,6 +8874,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Vile Consumption",
+        "scryfallId": "7f7e5716-77f3-45d2-a40a-f5bf500f6ad7",
+        "oracleId": "b6a005db-e7e2-4b88-bc8a-c257bcc31cf5",
+        "firstSet": "inv"
+    },
+    {
         "name": "Vindicate",
         "scryfallId": "2a1bfefd-dae8-49e9-9d56-cc852e3dc93b",
         "oracleId": "63c1ac21-e3d8-40c2-8c09-3f31c52992ef",
@@ -8884,6 +8932,12 @@
         "scryfallId": "cd962ff0-4aa6-453e-931e-bd36fc034273",
         "oracleId": "f72511b0-9993-4998-b646-65a855cb8170",
         "firstSet": "fem"
+    },
+    {
+        "name": "Vodalian Zombie",
+        "scryfallId": "f30a5a06-32ce-4d71-b71f-e3e1d8d4511a",
+        "oracleId": "58e4f299-bb32-4727-8498-a364166adc38",
+        "firstSet": "inv"
     },
     {
         "name": "Volcanic Eruption",
