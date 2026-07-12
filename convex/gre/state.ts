@@ -5110,6 +5110,33 @@ export function emitCardDiscarded(
     ];
 }
 
+/** Emits a CARD_MILLED event for a card that just moved library → graveyard as
+ *  a mill (CR 701.17). The single choke point for "when this card is put into
+ *  your graveyard from your library" triggers (Gaea's Blessing). Emitted by
+ *  `millCards` AFTER the card has landed in the graveyard, so the trigger can
+ *  locate the card in its destination zone — the mill twin of
+ *  `emitCardDiscarded`. `ownerId` is the milled card's owner (whose library it
+ *  came from and whose graveyard it now sits in — a mill never crosses owners,
+ *  CR 701.17). */
+export function emitCardMilled(
+    state: GameState,
+    ownerId: string,
+    cardInstanceId: string,
+    cardId?: string,
+    types?: ReadonlyArray<CardType>
+): void {
+    state.pendingEvents = [
+        ...(state.pendingEvents ?? []),
+        {
+            type: "CARD_MILLED",
+            ownerId,
+            cardInstanceId,
+            ...(cardId ? { cardId } : {}),
+            ...(types && types.length > 0 ? { types } : {}),
+        },
+    ];
+}
+
 /** Emits a LIFE_LOST event for a player whose life total just dropped (CR
  *  119.3). The seam for "whenever you lose life" triggers (Oath of Lim-Dûl —
  *  "for each 1 life you lost, ..."). Emitted AFTER the life total has actually
@@ -6701,6 +6728,30 @@ export function buildSpellContext(
             // (Fasting) fire. The post-resolution scan in `resolveTopOfStack`
             // drains this from `pendingEvents`.
             emitCardDrawn(state, playerId, drawn);
+        },
+        // CR 701.17: mill the top `amount` cards library → graveyard, one at a
+        // time — re-reading the LIVE top each pass so successive mills chase the
+        // receding library top, and stopping early once it empties (CR 701.17a).
+        // The mill analogue of `drawCards`: the single choke point that emits a
+        // CARD_MILLED event per card (Gaea's Blessing's "when this card is put
+        // into your graveyard from your library" self-trigger). No-op for
+        // `amount ≤ 0`. The post-resolution scan in `resolveTopOfStack` drains
+        // the events from `pendingEvents`.
+        millCards(playerId: string, amount: number): void {
+            if (amount <= 0) return;
+            const player = getPlayer(state, playerId);
+            for (let i = 0; i < amount; i++) {
+                const top = player.library[0];
+                if (!top) break; // library empty — mill fewer (CR 701.17a)
+                const cardId = (top.card as { id?: string }).id;
+                const types = cardId
+                    ? tryGetDefinition(cardId)?.types
+                    : undefined;
+                moveCard(player, top.id, "library", "graveyard");
+                // Emit AFTER the move so the trigger scan finds the card in its
+                // destination graveyard (CR 603.10 emit-after-move discipline).
+                emitCardMilled(state, playerId, top.id, cardId, types);
+            }
         },
         // CR 614 — arm a one-shot replacement for the next draw `playerId`
         // takes this turn (Aladdin's Lamp). Consumed by the draw step.

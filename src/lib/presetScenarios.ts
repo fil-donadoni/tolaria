@@ -59,4 +59,22 @@ type PresetScenario = {
     poison?: { me?: number; opp?: number };
 };
 
-export const PRESET_SCENARIOS: PresetScenario[] = [];
+export const PRESET_SCENARIOS: PresetScenario[] = [
+    {
+        // Gaea's Blessing mill trigger (issue #1055): tap Millstone targeting
+        // yourself to mill your own library. Gaea's Blessing (seeded on top of
+        // your library) is milled, its "when this card is put into your
+        // graveyard from your library" trigger fires, and your whole graveyard
+        // (the two Forests + Gaea) shuffles back into your library.
+        // `libraryCount` is intentionally UNSET so the seeded Gaea stays the
+        // library's only card and is milled first.
+        label: "Gaea's Blessing — mill trigger",
+        cards: [
+            { name: "Gaea's Blessing", owner: "me", zone: "library" },
+            { name: "Forest", owner: "me", zone: "graveyard", count: 2 },
+            { name: "Millstone", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 2,
+    },
+];

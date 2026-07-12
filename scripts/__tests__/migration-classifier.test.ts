@@ -565,11 +565,17 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // sth/__tests__/white.test.ts) so both are AFK-ready too. Total
         // 651→653, FREE 417→419, AFK-ready 383→385, Op-blocked 220, X-only 14.
         // Partition holds: 419+14+220=653.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(653);
+        // #1055 (mill / library→graveyard zone-change trigger) adds Gaea's
+        // Blessing (wth/green.ts) as a resolve() CARD_MILLED graveyard trigger:
+        // its body is a WHOLE-graveyard bulk move (moveZone graveyard→library +
+        // shuffleLibrary) for which no DSL Op exists yet (tracked as #1056), so
+        // it classifies Op-blocked. Total 653→654, Op-blocked 220→221, FREE 419
+        // / AFK-ready 385 / X-only 14 unchanged. Partition holds: 419+14+221=654.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(654);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(419);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(385);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(220);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(221);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

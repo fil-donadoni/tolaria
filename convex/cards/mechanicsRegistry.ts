@@ -2452,8 +2452,8 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         status: "implemented",
         cr: "701.17",
         mechanicId: "mill",
-        binding: "SpellContext.peekLibraryTop / moveCardById",
-        note: 'Mill: move the top `count` cards of a player\'s library into their graveyard (CR 701.17, issue #885). A thin declarative skin over the existing `peekLibraryTop` + `moveCardById` primitives (the Millstone / Thought Scour composition), one execution path (ADR 0045): the loop re-reads the LIVE top id each pass and moves it library → graveyard, stopping early when the library empties (CR 701.17a). Deterministic — no player choice, so unlike `scryReorder` it does not suspend. `player` names whose library is milled (an announced target slot — "target player mills N"; the resolving controller; or a forEach `$each`); `count` is the number milled. Split from the `scryReorder` backlog note, which bundled the mill loop with the peek/reorder; the two are orthogonal Ops (one suspends for a choice, one does not).',
+        binding: "SpellContext.millCards",
+        note: 'Mill: move the top `count` cards of a player\'s library into their graveyard (CR 701.17, issue #885). A thin declarative skin over the single `millCards` SpellContext primitive (issue #1055 — the mill twin of `drawCards`), one execution path (ADR 0045): `millCards` re-reads the LIVE top id each pass and moves it library → graveyard, stopping early when the library empties (CR 701.17a). Deterministic — no player choice, so unlike `scryReorder` it does not suspend. `player` names whose library is milled (an announced target slot — "target player mills N"; the resolving controller; or a forEach `$each`); `count` is the number milled. EMITS a CARD_MILLED event per card (issue #1055) so "when this card is put into your graveyard from your library" self-triggers fire (Gaea\'s Blessing) — the mill choke point, mirroring `drawCards`/CARD_DRAWN. Previously composed peekLibraryTop + moveCardById inline (no event); folded into `millCards` when the mill trigger shipped.',
     },
     {
         op: "digToHand",
