@@ -114,6 +114,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Alabaster Leech",
+        "scryfallId": "c86b45d9-aba6-4c09-8605-037754ba7fd4",
+        "oracleId": "8a8b032e-90b7-4782-b854-b575f316d641",
+        "firstSet": "inv"
+    },
+    {
         "name": "Alabaster Potion",
         "scryfallId": "2806c7f6-8fdd-4e65-9c71-f2e8b0cdede2",
         "oracleId": "2fcca686-03c8-4407-9f9f-2b7462470044",
@@ -196,6 +202,12 @@
         "scryfallId": "30e401e3-282b-4524-87e1-c6cd50cd6d00",
         "oracleId": "23467047-6dba-4498-b783-1ebc4f74b8c2",
         "firstSet": "tmp"
+    },
+    {
+        "name": "Angel of Mercy",
+        "scryfallId": "5b6de688-685f-4389-be35-a472ada988e1",
+        "oracleId": "a2daaf32-dbfe-4618-892e-0da24f63a44a",
+        "firstSet": "inv"
     },
     {
         "name": "Angelic Voices",
@@ -298,6 +310,12 @@
         "scryfallId": "73c07c87-0e44-4a5a-92b7-728350cd02de",
         "oracleId": "de691eed-d90b-48f9-bae4-f982767f2bfd",
         "firstSet": "ice"
+    },
+    {
+        "name": "Ardent Soldier",
+        "scryfallId": "39dce974-846f-4365-b0a5-851e38668e7d",
+        "oracleId": "a56d301b-8f4c-4f12-8ee0-34c6b66faee0",
+        "firstSet": "inv"
     },
     {
         "name": "Arenson's Aura",
@@ -654,10 +672,22 @@
         "firstSet": "leg"
     },
     {
+        "name": "Benalish Heralds",
+        "scryfallId": "13c6e51d-54eb-4e5b-9ec9-54521b16b8d1",
+        "oracleId": "09ee1332-741f-4c55-abc3-8bcff9031cd9",
+        "firstSet": "inv"
+    },
+    {
         "name": "Benalish Hero",
         "scryfallId": "11600105-56c6-4073-a4a6-8469030b39c9",
         "oracleId": "4c81cfb7-8765-4e28-ae33-4287fa9a86cc",
         "firstSet": "lea"
+    },
+    {
+        "name": "Benalish Trapper",
+        "scryfallId": "e312653d-c3e1-4c79-90d2-0963419b618c",
+        "oracleId": "d45c6c3f-6079-40c1-9083-06f2f2431bcc",
+        "firstSet": "inv"
     },
     {
         "name": "Berserk",
@@ -1024,6 +1054,12 @@
         "scryfallId": "35a335bf-7358-460f-b7c9-1e8bc4300f64",
         "oracleId": "c7c7bffa-442d-4ba5-b778-ad394c192f27",
         "firstSet": "atq"
+    },
+    {
+        "name": "Capashen Unicorn",
+        "scryfallId": "ec3e5741-88d7-4837-9b43-ba8304d9ee74",
+        "oracleId": "52793400-bc83-402a-9609-928a4d3ac812",
+        "firstSet": "inv"
     },
     {
         "name": "Caribou Range",
@@ -1434,6 +1470,12 @@
         "firstSet": "wwk"
     },
     {
+        "name": "Crimson Acolyte",
+        "scryfallId": "c1718028-3009-4bdd-9f6f-59c17edd1344",
+        "oracleId": "969626f0-19d9-47ae-8766-4d59269e389c",
+        "firstSet": "inv"
+    },
+    {
         "name": "Crimson Kobolds",
         "scryfallId": "13696657-aeef-4add-9a3b-8137fce01fe3",
         "oracleId": "93fdcc49-e3c8-4f8c-a3bc-064c6392b4ca",
@@ -1462,6 +1504,12 @@
         "scryfallId": "057986c7-20c0-4157-b4df-beae4ef5c66d",
         "oracleId": "4692740f-be90-459f-8d90-c4ae71771595",
         "firstSet": "lea"
+    },
+    {
+        "name": "Crusading Knight",
+        "scryfallId": "a4ab4640-1871-41dd-bd21-64741e21ba37",
+        "oracleId": "59385809-3223-4bc2-a824-9bab257c917a",
+        "firstSet": "inv"
     },
     {
         "name": "Crystal Rod",
@@ -1758,6 +1806,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Dismantling Blow",
+        "scryfallId": "39514d54-cb6c-4b3b-a3be-46db991be4d4",
+        "oracleId": "300cba5a-adbb-4852-be06-ac00d9d6fd37",
+        "firstSet": "inv"
+    },
+    {
         "name": "Disrupting Scepter",
         "scryfallId": "ca571ee8-07a2-43b8-9acf-89cbfd3cf7c9",
         "oracleId": "cd30a128-4b23-476e-8066-2272fdc395d9",
@@ -1774,6 +1828,12 @@
         "scryfallId": "9c78c2f3-2f40-48ad-9dc4-55d1fa399a56",
         "oracleId": "231f8edb-4ea1-44be-8794-b76a31462dfc",
         "firstSet": "leg"
+    },
+    {
+        "name": "Divine Presence",
+        "scryfallId": "28cb898d-d6ce-410a-83bf-37962cca2735",
+        "oracleId": "ff9a5529-83bd-46a8-b20b-235a5fd26d93",
+        "firstSet": "inv"
     },
     {
         "name": "Divine Transformation",
@@ -3270,6 +3330,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Harsh Judgment",
+        "scryfallId": "34c78dee-ab45-4638-b89a-10686145b19a",
+        "oracleId": "1fa272bf-8759-4750-b40b-8e2f6972d570",
+        "firstSet": "inv"
+    },
+    {
         "name": "Hasran Ogress",
         "scryfallId": "9f310cf5-0985-4826-9779-19a713089d6d",
         "oracleId": "a57d4a9d-4ac5-4a68-adb9-a73754034d7c",
@@ -4368,6 +4434,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Liberate",
+        "scryfallId": "96794470-31ea-478f-b11c-dc8342a508e2",
+        "oracleId": "f17e6c85-4813-4b0f-a0e9-d295822e9bb5",
+        "firstSet": "inv"
+    },
+    {
         "name": "Library of Alexandria",
         "scryfallId": "ee266113-34ce-4189-84e7-ee2c86a2722c",
         "oracleId": "2111588d-9af5-4a33-989e-b074d83f0463",
@@ -5274,6 +5346,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Obsidian Acolyte",
+        "scryfallId": "868efcee-bb13-4b6f-b81b-99408685e4c4",
+        "oracleId": "dd1e7e89-72d7-44d7-922c-f08f0b7d5166",
+        "firstSet": "inv"
+    },
+    {
         "name": "Occult Epiphany",
         "scryfallId": "6920c895-bc98-4871-a53f-219fa27a74e5",
         "oracleId": "6df1c314-b97b-4bbc-8b7e-a07785347a49",
@@ -5410,6 +5488,12 @@
         "scryfallId": "5af19ab0-4bd0-4d5f-8d2e-507e4fe87c18",
         "oracleId": "f6ea2b1b-1403-4ccd-a23c-48e0e81ceb91",
         "firstSet": "fem"
+    },
+    {
+        "name": "Orim's Touch",
+        "scryfallId": "559f551e-7891-4c6d-8798-a25c0255fa3b",
+        "oracleId": "cc22c210-efd0-494c-8560-448b038b3c5f",
+        "firstSet": "inv"
     },
     {
         "name": "Ornithopter",
@@ -5970,6 +6054,12 @@
         "firstSet": "jud"
     },
     {
+        "name": "Razorfoot Griffin",
+        "scryfallId": "819e2046-9b78-4fd0-92f8-798bfac51195",
+        "oracleId": "c7ecb785-2bfc-4953-b356-db7c27406dbb",
+        "firstSet": "inv"
+    },
+    {
         "name": "Razorverge Thicket",
         "scryfallId": "345e053a-3178-485c-8602-1624bbf2f064",
         "oracleId": "94f6c407-e665-4032-be13-a01e40c1f306",
@@ -6090,6 +6180,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Restrain",
+        "scryfallId": "f6b5c765-619c-4db9-b509-91892fb65e8f",
+        "oracleId": "5aa66cb0-86b9-4e85-9a17-df78416d682d",
+        "firstSet": "inv"
+    },
+    {
         "name": "Resurrection",
         "scryfallId": "4fff6e6f-4ebd-4ec8-9443-59efb22d376c",
         "oracleId": "837417d8-8260-486d-a3ed-3b5711eaf34a",
@@ -6112,6 +6208,24 @@
         "scryfallId": "da7ed8ba-3886-4779-a9b3-6892a7ed3527",
         "oracleId": "c7076e2c-81f1-44ad-a4dd-45a01802d364",
         "firstSet": "atq"
+    },
+    {
+        "name": "Reviving Dose",
+        "scryfallId": "8d44dd88-ad20-4d89-8831-d2dfa6873428",
+        "oracleId": "ad470afc-d1a5-4e64-8192-fb6308ed9bfe",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Rewards of Diversity",
+        "scryfallId": "04116b38-8fb1-47c6-b68d-060d0fc4a60d",
+        "oracleId": "064c5a14-c2f2-4b7a-8e0b-01b9995e8f89",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Reya Dawnbringer",
+        "scryfallId": "e1e0e72b-e65e-4578-b610-9f529daa32d7",
+        "oracleId": "08d1a5d1-141d-48e3-ac22-c2529191cb13",
+        "firstSet": "inv"
     },
     {
         "name": "Righteous Avengers",
@@ -6208,6 +6322,12 @@
         "scryfallId": "59590768-fa96-4869-8763-9d5ab6ac22ad",
         "oracleId": "9ed6f28f-a3db-48c5-9ab0-b90a7fba5f57",
         "firstSet": "lea"
+    },
+    {
+        "name": "Ruham Djinn",
+        "scryfallId": "a46c7718-1ecc-418c-b213-13be9de5cb7f",
+        "oracleId": "16ad3b64-a87f-47e8-8e7b-b97bf084a3d2",
+        "firstSet": "inv"
     },
     {
         "name": "Ruins of Trokair",
@@ -6502,6 +6622,12 @@
         "scryfallId": "7e68f4df-88ce-4e09-a03c-7edf40bff167",
         "oracleId": "1b9f9f5b-8712-4f00-90cb-1b7b9970eccc",
         "firstSet": "c19"
+    },
+    {
+        "name": "Shackles",
+        "scryfallId": "35b3da05-9a3e-4827-96b8-5de244128db3",
+        "oracleId": "05861ff2-ec85-43d1-b641-c5d2da819c03",
+        "firstSet": "inv"
     },
     {
         "name": "Shadowy Backstreet",
@@ -6900,6 +7026,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Spirit Weaver",
+        "scryfallId": "90b0ef47-cb22-4146-a17e-e49a6031a7e6",
+        "oracleId": "4e6e28f1-111b-4bac-b814-487f6c206485",
+        "firstSet": "inv"
+    },
+    {
         "name": "Spiritual Sanctuary",
         "scryfallId": "654dd1e0-a91d-44ee-af20-c025bf360c3f",
         "oracleId": "91edef61-2487-405c-a3ec-67a814dfeff2",
@@ -7146,6 +7278,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Sunscape Master",
+        "scryfallId": "ebb7203d-529d-45d2-8e03-cd342c153f38",
+        "oracleId": "e3be8e19-cec1-43ae-9e22-d7cb374570bb",
+        "firstSet": "inv"
+    },
+    {
         "name": "Sunstone",
         "scryfallId": "3c1c67fa-ff88-4a61-b8a5-8a872b3dc44f",
         "oracleId": "300ad0f7-92a7-450d-a9de-b658836fe3cb",
@@ -7294,6 +7432,12 @@
         "scryfallId": "629aa907-9533-4681-9bf2-9e56450a4cc2",
         "oracleId": "610af0f7-b5e3-43fb-9d02-7c59bd99034c",
         "firstSet": "dmu"
+    },
+    {
+        "name": "Teferi's Care",
+        "scryfallId": "031b1cc1-4468-4bc5-85c0-c22dce131225",
+        "oracleId": "6c5c7b26-9cd6-4f29-bbb2-a0745153ee5d",
+        "firstSet": "inv"
     },
     {
         "name": "Teleport",

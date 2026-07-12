@@ -583,12 +583,17 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // param yet, so it lands Op-blocked (adding to the `setColorOverride`
         // backlog entry). Net from #1065: total 654→656, FREE 419→420,
         // AFK-ready 385→386, Op-blocked 221→222, X-only 14 unchanged.
-        // Partition holds: 420+14+222=656.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(656);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(420);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(386);
+        // Partition held: 420+14+222=656.
+        // Net from #1069 (INV free tranche — White): the new white cards added
+        // closures (2 precedent resolve() + additional Op-blocked colour/
+        // duration-gapped cards), while the duplicate Holy Day was removed:
+        // total 656→659, FREE 420→422, AFK-ready 386→388, Op-blocked 222→223,
+        // X-only 14 unchanged. Partition holds: 422+14+223=659.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(659);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(422);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(388);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(222);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(223);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
