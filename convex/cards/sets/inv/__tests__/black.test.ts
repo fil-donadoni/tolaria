@@ -38,6 +38,7 @@ import {
     mourning,
     phyrexianBattleflies,
     phyrexianDelver,
+    phyrexianInfiltrator,
     phyrexianReaper,
     phyrexianSlayer,
     plagueSpitter,
@@ -1038,5 +1039,173 @@ describe("Do or Die (CR 701.8 destroy / 701.15c regeneration, ADR 0053 pile divi
         expect(pick.kind).toBe("pick-pile");
         expect(pick.pileA).toEqual(["dod-w1"]);
         expect(pick.pileB).toEqual(["dod-w2"]);
+    });
+});
+
+// The scenario generator (scenarioGenerator.ts) unconditionally skips any
+// script containing a `gainControl` Op (it needs a seeded permanent the
+// generic canned scenario doesn't set up) — an explicit, documented skip, per
+// gre-development.md "never a silent pass, the signal to add a hand-written
+// test for that card after all". Hence this hand-written describe block even
+// though `gainControl` itself is an already-shipped, individually-tested Op
+// (issue #848) — it's the SMOKE COVERAGE gap that earns the test, not a new
+// construct.
+describe("Phyrexian Infiltrator ({2}{U}{U}: exchange control indefinitely, CR 701.12e / 611.2b / 613.1b, issue #1068)", () => {
+    it("exchanges control: the target creature comes to the activator, Infiltrator goes to the target's controller", () => {
+        const infiltrator = makeInstance(phyrexianInfiltrator.id, {
+            id: "inf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const enemy = makeInstance(savannahLions.id, {
+            id: "enemy",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [infiltrator] }),
+                makePlayer("p2", { battlefield: [enemy] }),
+            ],
+        });
+        resolveActivated(state, infiltrator, "phyrexian-infiltrator-exchange", [
+            { type: "permanent", id: "enemy" },
+        ]);
+
+        // The target creature is now under p1's control...
+        const swappedEnemy = state.players[0].battlefield.find(
+            (c) => c.id === "enemy"
+        );
+        expect(swappedEnemy?.controllerId).toBe("p1");
+        expect(state.players[1].battlefield.some((c) => c.id === "enemy")).toBe(
+            false
+        );
+        // ...and Phyrexian Infiltrator is now under p2's control — a true
+        // two-way exchange, not a one-way gainControl.
+        const swappedInfiltrator = state.players[1].battlefield.find(
+            (c) => c.id === "inf"
+        );
+        expect(swappedInfiltrator?.controllerId).toBe("p2");
+        expect(state.players[0].battlefield.some((c) => c.id === "inf")).toBe(
+            false
+        );
+        // Ownership is untouched by a control change (CR 108.3).
+        expect(swappedEnemy?.ownerId).toBe("p2");
+        expect(swappedInfiltrator?.ownerId).toBe("p1");
+    });
+
+    it("is a no-op when the activator already controls the target creature (printed ruling)", () => {
+        const infiltrator = makeInstance(phyrexianInfiltrator.id, {
+            id: "inf2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const own = makeInstance(savannahLions.id, {
+            id: "own",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [infiltrator, own] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, infiltrator, "phyrexian-infiltrator-exchange", [
+            { type: "permanent", id: "own" },
+        ]);
+        expect(state.players[0].battlefield.map((c) => c.id).sort()).toEqual([
+            "inf2",
+            "own",
+        ]);
+    });
+
+    it("the control exchange lasts indefinitely and survives the wire projection", () => {
+        const infiltrator = makeInstance(phyrexianInfiltrator.id, {
+            id: "inf3",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const enemy = makeInstance(savannahLions.id, {
+            id: "enemy3",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [infiltrator] }),
+                makePlayer("p2", { battlefield: [enemy] }),
+            ],
+        });
+        resolveActivated(state, infiltrator, "phyrexian-infiltrator-exchange", [
+            { type: "permanent", id: "enemy3" },
+        ]);
+
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[0].battlefield.some((c) => c.id === "enemy3")
+        ).toBe(true);
+        expect(
+            projected.players[1].battlefield.some((c) => c.id === "inf3")
+        ).toBe(true);
+    });
+
+    // CR 701.12e — an exchange must happen for BOTH permanents or NEITHER
+    // (the Gilded Drake / Legerdemain precedent). The target creature staying
+    // a legal target does not guarantee `$source` survives to resolution: the
+    // opponent can remove the Infiltrator in response. Before the fix, op1
+    // ($source -> target's controller) silently no-op'd on the vanished
+    // source while op2 (target -> activator) still fired unconditionally,
+    // stealing the target one-way with no exchange back.
+    it("does NOT steal the target when the Infiltrator is removed from the battlefield in response (CR 701.12e atomicity)", () => {
+        const infiltrator = makeInstance(phyrexianInfiltrator.id, {
+            id: "inf4",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const enemy = makeInstance(savannahLions.id, {
+            id: "enemy4",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [infiltrator] }),
+                makePlayer("p2", { battlefield: [enemy] }),
+            ],
+        });
+        // Activate targeting the opponent's creature...
+        state.stack.push({
+            ...infiltrator,
+            zone: "stack",
+            castById: infiltrator.controllerId,
+            abilityId: "phyrexian-infiltrator-exchange",
+            targets: [{ type: "permanent", id: "enemy4" }],
+        });
+        // ...then the opponent removes the Infiltrator in response (e.g.
+        // destroy/sacrifice) BEFORE the ability resolves.
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => c.id !== "inf4"
+        );
+        state.players[0].graveyard = [
+            ...state.players[0].graveyard,
+            { ...infiltrator, zone: "graveyard" },
+        ];
+
+        resolveTopOfStack(state);
+
+        // The target creature's controller is UNCHANGED — no one-way steal.
+        const target = state.players[1].battlefield.find(
+            (c) => c.id === "enemy4"
+        );
+        expect(target?.controllerId).toBe("p2");
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "enemy4")
+        ).toBe(false);
+        // The Infiltrator stays dead in its owner's graveyard — the guard
+        // didn't resurrect it either.
+        expect(state.players[0].graveyard.some((c) => c.id === "inf4")).toBe(
+            true
+        );
     });
 });
