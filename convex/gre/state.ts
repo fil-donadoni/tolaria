@@ -5505,19 +5505,29 @@ function resetBattlefieldTransientState(card: CardInstanceState): void {
     delete card.textChanges;
 }
 
-/** Reanimation helper: drops a card that has been removed from its source
- *  zone onto `controllerId`'s battlefield. Mirrors the "non-Aura permanent"
- *  branch of `finalizeSpellResolution` so existing lord-grants reach the
- *  new permanent (CR 611.2) and the card's own keyword-grants reach the
- *  battlefield. Caller is responsible for removing the card from its
- *  origin zone (graveyard/exile) BEFORE invoking this so the move stays
- *  atomic. Used both by `returnToBattlefield` (Resurrection) and the
- *  graveyard-target aura branch (Animate Dead, CR 303.4i). */
-function putReanimatedOnBattlefield(
+/** Phase 1 of reanimation (issue #1094, CR 400.7): clears battlefield-only
+ *  transient state and pushes the card onto `controllerId`'s battlefield —
+ *  or fully disposes of it (Worms of the Earth's land block, CR 614; a shock
+ *  land's stackless pay-choice, CR 614.12/ADR 0051) WITHOUT granting/ETB.
+ *  Returns true when the card is now on the battlefield awaiting
+ *  `finishReanimatedEntry`; false when it was already fully handled (land-
+ *  blocked, or the shock-land branch — which applies its own grants and
+ *  enqueues the pay-choice inline, deferring ETB to `finalizeLandEntry`).
+ *
+ *  Split out of the single-card `putReanimatedOnBattlefield` so the BATCH
+ *  path (`putReanimatedSetOnBattlefield`, issue #1094) can stage every
+ *  member of a simultaneous graveyard-set reanimation onto the battlefield
+ *  BEFORE any of them runs the grant/host-legality passes that read
+ *  "everyone else already in play" — see that function's doc. A shock land
+ *  inside a bulk sweep is not a shipped card interaction, so it is
+ *  deliberately NOT staged for the batch's sibling-aware grant pass; it is
+ *  handled to completion right here instead (a documented, narrow
+ *  simplification, not a correctness claim for that scenario). */
+function stageReanimatedOnBattlefield(
     state: GameState,
     card: CardInstanceState,
     controllerId: string
-): void {
+): boolean {
     // Worms of the Earth (CR 614) — "Lands can't enter the battlefield." A land
     // moved here from graveyard/exile/library (reanimation, library tutor) is
     // prevented from entering; it is put into its owner's graveyard instead
@@ -5528,7 +5538,7 @@ function putReanimatedOnBattlefield(
         card.zone = "graveyard";
         card.attachedTo = undefined;
         getPlayer(state, card.ownerId).graveyard.push(card);
-        return;
+        return false;
     }
     // CR 400.7 — zone change creates a new object: clear battlefield-only
     // transient state. Then re-establish the fresh-permanent defaults.
@@ -5563,12 +5573,18 @@ function putReanimatedOnBattlefield(
             putDef.entersTappedUnlessPay,
             card.card
         );
-        return;
+        return false;
     }
     // CR 614.1c + 110.5b — Kismet-style replacement taps an opponent-controlled
     // artifact/creature/land as it enters via reanimation / put-onto-battlefield.
     if (shouldEnterTapped(state, card)) card.isTapped = true;
     getPlayer(state, controllerId).battlefield.push(card);
+    return true;
+}
+
+/** Phase 2 of reanimation (issue #1094): grants + ETB notification for a
+ *  card `stageReanimatedOnBattlefield` already pushed onto the battlefield. */
+function finishReanimatedEntry(state: GameState, card: CardInstanceState): void {
     // CR 611.2 first read: existing battlefield grants reach the newcomer
     // (Goblin King-style "Goblins have mountainwalk" still grants to a
     // Goblin reanimated under any controller).
@@ -5581,6 +5597,109 @@ function putReanimatedOnBattlefield(
     // finalizeSpellResolution path so reanimated permanents behave like
     // freshly-cast ones for trigger purposes.
     emitPermanentEntered(state, card);
+}
+
+/** Reanimation helper: drops a card that has been removed from its source
+ *  zone onto `controllerId`'s battlefield. Mirrors the "non-Aura permanent"
+ *  branch of `finalizeSpellResolution` so existing lord-grants reach the
+ *  new permanent (CR 611.2) and the card's own keyword-grants reach the
+ *  battlefield. Caller is responsible for removing the card from its
+ *  origin zone (graveyard/exile) BEFORE invoking this so the move stays
+ *  atomic. Used both by `returnToBattlefield` (Resurrection) and the
+ *  graveyard-target aura branch (Animate Dead, CR 303.4i). For a SIMULTANEOUS
+ *  batch of graveyard-set members (Replenish, Living Death — CR 400.7,
+ *  issue #1094), use `putReanimatedSetOnBattlefield` instead: staging every
+ *  member first, before any of them is granted to / notifies, is what makes
+ *  the whole set a single event rather than N sequential ones. */
+function putReanimatedOnBattlefield(
+    state: GameState,
+    card: CardInstanceState,
+    controllerId: string
+): void {
+    if (stageReanimatedOnBattlefield(state, card, controllerId)) {
+        finishReanimatedEntry(state, card);
+    }
+}
+
+/** CR 400.7 / 614-batch — return a whole FROZEN graveyard-set (issue #1056
+ *  `forEach { set: "graveyard" }`) to the battlefield as ONE simultaneous
+ *  event (issue #1094), not N sequential `moveZone` calls: every entry is
+ *  staged onto the battlefield (or Aura-attached) BEFORE ANY of them runs
+ *  the grant-application pass, so a sibling's "existing grants" scan
+ *  (`applyExistingGrantsTo` / `applySourceStaticEffects`) and a reanimated
+ *  Aura's host-legality check both see the WHOLE set already present — never
+ *  just the members staged earlier in iteration order — and every ETB
+ *  notification (`emitPermanentEntered`) fires only once staging/attachment
+ *  for the entire batch has settled.
+ *
+ *  Non-Aura members are staged first so a reanimated Aura (CR 303.4c: an
+ *  Aura entering independently of a spell needs a legal host already on the
+ *  battlefield) can treat a NON-AURA SIBLING entering as part of this same
+ *  event as an available host, not just pre-existing permanents — that
+ *  simultaneity is the whole point of the batch. An Aura with no legal host
+ *  anywhere stays in the graveyard (CR 303.4c / 704.5m never gets a chance
+ *  to bounce it back — it never enters in the first place).
+ *  SIMPLIFICATION (documented, issue #1094): when more than one legal host
+ *  exists, the FIRST one found (deterministic player/battlefield order) is
+ *  auto-picked — no player choice is modeled, matching the bulk sweep's own
+ *  "no per-card choice" design (Replenish's enchantment filter has the same
+ *  simplification for which cards return).
+ *
+ *  Returns the cardInstanceIds that actually entered the battlefield. */
+export function putReanimatedSetOnBattlefield(
+    state: GameState,
+    cards: { card: CardInstanceState; controllerId: string }[]
+): string[] {
+    if (cards.length === 0) return [];
+
+    const nonAuras = cards.filter((c) => !isAura(c.card));
+    const auras = cards.filter((c) => isAura(c.card));
+
+    const staged: CardInstanceState[] = [];
+    for (const { card, controllerId } of nonAuras) {
+        if (stageReanimatedOnBattlefield(state, card, controllerId)) {
+            staged.push(card);
+        }
+    }
+    for (const { card, controllerId } of auras) {
+        const host = findFirstLegalAuraHost(state, card);
+        if (!host) {
+            // CR 303.4c — no legal object to enchant (not even a non-Aura
+            // sibling that entered as part of this same event): the Aura
+            // never enters, it remains in its owner's graveyard. The caller
+            // already spliced it OUT of that graveyard to make the set-wide
+            // move atomic, so put it back rather than leaving it in limbo.
+            card.zone = "graveyard";
+            card.attachedTo = undefined;
+            getPlayer(state, card.ownerId).graveyard.push(card);
+            continue;
+        }
+        if (stageReanimatedOnBattlefield(state, card, controllerId)) {
+            card.attachedTo = host.id;
+            staged.push(card);
+        }
+    }
+
+    for (const card of staged) finishReanimatedEntry(state, card);
+    return staged.map((c) => c.id);
+}
+
+/** CR 303.4 / 702.5a — the first permanent (deterministic player/battlefield
+ *  scan order) that satisfies `aura`'s enchant restriction, or undefined if
+ *  none does. Used only by the no-player-choice bulk-reanimation path
+ *  (`putReanimatedSetOnBattlefield`, issue #1094); a CAST Aura's target is
+ *  chosen by the player at announcement (CR 601.2c) and re-checked via
+ *  `isLegalAuraHost` directly in `finalizeSpellResolution`. */
+function findFirstLegalAuraHost(
+    state: GameState,
+    aura: CardInstanceState
+): CardInstanceState | undefined {
+    for (const player of state.players) {
+        for (const host of player.battlefield) {
+            if (isLegalAuraHost(host, aura)) return host;
+        }
+    }
+    return undefined;
 }
 
 /** Single source of truth lives in `convex/cards/filters.ts` (ADR 0002).
@@ -6633,6 +6752,37 @@ export function buildSpellContext(
             // (Hymn of Rebirth: "from a graveyard ... under your control").
             putReanimatedOnBattlefield(state, card, controllerId ?? playerId);
             return true;
+        },
+        // CR 400.7 / 614-batch (issue #1094) — the simultaneous twin of
+        // `returnToBattlefield`: splices every entry out of ITS OWN owner's
+        // graveyard first (so the whole set is already "gone" before any of
+        // them enters), then hands the full batch to
+        // `putReanimatedSetOnBattlefield` as ONE event (CR 400.7 — no
+        // returned permanent's ETB/grant pass observes a partial subset of
+        // its siblings). `controllerId` — when given — redirects EVERY
+        // entry's controller the same way `returnToBattlefield`'s 4th
+        // argument does (Hymn-of-Rebirth-style "under your control"); omitted
+        // defaults each entry to its own owner (Replenish, Living Death).
+        // Entries whose id is no longer in the named graveyard at resolution
+        // are silently skipped (CR 608.2b). Returns the cardInstanceIds that
+        // actually entered the battlefield — excludes vanished entries, a
+        // Worms-of-the-Earth-blocked land, and a hostless Aura (CR 303.4c).
+        returnGraveyardSetToBattlefield(
+            entries: { playerId: string; cardInstanceId: string }[],
+            controllerId?: string
+        ): string[] {
+            const staged: { card: CardInstanceState; controllerId: string }[] =
+                [];
+            for (const { playerId, cardInstanceId } of entries) {
+                const player = getPlayer(state, playerId);
+                const idx = player.graveyard.findIndex(
+                    (c) => c.id === cardInstanceId
+                );
+                if (idx === -1) continue; // CR 608.2b — no longer there, skip
+                const [card] = player.graveyard.splice(idx, 1);
+                staged.push({ card, controllerId: controllerId ?? playerId });
+            }
+            return putReanimatedSetOnBattlefield(state, staged);
         },
         // CR 400.7 / ADR 0027 — library tutor → battlefield. Locate
         // `cardInstanceId` in `playerId`'s library, splice it out, and put it

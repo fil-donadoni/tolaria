@@ -1097,6 +1097,134 @@ describe("validateEffectScript — forEach construct (ADR 0045, issue #807)", ()
     });
 });
 
+// --- forEach { set: "graveyard" }, simultaneous (CR 400.7 / 614-batch,
+// issue #1094) -----------------------------------------------------------
+describe("validateEffectScript — forEach simultaneous batch reanimation (CR 400.7 / 614-batch, issue #1094)", () => {
+    const reanimateBody: EffectOp[] = [
+        { op: "moveZone", target: { ref: "$each" }, to: "battlefield" },
+    ];
+    // `simultaneous` is a valid optional field on the forEach variant, so the
+    // canonical shape type-checks without a cast.
+    const replenishShape: EffectOp = {
+        op: "forEach",
+        select: { set: "graveyard", filter: { type: "Enchantment" } },
+        simultaneous: true,
+        effects: reanimateBody,
+    };
+
+    it("accepts the canonical shape (graveyard set + single reanimating moveZone body)", () => {
+        expect(
+            validateEffectScript(host({ effects: [replenishShape] }))
+        ).toEqual([]);
+    });
+
+    it("accepts simultaneous with a controller override on the body moveZone", () => {
+        const script: EffectOp = {
+            op: "forEach",
+            select: { set: "graveyard", filter: { type: "Enchantment" } },
+            simultaneous: true,
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { ref: "$each" },
+                    to: "battlefield",
+                    controller: "controller",
+                },
+            ],
+        };
+        expect(validateEffectScript(host({ effects: [script] }))).toEqual([]);
+    });
+
+    it("rejects simultaneous over a non-graveyard set", () => {
+        const script: EffectOp = {
+            op: "forEach",
+            select: { set: "permanents", zone: "battlefield" },
+            simultaneous: true,
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        };
+        const errors = validateEffectScript(host({ effects: [script] }));
+        expect(
+            errors.some((e) =>
+                /"simultaneous" is only valid with .* "graveyard"/.test(e)
+            )
+        ).toBe(true);
+    });
+
+    it("rejects simultaneous with a multi-Op body", () => {
+        const script: EffectOp = {
+            op: "forEach",
+            select: { set: "graveyard", filter: { type: "Enchantment" } },
+            simultaneous: true,
+            effects: [
+                ...reanimateBody,
+                { op: "draw", player: "controller", count: 1 },
+            ],
+        };
+        const errors = validateEffectScript(host({ effects: [script] }));
+        expect(
+            errors.some((e) => /"simultaneous" requires "effects"/.test(e))
+        ).toBe(true);
+    });
+
+    it("rejects simultaneous with a body that doesn't move $each to the battlefield", () => {
+        const wrongTo: EffectOp = {
+            op: "forEach",
+            select: { set: "graveyard", filter: { type: "Enchantment" } },
+            simultaneous: true,
+            effects: [{ op: "moveZone", target: { ref: "$each" }, to: "hand" }],
+        };
+        expect(
+            validateEffectScript(host({ effects: [wrongTo] })).some((e) =>
+                /"simultaneous" requires "effects"/.test(e)
+            )
+        ).toBe(true);
+
+        const wrongTarget: EffectOp = {
+            op: "forEach",
+            select: { set: "graveyard", filter: { type: "Enchantment" } },
+            simultaneous: true,
+            effects: [
+                { op: "moveZone", target: { target: 0 }, to: "battlefield" },
+            ],
+        };
+        expect(
+            validateEffectScript(host({ effects: [wrongTarget] })).some((e) =>
+                /"simultaneous" requires "effects"/.test(e)
+            )
+        ).toBe(true);
+    });
+
+    it("simultaneous defaults to false/absent — omitting it keeps the sequential per-member walk valid", () => {
+        const sequential: EffectOp = {
+            op: "forEach",
+            select: { set: "graveyard", filter: { type: "Enchantment" } },
+            effects: reanimateBody,
+        };
+        expect(
+            validateEffectScript(host({ effects: [sequential] }))
+        ).toEqual([]);
+    });
+
+    it("rejects a non-boolean simultaneous value", () => {
+        const script = {
+            op: "forEach",
+            select: { set: "graveyard", filter: { type: "Enchantment" } },
+            simultaneous: "yes",
+            effects: reanimateBody,
+        } as unknown as EffectOp;
+        const errors = validateEffectScript(host({ effects: [script] }));
+        expect(
+            errors.some((e) => /field "simultaneous" has invalid value/.test(e))
+        ).toBe(true);
+    });
+
+    it("a valid simultaneous forEach script survives a JSON round-trip unchanged (ADR 0046 purity)", () => {
+        expect(JSON.parse(JSON.stringify([replenishShape]))).toEqual([
+            replenishShape,
+        ]);
+    });
+});
+
 describe("validateEffectScript — sacrifice Op (CR 701.16, issue #807)", () => {
     it("requires exactly one of `permanents` / `target`", () => {
         // Neither form present (issue #731 — the Op is now a `permanents`

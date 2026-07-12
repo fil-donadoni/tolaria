@@ -764,6 +764,308 @@ describe("Effect Script construct: forEach { set: 'graveyard' } (bulk graveyard-
     });
 });
 
+describe("Effect Script construct: forEach { set: 'graveyard' }, simultaneous (CR 400.7 / 614-batch, issue #1094)", () => {
+    // The BATCHED twin of the sequential sweep above: `simultaneous: true`
+    // bypasses the per-member `runOpList` walk entirely and hands the WHOLE
+    // frozen member set to `SpellContext.returnGraveyardSetToBattlefield` in
+    // ONE call — every reanimated permanent stages onto the battlefield (and
+    // a reanimated Aura resolves its CR 303.4c host) BEFORE any of them runs
+    // its grant-application / ETB pass. This is Replenish's REAL shape
+    // (`convex/cards/sets/uds/white.ts`). New construct combination → full
+    // test regime (interpreter unit + wire-format assertion).
+    const ENCH_ID = "test-effects-simul-enchantment";
+    registerTokenDefinition({
+        id: ENCH_ID,
+        name: ENCH_ID,
+        rarity: "common",
+        manaCost: { W: 1 },
+        types: ["Enchantment"],
+    });
+    // An Aura fixture (CR 303.4c) — needs a legal host to enter at all.
+    const AURA_ID = "test-effects-simul-aura";
+    registerTokenDefinition({
+        id: AURA_ID,
+        name: AURA_ID,
+        rarity: "common",
+        manaCost: { W: 1 },
+        types: ["Enchantment"],
+        subtypes: ["Aura"],
+        targetRequirement: { type: "Creature", count: 1 },
+    });
+    // An ENCHANTMENT CREATURE fixture — matched by Replenish's Enchantment
+    // filter (so it's swept into the SAME batch) AND a legal creature host
+    // for the Aura above. This is the "Opalescence-style enchantment that is
+    // also a creature" host the CR 303.4c / 400.7 simultaneity is about.
+    const ENCH_CREATURE_ID = "test-effects-simul-ench-creature";
+    registerTokenDefinition({
+        id: ENCH_CREATURE_ID,
+        name: ENCH_CREATURE_ID,
+        rarity: "common",
+        manaCost: { W: 2 },
+        types: ["Enchantment", "Creature"],
+        power: 2,
+        toughness: 2,
+    });
+    const simultaneousReplenishScript: EffectOp[] = [
+        {
+            op: "forEach",
+            select: {
+                set: "graveyard",
+                controller: "controller",
+                filter: { type: "Enchantment" },
+            },
+            simultaneous: true,
+            effects: [
+                { op: "moveZone", target: { ref: "$each" }, to: "battlefield" },
+            ],
+        },
+    ];
+    const gyCard = (cardId: string, id: string, owner: "p1" | "p2" = "p1") =>
+        makeInstance(cardId, {
+            id,
+            controllerId: owner,
+            ownerId: owner,
+            zone: "graveyard",
+        });
+
+    it("returns ALL matching enchantments from the graveyard at once, same external result as the sequential sweep", () => {
+        const id = registerScript(
+            "test-foreach-gy-simul-basic",
+            simultaneousReplenishScript
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [
+                        gyCard(ENCH_ID, "s-ench-a"),
+                        gyCard(ENCH_ID, "s-ench-b"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const bf = state.players[0].battlefield.map((c) => c.id);
+        expect(bf).toContain("s-ench-a");
+        expect(bf).toContain("s-ench-b");
+        // Both enchantments left the graveyard (only the resolved sorcery,
+        // which lands there per CR 608.2f, may remain).
+        expect(
+            state.players[0].graveyard.some(
+                (c) => c.id === "s-ench-a" || c.id === "s-ench-b"
+            )
+        ).toBe(false);
+    });
+
+    it("a reanimated Aura attaches to an enchantment-creature reanimated in the SAME simultaneous event (CR 303.4c / 400.7) — the batching proof", () => {
+        // The whole point of the batch primitive: the Aura's CR 303.4
+        // host-legality check must see a creature that's ALSO being
+        // reanimated by this exact sweep (here an enchantment creature, which
+        // Replenish's Enchantment filter also returns) — not just permanents
+        // already on the battlefield beforehand. The sequential per-member
+        // `moveZone` path never even attempted attachment for a
+        // bulk-reanimated Aura (it entered unattached, at the mercy of the
+        // CR 704.5m SBA regardless of host availability) — this is a
+        // genuinely new, CR-correct capability the batching unlocks.
+        const id = registerScript(
+            "test-foreach-gy-simul-aura-attach",
+            simultaneousReplenishScript
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [
+                        gyCard(AURA_ID, "s-aura"),
+                        gyCard(ENCH_CREATURE_ID, "s-ench-creature"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const host = state.players[0].battlefield.find(
+            (c) => c.id === "s-ench-creature"
+        );
+        const aura = state.players[0].battlefield.find(
+            (c) => c.id === "s-aura"
+        );
+        expect(host).toBeDefined();
+        expect(aura).toBeDefined();
+        expect(aura?.attachedTo).toBe("s-ench-creature");
+
+        // Wire format: the attachment survives projection.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimAura = projected.players[0].battlefield.find(
+            (c) => c.id === "s-aura"
+        );
+        expect(slimAura?.attachedTo).toBe("s-ench-creature");
+    });
+
+    it("an Aura with NO legal host anywhere — not even among its reanimating siblings — stays in the graveyard (CR 303.4c)", () => {
+        const id = registerScript(
+            "test-foreach-gy-simul-aura-no-host",
+            simultaneousReplenishScript
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [gyCard(AURA_ID, "s-aura-orphan")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "s-aura-orphan")
+        ).toBe(false);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "s-aura-orphan")
+        ).toBe(true);
+    });
+
+    it("an Aura also attaches to a PRE-EXISTING battlefield creature, not just a same-event sibling", () => {
+        const id = registerScript(
+            "test-foreach-gy-simul-aura-preexisting",
+            simultaneousReplenishScript
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            id: "already-there",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                    graveyard: [gyCard(AURA_ID, "s-aura-2")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const aura = state.players[0].battlefield.find(
+            (c) => c.id === "s-aura-2"
+        );
+        expect(aura?.attachedTo).toBe("already-there");
+    });
+
+    it("a controller override on the body moveZone redirects the WHOLE batch (Hymn-of-Rebirth-shaped)", () => {
+        const id = registerScript("test-foreach-gy-simul-controller", [
+            {
+                op: "forEach",
+                select: {
+                    set: "graveyard",
+                    controller: "controller",
+                    filter: { type: "Enchantment" },
+                },
+                simultaneous: true,
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { ref: "$each" },
+                        to: "battlefield",
+                        controller: "opponent",
+                    },
+                ],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [gyCard(ENCH_ID, "s-redirect")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "s-redirect")
+        ).toBe(true);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "s-redirect")
+        ).toBe(false);
+    });
+
+    it("skips a frozen-set member that left the graveyard after selection (CR 608.2b / 608.2i)", () => {
+        const id = registerScript(
+            "test-foreach-gy-simul-stale",
+            simultaneousReplenishScript
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [gyCard(ENCH_ID, "s-ench-live")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, id, "p1");
+        item.collectedChoices = {
+            "#forEach:0:set": ["s-ench-live", "ghost-not-in-any-graveyard"],
+        };
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "s-ench-live")
+        ).toBe(true);
+        expect(
+            state.players[0].battlefield.some(
+                (c) => c.id === "ghost-not-in-any-graveyard"
+            )
+        ).toBe(false);
+    });
+
+    it("empty graveyard set is a no-op (CR 608.2b)", () => {
+        const id = registerScript(
+            "test-foreach-gy-simul-empty",
+            simultaneousReplenishScript
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [
+                        makeInstance(BEAR_ID, {
+                            id: "only-creature-simul",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "graveyard",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield).toHaveLength(0);
+    });
+
+    it("returned enchantments survive projection onto the controller's battlefield (wire format)", () => {
+        const id = registerScript(
+            "test-foreach-gy-simul-wire",
+            simultaneousReplenishScript
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [gyCard(ENCH_ID, "s-wire-a")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const bf = projected.players[0].battlefield.map((c) => c.id);
+        expect(bf).toContain("s-wire-a");
+    });
+});
+
 describe("Effect Script Op: draw (CR 121.1)", () => {
     const withLibrary = (owner: "p1" | "p2", n: number) =>
         Array.from({ length: n }, (_, i) =>

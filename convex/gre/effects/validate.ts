@@ -926,6 +926,25 @@ function isForEachSelector(value: unknown): boolean {
     return true;
 }
 
+/** The only `forEach` body shape a `simultaneous: true` graveyard sweep may
+ *  carry (CR 400.7 / 614-batch, issue #1094): a single reanimating `moveZone
+ *  { target: { ref: "$each" }, to: "battlefield" }` (an optional `controller`
+ *  override — Hymn-of-Rebirth-style redirect). The interpreter bypasses the
+ *  normal per-member `runOpList` walk for this construct entirely — it hands
+ *  the WHOLE frozen member set to `SpellContext.returnGraveyardSetToBattle-
+ *  field` in one call — so no other body shape has defined simultaneous
+ *  semantics (a multi-Op body would still need per-member sequencing for its
+ *  OTHER Ops, which the batch primitive does not model). */
+function isSimultaneousReanimationBody(effects: unknown): boolean {
+    if (!Array.isArray(effects) || effects.length !== 1) return false;
+    const op = effects[0] as Record<string, unknown>;
+    if (op.op !== "moveZone" || op.to !== "battlefield") return false;
+    const target = op.target as Record<string, unknown> | undefined;
+    if (!target || target.ref !== "$each") return false;
+    const allowed = new Set(["op", "target", "to", "controller"]);
+    return Object.keys(op).every((k) => allowed.has(k));
+}
+
 /** Shape check for `divideIntoPiles`'s `objects` selector (ADR 0053, pile
  *  division) — deliberately its OWN small selector, not `EffectForEachSelector`
  *  (see the type doc): `controller`/`player` are REQUIRED, not optional, since
@@ -1396,13 +1415,40 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // forEach — the `forEach` structural construct (ADR 0045, issue #807).
     // The `select` selector shape is checked here; body Op validity, the
     // nesting ban, and `$each` ref references are checked by the recursive
-    // schema / ordered ref passes.
+    // schema / ordered ref passes. `simultaneous` (CR 400.7 / 614-batch,
+    // issue #1094) is a graveyard-set-only, single-Op-body-only flag —
+    // checked below.
     forEach: {
         required: { select: isForEachSelector, effects: isOpList },
-        check: (entry) =>
-            Array.isArray(entry.effects) && entry.effects.length === 0
-                ? ['field "effects" must be a non-empty Op list']
-                : [],
+        optional: { simultaneous: isBoolean },
+        check: (entry) => {
+            const errors: string[] = [];
+            if (Array.isArray(entry.effects) && entry.effects.length === 0) {
+                errors.push('field "effects" must be a non-empty Op list');
+            }
+            // Simultaneous batch reanimation (issue #1094): only meaningful
+            // over a graveyard set, and only for the ONE body shape the
+            // batch primitive executes — a single reanimating `moveZone`.
+            // A multi-Op body has no CR 400.7 single-event analogue (the
+            // per-member side effects would still need sequencing), so it
+            // stays sequential (`simultaneous` omitted/false).
+            if (entry.simultaneous === true) {
+                const select = entry.select as
+                    | { set?: unknown }
+                    | undefined;
+                if (!select || select.set !== "graveyard") {
+                    errors.push(
+                        'field "simultaneous" is only valid with { select: { set: "graveyard" } }'
+                    );
+                }
+                if (!isSimultaneousReanimationBody(entry.effects)) {
+                    errors.push(
+                        'field "simultaneous" requires "effects" to be exactly [{ op: "moveZone", target: { ref: "$each" }, to: "battlefield" }] (optionally "controller") — the one CR 400.7 single-event shape the batch primitive executes'
+                    );
+                }
+            }
+            return errors;
+        },
     },
     // CR 603.7 (ADR 0048) — grant a delayed triggered ability with an INLINE
     // nested body. The capture map / body scoping / nesting ban are checked
