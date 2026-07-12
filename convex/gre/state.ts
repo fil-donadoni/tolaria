@@ -3742,11 +3742,20 @@ export const unapplyAuraStaticEffects = unapplySourceStaticEffects;
  *  `applySourceStaticEffects(state, newPermanent)` separately. */
 export function applyExistingGrantsTo(
     state: GameState,
-    newPermanent: CardInstanceState
+    newPermanent: CardInstanceState,
+    // CR 400.7 / 614-batch (issue #1094): source ids to SKIP. In a
+    // simultaneous batch reanimation, batch members are excluded here because
+    // their push direction is applied ONCE via `applySourceStaticEffects` on
+    // each member — pulling them in a second time here would double-apply
+    // every batch→batch cross-grant (grantedActivated/grantedTriggered have
+    // no dedup guard, so a granted trigger would fire twice). Only PRE-EXISTING
+    // (non-batch) sources are pulled through this call in the batch path.
+    excludeSourceIds?: ReadonlySet<string>
 ): void {
     for (const player of state.players) {
         for (const source of player.battlefield) {
             if (source.id === newPermanent.id) continue;
+            if (excludeSourceIds?.has(source.id)) continue;
             const cardId = (source.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : null;
             const effects = getEffectiveStaticEffects(def, source.chosenModeId);
@@ -5583,7 +5592,9 @@ function stageReanimatedOnBattlefield(
 }
 
 /** Phase 2 of reanimation (issue #1094): grants + ETB notification for a
- *  card `stageReanimatedOnBattlefield` already pushed onto the battlefield. */
+ *  card `stageReanimatedOnBattlefield` already pushed onto the battlefield.
+ *  Single-card path only — the batch path applies grants in a batch-correct
+ *  order (see `putReanimatedSetOnBattlefield`) rather than per member. */
 function finishReanimatedEntry(state: GameState, card: CardInstanceState): void {
     // CR 611.2 first read: existing battlefield grants reach the newcomer
     // (Goblin King-style "Goblins have mountainwalk" still grants to a
@@ -5680,7 +5691,23 @@ export function putReanimatedSetOnBattlefield(
         }
     }
 
-    for (const card of staged) finishReanimatedEntry(state, card);
+    // CR 611.2 grant application, batch-correct ordering (issue #1094). Every
+    // ordered (source, target) grant pair must apply EXACTLY once. Sources /
+    // targets are all battlefield permanents = pre-existing (P) + batch (B):
+    //   - P→P was already applied before this batch — untouched.
+    //   - B→P and B→B: covered by `applySourceStaticEffects` for each staged
+    //     member (it pushes that member's grants to ALL battlefield permanents
+    //     once). This is the ONLY pass that touches B as a source.
+    //   - P→B: covered by `applyExistingGrantsTo(member, EXCLUDING batch
+    //     sources)` — pulls only from pre-existing permanents, so it never
+    //     re-applies a B→B pair the push pass already did (that double-apply
+    //     was the bug: grantedActivated/grantedTriggered have no dedup guard,
+    //     so a mutually-granting pair fired its granted trigger twice).
+    // ETB simultaneity is preserved: all grants settle, THEN every ETB fires.
+    const stagedIds = new Set(staged.map((c) => c.id));
+    for (const card of staged) applySourceStaticEffects(state, card);
+    for (const card of staged) applyExistingGrantsTo(state, card, stagedIds);
+    for (const card of staged) emitPermanentEntered(state, card);
     return staged.map((c) => c.id);
 }
 
@@ -5689,7 +5716,15 @@ export function putReanimatedSetOnBattlefield(
  *  none does. Used only by the no-player-choice bulk-reanimation path
  *  (`putReanimatedSetOnBattlefield`, issue #1094); a CAST Aura's target is
  *  chosen by the player at announcement (CR 601.2c) and re-checked via
- *  `isLegalAuraHost` directly in `finalizeSpellResolution`. */
+ *  `isLegalAuraHost` directly in `finalizeSpellResolution`.
+ *
+ *  TODO(#1094-followup, CR 702.16b/303.4): this only checks the type-line
+ *  enchant restriction and only scans permanents — it does NOT reject a host
+ *  with protection from the Aura's quality (CR 702.16b) or one that "can't be
+ *  enchanted" (CR 303.4), and it never considers an "enchant player" Aura. A
+ *  bulk-reanimated Aura of those shapes would pick an illegal host / find
+ *  none. Acceptable for the current pool (no such Aura is bulk-reanimatable);
+ *  tracked for a follow-up. */
 function findFirstLegalAuraHost(
     state: GameState,
     aura: CardInstanceState

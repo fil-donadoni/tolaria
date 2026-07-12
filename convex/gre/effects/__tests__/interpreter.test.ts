@@ -806,6 +806,62 @@ describe("Effect Script construct: forEach { set: 'graveyard' }, simultaneous (C
         power: 2,
         toughness: 2,
     });
+    // Two mutually-granting enchantment creatures (issue #1094 regression):
+    // each pushes a keyword + an activated + a triggered grant onto every
+    // OTHER creature. Reanimated together in one batch, each must receive the
+    // other's grants EXACTLY ONCE (grantedActivated/grantedTriggered have no
+    // dedup guard — a naive per-member finish pass double-applied every
+    // batch→batch cross-grant).
+    const grantsTo = (kwSelf: string) => ({
+        staticEffects: [
+            {
+                kind: "keyword-grant" as const,
+                keyword: kwSelf,
+                applies: (
+                    t: { id: string; types: readonly string[] },
+                    s: { id: string }
+                ) => t.id !== s.id && t.types.includes("Creature"),
+            },
+            {
+                kind: "activated-grant" as const,
+                abilityId: `${kwSelf}-act`,
+                applies: (
+                    t: { id: string; types: readonly string[] },
+                    s: { id: string }
+                ) => t.id !== s.id && t.types.includes("Creature"),
+            },
+            {
+                kind: "triggered-grant" as const,
+                abilityId: `${kwSelf}-trig`,
+                applies: (
+                    t: { id: string; types: readonly string[] },
+                    s: { id: string }
+                ) => t.id !== s.id && t.types.includes("Creature"),
+            },
+        ],
+    });
+    const GRANTER_A_ID = "test-effects-simul-granter-a";
+    registerTokenDefinition({
+        id: GRANTER_A_ID,
+        name: GRANTER_A_ID,
+        rarity: "common",
+        manaCost: { W: 2 },
+        types: ["Enchantment", "Creature"],
+        power: 1,
+        toughness: 1,
+        ...grantsTo("flying"),
+    });
+    const GRANTER_B_ID = "test-effects-simul-granter-b";
+    registerTokenDefinition({
+        id: GRANTER_B_ID,
+        name: GRANTER_B_ID,
+        rarity: "common",
+        manaCost: { W: 2 },
+        types: ["Enchantment", "Creature"],
+        power: 1,
+        toughness: 1,
+        ...grantsTo("trample"),
+    });
     const simultaneousReplenishScript: EffectOp[] = [
         {
             op: "forEach",
@@ -1063,6 +1119,80 @@ describe("Effect Script construct: forEach { set: 'graveyard' }, simultaneous (C
         const projected = projectPublicState(state, 1, "p1");
         const bf = projected.players[0].battlefield.map((c) => c.id);
         expect(bf).toContain("s-wire-a");
+    });
+
+    it("applies mutual cross-grants among batch members EXACTLY ONCE — no double-apply (CR 611.2, issue #1094 regression)", () => {
+        // Two enchantment creatures each grant a keyword + activated +
+        // triggered ability to every OTHER creature. Reanimated in one batch,
+        // A receives B's grants and vice versa; each grant must land once. The
+        // pre-fix per-member finish pass ran applyExistingGrantsTo AND
+        // applySourceStaticEffects for every member, applying each batch→batch
+        // cross-grant twice (a granted trigger would then fire twice).
+        const id = registerScript(
+            "test-foreach-gy-simul-mutual-grant",
+            simultaneousReplenishScript
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [
+                        gyCard(GRANTER_A_ID, "g-a"),
+                        gyCard(GRANTER_B_ID, "g-b"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const a = state.players[0].battlefield.find((c) => c.id === "g-a")!;
+        const b = state.players[0].battlefield.find((c) => c.id === "g-b")!;
+        expect(a).toBeDefined();
+        expect(b).toBeDefined();
+
+        // A got B's grants once; B got A's grants once (and NOT their own).
+        const count = <T,>(arr: readonly T[], pred: (x: T) => boolean) =>
+            arr.filter(pred).length;
+        // keyword-grant duplication (staticAbilities + grantedStaticAbilities).
+        expect(count(a.staticAbilities, (k) => k === "trample")).toBe(1);
+        expect(count(a.staticAbilities, (k) => k === "flying")).toBe(0);
+        expect(count(b.staticAbilities, (k) => k === "flying")).toBe(1);
+        expect(
+            count(
+                a.grantedStaticAbilities ?? [],
+                (g) => g.ability === "trample"
+            )
+        ).toBe(1);
+        expect(
+            count(b.grantedStaticAbilities ?? [], (g) => g.ability === "flying")
+        ).toBe(1);
+        // activated-grant duplication (grantedActivatedAbilities).
+        expect(
+            count(
+                a.grantedActivatedAbilities ?? [],
+                (g) => g.abilityId === "trample-act"
+            )
+        ).toBe(1);
+        expect(
+            count(
+                b.grantedActivatedAbilities ?? [],
+                (g) => g.abilityId === "flying-act"
+            )
+        ).toBe(1);
+        // triggered-grant duplication (grantedTriggeredAbilities) — the
+        // "granted trigger fires twice" class.
+        expect(
+            count(
+                a.grantedTriggeredAbilities ?? [],
+                (g) => g.abilityId === "trample-trig"
+            )
+        ).toBe(1);
+        expect(
+            count(
+                b.grantedTriggeredAbilities ?? [],
+                (g) => g.abilityId === "flying-trig"
+            )
+        ).toBe(1);
     });
 });
 
