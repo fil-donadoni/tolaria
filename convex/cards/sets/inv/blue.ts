@@ -676,7 +676,7 @@ export const worldlyCounsel: CardDefinition = {
 // object set is a PUBLIC reveal of the caster's own top 5 library cards
 // (`{ set: "library-top" }`, which marks them known to all — the opponent's
 // client must see them to divide them, and both players see the outcome).
-// Divider = the caster (`controller`); chooser = an opponent. `moveZone`'s
+// Divider = an opponent; chooser = the caster (`controller`). `moveZone`'s
 // bare-picks-`cards` shape moves each WHOLE pile in one Op — no `forEach`
 // wrapper needed, since a plain zone move (not a per-object action) is the
 // outcome.
@@ -692,12 +692,12 @@ export const factOrFiction: CardDefinition = {
         {
             op: "divideIntoPiles",
             objects: { set: "library-top", player: "controller", count: 5 },
-            divider: "controller",
-            chooser: "opponent",
+            divider: "opponent",
+            chooser: "controller",
             dividePrompt:
-                "Fact or Fiction — divide the revealed cards into two piles.",
+                "Fact or Fiction — separate the revealed cards into two piles.",
             pickPrompt:
-                "Choose a pile: it goes to your opponent's hand, the other to their graveyard.",
+                "Choose a pile: it goes to your hand, the other to your graveyard.",
             chosenBind: "$factOrFictionChosen",
             otherBind: "$factOrFictionOther",
             chosenEffect: [

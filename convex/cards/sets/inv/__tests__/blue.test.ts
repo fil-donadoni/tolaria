@@ -919,7 +919,7 @@ describe("Worldly Counsel (CR 401.4 dig-to-hand — Domain, issue #1066)", () =>
 });
 
 describe("Fact or Fiction (CR 701.16 reveal, ADR 0053 pile division, issue #1067)", () => {
-    it("reveals the top 5, an opponent divides, and the chosen pile goes to hand while the other goes to the graveyard", () => {
+    it("reveals the top 5, an opponent divides, and the caster's chosen pile goes to hand while the other goes to the graveyard", () => {
         const libCards = ["ff-1", "ff-2", "ff-3", "ff-4", "ff-5"].map((id) =>
             makeInstance(opt.id, {
                 id,
@@ -939,7 +939,7 @@ describe("Fact or Fiction (CR 701.16 reveal, ADR 0053 pile division, issue #1067
 
         const divide = state.pendingChoices![0];
         expect(divide.kind).toBe("divide-piles");
-        expect(divide.playerId).toBe("p1"); // the caster divides
+        expect(divide.playerId).toBe("p2"); // an opponent divides
         expect(divide.zone).toBe("library");
         expect(divide.candidateIds).toEqual([
             "ff-1",
@@ -952,7 +952,7 @@ describe("Fact or Fiction (CR 701.16 reveal, ADR 0053 pile division, issue #1067
         expect(state.players[0].library[0].knownTo).toContain("p2");
 
         applyPendingChoiceSubmit(state, {
-            playerId: "p1",
+            playerId: "p2",
             stackItemId: divide.stackItemId,
             step: divide.step,
             choiceId: divide.choiceId,
@@ -961,12 +961,12 @@ describe("Fact or Fiction (CR 701.16 reveal, ADR 0053 pile division, issue #1067
 
         const pick = state.pendingChoices![0];
         expect(pick.kind).toBe("pick-pile");
-        expect(pick.playerId).toBe("p2"); // an opponent chooses
+        expect(pick.playerId).toBe("p1"); // the caster chooses
         expect(pick.pileA).toEqual(["ff-1", "ff-2"]);
         expect(pick.pileB).toEqual(["ff-3", "ff-4", "ff-5"]);
 
         applyPendingChoiceSubmit(state, {
-            playerId: "p2",
+            playerId: "p1",
             stackItemId: pick.stackItemId,
             step: pick.step,
             choiceId: pick.choiceId,

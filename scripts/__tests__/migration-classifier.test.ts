@@ -635,11 +635,19 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // AFK-ready is unchanged; two land Op-blocked (the filter/selector gap).
         // Net: total 671→675, FREE 432→434, Op-blocked 225→227,
         // AFK-ready 398 / X-only 14 unchanged. Partition: 434+14+227=675.
+        // Net from #1067 (INV pile division, ADR 0053): adds 0 resolve()
+        // closures (all six pile cards are pure DSL), but registers three new
+        // Ops — `divideIntoPiles`, `restrictCombat`, and the `cantBeRegenerated`
+        // flag on `destroy` — which reclassify existing closures the classifier
+        // now sees a covering Op for. Net: total 675 UNCHANGED, FREE 434→437,
+        // AFK-ready 398→400, Op-blocked 227→224 (three closures move
+        // Op-blocked→FREE, two of them AFK-ready), X-only 14 unchanged.
+        // Partition: 437+14+224=675.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(675);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(434);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(398);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(437);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(400);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(227);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(224);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

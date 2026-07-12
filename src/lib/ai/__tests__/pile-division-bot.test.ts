@@ -28,19 +28,20 @@ describe("Pile division bot dispatch (ADR 0053, issue #1067)", () => {
         const libCards = ["bot-ff-1", "bot-ff-2", "bot-ff-3"].map((id) =>
             makeInstance(factOrFiction.id, {
                 id,
-                controllerId: "p2",
-                ownerId: "p2",
+                controllerId: "p1",
+                ownerId: "p1",
                 zone: "library",
             })
         );
         const state = makeState({
             players: [
-                makePlayer("p1"),
-                makePlayer("p2", { library: libCards }),
+                makePlayer("p1", { library: libCards }),
+                makePlayer("p2"),
             ],
         });
-        // The bot (p2) casts Fact or Fiction — it is the divider.
-        pushSpell(state, factOrFiction.id, "p2");
+        // The opponent (p1) casts Fact or Fiction and reveals its own top
+        // cards; per CR the OPPONENT divides, so the bot (p2) is the divider.
+        pushSpell(state, factOrFiction.id, "p1");
         resolveTopOfStack(state);
         expect(state.pendingChoices?.[0]?.kind).toBe("divide-piles");
         expect(state.pendingChoices?.[0]?.playerId).toBe("p2");
@@ -69,19 +70,20 @@ describe("Pile division bot dispatch (ADR 0053, issue #1067)", () => {
         const libCards = ["bot-ff2-1", "bot-ff2-2"].map((id) =>
             makeInstance(factOrFiction.id, {
                 id,
-                controllerId: "p1",
-                ownerId: "p1",
+                controllerId: "p2",
+                ownerId: "p2",
                 zone: "library",
             })
         );
         const state = makeState({
             players: [
-                makePlayer("p1", { library: libCards }),
-                makePlayer("p2"),
+                makePlayer("p1"),
+                makePlayer("p2", { library: libCards }),
             ],
         });
-        // p1 casts Fact or Fiction — the bot (p2) is the chooser.
-        pushSpell(state, factOrFiction.id, "p1");
+        // The bot (p2) casts Fact or Fiction — per CR the opponent (p1)
+        // divides, and the caster (the bot) is the chooser.
+        pushSpell(state, factOrFiction.id, "p2");
         resolveTopOfStack(state);
         const divide = state.pendingChoices![0];
         applyPendingChoiceSubmit(state, {
