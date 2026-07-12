@@ -611,9 +611,21 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // FREE + AFK-ready. Net: total 667→669, FREE 429→430, AFK-ready
         // 395→396, Op-blocked 224→225, X-only 14 unchanged.
         // Partition: 430+14+225=669.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(669);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(430);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(396);
+        // Net from #1073 (INV free tranche — Green): adds 2 resolve() closures,
+        // both precedent-justified twins of already-accepted patterns.
+        // Fertile Ground (inv/green.ts) mirrors Wild Growth's `tappedTrigger`
+        // factory (hardcoded resolve, no effects[] site; recipient is an
+        // event-field player ref). Kavu Lair (inv/green.ts) is an
+        // `enteredTrigger` whose payout goes to the ENTERING creature's
+        // controller (cross-player), which the factory hands only to resolve()
+        // — the effects[] path always binds ctx.controller to the SOURCE's
+        // controller. Both bodies use only COVERED Ops and ship per-card tests,
+        // so both land FREE + AFK-ready. Net: total 669→671, FREE 430→432,
+        // AFK-ready 396→398, Op-blocked 225 / X-only 14 unchanged.
+        // Partition: 432+14+225=671.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(671);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(432);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(398);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(225);
     });
