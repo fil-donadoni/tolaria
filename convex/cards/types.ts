@@ -1163,7 +1163,18 @@ export interface SpellContext {
         opts?: CopyEffectOptions
     ) => string | undefined;
     // --- Primitives ---
-    dealDamage: (target: TargetSelection, amount: number) => void;
+    /** Deals `amount` damage to `target` (CR 120). Runs CR 614 replacement
+     *  effects, then — unless `unpreventable` is set — CR 615 prevention
+     *  shields (per-player/per-target). `unpreventable` (Urza's Rage's kicked
+     *  mode: "the damage can't be prevented") skips ONLY the prevention
+     *  shields; CR 614 replacement/redirection and CR 702.16 protection still
+     *  apply (no card in the catalogue needs "can't be prevented" to override
+     *  protection too). Default false — every existing caller is unaffected. */
+    dealDamage: (
+        target: TargetSelection,
+        amount: number,
+        unpreventable?: boolean
+    ) => void;
     /** Generic Fight primitive (CR 701.12-style mutual damage). The resolving
      *  ability's source permanent (`sourceInstanceId`) and `target` each deal
      *  damage equal to their power to the other, simultaneously, through the
@@ -2226,8 +2237,22 @@ export interface SpellContext {
     flipCoin: () => boolean;
     /** Sets colorOverride on a target permanent or spell (CR 305.7, layer 5).
      *  Replaces all color derivation — the target "becomes" the given colors.
-     *  Used by lace instants. No-op if target has left play / stack. */
-    setColorOverride: (target: TargetSelection, colors: Color[]) => void;
+     *  Used by lace instants. No-op if target has left play / stack.
+     *
+     *  `duration` (issue #1065, generalizing `setSubtypesUntil`'s pattern) is
+     *  for the PERMANENT-target case only: a temporary override that reverts
+     *  to whatever colorOverride the target carried before ("becomes the
+     *  color of your choice UNTIL END OF TURN", Kavu Chameleon), rather than
+     *  lasting indefinitely (Dream Coat / Shyft omit it). The phase-boundary
+     *  purge (`tickAllDurations`) restores the prior value when the duration
+     *  expires. Omitted = indefinite, the original behavior. Ignored for
+     *  spell targets (a spell resolves/leaves the stack well before any
+     *  phase boundary, so a duration is meaningless there). */
+    setColorOverride: (
+        target: TargetSelection,
+        colors: Color[],
+        duration?: DurationSpec
+    ) => void;
     /** Adds a text-changing effect (CR 612, layer 3) to a target permanent or
      *  spell. The change rides the target instance, so it lasts indefinitely
      *  and ends on a zone change (CR 612.6/612.7). Used by Magical Hack /
@@ -5527,6 +5552,13 @@ export type EffectOp =
           op: "dealDamage";
           amount: EffectValue;
           to: EffectObjectSelector | { player: EffectPlayerRef };
+          /** CR 615 — when true, the damage skips prevention shields (Urza's
+           *  Rage's kicked mode: "the damage can't be prevented"). Omitted/false
+           *  is the default preventable path every other `dealDamage` card
+           *  uses. See `SpellContext.dealDamage`'s doc comment for exactly
+           *  which CR 615 checks this suppresses (CR 614 replacement and CR
+           *  702.16 protection are unaffected). */
+          unpreventable?: boolean;
       }
     /** CR 121.1 — `player` draws `count` cards. */
     | { op: "draw"; player: EffectPlayerRef; count: EffectValue }
@@ -6445,6 +6477,21 @@ export interface CardDefinition {
      *  the spell resolves. Set it on any mass-land-destruction card whose
      *  effect lives in an opaque `resolve()`/`destroyAll` body. */
     destroysAllLands?: boolean;
+    /** CR 701.5c — "This spell can't be countered." A spell so flagged is
+     *  STILL a legal target for an effect that says "counter target spell"
+     *  (targeting is unaffected — the oracle ruling for Obliterate is
+     *  explicit: "Counterspells can be cast that target it, but when they
+     *  resolve they simply don't counter it since it can't be countered.").
+     *  The exception lives entirely at the RESOLUTION of the countering
+     *  effect: `SpellContext.counter` (the single choke point every counter
+     *  card — DSL `counter` Op or a `resolve()` closure — routes through)
+     *  checks this flag on the target and, when set, returns without removing
+     *  the spell from the stack. Everything else the countering spell/ability
+     *  does (additional effects, its own resolution) proceeds normally — only
+     *  the counter half fizzles (CR 608.2b — it does as much as possible).
+     *  Used by Obliterate, Urza's Rage, Blurred Mongoose, Kavu Chameleon
+     *  (issue #1065). */
+    cantBeCountered?: true;
     /** Bot move-enumeration constraint (issue #938): a "copy-on-ETB" spell that
      *  enters the battlefield as — or creates a token that's — a copy of a
      *  permanent already in play (Clone, Copy Artifact, Vesuvan Doppelganger,

@@ -761,11 +761,15 @@ export const OP_EXECUTORS: {
         if ("player" in op.to) {
             const playerId = resolvePlayerRef(ctx, op.to.player);
             if (playerId === undefined) return;
-            ctx.dealDamage({ type: "player", id: playerId }, amount);
+            ctx.dealDamage(
+                { type: "player", id: playerId },
+                amount,
+                op.unpreventable
+            );
             return;
         }
         const target = resolveObjectRef(ctx, op.to);
-        if (target) ctx.dealDamage(target, amount);
+        if (target) ctx.dealDamage(target, amount, op.unpreventable);
     },
     // CR 121.1 — draw from the top of the library.
     draw(ctx, op) {

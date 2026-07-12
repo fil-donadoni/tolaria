@@ -2278,6 +2278,26 @@ function tickAllDurations(state: GameState): void {
         }
     }
 
+    // Timed colour override (CR 305.7 / 613.1d — issue #1065, Kavu Chameleon
+    // "becomes the color of your choice until end of turn"). On expiry,
+    // restore whatever colorOverride the permanent carried before (undefined
+    // clears it entirely) — mirrors the temporarySubtypeChange purge above.
+    for (const p of state.players) {
+        for (const card of p.battlefield) {
+            const change = card.temporaryColorOverride;
+            if (!change) continue;
+            const next = tickDuration(change.duration, view);
+            if (next === null) {
+                card.colorOverride = change.restoreColorOverride
+                    ? [...change.restoreColorOverride]
+                    : undefined;
+                card.temporaryColorOverride = undefined;
+            } else {
+                card.temporaryColorOverride = { ...change, duration: next };
+            }
+        }
+    }
+
     // Fog-style blanket combat-damage prevention (CR 615). Only meaningful
     // at CLEANUP — the flag is set at resolution time and lasts until end of
     // turn. Cleared unconditionally so it doesn't persist across turns.

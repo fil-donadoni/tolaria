@@ -150,6 +150,32 @@ describe("game_state serialize round-trip", () => {
         ).toBeUndefined();
     });
 
+    it("preserves a timed color override (Kavu Chameleon, CR 305.7 / 613.1d, issue #1065)", () => {
+        // The timed colour override is a per-instance field that must survive
+        // the DB round-trip so a save/load mid-turn reverts at the right
+        // cleanup step (the duration is replay-deterministic).
+        const state = freshState();
+        const land = state.players[1].battlefield[0];
+        land.colorOverride = ["G"];
+        land.temporaryColorOverride = {
+            colors: ["G"],
+            restoreColorOverride: undefined,
+            duration: { phase: "end-of-turn" },
+        };
+        const expanded = expandState(compactState(state));
+        const got = expanded.players[1].battlefield[0];
+        expect(got.colorOverride).toEqual(["G"]);
+        expect(got.temporaryColorOverride).toEqual({
+            colors: ["G"],
+            duration: { phase: "end-of-turn" },
+        });
+        // Absent when no timed override is active.
+        const empty = expandState(compactState(freshState()));
+        expect(
+            empty.players[1].battlefield[0].temporaryColorOverride
+        ).toBeUndefined();
+    });
+
     it("preserves a wind counter on a tapped permanent (Freyalise's Winds, CR 122.1 / 614.6)", () => {
         // Freyalise's Winds (#668) stores its untap-replacement state entirely
         // in the existing per-instance `counters` map (a `wind` counter) — no

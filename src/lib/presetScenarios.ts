@@ -77,4 +77,26 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 2,
     },
+    {
+        // Obliterate — "This spell can't be countered." (CR 701.5c, #1065).
+        // Cast Obliterate; the opponent has Counterspell ready in hand and
+        // enough mana to cast it targeting Obliterate on the stack (a legal
+        // target — shroud/hexproof-style targeting restrictions do NOT apply
+        // here, per the official ruling: "Counterspells can be cast that
+        // target it, but when they resolve they simply don't counter it
+        // since it can't be countered."). Resolving the opponent's
+        // Counterspell demonstrates the fizzle: Obliterate stays on the
+        // stack and then resolves normally, wiping both battlefields.
+        label: "Obliterate can't be countered (#1065) — opponent's Counterspell fizzles",
+        cards: [
+            { name: "Obliterate", owner: "me", zone: "hand" },
+            { name: "Mountain", owner: "me", zone: "battlefield", count: 8 },
+            { name: "Counterspell", owner: "opp", zone: "hand" },
+            { name: "Island", owner: "opp", zone: "battlefield", count: 2 },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
