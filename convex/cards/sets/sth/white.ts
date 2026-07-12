@@ -50,7 +50,11 @@ export const sacredGround: CardDefinition = {
             filter: { types: "Land" },
             condition: causedByOpponent,
             resolve: (ctx: SpellContext, _event, leaving) => {
-                ctx.returnToBattlefield(leaving.ownerId, leaving.id, "graveyard");
+                ctx.returnToBattlefield(
+                    leaving.ownerId,
+                    leaving.id,
+                    "graveyard"
+                );
             },
         }),
     ],

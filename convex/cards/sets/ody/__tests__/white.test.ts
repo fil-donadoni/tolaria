@@ -82,9 +82,9 @@ describe("Karmic Justice (destroyed-by-opponent LTB trigger, CR 603.10 / 701.8, 
         expect(
             state.players[1].battlefield.some((c) => c.id === "p2perm")
         ).toBe(false);
-        expect(
-            state.players[1].graveyard.some((c) => c.id === "p2perm")
-        ).toBe(true);
+        expect(state.players[1].graveyard.some((c) => c.id === "p2perm")).toBe(
+            true
+        );
     });
 
     it("declining the may (0 picks) leaves the opponent's permanent untouched", () => {
@@ -190,7 +190,10 @@ describe("Karmic Justice (destroyed-by-opponent LTB trigger, CR 603.10 / 701.8, 
         expect(
             (
                 projectedTrig as unknown as {
-                    triggerEvent?: { cause?: string; causerControllerId?: string };
+                    triggerEvent?: {
+                        cause?: string;
+                        causerControllerId?: string;
+                    };
                 }
             ).triggerEvent
         ).toMatchObject({

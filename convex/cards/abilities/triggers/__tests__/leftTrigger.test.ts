@@ -6,7 +6,11 @@
 
 import { describe, expect, it } from "vitest";
 import { causedByOpponent } from "../leftTrigger";
-import type { CardType, PermanentLeftEvent, PermanentView } from "../../../types";
+import type {
+    CardType,
+    PermanentLeftEvent,
+    PermanentView,
+} from "../../../types";
 
 function makeSelf(overrides: Partial<PermanentView> = {}): PermanentView {
     return {

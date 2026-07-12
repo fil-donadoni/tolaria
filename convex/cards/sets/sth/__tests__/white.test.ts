@@ -52,21 +52,21 @@ describe("Sacred Ground (opponent-caused land-to-graveyard LTB trigger, CR 603.1
     it("returns the land when an opponent's spell/ability destroys it", () => {
         const { state } = setup();
         destroyWithReplacements(state, "land", { causerControllerId: "p2" });
-        expect(
-            state.players[0].graveyard.some((c) => c.id === "land")
-        ).toBe(true);
+        expect(state.players[0].graveyard.some((c) => c.id === "land")).toBe(
+            true
+        );
         processPendingActionTriggers(state);
         const trig = state.stack.find(
             (s) => s.triggeredAbilityId === "sacred-ground-return"
         );
         expect(trig).toBeDefined();
         resolveTopOfStack(state);
-        expect(
-            state.players[0].battlefield.some((c) => c.id === "land")
-        ).toBe(true);
-        expect(
-            state.players[0].graveyard.some((c) => c.id === "land")
-        ).toBe(false);
+        expect(state.players[0].battlefield.some((c) => c.id === "land")).toBe(
+            true
+        );
+        expect(state.players[0].graveyard.some((c) => c.id === "land")).toBe(
+            false
+        );
     });
 
     it("returns the land when an opponent's effect forces its sacrifice (broader than 'destroys')", () => {
@@ -78,9 +78,9 @@ describe("Sacred Ground (opponent-caused land-to-graveyard LTB trigger, CR 603.1
         );
         expect(trig).toBeDefined();
         resolveTopOfStack(state);
-        expect(
-            state.players[0].battlefield.some((c) => c.id === "land")
-        ).toBe(true);
+        expect(state.players[0].battlefield.some((c) => c.id === "land")).toBe(
+            true
+        );
     });
 
     it("does NOT fire when the controller sacrifices their own land (no opponent causer)", () => {

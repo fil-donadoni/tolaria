@@ -65,8 +65,7 @@ export const karmicJustice: CardDefinition = {
                     zoneOwnerId: opponentId,
                     candidateIds: candidates,
                     count: { min: 0, max: 1 },
-                    prompt:
-                        "Karmic Justice: destroy target permanent that opponent controls (or none)?",
+                    prompt: "Karmic Justice: destroy target permanent that opponent controls (or none)?",
                 });
                 if (picks === undefined) return; // suspended for the choice
                 for (const id of picks) ctx.destroy({ type: "permanent", id });
