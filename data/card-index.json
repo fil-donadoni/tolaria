@@ -1014,6 +1014,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Breath of Darigaaz",
+        "scryfallId": "480bb7e3-df03-454d-ada0-592ef8a4a6f0",
+        "oracleId": "1954994f-17bf-4ea5-af72-60f9bfcb6569",
+        "firstSet": "inv"
+    },
+    {
         "name": "Breath of Dreams",
         "scryfallId": "e40c9657-fab4-489d-8eb0-960ba2605add",
         "oracleId": "477f5011-aaeb-4a5f-8a65-5fb45cb06389",
@@ -1090,6 +1096,12 @@
         "scryfallId": "a92f0d4a-23d8-47d4-b910-d142e0eefd3d",
         "oracleId": "72eaaa73-3263-46e9-aa86-5862d3aed20a",
         "firstSet": "ice"
+    },
+    {
+        "name": "Callous Giant",
+        "scryfallId": "330028c4-8e91-4fe3-a87d-1660dfd2507e",
+        "oracleId": "7a2336ff-c8ed-4daa-b182-403c21bc8133",
+        "firstSet": "inv"
     },
     {
         "name": "Camel",
@@ -1228,6 +1240,12 @@
         "scryfallId": "72ea2048-57bc-43d5-8987-33ca727f1a97",
         "oracleId": "08842aa3-f923-46e9-a106-f542331e9cc1",
         "firstSet": "lea"
+    },
+    {
+        "name": "Chaotic Strike",
+        "scryfallId": "061df8e4-6947-4bbb-9fe7-52ca4fd95d65",
+        "oracleId": "1f0b3549-2d24-49e8-85bc-55e3a5e5f6b8",
+        "firstSet": "inv"
     },
     {
         "name": "Chromatic Star",
@@ -1564,6 +1582,12 @@
         "scryfallId": "7af6b119-7db4-49dd-aaa4-044b8c133f13",
         "oracleId": "61023b48-0433-4993-9534-308c08cef07e",
         "firstSet": "leg"
+    },
+    {
+        "name": "Crown of Flames",
+        "scryfallId": "5a46239c-3de7-48ca-8f5c-b51f307fd0e5",
+        "oracleId": "f14fb965-5ebc-427a-a5b8-149f54c64171",
+        "firstSet": "inv"
     },
     {
         "name": "Crown of the Ages",
@@ -3456,6 +3480,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Halam Djinn",
+        "scryfallId": "369ade1f-e909-47ae-bb01-19588269ad8f",
+        "oracleId": "fb85d8d1-6938-48bf-9a6d-d4616b05b4f6",
+        "firstSet": "inv"
+    },
+    {
         "name": "Halfdane",
         "scryfallId": "2e939761-3542-4044-9038-d1d30c6a38fc",
         "oracleId": "2ee13155-a3b8-4cad-8e68-5d2c5aba3bb4",
@@ -4338,6 +4368,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Kavu Aggressor",
+        "scryfallId": "a2832ad3-ce7f-44d2-beb2-c95d982905a6",
+        "oracleId": "84c00644-d0e2-418b-b931-4e972ecb3366",
+        "firstSet": "inv"
+    },
+    {
         "name": "Kavu Chameleon",
         "scryfallId": "f726437b-a41a-4ee9-b0ee-e09327508615",
         "oracleId": "82c583ab-8158-4074-a3ff-b7a05ecc8ab1",
@@ -4353,6 +4389,12 @@
         "name": "Kavu Lair",
         "scryfallId": "f4581b53-23a0-4ca6-a77c-97d79e7a6570",
         "oracleId": "4dd0594d-5b11-4350-a926-294a67d9fc3b",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Kavu Monarch",
+        "scryfallId": "ea63dfd5-d8d7-45b8-8219-1cc2b3de5666",
+        "oracleId": "98cc734d-16d5-4c3c-98ca-a45efad27127",
         "firstSet": "inv"
     },
     {
@@ -4954,6 +4996,12 @@
         "scryfallId": "6121f72f-680f-4bb4-ae4d-37ee4ebed4d8",
         "oracleId": "0f1afedd-c60f-454f-b84a-c8117aec0128",
         "firstSet": "lea"
+    },
+    {
+        "name": "Maniacal Rage",
+        "scryfallId": "3d17886c-fffd-4f0d-b4da-4b5fba18b811",
+        "oracleId": "b5dbb212-0399-475b-a831-921f7c76cdc4",
+        "firstSet": "inv"
     },
     {
         "name": "Manifold Key",
@@ -6078,6 +6126,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Pouncing Kavu",
+        "scryfallId": "7e6e2e49-7bde-43c1-8caf-43d237dfc052",
+        "oracleId": "5f9a968d-cc23-46d3-b28f-3779dd89c531",
+        "firstSet": "inv"
+    },
+    {
         "name": "Powder Keg",
         "scryfallId": "4d9715c2-9036-4ae2-a5b4-1b190d50c963",
         "oracleId": "ca1144c2-49a3-49b4-9085-3094141769ea",
@@ -6316,6 +6370,12 @@
         "scryfallId": "f4c133b8-8383-433f-be96-c47a937287b7",
         "oracleId": "8132c521-44e2-4fc0-b3de-e5b92d04463a",
         "firstSet": "drk"
+    },
+    {
+        "name": "Rage Weaver",
+        "scryfallId": "a654295d-b63c-4025-bf36-899023a8ba1d",
+        "oracleId": "9777a54b-1c60-4d6b-bb83-c57cb3a1d7e6",
+        "firstSet": "inv"
     },
     {
         "name": "Raging Bull",
@@ -6708,10 +6768,22 @@
         "firstSet": "lea"
     },
     {
+        "name": "Rogue Kavu",
+        "scryfallId": "61e1a445-129d-4bb9-a8b0-3f55e3e0bc58",
+        "oracleId": "17df95b2-49ef-43ca-b3c8-66a270f457a7",
+        "firstSet": "inv"
+    },
+    {
         "name": "Royal Assassin",
         "scryfallId": "59590768-fa96-4869-8763-9d5ab6ac22ad",
         "oracleId": "9ed6f28f-a3db-48c5-9ab0-b90a7fba5f57",
         "firstSet": "lea"
+    },
+    {
+        "name": "Ruby Leech",
+        "scryfallId": "be621b12-4f4e-43a6-b65e-da4223e742b5",
+        "oracleId": "ec6195a0-2701-40a4-882f-eb563668791a",
+        "firstSet": "inv"
     },
     {
         "name": "Ruham Djinn",
@@ -6846,6 +6918,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Scarred Puma",
+        "scryfallId": "067ff95e-c4dc-41bb-9677-67f51a09b05a",
+        "oracleId": "e28e1921-797b-4e6e-8058-3929af46eeb5",
+        "firstSet": "inv"
+    },
+    {
         "name": "Scarwood Bandits",
         "scryfallId": "46b762a7-a774-4cb4-8ecf-dd6486a066c3",
         "oracleId": "7fcc8aab-6f7b-4474-b4e4-58cf4a119b22",
@@ -6946,6 +7024,12 @@
         "scryfallId": "aeb4612c-758b-4492-ba03-eb6741b4176e",
         "oracleId": "23b11fdc-61b5-4f5e-ad80-f81b729fc91d",
         "firstSet": "ecl"
+    },
+    {
+        "name": "Searing Rays",
+        "scryfallId": "4f66ff2d-f2d2-4a6b-bf26-b510de60c0b6",
+        "oracleId": "fd6730e2-3904-43cf-90c6-e3d9fe210bc5",
+        "firstSet": "inv"
     },
     {
         "name": "Seasinger",
@@ -7128,6 +7212,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Shivan Harvest",
+        "scryfallId": "47dbd765-d7ea-4181-bd22-5c749ad081af",
+        "oracleId": "27c3d7cd-f92e-4203-9fb5-f6b4776f6ffd",
+        "firstSet": "inv"
+    },
+    {
         "name": "Shyft",
         "scryfallId": "99a60c33-b641-42c4-870d-95d07bc975dc",
         "oracleId": "40c3007a-be6c-4400-9139-12b9ca098ac4",
@@ -7200,6 +7290,18 @@
         "firstSet": "ice"
     },
     {
+        "name": "Skittish Kavu",
+        "scryfallId": "be806378-50a7-4416-9d99-1ea2c1f2b7cb",
+        "oracleId": "55722e42-a729-4289-895f-be913398c434",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Skizzik",
+        "scryfallId": "dc7732bc-e168-44d9-923a-db7e985bd6db",
+        "oracleId": "0c77d37e-791c-415e-b369-55e93147ec34",
+        "firstSet": "inv"
+    },
+    {
         "name": "Skull Catapult",
         "scryfallId": "eb92a3e6-dc30-4a08-baba-e125290cadc5",
         "oracleId": "eef931d8-4048-4c33-bd8c-0f67d1083ee6",
@@ -7222,6 +7324,12 @@
         "scryfallId": "d427790c-e322-446e-8d7d-a6b48ad41a42",
         "oracleId": "99dba614-40d3-41c1-a3b2-edc8777b010f",
         "firstSet": "lea"
+    },
+    {
+        "name": "Slimy Kavu",
+        "scryfallId": "8e82044d-88cd-4ee4-8ec9-e71a0a85ed46",
+        "oracleId": "95625072-c457-4224-b509-5feaa35e9ca6",
+        "firstSet": "inv"
     },
     {
         "name": "Smoke",
@@ -7668,6 +7776,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Stun",
+        "scryfallId": "d22f3ae8-a40b-4dab-abf4-3ab7b05191f7",
+        "oracleId": "d3491972-44c5-4962-a680-42b79357a189",
+        "firstSet": "inv"
+    },
+    {
         "name": "Stunted Growth",
         "scryfallId": "4c9b7393-eb35-4c99-bbf5-bcf924aa8ff3",
         "oracleId": "e3480c8f-15ad-451b-bb34-b129805569e1",
@@ -7882,6 +7996,12 @@
         "scryfallId": "629aa907-9533-4681-9bf2-9e56450a4cc2",
         "oracleId": "610af0f7-b5e3-43fb-9d02-7c59bd99034c",
         "firstSet": "dmu"
+    },
+    {
+        "name": "Tectonic Instability",
+        "scryfallId": "0476cc6b-ecc6-44d6-9f44-a90d4ee85daa",
+        "oracleId": "0e68ee36-9649-490a-8483-fc8bdc23f161",
+        "firstSet": "inv"
     },
     {
         "name": "Teferi's Care",
@@ -9237,6 +9357,12 @@
         "name": "Zanam Djinn",
         "scryfallId": "57a3c1d5-0ca8-443b-ae7a-66e0363e377b",
         "oracleId": "049fc248-4e46-43de-986d-fa023a3e8792",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Zap",
+        "scryfallId": "7502ce01-b762-40fe-a064-c7b20b08a722",
+        "oracleId": "56115482-3fd4-45fb-b800-be68c5509cf2",
         "firstSet": "inv"
     },
     {

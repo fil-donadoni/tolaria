@@ -623,11 +623,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // so both land FREE + AFK-ready. Net: total 669→671, FREE 430→432,
         // AFK-ready 396→398, Op-blocked 225 / X-only 14 unchanged.
         // Partition: 432+14+225=671.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(671);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(432);
+        // Net from #1072 (INV free tranche — Red): adds 4 resolve() closures,
+        // each a precedent-justified twin of a shipped resolve() card whose
+        // primitive has no Op wrapper (not stop-and-issue "Op absent"):
+        // Breath of Darigaaz → Earthquake (`dealDamageToEach`+`excludeAbility`
+        // filter gap), Crown of Flames pump → Thrull Retainer (`getAttachedToId`
+        // + `addTemporaryPTBuff`, no attached-host selector Op), Slimy Kavu →
+        // Orcish Farmer/Vision Charm (`setSubtypesUntil`, no Op), Stun → Panic
+        // (`setCantBlockThisTurn`, no Op). Two land FREE (their primitives are
+        // otherwise expressible) but lack a dedicated per-card test so
+        // AFK-ready is unchanged; two land Op-blocked (the filter/selector gap).
+        // Net: total 671→675, FREE 432→434, Op-blocked 225→227,
+        // AFK-ready 398 / X-only 14 unchanged. Partition: 434+14+227=675.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(675);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(434);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(398);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(225);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(227);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
