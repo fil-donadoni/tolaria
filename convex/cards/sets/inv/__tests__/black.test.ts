@@ -217,7 +217,9 @@ describe("Andradite Leech (controller's black spells cost {B} more, CR 601.2f)",
             ],
         });
         resolveActivated(state, leech, "andradite-leech-pump");
-        const live = state.players[0].battlefield.find((c) => c.id === "leech")!;
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "leech"
+        )!;
         expect(getEffectivePower(state, live)).toBe(3);
         expect(getEffectiveToughness(state, live)).toBe(3);
     });
@@ -232,11 +234,15 @@ describe("Annihilate (destroy nonblack, can't regen, draw; CR 701.8 / 701.15c / 
         });
         const state = makeState({
             players: [
-                makePlayer("p1", { library: [makeInstance(annihilate.id, { zone: "library" })] }),
+                makePlayer("p1", {
+                    library: [makeInstance(annihilate.id, { zone: "library" })],
+                }),
                 makePlayer("p2", { battlefield: [target] }),
             ],
         });
-        pushSpell(state, annihilate.id, "p1", [{ type: "permanent", id: "target" }]);
+        pushSpell(state, annihilate.id, "p1", [
+            { type: "permanent", id: "target" },
+        ]);
         resolveTopOfStack(state);
         expect(state.players[1].battlefield).toHaveLength(0);
         expect(state.players[1].graveyard.some((c) => c.id === "target")).toBe(
@@ -549,7 +555,10 @@ describe("Plague Spitter (dies → 1 damage to each creature and each player; CR
         });
         const state = makeState({
             players: [
-                makePlayer("p1", { battlefield: [ourBear], graveyard: [spitter] }),
+                makePlayer("p1", {
+                    battlefield: [ourBear],
+                    graveyard: [spitter],
+                }),
                 makePlayer("p2", { battlefield: [oppBear] }),
             ],
         });
@@ -621,9 +630,9 @@ describe("Tsabo's Assassin ({T}: destroy target creature sharing the board's mos
         expect(
             state.players[0].battlefield.some((c) => c.id === "black-2")
         ).toBe(false);
-        expect(
-            state.players[0].graveyard.some((c) => c.id === "black-2")
-        ).toBe(true);
+        expect(state.players[0].graveyard.some((c) => c.id === "black-2")).toBe(
+            true
+        );
     });
 });
 

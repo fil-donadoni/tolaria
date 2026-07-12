@@ -67,9 +67,7 @@ import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 // the two call sites read different context shapes: a `pt-cda` static effect
 // gets `StaticEffectStateView` + `StaticEffectContext`, while an activated
 // ability's `resolve()` gets `SpellContext`.
-function tallyMostCommon(
-    perColor: (color: Color) => number
-): Color[] {
+function tallyMostCommon(perColor: (color: Color) => number): Color[] {
     const COLORS: Color[] = ["W", "U", "B", "R", "G"];
     const counts = COLORS.map((c) => [c, perColor(c)] as const);
     const max = Math.max(0, ...counts.map(([, n]) => n));
@@ -86,8 +84,7 @@ function mostCommonColorsStatic(
     );
     return tallyMostCommon(
         (color) =>
-            allPermanents.filter((p) => ctx.getColors(p).includes(color))
-                .length
+            allPermanents.filter((p) => ctx.getColors(p).includes(color)).length
     );
 }
 
@@ -219,7 +216,8 @@ export const annihilate: CardDefinition = {
     id: "4a3bf039-ecf6-477e-997c-e32c55323c01", // INV 94
     rarity: "uncommon",
     name: "Annihilate",
-    oracleText: "Destroy target nonblack creature. It can't be regenerated.\nDraw a card.",
+    oracleText:
+        "Destroy target nonblack creature. It can't be regenerated.\nDraw a card.",
     manaCost: { X: 3, B: 2 },
     types: ["Instant"],
     targetRequirement: { type: "Creature", count: 1, excludeColors: "B" },
@@ -307,8 +305,7 @@ export const cryptAngel: CardDefinition = {
                     zone: "graveyard",
                     filter: { type: "Creature", color: ["U", "R"] },
                     count: 1,
-                    prompt:
-                        "Return a blue or red creature card from your graveyard to your hand.",
+                    prompt: "Return a blue or red creature card from your graveyard to your hand.",
                     bind: "$picked",
                 },
                 {
@@ -335,7 +332,12 @@ export const cursedFlesh: CardDefinition = {
     subtypes: ["Aura"],
     targetRequirement: { type: "Creature", count: 1 },
     staticEffects: [
-        { kind: "pt-buff", applies: AURA_AFFECTS_HOST, power: -1, toughness: -1 },
+        {
+            kind: "pt-buff",
+            applies: AURA_AFFECTS_HOST,
+            power: -1,
+            toughness: -1,
+        },
         { kind: "keyword-grant", applies: AURA_AFFECTS_HOST, keyword: "fear" },
     ],
 };
@@ -394,7 +396,8 @@ export const devouringStrossus: CardDefinition = {
     triggeredAbilities: [
         phaseTrigger({
             id: "devouring-strossus-upkeep",
-            oracleText: "At the beginning of your upkeep, sacrifice a creature.",
+            oracleText:
+                "At the beginning of your upkeep, sacrifice a creature.",
             phase: "UPKEEP",
             scope: "your",
             effects: [
@@ -544,7 +547,8 @@ export const hateWeaver: CardDefinition = {
     id: "8328e131-b44d-4dd0-9ce4-454c6afe6fa6", // INV 108
     rarity: "uncommon",
     name: "Hate Weaver",
-    oracleText: "{2}: Target blue or red creature gets +1/+0 until end of turn.",
+    oracleText:
+        "{2}: Target blue or red creature gets +1/+0 until end of turn.",
     manaCost: { X: 1, B: 1 },
     types: ["Creature"],
     subtypes: ["Zombie", "Wizard"],
@@ -553,10 +557,15 @@ export const hateWeaver: CardDefinition = {
     activatedAbilities: [
         {
             id: "hate-weaver-pump",
-            oracleText: "{2}: Target blue or red creature gets +1/+0 until end of turn.",
+            oracleText:
+                "{2}: Target blue or red creature gets +1/+0 until end of turn.",
             cost: { mana: { X: 2 } },
             useStack: true,
-            targetRequirement: { type: "Creature", count: 1, colorFilterAny: ["U", "R"] },
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                colorFilterAny: ["U", "R"],
+            },
             effects: [
                 {
                     op: "pump",
@@ -601,7 +610,11 @@ export const hypnoticCloud: CardDefinition = {
                     prompt: "Discard three cards.",
                     bind: "$picked3",
                 },
-                { op: "discard", player: { target: 0 }, cards: { ref: "$picked3" } },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$picked3" },
+                },
             ],
             else: [
                 {
@@ -613,7 +626,11 @@ export const hypnoticCloud: CardDefinition = {
                     prompt: "Discard a card.",
                     bind: "$picked1",
                 },
-                { op: "discard", player: { target: 0 }, cards: { ref: "$picked1" } },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$picked1" },
+                },
             ],
         },
     ],
@@ -672,7 +689,12 @@ export const mourning: CardDefinition = {
     subtypes: ["Aura"],
     targetRequirement: { type: "Creature", count: 1 },
     staticEffects: [
-        { kind: "pt-buff", applies: AURA_AFFECTS_HOST, power: -2, toughness: 0 },
+        {
+            kind: "pt-buff",
+            applies: AURA_AFFECTS_HOST,
+            power: -2,
+            toughness: 0,
+        },
     ],
     activatedAbilities: [
         {
@@ -680,7 +702,9 @@ export const mourning: CardDefinition = {
             oracleText: "{B}: Return this Aura to its owner's hand.",
             cost: { mana: { B: 1 } },
             useStack: true,
-            effects: [{ op: "moveZone", target: { ref: "$source" }, to: "hand" }],
+            effects: [
+                { op: "moveZone", target: { ref: "$source" }, to: "hand" },
+            ],
         },
     ],
 };
@@ -716,7 +740,8 @@ export const phyrexianBattleflies: CardDefinition = {
             cost: { mana: { B: 1 } },
             useStack: true,
             canActivate: (source) =>
-                (source.activationsThisTurn?.["phyrexian-battleflies-pump"] ?? 0) < 2,
+                (source.activationsThisTurn?.["phyrexian-battleflies-pump"] ??
+                    0) < 2,
             effects: [
                 {
                     op: "pump",
@@ -771,8 +796,7 @@ export const phyrexianDelver: CardDefinition = {
                     zone: "graveyard",
                     filter: { types: "Creature" },
                     count: 1,
-                    prompt:
-                        "Return a creature card from your graveyard to the battlefield.",
+                    prompt: "Return a creature card from your graveyard to the battlefield.",
                 });
                 if (picks === undefined) return; // suspended
                 const id = picks[0];
@@ -782,7 +806,11 @@ export const phyrexianDelver: CardDefinition = {
                     id,
                     playerId: controller,
                 });
-                const moved = ctx.returnToBattlefield(controller, id, "graveyard");
+                const moved = ctx.returnToBattlefield(
+                    controller,
+                    id,
+                    "graveyard"
+                );
                 if (moved) ctx.loseLife(controller, mv);
             },
         }),
@@ -913,7 +941,9 @@ export const plagueSpitter: CardDefinition = {
                         zone: "battlefield",
                         filter: { type: "Creature" },
                     },
-                    effects: [{ op: "dealDamage", amount: 1, to: { ref: "$each" } }],
+                    effects: [
+                        { op: "dealDamage", amount: 1, to: { ref: "$each" } },
+                    ],
                 },
                 {
                     op: "forEach",
@@ -935,7 +965,9 @@ export const plagueSpitter: CardDefinition = {
             scope: "self",
             resolve: (ctx) => {
                 for (const pid of ctx.allPlayerIds) {
-                    for (const id of ctx.getBattlefieldIds(pid, { types: "Creature" })) {
+                    for (const id of ctx.getBattlefieldIds(pid, {
+                        types: "Creature",
+                    })) {
                         ctx.dealDamage({ type: "permanent", id }, 1);
                     }
                     ctx.dealDamage({ type: "player", id: pid }, 1);
@@ -963,7 +995,8 @@ export const ravenousRats: CardDefinition = {
     triggeredAbilities: [
         enteredTrigger({
             id: "ravenous-rats-etb",
-            oracleText: "When this creature enters, target opponent discards a card.",
+            oracleText:
+                "When this creature enters, target opponent discards a card.",
             scope: "self",
             effects: [
                 {
@@ -975,7 +1008,11 @@ export const ravenousRats: CardDefinition = {
                     prompt: "Discard a card.",
                     bind: "$picked",
                 },
-                { op: "discard", player: "opponent", cards: { ref: "$picked" } },
+                {
+                    op: "discard",
+                    player: "opponent",
+                    cards: { ref: "$picked" },
+                },
             ],
         }),
     ],
@@ -1093,7 +1130,9 @@ export const spreadingPlague: CardDefinition = {
                 });
                 if (enteredColors.length === 0) return; // colorless shares nothing
                 const toDestroy = ctx.allPlayerIds
-                    .flatMap((pid) => ctx.getBattlefieldIds(pid, { types: "Creature" }))
+                    .flatMap((pid) =>
+                        ctx.getBattlefieldIds(pid, { types: "Creature" })
+                    )
                     .filter((id) => id !== entered.id)
                     .filter((id) =>
                         ctx
@@ -1101,7 +1140,10 @@ export const spreadingPlague: CardDefinition = {
                             .some((c) => enteredColors.includes(c))
                     );
                 for (const id of toDestroy) {
-                    ctx.destroy({ type: "permanent", id }, { cantBeRegenerated: true });
+                    ctx.destroy(
+                        { type: "permanent", id },
+                        { cantBeRegenerated: true }
+                    );
                 }
             },
         }),
@@ -1131,7 +1173,11 @@ export const taintedWell: CardDefinition = {
         }),
     ],
     staticEffects: [
-        { kind: "subtype-add", applies: AURA_AFFECTS_HOST, subtypes: ["Swamp"] },
+        {
+            kind: "subtype-add",
+            applies: AURA_AFFECTS_HOST,
+            subtypes: ["Swamp"],
+        },
     ],
 };
 
