@@ -2829,6 +2829,19 @@ export const EVENT_FIELD_REGISTRY: Record<
                 e.type === "PHASE_BEGIN" ? e.activePlayerId : undefined,
         },
     },
+    // CR 603.6a — "whenever a [permanent] enters, ... its controller ..."
+    // (issue #1072 — Tectonic Instability: "tap all lands ITS CONTROLLER
+    // controls" for ANY land entering, not just this permanent's own
+    // controller). Unblocks a plain (non-`enteredTrigger`-scoped) `effects[]`
+    // body from reading the entering permanent's controller directly off the
+    // firing event, mirroring the `PHASE_BEGIN.activePlayerId` row above.
+    PERMANENT_ENTERED: {
+        controllerId: {
+            family: "player",
+            resolve: (e) =>
+                e.type === "PERMANENT_ENTERED" ? e.controllerId : undefined,
+        },
+    },
 };
 
 /** The registry row for a `(GameEventType, field)` pair, or undefined when the

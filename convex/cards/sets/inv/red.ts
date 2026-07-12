@@ -4,9 +4,29 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 
-import type { CardDefinition, SpellContext } from "../../types";
-import { countDomain, EFFECT_AFFECTS_SELF } from "../../types";
+import type { CardDefinition, ManaCost, SpellContext } from "../../types";
+import {
+    AURA_AFFECTS_HOST,
+    countDomain,
+    EFFECT_AFFECTS_SELF,
+} from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+
+// Local mana-cost → colours helper (CR 202.2), following the established
+// inline-helper precedent (arn/white.ts) rather than importing the shared
+// `convex/cards/colors.ts` — that module pulls in `gre/constants.ts`, which
+// imports back into `convex/cards/index.ts` (the registry), creating an
+// import cycle through the `sets/inv` barrel that leaves `red.ts`'s OWN
+// exports still-undefined mid-evaluation (the registry's `Object.values`
+// scan then silently drops every card in this file). Used only by
+// `declared-attack-restriction` predicates, which get no `ctx` to call
+// `StaticEffectContext.getColors` with.
+const RED_MANA_COLOR_KEYS = ["W", "U", "B", "R", "G"] as const;
+function colorsFromManaCost(cost?: ManaCost): readonly string[] {
+    if (!cost) return [];
+    return RED_MANA_COLOR_KEYS.filter((c) => (cost[c] ?? 0) > 0);
+}
 
 // Overload — "Kicker {2}. Destroy target artifact if its mana value is 2 or
 // less. If this spell was kicked, destroy that artifact if its mana value is 5
@@ -223,3 +243,942 @@ export const collapsingBorders: CardDefinition = {
         }),
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// Free tranche (issue #1072, parent PRD #1063) — reuse-only, DSL-first.
+// 9 cards in this tranche hit a genuinely missing engine capability and are
+// left as commented stubs at the bottom of this file, each tagged
+// `// tracked-by: #1095`.
+// ─────────────────────────────────────────────────────────────────────────
+
+// Callous Giant — {4}{R}{R} Creature — Giant, 4/4. "If a source would deal 3
+// or less damage to this creature, prevent that damage." (CR 614/615
+// replacement effect — the exact Divine Presence clamp template, inv/white.ts,
+// generalized from "reduce to 3" to "prevent entirely" via `{kind:"consumed"}`
+// instead of `{kind:"modified"}`.)
+export const callousGiant: CardDefinition = {
+    id: "330028c4-8e91-4fe3-a87d-1660dfd2507e",
+    rarity: "rare",
+    name: "Callous Giant",
+    oracleText:
+        "If a source would deal 3 or less damage to this creature, prevent that damage.",
+    manaCost: { X: 4, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Giant"],
+    power: 4,
+    toughness: 4,
+    replacementEffects: [
+        {
+            id: "callous-giant-small-damage-prevention",
+            oracleText:
+                "If a source would deal 3 or less damage to this creature, prevent that damage.",
+            eventKind: "damage",
+            appliesTo: (event, self) =>
+                event.kind === "damage" &&
+                event.target.type === "permanent" &&
+                event.target.id === self.id &&
+                event.amount <= 3,
+            replace: () => ({ kind: "consumed" }),
+        },
+    ],
+};
+
+// Chaotic Strike — {1}{R} Instant. "Cast this spell only during combat after
+// blockers are declared. Flip a coin. If you win the flip, target creature
+// gets +1/+1 until end of turn. Draw a card." (CR 601.3e cast restriction via
+// `castPhaseRestriction`, spanning every step from DECLARE_BLOCKERS through
+// END_OF_COMBAT — "after blockers are declared" is not just the one step;
+// CR 702.3x coin flip via the shipped `coinFlip` Op; the draw is unconditional,
+// outside both branches.)
+export const chaoticStrike: CardDefinition = {
+    id: "061df8e4-6947-4bbb-9fe7-52ca4fd95d65",
+    rarity: "uncommon",
+    name: "Chaotic Strike",
+    oracleText:
+        "Cast this spell only during combat after blockers are declared.\nFlip a coin. If you win the flip, target creature gets +1/+1 until end of turn.\nDraw a card.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Instant"],
+    castPhaseRestriction: [
+        "DECLARE_BLOCKERS",
+        "FIRST_STRIKE_DAMAGE",
+        "COMBAT_DAMAGE",
+        "END_OF_COMBAT",
+    ],
+    targetRequirement: { type: "Creature", count: 1 },
+    // The draw is unconditional (CR 705 coin flip only gates the pump), so
+    // it rides in BOTH branches — `isCoinFlipBranch` requires a non-empty
+    // `effects` list (ADR 0045), and there is no card-shaped no-op Op to pad
+    // an otherwise-empty loss branch with.
+    effects: [
+        {
+            op: "coinFlip",
+            win: {
+                consequence:
+                    "Target creature gets +1/+1 until end of turn. Draw a card.",
+                effects: [
+                    {
+                        op: "pump",
+                        target: { target: 0 },
+                        power: 1,
+                        toughness: 1,
+                        duration: { phase: "end-of-turn" },
+                    },
+                    { op: "draw", player: "controller", count: 1 },
+                ],
+            },
+            loss: {
+                consequence: "Draw a card.",
+                effects: [{ op: "draw", player: "controller", count: 1 }],
+            },
+        },
+    ],
+};
+
+// Crown of Flames — {R} Enchantment — Aura, enchant creature. "{R}: Enchanted
+// creature gets +1/+0 until end of turn. {R}: Return this Aura to its owner's
+// hand." (CR 303.4 Aura, CR 117 activated ability cost.) The bounce ability is
+// a plain DSL `moveZone($source → hand)`. The pump ability is NOT
+// DSL-migratable (ADR 0045, Thrull Retainer precedent, fem/black.ts): it
+// targets the Aura's ENCHANTED HOST via `getAttachedToId` — the object-selector
+// grammar has no attached-host ("enchanted permanent") ref; the `pump` Op
+// itself is available, only the target selector is missing.
+export const crownOfFlames: CardDefinition = {
+    id: "5a46239c-3de7-48ca-8f5c-b51f307fd0e5",
+    rarity: "common",
+    name: "Crown of Flames",
+    oracleText:
+        "Enchant creature\n{R}: Enchanted creature gets +1/+0 until end of turn.\n{R}: Return this Aura to its owner's hand.",
+    manaCost: { R: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    activatedAbilities: [
+        {
+            id: "crown-of-flames-pump",
+            oracleText: "{R}: Enchanted creature gets +1/+0 until end of turn.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            resolve: (ctx: SpellContext) => {
+                const hostId = ctx.getAttachedToId();
+                if (!hostId) return;
+                ctx.addTemporaryPTBuff(
+                    { type: "permanent", id: hostId },
+                    1,
+                    0,
+                    { phase: "end-of-turn" }
+                );
+            },
+        },
+        {
+            id: "crown-of-flames-bounce",
+            oracleText: "{R}: Return this Aura to its owner's hand.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            effects: [
+                { op: "moveZone", target: { ref: "$source" }, to: "hand" },
+            ],
+        },
+    ],
+};
+
+// Halam Djinn — {5}{R} Creature — Djinn, 6/5. "Haste. This creature gets
+// -2/-2 as long as red is the most common color among all permanents or is
+// tied for most common." (CR 702.10 haste + CR 611.2c conditional CDA anthem
+// on itself — the Zanam Djinn / Goham Djinn cycle template, inv/blue.ts /
+// inv/black.ts, colour swapped to red.)
+const HALAM_DJINN_COLORS = ["W", "U", "B", "R", "G"] as const;
+function redIsMostCommonOrTied(
+    battlefields: ReadonlyArray<{ colors: readonly string[] }>
+): boolean {
+    const tally: Record<string, number> = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+    for (const permanent of battlefields) {
+        for (const color of permanent.colors) {
+            if (color in tally) tally[color]++;
+        }
+    }
+    const red = tally.R;
+    return HALAM_DJINN_COLORS.every((c) => tally[c] <= red);
+}
+export const halamDjinn: CardDefinition = {
+    id: "369ade1f-e909-47ae-bb01-19588269ad8f",
+    rarity: "uncommon",
+    name: "Halam Djinn",
+    oracleText:
+        "Haste\nThis creature gets -2/-2 as long as red is the most common color among all permanents or is tied for most common.",
+    manaCost: { X: 5, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Djinn"],
+    power: 6,
+    toughness: 5,
+    staticAbilities: ["haste"],
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: EFFECT_AFFECTS_SELF,
+            condition: (_source, state, ctx) =>
+                redIsMostCommonOrTied(
+                    state.players
+                        .flatMap((p) => p.battlefield)
+                        .map((c) => ({ colors: ctx.getColors(c) }))
+                ),
+            power: -2,
+            toughness: -2,
+        },
+    ],
+};
+
+// Kavu Aggressor — {2}{R} Creature — Kavu, 3/2. "Kicker {4}. This creature
+// can't block. If this creature was kicked, it enters with a +1/+1 counter on
+// it." (CR 702.33 Kicker, CR 509.1b block restriction — the Foul Familiar
+// "can't block" template, ice/black.ts — CR 122.1/614.1c ETB counter via
+// `entersWith.counters` `count: "kicker"`.)
+export const kavuAggressor: CardDefinition = {
+    id: "a2832ad3-ce7f-44d2-beb2-c95d982905a6",
+    rarity: "common",
+    name: "Kavu Aggressor",
+    oracleText:
+        "Kicker {4} (You may pay an additional {4} as you cast this spell.)\nThis creature can't block.\nIf this creature was kicked, it enters with a +1/+1 counter on it.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 3,
+    toughness: 2,
+    kicker: { cost: { X: 4 } },
+    entersWith: { counters: [{ type: "+1/+1", count: "kicker" }] },
+    staticEffects: [
+        {
+            kind: "block-restriction",
+            id: "kavu-aggressor-cant-block",
+            side: "blocker",
+            predicate: () => false,
+            oracleText: "Kavu Aggressor can't block.",
+        },
+    ],
+};
+
+// Kavu Monarch — {2}{R}{R} Creature — Kavu, 3/3. "Kavu creatures have
+// trample. Whenever another Kavu enters, put a +1/+1 counter on this
+// creature." (CR 702.19 trample anthem via `keyword-grant` scanning subtypes
+// board-wide — no controller restriction, matching every Kavu including
+// itself; CR 603.6a ETB trigger. The `PERMANENT_ENTERED` event carries no
+// subtypes (`enteredTrigger`'s `filter` hard-codes an empty subtypes array
+// for its subject), so the "Kavu" check rides the trigger's `condition`
+// callback instead, reading the entering permanent's live subtypes off
+// `state` — the sanctioned "arbitrary domain logic the scope/filter can't
+// express" escape hatch documented on `EnteredTriggerArgs.condition`, not
+// `resolve()`.)
+export const kavuMonarch: CardDefinition = {
+    id: "ea63dfd5-d8d7-45b8-8219-1cc2b3de5666",
+    rarity: "rare",
+    name: "Kavu Monarch",
+    oracleText:
+        "Kavu creatures have trample.\nWhenever another Kavu enters, put a +1/+1 counter on this creature.",
+    manaCost: { X: 2, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 3,
+    toughness: 3,
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: (target) => target.subtypes.includes("Kavu"),
+            keyword: "trample",
+        },
+    ],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "kavu-monarch-tribal-counter",
+            oracleText:
+                "Whenever another Kavu enters, put a +1/+1 counter on this creature.",
+            scope: "any-other",
+            condition: (event, _self, state) => {
+                if (!state) return false;
+                const entering = state.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === event.instanceId);
+                return entering?.subtypes.includes("Kavu") ?? false;
+            },
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
+        }),
+    ],
+};
+
+// Maniacal Rage — {1}{R} Enchantment — Aura, enchant creature. "Enchanted
+// creature gets +2/+2 and can't block." (CR 303.4 Aura via `AURA_AFFECTS_HOST`
+// for the pt-buff; CR 509.1b block restriction collected from an Aura and
+// applied to its host per CR 303.4 — same collection model as Errantry's
+// declared-attack-restriction, `attack-restriction` doc note.)
+export const maniacalRage: CardDefinition = {
+    id: "3d17886c-fffd-4f0d-b4da-4b5fba18b811",
+    rarity: "common",
+    name: "Maniacal Rage",
+    oracleText:
+        "Enchant creature\nEnchanted creature gets +2/+2 and can't block.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        { kind: "pt-buff", applies: AURA_AFFECTS_HOST, power: 2, toughness: 2 },
+        {
+            kind: "block-restriction",
+            id: "maniacal-rage-cant-block",
+            side: "blocker",
+            predicate: () => false,
+            oracleText: "Enchanted creature can't block.",
+        },
+    ],
+};
+
+// Pouncing Kavu — {1}{R} Creature — Kavu, 1/1. "Kicker {2}{R}. First strike.
+// If this creature was kicked, it enters with two +1/+1 counters on it and
+// with haste." (CR 702.33 Kicker, CR 702.7 first strike, CR 122.1/614.1c ETB
+// counters — the exact Duskwalker template, inv/black.ts: two `entersWith`
+// counter entries each `count: "kicker"`, plus a `keyword-grant` proxying
+// "was kicked" off the counter count it just set, since `keyword-grant` has
+// no direct kicker read.)
+export const pouncingKavu: CardDefinition = {
+    id: "7e6e2e49-7bde-43c1-8caf-43d237dfc052",
+    rarity: "common",
+    name: "Pouncing Kavu",
+    oracleText:
+        "Kicker {2}{R} (You may pay an additional {2}{R} as you cast this spell.)\nFirst strike\nIf this creature was kicked, it enters with two +1/+1 counters on it and with haste.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 1,
+    toughness: 1,
+    kicker: { cost: { X: 2, R: 1 } },
+    staticAbilities: ["first strike"],
+    entersWith: {
+        counters: [
+            { type: "+1/+1", count: "kicker" },
+            { type: "+1/+1", count: "kicker" },
+        ],
+    },
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: (target, source) =>
+                target.id === source.id &&
+                (target.counters?.["+1/+1"] ?? 0) >= 2,
+            keyword: "haste",
+        },
+    ],
+};
+
+// Rage Weaver — {1}{R} Creature — Human Wizard, 2/1. "{2}: Target black or
+// green creature gains haste until end of turn." (CR 702.10 haste grant via
+// the shipped `grantAbility` Op; `colorFilterAny` restricts legal targets.)
+export const rageWeaver: CardDefinition = {
+    id: "a654295d-b63c-4025-bf36-899023a8ba1d",
+    rarity: "uncommon",
+    name: "Rage Weaver",
+    oracleText:
+        "{2}: Target black or green creature gains haste until end of turn. (It can attack and {T} this turn.)",
+    manaCost: { X: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 2,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "rage-weaver-haste",
+            oracleText:
+                "{2}: Target black or green creature gains haste until end of turn.",
+            cost: { mana: { X: 2 } },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                colorFilterAny: ["B", "G"],
+            },
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "haste",
+                    target: { target: 0 },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
+
+// Rogue Kavu — {1}{R} Creature — Kavu, 1/1. "Whenever this creature attacks
+// alone, it gets +2/+0 until end of turn." (CR 508.1 attack declaration —
+// `ATTACKERS_DECLARED` carries the full `attackerIds` list, so "attacks
+// alone" is a plain custom `matches` predicate checking the declared set is
+// exactly this creature; CR 611.2 until-end-of-turn pump via the shipped
+// `pump` Op.)
+export const rogueKavu: CardDefinition = {
+    id: "61e1a445-129d-4bb9-a8b0-3f55e3e0bc58",
+    rarity: "common",
+    name: "Rogue Kavu",
+    oracleText:
+        "Whenever this creature attacks alone, it gets +2/+0 until end of turn.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 1,
+    toughness: 1,
+    triggeredAbilities: [
+        {
+            id: "rogue-kavu-alone",
+            oracleText:
+                "Whenever this creature attacks alone, it gets +2/+0 until end of turn.",
+            event: "ATTACKERS_DECLARED",
+            matches: (event, self) =>
+                event.type === "ATTACKERS_DECLARED" &&
+                event.attackerIds.length === 1 &&
+                event.attackerIds[0] === self.id,
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 2,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
+
+// Ruby Leech — {1}{R} Creature — Leech, 2/2. "First strike. Red spells you
+// cast cost {R} more to cast." (CR 702.7 first strike + CR 601.2f cost
+// increase — the exact Sapphire Leech / Derelor `cost-modifier` template,
+// inv/blue.ts / fem/black.ts, colour swapped to red.)
+export const rubyLeech: CardDefinition = {
+    id: "be621b12-4f4e-43a6-b65e-da4223e742b5",
+    rarity: "rare",
+    name: "Ruby Leech",
+    oracleText: "First strike\nRed spells you cast cost {R} more to cast.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Leech"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["first strike"],
+    staticEffects: [
+        {
+            kind: "cost-modifier",
+            appliesToSpell: (card, ctx, effectSource) =>
+                ctx.getColors(card).includes("R") &&
+                effectSource !== undefined &&
+                card.controllerId === effectSource.controllerId,
+            costIncrease: { R: 1 },
+        },
+    ],
+};
+
+// Scarred Puma — {R} Creature — Cat, 2/1. "This creature can't attack unless
+// a black or green creature also attacks." (CR 508.1c declared-attack
+// restriction, evaluated once the full attacking set is known — the Orcish
+// Conscripts template. `declared-attack-restriction`'s predicate gets no
+// `ctx`, so colour is derived directly off each attacker's raw card via the
+// local `colorsFromManaCost` helper above — the same mana-cost-derivation
+// `ctx.getColors` itself wraps, just without needing a StaticEffectContext.)
+export const scarredPuma: CardDefinition = {
+    id: "067ff95e-c4dc-41bb-9677-67f51a09b05a",
+    rarity: "common",
+    name: "Scarred Puma",
+    oracleText:
+        "This creature can't attack unless a black or green creature also attacks.",
+    manaCost: { R: 1 },
+    types: ["Creature"],
+    subtypes: ["Cat"],
+    power: 2,
+    toughness: 1,
+    staticEffects: [
+        {
+            kind: "declared-attack-restriction",
+            id: "scarred-puma-needs-company",
+            predicate: (self, declaredAttackers) =>
+                declaredAttackers.some((c) => {
+                    if (c.id === self.id) return false;
+                    const colors = colorsFromManaCost(
+                        (c.card as { manaCost?: ManaCost }).manaCost
+                    );
+                    return colors.includes("B") || colors.includes("G");
+                }),
+            oracleText:
+                "Scarred Puma can't attack unless a black or green creature also attacks.",
+        },
+    ],
+};
+
+// Searing Rays — {2}{R} Sorcery. "Choose a color. Searing Rays deals damage
+// to each player equal to the number of creatures of that color that player
+// controls." (CR 701.20 "choose a color" via a 5-mode `optionChoice` — the
+// Addle template, inv/black.ts; per player, `count` reads that player's
+// battlefield filtered by the chosen color, fed straight into `dealDamage`.)
+function searingRaysMode(color: "W" | "U" | "B" | "R" | "G", label: string) {
+    return {
+        label,
+        effects: [
+            {
+                op: "forEach" as const,
+                select: { set: "players" as const },
+                effects: [
+                    {
+                        op: "dealDamage" as const,
+                        amount: {
+                            count: {
+                                zone: "battlefield" as const,
+                                controller: { ref: "$each" },
+                                filter: { type: "Creature" as const, color },
+                            },
+                        },
+                        to: { player: { ref: "$each" } },
+                    },
+                ],
+            },
+        ],
+    };
+}
+export const searingRays: CardDefinition = {
+    id: "4f66ff2d-f2d2-4a6b-bf26-b510de60c0b6",
+    rarity: "uncommon",
+    name: "Searing Rays",
+    oracleText:
+        "Choose a color. Searing Rays deals damage to each player equal to the number of creatures of that color that player controls.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "optionChoice",
+            player: "controller",
+            prompt: "Choose a color.",
+            modes: [
+                searingRaysMode("W", "White"),
+                searingRaysMode("U", "Blue"),
+                searingRaysMode("B", "Black"),
+                searingRaysMode("R", "Red"),
+                searingRaysMode("G", "Green"),
+            ],
+        },
+    ],
+};
+
+// Shivan Harvest — {1}{R} Enchantment. "{1}{R}, Sacrifice a creature: Destroy
+// target nonbasic land." (CR 602.1/118.5 sacrifice-a-permanent activation
+// cost via `sacrificeFilter`; CR 701.8 destroy; `excludeSupertypes: "Basic"`
+// for "nonbasic land" — the Wasteland template.)
+export const shivanHarvest: CardDefinition = {
+    id: "47dbd765-d7ea-4181-bd22-5c749ad081af",
+    rarity: "uncommon",
+    name: "Shivan Harvest",
+    oracleText: "{1}{R}, Sacrifice a creature: Destroy target nonbasic land.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "shivan-harvest-destroy-land",
+            oracleText:
+                "{1}{R}, Sacrifice a creature: Destroy target nonbasic land.",
+            cost: {
+                mana: { X: 1, R: 1 },
+                sacrificeFilter: { types: "Creature" },
+            },
+            useStack: true,
+            targetRequirement: {
+                type: "Land",
+                count: 1,
+                excludeSupertypes: "Basic",
+            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
+        },
+    ],
+};
+
+// Skittish Kavu — {1}{R} Creature — Kavu, 1/1. "This creature gets +1/+1 as
+// long as no opponent controls a white or blue creature." (CR 611.2c
+// conditional CDA anthem via `pt-buff`'s `condition(source, state, ctx)` —
+// the same board-state-aware slot Zanam Djinn / Halam Djinn use for their
+// "most common color" gate, here scanning every OTHER controller's
+// battlefield for a white/blue creature.)
+export const skittishKavu: CardDefinition = {
+    id: "be806378-50a7-4416-9d99-1ea2c1f2b7cb",
+    rarity: "uncommon",
+    name: "Skittish Kavu",
+    oracleText:
+        "This creature gets +1/+1 as long as no opponent controls a white or blue creature.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 1,
+    toughness: 1,
+    staticEffects: [
+        {
+            kind: "pt-buff",
+            applies: EFFECT_AFFECTS_SELF,
+            condition: (source, state, ctx) =>
+                !state.players
+                    .flatMap((p) => p.battlefield)
+                    .some(
+                        (c) =>
+                            c.controllerId !== source.controllerId &&
+                            ctx.isCreature(c) &&
+                            (ctx.getColors(c).includes("W") ||
+                                ctx.getColors(c).includes("U"))
+                    ),
+            power: 1,
+            toughness: 1,
+        },
+    ],
+};
+
+// Skizzik — {3}{R} Creature — Elemental, 5/3. "Kicker {R}. Trample, haste. At
+// the beginning of the end step, if this creature wasn't kicked, sacrifice
+// it." (CR 702.33 Kicker, CR 702.19 trample, CR 702.10 haste. The recurring
+// "at the beginning of the end step" check collapses to a ONE-SHOT decision
+// made at ETB — behaviorally identical, since a kicked Skizzik never
+// satisfies "wasn't kicked" (the perpetual ability would be permanently
+// inert) and an unkicked Skizzik is gone after its first end step (there is
+// no second occurrence to re-check). Modeled as a self-ETB trigger reading
+// `kickerCount` (the exact Vodalian Serpent / Duskwalker ETB-kicker-read
+// idiom) that schedules a `delayedTrigger` sacrifice — the Kjeldoran Elite
+// Guard / Kjeldoran Guard `capture: { ref: "$source" }` + `sacrifice: {
+// target: { ref } }` template, ice/white.ts.)
+export const skizzik: CardDefinition = {
+    id: "dc7732bc-e168-44d9-923a-db7e985bd6db",
+    rarity: "rare",
+    name: "Skizzik",
+    oracleText:
+        "Kicker {R} (You may pay an additional {R} as you cast this spell.)\nTrample, haste\nAt the beginning of the end step, if this creature wasn't kicked, sacrifice it.",
+    manaCost: { X: 3, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Elemental"],
+    power: 5,
+    toughness: 3,
+    kicker: { cost: { R: 1 } },
+    staticAbilities: ["trample", "haste"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "skizzik-unkicked-check",
+            oracleText:
+                "At the beginning of the end step, if this creature wasn't kicked, sacrifice it.",
+            scope: "self",
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { kickerCount: true },
+                        op: "lt",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "delayedTrigger",
+                            timing: "next-end-step",
+                            oracleText:
+                                "At the beginning of the end step, sacrifice this creature.",
+                            capture: { $it: { ref: "$source" } },
+                            effects: [
+                                { op: "sacrifice", target: { ref: "$it" } },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+};
+
+// Slimy Kavu — {2}{R} Creature — Kavu, 2/2. "{T}: Target land becomes a
+// Swamp until end of turn." (CR 305.7 land-type change. NOT DSL-migratable,
+// ADR 0045 — the Orcish Farmer (ice/red.ts) / Vision Charm (vis/blue.ts)
+// precedent: a land-type change has no Effect Script Op wrapper around the
+// existing SpellContext primitive `setSubtypesUntil` (no "setSubtype" Op is
+// registered). Same execution path as both precedents — only the duration
+// differs, "until end of turn" here vs. "until its controller's next untap
+// step" / "until end of turn" there.)
+export const slimyKavu: CardDefinition = {
+    id: "8e82044d-88cd-4ee4-8ec9-e71a0a85ed46",
+    rarity: "common",
+    name: "Slimy Kavu",
+    oracleText: "{T}: Target land becomes a Swamp until end of turn.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "slimy-kavu-swamp",
+            oracleText: "{T}: Target land becomes a Swamp until end of turn.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: { type: "Land", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "permanent") return;
+                ctx.setSubtypesUntil(t, ["Swamp"], { phase: "end-of-turn" });
+            },
+        },
+    ],
+};
+
+// Stun — {1}{R} Instant. "Target creature can't block this turn. Draw a
+// card." (CR 509.1b block restriction on an ANNOUNCED target. NOT
+// DSL-migratable, ADR 0045 — the Panic precedent, ice/red.ts: no Effect
+// Script Op wraps the SpellContext primitive `setCantBlockThisTurn` (unlike
+// the permanent's-own-ability `block-restriction` staticEffect, this is a
+// one-shot targeted rider). Same execution path as Panic; only the cantrip
+// timing differs — immediate draw here vs. Panic's next-upkeep delayed
+// draw.)
+export const stun: CardDefinition = {
+    id: "d22f3ae8-a40b-4dab-abf4-3ab7b05191f7",
+    rarity: "common",
+    name: "Stun",
+    oracleText: "Target creature can't block this turn.\nDraw a card.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Creature", count: 1 },
+    resolve: (ctx: SpellContext) => {
+        const t = ctx.targets[0];
+        if (t?.type === "permanent") ctx.setCantBlockThisTurn(t);
+        ctx.drawCards(ctx.controller, 1);
+    },
+};
+
+// Tectonic Instability — {2}{R} Enchantment. "Whenever a land enters, tap
+// all lands its controller controls." (CR 603.6a ETB trigger for ANY land,
+// any controller; the `forEach` selector's `controller` field takes the
+// entering land's controller via a newly-censused `$event.controllerId` ref
+// on `PERMANENT_ENTERED` — the exact `EVENT_FIELD_REGISTRY` growth pattern
+// Collapsing Borders used for `PHASE_BEGIN.activePlayerId` above, issue
+// #1066 — then taps every land that player controls via `tapUntap`.)
+export const tectonicInstability: CardDefinition = {
+    id: "0476cc6b-ecc6-44d6-9f44-a90d4ee85daa",
+    rarity: "rare",
+    name: "Tectonic Instability",
+    oracleText:
+        "Whenever a land enters, tap all lands its controller controls.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        {
+            id: "tectonic-instability-tap",
+            oracleText:
+                "Whenever a land enters, tap all lands its controller controls.",
+            event: "PERMANENT_ENTERED",
+            matches: (event) =>
+                event.type === "PERMANENT_ENTERED" &&
+                event.types.includes("Land"),
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        controller: { ref: "$event.controllerId" },
+                        filter: { type: "Land" },
+                    },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "tap",
+                            target: { ref: "$each" },
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
+
+// Zap — {2}{R} Instant. "Zap deals 1 damage to any target. Draw a card." (CR
+// 115.4 any target, CR 120.1 damage, CR 121.1 draw.)
+export const zap: CardDefinition = {
+    id: "7502ce01-b762-40fe-a064-c7b20b08a722",
+    rarity: "common",
+    name: "Zap",
+    oracleText: "Zap deals 1 damage to any target.\nDraw a card.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "any", count: 1 },
+    effects: [
+        { op: "dealDamage", amount: 1, to: { target: 0 } },
+        { op: "draw", player: "controller", count: 1 },
+    ],
+};
+
+// Breath of Darigaaz — {1}{R} Sorcery. "Kicker {2}. Breath of Darigaaz deals
+// 1 damage to each creature without flying and each player. If this spell was
+// kicked, it deals 4 damage to each creature without flying and each player
+// instead." (CR 702.33 Kicker, CR 120.1 damage. NOT DSL-migratable, ADR 0045
+// #852 — the Earthquake precedent, lea/red.ts: "each creature without
+// flying" needs an ABILITY-EXCLUSION filter on a forEach permanents set;
+// `EffectCardFilter` is type/subtype/colour/mana-value only. Blocked on a
+// forEach ability-exclusion filter, not on the kicker branch — that's a
+// plain `ctx.getKickerCount()` read composed with the existing
+// `dealDamageToEach` primitive Earthquake already uses.)
+export const breathOfDarigaaz: CardDefinition = {
+    id: "480bb7e3-df03-454d-ada0-592ef8a4a6f0",
+    rarity: "uncommon",
+    name: "Breath of Darigaaz",
+    oracleText:
+        "Kicker {2} (You may pay an additional {2} as you cast this spell.)\nBreath of Darigaaz deals 1 damage to each creature without flying and each player. If this spell was kicked, it deals 4 damage to each creature without flying and each player instead.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Sorcery"],
+    kicker: { cost: { X: 2 } },
+    resolve: (ctx: SpellContext) => {
+        const amount = ctx.getKickerCount() > 0 ? 4 : 1;
+        ctx.dealDamageToEach(amount, {
+            creatures: { excludeAbility: "flying" },
+            players: true,
+        });
+    },
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// Deferred stubs — genuinely missing engine capability (issue #1095). Never
+// invented Ops; each cites the exact gap and the tracking issue.
+// ─────────────────────────────────────────────────────────────────────────
+
+// Ancient Kavu — {3}{R} Creature — Kavu, 3/3. "{2}: This creature becomes
+// colorless until end of turn." `setColor` is `status: "planned"` in
+// EFFECT_OP_REGISTRY (mechanicsRegistry.ts) — not yet implemented. Same gap
+// already deferred for Blind Seer (inv/blue.ts). tracked-by: #1095
+// export const ancientKavu: CardDefinition = {
+//     id: "c8ccb5d0-735b-443f-addd-8b70f5f2c60d",
+//     name: "Ancient Kavu",
+//     rarity: "common",
+//     manaCost: { X: 3, R: 1 },
+//     types: ["Creature"],
+//     subtypes: ["Kavu"],
+//     power: 3,
+//     toughness: 3,
+// };
+
+// Ghitu Fire — {X}{R} Sorcery. "You may cast this spell as though it had
+// flash if you pay {2} more to cast it. Ghitu Fire deals X damage to any
+// target." No AlternativeCost shape grants flash conditionally on paying more
+// — same gap already deferred for Breaking Wave (inv/blue.ts). tracked-by:
+// #1095
+// export const ghituFire: CardDefinition = {
+//     id: "78827acd-a526-411b-bd22-ab9b538c75dd",
+//     name: "Ghitu Fire",
+//     rarity: "rare",
+//     manaCost: { X: "X", R: 1 },
+//     types: ["Sorcery"],
+// };
+
+// Goblin Spy — {R} Creature — Goblin Rogue, 1/1. "Play with the top card of
+// your library revealed." No CardDefinition-level flag or wire-projection
+// support for a continuously-revealed library top (the projection currently
+// hides the whole library behind `{ count }`). tracked-by: #1095
+// export const goblinSpy: CardDefinition = {
+//     id: "2a89a099-8805-4b26-babd-5d9f48ee406a",
+//     name: "Goblin Spy",
+//     rarity: "uncommon",
+//     manaCost: { R: 1 },
+//     types: ["Creature"],
+//     subtypes: ["Goblin", "Rogue"],
+//     power: 1,
+//     toughness: 1,
+// };
+
+// Kavu Runner — {3}{R} Creature — Kavu, 3/3. "This creature has haste as long
+// as no opponent controls a white or blue creature." `StaticKeywordGrant`'s
+// `applies(target, source, ctx)` has no board-state parameter (unlike
+// `StaticPTBuff.condition(source, state, ctx)`, which Skittish Kavu above
+// uses for the identical "as long as no opponent controls" shape). Suggest
+// adding an optional `condition` to `StaticKeywordGrant` mirroring
+// `StaticPTBuff` — a "generalize, don't add" fix. tracked-by: #1095
+// export const kavuRunner: CardDefinition = {
+//     id: "2bc1b462-4e3c-47cc-87c5-f6e29dd70c01",
+//     name: "Kavu Runner",
+//     rarity: "uncommon",
+//     manaCost: { X: 3, R: 1 },
+//     types: ["Creature"],
+//     subtypes: ["Kavu"],
+//     power: 3,
+//     toughness: 3,
+// };
+
+// Lightning Dart — {1}{R} Instant. "Lightning Dart deals 1 damage to target
+// creature. If that creature is white or blue, Lightning Dart deals 4 damage
+// to it instead." The Effect Script `if` construct's predicate grammar is
+// frozen (ADR 0045) to boolean-binding / numeric-comparison only — no
+// "object X matches color filter Y" predicate form exists. tracked-by: #1095
+// export const lightningDart: CardDefinition = {
+//     id: "54d05157-d154-4203-bf3e-add110cb1cee",
+//     name: "Lightning Dart",
+//     rarity: "uncommon",
+//     manaCost: { X: 1, R: 1 },
+//     types: ["Instant"],
+// };
+
+// Loafing Giant — {4}{R} Creature — Giant, 4/6. "Whenever this creature
+// attacks or blocks, mill a card. If a land card was milled this way, prevent
+// all combat damage this creature would deal this turn." No "prevent damage
+// dealt BY this one permanent only" shield exists (only two-way
+// `combatDamageImmunity` / `preventAllCombatDamageToAndBy` or the global Fog
+// shield). Suggest a `direction: "to" | "by" | "both"` field on the shield.
+// tracked-by: #1095
+// export const loafingGiant: CardDefinition = {
+//     id: "fab5f738-04d0-44c9-88ec-28469b668040",
+//     name: "Loafing Giant",
+//     rarity: "rare",
+//     manaCost: { X: 4, R: 1 },
+//     types: ["Creature"],
+//     subtypes: ["Giant"],
+//     power: 4,
+//     toughness: 6,
+// };
+
+// Mages' Contest — {1}{R}{R} Instant. "You and target spell's controller bid
+// life. You start the bidding with a bid of 1. In turn order, each player may
+// top the high bid. The bidding ends if the high bid stands. The high bidder
+// loses life equal to the high bid. If you win the bidding, counter that
+// spell." No bidding protocol / pending-choice family exists. Likely needs
+// its own ADR (a new pending-choice kind), out of scope for a reuse-only free
+// tranche. tracked-by: #1095
+// export const magesContest: CardDefinition = {
+//     id: "c516861c-68d9-4d02-a343-689dba0526c6",
+//     name: "Mages' Contest",
+//     rarity: "rare",
+//     manaCost: { X: 1, R: 2 },
+//     types: ["Instant"],
+// };
+
+// Scorching Lava — {1}{R} Instant. "Kicker {R}. Scorching Lava deals 2
+// damage to any target. If this spell was kicked, that creature can't be
+// regenerated this turn and if it would die this turn, exile it instead."
+// The existing `addDestroyReplacementShield` primitive has FIXED behavior
+// (Pyramids: "remove damage, stay on battlefield"), not parametrized for
+// "exile instead"; no per-instance "can't regenerate this turn" shield
+// exists either (only the mass `cantBeRegenerated` on `destroyAll`).
+// tracked-by: #1095
+// export const scorchingLava: CardDefinition = {
+//     id: "2a85437f-052e-494c-a9ee-265c4624a409",
+//     name: "Scorching Lava",
+//     rarity: "common",
+//     manaCost: { X: 1, R: 1 },
+//     types: ["Instant"],
+// };
+
+// Turf Wound — {2}{R} Instant. "Target player can't play lands this turn.
+// Draw a card." The only existing land-play lock (`landPlayLockActive` /
+// `preventsLandPlayAndETB`) is GLOBAL (Worms of the Earth style), not scoped
+// to one player. Needs a new per-player `GameState` field (mirroring
+// `cannotCastSpellsThisTurn`) plus a `restrictLandPlay`-style Op.
+// tracked-by: #1095
+// export const turfWound: CardDefinition = {
+//     id: "91392e9f-f96a-4ac5-b1f1-c73540cf249e",
+//     name: "Turf Wound",
+//     rarity: "common",
+//     manaCost: { X: 2, R: 1 },
+//     types: ["Instant"],
+// };
