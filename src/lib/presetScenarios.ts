@@ -59,4 +59,25 @@ type PresetScenario = {
     poison?: { me?: number; opp?: number };
 };
 
-export const PRESET_SCENARIOS: PresetScenario[] = [];
+export const PRESET_SCENARIOS: PresetScenario[] = [
+    {
+        // Karmic Justice (ODY, #1054) — "Whenever a spell or ability an
+        // opponent controls destroys a noncreature permanent you control,
+        // you may destroy target permanent that opponent controls."
+        // Cast the opponent's Disenchant targeting your Mox Ruby (a
+        // noncreature permanent you control, destroyed by an opponent's
+        // spell): Karmic Justice's leave-the-battlefield trigger fires
+        // (CR 603.10) — accept the "may" and choose the opponent's Grizzly
+        // Bears to destroy it in return.
+        label: "Karmic Justice — opponent destroys your permanent, retaliate (#1054)",
+        cards: [
+            { name: "Karmic Justice", owner: "me", zone: "battlefield" },
+            { name: "Mox Ruby", owner: "me", zone: "battlefield" },
+            { name: "Disenchant", owner: "opp", zone: "hand" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 5,
+        libraryCount: 10,
+    },
+];

@@ -4392,12 +4392,28 @@ export interface PermanentLeftEvent {
     /** Destination zone of the move. */
     toZone: "graveyard" | "exile" | "hand" | "library";
     /** Why the permanent left the battlefield (CR 603.10). `"sacrifice"` is set
-     *  only when the permanent was sacrificed (CR 701.16); every other exit
-     *  (destruction, lethal-damage SBA, bounce, mill, exile) is left undefined.
-     *  Read by leave-the-battlefield triggers that must distinguish sacrifice
-     *  from other departures (Urza's Miter — "Whenever an artifact you control
-     *  is put into a graveyard, if it wasn't sacrificed, ..."). */
-    cause?: "sacrifice";
+     *  only when the permanent was sacrificed (CR 701.16); `"destroy"` (issue
+     *  #1054) is set only when the permanent was destroyed via
+     *  `SpellContext.destroy` / `destroyAll` (CR 701.8) — the replacement-aware
+     *  path in `destroyWithReplacements`/`regenerateOrDestroy`. Every other
+     *  exit (lethal-damage SBA outside a resolving spell/ability, bounce, mill,
+     *  exile) is left undefined. Read by leave-the-battlefield triggers that
+     *  must distinguish sacrifice/destruction from other departures (Urza's
+     *  Miter — "Whenever an artifact you control is put into a graveyard, if it
+     *  wasn't sacrificed, ..."; Karmic Justice — "... a spell or ability an
+     *  opponent controls DESTROYS a noncreature permanent you control ..."). */
+    cause?: "sacrifice" | "destroy";
+    /** Controller of the spell or ability that directly caused this departure
+     *  (issue #1054), when the departure was driven by a resolving spell/
+     *  ability's `SpellContext.destroy` / `destroyAll` / `sacrifice` call.
+     *  Undefined for departures with no such causer — an automatic SBA sweep
+     *  (lethal combat damage, the legend/world rule), a bounce/mill effect that
+     *  doesn't route through those primitives, or any exit not driven by a
+     *  currently-resolving spell/ability. Read by "caused by an opponent"-style
+     *  conditions (Karmic Justice, Sacred Ground) via `causedByOpponent` in
+     *  `abilities/triggers/leftTrigger.ts` — never a controller-agnostic
+     *  reader. */
+    causerControllerId?: string;
 }
 
 /** Spell-cast event emitted when a spell is put on the stack (CR 601.2i).

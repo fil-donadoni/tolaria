@@ -551,9 +551,23 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // FREE 416→417, AFK-ready 382→383, Op-blocked 220, X-only 14 (the ten
         // Triome {T}-mana closures and the DSL Miscalculation/Unearth are all
         // excluded). Partition holds: 417+14+220=651.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(651);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(417);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(383);
+        // #1054 (opponent-caused LTB/destroy trigger cause) adds Karmic Justice
+        // (ody/white.ts) and Sacred Ground (sth/white.ts) as resolve()
+        // leftTrigger closures: TriggeredAbility carries no targetRequirement
+        // (ADR 0002), so each card's "target permanent/land an opponent
+        // controls" pick is a resolution-time choose-permanents selection,
+        // which doesn't compose with the DSL's choice/destroy/returnToBattlefield
+        // Ops today (choice's bind is a picks-family binding; destroy's /
+        // returnToBattlefield's target ref needs a snapshot-family binding) —
+        // both stay resolve() with a recorded justification. Both bodies use
+        // only COVERED Ops (destroy; returnToBattlefield), so both classify
+        // FREE, and both carry a per-card test (ody/__tests__/white.test.ts,
+        // sth/__tests__/white.test.ts) so both are AFK-ready too. Total
+        // 651→653, FREE 417→419, AFK-ready 383→385, Op-blocked 220, X-only 14.
+        // Partition holds: 419+14+220=653.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(653);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(419);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(385);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(220);
     });

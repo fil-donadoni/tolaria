@@ -153,6 +153,30 @@ function passesFilter(
     );
 }
 
+/** CR 603.4 `condition` helper (issue #1054): true when this departure was
+ *  directly caused by a spell or ability an OPPONENT of `self` controls.
+ *  Requires `event.causerControllerId` to be set — populated only when the
+ *  departure was driven by a resolving spell/ability's `SpellContext.destroy`
+ *  / `destroyAll` / `sacrifice` call (never by an automatic SBA sweep, a
+ *  cost-payment sacrifice, or a bounce/mill effect) — AND to differ from
+ *  `self`'s controller, so a permanent's OWN controller destroying or
+ *  sacrificing it (even via one of their own OTHER permanents' abilities)
+ *  never satisfies this. Combine with `scope: "yours"` so `self` is the
+ *  ability's controller, matching the oracle's "a permanent YOU control" /
+ *  "an opponent" framing (Karmic Justice — "Whenever a spell or ability an
+ *  opponent controls destroys a noncreature permanent you control, ...";
+ *  Sacred Ground — "Whenever a spell or ability an opponent controls causes a
+ *  land to be put into your graveyard from the battlefield, ..."). */
+export function causedByOpponent(
+    event: PermanentLeftEvent,
+    self: PermanentView
+): boolean {
+    return (
+        event.causerControllerId !== undefined &&
+        event.causerControllerId !== self.controllerId
+    );
+}
+
 /** Builds a `TriggeredAbility` listening to `PERMANENT_LEFT` (CR 603.10).
  *  See module header for the design rationale; see ADR 0002 for the factory
  *  contract this conforms to. */
