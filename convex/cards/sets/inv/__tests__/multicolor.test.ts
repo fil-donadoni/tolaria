@@ -13,6 +13,10 @@ import {
     angelicShield,
     wingsOfHope,
     teferisMoat,
+    sleepersRobe,
+    stalkingAssassin,
+    urborgDrake,
+    vileConsumption,
 } from "../multicolor";
 import {
     makeInstance,
@@ -20,7 +24,10 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
-import { resolveTopOfStack } from "../../../../gre/state";
+import {
+    resolveTopOfStack,
+    applySourceStaticEffects,
+} from "../../../../gre/state";
 import { plains, island, swamp, mountain, forest } from "../../lea/colorless";
 import { grizzlyBears, scatheZombies } from "../../lea";
 import { registerTokenDefinition } from "../../..";
@@ -29,7 +36,13 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
-import { validateAttackerEligibility } from "../../../../gre/combat";
+import {
+    validateAttackerEligibility,
+    mustAttack,
+} from "../../../../gre/combat";
+import { effectiveTriggeredAbilities } from "../../../../gre/copy";
+import { collectTriggers } from "../../../../gre/triggers";
+import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 
 describe("Ordered Migration (CR 111 / 701.7 token creation, Domain, issue #1066)", () => {
     it("creates one 1/1 blue flying Bird per basic land type controlled", () => {
@@ -369,6 +382,329 @@ describe("Teferi's Moat (chosen-color no-fly attack lock, CR 508/509 + 603.6b)",
         // Scathe Zombies is mono-black ({B}); Teferi's Moat locked green.
         const { state, live } = setup("G", scatheZombies.id);
         expect(validateAttackerEligibility(live, [], state).eligible).toBe(
+            true
+        );
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// UB free-tranche coverage (issue #1076) — per the card-testing convention,
+// only the cards whose behavior is board-visible and NOT covered by the
+// catalogue-wide per-Op sweeps get a hand-written describe here: a
+// staticEffects[] keyword-grant (Sleeper's Robe), two board-visible
+// activatedAbilities[] (Stalking Assassin), a staticEffects[]
+// attack-requirement (Urborg Drake), and a triggered-grant continuous effect
+// (Vile Consumption). Recoil / Spinal Embrace / Undermine / Slinking
+// Serpent / Vodalian Zombie are plain `effects[]`/keyword cards reusing
+// already-exercised Ops and ride the per-Op regime (catalogue
+// `effectScripts.test.ts` static sweep + `effectScriptSmoke.test.ts`
+// canned-scenario smoke test) with no hand-written test required.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("Sleeper's Robe (fear keyword-grant + combat-damage draw, CR 702.14b / 510.4)", () => {
+    it("declares the fear keyword-grant scoped to the Aura's host", () => {
+        const grants = (sleepersRobe.staticEffects ?? [])
+            .filter((e) => e.kind === "keyword-grant")
+            .map((e) => (e as { keyword: string }).keyword);
+        expect(grants).toEqual(["fear"]);
+    });
+
+    it("triggers when the enchanted creature deals combat damage to an opponent", () => {
+        const robe = makeInstance(sleepersRobe.id, {
+            id: "robe",
+            controllerId: "p1",
+            attachedTo: "host",
+        });
+        const trigger = sleepersRobe.triggeredAbilities![0];
+        expect(
+            trigger.matches(
+                {
+                    type: "DAMAGE_DEALT",
+                    sourceInstanceId: "host",
+                    sourceControllerId: "p1",
+                    target: { type: "player", id: "p2" },
+                    amount: 2,
+                    isCombat: true,
+                },
+                robe
+            )
+        ).toBe(true);
+    });
+
+    it("does NOT trigger on non-combat damage, damage to a permanent, damage from a different source, or damage to its own controller", () => {
+        const robe = makeInstance(sleepersRobe.id, {
+            id: "robe",
+            controllerId: "p1",
+            attachedTo: "host",
+        });
+        const trigger = sleepersRobe.triggeredAbilities![0];
+        const base = {
+            type: "DAMAGE_DEALT" as const,
+            sourceInstanceId: "host",
+            sourceControllerId: "p1",
+            target: { type: "player" as const, id: "p2" },
+            amount: 2,
+            isCombat: true,
+        };
+        expect(trigger.matches({ ...base, isCombat: false }, robe)).toBe(false);
+        expect(
+            trigger.matches(
+                {
+                    ...base,
+                    target: { type: "permanent" as const, id: "p2creature" },
+                },
+                robe
+            )
+        ).toBe(false);
+        expect(
+            trigger.matches({ ...base, sourceInstanceId: "other" }, robe)
+        ).toBe(false);
+        expect(
+            trigger.matches(
+                { ...base, target: { type: "player" as const, id: "p1" } },
+                robe
+            )
+        ).toBe(false);
+    });
+
+    it("resolves the may-draw effect: accepting draws a card", () => {
+        const host = makeInstance(grizzlyBears.id, {
+            id: "host",
+            controllerId: "p1",
+        });
+        const robe = makeInstance(sleepersRobe.id, {
+            id: "robe",
+            controllerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [host, robe],
+                    library: [makeInstance(plains.id, { id: "lib-1" })],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...robe,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "sleepers-robe-combat-damage-draw",
+            triggerSourceId: robe.id,
+            triggerEvent: {
+                type: "DAMAGE_DEALT",
+                sourceInstanceId: "host",
+                sourceControllerId: "p1",
+                target: { type: "player", id: "p2" },
+                amount: 2,
+                isCombat: true,
+            } as never,
+            targets: [],
+        });
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on mayPay
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.players[0].hand).toHaveLength(1);
+    });
+});
+
+describe("Stalking Assassin (two tap-cost activated abilities, CR 605 / 701.26 / 701.8)", () => {
+    function setup() {
+        const assassin = makeInstance(stalkingAssassin.id, {
+            id: "assassin",
+            controllerId: "p1",
+        });
+        const foe = makeInstance(grizzlyBears.id, {
+            id: "foe",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [assassin] }),
+                makePlayer("p2", { battlefield: [foe] }),
+            ],
+        });
+        return { state };
+    }
+
+    it("{3}{U}, {T}: taps target creature", () => {
+        const { state } = setup();
+        const assassin = state.players[0].battlefield[0];
+        state.stack.push({
+            ...assassin,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "stalking-assassin-tap",
+            targets: [{ type: "permanent", id: "foe" }],
+        });
+        resolveTopOfStack(state);
+        const foe = state.players[1].battlefield.find((c) => c.id === "foe")!;
+        expect(foe.isTapped).toBe(true);
+    });
+
+    it("{3}{B}, {T}: destroys target TAPPED creature", () => {
+        const { state } = setup();
+        const assassin = state.players[0].battlefield[0];
+        state.players[1].battlefield[0].isTapped = true;
+        state.stack.push({
+            ...assassin,
+            zone: "stack",
+            castById: "p1",
+            abilityId: "stalking-assassin-destroy",
+            targets: [{ type: "permanent", id: "foe" }],
+        });
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.some((c) => c.id === "foe")).toBe(
+            false
+        );
+        expect(state.players[1].graveyard.some((c) => c.id === "foe")).toBe(
+            true
+        );
+    });
+
+    it("the destroy ability's target requirement is filtered to TAPPED creatures only", () => {
+        const destroyAbility = stalkingAssassin.activatedAbilities!.find(
+            (a) => a.id === "stalking-assassin-destroy"
+        )!;
+        expect(destroyAbility.targetRequirement?.tappedFilter).toBe("tapped");
+    });
+});
+
+describe("Urborg Drake (flying + attacks-each-combat-if-able, CR 702.9b / 508.1d)", () => {
+    it("has flying and a declared attack-requirement static effect", () => {
+        expect(urborgDrake.staticAbilities).toContain("flying");
+        expect(
+            (urborgDrake.staticEffects ?? []).some(
+                (e) => e.kind === "attack-requirement"
+            )
+        ).toBe(true);
+    });
+
+    it("mustAttack is true when eligible, false when tapped or summoning sick", () => {
+        const drake = makeInstance(urborgDrake.id, { id: "drake" });
+        expect(mustAttack(drake)).toBe(true);
+        expect(mustAttack({ ...drake, isTapped: true })).toBe(false);
+        expect(mustAttack({ ...drake, isSummoningSick: true })).toBe(false);
+    });
+});
+
+describe("Vile Consumption (triggered-grant to every creature, CR 113.1/611 + upkeep pay-or-sacrifice)", () => {
+    function withVileConsumption(creatureController: "p1" | "p2" = "p1") {
+        const vc = makeInstance(vileConsumption.id, {
+            id: "vc",
+            controllerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: creatureController,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield:
+                        creatureController === "p1" ? [vc, bear] : [vc],
+                }),
+                makePlayer("p2", {
+                    battlefield: creatureController === "p2" ? [bear] : [],
+                }),
+            ],
+        });
+        applySourceStaticEffects(state, vc);
+        return { state, vc, bear };
+    }
+
+    it("declares a triggered-grant static and the granted template (not on triggeredAbilities)", () => {
+        const kinds = (vileConsumption.staticEffects ?? []).map((e) => e.kind);
+        expect(kinds).toContain("triggered-grant");
+        expect(vileConsumption.triggeredAbilities ?? []).toHaveLength(0);
+        expect(
+            vileConsumption.triggeredGrantTemplates?.some(
+                (t) => t.id === "vile-consumption-upkeep"
+            )
+        ).toBe(true);
+    });
+
+    it("grants the upkeep tax to every creature in play, either player's", () => {
+        const { bear } = withVileConsumption("p2");
+        expect(
+            effectiveTriggeredAbilities(bear).some(
+                (a) => a.id === "vile-consumption-upkeep"
+            )
+        ).toBe(true);
+    });
+
+    it("does NOT grant the tax to a non-creature (Vile Consumption itself stays untaxed)", () => {
+        const { vc } = withVileConsumption();
+        expect(
+            effectiveTriggeredAbilities(vc).some(
+                (a) => a.id === "vile-consumption-upkeep"
+            )
+        ).toBe(false);
+    });
+
+    it("fires the granted trigger at the creature controller's own upkeep (scope: your)", () => {
+        const { state, bear } = withVileConsumption("p1");
+        const triggers = collectTriggers(state, [
+            {
+                type: "PHASE_BEGIN",
+                phase: "UPKEEP",
+                activePlayerId: "p1",
+            } as never,
+        ]);
+        expect(
+            triggers.some(
+                (t) =>
+                    t.triggeredAbilityId === "vile-consumption-upkeep" &&
+                    t.triggerSourceId === bear.id
+            )
+        ).toBe(true);
+        expect(
+            collectTriggers(state, [
+                {
+                    type: "PHASE_BEGIN",
+                    phase: "UPKEEP",
+                    activePlayerId: "p2",
+                } as never,
+            ]).some((t) => t.triggeredAbilityId === "vile-consumption-upkeep")
+        ).toBe(false);
+    });
+
+    it("paying 1 life keeps the creature (CR 118.4)", () => {
+        const { state } = withVileConsumption("p1");
+        state.stack.push(
+            ...collectTriggers(state, [
+                {
+                    type: "PHASE_BEGIN",
+                    phase: "UPKEEP",
+                    activePlayerId: "p1",
+                } as never,
+            ])
+        );
+        expect(resolveTopOfStack(state)).toBeNull();
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        expect(state.players[0].battlefield.some((c) => c.id === "bear")).toBe(
+            true
+        );
+        expect(state.players[0].life).toBe(19);
+    });
+
+    it("declining sacrifices the creature (CR 701.16)", () => {
+        const { state } = withVileConsumption("p1");
+        state.stack.push(
+            ...collectTriggers(state, [
+                {
+                    type: "PHASE_BEGIN",
+                    phase: "UPKEEP",
+                    activePlayerId: "p1",
+                } as never,
+            ])
+        );
+        expect(resolveTopOfStack(state)).toBeNull();
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.players[0].battlefield.some((c) => c.id === "bear")).toBe(
+            false
+        );
+        expect(state.players[0].graveyard.some((c) => c.id === "bear")).toBe(
             true
         );
     });

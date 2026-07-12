@@ -499,3 +499,394 @@ export const wingsOfHope: CardDefinition = {
 // value back into a `gainLife` amount. Needs `digToHand` extended with an
 // optional `destination` + `bind`, mirroring how `scryReorder` already has a
 // `destination` discriminator for its own non-kept cards.)
+
+// ─────────────────────────────────────────────────────────────────────────
+// Free tranche — UB (issue #1076, parent PRD #1063)
+// ─────────────────────────────────────────────────────────────────────────
+
+// Recoil — {1}{U}{B} Instant. "Return target permanent to its owner's hand.
+// Then that player discards a card." (CR 400.7 zone change, CR 701.9
+// discard.) `moveZone`'s `bind` snapshots the bounced permanent's CONTROLLER
+// before it leaves the battlefield (the same LKI snapshot Swords to
+// Plowshares reads its target's power/controller from, `lea/white.ts`); the
+// trailing `choice`(`choose-hand-card`) + `discard` pair reads that snapshot
+// as "that player" — the shipped choose-then-discard shape (issue #805),
+// just scoped to the chooser's OWN hand instead of an opponent's.
+// FLAGGED SIMPLIFICATION: `moveZone`'s bind captures the target's
+// CONTROLLER, not its OWNER — identical in every case this engine can reach
+// today (no shipped effect leaves a permanent under a non-owner's control
+// AND still targetable by Recoil), but not the same selector CR 400.7
+// technically calls for ("return … to its OWNER's hand … that player
+// discards"). No `{ ownerOf }` `EffectPlayerRef` variant exists yet; flagged
+// rather than silently assumed away.
+export const recoil: CardDefinition = {
+    id: "b6a77be3-e3b0-40f5-a470-414bac49da60",
+    rarity: "common",
+    name: "Recoil",
+    oracleText:
+        "Return target permanent to its owner's hand. Then that player discards a card.",
+    manaCost: { X: 1, U: 1, B: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: ["Artifact", "Creature", "Enchantment", "Land"],
+        count: 1,
+    },
+    effects: [
+        {
+            op: "moveZone",
+            target: { target: 0 },
+            to: "hand",
+            bind: "$bounced",
+        },
+        {
+            op: "choice",
+            kind: "choose-hand-card",
+            player: { ref: "$bounced.controller" },
+            zone: "hand",
+            count: 1,
+            prompt: "Discard a card (Recoil)",
+            bind: "$picked",
+        },
+        {
+            op: "discard",
+            player: { ref: "$bounced.controller" },
+            cards: { ref: "$picked" },
+        },
+    ],
+};
+
+// Sleeper's Robe — {U}{B} Enchantment — Aura. "Enchant creature. Enchanted
+// creature has fear. Whenever enchanted creature deals combat damage to an
+// opponent, you may draw a card." (CR 702.14b fear via `keyword-grant`
+// scoped to the Aura's host (`AURA_AFFECTS_HOST`, precedent Sleeper's
+// Robe-shaped grants throughout the catalogue); CR 510.4/603.2 combat-damage
+// trigger.) The damage trigger is a RAW `triggeredAbilities[]` entry (not
+// the `damageDealtTrigger` factory, which only offers `source: "self" /
+// "yours" / "opponents" / "any"` — none of which express "the damage SOURCE
+// is this Aura's HOST", since the Aura itself never deals damage) — a direct
+// DSL `matches` closure keyed on `self.attachedTo`, mirroring how Riptide
+// Crab (this same file) bypassed the resolve()-only `diedTrigger` factory
+// for an analogous reason. The optional draw is a cost-free `mayPay` (issue
+// #680) + `if` on its own outcome — no new Op.
+export const sleepersRobe: CardDefinition = {
+    id: "3411f0fd-8b85-4d0d-a202-701a24ffac9f",
+    rarity: "uncommon",
+    name: "Sleeper's Robe",
+    oracleText:
+        "Enchant creature\nEnchanted creature has fear. (It can't be blocked except by artifact creatures and/or black creatures.)\nWhenever enchanted creature deals combat damage to an opponent, you may draw a card.",
+    manaCost: { U: 1, B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        { kind: "keyword-grant", applies: AURA_AFFECTS_HOST, keyword: "fear" },
+    ],
+    triggeredAbilities: [
+        {
+            id: "sleepers-robe-combat-damage-draw",
+            oracleText:
+                "Whenever enchanted creature deals combat damage to an opponent, you may draw a card.",
+            event: "DAMAGE_DEALT",
+            matches: (event, self) =>
+                event.type === "DAMAGE_DEALT" &&
+                self.attachedTo !== undefined &&
+                event.sourceInstanceId === self.attachedTo &&
+                event.isCombat &&
+                event.target.type === "player" &&
+                event.target.id !== self.controllerId,
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    prompt: "Draw a card (Sleeper's Robe)?",
+                    bind: "$draw",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$draw" },
+                    then: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
+        },
+    ],
+};
+
+// Slinking Serpent — {2}{U}{B} Creature — Serpent, 2/3. "Forestwalk." (CR
+// 702.15b landwalk.) Pure data — a vanilla body with one printed keyword.
+export const slinkingSerpent: CardDefinition = {
+    id: "070a7004-5a28-4ccb-8640-ad6b07b51ece",
+    rarity: "uncommon",
+    name: "Slinking Serpent",
+    oracleText:
+        "Forestwalk (This creature can't be blocked as long as defending player controls a Forest.)",
+    manaCost: { X: 2, U: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Serpent"],
+    power: 2,
+    toughness: 3,
+    staticAbilities: ["forestwalk"],
+};
+
+// Spinal Embrace — {3}{U}{U}{B} Instant. "Cast this spell only during
+// combat. Untap target creature you don't control and gain control of it.
+// It gains haste until end of turn. At the beginning of the next end step,
+// sacrifice it. If you do, you gain life equal to its toughness." (CR 601.3e
+// cast-timing restriction via `castPhaseRestriction`, spanning every combat
+// step, precedent Chaotic Strike `inv/red.ts`; CR 701.26 untap; CR 613.1b
+// control change via `gainControl` with NO `duration` — an INDEFINITE
+// reassignment, since the delayed trigger below removes the creature by
+// sacrifice rather than a control-reversion condition; CR 611.1b temporary
+// keyword grant for haste; CR 603.7 delayed trigger, ADR 0048.) The delayed
+// body's `capture: { $creature: { target: 0 } }` carries only the
+// INSTANCE ID across scheduling → fire (`resolveCaptureSource`); at FIRE
+// TIME `runDelayedTriggerBody` re-snapshots the live permanent via
+// `bindSnapshot` — so `$creature.toughness` reads the CURRENT toughness at
+// the moment of sacrifice (CR 608.2h last-known information taken at the
+// right instant), not a stale cast-time value. "If you do" is expressed by
+// the shared existence gate: when the creature has already left the
+// battlefield by fire time, the capture never binds and both the
+// `sacrifice` and the following `gainLife` skip (CR 608.2b) — exactly
+// "if you do" with no separate boolean needed, the same reasoning
+// Swords to Plowshares' bind-then-read pair already relies on.
+export const spinalEmbrace: CardDefinition = {
+    id: "692ad1eb-62a3-4560-bf8e-35f7db73c7a3",
+    rarity: "rare",
+    name: "Spinal Embrace",
+    oracleText:
+        "Cast this spell only during combat.\nUntap target creature you don't control and gain control of it. It gains haste until end of turn. At the beginning of the next end step, sacrifice it. If you do, you gain life equal to its toughness.",
+    manaCost: { X: 3, U: 2, B: 1 },
+    types: ["Instant"],
+    castPhaseRestriction: [
+        "BEGINNING_OF_COMBAT",
+        "DECLARE_ATTACKERS",
+        "DECLARE_BLOCKERS",
+        "FIRST_STRIKE_DAMAGE",
+        "COMBAT_DAMAGE",
+        "END_OF_COMBAT",
+    ],
+    targetRequirement: { type: "Creature", count: 1, controller: "opponent" },
+    effects: [
+        { op: "tapUntap", action: "untap", target: { target: 0 } },
+        {
+            op: "gainControl",
+            target: { target: 0 },
+            controller: "controller",
+        },
+        {
+            op: "grantAbility",
+            ability: "haste",
+            target: { target: 0 },
+            duration: { phase: "end-of-turn" },
+        },
+        {
+            op: "delayedTrigger",
+            timing: "next-end-step",
+            oracleText:
+                "At the beginning of the next end step, sacrifice it. If you do, you gain life equal to its toughness.",
+            capture: { $creature: { target: 0 } },
+            effects: [
+                { op: "sacrifice", target: { ref: "$creature" } },
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: { ref: "$creature.toughness" },
+                },
+            ],
+        },
+    ],
+};
+
+// Stalking Assassin — {1}{U}{B} Creature — Human Assassin, 1/1. "{3}{U},
+// {T}: Tap target creature. {3}{B}, {T}: Destroy target tapped creature."
+// (CR 605 activated ability; CR 701.26 tap; CR 701.8 destroy filtered by
+// `tappedFilter`.) Two independent tap-cost activated abilities, exact
+// precedent pair Samite Archer (this same file).
+export const stalkingAssassin: CardDefinition = {
+    id: "ff8cc71f-3070-497f-908f-35aa13a8a857",
+    rarity: "rare",
+    name: "Stalking Assassin",
+    oracleText:
+        "{3}{U}, {T}: Tap target creature.\n{3}{B}, {T}: Destroy target tapped creature.",
+    manaCost: { X: 1, U: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Assassin"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "stalking-assassin-tap",
+            oracleText: "{3}{U}, {T}: Tap target creature.",
+            cost: { mana: { X: 3, U: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
+        },
+        {
+            id: "stalking-assassin-destroy",
+            oracleText: "{3}{B}, {T}: Destroy target tapped creature.",
+            cost: { mana: { X: 3, B: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                tappedFilter: "tapped",
+            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
+        },
+    ],
+};
+
+// Undermine — {U}{U}{B} Instant. "Counter target spell. Its controller
+// loses 3 life." (CR 701.5a counter, CR 119.3b life loss.) A plain two-Op
+// sequence, exact precedent shape Absorb (this same file) with `loseLife`
+// in place of `gainLife` and `{ controllerOf }` in place of the resolving
+// controller.
+export const undermine: CardDefinition = {
+    id: "2334bc71-5f85-47ff-b393-601a1e746a4e",
+    rarity: "rare",
+    name: "Undermine",
+    oracleText: "Counter target spell. Its controller loses 3 life.",
+    manaCost: { U: 2, B: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "spell", count: 1 },
+    effects: [
+        { op: "counter", target: { target: 0 } },
+        {
+            op: "loseLife",
+            player: { controllerOf: { target: 0 } },
+            amount: 3,
+        },
+    ],
+};
+
+// Urborg Drake — {1}{U}{B} Creature — Drake, 2/3. "Flying. This creature
+// attacks each combat if able." (CR 702.9b flying; CR 508.1d attack
+// requirement via `staticEffects[]`, precedent Juggernaut `lea/colorless.ts`
+// / Sengir Autocrat's counterpart `lea/black.ts`.)
+export const urborgDrake: CardDefinition = {
+    id: "97d1327e-bf87-423f-8a04-8124e45b9ae0",
+    rarity: "uncommon",
+    name: "Urborg Drake",
+    oracleText: "Flying\nThis creature attacks each combat if able.",
+    manaCost: { X: 1, U: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Drake"],
+    power: 2,
+    toughness: 3,
+    staticAbilities: ["flying"],
+    staticEffects: [
+        {
+            kind: "attack-requirement",
+            id: "urborg-drake-attacks-if-able",
+            oracleText: "Urborg Drake attacks each combat if able.",
+        },
+    ],
+};
+
+// Vile Consumption — {1}{U}{B} Enchantment. "All creatures have 'At the
+// beginning of your upkeep, sacrifice this creature unless you pay 1
+// life.'" (CR 113.1/611 `triggered-grant` static effect granting a templated
+// upkeep trigger to EVERY creature — either player's — exact precedent The
+// Tabernacle at Pendrell Vale (`leg/colorless.ts`), generalized from a mana
+// cost to a life cost.) UNLIKE Tabernacle's shared
+// `payOrSacrificeUpkeepTrigger` factory (which is `resolve()`-only and takes
+// a `ManaCost`, not a life payment), the granted template here is written as
+// a RAW `TriggeredAbility` with `effects: EffectOp[]` — `mayPay(cost: {
+// life: 1 })` + `if` + `sacrifice($source)` — so the grant stays DSL-first
+// (ADR 0045) rather than reaching for a resolve()-only helper for a shape
+// that already has full Op coverage. `$source` inside a GRANTED ability's
+// body resolves to the CARRYING creature (the trigger collector scans/
+// resolves `triggeredGrantTemplates` "as if printed on the target",
+// `gre/state.ts`), not Vile Consumption itself — each creature's own
+// controller decides at their own upkeep (CR 603.3b independent per-source
+// triggers).
+export const vileConsumption: CardDefinition = {
+    id: "7f7e5716-77f3-45d2-a40a-f5bf500f6ad7",
+    rarity: "rare",
+    name: "Vile Consumption",
+    oracleText:
+        'All creatures have "At the beginning of your upkeep, sacrifice this creature unless you pay 1 life."',
+    manaCost: { X: 1, U: 1, B: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "triggered-grant",
+            applies: (target: PermanentView) =>
+                target.types.includes("Creature"),
+            abilityId: "vile-consumption-upkeep",
+        },
+    ],
+    triggeredGrantTemplates: [
+        {
+            id: "vile-consumption-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, sacrifice this creature unless you pay 1 life.",
+            event: "PHASE_BEGIN",
+            matches: (event, self) =>
+                event.type === "PHASE_BEGIN" &&
+                event.phase === "UPKEEP" &&
+                event.activePlayerId === self.controllerId,
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    cost: { life: 1 },
+                    prompt: "Pay 1 life or sacrifice this creature (Vile Consumption)?",
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [{ op: "sacrifice", target: { ref: "$source" } }],
+                },
+            ],
+        },
+    ],
+};
+
+// Vodalian Zombie — {U}{B} Creature — Merfolk Zombie, 2/2. "Protection from
+// green." (CR 702.16 protection.) Pure data — a vanilla body with one
+// printed keyword.
+export const vodalianZombie: CardDefinition = {
+    id: "f30a5a06-32ce-4d71-b71f-e3e1d8d4511a",
+    rarity: "common",
+    name: "Vodalian Zombie",
+    oracleText: "Protection from green",
+    manaCost: { U: 1, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Merfolk", "Zombie"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["protection from green"],
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// Deferred (engine capability gaps) — UB (issue #1076)
+// ─────────────────────────────────────────────────────────────────────────
+
+// Barrin's Spite — {2}{U}{B} Sorcery. "Choose two target creatures
+// controlled by the same player. Their controller chooses and sacrifices
+// one of them. Return the other to its owner's hand." tracked-by: #1104 (no
+// `TargetRequirement` field expresses a constraint BETWEEN two announced
+// target slots — only per-slot filters against the CASTER exist. The
+// consequence half is otherwise free: `optionChoice` with `player: {
+// controllerOf: { target: 0 } }` and two modes — sac target 0 / bounce
+// target 1, or vice versa — composes entirely from shipped Ops. Only the
+// "controlled by the same player" TARGETING constraint is missing.)
+
+// Lobotomy — {2}{U}{B} Sorcery. "Target player reveals their hand, then you
+// choose a card other than a basic land card from it. Search that player's
+// graveyard, hand, and library for all cards with the same name as the
+// chosen card and exile them. Then that player shuffles." tracked-by: #1104
+// (`EffectCardFilter.name` matches only a literal string — there is no way
+// to filter by a NAME READ BACK from an earlier `choice` pick, and no single
+// Op sweeps graveyard + hand + library simultaneously for a name match.)
+
+// Seer's Vision — {2}{U}{B} Enchantment. "Your opponents play with their
+// hands revealed. Sacrifice this enchantment: Look at target player's hand
+// and choose a card from it. That player discards that card. Activate only
+// as a sorcery." tracked-by: #1104 (no primitive tracks a PERSISTENT
+// "plays with hand revealed" continuous condition — `reveal` is a one-shot
+// Op, not a continuous one. Same root-cause gap already flagged inline,
+// uncommented, for Enduring Renewal `ice/white.ts`, issue #628 — never
+// given its own tracking issue until now.)
