@@ -188,6 +188,7 @@ function compactCard(
     }
     if (card.mustBlockAllThisTurn) out.mustBlockAllThisTurn = true;
     if (card.cantBlockThisTurn) out.cantBlockThisTurn = true;
+    if (card.cantAttackThisTurn) out.cantAttackThisTurn = true;
     if (card.cantBeBlockedThisTurn) out.cantBeBlockedThisTurn = true;
     if (card.cantBeBlockedBySubtypesThisTurn?.length) {
         out.cantBeBlockedBySubtypesThisTurn =
@@ -413,6 +414,7 @@ function expandCard(
     }
     if (compact.mustBlockAllThisTurn) result.mustBlockAllThisTurn = true;
     if (compact.cantBlockThisTurn) result.cantBlockThisTurn = true;
+    if (compact.cantAttackThisTurn) result.cantAttackThisTurn = true;
     if (compact.cantBeBlockedThisTurn) result.cantBeBlockedThisTurn = true;
     if (compact.cantBeBlockedBySubtypesThisTurn) {
         result.cantBeBlockedBySubtypesThisTurn =

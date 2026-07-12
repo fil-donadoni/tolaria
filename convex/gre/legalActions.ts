@@ -297,6 +297,13 @@ function choiceActions(
         return (head.options ?? []).map((o) => submit([o.id]));
     }
 
+    // ADR 0053 (pile division) — pick a pile: exactly one of "A" / "B". Both
+    // are always legal regardless of pile contents (an empty pile is a legal
+    // choice — CR doesn't forbid choosing an empty pile).
+    if (head.kind === "pick-pile") {
+        return (["A", "B"] as const).map((id) => submit([id]));
+    }
+
     // CR 115.4 — "any target" damage-target pick: one of the damageable
     // permanents (`candidateIds`) or players (`candidatePlayerIds`).
     if (head.kind === "choose-damage-target") {

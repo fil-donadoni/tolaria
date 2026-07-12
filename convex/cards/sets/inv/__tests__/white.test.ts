@@ -13,7 +13,9 @@ import { describe, it, expect } from "vitest";
 import {
     alabasterLeech,
     crusadingKnight,
+    deathOrGlory,
     divinePresence,
+    fightOrFlight,
     harshJudgment,
     liberate,
     restrain,
@@ -43,7 +45,10 @@ import {
     getCostModifiers,
     normalizeManaCost,
     resolveTopOfStack,
+    type GameState,
 } from "../../../../gre/state";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { validateAttackerEligibility } from "../../../../gre/combat";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -615,5 +620,211 @@ describe("Liberate (CR 603.7a exile + next-end-step return, flicker idiom)", () 
         expect(
             state.players[0].exile.find((c) => c.id === "mine")
         ).toBeUndefined();
+    });
+});
+
+describe("Death or Glory (CR 406 exile / 400.7 reanimation, ADR 0053 pile division, issue #1067)", () => {
+    it("divides the caster's own graveyard creatures; an opponent chooses the exiled pile; the other returns to the battlefield", () => {
+        const graveyard = ["dg-1", "dg-2", "dg-3"].map((id) =>
+            makeInstance(savannahLions.id, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+            })
+        );
+        const state = makeState({
+            players: [makePlayer("p1", { graveyard }), makePlayer("p2")],
+        });
+        pushSpell(state, deathOrGlory.id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended
+
+        const divide = state.pendingChoices![0];
+        expect(divide.kind).toBe("divide-piles");
+        expect(divide.playerId).toBe("p1"); // the caster divides their OWN graveyard
+        expect(divide.zone).toBe("graveyard");
+        expect(divide.candidateIds?.slice().sort()).toEqual([
+            "dg-1",
+            "dg-2",
+            "dg-3",
+        ]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: divide.stackItemId,
+            step: divide.step,
+            choiceId: divide.choiceId,
+            cardInstanceIds: ["dg-1"],
+        });
+
+        const pick = state.pendingChoices![0];
+        expect(pick.kind).toBe("pick-pile");
+        expect(pick.playerId).toBe("p2"); // an opponent chooses
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: pick.stackItemId,
+            step: pick.step,
+            choiceId: pick.choiceId,
+            cardInstanceIds: ["A"],
+        });
+
+        expect(state.players[0].exile.map((c) => c.id)).toEqual(["dg-1"]);
+        expect(state.players[0].battlefield.map((c) => c.id).sort()).toEqual([
+            "dg-2",
+            "dg-3",
+        ]);
+        expect(
+            state.players[0].graveyard.some(
+                (c) => c.id === "dg-2" || c.id === "dg-3"
+            )
+        ).toBe(false);
+    });
+
+    it("only creature cards in the graveyard are divided (a noncreature card is untouched)", () => {
+        const creature = makeInstance(savannahLions.id, {
+            id: "dg-creature",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const land = makeInstance(plains.id, {
+            id: "dg-land",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [creature, land] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, deathOrGlory.id, "p1");
+        resolveTopOfStack(state);
+        const divide = state.pendingChoices![0];
+        expect(divide.candidateIds).toEqual(["dg-creature"]);
+    });
+});
+
+describe("Fight or Flight (CR 603.6a combat-begin trigger / 508.1a attack restriction, ADR 0053 pile division, issue #1067)", () => {
+    function fireCombatBegin(
+        state: GameState,
+        source: ReturnType<typeof makeInstance>,
+        activePlayerId: string
+    ) {
+        state.stack.push({
+            ...source,
+            zone: "stack",
+            castById: source.controllerId,
+            triggeredAbilityId: "fight-or-flight-divide",
+            triggerSourceId: source.id,
+            triggerEvent: {
+                type: "PHASE_BEGIN",
+                phase: "BEGINNING_OF_COMBAT",
+                activePlayerId,
+            },
+            targets: [],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("divides the OPPONENT's creatures on their combat (scope: opponents); the opponent chooses; the OTHER pile can't attack", () => {
+        const enchantment = makeInstance(fightOrFlight.id, {
+            id: "fof",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const creatures = ["fof-1", "fof-2"].map((id) =>
+            makeInstance(savannahLions.id, {
+                id,
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [enchantment] }),
+                makePlayer("p2", { battlefield: creatures }),
+            ],
+        });
+        fireCombatBegin(state, enchantment, "p2");
+        const divide = state.pendingChoices![0];
+        expect(divide.kind).toBe("divide-piles");
+        // Divider stays the enchantment's controller (`"controller"`, fixed)
+        // regardless of scope; the object set is the ACTIVE player's (p2's)
+        // creatures.
+        expect(divide.playerId).toBe("p1");
+        expect(divide.zoneOwnerId).toBe("p2");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: divide.stackItemId,
+            step: divide.step,
+            choiceId: divide.choiceId,
+            cardInstanceIds: ["fof-1"],
+        });
+
+        const pick = state.pendingChoices![0];
+        expect(pick.kind).toBe("pick-pile");
+        // The chooser is the active player (p2), read via $event, not a
+        // plain "opponent" (which would wrongly resolve to p1 here).
+        expect(pick.playerId).toBe("p2");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: pick.stackItemId,
+            step: pick.step,
+            choiceId: pick.choiceId,
+            cardInstanceIds: ["A"], // choose pile A (fof-1) — may attack
+        });
+
+        const chosen = state.players[1].battlefield.find(
+            (c) => c.id === "fof-1"
+        )!;
+        const other = state.players[1].battlefield.find(
+            (c) => c.id === "fof-2"
+        )!;
+        expect(chosen.cantAttackThisTurn).toBeUndefined();
+        expect(validateAttackerEligibility(chosen).eligible).toBe(true);
+        expect(other.cantAttackThisTurn).toBe(true);
+        expect(validateAttackerEligibility(other).eligible).toBe(false);
+    });
+
+    it("survives the wire projection (cantAttackThisTurn crosses the wire)", () => {
+        const enchantment = makeInstance(fightOrFlight.id, {
+            id: "fof-wire",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const creature = makeInstance(savannahLions.id, {
+            id: "fof-wire-creature",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [enchantment] }),
+                makePlayer("p2", { battlefield: [creature] }),
+            ],
+        });
+        fireCombatBegin(state, enchantment, "p2");
+        const divide = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: divide.stackItemId,
+            step: divide.step,
+            choiceId: divide.choiceId,
+            cardInstanceIds: [], // pile A empty — the creature lands in pile B
+        });
+        const pick = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: pick.stackItemId,
+            step: pick.step,
+            choiceId: pick.choiceId,
+            cardInstanceIds: ["A"], // choose the (empty) pile A — B can't attack
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "fof-wire-creature"
+        );
+        expect(slim?.cantAttackThisTurn).toBe(true);
     });
 });

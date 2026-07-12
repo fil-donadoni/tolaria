@@ -1918,6 +1918,11 @@ export function finalizeCleanup(state: GameState): void {
             if (card.cantBlockThisTurn) {
                 card.cantBlockThisTurn = undefined;
             }
+            // CR 508.1a (ADR 0053) — "can't attack this turn" (Fight or
+            // Flight's unchosen pile) is turn-scoped.
+            if (card.cantAttackThisTurn) {
+                card.cantAttackThisTurn = undefined;
+            }
             // CR 509.1b — "can't be blocked this turn" (Tawnos's Wand) is
             // turn-scoped.
             if (card.cantBeBlockedThisTurn) {

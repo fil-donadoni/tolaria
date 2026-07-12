@@ -149,4 +149,26 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Fact or Fiction — pile division (ADR 0053, issue #1067). Cast Fact
+        // or Fiction with a stocked library so the top 5 reveal + divide (by
+        // the opponent, "opp") + choose (by the caster, "me") + hand/graveyard
+        // split all play out. `libraryCount` is intentionally UNSET (mirrors the
+        // Gaea's Blessing scenario above) — it resets the library AFTER seeding,
+        // which would wipe these 5 explicit cards. Exactly 5 distinct library
+        // entries are seeded instead so the whole revealed top-5 set is observable.
+        label: "Fact or Fiction (#1067) — pile division divide-then-choose",
+        cards: [
+            { name: "Fact or Fiction", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 4 },
+            { name: "Grizzly Bears", owner: "me", zone: "library" },
+            { name: "Lightning Bolt", owner: "me", zone: "library" },
+            { name: "Opt", owner: "me", zone: "library" },
+            { name: "Grizzly Bears", owner: "me", zone: "library" },
+            { name: "Lightning Bolt", owner: "me", zone: "library" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];

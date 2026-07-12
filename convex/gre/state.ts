@@ -616,6 +616,11 @@ export type CardInstanceState = {
      *  Twin of `mustBlockAllThisTurn`. Set by Ydwen Efreet's lost block
      *  flip; enforced in `validateBlockerEligibility`. Cleared at CLEANUP. */
     cantBlockThisTurn?: boolean;
+    /** Transient flag: this creature can't attack this turn (CR 508.1a,
+     *  ADR 0053 pile division). The attack-side twin of `cantBlockThisTurn`.
+     *  Set on the unchosen pile by Fight or Flight; enforced in
+     *  `validateAttackerEligibility`. Cleared at CLEANUP. */
+    cantAttackThisTurn?: boolean;
     /** Transient flag: this creature can't be blocked this turn (CR 509.1b).
      *  Set on an attacker by Tawnos's Wand ("target creature with power 2 or
      *  less can't be blocked this turn"). Read by `validateBlockerEligibility`
@@ -1381,6 +1386,7 @@ import type {
     OptionChoiceKind,
     NameCardChoiceKind,
     RandomRevealKind,
+    DividePilesKind,
     RandomKind,
     RealizedOutcome,
     PendingChoiceKind,
@@ -1395,6 +1401,7 @@ export type {
     OptionChoiceKind,
     NameCardChoiceKind,
     RandomRevealKind,
+    DividePilesKind,
     RandomKind,
     RealizedOutcome,
     PendingChoiceKind,
@@ -1564,6 +1571,18 @@ export type PendingChoice = {
      *  one-line `consequence` preview the overlay renders. Public (CR 705),
      *  survives projection to both clients. */
     realized?: RealizedOutcome;
+
+    // --- pile-division divide-then-choose family (ADR 0053) ---
+    /** For `kind: "pick-pile"` only — the two completed piles the chooser
+     *  picks between, echoed here (rather than left implicit) so the
+     *  chooser's client can render pile contents BEFORE deciding — the
+     *  divider's `divide-piles` submission is already locked in by the time
+     *  this choice is raised. `pileA`/`pileB` partition the preceding
+     *  `divide-piles` choice's `candidateIds` exactly. The submission is the
+     *  literal string `"A"` or `"B"` (not a zone member id), validated
+     *  against these two labels. */
+    pileA?: string[];
+    pileB?: string[];
 };
 
 /** Reads the upper bound out of a `PendingChoice.count`, regardless of
@@ -8055,6 +8074,18 @@ export function buildSpellContext(
             found.card.cantBlockThisTurn = true;
         },
 
+        setCantAttackThisTurn(target: TargetSelection): void {
+            // CR 508.1a (ADR 0053, pile division) — the attack-side twin of
+            // `setCantBlockThisTurn`: flags a creature so it cannot be
+            // declared an attacker this turn (Fight or Flight's unchosen
+            // pile). Read by `validateAttackerEligibility`; cleared at
+            // CLEANUP (CR 514.2). No-op off the battlefield.
+            if (target.type !== "permanent") return;
+            const found = findOnBattlefield(state, target.id);
+            if (!found) return;
+            found.card.cantAttackThisTurn = true;
+        },
+
         setCantBeBlockedThisTurn(target: TargetSelection): void {
             // CR 509.1b — flag an attacker as unblockable this turn (Tawnos's
             // Wand). Read on the attacker side by `validateBlockerEligibility`;
@@ -8600,6 +8631,37 @@ export function buildSpellContext(
             };
             // Acting Player (ADR 0037): annotate only when it differs from the
             // prompted player (Word of Command — controller picks X / mode).
+            const actingPlayerId = req.actingPlayerId ?? routed.actingPlayerId;
+            if (actingPlayerId && actingPlayerId !== entry.playerId) {
+                entry.actingPlayerId = actingPlayerId;
+            }
+            state.pendingChoices = [...(state.pendingChoices ?? []), entry];
+            return undefined;
+        },
+        requestPickPile(req): "A" | "B" | undefined {
+            // ADR 0053 (pile division, "separate into two piles" cycle) — step
+            // 2 of `divideIntoPiles`: the CHOOSER picks pile "A" or "B" once
+            // the divider's partition (step 1, a `divide-piles` `requestChoice`)
+            // has already committed. Mirrors `requestOptionChoice`'s
+            // suspend/replay contract exactly, with `pileA`/`pileB` (the
+            // completed piles) carried on the entry instead of `options` so
+            // the chooser's client can render pile contents before deciding.
+            const step = item.resolutionStep ?? 0;
+            const key = `${step}:${req.choiceId}`;
+            const stored = item.collectedChoices?.[key];
+            if (stored) return stored[0] as "A" | "B";
+            const routed = routeActingPlayer(req.playerId);
+            const entry: PendingChoice = {
+                stackItemId: item.id,
+                step,
+                choiceId: req.choiceId,
+                playerId: routed.playerId,
+                kind: "pick-pile",
+                count: 1,
+                pileA: req.pileA,
+                pileB: req.pileB,
+                prompt: req.prompt,
+            };
             const actingPlayerId = req.actingPlayerId ?? routed.actingPlayerId;
             if (actingPlayerId && actingPlayerId !== entry.playerId) {
                 entry.actingPlayerId = actingPlayerId;

@@ -321,6 +321,13 @@ function buildOwedChoice(
             candidates.push({ id: opt.id, value: 0 });
         }
     }
+    // ADR 0053 (pile division) — a `pick-pile` choice (step 2 of the
+    // divide-then-choose family) picks the abstract label "A" or "B", not a
+    // zone member. Append them as neutral-value synthetic candidates, like
+    // `option-pick`'s options above.
+    if (head.kind === "pick-pile") {
+        candidates.push({ id: "A", value: 0 }, { id: "B", value: 0 });
+    }
     // CR 118 — for a threshold-mode may-pay sacrifice (Phyrexian Dreadnought),
     // drop the ability's own source from the pool the bot reasons over so the
     // greedy never self-sacrifices the permanent the payment keeps. The same

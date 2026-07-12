@@ -926,6 +926,38 @@ function isForEachSelector(value: unknown): boolean {
     return true;
 }
 
+/** Shape check for `divideIntoPiles`'s `objects` selector (ADR 0053, pile
+ *  division) — deliberately its OWN small selector, not `EffectForEachSelector`
+ *  (see the type doc): `controller`/`player` are REQUIRED, not optional, since
+ *  the divide-piles choice always validates against exactly one zone owner. */
+function isPileObjectSelector(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const s = value as Record<string, unknown>;
+    if (s.set === "permanents") {
+        const allowed = new Set(["set", "zone", "controller", "filter"]);
+        if (!Object.keys(s).every((k) => allowed.has(k))) return false;
+        if (s.zone !== "battlefield") return false;
+        if (!isPlayerRef(s.controller)) return false;
+        if ("filter" in s && !isCardFilter(s.filter)) return false;
+        return true;
+    }
+    if (s.set === "library-top") {
+        const allowed = new Set(["set", "player", "count"]);
+        if (!Object.keys(s).every((k) => allowed.has(k))) return false;
+        return isPlayerRef(s.player) && isEffectValue(s.count);
+    }
+    if (s.set === "graveyard") {
+        const allowed = new Set(["set", "controller", "filter"]);
+        if (!Object.keys(s).every((k) => allowed.has(k))) return false;
+        if (!isPlayerRef(s.controller)) return false;
+        if ("filter" in s && !isCardFilter(s.filter)) return false;
+        return true;
+    }
+    return false;
+}
+
 /** The timings a `delayedTrigger` Op may fire at (CR 603.7, ADR 0048) —
  *  exactly the `DelayedTriggerTiming` union the engine's fire path handles. */
 const DELAYED_TIMINGS = new Set([
@@ -1000,7 +1032,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     },
     destroy: {
         required: { target: isObjectSelector },
-        optional: { bind: isBindingName },
+        optional: { bind: isBindingName, cantBeRegenerated: isBoolean },
     },
     exile: {
         required: { target: isObjectSelector },
@@ -1427,6 +1459,42 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // CR 104.2a (issue #1066) — designate the winning player, through the
     // SAME `state.gameOver` seam State-Based Actions use.
     winGame: { required: { player: isPlayerRef } },
+    // ADR 0053 (pile division, issue #1067) — divide-then-choose. `objects`
+    // is validated by shape here; `divider`/`chooser` resolve as ordinary
+    // player refs (ordered ref pass); `chosenBind`/`otherBind` declare two
+    // LIST bindings scoped to `chosenEffect`/`otherEffect` respectively
+    // (checked by the recursive branch pass, like an `if` branch's `then`/
+    // `else`). Either Op list may be EMPTY (a pile with no consequence) — no
+    // non-empty cross-field rule, unlike `forEach.effects`.
+    divideIntoPiles: {
+        required: {
+            objects: isPileObjectSelector,
+            divider: isPlayerRef,
+            chooser: isPlayerRef,
+            dividePrompt: isNonEmptyString,
+            pickPrompt: isNonEmptyString,
+            chosenBind: isBindingName,
+            otherBind: isBindingName,
+            chosenEffect: isOpList,
+            otherEffect: isOpList,
+        },
+        check: (entry) =>
+            entry.chosenBind === entry.otherBind
+                ? [
+                      '"chosenBind" and "otherBind" must be different binding names',
+                  ]
+                : [],
+    },
+    // CR 508.1a / 509.1b (ADR 0053, pile division) — a turn-scoped attack/
+    // block restriction grant. `target` is an object selector (announced
+    // slot, `$source`, or a forEach `$each` — the shape every pile card
+    // uses).
+    restrictCombat: {
+        required: {
+            restriction: (v) => v === "cant-attack" || v === "cant-block",
+            target: isObjectSelector,
+        },
+    },
 };
 
 /** Names of the Ops that have a static field schema — used by the coverage
@@ -1510,7 +1578,11 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
             kind:
                 keyHint === "player" ||
                 keyHint === "controller" ||
-                keyHint === "zoneOwnerId"
+                keyHint === "zoneOwnerId" ||
+                // ADR 0053 (pile division) — divideIntoPiles's `divider` /
+                // `chooser` player refs.
+                keyHint === "divider" ||
+                keyHint === "chooser"
                     ? "player"
                     : keyHint === "cards" || keyHint === "permanents"
                       ? "picks"
@@ -1694,10 +1766,20 @@ function checkRefUse(
             );
             return;
         }
-        const wanted = use.kind === "picks" ? "picks" : "boolean";
-        if (family !== wanted) {
+        // A "picks" position (a bare picks ref, e.g. `moveZone`'s `cards`)
+        // ALSO accepts a "list" binding (ADR 0049 `delayedTrigger` capture /
+        // ADR 0053 `divideIntoPiles` pile bind) — both are the identical
+        // `string[]` storage shape, distinguished only by provenance; a
+        // `choice` Op's picks and a divideIntoPiles pile are equally valid
+        // inputs to a bare-picks-ref consumer.
+        const ok =
+            use.kind === "boolean"
+                ? family === "boolean"
+                : family === "picks" || family === "list";
+        if (!ok) {
+            const wanted = use.kind === "picks" ? "picks" : "boolean";
             errors.push(
-                `${at}: ref "${use.ref}" names a ${family} binding in a ${use.kind} position — a ${use.kind} position reads a ${wanted} binding (${use.kind === "picks" ? "a choice Op's bind" : "a mayPay Op's bind"})`
+                `${at}: ref "${use.ref}" names a ${family} binding in a ${use.kind} position — a ${use.kind} position reads a ${wanted} binding (${use.kind === "picks" ? "a choice Op's bind or a list binding" : "a mayPay Op's bind"})`
             );
         }
         return;
@@ -1909,7 +1991,10 @@ function checkOpListRefs(
             // OUTER scope so its `controller` ref resolves there but `$each`
             // is not yet visible; `capture` / `targetPlayer` (delayedTrigger,
             // ADR 0048) are checked explicitly below in the OUTER scope.
-            // `op` / `bind` never carry refs.
+            // `objects` (divideIntoPiles, ADR 0053) is walked below in the
+            // OUTER scope like `select`; `chosenEffect` / `otherEffect`
+            // (divideIntoPiles) are walked in their own CLONED scopes below,
+            // like `then`/`else`. `op` / `bind` never carry refs.
             if (
                 k === "op" ||
                 k === "bind" ||
@@ -1923,7 +2008,10 @@ function checkOpListRefs(
                 k === "select" ||
                 k === "capture" ||
                 k === "targetPlayer" ||
-                k === "watch"
+                k === "watch" ||
+                k === "objects" ||
+                k === "chosenEffect" ||
+                k === "otherEffect"
             ) {
                 continue;
             }
@@ -1957,6 +2045,18 @@ function checkOpListRefs(
                         );
                     }
                 }
+            }
+        }
+        // divideIntoPiles object-set selector refs (ADR 0053, pile division):
+        // its `controller` (permanents/graveyard variant) / `player`
+        // (library-top variant) player ref is resolved in the OUTER scope —
+        // mirrors forEach's `select.controller` handling exactly.
+        if (entry.op === "divideIntoPiles") {
+            const objects = entry.objects;
+            if (objects && typeof objects === "object") {
+                const o = objects as Record<string, unknown>;
+                collectRefUses(o.controller, "controller", uses);
+                collectRefUses(o.player, "player", uses);
             }
         }
         // delayedTrigger (CR 603.7, ADR 0048): capture sources and the
@@ -2099,6 +2199,42 @@ function checkOpListRefs(
                     ? { eventType: "BLOCKERS_CONFIRMED", inDelayedBody: false }
                     : { eventType: eventScope.eventType, inDelayedBody: true }
             );
+        }
+
+        // Recurse into `divideIntoPiles`'s `chosenEffect` / `otherEffect`
+        // (ADR 0053, pile division) each with a CLONED scope that additionally
+        // declares that branch's own pile binding (`chosenBind` in
+        // `chosenEffect`'s scope, `otherBind` in `otherEffect`'s) as a LIST
+        // family (ADR 0049) — a `forEach { set: "bound" }` reads it, or a
+        // `moveZone { cards: <ref> }` consumes it directly. Each branch's
+        // OWN pile binding is NOT visible in the OTHER branch (mirrors an
+        // `if`/`optionChoice` branch's isolation): a card that destroys the
+        // chosen pile has no business reading `otherBind`.
+        if (entry.op === "divideIntoPiles") {
+            for (const [bindField, effectsField] of [
+                ["chosenBind", "chosenEffect"],
+                ["otherBind", "otherEffect"],
+            ] as const) {
+                const bindName = entry[bindField];
+                const list = entry[effectsField];
+                if (typeof bindName !== "string" || !Array.isArray(list)) {
+                    continue;
+                }
+                if (declared.has(bindName)) {
+                    errors.push(
+                        `${at}: "${bindField}" "${bindName}" re-declares an existing binding — binding names must be unique within a script`
+                    );
+                }
+                const bodyScope = new Map(declared);
+                bodyScope.set(bindName, "list");
+                checkOpListRefs(
+                    list,
+                    (j) => `${at}: ${effectsField}[${j}]`,
+                    errors,
+                    bodyScope,
+                    eventScope
+                );
+            }
         }
 
         // A binding becomes visible only AFTER its Op (snapshot ordering) and
@@ -2302,6 +2438,29 @@ function validateOpSchema(
         entry.effects.forEach((op, j) => {
             validateOpSchema(op, `${at}: effects[${j}]`, errors, false, true);
         });
+    }
+    // Recurse into `divideIntoPiles`'s `chosenEffect` / `otherEffect` (ADR
+    // 0053, pile division) — each is a nested Op list validated at its own
+    // path, exactly like an `if` branch. `inForEach` / `inDelayed` thread
+    // through UNCHANGED (not reset, not forced true): none of the six pile
+    // cards nest `divideIntoPiles` inside a `forEach`, so this stays
+    // unexercised in practice, but the same nesting bans apply if a future
+    // card does.
+    if (entry.op === "divideIntoPiles") {
+        for (const key of ["chosenEffect", "otherEffect"] as const) {
+            const list = entry[key];
+            if (Array.isArray(list)) {
+                list.forEach((op, j) => {
+                    validateOpSchema(
+                        op,
+                        `${at}: ${key}[${j}]`,
+                        errors,
+                        inForEach,
+                        inDelayed
+                    );
+                });
+            }
+        }
     }
 }
 

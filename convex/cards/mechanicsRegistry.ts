@@ -2560,6 +2560,20 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.winGame",
         note: 'Designate the winning player (CR 104.2a, issue #1066 — Coalition Victory). A thin declarative skin over the single SpellContext primitive `winGame`, one execution path (ADR 0045): sets `state.gameOver` through the SAME seam State-Based Actions use (`checkGameOverSBA`, `gre/sba.ts`) — winnerId = the resolved `player`, loserId = the opponent, reason "alternate-win" (the only `gameOver.reason` with no CR 704.5 "why the loser lost" story, since there is none — the winner is DESIGNATED, not the loser defeated). No-op if the game already ended (mirrors `drawGame`\'s guard). The Op itself carries no predicate — Coalition Victory gates it behind nested `if`s (a `{ domain: { of } } >= 5` land-of-each-basic-type check, five `count` checks for a creature of each color) built entirely from EXISTING constructs, so the win condition needed no new predicate grammar. SCOPE (issue #1066): the 2-player `state.gameOver` seam only — no "can\'t win the game" replacement hook (Platinum Angel) exists yet; noted as a future extension point, not built (no INV card needs it).',
     },
+    {
+        op: "divideIntoPiles",
+        status: "implemented",
+        cr: "608.2",
+        binding: "SpellContext.requestChoice + SpellContext.requestPickPile",
+        note: "CR-generic \"separate a set of objects into two piles, another player chooses one\" divide-then-choose cycle (ADR 0053, pile division, issue #1067 — Fact or Fiction, Do or Die, Death or Glory, Bend or Break, Fight or Flight, Stand or Fall). Drives a new two-step `DividePilesKind` pending-choice family riding the existing persisted `pendingChoices` array (no new top-level GameState key): step 1 (`divide-piles`) reuses the ordinary zone-pick `requestChoice` shape for the divider's total 2-way partition of `objects`; step 2 (`pick-pile`) is the new `requestPickPile` primitive for the chooser over the completed piles. `chosenEffect` / `otherEffect` (ordinary EffectOp[] reusing `destroy` / `moveZone` / `forEach` / `restrictCombat`) then run against `chosenBind` / `otherBind` — LIST bindings (ADR 0049's family) naming the two pile id lists. One Op, six cards, DSL-first (ADR 0045) — no card needed a `resolve()` closure.",
+    },
+    {
+        op: "restrictCombat",
+        status: "implemented",
+        cr: "508.1a",
+        binding: "SpellContext.setCantAttackThisTurn / setCantBlockThisTurn",
+        note: 'Grant a turn-scoped "can\'t attack" (CR 508.1a) or "can\'t block" (CR 509.1b) restriction to a permanent (ADR 0053, pile division — Fight or Flight\'s unchosen attacking pile, Stand or Fall\'s unchosen blocking pile). A thin declarative skin over the two existing SpellContext primitives, one execution path (ADR 0045) — the same restriction-grant reuse `tapUntap` already established for tap/untap. Cleared at CLEANUP (CR 514.2) like every other "this turn" combat flag.',
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a

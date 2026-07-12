@@ -22,6 +22,7 @@ import {
     disrupt,
     empressGalina,
     exclude,
+    factOrFiction,
     manipulateFate,
     opt,
     prohibit,
@@ -914,5 +915,123 @@ describe("Worldly Counsel (CR 401.4 dig-to-hand — Domain, issue #1066)", () =>
         expect(state.players[0].library.some((c) => c.id === "wc-b")).toBe(
             true
         );
+    });
+});
+
+describe("Fact or Fiction (CR 701.16 reveal, ADR 0053 pile division, issue #1067)", () => {
+    it("reveals the top 5, an opponent divides, and the caster's chosen pile goes to hand while the other goes to the graveyard", () => {
+        const libCards = ["ff-1", "ff-2", "ff-3", "ff-4", "ff-5"].map((id) =>
+            makeInstance(opt.id, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libCards }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, factOrFiction.id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on divide-piles
+
+        const divide = state.pendingChoices![0];
+        expect(divide.kind).toBe("divide-piles");
+        expect(divide.playerId).toBe("p2"); // an opponent divides
+        expect(divide.zone).toBe("library");
+        expect(divide.candidateIds).toEqual([
+            "ff-1",
+            "ff-2",
+            "ff-3",
+            "ff-4",
+            "ff-5",
+        ]);
+        // CR 701.16 — revealed to all players, not just the divider.
+        expect(state.players[0].library[0].knownTo).toContain("p2");
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: divide.stackItemId,
+            step: divide.step,
+            choiceId: divide.choiceId,
+            cardInstanceIds: ["ff-1", "ff-2"],
+        });
+
+        const pick = state.pendingChoices![0];
+        expect(pick.kind).toBe("pick-pile");
+        expect(pick.playerId).toBe("p1"); // the caster chooses
+        expect(pick.pileA).toEqual(["ff-1", "ff-2"]);
+        expect(pick.pileB).toEqual(["ff-3", "ff-4", "ff-5"]);
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: pick.stackItemId,
+            step: pick.step,
+            choiceId: pick.choiceId,
+            cardInstanceIds: ["A"],
+        });
+
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "ff-1",
+            "ff-2",
+        ]);
+        // The graveyard also holds the resolved instant itself (CR 608.2k) —
+        // assert containment, not exact equality.
+        const graveyardIds = state.players[0].graveyard.map((c) => c.id);
+        expect(graveyardIds).toContain("ff-3");
+        expect(graveyardIds).toContain("ff-4");
+        expect(graveyardIds).toContain("ff-5");
+    });
+
+    it("reveals fewer than 5 when the library is short (CR 608.2b)", () => {
+        const libCards = ["short-1", "short-2"].map((id) =>
+            makeInstance(opt.id, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libCards }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, factOrFiction.id, "p1");
+        resolveTopOfStack(state);
+        const divide = state.pendingChoices![0];
+        expect(divide.candidateIds).toEqual(["short-1", "short-2"]);
+    });
+
+    it("survives the wire projection for both viewers (public reveal, CR 701.16)", () => {
+        const libCards = ["wf-1", "wf-2"].map((id) =>
+            makeInstance(opt.id, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { library: libCards }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, factOrFiction.id, "p1");
+        resolveTopOfStack(state);
+        // Both viewers see the two revealed cards face-up in the sparse
+        // library projection (ADR 0026 — knownTo drives the wire, not who
+        // the divider/chooser is).
+        const projectedForP2 = projectPublicState(state, 1, "p2");
+        const knownP2 = (
+            projectedForP2.players[0].library as {
+                known: { index: number; card: { id: string } }[];
+            }
+        ).known;
+        expect(knownP2.map((k) => k.card.id).sort()).toEqual(["wf-1", "wf-2"]);
     });
 });

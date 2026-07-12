@@ -669,16 +669,58 @@ export const worldlyCounsel: CardDefinition = {
     ],
 };
 
-// Fact or Fiction — the marquee pile-division card. Owned by the pile
-// division capability cluster (ADR 0053).
-// tracked-by: #1067
-// export const factOrFiction: CardDefinition = {
-//     id: "7fd4d018-dcf3-4439-8445-02d66e44f7d3",
-//     name: "Fact or Fiction",
-//     rarity: "uncommon",
-//     manaCost: { X: 3, U: 1 },
-//     types: ["Instant"],
-// };
+// Fact or Fiction — {3}{U} Instant. "Reveal the top five cards of your
+// library. An opponent separates those cards into two piles. Put one pile
+// into your hand and the other into your graveyard." (CR 701.16 reveal,
+// ADR 0053 pile division, issue #1067.) The marquee pile-division card: the
+// object set is a PUBLIC reveal of the caster's own top 5 library cards
+// (`{ set: "library-top" }`, which marks them known to all — the opponent's
+// client must see them to divide them, and both players see the outcome).
+// Divider = an opponent; chooser = the caster (`controller`). `moveZone`'s
+// bare-picks-`cards` shape moves each WHOLE pile in one Op — no `forEach`
+// wrapper needed, since a plain zone move (not a per-object action) is the
+// outcome.
+export const factOrFiction: CardDefinition = {
+    id: "7fd4d018-dcf3-4439-8445-02d66e44f7d3",
+    name: "Fact or Fiction",
+    rarity: "uncommon",
+    oracleText:
+        "Reveal the top five cards of your library. An opponent separates those cards into two piles. Put one pile into your hand and the other into your graveyard.",
+    manaCost: { X: 3, U: 1 },
+    types: ["Instant"],
+    effects: [
+        {
+            op: "divideIntoPiles",
+            objects: { set: "library-top", player: "controller", count: 5 },
+            divider: "opponent",
+            chooser: "controller",
+            dividePrompt:
+                "Fact or Fiction — separate the revealed cards into two piles.",
+            pickPrompt:
+                "Choose a pile: it goes to your hand, the other to your graveyard.",
+            chosenBind: "$factOrFictionChosen",
+            otherBind: "$factOrFictionOther",
+            chosenEffect: [
+                {
+                    op: "moveZone",
+                    cards: { ref: "$factOrFictionChosen" },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+            ],
+            otherEffect: [
+                {
+                    op: "moveZone",
+                    cards: { ref: "$factOrFictionOther" },
+                    player: "controller",
+                    from: "library",
+                    to: "graveyard",
+                },
+            ],
+        },
+    ],
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Capability-gap stubs — genuine engine/DSL gaps discovered authoring this

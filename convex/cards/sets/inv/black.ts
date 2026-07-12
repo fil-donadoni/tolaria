@@ -1365,3 +1365,59 @@ export const exoticCurse: CardDefinition = {
         },
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// Pile-division cluster (parent PRD #1063, issue #1067, ADR 0053)
+// ─────────────────────────────────────────────────────────────────────────
+
+// Do or Die — {1}{B} Sorcery. "Separate all creatures target player controls
+// into two piles. Destroy all creatures in the pile of that player's choice.
+// They can't be regenerated." (CR 701.8 destroy, CR 701.15c regeneration
+// suppression, ADR 0053 pile division.) Divider = the caster (`controller`,
+// the one doing the separating); chooser = the TARGET player (whose own
+// creatures are being divided) — the pile-division table's "Divider: you /
+// Chooser: that player" row. The chosen pile is destroyed via `forEach {
+// set: "bound" }` + `destroy` with `cantBeRegenerated: true` (the widened Op,
+// ADR 0053); the other pile has no consequence (an empty `otherEffect`).
+export const doOrDie: CardDefinition = {
+    id: "05f63cd9-e82b-4cf8-b8ce-f0aa0157692b",
+    name: "Do or Die",
+    rarity: "rare",
+    oracleText:
+        "Separate all creatures target player controls into two piles. Destroy all creatures in the pile of that player's choice. They can't be regenerated.",
+    manaCost: { X: 1, B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1 },
+    effects: [
+        {
+            op: "divideIntoPiles",
+            objects: {
+                set: "permanents",
+                zone: "battlefield",
+                controller: { target: 0 },
+                filter: { type: "Creature" },
+            },
+            divider: "controller",
+            chooser: { target: 0 },
+            dividePrompt: "Do or Die — divide the creatures into two piles.",
+            pickPrompt:
+                "Choose a pile: creatures in it are destroyed and can't be regenerated.",
+            chosenBind: "$doOrDieChosen",
+            otherBind: "$doOrDieOther",
+            chosenEffect: [
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: "$doOrDieChosen" },
+                    effects: [
+                        {
+                            op: "destroy",
+                            target: { ref: "$each" },
+                            cantBeRegenerated: true,
+                        },
+                    ],
+                },
+            ],
+            otherEffect: [],
+        },
+    ],
+};

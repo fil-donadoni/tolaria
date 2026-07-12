@@ -494,6 +494,42 @@ export function applyPendingChoiceSubmit(
         return;
     }
 
+    // --- Pick a pile (ADR 0053, pile division — step 2 of the divide-then-
+    // choose family): the submission is the literal label "A" or "B", not a
+    // zone member id. Validates against the two completed piles' labels
+    // (mirrors `option-pick`'s allow-list validation) and writes the chosen
+    // label verbatim into `collectedChoices`; `divideIntoPiles`'s resolve
+    // step reads it back via `requestPickPile`. ---
+    if (head.kind === "pick-pile") {
+        const id = args.cardInstanceIds[0];
+        if (id !== "A" && id !== "B") {
+            throw new Error('Pile choice must be "A" or "B"');
+        }
+        const stackItem = state.stack.find((s) => s.id === head.stackItemId);
+        if (!stackItem) throw new Error("Stack item not found");
+        const key = `${head.step}:${head.choiceId}`;
+        stackItem.collectedChoices = {
+            ...(stackItem.collectedChoices ?? {}),
+            [key]: [id],
+        };
+        queue.shift();
+        state.pendingChoices = queue.length > 0 ? queue : undefined;
+        if ((state.pendingChoices?.length ?? 0) === 0) {
+            resolveTopOfStack(state);
+            if ((state.pendingChoices?.length ?? 0) > 0) {
+                state.priorityPlayerId = state.pendingChoices![0].playerId;
+            } else {
+                state.priorityPlayerId = state.activePlayerId;
+                state.passCount = 0;
+                drainAutoPasses(state);
+            }
+            checkStateBasedActions(state);
+        } else {
+            state.priorityPlayerId = state.pendingChoices![0].playerId;
+        }
+        return;
+    }
+
     const zoneOwner = getPlayer(state, head.zoneOwnerId ?? args.playerId);
 
     // --- Zone-level validation: verify every id exists in the declared zone ---
