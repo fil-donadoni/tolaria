@@ -2,16 +2,19 @@
 // `import * as inv from "./sets/inv"` resolves through inv/index.ts. Modern
 // Scryfall oracle text is authoritative (ADR 0004).
 //
-// Free tranche (issue #1069, parent PRD #1063): 26 of the 41 candidate free
-// White cards ship as active `CardDefinition`s below — 24 DSL Effect Scripts
+// Free tranche (issue #1069, parent PRD #1063): 25 of the 41 candidate free
+// White cards ship as active `CardDefinition`s below — 23 DSL Effect Scripts
 // (ADR 0045) + 2 `resolve()` cards, each with a RECORDED precedent already
 // shipped elsewhere in the catalogue (Restrain: Warning's
 // `markAssignsNoCombatDamage` idiom, ice/white.ts; Liberate: Flickerwisp's
 // "flicker" exile + delayed-return idiom, eve/white.ts — DSL-first budget
-// ~0-1 `resolve()` per tranche, ADR 0045). The remaining 15 candidates need
-// engine capabilities that do not exist yet (confirmed by direct code audit,
-// not "didn't look hard enough") and are left as commented-out stubs at the
-// bottom of this file, each tagged `// tracked-by: #1086`. Domain-cluster and
+// ~0-1 `resolve()` per tranche, ADR 0045). Holy Day is NOT a new card here —
+// it was first printed in Legends and already ships from `leg/white.ts`; no
+// duplicate `CardDefinition`/lockfile row for the same oracleId. The
+// remaining 16 candidates need engine capabilities that do not exist yet
+// (confirmed by direct code audit, not "didn't look hard enough") and are
+// left as commented-out stubs at the bottom of this file, each tagged
+// `// tracked-by: #1086`. Domain-cluster and
 // pile-division-cluster cards are tracked to their own cluster issues
 // (#1066, #1067); the 2 split cards (Stand // Deliver, Wax // Wane) are
 // out-of-scope (ADR 0010/0041, unmodelled `split` layout) and carry no stub.
@@ -514,21 +517,6 @@ export const harshJudgment: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Fog effect (CR 615, all-combat prevention)
-// ─────────────────────────────────────────────────────────────────────────
-
-// Holy Day — "Prevent all combat damage that would be dealt this turn."
-export const holyDay: CardDefinition = {
-    id: "aa91fd4e-4e1f-4cfa-b10f-456bd875238f",
-    rarity: "common",
-    name: "Holy Day",
-    oracleText: "Prevent all combat damage that would be dealt this turn.",
-    manaCost: { W: 1 },
-    types: ["Instant"],
-    effects: [{ op: "preventDamage", mode: "all-combat" }],
-};
-
-// ─────────────────────────────────────────────────────────────────────────
 // Protocol cards (resolve(), precedent-justified — ADR 0045 escape hatch)
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -954,6 +942,17 @@ export const teferisCare: CardDefinition = {
 // Balance's `resolve()` — but it isn't exposed to the DSL `EffectChoiceKind`
 // union, and Global Ruin's PER-BASIC-TYPE selection needs new per-card
 // resolve() logic beyond a straight reuse of Balance's helper).
+
+// Glimmering Angel — {3}{W} Creature — Angel, 2/2. "Flying. {U}: This
+// creature gains shroud until end of turn." tracked-by: #1086 (`shroud` is
+// `status: "planned"` in the Mechanics Registry, `mechanicsRegistry.ts`:
+// ships-decorative-only note — `grantAbility` would append the literal
+// string "shroud" to `staticAbilities`, but unlike `hexproof` (bridged to the
+// `cantBeTargeted` permanent-guard gate, issue #958) no engine check anywhere
+// reads a dynamically-granted "shroud" string — granting it would be inert,
+// the exact "shipped but dead" anti-pattern this registry census exists to
+// catch. Needs the same hexproof-style `permanentGuard.ts` bridge before this
+// card can ship for real.
 
 // Pledge of Loyalty — {1}{W} Enchantment — Aura. "Enchant creature.
 // Enchanted creature has protection from the colors of permanents you

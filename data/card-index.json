@@ -3486,12 +3486,6 @@
         "firstSet": "leg"
     },
     {
-        "name": "Holy Day",
-        "scryfallId": "aa91fd4e-4e1f-4cfa-b10f-456bd875238f",
-        "oracleId": "98423a34-f044-4811-b288-56981d604b6e",
-        "firstSet": "inv"
-    },
-    {
         "name": "Holy Light",
         "scryfallId": "c3c8a850-bc99-4679-a316-45ecdea696b2",
         "oracleId": "8f7dd328-b367-4546-ba79-1efc1e97f2ab",
