@@ -1454,6 +1454,15 @@ export interface SpellContext {
     ) => void;
     /** Player draws N cards one at a time (CR 121.1). Stops if library empties; sets hasDrawnFromEmpty (CR 704.5b). */
     drawCards: (playerId: string, amount: number) => void;
+    /** CR 701.17 — mills the top `amount` cards of a player's library into
+     *  their graveyard, one at a time (re-reading the live top each pass so
+     *  successive mills chase the receding library top), stopping early once
+     *  the library empties (CR 701.17a). The single choke point for "when this
+     *  card is put into your graveyard from your library" triggers (Gaea's
+     *  Blessing) — emits one `CARD_MILLED` event per card AFTER it lands in the
+     *  graveyard, the mill analogue of `drawCards`/`emitCardDrawn`. No-op for
+     *  `amount ≤ 0`. */
+    millCards: (playerId: string, amount: number) => void;
     /** CR 614 — arms a one-shot replacement for the NEXT card `playerId` would
      *  draw this turn (Aladdin's Lamp): look at the top X, keep one to draw,
      *  bottom the rest in a random order. The draw step consumes it and
@@ -4269,6 +4278,7 @@ export type GameEventType =
     | "ATTACKER_UNBLOCKED"
     | "CARD_DRAWN"
     | "CARD_DISCARDED"
+    | "CARD_MILLED"
     | "LIFE_LOST"
     | "LIFE_GAINED";
 
@@ -4616,6 +4626,29 @@ export interface CardDiscardedEvent {
     cardId?: string;
 }
 
+/** Emitted whenever a card is put into its owner's graveyard from their
+ *  library by a mill (CR 701.17). One event per card, emitted AFTER the card
+ *  has landed in the graveyard so "when this card is put into your graveyard
+ *  from your library" self-triggers (Gaea's Blessing) can locate the card in
+ *  its destination zone — the same emit-after-move discipline as
+ *  `CardDiscardedEvent`. Every mill path flows through the single `millCards`
+ *  choke point (the `mill` Op's only primitive) that emits this. */
+export interface CardMilledEvent {
+    type: "CARD_MILLED";
+    /** Owner of the milled card, whose library it came from and whose graveyard
+     *  it now sits in (CR 701.17 — a mill always moves a card from a player's
+     *  own library to their own graveyard). */
+    ownerId: string;
+    /** Instance id of the milled card, now in `ownerId`'s graveyard. */
+    cardInstanceId: string;
+    /** Card definition id of the milled card, so type-based filters can run
+     *  without re-reading the graveyard. */
+    cardId?: string;
+    /** Card types snapshotted at the moment of the mill (CR 603.10 last-known
+     *  information), for "whenever a creature card is milled"-style filters. */
+    types?: ReadonlyArray<CardType>;
+}
+
 /** Emitted whenever a player loses life (CR 119.3 — a player's life total
  *  decreasing, whether from a "lose life" effect, a paid life cost, or damage
  *  dealt to that player). One event per life-loss, emitted AFTER the life total
@@ -4675,6 +4708,7 @@ export type GameEvent =
     | AttackerUnblockedEvent
     | CardDrawnEvent
     | CardDiscardedEvent
+    | CardMilledEvent
     | LifeLostEvent
     | LifeGainedEvent;
 

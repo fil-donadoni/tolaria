@@ -2766,6 +2766,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Gaea's Blessing",
+        "scryfallId": "ee83d511-57e0-40fb-a4db-62f6c2c39888",
+        "oracleId": "bd5478df-3854-404b-8634-9debcef69b99",
+        "firstSet": "wth"
+    },
+    {
         "name": "Gaea's Cradle",
         "scryfallId": "25b0b816-0583-44aa-9dc5-f3ff48993a51",
         "oracleId": "7c427c3d-ecd8-45ef-bebd-8f10f4a311db",

@@ -1029,22 +1029,20 @@ export const OP_EXECUTORS: {
         if (!applied) return "suspend"; // enqueued the order-top choice — wait
     },
     // CR 701.17 (issue #885) — mill: move the top `count` cards of a player's
-    // library into their graveyard. A thin declarative skin over the existing
-    // `peekLibraryTop` + `moveCardById` primitives (the Millstone / Thought
-    // Scour composition), ONE execution path (ADR 0045): re-read the LIVE top
-    // id each pass so successive mills chase the receding library top, and stop
-    // early once it empties (CR 701.17a). Deterministic — no choice, no
-    // suspension. Skipped when the player is gone or `count` ≤ 0 (CR 608.2b).
+    // library into their graveyard. A thin declarative skin over the single
+    // `millCards` SpellContext primitive (issue #1055), ONE execution path
+    // (ADR 0045): `millCards` re-reads the LIVE top id each pass so successive
+    // mills chase the receding library top, stops early once it empties (CR
+    // 701.17a), AND emits a CARD_MILLED event per card so "when this card is put
+    // into your graveyard from your library" self-triggers fire (Gaea's
+    // Blessing) — the mill analogue of `drawCards`. Deterministic — no choice,
+    // no suspension. Skipped when the player is gone or `count` ≤ 0 (CR 608.2b).
     mill(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return; // CR 608.2b — player gone, skip
         const count = resolveValue(ctx, op.count);
         if (count === undefined || count <= 0) return;
-        for (let i = 0; i < count; i++) {
-            const top = ctx.peekLibraryTop(playerId, 1);
-            if (top.length === 0) break; // library empty — mill fewer (701.17a)
-            ctx.moveCardById(playerId, top[0], "library", "graveyard");
-        }
+        ctx.millCards(playerId, count);
     },
     // CR 401.4 (issue #984) — dig to hand: look at the top `look` cards, put
     // `take` (default 1) into hand, the rest on the BOTTOM. A thin declarative
