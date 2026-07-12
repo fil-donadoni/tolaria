@@ -885,9 +885,10 @@ function isDamageRecipient(value: unknown): boolean {
     );
 }
 
-/** The `forEach` construct's set selector (ADR 0045, issue #807) — exactly
- *  `{ set: "players" }` or `{ set: "permanents", zone: "battlefield",
- *  controller?, filter? }`. Unknown keys are rejected (the grammar is frozen;
+/** The `forEach` construct's set selector (ADR 0045, issue #807) — `{ set:
+ *  "players" }`, `{ set: "permanents", zone: "battlefield", controller?,
+ *  filter? }`, `{ set: "graveyard", controller?, filter? }` (issue #1056), or
+ *  `{ set: "bound", ref }`. Unknown keys are rejected (the grammar is frozen;
  *  selector SHAPES may grow like vocabulary, but only by extending this
  *  checker). */
 function isForEachSelector(value: unknown): boolean {
@@ -903,6 +904,17 @@ function isForEachSelector(value: unknown): boolean {
     // binding — is checked by the ordered ref pass, not here).
     if (s.set === "bound") {
         return Object.keys(s).length === 2 && isBindingName(s.ref);
+    }
+    // A bulk graveyard-set sweep (issue #1056, CR 404) — exactly `{ set,
+    // controller?, filter? }`; no `zone` (a graveyard is the only zone this set
+    // reads). `$each` binds as a graveyard-card snapshot (the ref pass declares
+    // it "snapshot", same as a permanents member).
+    if (s.set === "graveyard") {
+        const gAllowed = new Set(["set", "controller", "filter"]);
+        if (!Object.keys(s).every((k) => gAllowed.has(k))) return false;
+        if ("controller" in s && !isPlayerRef(s.controller)) return false;
+        if ("filter" in s && !isCardFilter(s.filter)) return false;
+        return true;
     }
     if (s.set !== "permanents") return false;
     const allowed = new Set(["set", "zone", "controller", "filter"]);

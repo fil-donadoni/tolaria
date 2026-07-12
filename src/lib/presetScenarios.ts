@@ -132,4 +132,21 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Replenish — bulk graveyard-set move (issue #1056, CR 404 / 400.7).
+        // Cast Replenish ({3}{W}) with four Plains untapped; it sweeps your
+        // graveyard and returns BOTH enchantment cards (Crusade + Castle) to the
+        // battlefield at once, with no per-card choice. The graveyard also holds
+        // a creature (Grizzly Bears) the enchantment filter leaves behind.
+        label: "Replenish (#1056) — return all enchantments from graveyard at once",
+        cards: [
+            { name: "Replenish", owner: "me", zone: "hand" },
+            { name: "Plains", owner: "me", zone: "battlefield", count: 4 },
+            { name: "Crusade", owner: "me", zone: "graveyard" },
+            { name: "Castle", owner: "me", zone: "graveyard" },
+            { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];

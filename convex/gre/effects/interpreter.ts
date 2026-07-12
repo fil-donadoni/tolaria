@@ -901,19 +901,39 @@ export const OP_EXECUTORS: {
             return;
         }
         let target = resolveObjectRef(ctx, op.target);
-        // Graveyard-source self-return (Ashen Ghoul, issue #737 / CR 400.7):
-        // `resolveObjectRef` is battlefield-scoped, so a `$source` whose source
-        // sits in a graveyard resolves to undefined. `moveZone` is the only Op
-        // whose graveyard → battlefield branch can act on it, so recover the
-        // graveyard-card selection here (the source reanimates itself).
-        if (!target && "ref" in op.target && op.target.ref === "$source") {
-            const owner = ctx.getGraveyardCardOwner(ctx.sourceInstanceId);
-            if (owner !== undefined) {
-                target = {
-                    type: "graveyard-card",
-                    id: ctx.sourceInstanceId,
-                    playerId: owner,
-                };
+        // Graveyard-source recovery (CR 400.7): `resolveObjectRef` is
+        // battlefield-scoped, so a ref to a card sitting in a graveyard resolves
+        // to undefined. `moveZone` is the only Op whose graveyard → battlefield
+        // branch can act on it, so recover the graveyard-card selection here from
+        // the ref's id — the source reanimating itself (Ashen Ghoul's `$source`,
+        // issue #737) or a `forEach { set: "graveyard" }` member reanimating
+        // (`$each`, issue #1056 — Replenish, Living Death).
+        if (!target && "ref" in op.target) {
+            // `$source` recovery is unconditional (Ashen Ghoul, issue #737): its
+            // source genuinely sits in a graveyard. A GENERAL ref (a forEach
+            // graveyard member's `$each`, issue #1056) is recovered ONLY for a
+            // reanimation (`to: "battlefield"`) — the sole destination a bulk
+            // graveyard sweep uses. This matters because instance ids are
+            // PRESERVED when a permanent dies to the graveyard: without the
+            // `to === "battlefield"` guard, a `moveZone { ref, to: "hand" }`
+            // over a permanents-set whose member died mid-resolution would
+            // wrongly follow that (now distinct, CR 400.7) object into the
+            // graveyard and bounce it. The guard keeps that path a CR 608.2b skip.
+            const isSource = op.target.ref === "$source";
+            if (isSource || op.to === "battlefield") {
+                const gid = isSource
+                    ? ctx.sourceInstanceId
+                    : readBinding(ctx, op.target.ref)?.[SNAP_ID];
+                if (gid !== undefined) {
+                    const owner = ctx.getGraveyardCardOwner(gid);
+                    if (owner !== undefined) {
+                        target = {
+                            type: "graveyard-card",
+                            id: gid,
+                            playerId: owner,
+                        };
+                    }
+                }
             }
         }
         if (!target) return;
@@ -1714,6 +1734,21 @@ function selectForEachMembers(
     } else {
         owners = [...ctx.apNapOrder()];
     }
+    // A bulk graveyard-set sweep (issue #1056, CR 404): gather every matching
+    // card in the selected graveyard(s), owners in APNAP order. Filtered by the
+    // shared card-filter matcher (mirrors `countSet`'s graveyard branch); an
+    // absent filter imposes no constraint. Each id binds as a graveyard-card
+    // `$each` in `execForEach` (Replenish's "return all enchantment cards";
+    // Living Death iterates every player's graveyard).
+    if (select.set === "graveyard") {
+        return owners.flatMap((pid) => {
+            const cards = ctx.getGraveyardCards(pid);
+            const filtered = select.filter
+                ? cards.filter((c) => matchesCardFilter(c, select.filter!))
+                : cards;
+            return filtered.map((c) => c.id);
+        });
+    }
     return owners.flatMap((pid) =>
         ctx.getBattlefieldIds(pid, toPermanentFilter(select.filter))
     );
@@ -1753,6 +1788,20 @@ function execForEach(
         if (ctx.recallChoice(eachId) === undefined) {
             if (op.select.set === "players") {
                 ctx.noteChoice(eachId, [members[k]]);
+            } else if (op.select.set === "graveyard") {
+                // Graveyard-set member (issue #1056): bind `$each` as a
+                // graveyard-card snapshot BEFORE the body acts on it (CR 608.2h
+                // — so a later ref reads last-known information across the zone
+                // change). A member that already left the graveyard resolves to
+                // no owner → leave `$each` uncaptured (CR 608.2b, the body skips).
+                const owner = ctx.getGraveyardCardOwner(members[k]);
+                if (owner !== undefined) {
+                    bindSnapshot(ctx, eachId, {
+                        type: "graveyard-card",
+                        id: members[k],
+                        playerId: owner,
+                    });
+                }
             } else if (ctx.getOwnerId(members[k]) !== undefined) {
                 // Snapshot BEFORE the body acts on the member (CR 608.2h).
                 bindSnapshot(ctx, eachId, {
@@ -1760,8 +1809,8 @@ function execForEach(
                     id: members[k],
                 });
             }
-            // else: the frozen-set member already left the battlefield —
-            // leave `$each` uncaptured; body Ops reading it skip (CR 608.2b).
+            // else: the frozen-set member already left its zone — leave `$each`
+            // uncaptured; body Ops reading it skip (CR 608.2b).
         }
         const outcome = runOpList(inner, op.effects, cursor);
         if (outcome === "suspend") return "suspend";

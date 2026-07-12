@@ -5595,6 +5595,22 @@ export type EffectForEachSelector =
           /** Optional type/subtype filter (AND, CR 205). Omitted = all. */
           filter?: EffectCardFilter;
       }
+    | {
+          /** A bulk graveyard-set sweep (issue #1056, CR 404) — iterate ALL
+           *  cards matching a filter in one or more graveyards, with no
+           *  per-card choice. Each member `$each` binds as a graveyard-card
+           *  snapshot the body acts on (a `moveZone { target: { ref: "$each" },
+           *  to: "battlefield" }` reanimates it — Replenish; a mass reanimation
+           *  like Living Death iterates every player's graveyard). The frozen
+           *  member set is snapshotted once at construct entry (CR 608.2i), so a
+           *  card leaving mid-iteration is skipped (CR 608.2b), not re-selected. */
+          set: "graveyard";
+          /** Whose graveyard (CR 109.5 relative selectors). Omitted = every
+           *  player's, in APNAP order (mass reanimation — Living Death). */
+          controller?: EffectPlayerRef;
+          /** Optional card filter (AND, CR 205). Omitted = all cards. */
+          filter?: EffectCardFilter;
+      }
     | { set: "bound"; ref: string };
 
 /** The Pending Choice kinds a `choice` Op may request (issue #805). A strict

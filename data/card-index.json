@@ -6402,6 +6402,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Replenish",
+        "scryfallId": "7fd2fe13-bbc0-42b7-bc42-3b51910ce118",
+        "oracleId": "523ae937-5535-490d-96ea-07f331b5e5ad",
+        "firstSet": "uds"
+    },
+    {
         "name": "Repulse",
         "scryfallId": "9a04e9be-48be-440e-9825-cfffd4c2b1a4",
         "oracleId": "6f7ef1d1-c441-41ba-b7d6-6b7727ffcf04",

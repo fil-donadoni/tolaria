@@ -565,6 +565,205 @@ describe("Effect Script value grammar: counters (counter count, CR 122.6, issue 
     });
 });
 
+describe("Effect Script construct: forEach { set: 'graveyard' } (bulk graveyard-set move, CR 404 / 400.7, issue #1056)", () => {
+    // A NEW forEach selector shape — iterate every card matching a filter in one
+    // or more graveyards with no per-card choice, each member reanimated by a
+    // `moveZone { ref: "$each" } → battlefield`. Replenish's "return all
+    // enchantment cards from your graveyard to the battlefield"; the mass
+    // (controller-omitted) variant is Living Death. New construct combination →
+    // full test regime (interpreter unit + wire-format assertion). Registered
+    // once for the whole block.
+    const ENCH_ID = "test-effects-enchantment";
+    registerTokenDefinition({
+        id: ENCH_ID,
+        name: ENCH_ID,
+        rarity: "common",
+        manaCost: { W: 1 },
+        types: ["Enchantment"],
+    });
+    const replenishScript: EffectOp[] = [
+        {
+            op: "forEach",
+            select: {
+                set: "graveyard",
+                controller: "controller",
+                filter: { type: "Enchantment" },
+            },
+            effects: [
+                { op: "moveZone", target: { ref: "$each" }, to: "battlefield" },
+            ],
+        },
+    ];
+    const gyEnchant = (id: string, owner: "p1" | "p2") =>
+        makeInstance(ENCH_ID, {
+            id,
+            controllerId: owner,
+            ownerId: owner,
+            zone: "graveyard",
+        });
+
+    it("returns ALL matching enchantments from the controller's graveyard at once, leaving non-matches (Replenish)", () => {
+        const id = registerScript("test-foreach-gy-replenish", replenishScript);
+        const nonEnch = makeInstance(BEAR_ID, {
+            id: "gy-creature",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [
+                        gyEnchant("ench-a", "p1"),
+                        nonEnch,
+                        gyEnchant("ench-b", "p1"),
+                    ],
+                }),
+                makePlayer("p2", { graveyard: [gyEnchant("ench-p2", "p2")] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const bf = state.players[0].battlefield.map((c) => c.id);
+        expect(bf).toContain("ench-a"); // both enchantments returned
+        expect(bf).toContain("ench-b");
+        // The non-enchantment stays in the graveyard (filter excludes it).
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "gy-creature")
+        ).toBe(true);
+        // Only the CONTROLLER's graveyard is swept — p2's enchantment untouched.
+        expect(state.players[1].graveyard.some((c) => c.id === "ench-p2")).toBe(
+            true
+        );
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "ench-p2")
+        ).toBe(false);
+        // Reanimated enchantments no longer sit in the graveyard.
+        expect(
+            state.players[0].graveyard.some(
+                (c) => c.id === "ench-a" || c.id === "ench-b"
+            )
+        ).toBe(false);
+    });
+
+    it("returned enchantments survive projection onto the controller's battlefield (wire format)", () => {
+        const id = registerScript(
+            "test-foreach-gy-replenish-wire",
+            replenishScript
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [
+                        gyEnchant("wire-a", "p1"),
+                        gyEnchant("wire-b", "p1"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        const bf = projected.players[0].battlefield.map((c) => c.id);
+        expect(bf).toContain("wire-a");
+        expect(bf).toContain("wire-b");
+        expect(
+            projected.players[0].graveyard.some(
+                (c) => c.id === "wire-a" || c.id === "wire-b"
+            )
+        ).toBe(false);
+    });
+
+    it("mass variant (controller omitted) sweeps EVERY player's graveyard in APNAP order (Living Death-shaped)", () => {
+        const id = registerScript("test-foreach-gy-mass", [
+            {
+                op: "forEach",
+                select: { set: "graveyard", filter: { type: "Enchantment" } },
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { ref: "$each" },
+                        to: "battlefield",
+                    },
+                ],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [gyEnchant("mass-p1", "p1")] }),
+                makePlayer("p2", { graveyard: [gyEnchant("mass-p2", "p2")] }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // Each card returns under ITS OWN owner's control (CR 400.7 / 800.4a).
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "mass-p1")
+        ).toBe(true);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "mass-p2")
+        ).toBe(true);
+    });
+
+    it("skips a frozen-set member that left the graveyard after selection (CR 608.2b / 608.2i)", () => {
+        // The member set is frozen once at construct entry (CR 608.2i). A member
+        // no longer in any graveyard when its iteration runs resolves to no owner
+        // → `$each` stays uncaptured → the body `moveZone` skips it (CR 608.2b),
+        // while the surviving member still reanimates. Injected via a pre-noted
+        // frozen set (the reserved `#forEach:<pos>:set` key, pos 0 for this
+        // top-level construct) so the stale id is deterministic without needing a
+        // card to remove it mid-run.
+        const id = registerScript("test-foreach-gy-stale", replenishScript);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [gyEnchant("ench-live", "p1")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        const item = pushSpell(state, id, "p1");
+        item.collectedChoices = {
+            "#forEach:0:set": ["ench-live", "ghost-not-in-any-graveyard"],
+        };
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "ench-live")
+        ).toBe(true); // surviving member reanimated
+        expect(
+            state.players[0].battlefield.some(
+                (c) => c.id === "ghost-not-in-any-graveyard"
+            )
+        ).toBe(false); // stale member skipped, no crash
+    });
+
+    it("empty graveyard set is a no-op (CR 608.2b)", () => {
+        const id = registerScript("test-foreach-gy-empty", replenishScript);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [
+                        makeInstance(BEAR_ID, {
+                            id: "only-creature",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "graveyard",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "only-creature")
+        ).toBe(true);
+    });
+});
+
 describe("Effect Script Op: draw (CR 121.1)", () => {
     const withLibrary = (owner: "p1" | "p2", n: number) =>
         Array.from({ length: n }, (_, i) =>
