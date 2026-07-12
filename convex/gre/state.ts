@@ -1,30 +1,31 @@
-import type {
-    AnimateSpec,
-    CardDefinition,
-    CardSupertype,
-    CardType,
-    Color,
-    ControlChangeCondition,
-    CounterDestination,
-    DelayedTriggerInlineBody,
-    DelayedTriggerTiming,
-    DurationSpec,
-    EffectCardFilter,
-    EffectOp,
-    FlashbackCost,
-    GameEvent,
-    ManaCost as CardManaCost,
-    MayPayCost,
-    MovableZone,
-    PermanentFilter,
-    PermanentView,
-    SpellContext,
-    StaticEffect,
-    TargetRequirement,
-    TargetSelection,
-    TextChange,
-    TokenSpec,
-    TriggerFizzledEvent,
+import {
+    type AnimateSpec,
+    type CardDefinition,
+    type CardSupertype,
+    type CardType,
+    type Color,
+    type ControlChangeCondition,
+    type CounterDestination,
+    type DelayedTriggerInlineBody,
+    type DelayedTriggerTiming,
+    type DurationSpec,
+    type EffectCardFilter,
+    type EffectOp,
+    type FlashbackCost,
+    type GameEvent,
+    type ManaCost as CardManaCost,
+    type MayPayCost,
+    type MovableZone,
+    type PermanentFilter,
+    type PermanentView,
+    type SpellContext,
+    type StaticEffect,
+    type TargetRequirement,
+    type TargetSelection,
+    type TextChange,
+    type TokenSpec,
+    type TriggerFizzledEvent,
+    countDomain,
 } from "../cards/types";
 import {
     registerTokenDefinition,
@@ -1955,7 +1956,17 @@ export type GameState = {
     gameOver?: {
         winnerId: string;
         loserId: string;
-        reason: "life" | "decked" | "concede" | "draw" | "poison";
+        /** "alternate-win" (issue #1066, CR 104.2a) — a spell/ability
+         *  DESIGNATES the winner directly (Coalition Victory), rather than the
+         *  loser meeting a CR 704.5 loss condition — the only reason with no
+         *  natural "why the loser lost" story, since there is none. */
+        reason:
+            | "life"
+            | "decked"
+            | "concede"
+            | "draw"
+            | "poison"
+            | "alternate-win";
         /** True when the game ended in a draw (CR 104.4a). No winner, no loser. */
         isDraw?: boolean;
     };
@@ -7054,6 +7065,16 @@ export function buildSpellContext(
         getKickerCount(): number {
             return item.kickerCount ?? 0;
         },
+        // Domain (CR 702 preamble ability word, issue #1066) — the number of
+        // basic land types among `playerId`'s controlled lands (0–5). `state`
+        // structurally satisfies `StaticEffectStateView` (players[].battlefield
+        // / graveyard, both present on the live GameState), so this is the
+        // SAME `countDomain` scan `StaticPTCDA.compute` closures and the
+        // Collective Restraint dynamic `costPerAttacker` use — one execution
+        // path, no duplicated logic.
+        getDomain(playerId: string): number {
+            return countDomain(state as never, playerId);
+        },
         // CR 202.3 / 202.3b — mana value lookup. For permanents on the
         // battlefield, X in the printed cost counts as 0 (the chosen X is
         // not currently preserved on the resulting permanent). For stack
@@ -7248,6 +7269,21 @@ export function buildSpellContext(
                 loserId: "",
                 reason: "draw",
                 isDraw: true,
+            };
+        },
+        // CR 104.2a — a resolving spell/ability designates its winner
+        // (Coalition Victory), through the SAME `state.gameOver` seam
+        // State-Based Actions use (`checkGameOverSBA`, `gre/sba.ts`). No-op if
+        // the game already ended (mirrors `drawGame`'s guard) — CR 104.2a
+        // doesn't re-decide an already-decided game.
+        winGame(playerId: string): void {
+            if (state.gameOver) return;
+            getPlayer(state, playerId);
+            const opponent = state.players.find((p) => p.id !== playerId);
+            state.gameOver = {
+                winnerId: playerId,
+                loserId: opponent?.id ?? playerId,
+                reason: "alternate-win",
             };
         },
         getDamageDealtThisTurn(playerId: string): number {

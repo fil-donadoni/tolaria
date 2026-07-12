@@ -53,3 +53,43 @@ export const tsabosWeb: CardDefinition = {
         }),
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// Domain cluster (parent PRD #1063, issue #1066)
+// ─────────────────────────────────────────────────────────────────────────
+
+// Power Armor — {4} Artifact. "Domain — {3}, {T}: Target creature gets
+// +1/+1 until end of turn for each basic land type among lands you
+// control." (CR 605 activated ability, CR 611.1 temporary P/T, CR 702
+// preamble Domain ability word, issue #1066.) The `pump` Op's `power`/
+// `toughness` are the ninth EffectValue grammar member `{ domain: { of } }`
+// — no arithmetic needed, a straight reuse of the same value member Tribal
+// Flames uses for `dealDamage`.
+export const powerArmor: CardDefinition = {
+    id: "ed1981dd-c0f3-4e9d-a1f1-8bea823326ef",
+    name: "Power Armor",
+    rarity: "uncommon",
+    oracleText:
+        "Domain — {3}, {T}: Target creature gets +1/+1 until end of turn for each basic land type among lands you control.",
+    manaCost: { X: 4 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "power-armor-pump",
+            oracleText:
+                "{3}, {T}: Target creature gets +1/+1 until end of turn for each basic land type among lands you control.",
+            cost: { tap: true, mana: { X: 3 } },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: { domain: { of: "controller" } },
+                    toughness: { domain: { of: "controller" } },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};

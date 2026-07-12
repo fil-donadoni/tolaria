@@ -39,7 +39,20 @@
 
 import type { GameEvent } from "./types";
 
-export type MechanicKind = "keyword-ability" | "keyword-action";
+export type MechanicKind =
+    | "keyword-ability"
+    | "keyword-action"
+    /** CR 207.2c — an ITALIC ability word: purely organizational text with NO
+     *  independent rules meaning of its own (unlike a CR 702 keyword ability,
+     *  an ability word never appears in a card's `staticAbilities[]` and the
+     *  name-authority guard never checks one against it). Most ability words
+     *  (Threshold, Delirium — see `tor/black.ts` / `mh2/red.ts`) are simple
+     *  `if`-predicate labels with no registry row at all, per this file's own
+     *  header precedent. Domain earns a row because it graduated to a real
+     *  engine primitive (`SpellContext.getDomain`) and a NINTH `EffectValue`
+     *  grammar member (`{ domain: { of } }`, issue #1066) — the row documents
+     *  that binding, it does not gate anything a card declares. */
+    | "ability-word";
 export type MechanicStatus = "implemented" | "planned" | "out-of-scope";
 
 export interface MechanicRow {
@@ -2202,9 +2215,25 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
     },
 ];
 
+/** CR 207.2c ability words with a real engine binding (as opposed to a plain
+ *  `if`-predicate label with no registry row — Threshold, Delirium; see this
+ *  file's header). Deliberately small: most ability words never earn a row. */
+const ABILITY_WORDS: MechanicRow[] = [
+    {
+        id: "domain",
+        name: "Domain",
+        kind: "ability-word",
+        cr: "702 preamble",
+        status: "implemented",
+        binding: "SpellContext.getDomain / EffectValue { domain: { of } }",
+        note: "The number of basic land types among lands a player controls (0–5, CR 305.6 — a dual land contributes several), issue #1066. Reused by four sites: the `{ domain: { of } }` EffectValue grammar member (Tribal Flames, Wandering Stream, Ordered Migration, Worldly Counsel, Power Armor's pump), the shared `countDomain` helper feeding `StaticPTCDA.compute` closures (Kavu Scout, Wayfaring Giant, Exotic Curse, Strength of Unity), the dynamic `StaticAttackManaTax.costPerAttacker` function (Collective Restraint), and Coalition Victory's `winGame`-gating `if` predicate.",
+    },
+];
+
 export const MECHANICS_REGISTRY: MechanicRow[] = [
     ...KEYWORD_ACTIONS,
     ...KEYWORD_ABILITIES,
+    ...ABILITY_WORDS,
 ];
 
 /** Engine-internal `staticAbilities` markers that are NOT CR 701/702
@@ -2524,6 +2553,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.markKnownToAll",
         note: 'Reveal to every player (CR 701.20a, issue #920 / #682 — promoted from the `planned` backlog; issue #945 — extended to a searched-and-found card). A thin declarative skin over the single SpellContext primitive `markKnownToAll` (ADR 0026), one execution path (ADR 0045): the named card(s) are stamped with every player in `knownTo`, so the wire projection (`convex/gameProjections.ts`) shows the real card instead of nulling the slot. TWO mutually-exclusive shapes: (a) `zone: "hand"` — reveal `player`\'s WHOLE hand (Thoughtseize / Duress / Inquisition of Kozilek / Grief\'s "target player reveals their hand"), no-op on an empty hand (CR 608.2b); (b) `cards: <bare picks ref>` (issue #945) — reveal the SPECIFIC card(s) a preceding search-library `choice` bound, the tutor "search …, reveal it, put it into your hand, then shuffle" clause (Spellseeker, Stoneforge Mystic, Brightglass Gearhulk, Expedition Map). `markKnownToAll` already accepts arbitrary instance ids and scans library+hand, so the reveal is placed BEFORE the moveZone/shuffle: the picked card is stamped while still in the library, keeps its all-players knowledge through the move into hand, and survives the trailing shuffle (which only clears knowledge of cards still in the library, CR 701.20). No-op when the choice found nothing (CR 608.2b). SCOPE: only the ALL-PLAYERS reveal is folded. A private "look" (ONE knower, e.g. Word of Command\'s "look at target opponent\'s hand") is a DIFFERENT, narrower primitive (`SpellContext.markKnown`) and stays resolve() — Word of Command\'s control-transfer protocol has other reasons to stay resolve() regardless (ADR 0037). A library-top reveal (Caustic Bronco-class, positional order matters) is also NOT folded — left for a future Op.',
     },
+    {
+        op: "winGame",
+        status: "implemented",
+        cr: "104.2a",
+        binding: "SpellContext.winGame",
+        note: 'Designate the winning player (CR 104.2a, issue #1066 — Coalition Victory). A thin declarative skin over the single SpellContext primitive `winGame`, one execution path (ADR 0045): sets `state.gameOver` through the SAME seam State-Based Actions use (`checkGameOverSBA`, `gre/sba.ts`) — winnerId = the resolved `player`, loserId = the opponent, reason "alternate-win" (the only `gameOver.reason` with no CR 704.5 "why the loser lost" story, since there is none — the winner is DESIGNATED, not the loser defeated). No-op if the game already ended (mirrors `drawGame`\'s guard). The Op itself carries no predicate — Coalition Victory gates it behind nested `if`s (a `{ domain: { of } } >= 5` land-of-each-basic-type check, five `count` checks for a creature of each color) built entirely from EXISTING constructs, so the win condition needed no new predicate grammar. SCOPE (issue #1066): the 2-player `state.gameOver` seam only — no "can\'t win the game" replacement hook (Platinum Angel) exists yet; noted as a future extension point, not built (no INV card needs it).',
+    },
 ];
 
 /** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
@@ -2775,6 +2811,22 @@ export const EVENT_FIELD_REGISTRY: Record<
                 e.type === "DAMAGE_DEALT" && e.target.type === "player"
                     ? e.target.id
                     : undefined,
+        },
+    },
+    // CR 603.6a — "at the beginning of [step]". `activePlayerId` is the player
+    // on whose step the event fired (issue #1066 — Collapsing Borders' "at the
+    // beginning of EACH PLAYER'S upkeep, THAT PLAYER gains life…"). Unblocks a
+    // `phaseTrigger({ scope: "each" })` DSL `effects[]` body: the factory's own
+    // doc note ("effects only valid with scope: 'your'") holds for every OTHER
+    // phase trigger because `ctx.controller` is the ability's controller, not
+    // the scoped player — this ref reads the scoped player directly off the
+    // firing event instead of `ctx.controller`, so an `each`-scope trigger can
+    // target the right player without going imperative.
+    PHASE_BEGIN: {
+        activePlayerId: {
+            family: "player",
+            resolve: (e) =>
+                e.type === "PHASE_BEGIN" ? e.activePlayerId : undefined,
         },
     },
 };

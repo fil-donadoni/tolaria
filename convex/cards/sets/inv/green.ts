@@ -104,3 +104,29 @@ export const kavuChameleon: CardDefinition = {
         },
     ],
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// Domain cluster (parent PRD #1063, issue #1066)
+// ─────────────────────────────────────────────────────────────────────────
+
+// Wandering Stream — {2}{G} Sorcery. "Domain — You gain 2 life for each
+// basic land type among lands you control." (CR 119.3a life gain, CR 702
+// preamble Domain ability word, issue #1066.) `times: 2` is the Domain
+// value's fixed scaling-factor field (mirrors `EffectCountSpec.times`,
+// issue #999) — "gain TWO life for each…", not one.
+export const wanderingStream: CardDefinition = {
+    id: "6da5cb6c-253b-44f0-98f9-d75f42c6e14b",
+    rarity: "common",
+    name: "Wandering Stream",
+    oracleText:
+        "Domain — You gain 2 life for each basic land type among lands you control.",
+    manaCost: { X: 2, G: 1 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "gainLife",
+            player: "controller",
+            amount: { domain: { of: "controller", times: 2 } },
+        },
+    ],
+};

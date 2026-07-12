@@ -732,6 +732,20 @@ export function collectAttackManaTax(state: GameState): AttackManaCharge[] {
             if (!def?.staticEffects) continue;
             for (const effect of def.staticEffects) {
                 if (effect.kind !== "attack-mana-tax") continue;
+                // issue #1066 — `costPerAttacker` may be a fixed `ManaCost` OR
+                // a function evaluated ONCE per source at combat time
+                // (Collective Restraint's Domain-scaled `{X}`). Computed
+                // outside the attacker loop: the charge is identical for
+                // every taxed attacker this source imposes on, so the source
+                // controller's board is read once, not per attacker.
+                const cost =
+                    typeof effect.costPerAttacker === "function"
+                        ? effect.costPerAttacker(
+                              source as unknown as PermanentView,
+                              state as never,
+                              ATTACK_RESTRICTION_CTX
+                          )
+                        : effect.costPerAttacker;
                 for (const attacker of declared) {
                     if (
                         !effect.taxes(
@@ -745,7 +759,7 @@ export function collectAttackManaTax(state: GameState): AttackManaCharge[] {
                     }
                     charges.push({
                         controllerId: attacker.controllerId,
-                        cost: effect.costPerAttacker,
+                        cost,
                         reason: effect.oracleText,
                     });
                 }

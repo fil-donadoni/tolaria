@@ -95,11 +95,17 @@ export interface PhaseTriggerArgs {
      *  declarative, JSON-pure data instead of an imperative `resolve`. The
      *  interpreter runs it through the shared spell/ability code path, with the
      *  trigger's controller and source permanent bound (`$source`,
-     *  `ctx.controller`). Because a script reads `ctx.controller` rather than
-     *  the factory's `scopedPlayerId`, use `effects` only with `scope: "your"`
-     *  (where the scoped player IS the controller); `each` / `opponents`
-     *  triggers, whose scoped player differs from the controller, must stay
-     *  imperative. Mutually exclusive with `resolve` / `resolveSteps`. */
+     *  `ctx.controller`). A script that reads a player via the plain
+     *  `"controller"` selector gets the ABILITY's controller, not the factory's
+     *  `scopedPlayerId` — safe with `scope: "your"` (where the two are the
+     *  same player) but WRONG for `each` / `opponents` (whose scoped player
+     *  differs from the controller). issue #1066 (Collapsing Borders)
+     *  unblocks `each` / `opponents` for DSL scripts too: read the scoped
+     *  player via `{ ref: "$event.activePlayerId" }` (a censused
+     *  `EVENT_FIELD_REGISTRY` row for `PHASE_BEGIN`, ADR 0049) instead of the
+     *  plain `"controller"` selector — that ref resolves straight off the
+     *  firing event, bypassing `ctx.controller` entirely, so it is correct
+     *  under any scope. Mutually exclusive with `resolve` / `resolveSteps`. */
     effects?: EffectOp[];
 }
 
@@ -137,8 +143,11 @@ export function phaseTrigger(args: PhaseTriggerArgs): TriggeredAbility {
         // ADR 0045 (issue #803) — a declarative Effect Script bypasses the
         // scope-wrapped `resolve`/`resolveSteps` entirely: it rides straight to
         // the interpreter, which binds the controller and `$source` from the
-        // resolution context (valid for `scope: "your"`, where controller ==
-        // scoped player). Mutually exclusive with the imperative forms.
+        // resolution context. A plain `"controller"` player selector is only
+        // correct for `scope: "your"` (controller == scoped player); `each` /
+        // `opponents` scripts read the scoped player via
+        // `{ ref: "$event.activePlayerId" }` instead (issue #1066). Mutually
+        // exclusive with the imperative forms.
         ...(args.effects
             ? { effects: args.effects }
             : args.resolveSteps

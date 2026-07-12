@@ -29,6 +29,7 @@ import {
     devouringStrossus,
     dredge,
     duskwalker,
+    exoticCurse,
     gohamDjinn,
     hateWeaver,
     hypnoticCloud,
@@ -51,6 +52,7 @@ import {
     urborgSkeleton,
 } from "../black";
 import { getCardByName } from "../../../index";
+import { plains, island, savannahLions } from "../../lea";
 import {
     makeInstance,
     makePlayer,
@@ -799,5 +801,75 @@ describe("Urborg Skeleton (Kicker → a single +1/+1 counter; CR 702.33 / 122.1)
             (c) => c.card.id === urborgSkeleton.id
         )!;
         expect(skel.counters?.["+1/+1"] ?? 0).toBe(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Exotic Curse — Domain-scaled `pt-cda` Aura (CR 303.4 / 604.3 / 702
+// preamble, issue #1066). Mirrors Strength of Unity (`inv/white.ts`) with a
+// NEGATED delta; the wire-format re-assertion after `projectPublicState` is
+// mandatory per the Card testing convention for staticEffects[] (layer 7c).
+// ---------------------------------------------------------------------------
+
+describe("Exotic Curse (CR 303.4 aura / 604.3 CDA — -1/-1 per Domain, issue #1066)", () => {
+    it("gives the enchanted creature -1/-1 for each of the AURA CONTROLLER's basic land types", () => {
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const curse = makeInstance(exoticCurse.id, {
+            id: "curse",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "lion",
+        });
+        const lands = [plains, island].map((def, i) =>
+            makeInstance(def.id, {
+                id: `ec-land-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [curse, ...lands] }),
+                makePlayer("p2", { battlefield: [lion] }),
+            ],
+        });
+        // Savannah Lions is a 2/1; the AURA controller (p1) has Domain 2.
+        expect(getEffectivePower(state, lion)).toBe(0); // 2 - 2
+        expect(getEffectiveToughness(state, lion)).toBe(-1); // 1 - 2
+    });
+
+    it("CDA P/T survives the wire projection (mandatory)", () => {
+        const lion = makeInstance(savannahLions.id, {
+            id: "lion",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const curse = makeInstance(exoticCurse.id, {
+            id: "curse",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "lion",
+        });
+        const land = makeInstance(plains.id, {
+            id: "ec-wire-land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [lion, curse, land] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slimLion = projected.players[0].battlefield.find(
+            (c) => c.id === "lion"
+        )!;
+        expect(getEffectivePower(projected, slimLion)).toBe(1); // 2 - 1
+        expect(getEffectiveToughness(projected, slimLion)).toBe(0); // 1 - 1
     });
 });

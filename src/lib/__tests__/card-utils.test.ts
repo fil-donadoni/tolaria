@@ -38,6 +38,7 @@ import type { CardDefinition } from "@convex/cards/types";
 import { getDefinition } from "@convex/cards";
 import { dominate } from "@convex/cards/sets/nem";
 import { fellwarStone, deepWater, gaeasTouch } from "@convex/cards/sets/drk";
+import { powerArmor } from "@convex/cards/sets/inv";
 import {
     redManaBattery,
     greatWall,
@@ -553,6 +554,39 @@ describe("getStackAbilities", () => {
             expect(abilities).toHaveLength(1);
             expect(abilities[0].id).toBe("griselbrand-pay-life-draw");
         });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Power Armor (INV, issue #1066) — Domain-scaled activated ability
+// ({3},{T}: target creature +Domain/+Domain). Its cost shape (`tap` + `mana`)
+// is the baseline the catalogue reuses everywhere, so no NEW affordability
+// gate is introduced — but per the Frontend wiring analysis
+// (.claude/rules/gre-development.md), every new card's activated ability
+// still gets walked through the reducer (`getStackAbilities`) at least once
+// so a regression that silently hides it is caught. The Domain-scaled
+// pump AMOUNT itself is computed server-side at resolution (`ctx.getDomain`)
+// and never read by this client-side affordability gate.
+// ---------------------------------------------------------------------------
+describe("getStackAbilities — Power Armor (Domain-scaled pump, issue #1066)", () => {
+    it("surfaces the {3},{T} ability when untapped", () => {
+        const card = makeCardInstance({
+            card: { id: powerArmor.id },
+            types: ["Artifact"],
+            isTapped: false,
+        });
+        const abilities = getStackAbilities(card);
+        expect(abilities).toHaveLength(1);
+        expect(abilities[0].id).toBe("power-armor-pump");
+    });
+
+    it("hides the ability when the source is already tapped (unpayable {T})", () => {
+        const card = makeCardInstance({
+            card: { id: powerArmor.id },
+            types: ["Artifact"],
+            isTapped: true,
+        });
+        expect(getStackAbilities(card)).toHaveLength(0);
     });
 });
 

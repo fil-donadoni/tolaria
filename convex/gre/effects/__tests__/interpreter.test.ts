@@ -8908,3 +8908,291 @@ describe("Effect Script value: manaValue (CR 202.3)", () => {
         ).toBeDefined();
     });
 });
+
+// Synthetic basic-land instances for the Domain value member tests below
+// (CR 305.6 — the five basic land types). Registered once at module scope,
+// mirroring `BEAR_ID`'s pattern above.
+const PLAINS_ID = "test-effects-plains";
+registerTokenDefinition({
+    id: PLAINS_ID,
+    name: PLAINS_ID,
+    rarity: "common",
+    types: ["Land"],
+    subtypes: ["Plains"],
+});
+const ISLAND_ID = "test-effects-island";
+registerTokenDefinition({
+    id: ISLAND_ID,
+    name: ISLAND_ID,
+    rarity: "common",
+    types: ["Land"],
+    subtypes: ["Island"],
+});
+const SWAMP_ID = "test-effects-swamp";
+registerTokenDefinition({
+    id: SWAMP_ID,
+    name: SWAMP_ID,
+    rarity: "common",
+    types: ["Land"],
+    subtypes: ["Swamp"],
+});
+// A dual land (two basic subtypes) — "duals contribute several" (issue #1066).
+const DUAL_ID = "test-effects-dual";
+registerTokenDefinition({
+    id: DUAL_ID,
+    name: DUAL_ID,
+    rarity: "common",
+    types: ["Land"],
+    subtypes: ["Mountain", "Forest"],
+});
+
+describe("Effect Script value: domain (CR 702 preamble ability word, issue #1066)", () => {
+    it("reads the controller's Domain as a numeric amount (dealDamage)", () => {
+        const id = registerScript("test-val-domain-dmg", [
+            {
+                op: "dealDamage",
+                amount: { domain: { of: "controller" } },
+                to: { player: "opponent" },
+            },
+        ]);
+        // p1 controls Plains + Island + a duplicate Plains: 2 distinct basic
+        // types (the duplicate does not double-count).
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(PLAINS_ID, {
+                            id: "pl-1",
+                            controllerId: "p1",
+                        }),
+                        makeInstance(ISLAND_ID, {
+                            id: "is-1",
+                            controllerId: "p1",
+                        }),
+                        makeInstance(PLAINS_ID, {
+                            id: "pl-2",
+                            controllerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(18); // 20 - 2
+    });
+
+    it("a dual land contributes BOTH of its basic subtypes", () => {
+        const id = registerScript("test-val-domain-dual", [
+            {
+                op: "dealDamage",
+                amount: { domain: { of: "controller" } },
+                to: { player: "opponent" },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(DUAL_ID, {
+                            id: "dual-1",
+                            controllerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(18); // 20 - 2 (Mountain + Forest)
+    });
+
+    it('reads a NON-controller player\'s Domain via `of: "opponent"`', () => {
+        const id = registerScript("test-val-domain-opponent", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { domain: { of: "opponent" } },
+            },
+        ]);
+        // p1 (the caster/controller) has NO basic lands; p2 (the opponent)
+        // controls three distinct basic types — the amount reads p2's Domain,
+        // not p1's, proving the player-scoped `of` selector (unlike
+        // counters'/manaValue's object-scoped `of`).
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(PLAINS_ID, {
+                            id: "pl-opp",
+                            controllerId: "p2",
+                        }),
+                        makeInstance(ISLAND_ID, {
+                            id: "is-opp",
+                            controllerId: "p2",
+                        }),
+                        makeInstance(SWAMP_ID, {
+                            id: "sw-opp",
+                            controllerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(23); // 20 + 3
+    });
+
+    it("is 0 (a no-op) for a player with no basic lands", () => {
+        const id = registerScript("test-val-domain-zero", [
+            {
+                op: "dealDamage",
+                amount: { domain: { of: "controller" } },
+                to: { player: "opponent" },
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(20); // unchanged — 0 damage no-ops
+    });
+
+    it("survives the wire projection (Domain is server-computed; the outcome matches post-projection)", () => {
+        const id = registerScript("test-val-domain-wire", [
+            {
+                op: "dealDamage",
+                amount: { domain: { of: "controller" } },
+                to: { player: "opponent" },
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(PLAINS_ID, {
+                            id: "pl-w",
+                            controllerId: "p1",
+                        }),
+                        makeInstance(ISLAND_ID, {
+                            id: "is-w",
+                            controllerId: "p1",
+                        }),
+                        makeInstance(SWAMP_ID, {
+                            id: "sw-w",
+                            controllerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].life).toBe(17); // 20 - 3
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].life).toBe(17);
+    });
+
+    it("multiplies the Domain count by `times` (Wandering Stream: 2 life per basic land type, issue #1066 review)", () => {
+        const id = registerScript("test-val-domain-times", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { domain: { of: "controller", times: 2 } },
+            },
+        ]);
+        // p1 controls 3 distinct basic land types → Domain is 3, times 2 = 6.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(PLAINS_ID, {
+                            id: "pl-times",
+                            controllerId: "p1",
+                        }),
+                        makeInstance(ISLAND_ID, {
+                            id: "is-times",
+                            controllerId: "p1",
+                        }),
+                        makeInstance(SWAMP_ID, {
+                            id: "sw-times",
+                            controllerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(26); // 20 + (3 * 2)
+    });
+});
+
+describe("Effect Script Op: winGame (CR 104.2a, issue #1066)", () => {
+    it("sets state.gameOver for the resolving controller", () => {
+        const id = registerScript("test-op-wingame-controller", [
+            { op: "winGame", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.gameOver).toEqual({
+            winnerId: "p1",
+            loserId: "p2",
+            reason: "alternate-win",
+        });
+    });
+
+    it('sets the OPPONENT as winner when player: "opponent"', () => {
+        const id = registerScript("test-op-wingame-opponent", [
+            { op: "winGame", player: "opponent" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.gameOver).toEqual({
+            winnerId: "p2",
+            loserId: "p1",
+            reason: "alternate-win",
+        });
+    });
+
+    it("is a no-op when the game already ended (CR 104.2a doesn't re-decide)", () => {
+        const id = registerScript("test-op-wingame-already-over", [
+            { op: "winGame", player: "controller" },
+        ]);
+        const state = makeState();
+        state.gameOver = {
+            winnerId: "p2",
+            loserId: "p1",
+            reason: "life",
+        };
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.gameOver).toEqual({
+            winnerId: "p2",
+            loserId: "p1",
+            reason: "life",
+        });
+    });
+
+    it("survives the wire projection (gameOver is a top-level GameState key)", () => {
+        const id = registerScript("test-op-wingame-wire", [
+            { op: "winGame", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.gameOver).toEqual({
+            winnerId: "p1",
+            loserId: "p2",
+            reason: "alternate-win",
+        });
+    });
+});
