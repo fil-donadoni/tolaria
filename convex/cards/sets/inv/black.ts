@@ -1366,12 +1366,27 @@ export const urborgSkeleton: CardDefinition = {
 // target itself — both `gainControl` calls then no-op against an unchanged
 // controller (CR 608.2b), which is also the printed ruling for targeting a
 // creature already under the same controller as this card.
+//
+// CR 701.12e atomicity fix (issue #1068 review): the target creature staying
+// a legal target does NOT guarantee `$source` (this creature) is still
+// around — the opponent can remove it in response. If it's gone, op1 already
+// silently no-ops (`resolveObjectRef` skips a vanished object), but op2 would
+// still fire unconditionally and steal the target ONE-WAY with no exchange
+// back. CR 701.12e requires the swap to happen for BOTH permanents or
+// NEITHER, so both Ops are wrapped in an `if` guarding on `$source` still
+// being on the battlefield — reusing the EXACT `count` + `name` filter +
+// `acrossAllPlayers` shape Accumulated Knowledge already uses to count copies
+// of itself (`nem/blue.ts`, issue #985), just pointed at `zone: "battlefield"`
+// instead of `"graveyard"` (both are legal `EffectCountSpec.zone` values — no
+// new predicate/condition shape invented). The target's own presence is
+// already guaranteed by `targetLegalityGate`, so the guard only needs to
+// check the source.
 export const phyrexianInfiltrator: CardDefinition = {
     id: "224b8254-553d-4d88-8163-1f15e1244bd2", // INV 116
     name: "Phyrexian Infiltrator",
     rarity: "rare",
     oracleText:
-        "{2}{U}{U}: Exchange control of Phyrexian Infiltrator and target creature. (This effect lasts indefinitely.)",
+        "{2}{U}{U}: Exchange control of this creature and target creature. (This effect lasts indefinitely.)",
     manaCost: { X: 2, B: 1 },
     types: ["Creature"],
     subtypes: ["Phyrexian", "Minion"],
@@ -1381,20 +1396,39 @@ export const phyrexianInfiltrator: CardDefinition = {
         {
             id: "phyrexian-infiltrator-exchange",
             oracleText:
-                "{2}{U}{U}: Exchange control of Phyrexian Infiltrator and target creature. (This effect lasts indefinitely.)",
+                "{2}{U}{U}: Exchange control of this creature and target creature. (This effect lasts indefinitely.)",
             cost: { mana: { X: 2, U: 2 } },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             effects: [
                 {
-                    op: "gainControl",
-                    target: { ref: "$source" },
-                    controller: { controllerOf: { target: 0 } },
-                },
-                {
-                    op: "gainControl",
-                    target: { target: 0 },
-                    controller: "controller",
+                    // CR 701.12e — both gainControl Ops fire together, or
+                    // neither does (no one-way steal if $source died in
+                    // response).
+                    op: "if",
+                    predicate: {
+                        left: {
+                            count: {
+                                zone: "battlefield",
+                                acrossAllPlayers: true,
+                                filter: { name: "Phyrexian Infiltrator" },
+                            },
+                        },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "gainControl",
+                            target: { ref: "$source" },
+                            controller: { controllerOf: { target: 0 } },
+                        },
+                        {
+                            op: "gainControl",
+                            target: { target: 0 },
+                            controller: "controller",
+                        },
+                    ],
                 },
             ],
         },

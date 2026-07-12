@@ -1149,4 +1149,63 @@ describe("Phyrexian Infiltrator ({2}{U}{U}: exchange control indefinitely, CR 70
             projected.players[1].battlefield.some((c) => c.id === "inf3")
         ).toBe(true);
     });
+
+    // CR 701.12e — an exchange must happen for BOTH permanents or NEITHER
+    // (the Gilded Drake / Legerdemain precedent). The target creature staying
+    // a legal target does not guarantee `$source` survives to resolution: the
+    // opponent can remove the Infiltrator in response. Before the fix, op1
+    // ($source -> target's controller) silently no-op'd on the vanished
+    // source while op2 (target -> activator) still fired unconditionally,
+    // stealing the target one-way with no exchange back.
+    it("does NOT steal the target when the Infiltrator is removed from the battlefield in response (CR 701.12e atomicity)", () => {
+        const infiltrator = makeInstance(phyrexianInfiltrator.id, {
+            id: "inf4",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const enemy = makeInstance(savannahLions.id, {
+            id: "enemy4",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [infiltrator] }),
+                makePlayer("p2", { battlefield: [enemy] }),
+            ],
+        });
+        // Activate targeting the opponent's creature...
+        state.stack.push({
+            ...infiltrator,
+            zone: "stack",
+            castById: infiltrator.controllerId,
+            abilityId: "phyrexian-infiltrator-exchange",
+            targets: [{ type: "permanent", id: "enemy4" }],
+        });
+        // ...then the opponent removes the Infiltrator in response (e.g.
+        // destroy/sacrifice) BEFORE the ability resolves.
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => c.id !== "inf4"
+        );
+        state.players[0].graveyard = [
+            ...state.players[0].graveyard,
+            { ...infiltrator, zone: "graveyard" },
+        ];
+
+        resolveTopOfStack(state);
+
+        // The target creature's controller is UNCHANGED — no one-way steal.
+        const target = state.players[1].battlefield.find(
+            (c) => c.id === "enemy4"
+        );
+        expect(target?.controllerId).toBe("p2");
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "enemy4")
+        ).toBe(false);
+        // The Infiltrator stays dead in its owner's graveyard — the guard
+        // didn't resurrect it either.
+        expect(state.players[0].graveyard.some((c) => c.id === "inf4")).toBe(
+            true
+        );
+    });
 });
