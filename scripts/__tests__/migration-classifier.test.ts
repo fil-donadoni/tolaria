@@ -593,9 +593,14 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // land-type resolve() lands Op-blocked (no DSL Op wraps the choose-a-
         // land-type protocol yet): total 659→660, Op-blocked 223→224, FREE 422
         // / AFK-ready 388 / X-only 14 unchanged. Partition holds: 422+14+224=660.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(660);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(422);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(388);
+        // Net from #1071 (INV free tranche — Black): the black cards added 7
+        // resolve() closures, all FREE + AFK-ready (each ships a per-card GRE
+        // test — the 5 destroy-no-regen / trigger-condition cards plus Phyrexian
+        // Delver + Plague Spitter): total 660→667, FREE 422→429, AFK-ready
+        // 388→395, Op-blocked 224 / X-only 14 unchanged. Partition: 429+14+224=667.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(667);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(429);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(395);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(224);
     });
