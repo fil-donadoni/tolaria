@@ -1510,12 +1510,20 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
         });
         return;
     }
-    // domain — { domain: { of } } (CR 702 preamble, issue #1066): `of` here is
-    // a PLAYER position, unlike every other value member's object-family `of`
-    // (`counters`/`manaValue`). Handled BEFORE the generic recursion below so
-    // a ref under `domain.of` isn't mis-tagged "object" by the shared `of`
-    // convention those two members established.
-    if (keyHint === "domain" && keys.length === 1 && keys[0] === "of") {
+    // domain — { domain: { of, times? } } (CR 702 preamble, issue #1066): `of`
+    // here is a PLAYER position, unlike every other value member's
+    // object-family `of` (`counters`/`manaValue`). Handled BEFORE the generic
+    // recursion below so a ref under `domain.of` isn't mis-tagged "object" by
+    // the shared `of` convention those two members established. The optional
+    // `times` multiplier (a plain number, no ref grammar of its own) is
+    // allowed alongside `of` without falling through to generic recursion —
+    // review finding on issue #1066/PR #1091: a bare `keys.length === 1`
+    // check would mis-tag `of` as "object" the moment `times` co-exists.
+    if (
+        keyHint === "domain" &&
+        keys.includes("of") &&
+        keys.every((k) => k === "of" || k === "times")
+    ) {
         collectRefUses(obj.of, "player", out);
         return;
     }

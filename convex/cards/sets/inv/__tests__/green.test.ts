@@ -1,8 +1,13 @@
 // Per-card behavior tests for INV green cards (`convex/cards/sets/inv/green.ts`).
 
 import { describe, it, expect } from "vitest";
-import { blurredMongoose, kavuChameleon } from "../green";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import { blurredMongoose, kavuChameleon, wanderingStream } from "../green";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
     type GameState,
@@ -14,6 +19,7 @@ import { projectPublicState } from "../../../../gameProjections";
 import { STATIC_EFFECT_CTX } from "../../../../gre/layers";
 import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 import { getLegalTargets } from "../../../../gre/rules";
+import { plains, island, swamp } from "../../lea/colorless";
 
 const CREATURE_REQ = { type: "Creature", count: 1 } as const;
 
@@ -126,5 +132,46 @@ describe("Kavu Chameleon (CR 701.5c can't-be-countered, 305.7 / 613.1d colour ch
         state.phase = "CLEANUP";
         finalizeCleanup(state);
         expect(STATIC_EFFECT_CTX.getColors(after)).toEqual(["G"]);
+    });
+});
+
+// Wandering Stream is the only shipped user of the Domain value's `times`
+// multiplier (`{ domain: { of: "controller", times: 2 } }`) — the interpreter
+// already has a permanent unit test for `times` (ADR 0045 new-construct
+// regime); this is the CARD-level wiring assertion (review finding on issue
+// #1066 / PR #1091).
+describe("Wandering Stream (CR 119.3a life gain, Domain, issue #1066)", () => {
+    it("gains 2 life for EACH basic land type controlled (times: 2)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(plains.id, {
+                            id: "ws-pl",
+                            controllerId: "p1",
+                        }),
+                        makeInstance(island.id, {
+                            id: "ws-is",
+                            controllerId: "p1",
+                        }),
+                        makeInstance(swamp.id, {
+                            id: "ws-sw",
+                            controllerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, wanderingStream.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(26); // 20 + (3 basic types * 2)
+    });
+
+    it("gains no life for a player with no basic lands", () => {
+        const state = makeState();
+        pushSpell(state, wanderingStream.id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20);
     });
 });

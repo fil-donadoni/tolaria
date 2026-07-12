@@ -9096,6 +9096,41 @@ describe("Effect Script value: domain (CR 702 preamble ability word, issue #1066
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[1].life).toBe(17);
     });
+
+    it("multiplies the Domain count by `times` (Wandering Stream: 2 life per basic land type, issue #1066 review)", () => {
+        const id = registerScript("test-val-domain-times", [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { domain: { of: "controller", times: 2 } },
+            },
+        ]);
+        // p1 controls 3 distinct basic land types → Domain is 3, times 2 = 6.
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(PLAINS_ID, {
+                            id: "pl-times",
+                            controllerId: "p1",
+                        }),
+                        makeInstance(ISLAND_ID, {
+                            id: "is-times",
+                            controllerId: "p1",
+                        }),
+                        makeInstance(SWAMP_ID, {
+                            id: "sw-times",
+                            controllerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(26); // 20 + (3 * 2)
+    });
 });
 
 describe("Effect Script Op: winGame (CR 104.2a, issue #1066)", () => {
