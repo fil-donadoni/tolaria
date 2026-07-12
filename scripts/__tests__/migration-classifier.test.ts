@@ -589,11 +589,15 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // duration-gapped cards), while the duplicate Holy Day was removed:
         // total 656→659, FREE 420→422, AFK-ready 386→388, Op-blocked 222→223,
         // X-only 14 unchanged. Partition holds: 422+14+223=659.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(659);
+        // Net from #1070 (INV free tranche — Blue): Traveler's Cloak's
+        // land-type resolve() lands Op-blocked (no DSL Op wraps the choose-a-
+        // land-type protocol yet): total 659→660, Op-blocked 223→224, FREE 422
+        // / AFK-ready 388 / X-only 14 unchanged. Partition holds: 422+14+224=660.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(660);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(422);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(388);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(223);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(224);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
