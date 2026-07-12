@@ -108,6 +108,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Aggressive Urge",
+        "scryfallId": "37e3154d-9b1c-4f93-9bc3-a39e68d59d23",
+        "oracleId": "43f5a93b-0f8d-48d2-ab9d-275d44cf88b5",
+        "firstSet": "inv"
+    },
+    {
         "name": "Air Elemental",
         "scryfallId": "69c3b2a3-0daa-4d42-832d-fcdfda6555ea",
         "oracleId": "7744bae4-a8b7-44a5-9b4c-0048ad4cc448",
@@ -724,6 +730,12 @@
         "scryfallId": "e173c8ce-2352-405e-ad00-e3bb94ced1ad",
         "oracleId": "8b67d192-9a05-4a47-82ae-5fc4b7834d88",
         "firstSet": "lea"
+    },
+    {
+        "name": "Bind",
+        "scryfallId": "cfa51783-9ef8-4e51-ba0d-ce8439d83bdf",
+        "oracleId": "2b9557df-7158-4ada-be77-5c346851a568",
+        "firstSet": "inv"
     },
     {
         "name": "Binding Grasp",
@@ -2244,6 +2256,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Elvish Champion",
+        "scryfallId": "c19bb473-03b0-4e6d-a7da-0ec1e7707a68",
+        "oracleId": "7e40f37c-9a0c-40e0-b195-7ea94b12f798",
+        "firstSet": "inv"
+    },
+    {
         "name": "Elvish Farmer",
         "scryfallId": "40a9710e-b2f8-4746-8640-d450f58a6e49",
         "oracleId": "91fe1075-e170-4575-ae28-8d692f051637",
@@ -2448,6 +2466,12 @@
         "firstSet": "usg"
     },
     {
+        "name": "Explosive Growth",
+        "scryfallId": "eabc1e77-404c-436b-bde1-be1b21d00584",
+        "oracleId": "96c65faf-859c-4436-a551-5538409a9792",
+        "firstSet": "inv"
+    },
+    {
         "name": "Expressive Iteration",
         "scryfallId": "31b770cc-09e7-4c0b-b2a4-462ab4f7200d",
         "oracleId": "c7aecca5-2f67-4245-ab2d-e723d8b23a67",
@@ -2572,6 +2596,12 @@
         "scryfallId": "e585241e-c647-456d-b3b1-3d48dd78c372",
         "oracleId": "3953fd17-03f4-4431-99b5-87dcac5a279d",
         "firstSet": "fem"
+    },
+    {
+        "name": "Fertile Ground",
+        "scryfallId": "789e3582-b541-4916-ac7e-015214d7a27a",
+        "oracleId": "cf14d4e5-5965-45ad-97f7-26facf2884b5",
+        "firstSet": "inv"
     },
     {
         "name": "Fiery Justice",
@@ -3456,6 +3486,12 @@
         "firstSet": "fem"
     },
     {
+        "name": "Harrow",
+        "scryfallId": "ed0f633e-7238-4d02-ad8b-06dd20453030",
+        "oracleId": "705509e9-a034-4a5a-9c65-66f58748b8a2",
+        "firstSet": "inv"
+    },
+    {
         "name": "Harsh Judgment",
         "scryfallId": "34c78dee-ab45-4638-b89a-10686145b19a",
         "oracleId": "1fa272bf-8759-4750-b40b-8e2f6972d570",
@@ -4116,6 +4152,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Jade Leech",
+        "scryfallId": "3392171d-ed25-46a1-91cc-a4f24537617d",
+        "oracleId": "495e08a8-e654-4a0b-a25f-1e344ae2a0fa",
+        "firstSet": "inv"
+    },
+    {
         "name": "Jade Monolith",
         "scryfallId": "4a77e0f1-449d-4a7d-9fa0-ba7598f7a73a",
         "oracleId": "1e105ab7-fb10-4cfd-ac2f-5e11488cf1b0",
@@ -4299,6 +4341,18 @@
         "name": "Kavu Chameleon",
         "scryfallId": "f726437b-a41a-4ee9-b0ee-e09327508615",
         "oracleId": "82c583ab-8158-4074-a3ff-b7a05ecc8ab1",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Kavu Climber",
+        "scryfallId": "2063f31e-d972-411e-a265-1d409153b49c",
+        "oracleId": "91320afd-1d42-4cb5-ae40-4eed2fa91dfe",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Kavu Lair",
+        "scryfallId": "f4581b53-23a0-4ca6-a77c-97d79e7a6570",
+        "oracleId": "4dd0594d-5b11-4350-a926-294a67d9fc3b",
         "firstSet": "inv"
     },
     {
@@ -4704,10 +4758,28 @@
         "firstSet": "leg"
     },
     {
+        "name": "Llanowar Cavalry",
+        "scryfallId": "21d92191-a743-4916-bbe4-5e207e964d9b",
+        "oracleId": "3e6e70eb-6638-4aa6-997b-90f5810e12a0",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Llanowar Elite",
+        "scryfallId": "3e207863-de68-47e1-8c63-413b5fa48943",
+        "oracleId": "9e112393-962b-461e-a605-9f8d6a1ebaa4",
+        "firstSet": "inv"
+    },
+    {
         "name": "Llanowar Elves",
         "scryfallId": "d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb",
         "oracleId": "68954295-54e3-4303-a6bc-fc4547a4e3a3",
         "firstSet": "lea"
+    },
+    {
+        "name": "Llanowar Vanguard",
+        "scryfallId": "72e6ed79-bdfd-49f9-bfa4-be4196880487",
+        "oracleId": "9123086e-ae67-46c5-aed5-6366e2fe5a8c",
+        "firstSet": "inv"
     },
     {
         "name": "Loran of the Third Path",
@@ -5058,6 +5130,12 @@
         "firstSet": "mkm"
     },
     {
+        "name": "Might Weaver",
+        "scryfallId": "032a4ec7-82ce-4ea0-b0dd-ebc40823a014",
+        "oracleId": "c2cfbc1a-ae73-409c-b73a-5c8625365905",
+        "firstSet": "inv"
+    },
+    {
         "name": "Mightstone",
         "scryfallId": "b28ba599-5299-4831-a118-1712ada10ef6",
         "oracleId": "2f578020-9b39-4c61-8b0b-6d29187e022a",
@@ -5224,6 +5302,12 @@
         "scryfallId": "4914f6fc-e3e7-426b-8688-12157c7df9e7",
         "oracleId": "b86ccfc1-a26b-4942-9d77-fef7676c77be",
         "firstSet": "ice"
+    },
+    {
+        "name": "Molimo, Maro-Sorcerer",
+        "scryfallId": "750d3475-ae72-42c1-ae4d-638f8e7c6d1a",
+        "oracleId": "b87a2d20-4e9f-4256-9d24-80c38515119e",
+        "firstSet": "inv"
     },
     {
         "name": "Mons's Goblin Raiders",
@@ -5488,6 +5572,12 @@
         "scryfallId": "1e0c695d-62f9-4805-9e2f-7032e8464136",
         "oracleId": "ead1ee6a-e0da-46d5-89e8-31e8c0270bc2",
         "firstSet": "mkm"
+    },
+    {
+        "name": "Nomadic Elf",
+        "scryfallId": "3b69e57a-5b19-450c-9cf5-c189e8505781",
+        "oracleId": "025bbfc8-bccd-4062-b758-7f9e1f8ad420",
+        "firstSet": "inv"
     },
     {
         "name": "Norritt",
@@ -5898,6 +5988,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Pincer Spider",
+        "scryfallId": "23271658-19ae-420d-beeb-4bed4fdbb891",
+        "oracleId": "fbe25c32-db20-464c-a0ed-d90e75b111a9",
+        "firstSet": "inv"
+    },
+    {
         "name": "Pirate Ship",
         "scryfallId": "d0a7cb23-d229-43c5-addd-dcf423984b0c",
         "oracleId": "c6b3f924-806d-47d3-b044-72b48470196c",
@@ -6190,6 +6286,18 @@
         "scryfallId": "318486e0-f255-40f5-8150-dc272eec9d7d",
         "oracleId": "f43e36ea-6bf5-45bd-a4ad-cc507ae45641",
         "firstSet": "sos"
+    },
+    {
+        "name": "Quirion Sentinel",
+        "scryfallId": "2fc639ea-a925-4f1e-879f-b8fcb12bf257",
+        "oracleId": "70bb2690-653b-4787-bdd1-d1739a8ae545",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Quirion Trailblazer",
+        "scryfallId": "c2b258c1-5fb4-4072-bb32-ad364df1874a",
+        "oracleId": "a26c4076-c488-4700-8e32-4ceeeac2c29a",
+        "firstSet": "inv"
     },
     {
         "name": "Rabid Wombat",
@@ -6900,6 +7008,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Serpentine Kavu",
+        "scryfallId": "699f1fe8-02c6-4d95-9231-3f8aefe603da",
+        "oracleId": "cf252d71-77e7-438f-b774-28e5ab2f09f6",
+        "firstSet": "inv"
+    },
+    {
         "name": "Serra Angel",
         "scryfallId": "f8ac5006-91bd-4803-93da-f87cf196dd2f",
         "oracleId": "4b7ac066-e5c7-43e6-9e7e-2739b24a905d",
@@ -7566,6 +7680,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Sulam Djinn",
+        "scryfallId": "7aeab16f-e104-47e7-81c7-b6e0123120d7",
+        "oracleId": "01e311d2-8fe6-4e64-9575-3ef266985f0b",
+        "firstSet": "inv"
+    },
+    {
         "name": "Sulfuric Vortex",
         "scryfallId": "79955e27-eef7-43bd-9895-e9209ed1537f",
         "oracleId": "7652f328-e142-494b-a869-772ced10c26a",
@@ -7902,6 +8022,18 @@
         "firstSet": "fem"
     },
     {
+        "name": "Thornscape Apprentice",
+        "scryfallId": "505da522-73a8-4232-ae1a-d3365f3e598f",
+        "oracleId": "ebb68e03-b2a5-4c5c-8e3b-968cd241d1f0",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Thornscape Master",
+        "scryfallId": "7e8f164d-3782-4eaa-a4db-ab7082d45ee7",
+        "oracleId": "ea802eda-fc8d-45c7-b5a3-238a2cdc4dcb",
+        "firstSet": "inv"
+    },
+    {
         "name": "Thornspire Verge",
         "scryfallId": "7e1cdc03-6faa-4138-9a52-caafbe34fb59",
         "oracleId": "e861bc08-4f0b-4d22-9b85-9d20227fd5b4",
@@ -8166,6 +8298,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Treefolk Healer",
+        "scryfallId": "73c6f5c0-686d-4b3a-add7-487f9fff5faa",
+        "oracleId": "a5ef15b5-83d2-4b23-9403-a9a52be46154",
+        "firstSet": "inv"
+    },
+    {
         "name": "Tribal Flames",
         "scryfallId": "9b32531e-c759-4603-abd0-1724e8df70db",
         "oracleId": "c82eda61-d195-49c9-8ff0-a78dfa650689",
@@ -8404,6 +8542,12 @@
         "scryfallId": "2ff21a6f-83a7-4bf3-a078-294e303232cc",
         "oracleId": "d6329dcc-b450-482a-8ee3-45449f7a4b3d",
         "firstSet": "lea"
+    },
+    {
+        "name": "Utopia Tree",
+        "scryfallId": "720452e9-3245-4b0e-94b6-843cbcb641a5",
+        "oracleId": "73a9122c-60d2-4fdc-bc7b-3576bcbca241",
+        "firstSet": "inv"
     },
     {
         "name": "Vaevictis Asmadi",
@@ -8688,6 +8832,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Wallop",
+        "scryfallId": "45ce5126-e7b1-41ab-9e56-1e12927c4d27",
+        "oracleId": "e939ef5e-ebe1-48cd-9e9f-eb3fd516165c",
+        "firstSet": "inv"
+    },
+    {
         "name": "Wandering Stream",
         "scryfallId": "6da5cb6c-253b-44f0-98f9-d75f42c6e14b",
         "oracleId": "1f592b83-7838-4466-8bcb-093ac7346c55",
@@ -8806,6 +8956,12 @@
         "scryfallId": "67b369c4-faa8-45c8-a1b9-98f228b69682",
         "oracleId": "a8abd966-de7b-46a3-8ac7-8747ab35653a",
         "firstSet": "lea"
+    },
+    {
+        "name": "Whip Silk",
+        "scryfallId": "10566804-fd15-4ef0-ad7d-cc979f4cc8c5",
+        "oracleId": "ce2c420b-e569-4715-b65b-4a097700799d",
+        "firstSet": "inv"
     },
     {
         "name": "Whippoorwill",
