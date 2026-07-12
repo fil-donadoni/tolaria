@@ -176,6 +176,14 @@ _Avoid_: Text edit, rename
 The mechanism implementing a **Text Change**: a `{ kind, from, to }` entry carried on a **Card Instance** (`textChanges`) that the engine applies at read time to every structured field carrying that word (land subtype, landwalk keyword, `protection from <color>`, color-based **Target** requirements). The set of word-bearing fields is enforced so a new consumer cannot be silently missed.
 _Avoid_: Find-and-replace, text rewrite
 
+**Domain (ability word)**:
+An **Ability Word** (CR 702 preamble — italic, no rules meaning) introduced in Invasion: the scalar "number of basic land types among lands a **Player** controls", ranging 0–5 (Plains, Island, Swamp, Mountain, Forest — counted by land _subtype_, so one dual land can contribute several). A card's effect scales with it (Tribal Flames deals that much damage; Kavu Scout gets +1/+0 for each). In code it is one value: `getDomain(player)`, exposed to **Effect Scripts** as the `{ domain: { of } }` value member.
+_Avoid_: "the domain" (the knowledge area / this glossary's subject — a homonym; always qualify the mechanic as "Domain (ability word)"), landfall, basic land count
+
+**Pile**:
+One of the two subsets a **Player** separates a set of objects into (all their nontoken lands, the top five cards of a **Library**, all creatures a player controls), after which _another_ player chooses one pile; an effect then applies asymmetrically to the chosen vs. unchosen pile (Fact or Fiction, Do or Die, Bend or Break). The divide-then-choose interaction is a two-step **Pending Choice** with distinct divider and chooser players.
+_Avoid_: Group, stack (that's the **Stack**), heap, partition (informal only)
+
 ### Spells & Stack
 
 **Cast**:
