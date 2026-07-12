@@ -8,7 +8,7 @@
 // capability cluster (#1066) ships its two gold cards here.
 
 import type { CardDefinition, Color, PermanentView } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
+import { AURA_AFFECTS_HOST, PERMANENT_TYPES } from "../../types";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Domain cluster (parent PRD #1063, issue #1066)
@@ -512,12 +512,13 @@ export const wingsOfHope: CardDefinition = {
 // trailing `choice`(`choose-hand-card`) + `discard` pair reads that snapshot
 // as "that player" — the shipped choose-then-discard shape (issue #805),
 // just scoped to the chooser's OWN hand instead of an opponent's.
-// FLAGGED SIMPLIFICATION: `moveZone`'s bind captures the target's
-// CONTROLLER, not its OWNER — identical in every case this engine can reach
-// today (no shipped effect leaves a permanent under a non-owner's control
-// AND still targetable by Recoil), but not the same selector CR 400.7
-// technically calls for ("return … to its OWNER's hand … that player
-// discards"). No `{ ownerOf }` `EffectPlayerRef` variant exists yet; flagged
+// FLAGGED SIMPLIFICATION (tracked: #1106): `moveZone`'s bind captures the
+// target's CONTROLLER, not its OWNER, so "that player discards" resolves to
+// the controller. This diverges from CR 400.7 ("return … to its OWNER's hand
+// … that player discards") whenever a permanent is controlled by a non-owner
+// and still targetable by Recoil — REACHABLE within INV itself via Spinal
+// Embrace (steal a creature, then Recoil it → the wrong player discards). No
+// `{ ownerOf }` `EffectPlayerRef` variant exists yet (#1106 adds it); flagged
 // rather than silently assumed away.
 export const recoil: CardDefinition = {
     id: "b6a77be3-e3b0-40f5-a470-414bac49da60",
@@ -528,7 +529,7 @@ export const recoil: CardDefinition = {
     manaCost: { X: 1, U: 1, B: 1 },
     types: ["Instant"],
     targetRequirement: {
-        type: ["Artifact", "Creature", "Enchantment", "Land"],
+        type: [...PERMANENT_TYPES],
         count: 1,
     },
     effects: [

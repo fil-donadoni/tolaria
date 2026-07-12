@@ -402,11 +402,41 @@ describe("Teferi's Moat (chosen-color no-fly attack lock, CR 508/509 + 603.6b)",
 // ─────────────────────────────────────────────────────────────────────────
 
 describe("Sleeper's Robe (fear keyword-grant + combat-damage draw, CR 702.14b / 510.4)", () => {
-    it("declares the fear keyword-grant scoped to the Aura's host", () => {
-        const grants = (sleepersRobe.staticEffects ?? [])
-            .filter((e) => e.kind === "keyword-grant")
-            .map((e) => (e as { keyword: string }).keyword);
-        expect(grants).toEqual(["fear"]);
+    it("declares a keyword-grant for fear (Snow Devil pattern)", () => {
+        expect(sleepersRobe.staticEffects?.[0]).toMatchObject({
+            kind: "keyword-grant",
+            keyword: "fear",
+        });
+        expect(sleepersRobe.targetRequirement).toMatchObject({
+            type: "Creature",
+        });
+    });
+
+    it("grants fear to the host when the Aura resolves onto it", () => {
+        const host = makeInstance(grizzlyBears.id, {
+            id: "host",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, sleepersRobe.id, "p1", [
+            { type: "permanent", id: "host" },
+        ]);
+        resolveTopOfStack(state);
+        const liveHost = state.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(liveHost.staticAbilities).toContain("fear");
+        const projected = projectPublicState(state, 1, "p1");
+        const slimHost = projected.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(slimHost.staticAbilities).toContain("fear");
     });
 
     it("triggers when the enchanted creature deals combat damage to an opponent", () => {
