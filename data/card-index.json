@@ -864,6 +864,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Blurred Mongoose",
+        "scryfallId": "4b073e3f-6a6f-495a-ab16-39d906b660f1",
+        "oracleId": "588a5bac-dcad-410e-8878-0230500c2e3a",
+        "firstSet": "inv"
+    },
+    {
         "name": "Bog Imp",
         "scryfallId": "e3bb7271-634a-4612-9073-7a5438e8c2b8",
         "oracleId": "45b94e3c-a905-435b-aee5-bec9239fd24c",
@@ -1608,7 +1614,7 @@
         "firstSet": "arn"
     },
     {
-        "name": "Dand\u00e2n",
+        "name": "Dandân",
         "scryfallId": "414d3cae-b8cf-4d53-bd6b-1aa83a828ba9",
         "oracleId": "88929373-b2c8-4a81-a809-fed87fd5b0d7",
         "firstSet": "arn"
@@ -1809,6 +1815,12 @@
         "name": "Dismantling Blow",
         "scryfallId": "39514d54-cb6c-4b3b-a3be-46db991be4d4",
         "oracleId": "300cba5a-adbb-4852-be06-ac00d9d6fd37",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Disrupt",
+        "scryfallId": "c000a02f-6b7e-4925-a938-59e645e980d7",
+        "oracleId": "76347258-71d5-4874-adde-ff7aa932b808",
         "firstSet": "inv"
     },
     {
@@ -2064,7 +2076,7 @@
         "firstSet": "mh1"
     },
     {
-        "name": "El-Hajj\u00e2j",
+        "name": "El-Hajjâj",
         "scryfallId": "c4b610d3-2005-4347-bcda-c30b5b7972e5",
         "oracleId": "f92c9a5d-853f-4157-89ba-8d8c8033c533",
         "firstSet": "arn"
@@ -2176,6 +2188,12 @@
         "scryfallId": "a3e81250-52c3-49f6-be43-17c34339e177",
         "oracleId": "b067aa04-5977-4371-85d1-78d2884df03f",
         "firstSet": "leg"
+    },
+    {
+        "name": "Empress Galina",
+        "scryfallId": "6851dbc7-f072-41e7-a899-897445d99425",
+        "oracleId": "ea2614bc-00ad-4859-98f5-689f33357fe6",
+        "firstSet": "inv"
     },
     {
         "name": "Enchanted Being",
@@ -2302,6 +2320,12 @@
         "scryfallId": "0551d66e-8cd4-48f0-aa17-15f26be9d85f",
         "oracleId": "3d8ac41c-0566-48b2-a744-39db2f72272c",
         "firstSet": "lea"
+    },
+    {
+        "name": "Exclude",
+        "scryfallId": "aeb359c8-209c-455f-84b2-970e5678a9fa",
+        "oracleId": "a8c9f91a-b1e7-451d-b6db-ae865e2b853c",
+        "firstSet": "inv"
     },
     {
         "name": "Exhume",
@@ -2886,7 +2910,7 @@
         "firstSet": "ice"
     },
     {
-        "name": "Ghazb\u00e1n Ogre",
+        "name": "Ghazbán Ogre",
         "scryfallId": "f9d613d5-36a2-4633-b5af-64511bb29cc2",
         "oracleId": "d361bdd4-afb8-493d-9091-ebe22f215834",
         "firstSet": "arn"
@@ -3732,7 +3756,7 @@
         "firstSet": "ice"
     },
     {
-        "name": "Ifh-B\u00edff Efreet",
+        "name": "Ifh-Bíff Efreet",
         "scryfallId": "c0b10fb7-8667-42bf-aeb6-35767a82917b",
         "oracleId": "e503a4f2-a785-4e7a-89a7-a9b24fb98831",
         "firstSet": "arn"
@@ -4098,7 +4122,7 @@
         "firstSet": "ice"
     },
     {
-        "name": "Jun\u00fan Efreet",
+        "name": "Junún Efreet",
         "scryfallId": "5f46783a-b91e-4829-a173-5515b09ca615",
         "oracleId": "afda663e-c5f7-4182-86f7-d95d71793717",
         "firstSet": "arn"
@@ -4110,7 +4134,7 @@
         "firstSet": "ice"
     },
     {
-        "name": "Juz\u00e1m Djinn",
+        "name": "Juzám Djinn",
         "scryfallId": "31bf3f14-b5df-498b-a1bb-965885c82401",
         "oracleId": "4e81596c-9225-43d1-bd35-798212144f2c",
         "firstSet": "arn"
@@ -4152,6 +4176,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Kavu Chameleon",
+        "scryfallId": "f726437b-a41a-4ee9-b0ee-e09327508615",
+        "oracleId": "82c583ab-8158-4074-a3ff-b7a05ecc8ab1",
+        "firstSet": "inv"
+    },
+    {
         "name": "Keepers of the Faith",
         "scryfallId": "b63a69ae-99ce-4d26-88b7-784793c43cd4",
         "oracleId": "6ddc1256-a166-464f-8136-bd111cba6327",
@@ -4182,7 +4212,7 @@
         "firstSet": "iko"
     },
     {
-        "name": "Khab\u00e1l Ghoul",
+        "name": "Khabál Ghoul",
         "scryfallId": "18607bf6-ce11-41cb-b001-0c9538406ba0",
         "oracleId": "cb558dda-0c05-426d-aedc-bc07cc54db76",
         "firstSet": "arn"
@@ -4404,7 +4434,7 @@
         "firstSet": "ice"
     },
     {
-        "name": "Legions of Lim-D\u00fbl",
+        "name": "Legions of Lim-Dûl",
         "scryfallId": "75b67eb2-b60e-46b4-9d48-11c284957bec",
         "oracleId": "70b69803-1870-4441-954b-dba5b433fcb2",
         "firstSet": "ice"
@@ -4494,13 +4524,13 @@
         "firstSet": "lea"
     },
     {
-        "name": "Lim-D\u00fbl's Cohort",
+        "name": "Lim-Dûl's Cohort",
         "scryfallId": "3d0006f6-2f96-453d-9145-eaefa588efbc",
         "oracleId": "1e3b97d2-8fda-4510-9697-f36ca9ca2ab0",
         "firstSet": "ice"
     },
     {
-        "name": "Lim-D\u00fbl's Hex",
+        "name": "Lim-Dûl's Hex",
         "scryfallId": "af976f42-3d56-4e32-8294-970a276a4bf3",
         "oracleId": "7f9116e1-9aab-470b-90eb-f51a3fbb3c0e",
         "firstSet": "ice"
@@ -4572,7 +4602,7 @@
         "firstSet": "lea"
     },
     {
-        "name": "L\u00f3rien Revealed",
+        "name": "Lórien Revealed",
         "scryfallId": "0ce44270-a684-4489-9077-521456e6dfaa",
         "oracleId": "66f28905-c7fc-4ada-8fa0-199626d9bedb",
         "firstSet": "ltr"
@@ -4728,6 +4758,12 @@
         "firstSet": "m20"
     },
     {
+        "name": "Manipulate Fate",
+        "scryfallId": "5bb52acb-dedb-4ed6-a6da-8c036f2b2958",
+        "oracleId": "541f13aa-a1ed-453a-b719-82daef1be607",
+        "firstSet": "inv"
+    },
+    {
         "name": "Marauding Mako",
         "scryfallId": "9efbfd67-e0f5-43e0-9fff-1eb4a2bed0d8",
         "oracleId": "e349be42-5f14-44a9-9608-281985c10e2d",
@@ -4764,7 +4800,7 @@
         "firstSet": "drk"
     },
     {
-        "name": "M\u00e1rton Stromgald",
+        "name": "Márton Stromgald",
         "scryfallId": "7880e815-53e7-43e0-befd-e368f00a75d8",
         "oracleId": "8364cf93-c323-46f4-854f-ae872e484438",
         "firstSet": "ice"
@@ -5328,7 +5364,7 @@
         "firstSet": "arn"
     },
     {
-        "name": "Oath of Lim-D\u00fbl",
+        "name": "Oath of Lim-Dûl",
         "scryfallId": "f16df768-06de-43a0-b548-44fb0887490b",
         "oracleId": "64e163c2-2378-4e4c-aefe-5e0d2fd19988",
         "firstSet": "ice"
@@ -5338,6 +5374,12 @@
         "scryfallId": "1ba61ccd-4429-4f7c-b9f3-30867878d88e",
         "oracleId": "299ea6dd-79eb-4c25-a05d-ff6fcad663cf",
         "firstSet": "atq"
+    },
+    {
+        "name": "Obliterate",
+        "scryfallId": "cdabde40-2143-4677-b7b4-ea8fbf9b1f25",
+        "oracleId": "47496941-8007-45a0-a981-76c683cbddc1",
+        "firstSet": "inv"
     },
     {
         "name": "Obsianus Golem",
@@ -5862,6 +5904,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Prohibit",
+        "scryfallId": "0daa5458-2a97-40d0-b18d-2381a7a68ee1",
+        "oracleId": "d95f1797-56f9-41be-a5fe-8398961f4b8b",
+        "firstSet": "inv"
+    },
+    {
         "name": "Psionic Blast",
         "scryfallId": "a6a86e6e-bfff-46af-9d36-c912901fea92",
         "oracleId": "7f221ad6-7ec4-483d-a6b5-1456c95c1cad",
@@ -6174,6 +6222,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Repulse",
+        "scryfallId": "9a04e9be-48be-440e-9825-cfffd4c2b1a4",
+        "oracleId": "6f7ef1d1-c441-41ba-b7d6-6b7727ffcf04",
+        "firstSet": "inv"
+    },
+    {
         "name": "Reset",
         "scryfallId": "1c829d83-d5b8-4be7-80f7-55b42f52b309",
         "oracleId": "4faa5a70-ac0c-4a29-8bec-218a35a29fdf",
@@ -6406,6 +6460,12 @@
         "scryfallId": "73cba9cd-73d9-442e-bd99-9cba9f398b64",
         "oracleId": "7bb41690-f8ec-462a-ba29-be453eb86fca",
         "firstSet": "arn"
+    },
+    {
+        "name": "Sapphire Leech",
+        "scryfallId": "e6763ffd-9d89-4f26-871a-be24fbdef38d",
+        "oracleId": "500aff17-0d69-46ac-a4f9-2fc6db061ce7",
+        "firstSet": "inv"
     },
     {
         "name": "Savaen Elves",
@@ -6708,6 +6768,12 @@
         "firstSet": "mh3"
     },
     {
+        "name": "Shimmering Wings",
+        "scryfallId": "9615a6c2-1732-4a04-9be1-cc0a8d39de3f",
+        "oracleId": "7d892d61-5a69-4500-9fb2-7cf50728aedd",
+        "firstSet": "inv"
+    },
+    {
         "name": "Shivan Dragon",
         "scryfallId": "fefbf149-f988-4f8b-9f53-56f5878116a6",
         "oracleId": "711eea87-0fa3-46e0-a42b-fa5a86455f04",
@@ -6796,6 +6862,12 @@
         "scryfallId": "aa1d9bb5-972a-4705-bf22-0fa1e974dd26",
         "oracleId": "67601399-089b-44fe-82db-c319729c75bf",
         "firstSet": "drk"
+    },
+    {
+        "name": "Sky Weaver",
+        "scryfallId": "04974146-42a8-4f10-b443-67bfeaa54d5d",
+        "oracleId": "25933e8b-fa48-4152-9eae-388aef10ad37",
+        "firstSet": "inv"
     },
     {
         "name": "Sleight of Mind",
@@ -7824,6 +7896,12 @@
         "firstSet": "sos"
     },
     {
+        "name": "Traveler's Cloak",
+        "scryfallId": "977f0f82-0542-40c9-9a48-73077941dbd1",
+        "oracleId": "5241182d-e2ca-4b31-809f-fbff2822dbf6",
+        "firstSet": "inv"
+    },
+    {
         "name": "Triskelion",
         "scryfallId": "a79c99e1-722a-44b6-8fa3-2be3f0c193d8",
         "oracleId": "74f67dcf-5afb-45aa-8d4b-3cdb23f6f2a1",
@@ -8016,6 +8094,12 @@
         "firstSet": "atq"
     },
     {
+        "name": "Urza's Rage",
+        "scryfallId": "61a25a35-3ae4-471e-adcd-d8baf2f77b68",
+        "oracleId": "363f8c66-fe0c-44b9-987d-1d160e3f9c54",
+        "firstSet": "inv"
+    },
+    {
         "name": "Urza's Tower",
         "scryfallId": "8ed85655-fc59-4a57-bcf9-75e1899dff78",
         "oracleId": "32fbb638-ab14-4e8b-a07a-d4c44e3496f2",
@@ -8128,6 +8212,18 @@
         "scryfallId": "c107e82b-134a-4f2b-98c2-6537fae6a50d",
         "oracleId": "8dee4577-0315-4c9f-ab1c-0c68e2ab6a76",
         "firstSet": "fem"
+    },
+    {
+        "name": "Vodalian Merchant",
+        "scryfallId": "c1c0effa-a4b8-4166-a66a-90cf01c6ea0d",
+        "oracleId": "3d62c8f8-7a1c-4771-891d-05fdaa56bf47",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Vodalian Serpent",
+        "scryfallId": "92adcf6c-ab14-414c-a5cb-56feae048c84",
+        "oracleId": "c39c1604-3bae-454d-9985-85101e51ec6e",
+        "firstSet": "inv"
     },
     {
         "name": "Vodalian Soldiers",
@@ -8332,6 +8428,12 @@
         "scryfallId": "9e5e07a2-fbdf-4c4c-996a-fce40bab5de5",
         "oracleId": "f4b18451-1f40-48bd-8ca9-eec784ad5dd7",
         "firstSet": "lea"
+    },
+    {
+        "name": "Wash Out",
+        "scryfallId": "7719d043-5827-4479-825b-23d9e979ead7",
+        "oracleId": "54748cb1-d92a-4212-ad76-417ee79b5ef1",
+        "firstSet": "inv"
     },
     {
         "name": "Wasteland",
@@ -8664,6 +8766,12 @@
         "firstSet": "iko"
     },
     {
+        "name": "Zanam Djinn",
+        "scryfallId": "57a3c1d5-0ca8-443b-ae7a-66e0363e377b",
+        "oracleId": "049fc248-4e46-43de-986d-fa023a3e8792",
+        "firstSet": "inv"
+    },
+    {
         "name": "Zelyon Sword",
         "scryfallId": "4137160b-5248-4fbd-8ae8-25e9afd8fb5c",
         "oracleId": "991038e0-f8d6-42e6-b8a2-3d77aae7a256",
@@ -8704,29 +8812,5 @@
         "scryfallId": "152a72b1-a7b7-4e5c-8558-fab97465f549",
         "oracleId": "bc7b90b1-3517-4e5d-9bd8-68b4d8a259fd",
         "firstSet": "ice"
-    },
-    {
-        "name": "Obliterate",
-        "scryfallId": "cdabde40-2143-4677-b7b4-ea8fbf9b1f25",
-        "oracleId": "47496941-8007-45a0-a981-76c683cbddc1",
-        "firstSet": "inv"
-    },
-    {
-        "name": "Urza's Rage",
-        "scryfallId": "61a25a35-3ae4-471e-adcd-d8baf2f77b68",
-        "oracleId": "363f8c66-fe0c-44b9-987d-1d160e3f9c54",
-        "firstSet": "inv"
-    },
-    {
-        "name": "Blurred Mongoose",
-        "scryfallId": "4b073e3f-6a6f-495a-ab16-39d906b660f1",
-        "oracleId": "588a5bac-dcad-410e-8878-0230500c2e3a",
-        "firstSet": "inv"
-    },
-    {
-        "name": "Kavu Chameleon",
-        "scryfallId": "f726437b-a41a-4ee9-b0ee-e09327508615",
-        "oracleId": "82c583ab-8158-4074-a3ff-b7a05ecc8ab1",
-        "firstSet": "inv"
     }
 ]

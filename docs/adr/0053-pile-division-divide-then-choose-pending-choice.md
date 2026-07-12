@@ -7,14 +7,14 @@ separates a set of objects into **two piles**, then _another_ player chooses one
 pile, and an effect applies asymmetrically to the chosen vs. unchosen pile. Six
 cards share the exact shape:
 
-| Card             | Object set                          | Divider  | Chooser        | Chosen pile          | Other pile            |
-| ---------------- | ----------------------------------- | -------- | -------------- | -------------------- | --------------------- |
-| Fact or Fiction  | top 5 cards of your library         | you      | an opponent    | → your hand          | → your graveyard      |
-| Do or Die        | all creatures target player controls| you      | that player    | destroyed (no regen) | (survive)             |
-| Death or Glory   | all creature cards in your yard     | you      | an opponent    | exiled               | → battlefield         |
-| Bend or Break    | each player's nontoken lands        | each pl. | one opponent   | destroyed            | tapped                |
-| Fight or Flight  | opponent's creatures                | you      | that player    | may attack           | can't attack          |
-| Stand or Fall    | defending player's creatures        | you      | that player    | may block            | can't block           |
+| Card            | Object set                           | Divider  | Chooser      | Chosen pile          | Other pile       |
+| --------------- | ------------------------------------ | -------- | ------------ | -------------------- | ---------------- |
+| Fact or Fiction | top 5 cards of your library          | you      | an opponent  | → your hand          | → your graveyard |
+| Do or Die       | all creatures target player controls | you      | that player  | destroyed (no regen) | (survive)        |
+| Death or Glory  | all creature cards in your yard      | you      | an opponent  | exiled               | → battlefield    |
+| Bend or Break   | each player's nontoken lands         | each pl. | one opponent | destroyed            | tapped           |
+| Fight or Flight | opponent's creatures                 | you      | that player  | may attack           | can't attack     |
+| Stand or Fall   | defending player's creatures         | you      | that player  | may block            | can't block      |
 
 Three facts about the existing engine shape the decision:
 
