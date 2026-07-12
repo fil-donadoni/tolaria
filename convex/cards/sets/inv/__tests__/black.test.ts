@@ -7,9 +7,9 @@
 // (effectScriptSmoke.test.ts) cover them.
 //
 // Hand-written tests below cover:
-//   - the 5 `resolve()` cards (Annihilate, Phyrexian Reaper, Phyrexian
-//     Slayer, Spreading Plague, Tsabo's Assassin) — mandatory per the card
-//     testing convention;
+//   - the 7 `resolve()` cards (Annihilate, Phyrexian Delver, Phyrexian
+//     Reaper, Phyrexian Slayer, Plague Spitter, Spreading Plague, Tsabo's
+//     Assassin) — mandatory per the card testing convention;
 //   - the 2 bespoke `pt-cda` cards (Goham Djinn, Marauding Knight) — new
 //     board-scan compute logic, with a wire-format assertion;
 //   - Andradite Leech's cost-modifier (mirrors the Derelor precedent,
@@ -430,6 +430,150 @@ describe("Spreading Plague (ETB → destroy other same-color creatures, can't re
         expect(state.players[1].battlefield.map((c) => c.id)).toContain(
             "green-c"
         );
+    });
+});
+
+describe("Phyrexian Delver (ETB → reanimate + lose life equal to MV; CR 603.6a / 400.7 / 202.3 / 119.3b)", () => {
+    /** Answers the head pending choice by writing directly into the stack
+     *  item's `collectedChoices` (mirrors the Fasting harness,
+     *  drk/__tests__/white.test.ts) so `resolve()`'s `ctx.requestChoice`
+     *  resumes on the next `resolveTopOfStack` call instead of re-suspending. */
+    function commitHead(state: GameState, picks: string[]) {
+        const queue = state.pendingChoices ?? [];
+        const head = queue[0];
+        const stackItem = state.stack.find((s) => s.id === head.stackItemId)!;
+        stackItem.collectedChoices = {
+            ...(stackItem.collectedChoices ?? {}),
+            [`${head.step}:${head.choiceId}`]: picks,
+        };
+        queue.shift();
+        state.pendingChoices = queue.length > 0 ? queue : undefined;
+    }
+
+    it("returns the chosen graveyard creature to the battlefield under its controller and loses life equal to its mana value", () => {
+        const delver = makeInstance(phyrexianDelver.id, {
+            id: "delver",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Elvish Archers — {1}{G}, mana value 2 (CR 202.3).
+        const gyCreature = makeInstance(getCardByName("Elvish Archers").id, {
+            id: "gy-creature",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [delver],
+                    graveyard: [gyCreature],
+                }),
+                makePlayer("p2", {}),
+            ],
+        });
+        state.stack.push({
+            ...delver,
+            zone: "stack",
+            castById: delver.controllerId,
+            triggeredAbilityId: "phyrexian-delver-etb",
+            triggerSourceId: delver.id,
+            triggerEvent: {
+                type: "PERMANENT_ENTERED",
+                instanceId: delver.id,
+                controllerId: "p1",
+                types: ["Creature"],
+            },
+            targets: [],
+        });
+        resolveTopOfStack(state); // suspends on the choose-graveyard-card pick
+        expect(state.pendingChoices).toHaveLength(1);
+        commitHead(state, ["gy-creature"]);
+        resolveTopOfStack(state); // resumes and completes
+        const p1 = state.players[0];
+        expect(p1.battlefield.some((c) => c.id === "gy-creature")).toBe(true);
+        expect(p1.graveyard.some((c) => c.id === "gy-creature")).toBe(false);
+        expect(p1.life).toBe(18); // 20 - Elvish Archers' mana value (2)
+    });
+
+    it("does nothing (no life loss) when the graveyard has no creature to return (CR 608.2b)", () => {
+        const delver = makeInstance(phyrexianDelver.id, {
+            id: "delver",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [delver] }),
+                makePlayer("p2", {}),
+            ],
+        });
+        state.stack.push({
+            ...delver,
+            zone: "stack",
+            castById: delver.controllerId,
+            triggeredAbilityId: "phyrexian-delver-etb",
+            triggerSourceId: delver.id,
+            triggerEvent: {
+                type: "PERMANENT_ENTERED",
+                instanceId: delver.id,
+                controllerId: "p1",
+                types: ["Creature"],
+            },
+            targets: [],
+        });
+        resolveTopOfStack(state); // suspends on the choose-graveyard-card pick
+        commitHead(state, []); // no legal creature to pick
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(20);
+    });
+});
+
+describe("Plague Spitter (dies → 1 damage to each creature and each player; CR 700.4 / 603.2 / 120.3)", () => {
+    it("deals 1 damage to each creature and each player when it dies", () => {
+        const spitter = makeInstance(plagueSpitter.id, {
+            id: "spitter",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard", // already dead by the time the trigger resolves
+        });
+        const ourBear = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "our-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppBear = makeInstance(getCardByName("Grizzly Bears").id, {
+            id: "opp-bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ourBear], graveyard: [spitter] }),
+                makePlayer("p2", { battlefield: [oppBear] }),
+            ],
+        });
+        const beforeP1 = state.players[0].life;
+        const beforeP2 = state.players[1].life;
+        resolveTrigger(state, spitter, "plague-spitter-dies", {
+            type: "CREATURE_DIED",
+            creatureInstanceId: "spitter",
+            creatureControllerId: "p1",
+            creatureTypes: ["Creature"],
+            damagedBySources: [],
+            creaturePower: 2,
+            creatureToughness: 2,
+        });
+        const live1 = state.players[0].battlefield.find(
+            (c) => c.id === "our-bear"
+        )!;
+        const live2 = state.players[1].battlefield.find(
+            (c) => c.id === "opp-bear"
+        )!;
+        expect(live1.damageMarked).toBe(1);
+        expect(live2.damageMarked).toBe(1);
+        expect(state.players[0].life).toBe(beforeP1 - 1);
+        expect(state.players[1].life).toBe(beforeP2 - 1);
     });
 });
 
