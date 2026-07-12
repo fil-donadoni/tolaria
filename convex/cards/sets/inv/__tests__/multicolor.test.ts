@@ -7,7 +7,13 @@
 // Coalition Victory's compound win predicate (both clauses required).
 
 import { describe, it, expect } from "vitest";
-import { orderedMigration, coalitionVictory } from "../multicolor";
+import {
+    orderedMigration,
+    coalitionVictory,
+    angelicShield,
+    wingsOfHope,
+    teferisMoat,
+} from "../multicolor";
 import {
     makeInstance,
     makePlayer,
@@ -16,7 +22,14 @@ import {
 } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { plains, island, swamp, mountain, forest } from "../../lea/colorless";
+import { grizzlyBears, scatheZombies } from "../../lea";
 import { registerTokenDefinition } from "../../..";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+} from "../../../../gre/layers";
+import { projectPublicState } from "../../../../gameProjections";
+import { validateAttackerEligibility } from "../../../../gre/combat";
 
 describe("Ordered Migration (CR 111 / 701.7 token creation, Domain, issue #1066)", () => {
     it("creates one 1/1 blue flying Bird per basic land type controlled", () => {
@@ -211,5 +224,152 @@ describe("Coalition Victory (CR 104.2a alternate win, Domain, issue #1066)", () 
             loserId: "p2",
             reason: "alternate-win",
         });
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// staticEffects[] coverage (issue #1075) — Angelic Shield / Wings of Hope /
+// Teferi's Moat. The catalogue smoke/static sweeps only iterate `effects[]`,
+// so a card whose entire behavior is a `staticEffects[]` continuous effect
+// gets no coverage from those sweeps and needs a hand-written test per the
+// mandatory card-testing table (`.claude/rules/gre-development.md`).
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("Angelic Shield (controller-scoped anthem +0/+1, CR 611/613 layer 7c)", () => {
+    function setup() {
+        const shield = makeInstance(angelicShield.id, {
+            id: "shield",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const dude = makeInstance(grizzlyBears.id, {
+            id: "dude",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shield, dude] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state };
+    }
+    it("gives +0/+1 to a creature you control", () => {
+        const { state } = setup();
+        const d = state.players[0].battlefield.find((c) => c.id === "dude")!;
+        expect(getEffectivePower(state, d)).toBe(2);
+        expect(getEffectiveToughness(state, d)).toBe(3);
+    });
+    it("does NOT buff a creature without Angelic Shield in play", () => {
+        const { state } = setup();
+        state.players[0].battlefield = state.players[0].battlefield.filter(
+            (c) => c.id !== "shield"
+        );
+        const d = state.players[0].battlefield.find((c) => c.id === "dude")!;
+        expect(getEffectivePower(state, d)).toBe(2);
+        expect(getEffectiveToughness(state, d)).toBe(2);
+    });
+    it("wire format: the +0/+1 survives projectPublicState", () => {
+        const { state } = setup();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "dude"
+        )!;
+        expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+});
+
+describe("Wings of Hope (Aura +1/+3 + flying, CR 611/613 layer 6/7c)", () => {
+    function setup() {
+        const host = makeInstance(grizzlyBears.id, {
+            id: "host",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(wingsOfHope.id, {
+            id: "wings",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state };
+    }
+    it("grants +1/+3 to the enchanted creature", () => {
+        const { state } = setup();
+        const host = state.players[0].battlefield.find((c) => c.id === "host")!;
+        expect(getEffectivePower(state, host)).toBe(3);
+        expect(getEffectiveToughness(state, host)).toBe(5);
+    });
+    it("grants flying to the enchanted creature", () => {
+        const { state } = setup();
+        const host = state.players[0].battlefield.find((c) => c.id === "host")!;
+        expect(host.staticAbilities).not.toContain("flying");
+        // Flying is a layer-6 keyword grant computed at read time — the raw
+        // instance's own staticAbilities never mutate; the interpreter reads
+        // it via the same staticEffects scan getEffective{Power,Toughness}
+        // uses. Assert via the declared keyword-grant static effect, mirroring
+        // the Wings of Aesthir precedent (ice/multicolor.ts).
+        const grants = (wingsOfHope.staticEffects ?? [])
+            .filter((e) => e.kind === "keyword-grant")
+            .map((e) => (e as { keyword: string }).keyword);
+        expect(grants).toEqual(["flying"]);
+    });
+    it("wire format: the +1/+3 survives projectPublicState", () => {
+        const { state } = setup();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3);
+        expect(getEffectiveToughness(projected, slim)).toBe(5);
+    });
+});
+
+describe("Teferi's Moat (chosen-color no-fly attack lock, CR 508/509 + 603.6b)", () => {
+    function setup(chosenColor: string, attackerCardId: string) {
+        const moat = makeInstance(teferisMoat.id, {
+            id: "moat",
+            controllerId: "p1",
+            ownerId: "p1",
+            chosenModeId: chosenColor,
+        });
+        const attacker = makeInstance(attackerCardId, {
+            id: "attacker",
+            controllerId: "p2",
+            ownerId: "p2",
+            isSummoningSick: false,
+        });
+        const state = makeState({
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p2",
+            players: [
+                makePlayer("p1", { battlefield: [moat] }),
+                makePlayer("p2", { battlefield: [attacker] }),
+            ],
+        });
+        const live = state.players[1].battlefield.find(
+            (c) => c.id === "attacker"
+        )!;
+        return { state, live };
+    }
+    it("forbids a chosen-color, non-flying creature from attacking the Moat's controller", () => {
+        // Grizzly Bears is a mono-green ({G}) vanilla body.
+        const { state, live } = setup("G", grizzlyBears.id);
+        const v = validateAttackerEligibility(live, [], state);
+        expect(v.eligible).toBe(false);
+    });
+    it("allows a different-color creature to attack", () => {
+        // Scathe Zombies is mono-black ({B}); Teferi's Moat locked green.
+        const { state, live } = setup("G", scatheZombies.id);
+        expect(validateAttackerEligibility(live, [], state).eligible).toBe(
+            true
+        );
     });
 });
