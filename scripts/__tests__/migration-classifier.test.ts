@@ -598,11 +598,24 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // test — the 5 destroy-no-regen / trigger-condition cards plus Phyrexian
         // Delver + Plague Spitter): total 660→667, FREE 422→429, AFK-ready
         // 388→395, Op-blocked 224 / X-only 14 unchanged. Partition: 429+14+224=667.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(667);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(429);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(395);
+        // Net from #1074 (INV free tranche — Colorless): adds 2 resolve()
+        // closures. Alloy Golem (inv/colorless.ts) is an ETB `enteredTrigger`
+        // resolve() choosing a color then calling `setColorOverride` — the
+        // declarative `setColor` Op is still `status: "planned"` in the
+        // Mechanics Registry, so it lands Op-blocked (the `setColorOverride`
+        // backlog entry grows 8→9). Sparring Golem (inv/colorless.ts) is a
+        // "becomes blocked, +1/+1 per blocker" triggered-ability resolve()
+        // mirroring the shipped `rampageTrigger` shape (no EffectValue member
+        // counts "creatures blocking this"); its body uses only the COVERED
+        // `addTemporaryPTBuff` Op and ships its own per-card test, so it lands
+        // FREE + AFK-ready. Net: total 667→669, FREE 429→430, AFK-ready
+        // 395→396, Op-blocked 224→225, X-only 14 unchanged.
+        // Partition: 430+14+225=669.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(669);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(430);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(396);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(224);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(225);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
