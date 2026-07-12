@@ -5682,12 +5682,6 @@
         "firstSet": "lea"
     },
     {
-        "name": "Phantasmal Terrain",
-        "scryfallId": "ea56a1bb-f52c-4c6b-a089-1f78600f3db0",
-        "oracleId": "7dcbce46-2973-4a9f-93df-95ac41ce668a",
-        "firstSet": "inv"
-    },
-    {
         "name": "Phantom Monster",
         "scryfallId": "e46d2cf5-e8d0-4fb2-b950-252d52084b63",
         "oracleId": "bbd30183-524c-4b93-b953-90853ec3f39f",

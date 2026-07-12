@@ -184,62 +184,6 @@ export const manipulateFate: CardDefinition = {
     ],
 };
 
-// Phantasmal Terrain — {U}{U} Enchantment — Aura, enchant land. "As this Aura
-// enters, choose a basic land type. Enchanted land is the chosen type." (CR
-// 305.7 layer-4 subtype override + CR 603.6b on-entry choice.) Sanctioned
-// ETB choice-storage protocol (ADR 0050, ice/blue.ts Illusionary Terrain):
-// `enteredTrigger` stores the pick via `setChosenSubtypes`; a computed
-// `subtype-set` static reads it back — NOT a "missing Op" resolve() escape
-// hatch, this is the blessed pattern for an on-entry choice with no Effect
-// Script Op to persist it.
-export const phantasmalTerrain: CardDefinition = {
-    id: "ea56a1bb-f52c-4c6b-a089-1f78600f3db0",
-    name: "Phantasmal Terrain",
-    rarity: "common",
-    oracleText:
-        "Enchant land\nAs this Aura enters, choose a basic land type.\nEnchanted land is the chosen type.",
-    manaCost: { U: 2 },
-    types: ["Enchantment"],
-    subtypes: ["Aura"],
-    targetRequirement: { type: "Land", count: 1 },
-    staticEffects: [
-        {
-            kind: "subtype-set",
-            subtypesFor: (target, source) => {
-                if (target.id !== source.attachedTo) return null;
-                const chosen = source.chosenSubtypes?.[0];
-                if (!chosen) return null;
-                return [chosen];
-            },
-        },
-    ],
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "phantasmal-terrain-choose-type",
-            oracleText: "As this Aura enters, choose a basic land type.",
-            scope: "self",
-            // protocol: on-entry choice storage (CR 603.6b), the same
-            // sanctioned class as Illusionary Terrain's `setChosenSubtypes`
-            // (ice/blue.ts) — no Effect Script Op persists an instance-scoped
-            // choice, so this stays `resolve()` by design.
-            resolve: (ctx) => {
-                const options = BASIC_LAND_SUBTYPES.map((s) => ({
-                    id: s,
-                    label: s,
-                }));
-                const chosen = ctx.requestOptionChoice({
-                    playerId: ctx.controller,
-                    choiceId: "phantasmal-terrain-type",
-                    options,
-                    prompt: "Choose a basic land type.",
-                });
-                if (chosen === undefined) return;
-                ctx.setChosenSubtypes([chosen]);
-            },
-        }),
-    ],
-};
-
 // Prohibit — {1}{U} Instant. Kicker {2}. "Counter target spell if its mana
 // value is 2 or less. If this spell was kicked, counter that spell if its
 // mana value is 4 or less instead." (CR 702.33 Kicker.) The kick WIDENS the
@@ -590,7 +534,8 @@ export const zanamDjinn: CardDefinition = {
 // Enchanted creature has landwalk of the chosen type." (CR 603.6b on-entry
 // choice + CR 603.6a ETB draw + CR 702.14 landwalk continuous grant.) The
 // land-type pick reuses the SAME sanctioned choice-storage protocol as
-// Phantasmal Terrain/Illusionary Terrain (`setChosenSubtypes`, ADR 0050); the
+// Phantasmal Terrain (lea/blue.ts) / Illusionary Terrain (`setChosenSubtypes`,
+// ADR 0050); the
 // draw is a plain DSL `enteredTrigger`; the landwalk grant is FIVE
 // `keyword-grant` statics (one per basic land type), each gated on both
 // `AURA_AFFECTS_HOST` and the stored chosen type — since `keyword-grant`'s
@@ -631,7 +576,8 @@ export const travelersCloak: CardDefinition = {
             oracleText: "As this Aura enters, choose a land type.",
             scope: "self",
             // protocol: on-entry choice storage (CR 603.6b), same sanctioned
-            // class as Illusionary Terrain / Phantasmal Terrain above.
+            // class as Illusionary Terrain (ice/blue.ts) / Phantasmal Terrain
+            // (lea/blue.ts).
             resolve: (ctx) => {
                 const options = BASIC_LAND_SUBTYPES.map((s) => ({
                     id: s,

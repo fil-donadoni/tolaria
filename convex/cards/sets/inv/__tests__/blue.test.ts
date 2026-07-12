@@ -23,7 +23,6 @@ import {
     exclude,
     manipulateFate,
     opt,
-    phantasmalTerrain,
     prohibit,
     repulse,
     sapphireLeech,
@@ -239,74 +238,6 @@ describe("Manipulate Fate (search 3, exile, shuffle, then draw; CR 701.23 / 701.
         ]);
         expect(state.players[0].library).toHaveLength(1); // d/e minus the draw
         expect(state.players[0].hand).toHaveLength(1);
-    });
-});
-
-describe("Phantasmal Terrain (Aura, ETB choose a basic land type; CR 305.7 / 603.6b)", () => {
-    it("declares a computed subtype-set static reading the on-entry choice", () => {
-        const effect = phantasmalTerrain.staticEffects?.[0];
-        expect(effect?.kind).toBe("subtype-set");
-    });
-
-    it("rewrites the enchanted land to the chosen type once the choice is made", () => {
-        const land = makeInstance(island.id, {
-            id: "land",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const aura = makeInstance(phantasmalTerrain.id, {
-            id: "aura",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "hand",
-            attachedTo: "land",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { hand: [aura] }),
-                makePlayer("p2", { battlefield: [land] }),
-            ],
-        });
-        state.stack.push({
-            ...aura,
-            zone: "stack",
-            castById: "p1",
-            targets: [{ type: "permanent", id: "land" }],
-        });
-        // Resolving the Aura attaches it (finalizeSpellResolution), which
-        // fires the on-entry choice trigger.
-        resolveTopOfStack(state);
-        const attached = state.players[0].battlefield.find(
-            (c) => c.id === "aura"
-        )!;
-        state.stack.push({
-            ...attached,
-            zone: "stack",
-            castById: "p1",
-            triggeredAbilityId: "phantasmal-terrain-choose-type",
-            triggerSourceId: "aura",
-            triggerEvent: {
-                type: "PERMANENT_ENTERED",
-                instanceId: "aura",
-                controllerId: "p1",
-                types: attached.types,
-            },
-            targets: [],
-        });
-        expect(resolveTopOfStack(state)).toBeNull(); // suspends on the option pick
-        const head = state.pendingChoices![0];
-        expect(head.kind).toBe("option-pick");
-        applyPendingChoiceSubmit(state, {
-            playerId: "p1",
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
-            cardInstanceIds: ["Mountain"],
-        });
-        const rewrittenAura = state.players[0].battlefield.find(
-            (c) => c.id === "aura"
-        )!;
-        expect(rewrittenAura.chosenSubtypes).toEqual(["Mountain"]);
     });
 });
 
