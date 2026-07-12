@@ -186,7 +186,10 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         name: "Exchange",
         kind: "keyword-action",
         cr: "701.12",
-        status: "planned",
+        status: "implemented",
+        binding:
+            "EffectOp gainControl ×2 — Phyrexian Infiltrator (inv/black.ts, issue #1068)",
+        note: 'A two-permanent control exchange ("Exchange control of X and target creature", CR 701.12e) decomposes into two calls of the already-shipped `gainControl` Op (issue #848) rather than a new Op/primitive (primitive-reuse mandate, issue #1068): first `$source` moves to the target\'s CURRENT controller — read live, before either mutation, via `{ controller: { controllerOf: { target: 0 } } }` — then the target moves to the ability\'s resolving controller (the literal `"controller"` player ref, fixed once at CR 608.2b resolution and unaffected by the first Op already having moved `$source`). Both omit `duration` (an indefinite reassignment, CR 611.2b/613.1b layer 2 — never auto-reverts, matching "This effect lasts indefinitely."). Each `gainControl` call independently no-ops when the permanent is already under the destination controller (`SpellContext.gainControl`\'s existing guard) — this is what makes "there is no effect if the same player controls both creatures" (the printed ruling) fall out for free, with no special-cased card logic. SCOPE (issue #1068): only the two-permanent control-exchange shape (CR 701.12e) is built; the broader CR 701.12 keyword (exchanging life totals 701.12b/c, hands 701.12d, or other zones) has no in-scope card and is not covered by this row — a future card needing those extends this note rather than opening a second row.',
     },
     // 701.13 Exile
     {

@@ -40,6 +40,9 @@
 //       - Exotic Curse shipped below as an active def with the Domain
 //         capability cluster (#1066); Do or Die is a pile-division card and
 //         is NOT emitted here at all (owned by its own cluster's colour file).
+//         Phyrexian Infiltrator (the set's one exchange-control card,
+//         issue #1068) similarly ships below, outside this 38-card tally,
+//         once the control-exchange capability landed (no longer a stub).
 //       - Defiling Tears, Desperate Research, Tsabo's Decree, Twilight's Call
 //         → tracked-by #1085 (setColor / nameCard / choose-a-creature-type /
 //         pay-more-for-flash gaps surfaced by this tranche).
@@ -1333,6 +1336,70 @@ export const urborgSkeleton: CardDefinition = {
 //     manaCost: { X: 3, B: 2 },
 //     types: ["Enchantment"],
 // };
+
+// ─────────────────────────────────────────────────────────────────────────
+// Exchange-control cluster (parent PRD #1063, issue #1068, CR 701.12)
+// ─────────────────────────────────────────────────────────────────────────
+
+// Phyrexian Infiltrator — {2}{B} Creature — Phyrexian Minion, 2/2. "{2}{U}{U}:
+// Exchange control of Phyrexian Infiltrator and target creature. (This effect
+// lasts indefinitely.)" (CR 701.12e Exchange, CR 611.2b/613.1b layer-2 control
+// change, issue #1068.) Colour identity is mono-black by mana cost (CR 202.2)
+// even though the ability's OWN cost is blue — a card's color reads its mana
+// cost only, not activated-ability costs, so this lives here, not blue.ts.
+//
+// Decomposed as TWO already-shipped `gainControl` Ops (issue #848) rather than
+// a new "exchange" Op (primitive-reuse mandate — see the `exchange` row in
+// mechanicsRegistry.ts for the full reasoning). `ctx.controller` is captured
+// ONCE per stack-item resolution (`buildSpellContext`, CR 608.2b) and stays
+// fixed across both Ops in this list, so the order below is load-bearing:
+//   1. `$source` (this creature) -> whoever CURRENTLY controls the target
+//      creature, read live via `{ controllerOf: { target: 0 } }` BEFORE
+//      either mutation lands.
+//   2. the target creature -> the ability's resolving controller (the fixed
+//      `"controller"` selector) — unaffected by step 1 already having moved
+//      `$source` to a new battlefield.
+// Both omit `duration` (indefinite reassignment — never auto-reverts, matching
+// "This effect lasts indefinitely."). No target exclusion: the oracle text
+// doesn't say "another target creature" (contrast Sorceress Queen's "target
+// creature OTHER THAN Sorceress Queen"), so Phyrexian Infiltrator can legally
+// target itself — both `gainControl` calls then no-op against an unchanged
+// controller (CR 608.2b), which is also the printed ruling for targeting a
+// creature already under the same controller as this card.
+export const phyrexianInfiltrator: CardDefinition = {
+    id: "224b8254-553d-4d88-8163-1f15e1244bd2", // INV 116
+    name: "Phyrexian Infiltrator",
+    rarity: "rare",
+    oracleText:
+        "{2}{U}{U}: Exchange control of Phyrexian Infiltrator and target creature. (This effect lasts indefinitely.)",
+    manaCost: { X: 2, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Phyrexian", "Minion"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "phyrexian-infiltrator-exchange",
+            oracleText:
+                "{2}{U}{U}: Exchange control of Phyrexian Infiltrator and target creature. (This effect lasts indefinitely.)",
+            cost: { mana: { X: 2, U: 2 } },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "gainControl",
+                    target: { ref: "$source" },
+                    controller: { controllerOf: { target: 0 } },
+                },
+                {
+                    op: "gainControl",
+                    target: { target: 0 },
+                    controller: "controller",
+                },
+            ],
+        },
+    ],
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Domain cluster (parent PRD #1063, issue #1066)

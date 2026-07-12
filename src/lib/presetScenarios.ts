@@ -171,4 +171,19 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Phyrexian Infiltrator — exchange control (issue #1068, CR 701.12e /
+        // 611.2b / 613.1b). Four untapped Islands pay the {2}{U}{U} activation
+        // cost; activate targeting the opponent's Grizzly Bears to swap
+        // control indefinitely — Grizzly Bears comes to "me", Phyrexian
+        // Infiltrator goes to "opp".
+        label: "Phyrexian Infiltrator (#1068) — exchange control indefinitely",
+        cards: [
+            { name: "Phyrexian Infiltrator", owner: "me", zone: "battlefield" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 4 },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];
