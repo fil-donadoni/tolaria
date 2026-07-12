@@ -72,3 +72,6 @@ added later (see issue tracker).
 | 0051 | Land-entry pay-choice as a stackless pending choice (shock lands)                                  | [link](0051-land-entry-pay-choice-stackless-pending-choice.md)         |
 | 0052 | Storm as a cast-trigger over a spell snapshot                                                      | [link](0052-storm-cast-trigger-and-spell-snapshot.md)                  |
 | 0053 | Pile division as a two-step divide-then-choose pending choice                                      | [link](0053-pile-division-divide-then-choose-pending-choice.md)        |
+| 0054 | Fading & Vanishing: implicit keyword expansion + counter-removed trigger                           | [link](0054-fading-vanishing-implicit-keyword-expansion.md)            |
+| 0055 | Limited Event: ends at the deck, pool-as-sideboard, server-side Bot Drafter                        | [link](0054-limited-event-architecture.md)                             |
+| 0056 | Boosters from MTGJSON print sheets, draftability gated on complete sets                            | [link](0055-booster-mtgjson-sheets-complete-set-gate.md)               |

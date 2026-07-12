@@ -168,6 +168,20 @@ _Avoid_: Maintenance cost (the obsolete pre-keyword wording)
 The counter **Cumulative Upkeep** accrues on a **Permanent** — one added each upkeep — whose running total is the multiplier on that turn's cumulative upkeep cost. A plain named counter, not a player resource like a **Poison Counter**.
 _Avoid_: Upkeep counter, age token
 
+**Fading**:
+A **Keyword** ability (CR 702.32) on a **Permanent** that enters with a set number of **Fade Counters**: at the beginning of its **Controller**'s upkeep, remove a fade counter from it; if it cannot (none remain), sacrifice it. A fading permanent therefore survives one upkeep longer than a **Vanishing** one of the same number, because the sacrifice waits for the turn it finds _no_ counter to remove rather than the turn it removes the last. Fade counters are an ordinary resource: an ability elsewhere on the card may spend them faster (Parallax Wave, Parallax Tide), hastening the sacrifice.
+_Avoid_: Fade-out, decay
+
+**Fade Counter**:
+The named counter **Fading** places on a **Permanent** at entry and removes one-per-upkeep. A plain object counter, not a player resource like a **Poison Counter**.
+
+**Vanishing**:
+A **Keyword** ability (CR 702.63) on a **Permanent** that enters with a set number of **Time Counters**: at the beginning of its **Controller**'s upkeep, remove a time counter; and, as a _separate_ triggered ability, when the last time counter is removed — by upkeep or any other means — sacrifice it. The split into two abilities is what distinguishes it from **Fading**: the sacrifice keys off the removal that empties the permanent, so it dies the turn its final counter leaves, one upkeep sooner than fading.
+_Avoid_: Time-out, fading (they are distinct keywords)
+
+**Time Counter**:
+The named counter **Vanishing** places on a **Permanent**; its removal to zero is the trigger condition for the vanishing sacrifice. A plain object counter, not a player resource like a **Poison Counter**.
+
 **Text Change**:
 A continuous effect that rewrites a word in a card's text — a basic land type (Magical Hack) or a color word (Sleight of Mind) — lasting indefinitely until the object changes **Zone** (CR 612). Because the engine has no runtime text, a text change is modelled as a **Word Substitution** applied to structured data, not to prose.
 _Avoid_: Text edit, rename
@@ -429,6 +443,74 @@ _Avoid_: Restricted slot, power category (overloaded with the "Power" budget its
 **Rarity**:
 A card's print rarity (`common` / `uncommon` / `rare`), carried per **Card Print** (and on the home-set **Card Definition**) and sourced from MTGJSON. Used only by **Alpha 40**, which caps copies by rarity (commons unlimited, uncommons ≤6, rares ≤3) before its **Moderated** and **Category Budget** overrides apply.
 _Avoid_: Frequency, tier
+
+**Limited Event**:
+An admin-created gathering of N **Players** that produces one **Limited**-legal **Deck** per seat: setup (admin picks sets/boosters) → pool generation (**Sealed**) or **Draft** → deckbuild from the pool. The Event **ends at the built Deck** — it does not orchestrate **Matches**; participants then play through the existing Match flow. Pairing, rounds, and standings are out of the Event's boundary (deferred).
+_Avoid_: Tournament (implies pairing/standings), lobby (that's constructed matchmaking)
+
+**Draftable Set**:
+A **Set** eligible for a **Limited Event**: every card of the set is implemented, except cards declared **out of scope** by ADR (which are treated as absent from the print run). A partially-censused set is not draftable — no booster is ever generated with placeholder or skewed contents.
+_Avoid_: Complete set (completeness is the criterion, draftability is the status), supported set
+
+**Booster**:
+A generated pack of **Card Prints** for a **Draftable Set**, produced by sampling the set's **Booster Config**. Purely a Limited-Event artifact — a Booster never exists during gameplay.
+_Avoid_: Pack (informal only), pool (that's the aggregate)
+
+**Booster Config**:
+The per-**Set** data describing how a **Booster** is assembled: slots and weighted **Booster Sheets**, imported from MTGJSON via a repo script (like the rarity backfill) and checked into the repo. Foil and variant slots are dropped — foilness does not exist in the engine.
+_Avoid_: Booster rules (it is data, not code), pack template
+
+**Booster Sheet**:
+A weighted list of **Card Prints** (an MTGJSON print sheet) from which one **Booster** slot draws. Preserves the real print-run distribution of old sets instead of a flat per-rarity draw.
+_Avoid_: Rarity slot (a sheet may mix rarities)
+
+**Pack Source**:
+What generates the packs of a **Limited Event**. Today the only kind is a **Draftable Set**'s **Booster Config**, chosen per pack slot by the **Admin** (e.g. three INV boosters, or a mixed sequence). A cube (custom card list dealt into 15-card packs, Draftmancer-style) is a planned second kind of Pack Source, deferred.
+_Avoid_: Booster type, product
+
+**Seat**:
+A numbered position (2–8, chosen by the **Admin**) at a **Limited Event**, occupied by either a **User** (joined via the event lobby) or a **Bot Drafter** (auto-filling every seat still empty at event start). Seat order defines **Draft** passing adjacency. The solo draft — one human, all other seats bots — is a primary use case, not a degenerate one.
+_Avoid_: Slot (that's a **Booster** position), player (a Seat exists before any **Game**)
+
+**Bot Drafter**:
+The non-human occupant of a **Seat** in a **Limited Event**. Picks and deckbuilds are computed **server-side in Convex** (deterministic, seeded PRNG, no dependency on any connected client) — deliberately unlike the gameplay **Bot**, whose ISMCTS **Brain** runs client-side. A pick is a lightweight scoring decision, not a search.
+_Avoid_: Draft AI, the Bot (that's the gameplay opponent — different component, different host)
+
+**Pick Rating**:
+A per-card score (0–5, Draftmancer-style) in an optional per-**Set** data file checked into the repo, expressing how highly a **Bot Drafter** values the card in that set's Limited environment. Curated by hand or imported from community sources. A **Draftable Set** without ratings still drafts via the **Pick Heuristic** — ratings refine, never gate.
+_Avoid_: Card Value (that's the gameplay **Brain**'s evaluation term), tier, grade
+
+**Pick Heuristic**:
+The always-available fallback scoring a **Bot Drafter** uses when no **Pick Rating** exists (and as the tie-breaking layer when one does): card quality (shared with the **Brain**'s **Card Value**, extracted to a server-usable module) adjusted by **Rarity**, the seat's color commitment, and mana-curve needs.
+_Avoid_: Bot logic (too broad), default rating
+
+**Draft**:
+The classic booster draft flow of a **Limited Event**: three **Boosters** per **Seat**; each round every seat **Picks** one card and passes the rest to the adjacent seat (left, then right, then left per booster). Picking is **synchronous**: seats pick in parallel, a passed pack queues at the receiving seat, and an optional per-pick timer (admin-configurable, can be off) fires an **Auto-Pick** on expiry so an absent human never freezes the table. **Bot Drafters** pick instantly.
+_Avoid_: Rochester/Winston (other draft variants, out of scope for now)
+
+**Pick**:
+The act of a **Seat** taking exactly one card from the **Booster** currently in front of it during a **Draft**. Picked cards accumulate into the seat's **Pool**. Hidden information: a seat never sees another seat's picks.
+_Avoid_: Choice (that's the gameplay **Pending Choice**), selection
+
+**Auto-Pick**:
+The **Pick** made on a human **Seat**'s behalf when its **Draft** timer expires — computed by the same **Pick Rating**/**Pick Heuristic** engine a **Bot Drafter** uses, never randomly.
+_Avoid_: Random pick, skip
+
+**Sealed**:
+The simpler **Limited Event** flow: each **Seat** receives N unopened **Boosters** (default 6, admin-configurable) whose contents form the seat's **Pool** directly — no picking, no passing.
+_Avoid_: Sealed deck (the Deck is what gets built from the Pool afterwards)
+
+**Pool**:
+The set of **Card Prints** a **Seat** owns for deckbuilding in a **Limited Event** — the accumulated **Picks** (Draft) or the opened **Boosters**' contents (Sealed). The Pool, plus unlimited basic lands, is the universe the seat's **Deck** may draw from.
+_Avoid_: Card pool (redundant), collection
+
+**Auto-Build**:
+The server-side construction of a **Limited**-legal **Deck** from a **Bot Drafter**'s **Pool** at the end of a **Limited Event**: pick the two strongest colors, ~17 spells + 17 lands, curve-aware. A bot's auto-built Deck is playable — a **User** can start a **vs-AI Game** against any bot **Seat**'s deck, closing the study loop (draft, then test your deck against the table's).
+_Avoid_: Autopilot, deck generation (too generic)
+
+**Limited (Format)**:
+A **Format** whose **Deck Legality** is scoped to a **Pool** rather than to a card catalogue: the **Deck** carries its whole Pool — **Maindeck** (≥40, unlimited basic lands added freely) plus every unplayed Pool card in the **Sideboard** (no 15-card cap). Validation compares the deck's multiset (minus basics) against the authoritative Pool stored on the **Seat** (the deck references its **Limited Event** + Seat). **Sideboarding** between **Games** moves cards across the Pool boundary — already supported by the Match flow.
+_Avoid_: Draft format (Sealed is Limited too), 40-card format
 
 **Preset Deck**:
 A curated, shared **Deck** that every **User** can pick but only an **Admin** can edit — the built-in decklists offered in the lobby. Has no **Owner**: it belongs to the application, not to a **User**. Identified by a stable **Slug** (not a Convex id) so external references (saved lobby selection, debug scenarios) survive edits. Distinct from a **User Deck**, which a single **User** owns and edits.
