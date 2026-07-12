@@ -571,11 +571,24 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // shuffleLibrary) for which no DSL Op exists yet (tracked as #1056), so
         // it classifies Op-blocked. Total 653→654, Op-blocked 220→221, FREE 419
         // / AFK-ready 385 / X-only 14 unchanged. Partition holds: 419+14+221=654.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(654);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(419);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(385);
+        // #1065 (INV can't-be-countered flag + 4 cards, CR 701.5) adds TWO
+        // resolve() closures. Obliterate (inv/red.ts) is a spell resolve()
+        // calling the shared `destroyAll` primitive with regen suppression —
+        // the same NOT-DSL-migratable shape as the already-FREE Wrath of
+        // God/Damnation (destroy has no regen-suppression option) — and ships
+        // with its own per-card test (inv/__tests__/red.test.ts), so it lands
+        // FREE + AFK-ready. Kavu Chameleon (inv/green.ts) is an activated-
+        // ability resolve() closure generalizing `setColorOverride` with an
+        // optional until-end-of-turn duration; no DSL Op wraps that duration
+        // param yet, so it lands Op-blocked (adding to the `setColorOverride`
+        // backlog entry). Net from #1065: total 654→656, FREE 419→420,
+        // AFK-ready 385→386, Op-blocked 221→222, X-only 14 unchanged.
+        // Partition holds: 420+14+222=656.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(656);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(420);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(386);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(221);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(222);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
