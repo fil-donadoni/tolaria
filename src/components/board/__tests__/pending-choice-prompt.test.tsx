@@ -95,3 +95,39 @@ describe("PendingChoicePrompt suppression", () => {
         expect(container.firstChild).not.toBeNull();
     });
 });
+
+describe("PendingChoicePrompt — pick-pile (ADR 0053, pile division)", () => {
+    it("renders two pile-option buttons sized from pileA/pileB, for the chooser", () => {
+        const choice: PendingChoice = {
+            stackItemId: "stk",
+            step: 0,
+            choiceId: "me",
+            playerId: "me",
+            kind: "pick-pile",
+            count: 1,
+            prompt: "Choose a pile.",
+            pileA: ["c1", "c2"],
+            pileB: ["c3"],
+        } as PendingChoice;
+        const { getByText } = renderPrompt(choice);
+        expect(getByText(/Pile A \(2 cards\)/)).toBeTruthy();
+        expect(getByText(/Pile B \(1 card\)/)).toBeTruthy();
+    });
+
+    it("shows the waiting banner (not the option buttons) for the non-chooser viewer", () => {
+        const choice: PendingChoice = {
+            stackItemId: "stk",
+            step: 0,
+            choiceId: "opponent",
+            playerId: "opponent",
+            kind: "pick-pile",
+            count: 1,
+            prompt: "Choose a pile.",
+            pileA: ["c1"],
+            pileB: ["c2"],
+        } as PendingChoice;
+        const { queryByText, getByText } = renderPrompt(choice, "me");
+        expect(queryByText(/Pile A/)).toBeNull();
+        expect(getByText(/Waiting for/)).toBeTruthy();
+    });
+});

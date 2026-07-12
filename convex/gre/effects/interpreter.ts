@@ -77,6 +77,7 @@ import type {
     EffectListSelector,
     EffectObjectSelector,
     EffectOp,
+    EffectPileObjectSelector,
     EffectPlayerRef,
     EffectPredicate,
     EffectTargetRef,
@@ -460,6 +461,59 @@ function matchesCardFilter(
     return true;
 }
 
+/** Resolves a `divideIntoPiles` Op's `objects` selector (ADR 0053, pile
+ *  division) to the concrete object-set ids plus the zone-pick shape
+ *  `requestChoice`'s "divide-piles" kind needs to validate the divider's
+ *  partition — mirrors `choiceCandidates`'s library/graveyard branches
+ *  (issue #677/#680) and `selectForEachMembers`'s permanents branch (issue
+ *  #807), but ALWAYS single-owner (every one of the six INV pile cards'
+ *  object sets belongs to exactly one player). `library-top` additionally
+ *  REVEALS the peeked cards (CR 701.16, Fact or Fiction) — a public reveal,
+ *  not a private look, so it marks them known to ALL players rather than
+ *  routing through the `libraryPeek` chooser-only exposure. Returns
+ *  `undefined` when the owning player cannot be resolved (CR 608.2b). */
+function resolvePileObjectSet(
+    ctx: SpellContext,
+    select: EffectPileObjectSelector
+):
+    | {
+          ids: string[];
+          zone: "battlefield" | "library" | "graveyard";
+          zoneOwnerId: string;
+          filter?: PermanentFilter;
+      }
+    | undefined {
+    if (select.set === "permanents") {
+        const zoneOwnerId = resolvePlayerRef(ctx, select.controller);
+        if (zoneOwnerId === undefined) return undefined;
+        const filter = toPermanentFilter(select.filter);
+        return {
+            ids: ctx.getBattlefieldIds(zoneOwnerId, filter),
+            zone: "battlefield",
+            zoneOwnerId,
+            filter,
+        };
+    }
+    if (select.set === "library-top") {
+        const zoneOwnerId = resolvePlayerRef(ctx, select.player);
+        if (zoneOwnerId === undefined) return undefined;
+        const n = resolveValue(ctx, select.count);
+        const count = n === undefined || n < 0 ? 0 : n;
+        const ids = count === 0 ? [] : ctx.peekLibraryTop(zoneOwnerId, count);
+        if (ids.length > 0) ctx.markKnownToAll(zoneOwnerId, ids);
+        return { ids, zone: "library", zoneOwnerId };
+    }
+    // graveyard
+    const zoneOwnerId = resolvePlayerRef(ctx, select.controller);
+    if (zoneOwnerId === undefined) return undefined;
+    const cards = ctx.getGraveyardCards(zoneOwnerId);
+    const filter = select.filter;
+    const ids = (
+        filter ? cards.filter((c) => matchesCardFilter(c, filter)) : cards
+    ).map((c) => c.id);
+    return { ids, zone: "graveyard", zoneOwnerId };
+}
+
 /** Counts a declaratively-selected set of cards (ADR 0045 `count` construct,
  *  CR 122 counting). Returns 0 when the controlling player cannot be resolved. */
 function countSet(ctx: SpellContext, spec: EffectCountSpec): number {
@@ -834,7 +888,7 @@ export const OP_EXECUTORS: {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
         if (op.bind) bindSnapshot(ctx, op.bind, target);
-        ctx.destroy(target);
+        ctx.destroy(target, { cantBeRegenerated: op.cantBeRegenerated });
     },
     // CR 701.13 — exile to the target's owner's exile zone (CR 406). The
     // snapshot is taken before the move, so "its controller / its power"
@@ -1582,6 +1636,76 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.winGame(playerId);
     },
+    // CR-generic "separate into two piles, another player chooses one" cycle
+    // (ADR 0053, pile division, issue #1067). Two sequential suspend points
+    // within ONE Op execution — mirrors the multi-`requestChoice`-in-a-loop
+    // pattern `resolve()` cards already use (Camouflage's per-pile picks) but
+    // as a reusable declarative Op: step 1 (`divide-piles`) reuses the
+    // existing zone-pick `requestChoice` shape for the divider's partition
+    // (the submission is pile A; the object-set remainder is pile B); step 2
+    // (`pick-pile`) is `requestPickPile` for the chooser over the completed
+    // piles. Once both resolve, `chosenBind`/`otherBind` are bound to the two
+    // pile id lists (a LIST binding, ADR 0049's family) and `chosenEffect` /
+    // `otherEffect` run in sequence through the SAME shared cursor, so a
+    // (currently unused) suspending Op inside either would resume correctly.
+    divideIntoPiles(ctx, op, cursor) {
+        const dividerId = resolvePlayerRef(ctx, op.divider);
+        if (dividerId === undefined) return;
+        const chooserId = resolvePlayerRef(ctx, op.chooser);
+        if (chooserId === undefined) return;
+        const resolved = resolvePileObjectSet(ctx, op.objects);
+        if (!resolved) return;
+        const { ids, zone, zoneOwnerId, filter } = resolved;
+        if (ids.length === 0) return; // CR 608.2b — nothing to divide.
+
+        const pileA = ctx.requestChoice({
+            playerId: dividerId,
+            choiceId: `${op.chosenBind}:divide`,
+            kind: "divide-piles",
+            zone,
+            zoneOwnerId,
+            ...(filter ? { filter } : {}),
+            candidateIds: ids,
+            count: { min: 0, max: ids.length },
+            prompt: op.dividePrompt,
+        });
+        if (pileA === undefined) return "suspend"; // enqueued — wait
+
+        const pileASet = new Set(pileA);
+        const pileB = ids.filter((id) => !pileASet.has(id));
+
+        const picked = ctx.requestPickPile({
+            playerId: chooserId,
+            choiceId: `${op.chosenBind}:pick`,
+            pileA,
+            pileB,
+            prompt: op.pickPrompt,
+        });
+        if (picked === undefined) return "suspend"; // enqueued — wait
+
+        const chosenIds = picked === "A" ? pileA : pileB;
+        const otherIds = picked === "A" ? pileB : pileA;
+        ctx.noteChoice(op.chosenBind, chosenIds);
+        ctx.noteChoice(op.otherBind, otherIds);
+
+        const chosenOutcome = runOpList(ctx, op.chosenEffect, cursor);
+        if (chosenOutcome === "suspend") return "suspend";
+        return runOpList(ctx, op.otherEffect, cursor);
+    },
+    // CR 508.1a / 509.1b (ADR 0053, pile division) — grant a turn-scoped
+    // "can't attack" / "can't block" restriction. A thin declarative skin
+    // over `SpellContext.setCantAttackThisTurn` / `setCantBlockThisTurn`, one
+    // execution path (ADR 0045). Skipped when the referenced permanent is
+    // gone (CR 608.2b — the effect does as much as it can).
+    restrictCombat(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        if (op.restriction === "cant-attack") {
+            ctx.setCantAttackThisTurn(target);
+        } else {
+            ctx.setCantBlockThisTurn(target);
+        }
+    },
 };
 
 /** Runs an Op list top to bottom (CR 608.2c) against a shared pre-order
@@ -1620,7 +1744,15 @@ function runOpList(
             op.op !== "if" &&
             op.op !== "forEach" &&
             op.op !== "optionChoice" &&
-            op.op !== "coinFlip"
+            op.op !== "coinFlip" &&
+            // ADR 0053 (pile division) — `divideIntoPiles` runs a NESTED Op
+            // list (`chosenEffect`/`otherEffect`) through this same shared
+            // cursor after its own two-step choice resolves; if a body Op
+            // inside either list ever suspends, the resume position lands
+            // INSIDE that nested body (greater than this Op's own position),
+            // so `divideIntoPiles` itself must still re-run to re-descend —
+            // exactly like `forEach` re-iterating its body on resume.
+            op.op !== "divideIntoPiles"
         ) {
             continue;
         }

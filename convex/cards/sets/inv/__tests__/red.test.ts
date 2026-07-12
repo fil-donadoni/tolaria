@@ -13,6 +13,8 @@ import {
     kavuScout,
     collapsingBorders,
     tribalFlames,
+    bendOrBreak,
+    standOrFall,
 } from "../red";
 import { registerTokenDefinition } from "../../..";
 import {
@@ -26,8 +28,11 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { validateBlockerEligibility } from "../../../../gre/combat";
 import { projectPublicState } from "../../../../gameProjections";
 import { mountain, forest, plains, island, swamp } from "../../lea/colorless";
+import { savannahLions } from "../../lea";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -390,5 +395,230 @@ describe("Collapsing Borders (CR 603.6a each-player upkeep — Domain, issue #10
         // 20 + 1 (Domain) - 3 = 18
         expect(state.players[0].life).toBe(18);
         expect(state.players[1].life).toBe(20);
+    });
+});
+
+describe("Bend or Break (CR 701.8 destroy / 701.26 tap, ADR 0053 pile division, issue #1067)", () => {
+    it("each player divides their OWN nontoken lands; the opponent chooses; the chosen pile is destroyed, the other tapped — for BOTH players", () => {
+        const p1Lands = [
+            makeInstance(mountain.id, {
+                id: "bob-p1-l1",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+            makeInstance(forest.id, {
+                id: "bob-p1-l2",
+                controllerId: "p1",
+                ownerId: "p1",
+            }),
+        ];
+        const p2Lands = [
+            makeInstance(plains.id, {
+                id: "bob-p2-l1",
+                controllerId: "p2",
+                ownerId: "p2",
+            }),
+            makeInstance(island.id, {
+                id: "bob-p2-l2",
+                controllerId: "p2",
+                ownerId: "p2",
+            }),
+        ];
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: p1Lands }),
+                makePlayer("p2", { battlefield: p2Lands }),
+            ],
+        });
+        pushSpell(state, bendOrBreak.id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended (p1's own divide)
+
+        // --- First divideIntoPiles Op: p1 divides p1's own lands ---
+        let head = state.pendingChoices![0];
+        expect(head.kind).toBe("divide-piles");
+        expect(head.playerId).toBe("p1");
+        expect(head.zoneOwnerId).toBe("p1");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["bob-p1-l1"], // pile A = [l1], pile B = [l2]
+        });
+        head = state.pendingChoices![0];
+        expect(head.kind).toBe("pick-pile");
+        expect(head.playerId).toBe("p2"); // the opponent chooses
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["A"], // l1 destroyed, l2 tapped
+        });
+
+        // --- Second divideIntoPiles Op: p2 divides p2's own lands ---
+        expect(state.stack).toHaveLength(1); // still resolving
+        head = state.pendingChoices![0];
+        expect(head.kind).toBe("divide-piles");
+        expect(head.playerId).toBe("p2");
+        expect(head.zoneOwnerId).toBe("p2");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["bob-p2-l1"], // pile A = [l1], pile B = [l2]
+        });
+        head = state.pendingChoices![0];
+        expect(head.kind).toBe("pick-pile");
+        expect(head.playerId).toBe("p1"); // the opponent chooses
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["A"], // l1 destroyed, l2 tapped
+        });
+
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
+            "bob-p1-l2",
+        ]);
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "bob-p1-l2")
+                ?.isTapped
+        ).toBe(true);
+        expect(state.players[0].graveyard.map((c) => c.id)).toContain(
+            "bob-p1-l1"
+        );
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            "bob-p2-l2",
+        ]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "bob-p2-l2")
+                ?.isTapped
+        ).toBe(true);
+        expect(state.players[1].graveyard.map((c) => c.id)).toContain(
+            "bob-p2-l1"
+        );
+    });
+
+    it("excludes token lands from the divided set (CR 701.8, isToken filter)", () => {
+        const realLand = makeInstance(mountain.id, {
+            id: "bob-real-land",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const tokenLand = makeInstance(mountain.id, {
+            id: "bob-token-land",
+            controllerId: "p1",
+            ownerId: "p1",
+            isToken: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [realLand, tokenLand] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, bendOrBreak.id, "p1");
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toEqual(["bob-real-land"]);
+    });
+});
+
+describe("Stand or Fall (CR 603.6a combat-begin trigger / 509.1b block restriction, ADR 0053 pile division, issue #1067)", () => {
+    function fireCombatBegin(
+        state: GameState,
+        source: ReturnType<typeof makeInstance>,
+        activePlayerId: string
+    ) {
+        state.stack.push({
+            ...source,
+            zone: "stack",
+            castById: source.controllerId,
+            triggeredAbilityId: "stand-or-fall-divide",
+            triggerSourceId: source.id,
+            triggerEvent: {
+                type: "PHASE_BEGIN",
+                phase: "BEGINNING_OF_COMBAT",
+                activePlayerId,
+            },
+            targets: [],
+        });
+        resolveTopOfStack(state);
+    }
+
+    it("on the controller's own turn, divides the DEFENDING (opponent's) creatures; the opponent chooses; the OTHER pile can't block", () => {
+        const enchantment = makeInstance(standOrFall.id, {
+            id: "sof",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const creatures = ["sof-1", "sof-2"].map((id) =>
+            makeInstance(savannahLions.id, {
+                id,
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        const attacker = makeInstance(savannahLions.id, {
+            id: "sof-attacker",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [enchantment, attacker],
+                }),
+                makePlayer("p2", { battlefield: creatures }),
+            ],
+        });
+        // scope: "your" — fires on the enchantment's OWN controller's turn.
+        fireCombatBegin(state, enchantment, "p1");
+        const divide = state.pendingChoices![0];
+        expect(divide.kind).toBe("divide-piles");
+        expect(divide.playerId).toBe("p1"); // the controller divides
+        expect(divide.zoneOwnerId).toBe("p2"); // the defending player's creatures
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: divide.stackItemId,
+            step: divide.step,
+            choiceId: divide.choiceId,
+            cardInstanceIds: ["sof-1"],
+        });
+
+        const pick = state.pendingChoices![0];
+        expect(pick.kind).toBe("pick-pile");
+        expect(pick.playerId).toBe("p2"); // the defending player chooses
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: pick.stackItemId,
+            step: pick.step,
+            choiceId: pick.choiceId,
+            cardInstanceIds: ["A"], // choose pile A (sof-1) — may block
+        });
+
+        const chosen = state.players[1].battlefield.find(
+            (c) => c.id === "sof-1"
+        )!;
+        const other = state.players[1].battlefield.find(
+            (c) => c.id === "sof-2"
+        )!;
+        const attackerCard = state.players[0].battlefield.find(
+            (c) => c.id === "sof-attacker"
+        )!;
+        expect(chosen.cantBlockThisTurn).toBeUndefined();
+        expect(
+            validateBlockerEligibility(attackerCard, chosen, [chosen, other])
+                .eligible
+        ).toBe(true);
+        expect(other.cantBlockThisTurn).toBe(true);
+        expect(
+            validateBlockerEligibility(attackerCard, other, [chosen, other])
+                .eligible
+        ).toBe(false);
     });
 });

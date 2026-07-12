@@ -202,6 +202,23 @@ export type ManaRestriction =
     | "creature-spell"
     | "artifact-spell"
     | "cumulative-upkeep";
+/** Pile-division divide-then-choose family (ADR 0053, CR-generic "separate
+ *  into two piles" cycle — Fact or Fiction, Do or Die, …). Two ordered
+ *  members driven by ONE `divideIntoPiles` Effect Script Op:
+ *  - `divide-piles` — raised for the DIVIDER: a total 2-way partition of the
+ *    object set (reuses the `ZonePickKind` "partition" submission shape —
+ *    zone + candidateIds + a `{min:0,max:N}` subset pick — so it rides the
+ *    existing generic zone-pick validation/enumeration/bot paths with no
+ *    special-casing).
+ *  - `pick-pile` — raised for the CHOOSER once the divider has submitted: an
+ *    abstract "A" or "B" pick over the two now-completed piles (mirrors
+ *    `option-pick`'s shape, carrying the actual piles as `pileA`/`pileB` so
+ *    the chooser's UI can render pile contents before deciding).
+ *  The two decisions are by DISTINCT players and the chooser must see the
+ *  completed piles, so they are two separate pending-choice entries, never a
+ *  combined submission (ADR 0053 "alternative rejected"). */
+export type DividePilesKind = "divide-piles" | "pick-pile";
+
 export type PendingChoiceKind =
     | ZonePickKind
     | YesNoChoiceKind
@@ -209,4 +226,5 @@ export type PendingChoiceKind =
     | OrderChoiceKind
     | OptionChoiceKind
     | NameCardChoiceKind
-    | RandomRevealKind;
+    | RandomRevealKind
+    | DividePilesKind;

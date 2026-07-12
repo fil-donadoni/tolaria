@@ -726,6 +726,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Bend or Break",
+        "scryfallId": "b76b6660-d4b2-44de-a1a7-8d00811f90f6",
+        "oracleId": "4362efe4-339d-40e1-bd72-3cc9e41bf93f",
+        "firstSet": "inv"
+    },
+    {
         "name": "Berserk",
         "scryfallId": "e173c8ce-2352-405e-ad00-e3bb94ced1ad",
         "oracleId": "8b67d192-9a05-4a47-82ae-5fc4b7834d88",
@@ -1776,6 +1782,12 @@
         "firstSet": "nem"
     },
     {
+        "name": "Death or Glory",
+        "scryfallId": "81f967c9-b38d-489d-96cc-44a6b1804e10",
+        "oracleId": "b2ae0968-28ed-4ebb-a4e8-69ff6e6a6f1d",
+        "firstSet": "inv"
+    },
+    {
         "name": "Death Ward",
         "scryfallId": "fa5466cc-aa57-4a7f-8b21-d92b2fe02e13",
         "oracleId": "0544b707-ec67-43e3-a25d-fd7005ab673d",
@@ -1966,6 +1978,12 @@
         "scryfallId": "a89ad9fd-33a6-4d31-9f4c-8bf192882f21",
         "oracleId": "292e7135-8804-43f2-a486-51ef97b83f77",
         "firstSet": "leg"
+    },
+    {
+        "name": "Do or Die",
+        "scryfallId": "05f63cd9-e82b-4cf8-b8ce-f0aa0157692b",
+        "oracleId": "f25af42d-f1bf-4bd3-aded-ecadafdbf6e6",
+        "firstSet": "inv"
     },
     {
         "name": "Dominate",
@@ -2514,6 +2532,12 @@
         "firstSet": "eld"
     },
     {
+        "name": "Fact or Fiction",
+        "scryfallId": "7fd4d018-dcf3-4439-8445-02d66e44f7d3",
+        "oracleId": "437b2dab-15e0-4b9a-a204-58622d37a3b3",
+        "firstSet": "inv"
+    },
+    {
         "name": "Faithless Looting",
         "scryfallId": "a1b0da17-d595-441d-811c-a2d28d2bb232",
         "oracleId": "3d6fa57a-aa53-4b5c-b8af-a7612c823117",
@@ -2632,6 +2656,12 @@
         "scryfallId": "8965ce61-0522-4f77-a82d-89441d1ba867",
         "oracleId": "333809cb-e196-45f2-8a67-31374438e56e",
         "firstSet": "ice"
+    },
+    {
+        "name": "Fight or Flight",
+        "scryfallId": "46bde162-3737-4b93-a27a-63b909a4183d",
+        "oracleId": "2fc42640-983a-49ca-9020-7756135077b4",
+        "firstSet": "inv"
     },
     {
         "name": "Fire and Brimstone",
@@ -7636,6 +7666,12 @@
         "scryfallId": "bc8265a1-4621-4d25-8f7f-f0179951a694",
         "oracleId": "49c997d5-7b41-4faf-b898-58db19055671",
         "firstSet": "ice"
+    },
+    {
+        "name": "Stand or Fall",
+        "scryfallId": "60c34970-a106-490c-ac37-6156eb7f34ce",
+        "oracleId": "927d0085-9bd9-4454-8ac5-0e374237ed35",
+        "firstSet": "inv"
     },
     {
         "name": "Standing Stones",

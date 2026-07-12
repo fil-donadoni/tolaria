@@ -1088,19 +1088,130 @@ export const strengthOfUnity: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Pile-division cluster (parent PRD #1063, issue #1067) — commented stub,
-// not duplicated here.
+// Pile-division cluster (parent PRD #1063, issue #1067, ADR 0053)
 // ─────────────────────────────────────────────────────────────────────────
 
-// Death or Glory — {4}{W} Sorcery. "Separate all creatures target player
-// controls into two piles. That player sacrifices all creatures in the pile
-// of their choice." tracked-by: #1067 (pile division — `divideIntoPiles`
-// Op not yet shipped).
+// Death or Glory — {4}{W} Sorcery. "Separate all creature cards in your
+// graveyard into two piles. Exile the pile of an opponent's choice and
+// return the other to the battlefield." (CR 406 exile, CR 400.7 reanimation,
+// ADR 0053 pile division.) The object set is the caster's OWN graveyard
+// (`{ set: "graveyard" }`, already public — no reveal step needed); divider =
+// the caster, chooser = an opponent — the pile-division table's "Divider:
+// you / Chooser: an opponent" row (Fact or Fiction's twin). `moveZone`'s
+// bare-picks-`cards` shape moves each WHOLE pile in one Op (exile / reanimate
+// under the owner's default control) — no `forEach` wrapper needed.
+export const deathOrGlory: CardDefinition = {
+    id: "81f967c9-b38d-489d-96cc-44a6b1804e10",
+    name: "Death or Glory",
+    rarity: "rare",
+    oracleText:
+        "Separate all creature cards in your graveyard into two piles. Exile the pile of an opponent's choice and return the other to the battlefield.",
+    manaCost: { X: 4, W: 1 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "divideIntoPiles",
+            objects: {
+                set: "graveyard",
+                controller: "controller",
+                filter: { type: "Creature" },
+            },
+            divider: "controller",
+            chooser: "opponent",
+            dividePrompt:
+                "Death or Glory — divide the creature cards in your graveyard into two piles.",
+            pickPrompt:
+                "Choose a pile: it is exiled, the other returns to the battlefield.",
+            chosenBind: "$deathOrGloryChosen",
+            otherBind: "$deathOrGloryOther",
+            chosenEffect: [
+                {
+                    op: "moveZone",
+                    cards: { ref: "$deathOrGloryChosen" },
+                    player: "controller",
+                    from: "graveyard",
+                    to: "exile",
+                },
+            ],
+            otherEffect: [
+                {
+                    op: "moveZone",
+                    cards: { ref: "$deathOrGloryOther" },
+                    player: "controller",
+                    from: "graveyard",
+                    to: "battlefield",
+                },
+            ],
+        },
+    ],
+};
 
-// Fight or Flight — {3}{W} Enchantment. "As this enchantment enters,
-// separate all creatures target opponent controls into two piles. Creatures
-// in the pile of that player's choice can't attack. Creatures in the other
-// pile can't block." tracked-by: #1067 (pile division).
+// Fight or Flight — {3}{W} Enchantment. "At the beginning of combat on each
+// opponent's turn, separate all creatures that player controls into two
+// piles. Only creatures in the pile of their choice can attack this turn."
+// (CR 603.6a combat-begin trigger via `phaseTrigger`, CR 508.1a attack
+// restriction, ADR 0053 pile division.) `scope: "opponents"` means the
+// scoped player is read via `{ ref: "$event.activePlayerId" }` (issue #1066
+// precedent), NOT the plain `"opponent"` selector — divider stays the
+// enchantment's own `"controller"` (fixed, "you" always divides regardless
+// of scope) while the object set's owner AND the chooser are both the
+// firing event's active player (the affected opponent). The chosen pile has
+// no restriction (may attack, the default) — `chosenEffect: []`; the other
+// pile can't attack this turn via the new `restrictCombat` Op.
+export const fightOrFlight: CardDefinition = {
+    id: "46bde162-3737-4b93-a27a-63b909a4183d",
+    name: "Fight or Flight",
+    rarity: "rare",
+    oracleText:
+        "At the beginning of combat on each opponent's turn, separate all creatures that player controls into two piles. Only creatures in the pile of their choice can attack this turn.",
+    manaCost: { X: 3, W: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "fight-or-flight-divide",
+            oracleText:
+                "At the beginning of combat on each opponent's turn, separate all creatures that player controls into two piles. Only creatures in the pile of their choice can attack this turn.",
+            phase: "BEGINNING_OF_COMBAT",
+            scope: "opponents",
+            effects: [
+                {
+                    op: "divideIntoPiles",
+                    objects: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        controller: { ref: "$event.activePlayerId" },
+                        filter: { type: "Creature" },
+                    },
+                    divider: "controller",
+                    chooser: { ref: "$event.activePlayerId" },
+                    dividePrompt:
+                        "Fight or Flight — divide that player's creatures into two piles.",
+                    pickPrompt:
+                        "Choose a pile: only creatures in it can attack this turn.",
+                    chosenBind: "$fightOrFlightChosen",
+                    otherBind: "$fightOrFlightOther",
+                    chosenEffect: [],
+                    otherEffect: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "bound",
+                                ref: "$fightOrFlightOther",
+                            },
+                            effects: [
+                                {
+                                    op: "restrictCombat",
+                                    restriction: "cant-attack",
+                                    target: { ref: "$each" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Out of scope — split cards (ADR 0010/0041, unmodelled `split` layout). NO

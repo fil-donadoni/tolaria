@@ -175,6 +175,16 @@ export function validateAttackerEligibility(
     if (!card.types.includes("Creature")) {
         return { eligible: false, reason: "Only creatures can attack" };
     }
+    // CR 508.1a (ADR 0053, pile division) — "can't attack this turn" flag.
+    // Twin of `cantBlockThisTurn`'s Pass 0 check in
+    // `validateBlockerEligibility`; set on the unchosen pile by Fight or
+    // Flight.
+    if (card.cantAttackThisTurn) {
+        return {
+            eligible: false,
+            reason: "This creature can't attack this turn",
+        };
+    }
     // CR 702.3a+ — keyword-level attack restrictions (registry-driven).
     const keywordResult = evaluateAttackerKeywords(card);
     if (!keywordResult.eligible) return keywordResult;

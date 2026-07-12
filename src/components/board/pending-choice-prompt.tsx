@@ -66,6 +66,23 @@ export default function PendingChoicePrompt({
     const isLandEntry = choice.kind === "land-entry-tapped";
     const isYesNoPay = isMayPay || isLandEntry;
     const isOptionPick = choice.kind === "option-pick";
+    // ADR 0053 (pile division) — step 2 of the divide-then-choose family:
+    // pick pile "A" or "B". Reuses the same option-button UI as `option-pick`,
+    // synthesizing labels from the completed piles' sizes so the chooser can
+    // tell them apart before deciding.
+    const isPickPile = choice.kind === "pick-pile";
+    const pickPileOptions = isPickPile
+        ? [
+              {
+                  id: "A",
+                  label: `Pile A (${choice.pileA?.length ?? 0} card${(choice.pileA?.length ?? 0) === 1 ? "" : "s"})`,
+              },
+              {
+                  id: "B",
+                  label: `Pile B (${choice.pileB?.length ?? 0} card${(choice.pileB?.length ?? 0) === 1 ? "" : "s"})`,
+              },
+          ]
+        : [];
     const isNameCard = choice.kind === "name-card";
 
     // All zone-pick kinds use the client-side buffer (ADR 0007).
@@ -185,9 +202,13 @@ export default function PendingChoicePrompt({
                                 {formatOracleText(choice.prompt)}
                             </p>
                         </div>
-                        {isOptionPick ? (
+                        {isOptionPick || isPickPile ? (
                             <PendingChoiceOptions
-                                options={choice.options ?? []}
+                                options={
+                                    isPickPile
+                                        ? pickPileOptions
+                                        : (choice.options ?? [])
+                                }
                                 disabled={isBusy}
                                 onPick={async (id) => {
                                     if (isBusy) return;

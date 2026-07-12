@@ -2232,6 +2232,11 @@ export interface SpellContext {
      *  lost block flip. No-op if target is not a permanent on the
      *  battlefield. */
     setCantBlockThisTurn: (target: TargetSelection) => void;
+    /** Marks a target permanent as unable to attack this turn (CR 508.1a,
+     *  ADR 0053 pile division). The attack-side twin of `setCantBlockThisTurn`.
+     *  Cleared at CLEANUP. Used by Fight or Flight's unchosen pile. No-op if
+     *  target is not a permanent on the battlefield. */
+    setCantAttackThisTurn: (target: TargetSelection) => void;
     /** Marks a target permanent (an attacker) as unable to be blocked this
      *  turn (CR 509.1b). Read on the attacker side by combat block-validation;
      *  cleared at CLEANUP (CR 514.2). No-op if target is not a permanent on the
@@ -2387,7 +2392,11 @@ export interface SpellContext {
     requestChoice: (req: {
         playerId: string;
         choiceId: string;
-        kind: ZonePickKind;
+        // "divide-piles" (ADR 0053, pile division) reuses this exact
+        // zone-pick shape for the divider's total 2-way partition (the
+        // submitted subset is pile A; the zone-minus-submission remainder is
+        // pile B) — no bespoke primitive needed, "generalize don't add".
+        kind: ZonePickKind | "divide-piles";
         zone: "battlefield" | "hand" | "library" | "graveyard";
         filter?: PermanentFilter;
         count: number | { min: number; max: number };
@@ -2480,6 +2489,24 @@ export interface SpellContext {
          *  PendingChoice only when it differs from `playerId`. */
         actingPlayerId?: string;
     }) => string | undefined;
+
+    /** Step 2 of the pile-division divide-then-choose family (ADR 0053): the
+     *  CHOOSER picks pile "A" or "B" once the divider's `divide-piles`
+     *  `requestChoice` (step 1) has already committed the partition. Mirrors
+     *  `requestOptionChoice`'s suspend/replay contract, with the completed
+     *  `pileA`/`pileB` id lists carried on the entry (instead of `options`) so
+     *  the chooser's client can render pile contents before deciding. On
+     *  first call, enqueues a `pick-pile` `PendingChoice` and returns
+     *  `undefined` — the caller must return early to suspend. On resume the
+     *  call returns the chosen pile label. */
+    requestPickPile: (req: {
+        playerId: string;
+        choiceId: string;
+        pileA: string[];
+        pileB: string[];
+        prompt: string;
+        actingPlayerId?: string;
+    }) => "A" | "B" | undefined;
 
     /** Requests a player name ANY card (CR 202.3 / 701.x "chooses a card
      *  name"). On first call, enqueues a `name-card` `PendingChoice` and
@@ -5613,6 +5640,39 @@ export type EffectForEachSelector =
       }
     | { set: "bound"; ref: string };
 
+/** The declarative object-set selector for `divideIntoPiles` (ADR 0053, pile
+ *  division). Deliberately its OWN small type rather than reusing
+ *  `EffectForEachSelector` — the pile-division object set is always a
+ *  SINGLE-OWNER zone (the divide-piles pending choice is zone + candidateIds
+ *  validated against exactly one `zoneOwnerId`, mirroring `partition`/
+ *  Camouflage's per-pile picks), so the "players" / "bound" forEach variants
+ *  don't apply here and `controller`/`player` are REQUIRED (not optional —
+ *  every one of the six INV pile cards resolves to exactly one owner, even
+ *  Bend or Break's "each player divides their OWN lands", which is expressed
+ *  as two sibling `divideIntoPiles` Ops — one per player — rather than a
+ *  `{ set: "players" }` wrapper, CR 102.2 2-player-only simplification).
+ *  - `permanents` — battlefield permanents controlled by one player
+ *    (Do or Die's "creatures target player controls", Bend or Break's
+ *    "nontoken lands they control").
+ *  - `library-top` — the top `count` cards of one player's library, REVEALED
+ *    to all players (CR 701.16) as the selector resolves (Fact or Fiction).
+ *  - `graveyard` — cards in one player's graveyard, optionally filtered
+ *    (Death or Glory's "creature cards in your graveyard"). The graveyard is
+ *    already public (CR 400.2), so no reveal step is needed. */
+export type EffectPileObjectSelector =
+    | {
+          set: "permanents";
+          zone: "battlefield";
+          controller: EffectPlayerRef;
+          filter?: EffectCardFilter;
+      }
+    | { set: "library-top"; player: EffectPlayerRef; count: EffectValue }
+    | {
+          set: "graveyard";
+          controller: EffectPlayerRef;
+          filter?: EffectCardFilter;
+      };
+
 /** The Pending Choice kinds a `choice` Op may request (issue #805). A strict
  *  subset of the existing `ZonePickKind` taxonomy — the Op maps 1:1 onto
  *  `SpellContext.requestChoice`, reusing the whole Pending Choice pipeline
@@ -5700,8 +5760,19 @@ export type EffectOp =
      *  `SpellContext.destroy`, so regeneration / indestructible / destroy
      *  replacements (ADR 0020) apply exactly as for imperative cards.
      *  `bind` snapshots the permanent's power/toughness/controller BEFORE it
-     *  leaves the battlefield (CR 608.2h). */
-    | { op: "destroy"; target: EffectObjectSelector; bind?: string }
+     *  leaves the battlefield (CR 608.2h). `cantBeRegenerated` (ADR 0053,
+     *  Do or Die's "They can't be regenerated") is a direct passthrough of
+     *  `SpellContext.destroy`'s existing `{ cantBeRegenerated }` option
+     *  (Terror, Disintegrate already use it imperatively) — suppresses the
+     *  regeneration-shield replacement (CR 701.15c) while indestructible
+     *  still protects. Omitted/false is the default preventable-by-regen path
+     *  every other `destroy` card uses. */
+    | {
+          op: "destroy";
+          target: EffectObjectSelector;
+          bind?: string;
+          cantBeRegenerated?: boolean;
+      }
     /** CR 701.13 — exile the announced target permanent (or the current
      *  `forEach` member, issue #807) to its owner's exile zone (CR 406).
      *  `bind` snapshots the permanent's power/toughness/controller BEFORE it
@@ -6353,7 +6424,52 @@ export type EffectOp =
      *  predicate; the calling card's `if` chain is the gate (CR 104.2a: "a
      *  player CAN win as a result of a spell or ability", not the Op deciding
      *  who wins). */
-    | { op: "winGame"; player: EffectPlayerRef };
+    | { op: "winGame"; player: EffectPlayerRef }
+    /** CR-generic "separate into two piles, another player chooses one" cycle
+     *  (ADR 0053, pile division — Fact or Fiction, Do or Die, Death or Glory,
+     *  Bend or Break, Fight or Flight, Stand or Fall). Drives a new two-step
+     *  `DividePilesKind` pending-choice family: step 1 raises a
+     *  `divide-piles` choice for `divider` — a total 2-way partition of
+     *  `objects` (the submitted subset is pile A, the remainder pile B); step
+     *  2 raises a `pick-pile` choice for `chooser` over the completed piles.
+     *  Once both are answered, `chosenEffect` runs as an Op list with
+     *  `chosenBind` bound to the chosen pile's ids (a LIST binding, like a
+     *  `delayedTrigger` list-valued capture — read it via
+     *  `{ set: "bound", ref: chosenBind }` in a nested `forEach`, or directly
+     *  as a bare picks ref in `moveZone`'s `cards` shape), then `otherEffect`
+     *  runs with `otherBind` bound to the other pile's ids. Either list may be
+     *  EMPTY (a pile with no consequence — Do or Die's surviving pile, Fight
+     *  or Flight's default-legal chosen pile) — unlike `forEach.effects`,
+     *  `chosenEffect`/`otherEffect` do NOT require a non-empty Op list.
+     *  Skipped entirely when `objects` resolves to no candidates, or when
+     *  `divider`/`chooser` cannot be resolved (CR 608.2b). */
+    | {
+          op: "divideIntoPiles";
+          objects: EffectPileObjectSelector;
+          divider: EffectPlayerRef;
+          chooser: EffectPlayerRef;
+          dividePrompt: string;
+          pickPrompt: string;
+          chosenBind: string;
+          otherBind: string;
+          chosenEffect: EffectOp[];
+          otherEffect: EffectOp[];
+      }
+    /** CR 508.1a / 509.1b (ADR 0053, pile division) — grant a turn-scoped
+     *  "can't attack" or "can't block" restriction to a permanent. A thin
+     *  declarative skin over the two existing SpellContext primitives
+     *  `setCantAttackThisTurn` / `setCantBlockThisTurn`, one execution path
+     *  (ADR 0045) — the same "restriction grant" reuse `tapUntap` already
+     *  established for tap/untap. `target` is an object selector: an
+     *  announced target slot, `$source`, or (the only shape the six pile
+     *  cards use) the current `forEach { set: "bound" }` member `$each` over
+     *  an unchosen pile (Fight or Flight, Stand or Fall). Skipped when the
+     *  referenced permanent is gone (CR 608.2b). */
+    | {
+          op: "restrictCombat";
+          restriction: "cant-attack" | "cant-block";
+          target: EffectObjectSelector;
+      };
 
 /** A PREDEFINED predicate form for the `if` construct (ADR 0045, issue #806).
  *  The grammar is frozen at two enumerated forms — there are NO arbitrary

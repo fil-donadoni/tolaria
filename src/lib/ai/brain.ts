@@ -459,10 +459,17 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // spans both, so the first `min` in exposed (top) order is always a
         // legal submission (ADR 0016); the engine never freezes. Smart
         // keep/bottom selection is deferred.
+        // ADR 0053 (pile division) — the divider's partition (step 1 of the
+        // divide-then-choose family) is exactly the `partition` shape: a
+        // subset of the object set becomes pile A, the rest pile B. The
+        // minimal-legal default (ADR 0016) submits an empty pile A (min = 0),
+        // so everything lands in pile B — a weak-but-legal choice; smart
+        // partitioning is deferred.
         case "choose-permanents":
         case "pick-source":
         case "choose-hand-card":
         case "partition":
+        case "divide-piles":
         case "look-top":
             return candidates.slice(0, min).map((c) => c.id);
 
@@ -535,6 +542,15 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // takes the first `min` (=1) in author order — the engine never
         // freezes on the choice. Smart body selection is deferred.
         case "option-pick":
+            return candidates.slice(0, min).map((c) => c.id);
+
+        // ADR 0053 (pile division) — step 2 of the divide-then-choose family:
+        // pick pile "A" or "B" (appended as neutral-value synthetic
+        // candidates in `buildOwedChoice`, like `option-pick`'s options). A
+        // minimal-legal default (ADR 0016) takes the first (`min` = 1) — the
+        // engine never freezes on the choice. Smart pile evaluation (which
+        // pile is worth more to keep/inflict) is deferred.
+        case "pick-pile":
             return candidates.slice(0, min).map((c) => c.id);
 
         // `may-pay` is a yes/no answer routed through `submitMayPay`

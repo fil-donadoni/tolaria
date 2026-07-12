@@ -43,6 +43,9 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "name-card": "Name a card",
     // random-reveal family (CR 705, ADR 0023)
     "random-reveal": "Coin flip",
+    // pile-division divide-then-choose family (ADR 0053)
+    "divide-piles": "Divide into piles",
+    "pick-pile": "Choose a pile",
 };
 
 export function pendingChoiceLabel(kind: PendingChoiceKind): string {

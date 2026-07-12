@@ -628,6 +628,27 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // above), so this arm is defensive/for-completeness.
             req.skip ??= `Op "winGame" sets state.gameOver — covered by the Op's own interpreter test`;
             return;
+        case "divideIntoPiles":
+            // ADR 0053 (pile division, issue #1067) — a TWO-PLAYER divide-
+            // then-choose interaction: the divider partitions the object set,
+            // then a DIFFERENT player picks a pile, both suspending for a live
+            // decision the canned generator cannot make (mirrors the
+            // suspending `choice` / `mayPay` / `optionChoice` skips). Explicit
+            // skip — each of the six pile cards has its own hand-written
+            // interpreter + wire-format test (the Op's per-Op test regime,
+            // `.claude/rules/gre-development.md`).
+            req.skip ??= `Op "divideIntoPiles" suspends for two DIFFERENT players' picks (ADR 0053) — covered by hand-written per-card tests`;
+            return;
+        case "restrictCombat":
+            // CR 508.1a / 509.1b (ADR 0053) — sets a turn-scoped can't-attack/
+            // can't-block flag whose only observable effect is at a LATER
+            // declare-attackers/declare-blockers step, which the canned
+            // single-resolution generator doesn't model (it asserts board/life
+            // deltas immediately after resolution, not a later combat step).
+            // Explicit skip — covered by the Op's own interpreter test plus
+            // Fight or Flight / Stand or Fall's hand-written combat tests.
+            req.skip ??= `Op "restrictCombat" only manifests at a later combat step — covered by hand-written tests`;
+            return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.
@@ -1270,6 +1291,25 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // interpreter test (plus Coalition Victory's card-level predicate test)
     // is the behavioural guarantor.
     winGame() {
+        return null;
+    },
+    // `divideIntoPiles` (ADR 0053, pile division, issue #1067) — never
+    // reached: `analyseOp` skips every script with this Op (it suspends
+    // TWICE for two DIFFERENT players' live picks, which the canned
+    // generator cannot drive). Kept for the 1:1 coverage guard; each of the
+    // six pile cards has its own hand-written interpreter + wire-format test
+    // (the per-Op regime).
+    divideIntoPiles() {
+        return null;
+    },
+    // `restrictCombat` (CR 508.1a/509.1b, ADR 0053) — never reached:
+    // `analyseOp` skips every script with this Op (its only observable
+    // effect is at a LATER declare-attackers/-blockers step, outside the
+    // canned generator's immediate-post-resolution board/life assertions).
+    // Kept for the 1:1 coverage guard; the Op's own interpreter test plus
+    // Fight or Flight / Stand or Fall's hand-written combat tests are the
+    // behavioural guarantor.
+    restrictCombat() {
         return null;
     },
 };

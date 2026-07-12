@@ -27,6 +27,7 @@ import {
     cryptAngel,
     cursedFlesh,
     devouringStrossus,
+    doOrDie,
     dredge,
     duskwalker,
     exoticCurse,
@@ -60,6 +61,7 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { resolveTopOfStack, getCostModifiers } from "../../../../gre/state";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -871,5 +873,170 @@ describe("Exotic Curse (CR 303.4 aura / 604.3 CDA — -1/-1 per Domain, issue #1
         )!;
         expect(getEffectivePower(projected, slimLion)).toBe(1); // 2 - 1
         expect(getEffectiveToughness(projected, slimLion)).toBe(0); // 1 - 1
+    });
+});
+
+describe("Do or Die (CR 701.8 destroy / 701.15c regeneration, ADR 0053 pile division, issue #1067)", () => {
+    it("the caster divides the target player's creatures; the target player chooses the destroyed pile, unregenerable", () => {
+        const creatures = ["dod-1", "dod-2", "dod-3"].map((id) =>
+            makeInstance(savannahLions.id, {
+                id,
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: creatures }),
+            ],
+        });
+        pushSpell(state, doOrDie.id, "p1", [{ type: "player", id: "p2" }]);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended
+
+        const divide = state.pendingChoices![0];
+        expect(divide.kind).toBe("divide-piles");
+        expect(divide.playerId).toBe("p1"); // the caster divides
+        expect(divide.zoneOwnerId).toBe("p2"); // the target player's creatures
+        expect(divide.candidateIds?.slice().sort()).toEqual([
+            "dod-1",
+            "dod-2",
+            "dod-3",
+        ]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: divide.stackItemId,
+            step: divide.step,
+            choiceId: divide.choiceId,
+            cardInstanceIds: ["dod-1"],
+        });
+
+        const pick = state.pendingChoices![0];
+        expect(pick.kind).toBe("pick-pile");
+        expect(pick.playerId).toBe("p2"); // the target player chooses
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: pick.stackItemId,
+            step: pick.step,
+            choiceId: pick.choiceId,
+            cardInstanceIds: ["A"],
+        });
+
+        expect(state.players[1].battlefield.map((c) => c.id).sort()).toEqual([
+            "dod-2",
+            "dod-3",
+        ]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["dod-1"]);
+    });
+
+    it("destroyed creatures can't be regenerated (CR 701.15c)", () => {
+        const doomed = makeInstance(savannahLions.id, {
+            id: "dod-regen",
+            controllerId: "p2",
+            ownerId: "p2",
+            regenerationShields: 1,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [doomed] }),
+            ],
+        });
+        pushSpell(state, doOrDie.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const divide = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: divide.stackItemId,
+            step: divide.step,
+            choiceId: divide.choiceId,
+            cardInstanceIds: ["dod-regen"],
+        });
+        const pick = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: pick.stackItemId,
+            step: pick.step,
+            choiceId: pick.choiceId,
+            cardInstanceIds: ["A"],
+        });
+        // The regeneration shield did NOT save the creature — it's in the
+        // graveyard despite carrying a shield.
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "dod-regen")
+        ).toBe(true);
+    });
+
+    it("the other pile survives untouched", () => {
+        const creatures = ["dod-a", "dod-b"].map((id) =>
+            makeInstance(savannahLions.id, {
+                id,
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: creatures }),
+            ],
+        });
+        pushSpell(state, doOrDie.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const divide = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: divide.stackItemId,
+            step: divide.step,
+            choiceId: divide.choiceId,
+            cardInstanceIds: ["dod-a"],
+        });
+        const pick = state.pendingChoices![0];
+        // Choose pile B this time — the OTHER pile (dod-a) survives.
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: pick.stackItemId,
+            step: pick.step,
+            choiceId: pick.choiceId,
+            cardInstanceIds: ["B"],
+        });
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            "dod-a",
+        ]);
+        expect(state.players[1].graveyard.some((c) => c.id === "dod-b")).toBe(
+            true
+        );
+    });
+
+    it("survives the wire projection (the pick-pile choice's piles cross the wire)", () => {
+        const creatures = ["dod-w1", "dod-w2"].map((id) =>
+            makeInstance(savannahLions.id, {
+                id,
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: creatures }),
+            ],
+        });
+        pushSpell(state, doOrDie.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const divide = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: divide.stackItemId,
+            step: divide.step,
+            choiceId: divide.choiceId,
+            cardInstanceIds: ["dod-w1"],
+        });
+        const projected = projectPublicState(state, 1, "p2");
+        const pick = projected.pendingChoices![0];
+        expect(pick.kind).toBe("pick-pile");
+        expect(pick.pileA).toEqual(["dod-w1"]);
+        expect(pick.pileB).toEqual(["dod-w2"]);
     });
 });

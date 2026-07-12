@@ -1182,3 +1182,166 @@ export const breathOfDarigaaz: CardDefinition = {
 //     manaCost: { X: 2, R: 1 },
 //     types: ["Instant"],
 // };
+
+// Bend or Break — {3}{R} Sorcery. "Each player separates all nontoken lands
+// they control into two piles. For each player, one of their piles is
+// chosen by one of their opponents of their choice. Destroy all lands in the
+// chosen piles. Tap all lands in the other piles." (CR 701.8 destroy,
+// CR 701.26 tap, ADR 0053 pile division.) CR 102.2 (2-player + solo engine
+// scope) simplification: "each player" / "one of their opponents of their
+// choice" is UNROLLED to the fixed two players as two sibling
+// `divideIntoPiles` Ops rather than an outer `forEach { set: "players" }` —
+// with exactly one opponent, "of their choice" is not a real decision, and
+// this sidesteps nesting a per-pile `forEach` inside a `forEach { set:
+// "players" }` body (the validator's one-construct-level-per-script ban).
+// Each Op has each player as their OWN divider, the other as chooser.
+export const bendOrBreak: CardDefinition = {
+    id: "b76b6660-d4b2-44de-a1a7-8d00811f90f6",
+    name: "Bend or Break",
+    rarity: "rare",
+    oracleText:
+        "Each player separates all nontoken lands they control into two piles. For each player, one of their piles is chosen by one of their opponents of their choice. Destroy all lands in the chosen piles. Tap all lands in the other piles.",
+    manaCost: { X: 3, R: 1 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "divideIntoPiles",
+            objects: {
+                set: "permanents",
+                zone: "battlefield",
+                controller: "controller",
+                filter: { type: "Land", isToken: false },
+            },
+            divider: "controller",
+            chooser: "opponent",
+            dividePrompt:
+                "Bend or Break — divide your nontoken lands into two piles.",
+            pickPrompt:
+                "Choose a pile: lands in it are destroyed, the rest are tapped.",
+            chosenBind: "$bendOrBreakChosen1",
+            otherBind: "$bendOrBreakOther1",
+            chosenEffect: [
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: "$bendOrBreakChosen1" },
+                    effects: [{ op: "destroy", target: { ref: "$each" } }],
+                },
+            ],
+            otherEffect: [
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: "$bendOrBreakOther1" },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "tap",
+                            target: { ref: "$each" },
+                        },
+                    ],
+                },
+            ],
+        },
+        {
+            op: "divideIntoPiles",
+            objects: {
+                set: "permanents",
+                zone: "battlefield",
+                controller: "opponent",
+                filter: { type: "Land", isToken: false },
+            },
+            divider: "opponent",
+            chooser: "controller",
+            dividePrompt:
+                "Bend or Break — your opponent divides their nontoken lands into two piles.",
+            pickPrompt:
+                "Choose a pile: lands in it are destroyed, the rest are tapped.",
+            chosenBind: "$bendOrBreakChosen2",
+            otherBind: "$bendOrBreakOther2",
+            chosenEffect: [
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: "$bendOrBreakChosen2" },
+                    effects: [{ op: "destroy", target: { ref: "$each" } }],
+                },
+            ],
+            otherEffect: [
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: "$bendOrBreakOther2" },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "tap",
+                            target: { ref: "$each" },
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
+
+// Stand or Fall — {3}{R} Enchantment. "At the beginning of combat on your
+// turn, for each defending player, separate all creatures that player
+// controls into two piles and that player chooses one. Only creatures in
+// the chosen piles can block this turn." (CR 603.6a combat-begin trigger,
+// CR 509.1b block restriction, ADR 0053 pile division.) `scope: "your"`
+// (fires on the CASTER's turn — CR 102.2 2-player engine: exactly one
+// defending player, the opponent) — the scoped player equals the ability's
+// controller, so the plain `"controller"`/`"opponent"` selectors are safe
+// here (unlike Fight or Flight's `scope: "opponents"`). Divider = the
+// enchantment's controller ("you"); chooser = the defending player (the
+// opponent, "that player chooses one"). The chosen pile has no restriction
+// (may block, the default) — `chosenEffect: []`; the other pile can't block
+// this turn via `restrictCombat`.
+export const standOrFall: CardDefinition = {
+    id: "60c34970-a106-490c-ac37-6156eb7f34ce",
+    name: "Stand or Fall",
+    rarity: "rare",
+    oracleText:
+        "At the beginning of combat on your turn, for each defending player, separate all creatures that player controls into two piles and that player chooses one. Only creatures in the chosen piles can block this turn.",
+    manaCost: { X: 3, R: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "stand-or-fall-divide",
+            oracleText:
+                "At the beginning of combat on your turn, for each defending player, separate all creatures that player controls into two piles and that player chooses one. Only creatures in the chosen piles can block this turn.",
+            phase: "BEGINNING_OF_COMBAT",
+            scope: "your",
+            effects: [
+                {
+                    op: "divideIntoPiles",
+                    objects: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        controller: "opponent",
+                        filter: { type: "Creature" },
+                    },
+                    divider: "controller",
+                    chooser: "opponent",
+                    dividePrompt:
+                        "Stand or Fall — divide the defending player's creatures into two piles.",
+                    pickPrompt:
+                        "Choose a pile: only creatures in it can block this turn.",
+                    chosenBind: "$standOrFallChosen",
+                    otherBind: "$standOrFallOther",
+                    chosenEffect: [],
+                    otherEffect: [
+                        {
+                            op: "forEach",
+                            select: { set: "bound", ref: "$standOrFallOther" },
+                            effects: [
+                                {
+                                    op: "restrictCombat",
+                                    restriction: "cant-block",
+                                    target: { ref: "$each" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+};
