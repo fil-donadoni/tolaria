@@ -6744,7 +6744,9 @@ export function buildSpellContext(
                 const top = player.library[0];
                 if (!top) break; // library empty — mill fewer (CR 701.17a)
                 const cardId = (top.card as { id?: string }).id;
-                const types = cardId ? tryGetDefinition(cardId)?.types : undefined;
+                const types = cardId
+                    ? tryGetDefinition(cardId)?.types
+                    : undefined;
                 moveCard(player, top.id, "library", "graveyard");
                 // Emit AFTER the move so the trigger scan finds the card in its
                 // destination graveyard (CR 603.10 emit-after-move discipline).

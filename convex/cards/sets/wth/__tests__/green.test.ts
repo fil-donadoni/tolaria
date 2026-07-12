@@ -71,7 +71,10 @@ describe("Gaea's Blessing — mill self-trigger (CR 701.17 / 603.6e, issue #1055
             zone: "graveyard",
         });
         const state = makeState({
-            players: [makePlayer("p1", { graveyard: [gaea] }), makePlayer("p2")],
+            players: [
+                makePlayer("p1", { graveyard: [gaea] }),
+                makePlayer("p2"),
+            ],
         });
         const fired = collectTriggers(state, [
             MILLED("p1", "gaea", gaeasBlessing.id),
@@ -89,7 +92,10 @@ describe("Gaea's Blessing — mill self-trigger (CR 701.17 / 603.6e, issue #1055
             zone: "graveyard",
         });
         const state = makeState({
-            players: [makePlayer("p1", { graveyard: [gaea] }), makePlayer("p2")],
+            players: [
+                makePlayer("p1", { graveyard: [gaea] }),
+                makePlayer("p2"),
+            ],
         });
         const fired = collectTriggers(state, [MILLED("p1", "some-other-card")]);
         expect(fired.some((t) => t.triggeredAbilityId === MILL_ABILITY)).toBe(
