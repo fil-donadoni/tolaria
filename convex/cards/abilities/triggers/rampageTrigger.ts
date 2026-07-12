@@ -30,8 +30,12 @@ import type {
 /** First blocker (by assignment-iteration order) of `attackerId` in the live
  *  block graph, or undefined if the attacker has no recorded blocker. The
  *  BLOCKERS_CONFIRMED pair whose `blockerId` equals this is the single pair we
- *  let through, so a multi-blocked attacker fires Rampage just once. */
-function firstBlockerOf(
+ *  let through, so a multi-blocked attacker fires Rampage just once. Exported
+ *  (not Rampage-specific) so any other "whenever this becomes blocked" trigger
+ *  can reuse the same becomes-blocked-once dedupe (Sparring Golem, INV —
+ *  "gets +1/+1 for each creature blocking it", the non-"beyond the first"
+ *  sibling of Rampage's math). */
+export function firstBlockerOf(
     state: TriggerStateView | undefined,
     attackerId: string
 ): string | undefined {

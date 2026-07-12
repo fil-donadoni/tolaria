@@ -168,6 +168,12 @@
         "firstSet": "arn"
     },
     {
+        "name": "Alloy Golem",
+        "scryfallId": "1fb6d6a1-9d71-405b-9c93-1a7f06c67abd",
+        "oracleId": "410b7faf-365c-4b73-a64d-bddbe49cfded",
+        "firstSet": "inv"
+    },
+    {
         "name": "Altar of Bone",
         "scryfallId": "75d5b014-8675-4d91-a539-ac5c31d44b35",
         "oracleId": "607a3f5f-4a36-4077-b5cf-40ffd52fa580",
@@ -298,6 +304,12 @@
         "scryfallId": "2c1dbc62-ceb5-4540-ae38-901e5deafc75",
         "oracleId": "8ead94c5-8447-4f20-87ec-efdccde689fc",
         "firstSet": "leg"
+    },
+    {
+        "name": "Archaeological Dig",
+        "scryfallId": "35f55af0-5a46-4900-b3d0-ca796b710e07",
+        "oracleId": "cf438848-da86-4db6-b3b8-4dd8570be3b8",
+        "firstSet": "inv"
     },
     {
         "name": "Archon of Cruelty",
@@ -4224,6 +4236,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Juntu Stakes",
+        "scryfallId": "3ab7cf53-f62d-47e1-af70-ab12be0d22e2",
+        "oracleId": "efd73b8a-1caa-4fc8-855a-cad33ea54097",
+        "firstSet": "inv"
+    },
+    {
         "name": "Junún Efreet",
         "scryfallId": "5f46783a-b91e-4829-a173-5515b09ca615",
         "oracleId": "afda663e-c5f7-4182-86f7-d95d71793717",
@@ -4726,6 +4744,12 @@
         "scryfallId": "601eed5c-436d-425b-a45f-07881ad893c8",
         "oracleId": "1c68e877-ee47-42bf-a867-3f7f479eae1c",
         "firstSet": "leg"
+    },
+    {
+        "name": "Lotus Guardian",
+        "scryfallId": "ddfc6396-5377-4ab3-9c10-8abcdeae2aa1",
+        "oracleId": "143d7a32-c15d-4a1f-ad81-cf1e6aa92bf3",
+        "firstSet": "inv"
     },
     {
         "name": "Lotus Petal",
@@ -5814,6 +5838,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Phyrexian Altar",
+        "scryfallId": "25158cd5-749b-408c-9ab1-0f83e38730f7",
+        "oracleId": "8d02b297-97c4-4379-9862-0a462400f66f",
+        "firstSet": "inv"
+    },
+    {
         "name": "Phyrexian Battleflies",
         "scryfallId": "da27c489-c541-4b0d-a844-71aa65e55ceb",
         "oracleId": "58ed1294-ba7d-43a1-b988-8d78d9fa0e3e",
@@ -5836,6 +5866,12 @@
         "scryfallId": "21a985a9-5612-4844-982e-fd1aa6249770",
         "oracleId": "407a0761-7ccc-4607-8df6-e744d30a81a0",
         "firstSet": "atq"
+    },
+    {
+        "name": "Phyrexian Lens",
+        "scryfallId": "6ec9a91d-7af0-44a8-839f-fb9960be0ddd",
+        "oracleId": "d2ce3832-a12d-4c7a-9bc2-51dc92764994",
+        "firstSet": "inv"
     },
     {
         "name": "Phyrexian Reaper",
@@ -5902,6 +5938,12 @@
         "scryfallId": "dd27f0fe-c032-4f61-9f3d-98a6d2e2c426",
         "oracleId": "632f1034-d2ad-432a-a79a-4bd1307be24a",
         "firstSet": "leg"
+    },
+    {
+        "name": "Planar Portal",
+        "scryfallId": "24315eaa-ef55-4fd6-9145-e75b3de6f492",
+        "oracleId": "d4b10505-2b7a-4099-aacb-ff2359b24310",
+        "firstSet": "inv"
     },
     {
         "name": "Plateau",
@@ -7230,6 +7272,12 @@
         "firstSet": "snc"
     },
     {
+        "name": "Sparring Golem",
+        "scryfallId": "d829d9de-83fa-4feb-8efc-0075315163c6",
+        "oracleId": "c54879da-0f1d-4ad0-b082-95f0e4d35685",
+        "firstSet": "inv"
+    },
+    {
         "name": "Spectral Cloak",
         "scryfallId": "7524fd0d-a675-41d6-bc99-bd3ba336893b",
         "oracleId": "fadfa9f9-d096-4083-8630-1c18928133ff",
@@ -7719,6 +7767,12 @@
         "name": "Teferi's Care",
         "scryfallId": "031b1cc1-4468-4bc5-85c0-c22dce131225",
         "oracleId": "6c5c7b26-9cd6-4f29-bbb2-a0745153ee5d",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Tek",
+        "scryfallId": "c1f38104-a699-4bb9-930a-699f7bbc338a",
+        "oracleId": "f85aef9b-b6ad-4716-b48b-5e26b474a59d",
         "firstSet": "inv"
     },
     {
@@ -8308,6 +8362,12 @@
         "scryfallId": "f3728537-86d3-42be-9046-90bba1bfafc1",
         "oracleId": "fde25440-1810-46ba-a112-b54091593b66",
         "firstSet": "atq"
+    },
+    {
+        "name": "Urza's Filter",
+        "scryfallId": "680c75b1-e766-40be-84d7-2332047bb3de",
+        "oracleId": "46484242-28ed-43d2-b33a-1e5c1771acca",
+        "firstSet": "inv"
     },
     {
         "name": "Urza's Mine",
