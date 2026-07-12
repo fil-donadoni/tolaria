@@ -186,4 +186,24 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Blastoderm — Fading 3 (issue #676, CR 702.32, ADR 0054). One copy on
+        // the battlefield pre-seeded down to its LAST fade counter, and one in
+        // hand. Cast the hand copy to watch it enter with three fresh fade
+        // counters (implicit keyword expansion); pass to your next upkeep and
+        // the on-battlefield copy removes its last fade counter — the upkeep
+        // after that it can't, and sacrifices itself.
+        label: "Blastoderm (#676) — Fading 3 clock (last counter on board)",
+        cards: [
+            {
+                name: "Blastoderm",
+                owner: "me",
+                zone: "battlefield",
+                counters: { fade: 1 },
+            },
+            { name: "Blastoderm", owner: "me", zone: "hand" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
 ];

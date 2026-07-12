@@ -935,7 +935,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Fading",
         kind: "keyword-ability",
         cr: "702.32",
-        status: "planned",
+        status: "implemented",
+        bindingPattern: /^fading \d+$/,
+        note: 'convex/cards/abilities/fadingVanishing.ts — "fading N" static string expanded at the getDefinition seam (ADR 0054) into entersWith N fade counters + an upkeep remove-or-sacrifice trigger',
     },
     // 702.33 Kicker
     {
@@ -1199,7 +1201,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Vanishing",
         kind: "keyword-ability",
         cr: "702.63",
-        status: "planned",
+        status: "implemented",
+        bindingPattern: /^vanishing \d+$/,
+        note: 'convex/cards/abilities/fadingVanishing.ts — "vanishing N" static string expanded at the getDefinition seam (ADR 0054) into entersWith N time counters + an upkeep remove trigger + a separate COUNTER_REMOVED sacrifice trigger (CR 702.63d)',
     },
     // 702.64 Absorb
     {

@@ -4399,7 +4399,8 @@ export type GameEventType =
     | "CARD_DISCARDED"
     | "CARD_MILLED"
     | "LIFE_LOST"
-    | "LIFE_GAINED";
+    | "LIFE_GAINED"
+    | "COUNTER_REMOVED";
 
 /** Damage event emitted whenever a source inflicts damage on a target
  *  (CR 120.3). Used by "whenever ~ deals damage" triggers. The
@@ -4810,6 +4811,28 @@ export interface LifeGainedEvent {
     amount: number;
 }
 
+/** Counter-removal event emitted whenever counters are removed from a
+ *  permanent via `SpellContext.removeCounter` (CR 122.6). Carries the counter
+ *  type, how many were removed, and how many of that type remain afterwards.
+ *  A general primitive: Vanishing (CR 702.63d) listens for `counterType:
+ *  "time"` reaching `remaining: 0` to fire its sacrifice; future "whenever a
+ *  counter is removed" cards reuse it. Emitted from the SpellContext primitive
+ *  only — the `payRemoveCounterCost` activation-cost path is stateless and does
+ *  not emit (no card removes a `time` counter as a cost today). */
+export interface CounterRemovedEvent {
+    type: "COUNTER_REMOVED";
+    /** Instance id of the permanent the counters were removed from. */
+    instanceId: string;
+    /** Controller of that permanent at the moment of removal. */
+    controllerId: string;
+    /** Kind of counter removed (e.g. "time", "fade", "+1/+1"). */
+    counterType: string;
+    /** How many counters were actually removed (clamped to the prior count). */
+    removed: number;
+    /** How many counters of `counterType` remain after the removal. */
+    remaining: number;
+}
+
 export type GameEvent =
     | DamageDealtEvent
     | PhaseBeginEvent
@@ -4829,7 +4852,8 @@ export type GameEvent =
     | CardDiscardedEvent
     | CardMilledEvent
     | LifeLostEvent
-    | LifeGainedEvent;
+    | LifeGainedEvent
+    | CounterRemovedEvent;
 
 /** Read-only window over the live `GameState` exposed to `matches()` for
  *  state triggers (CR 603.8). Kept narrow on purpose so card definitions can

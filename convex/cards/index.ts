@@ -10,6 +10,7 @@ import type {
     StaticEffect,
 } from "./types";
 import { cantBeEnchantedSelfGuard } from "./types";
+import { expandFadingVanishing } from "./abilities/fadingVanishing";
 import { setCardManaCostLookup } from "./manaCostLookup";
 import { setCardSupertypeLookup } from "./supertypeLookup";
 import * as lea from "./sets/lea";
@@ -437,18 +438,36 @@ for (const print of allPrints) {
 // future DB-backed registry needs an async fetch, it must still resolve into
 // this same in-memory map BEFORE the GRE runs (at the mutation entry point,
 // per ADR 0046) — the seam's signature must stay synchronous.
+// ADR 0054 — implicit keyword expansion. `fading N` / `vanishing N` cards
+// declare only the keyword string; the seam injects the enter-with-counters
+// entry and the synthesized upkeep/sacrifice triggers. Memoized by definition
+// identity (a base def is expanded at most once) so the ~300 `getDefinition`
+// call sites pay the parse cost only on the first read of each card. The memo
+// keys on the raw registry/token object, so tokens (`maybeSynthesizeToken`,
+// `createTokenCopyOf`) expand through the same seam as printed cards.
+const expansionCache = new WeakMap<CardDefinition, CardDefinition>();
+const expandDefinition = (base: CardDefinition): CardDefinition => {
+    const cached = expansionCache.get(base);
+    if (cached) return cached;
+    const expanded = expandFadingVanishing(base);
+    expansionCache.set(base, expanded);
+    return expanded;
+};
+
 export const getDefinition = (cardId: string): CardDefinition => {
     const card = registry.get(cardId) ?? maybeSynthesizeToken(cardId);
     if (!card) {
         throw new Error(`Card not found: ${cardId}`);
     }
-    return card;
+    return expandDefinition(card);
 };
 
 /** Non-throwing variant. Returns null when the id isn't in the registry — used
  *  by subsystems that operate best-effort (layer system, test fixtures). */
-export const tryGetDefinition = (cardId: string): CardDefinition | null =>
-    registry.get(cardId) ?? maybeSynthesizeToken(cardId) ?? null;
+export const tryGetDefinition = (cardId: string): CardDefinition | null => {
+    const card = registry.get(cardId) ?? maybeSynthesizeToken(cardId);
+    return card ? expandDefinition(card) : null;
+};
 
 // Break the set-module ↔ registry import cycle: inject a manaCost lookup into
 // the (cycle-free) colors module so set runtime code can derive an opponent
@@ -685,8 +704,18 @@ export function getInstanceAiCombatHint(instance: {
 /** All registered `CardDefinition`s in load order. Reprints are not included
  *  — each `CardPrint` resolves to the same definition, so callers iterating
  *  cards-as-data (deck builder index, card catalog) should consume this and
- *  use `getPrintsForCard` to enumerate printings. */
-export const getAllCards = (): CardDefinition[] => allCards;
+ *  use `getPrintsForCard` to enumerate printings.
+ *
+ *  Routed through `expandDefinition` (ADR 0054) so the catalogue and the
+ *  `getDefinition` seam return the SAME (expanded) object for a keyword card
+ *  like Blastoderm — the registry-seam identity invariant
+ *  (`registrySeam.test.ts`) depends on it. Memoized: the WeakMap makes each
+ *  element stable, and this pins the array wrapper too. */
+let expandedAllCards: CardDefinition[] | null = null;
+export const getAllCards = (): CardDefinition[] => {
+    if (!expandedAllCards) expandedAllCards = allCards.map(expandDefinition);
+    return expandedAllCards;
+};
 
 /** A single printing of a card: its image-key print id and the set it was
  *  printed in. */

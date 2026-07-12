@@ -6460,6 +6460,23 @@ export function buildSpellContext(
             else next[type] = remaining;
             found.card.counters =
                 Object.keys(next).length > 0 ? next : undefined;
+            // CR 122.6 — emit a COUNTER_REMOVED event so "whenever a counter is
+            // removed" triggers (Vanishing's CR 702.63d sacrifice) can fire.
+            // Drained by `processPendingActionTriggers` after the current
+            // resolution completes, exactly like PERMANENT_ENTERED.
+            if (removed > 0) {
+                state.pendingEvents = [
+                    ...(state.pendingEvents ?? []),
+                    {
+                        type: "COUNTER_REMOVED",
+                        instanceId: found.card.id,
+                        controllerId: found.card.controllerId,
+                        counterType: type,
+                        removed,
+                        remaining,
+                    },
+                ];
+            }
             return removed;
         },
         setSubtypes(target: TargetSelection, subtypes: string[]): void {
