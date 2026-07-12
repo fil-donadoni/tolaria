@@ -99,4 +99,37 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Domain payoff board (issue #1066): all five basic land types in play
+        // for "me" (Domain 5) so every Domain-scaled effect is at its maximum.
+        // Kavu Scout is already sitting at 5/2 (+5/+0); Power Armor is ready to
+        // activate ({3},{T}: target creature +5/+5 until end of turn); Tribal
+        // Flames / Wayfaring Giant / Coalition Victory are in hand to cast —
+        // Coalition Victory only needs a creature of each color to complete the
+        // marquee win (the land clause is already satisfied). Collective
+        // Restraint sits on the OPPONENT's side with two basic land types of
+        // their own, so declaring attackers demonstrates the dynamic {X}
+        // attack-mana tax (X = 2, the opponent's own Domain) from the
+        // defending side.
+        label: "Domain payoff board (#1066) — Kavu Scout / Power Armor / Tribal Flames / Coalition Victory",
+        cards: [
+            { name: "Plains", owner: "me", zone: "battlefield" },
+            { name: "Island", owner: "me", zone: "battlefield" },
+            { name: "Swamp", owner: "me", zone: "battlefield" },
+            { name: "Mountain", owner: "me", zone: "battlefield" },
+            { name: "Forest", owner: "me", zone: "battlefield" },
+            { name: "Kavu Scout", owner: "me", zone: "battlefield" },
+            { name: "Power Armor", owner: "me", zone: "battlefield" },
+            { name: "Wayfaring Giant", owner: "me", zone: "hand" },
+            { name: "Tribal Flames", owner: "me", zone: "hand" },
+            { name: "Coalition Victory", owner: "me", zone: "hand" },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            { name: "Collective Restraint", owner: "opp", zone: "battlefield" },
+            { name: "Island", owner: "opp", zone: "battlefield" },
+            { name: "Swamp", owner: "opp", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];

@@ -20,7 +20,11 @@
 // out-of-scope (ADR 0010/0041, unmodelled `split` layout) and carry no stub.
 
 import type { CardDefinition, Color, SpellContext } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
+import {
+    AURA_AFFECTS_HOST,
+    countDomain,
+    EFFECT_AFFECTS_SELF,
+} from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
@@ -1019,17 +1023,69 @@ export const teferisCare: CardDefinition = {
 // name").
 
 // ─────────────────────────────────────────────────────────────────────────
-// Domain cluster (parent PRD #1063, issue #1066) — commented stub, not
-// duplicated here.
+// Domain cluster (parent PRD #1063, issue #1066)
 // ─────────────────────────────────────────────────────────────────────────
 
-// Wayfaring Giant — {5}{W} Creature, 5/5. "This creature gets +1/+1 for
-// each basic land type among lands you control." tracked-by: #1066 (Domain
-// — needs `getDomain`/`{ domain: { of } }`, not yet shipped).
+// Wayfaring Giant — {5}{W} Creature — Giant, printed 1/3. "Domain — This
+// creature gets +1/+1 for each basic land type among lands you control."
+// (CR 604.3 CDA, CR 702 preamble Domain ability word, issue #1066.) A
+// self-scoped `pt-cda` (`EFFECT_AFFECTS_SELF`) whose `compute` returns the
+// Domain-count DELTA on top of the printed 1/3 (mirrors Crusading Knight's
+// "compute returns the delta, not the total" convention above) via the
+// shared `countDomain` helper — the SAME scan `SpellContext.getDomain` /
+// Collective Restraint's dynamic attack tax use.
+export const wayfaringGiant: CardDefinition = {
+    id: "57e45de5-0e8b-41d3-979b-ec5a29cac682",
+    name: "Wayfaring Giant",
+    rarity: "uncommon",
+    oracleText:
+        "Domain — This creature gets +1/+1 for each basic land type among lands you control. (Plains, Island, Swamp, Mountain, and Forest are basic land types.)",
+    manaCost: { X: 5, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Giant"],
+    power: 1,
+    toughness: 3,
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: EFFECT_AFFECTS_SELF,
+            compute: (source, state) => {
+                const domain = countDomain(state, source.controllerId);
+                return { power: domain, toughness: domain };
+            },
+        },
+    ],
+};
 
-// Strength of Unity — {3}{W} Enchantment — Aura. "Enchanted creature gets
-// +1/+1 for each basic land type among lands you control." tracked-by:
-// #1066 (Domain).
+// Strength of Unity — {3}{W} Enchantment — Aura. "Enchant creature. Domain —
+// Enchanted creature gets +1/+1 for each basic land type among lands you
+// control." (CR 303.4 aura, CR 604.3 CDA, CR 702 preamble Domain ability
+// word, issue #1066.) The `pt-cda` reads the AURA'S OWN controller's Domain
+// (`source` = the Aura permanent) — "lands you control" is the Aura
+// controller's board, not the enchanted creature's controller (relevant when
+// an opponent's creature is enchanted by an Aura you cast, though Strength
+// of Unity is normally cast on your own creature).
+export const strengthOfUnity: CardDefinition = {
+    id: "1a9d4ff8-af35-413f-9aa2-f4c6e34fade2",
+    name: "Strength of Unity",
+    rarity: "common",
+    oracleText:
+        "Enchant creature\nDomain — Enchanted creature gets +1/+1 for each basic land type among lands you control.",
+    manaCost: { X: 3, W: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: AURA_AFFECTS_HOST,
+            compute: (source, state) => {
+                const domain = countDomain(state, source.controllerId);
+                return { power: domain, toughness: domain };
+            },
+        },
+    ],
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Pile-division cluster (parent PRD #1063, issue #1067) — commented stub,

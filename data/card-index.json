@@ -1344,6 +1344,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Coalition Victory",
+        "scryfallId": "dd8ad3aa-3225-45ae-8343-5991f5b52269",
+        "oracleId": "e9e25800-9ee7-40c9-b22d-611c7281c125",
+        "firstSet": "inv"
+    },
+    {
         "name": "Cockatrice",
         "scryfallId": "9cd91814-6177-4a3d-a1c1-a3be7d7c7957",
         "oracleId": "af354337-424c-4c7e-8ca5-6149261368d2",
@@ -1360,6 +1366,18 @@
         "scryfallId": "81b87a58-b20c-4f38-afa3-59d398195740",
         "oracleId": "3dcbcf5e-bdbe-46b3-881e-5ac4030c6e38",
         "firstSet": "ice"
+    },
+    {
+        "name": "Collapsing Borders",
+        "scryfallId": "cc019633-788e-4095-9610-6c0a432f7656",
+        "oracleId": "9fea3f42-643f-43c8-a9a9-4516dd72af5b",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Collective Restraint",
+        "scryfallId": "d71daa57-ac02-4dd9-8c90-d38bdd45fb51",
+        "oracleId": "51f561db-ca7f-4661-bc04-99b8af02b8c9",
+        "firstSet": "inv"
     },
     {
         "name": "Colossus of Sardia",
@@ -2398,6 +2416,12 @@
         "scryfallId": "184b7d52-e991-4668-9f6a-bcded97f51ac",
         "oracleId": "2a1ca3e2-e1d1-4525-a07e-13d5ba1ac431",
         "firstSet": "drk"
+    },
+    {
+        "name": "Exotic Curse",
+        "scryfallId": "8ee35d99-9a8a-421b-bf43-74446909d87d",
+        "oracleId": "344476b1-8710-4c7c-826d-efb7d13ceaa7",
+        "firstSet": "inv"
     },
     {
         "name": "Expedition Map",
@@ -4260,6 +4284,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Kavu Scout",
+        "scryfallId": "cbc2670d-a3f4-47c2-b424-01fd379ff186",
+        "oracleId": "2bd91ce8-1797-4dd7-8150-0d4caa7dad61",
+        "firstSet": "inv"
+    },
+    {
         "name": "Keepers of the Faith",
         "scryfallId": "b63a69ae-99ce-4d26-88b7-784793c43cd4",
         "oracleId": "6ddc1256-a166-464f-8136-bd111cba6327",
@@ -5616,6 +5646,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Ordered Migration",
+        "scryfallId": "04d83a07-6054-45f1-bdf9-07f2006238d2",
+        "oracleId": "ee0a59ba-8d34-43d5-b9a5-42015588e3d5",
+        "firstSet": "inv"
+    },
+    {
         "name": "Orgg",
         "scryfallId": "5af19ab0-4bd0-4d5f-8d2e-507e4fe87c18",
         "oracleId": "f6ea2b1b-1403-4ccd-a23c-48e0e81ceb91",
@@ -5908,6 +5944,12 @@
         "scryfallId": "4d9715c2-9036-4ae2-a5b4-1b190d50c963",
         "oracleId": "ca1144c2-49a3-49b4-9085-3094141769ea",
         "firstSet": "uds"
+    },
+    {
+        "name": "Power Armor",
+        "scryfallId": "ed1981dd-c0f3-4e9d-a1f1-8bea823326ef",
+        "oracleId": "1423b8e6-9165-4a89-a6ed-18085f460bca",
+        "firstSet": "inv"
     },
     {
         "name": "Power Artifact",
@@ -7440,6 +7482,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Strength of Unity",
+        "scryfallId": "1a9d4ff8-af35-413f-9aa2-f4c6e34fade2",
+        "oracleId": "00606d5e-a134-4363-9ee6-05e03d58f234",
+        "firstSet": "inv"
+    },
+    {
         "name": "Strip Mine",
         "scryfallId": "e7880157-7f27-4f1b-9cdc-ab36a6252376",
         "oracleId": "d21a89eb-7c5b-459a-acc7-12b20b13bf79",
@@ -8058,6 +8106,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Tribal Flames",
+        "scryfallId": "9b32531e-c759-4603-abd0-1724e8df70db",
+        "oracleId": "c82eda61-d195-49c9-8ff0-a78dfa650689",
+        "firstSet": "inv"
+    },
+    {
         "name": "Triskelion",
         "scryfallId": "a79c99e1-722a-44b6-8fa3-2be3f0c193d8",
         "oracleId": "74f67dcf-5afb-45aa-8d4b-3cdb23f6f2a1",
@@ -8568,6 +8622,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Wandering Stream",
+        "scryfallId": "6da5cb6c-253b-44f0-98f9-d75f42c6e14b",
+        "oracleId": "1f592b83-7838-4466-8bcb-093ac7346c55",
+        "firstSet": "inv"
+    },
+    {
         "name": "Wanderlust",
         "scryfallId": "220a03ca-8c9b-4acb-821d-f6577fbb20fb",
         "oracleId": "73bddfdb-d1fb-4038-b676-201f6b82beb0",
@@ -8644,6 +8704,12 @@
         "scryfallId": "139b90cd-8272-457a-be32-1298145345be",
         "oracleId": "fc9ec820-4245-4a96-b009-5308a818ca58",
         "firstSet": "rav"
+    },
+    {
+        "name": "Wayfaring Giant",
+        "scryfallId": "57e45de5-0e8b-41d3-979b-ec5a29cac682",
+        "oracleId": "e20e5ad9-36b5-4962-acc2-555d069c5daf",
+        "firstSet": "inv"
     },
     {
         "name": "Weakness",
@@ -8848,6 +8914,12 @@
         "scryfallId": "22b04476-5a5d-4843-a948-82db209c4218",
         "oracleId": "2597a1ee-fe9e-44b5-a5e3-d34332c6c123",
         "firstSet": "ice"
+    },
+    {
+        "name": "Worldly Counsel",
+        "scryfallId": "8fc66fbf-f411-4607-aece-7c35d9a07c80",
+        "oracleId": "079b1f07-6910-491b-83ba-5ec41260f32d",
+        "firstSet": "inv"
     },
     {
         "name": "Worms of the Earth",

@@ -388,10 +388,36 @@ function isManaValueValue(value: unknown): boolean {
     return isObjectSelector(s.of);
 }
 
+/** `{ domain: { of, times? } }` — SHAPE of the Domain ability-word value
+ *  construct (CR 702 preamble, issue #1066, ninth EffectValue member). `of`
+ *  is a PLAYER selector (`EffectPlayerRef`) — UNLIKE `counters`/`manaValue`'s
+ *  object `of`, Domain is a per-PLAYER scalar (Collapsing Borders reads the
+ *  firing upkeep's player, not an object). Family-checked as a PLAYER
+ *  position by the ordered ref pass (the `keyHint === "domain"` special case
+ *  in `collectRefUses`, needed because the bare key name `of` collides with
+ *  the OBJECT-family convention `counters`/`manaValue` established for it).
+ *  `times` (optional, a positive-int literal) is a fixed scaling factor
+ *  mirroring `EffectCountSpec.times` (Wandering Stream's "gain TWO life for
+ *  each…"). No other keys are permitted. */
+function isDomainValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "domain") return false;
+    const spec = (value as { domain: unknown }).domain;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "of" || k === "times")) {
+        return false;
+    }
+    if ("times" in s && !isPositiveInt(s.times)) return false;
+    return isPlayerRef(s.of);
+}
+
 /** A numeric Op parameter (ADR 0045 value grammar): a positive-int literal,
- *  a `ref`, a `count`, the chosen-cost `X` (issue #852), or a `counters` count
- *  on a selected object (issue #1015). Exactly those — no arithmetic, no
- *  expressions. */
+ *  a `ref`, a `count`, the chosen-cost `X` (issue #852), a `counters` count
+ *  on a selected object (issue #1015), a selected object's `manaValue` (issue
+ *  #680), or a player's `domain` (issue #1066). Exactly those — no
+ *  arithmetic, no expressions. */
 function isEffectValue(value: unknown): boolean {
     return (
         isPositiveInt(value) ||
@@ -400,7 +426,8 @@ function isEffectValue(value: unknown): boolean {
         isXValue(value) ||
         isCountersValue(value) ||
         isKickerCountValue(value) ||
-        isManaValueValue(value)
+        isManaValueValue(value) ||
+        isDomainValue(value)
     );
 }
 
@@ -566,7 +593,8 @@ function isSignedEffectValue(value: unknown): boolean {
         isRefValue(value) ||
         isCountValue(value) ||
         isXValue(value) ||
-        isCountersValue(value)
+        isCountersValue(value) ||
+        isDomainValue(value)
     );
 }
 
@@ -1384,6 +1412,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             return errors;
         },
     },
+    // CR 104.2a (issue #1066) — designate the winning player, through the
+    // SAME `state.gameOver` seam State-Based Actions use.
+    winGame: { required: { player: isPlayerRef } },
 };
 
 /** Names of the Ops that have a static field schema — used by the coverage
@@ -1477,6 +1508,15 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                         ? "object"
                         : "number",
         });
+        return;
+    }
+    // domain — { domain: { of } } (CR 702 preamble, issue #1066): `of` here is
+    // a PLAYER position, unlike every other value member's object-family `of`
+    // (`counters`/`manaValue`). Handled BEFORE the generic recursion below so
+    // a ref under `domain.of` isn't mis-tagged "object" by the shared `of`
+    // convention those two members established.
+    if (keyHint === "domain" && keys.length === 1 && keys[0] === "of") {
+        collectRefUses(obj.of, "player", out);
         return;
     }
     for (const [k, v] of Object.entries(obj)) collectRefUses(v, k, out);

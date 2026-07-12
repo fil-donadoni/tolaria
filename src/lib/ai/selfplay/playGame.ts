@@ -61,6 +61,7 @@ export type GameEndReason =
     | "concede"
     | "draw"
     | "poison"
+    | "alternate-win"
     | "stall"
     | "max-plies"
     | "resolution-error"

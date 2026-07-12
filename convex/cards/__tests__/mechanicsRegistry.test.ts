@@ -338,17 +338,33 @@ describe("Event field registry ($event.<field>, ADR 0049, issue #865)", () => {
         expect(getEventFieldRow("DAMAGE_DEALT", "damagedPlayer")?.family).toBe(
             "player"
         );
+        // issue #1066 — Collapsing Borders' each-player-upkeep scoped player.
+        expect(getEventFieldRow("PHASE_BEGIN", "activePlayerId")?.family).toBe(
+            "player"
+        );
         expect(isRegisteredEventField("BLOCKERS_CONFIRMED", "blockerId")).toBe(
+            true
+        );
+        expect(isRegisteredEventField("PHASE_BEGIN", "activePlayerId")).toBe(
             true
         );
         // Uncensused pairs are rejected — no runtime skip, a validation failure.
         expect(getEventFieldRow("BLOCKERS_CONFIRMED", "bogus")).toBeUndefined();
-        expect(
-            getEventFieldRow("PHASE_BEGIN", "activePlayerId")
-        ).toBeUndefined();
+        expect(getEventFieldRow("PHASE_BEGIN", "phase")).toBeUndefined();
         expect(isRegisteredEventField("DAMAGE_DEALT", "damagedCreature")).toBe(
             false
         );
+    });
+
+    it("PHASE_BEGIN.activePlayerId flattens to the scoped player id", () => {
+        const event: GameEvent = {
+            type: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            activePlayerId: "p2",
+        };
+        expect(
+            getEventFieldRow("PHASE_BEGIN", "activePlayerId")!.resolve(event)
+        ).toBe("p2");
     });
 
     it("BLOCKERS_CONFIRMED object fields flatten to the pair ids", () => {

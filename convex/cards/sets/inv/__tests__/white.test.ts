@@ -19,10 +19,19 @@ import {
     restrain,
     ruhamDjinn,
     shackles,
+    strengthOfUnity,
+    wayfaringGiant,
 } from "../white";
 import { balduvianBears } from "../../ice/green";
 import { psionicBlast } from "../../lea/blue";
-import { blackKnight, drudgeSkeletons, savannahLions, swamp } from "../../lea";
+import {
+    blackKnight,
+    drudgeSkeletons,
+    island,
+    plains,
+    savannahLions,
+    swamp,
+} from "../../lea";
 import {
     makeInstance,
     makePlayer,
@@ -170,6 +179,147 @@ describe("Crusading Knight (CR 604.3 CDA — +1/+1 per opponents' Swamp)", () =>
         )!;
         expect(getEffectivePower(projected, slim)).toBe(4); // 2 + 2
         expect(getEffectiveToughness(projected, slim)).toBe(4);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Wayfaring Giant / Strength of Unity — Domain-scaled `pt-cda` (CR 604.3 /
+// 702 preamble, issue #1066). Both share the `countDomain` helper; the wire
+// format re-assertion after `projectPublicState` is mandatory per the Card
+// testing convention for staticEffects[] (layer 7c).
+// ---------------------------------------------------------------------------
+
+describe("Wayfaring Giant (CR 604.3 CDA — +1/+1 per Domain, issue #1066)", () => {
+    it("gets +1/+1 for each basic land type controlled (printed 1/3 base)", () => {
+        const giant = makeInstance(wayfaringGiant.id, {
+            id: "giant",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const lands = [plains, island, swamp].map((def, i) =>
+            makeInstance(def.id, {
+                id: `wg-land-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [giant, ...lands] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, giant)).toBe(4); // 1 + 3
+        expect(getEffectiveToughness(state, giant)).toBe(6); // 3 + 3
+    });
+
+    it("is the printed 1/3 with no basic lands (Domain 0)", () => {
+        const giant = makeInstance(wayfaringGiant.id, {
+            id: "giant",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [giant] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(getEffectivePower(state, giant)).toBe(1);
+        expect(getEffectiveToughness(state, giant)).toBe(3);
+    });
+
+    it("CDA P/T survives the wire projection (mandatory)", () => {
+        const giant = makeInstance(wayfaringGiant.id, {
+            id: "giant",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const lands = [plains, island].map((def, i) =>
+            makeInstance(def.id, {
+                id: `wg-wire-land-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [giant, ...lands] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "giant"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(3); // 1 + 2
+        expect(getEffectiveToughness(projected, slim)).toBe(5); // 3 + 2
+    });
+});
+
+describe("Strength of Unity (CR 303.4 aura / 604.3 CDA — +1/+1 per Domain, issue #1066)", () => {
+    it("gives the enchanted creature +1/+1 for each of the AURA CONTROLLER's basic land types", () => {
+        const bear = makeInstance(savannahLions.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const aura = makeInstance(strengthOfUnity.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "bear",
+        });
+        const lands = [plains, island, swamp].map((def, i) =>
+            makeInstance(def.id, {
+                id: `su-land-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [aura, ...lands] }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        // Savannah Lions is a 2/1; the AURA controller (p1) has Domain 3, not
+        // the enchanted creature's controller (p2, who has none).
+        expect(getEffectivePower(state, bear)).toBe(5); // 2 + 3
+        expect(getEffectiveToughness(state, bear)).toBe(4); // 1 + 3
+    });
+
+    it("CDA P/T survives the wire projection (mandatory)", () => {
+        const bear = makeInstance(savannahLions.id, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(strengthOfUnity.id, {
+            id: "aura",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "bear",
+        });
+        const lands = [plains, island].map((def, i) =>
+            makeInstance(def.id, {
+                id: `su-wire-land-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [bear, aura, ...lands] }),
+                makePlayer("p2"),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        const slimBear = projected.players[0].battlefield.find(
+            (c) => c.id === "bear"
+        )!;
+        expect(getEffectivePower(projected, slimBear)).toBe(4); // 2 + 2
+        expect(getEffectiveToughness(projected, slimBear)).toBe(3); // 1 + 2
     });
 });
 

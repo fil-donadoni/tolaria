@@ -339,6 +339,18 @@ function resolveValue(
         const target = resolveObjectRef(ctx, value.manaValue.of);
         return target ? ctx.getManaValue(target) : undefined;
     }
+    // domain — the Domain ability word (CR 702 preamble, issue #1066), a thin
+    // skin over ctx.getDomain. `of` is a PLAYER selector (unlike counters'/
+    // manaValue's object `of`) — resolved through the SAME resolvePlayerRef
+    // path every player-scoped Op uses, so an announced-slot / `$each` /
+    // relative player all work identically. Undefined when the player cannot
+    // be resolved (CR 608.2b — Collapsing Borders' per-player upkeep trigger
+    // reads the FIRING upkeep's player, not necessarily the controller).
+    if ("domain" in value) {
+        const playerId = resolvePlayerRef(ctx, value.domain.of);
+        if (playerId === undefined) return undefined;
+        return ctx.getDomain(playerId) * (value.domain.times ?? 1);
+    }
     return countSet(ctx, value.count);
 }
 
@@ -1537,6 +1549,18 @@ export const OP_EXECUTORS: {
     // it always re-descends on a re-walk.
     forEach(ctx, op, cursor) {
         return execForEach(ctx, op, cursor);
+    },
+    // CR 104.2a — an alternate win condition set by a resolving spell/ability
+    // (issue #1066, Coalition Victory). A thin declarative skin over
+    // `SpellContext.winGame`, ONE execution path (ADR 0045): sets
+    // `state.gameOver` through the SAME seam State-Based Actions use, so a
+    // later SBA sweep sees the game already decided and short-circuits.
+    // Skipped when the player cannot be resolved (CR 608.2b); `winGame`'s own
+    // guard is a no-op if the game already ended.
+    winGame(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.winGame(playerId);
     },
 };
 

@@ -271,7 +271,9 @@ export type {
 export interface GameOver {
     winnerId: string;
     loserId: string;
-    reason: "life" | "decked" | "concede" | "draw" | "poison";
+    /** "alternate-win" (issue #1066, CR 104.2a) — a spell/ability designates
+     *  the winner directly (Coalition Victory). */
+    reason: "life" | "decked" | "concede" | "draw" | "poison" | "alternate-win";
     /** True when the game ended in a draw (CR 104.4a — Divine Intervention). */
     isDraw?: boolean;
 }

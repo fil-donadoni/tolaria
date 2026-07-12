@@ -239,6 +239,16 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount reads a selected object's mana value — not faithfully sizable in a canned scenario`;
         return;
     }
+    // domain (CR 702 preamble, issue #1066): the amount reads a PLAYER's
+    // Domain (distinct basic land types among lands controlled). The canned
+    // generator's filler board has no basic lands the predictor can size a
+    // declared outcome against; skip-with-reason — the value member's own
+    // interpreter test (across the `of` player selectors) is the behavioural
+    // guarantor (per DSL-first authoring, new-construct regime).
+    if ("domain" in value) {
+        req.skip ??= `amount reads a player's Domain — the canned generator does not seed basic lands to size it`;
+        return;
+    }
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;
@@ -606,6 +616,18 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // suspending `optionChoice` skip).
             req.skip ??= `Op "coinFlip" draws a random bit and suspends for the reveal (CR 705) — covered by the Op's interpreter tests`;
             return;
+        case "winGame":
+            // CR 104.2a (issue #1066) — sets `state.gameOver` directly. The
+            // canned generator's post-resolution assertions (board/life
+            // deltas) assume the game keeps running; a decided game is a
+            // qualitatively different post-state the generator doesn't model.
+            // Explicit skip — the Op's own interpreter test (plus Coalition
+            // Victory's card-level predicate test) is the behavioural
+            // guarantor. Coalition Victory's script is ALSO wrapped in `if`,
+            // which already skips unconditionally (see the `"if"` case
+            // above), so this arm is defensive/for-completeness.
+            req.skip ??= `Op "winGame" sets state.gameOver — covered by the Op's own interpreter test`;
+            return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.
@@ -748,6 +770,7 @@ function predictAmount(value: EffectValue): number | null {
     if (typeof value === "number") return value;
     if ("ref" in value) return null; // skipped earlier — defensive
     if ("counters" in value) return null; // skipped earlier — defensive
+    if ("domain" in value) return null; // skipped earlier — defensive
     return COUNT_SET_SIZE;
 }
 
@@ -1239,6 +1262,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 };
             },
         };
+    },
+    // `winGame` (CR 104.2a, issue #1066) — never reached: `analyseOp` skips
+    // every script with a winGame Op (it sets `state.gameOver`, a
+    // qualitatively different post-state the canned scenario's board/life
+    // assertions don't model). Kept for the 1:1 coverage guard; the Op's own
+    // interpreter test (plus Coalition Victory's card-level predicate test)
+    // is the behavioural guarantor.
+    winGame() {
+        return null;
     },
 };
 

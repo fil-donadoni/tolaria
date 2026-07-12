@@ -52,6 +52,7 @@ export default function GameOverDialog({
 
     const isDraw = gameOver.isDraw === true || gameOver.reason === "draw";
     const loserName = loser?.name ?? "?";
+    const winnerName = winner?.name ?? "?";
     const reasonText = isDraw
         ? "The game is a draw"
         : gameOver.reason === "life"
@@ -60,7 +61,9 @@ export default function GameOverDialog({
             ? `${loserName} tried to draw from an empty library`
             : gameOver.reason === "poison"
               ? `${loserName} succumbed to poison`
-              : `${loserName} conceded`;
+              : gameOver.reason === "alternate-win"
+                ? `${winnerName} won by an alternate win condition`
+                : `${loserName} conceded`;
 
     // Terminal Match result: the Match is decided (Bo1 always; Bo3 at first to
     // two). "Back to Lobby" is shown only when the Match is over (PRD #387).

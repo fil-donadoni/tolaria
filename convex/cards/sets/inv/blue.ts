@@ -4,9 +4,10 @@
 //
 // This module carries the free tranche (issue #1070, parent PRD #1063): every
 // mono-blue non-land INV card expressible with already-shipped Ops/keywords.
-// Three cards are OWNED BY A CAPABILITY CLUSTER and stay commented stubs here
-// (Collective Restraint / Worldly Counsel → Domain, #1066; Fact or Fiction →
-// pile division, #1067) — they are not duplicated as active defs. A further
+// Collective Restraint and Worldly Counsel shipped as active defs with the
+// Domain capability cluster (#1066, below). Fact or Fiction is OWNED BY the
+// pile-division cluster (#1067) and stays a commented stub — not duplicated
+// as an active def. A further
 // 18 cards hit genuine engine/DSL capability gaps discovered while authoring
 // this tranche (colour-change Op, colour-census in a one-shot Effect Script,
 // targeted land-subtype change, text-change, X-multi-target Ops, a dynamic
@@ -24,6 +25,7 @@ import type {
 import {
     AURA_AFFECTS_HOST,
     BASIC_LAND_SUBTYPES,
+    countDomain,
     EFFECT_AFFECTS_SELF,
 } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -603,30 +605,69 @@ export const travelersCloak: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Capability-owned cards (Domain / pile division) — NOT duplicated here.
+// Domain cluster (parent PRD #1063, issue #1066)
 // ─────────────────────────────────────────────────────────────────────────
 
-// Collective Restraint — Domain enchantment (dynamic attack-mana-tax scaled
-// by Domain). Owned by the Domain capability cluster.
-// tracked-by: #1066
-// export const collectiveRestraint: CardDefinition = {
-//     id: "0fca98b9-1743-5051-8d07-48807edf09ae",
-//     name: "Collective Restraint",
-//     rarity: "rare",
-//     manaCost: { X: 3, U: 1 },
-//     types: ["Enchantment"],
-// };
+// Collective Restraint — {3}{U} Enchantment. "Domain — Creatures can't
+// attack you unless their controller pays {X} for each creature they
+// control that's attacking you, where X is the number of basic land types
+// among lands you control." (CR 508.1c/1g attack mana tax, CR 702 preamble
+// Domain ability word, issue #1066.) The Domain-scaled `{X}` is the
+// generalized `StaticAttackManaTax.costPerAttacker` function form (issue
+// #1066 — "generalize, don't special-case"): evaluated once per source at
+// combat time (`collectAttackManaTax`, `gre/combat.ts`), reading THIS
+// enchantment's controller's Domain via the shared `countDomain` helper —
+// the SAME scan the Domain-scaled `pt-cda` statics use. Untaxed by color/type
+// (unlike Elephant Grass's nonblack clause, `vis/green.ts`) — every attacking
+// creature is taxed, so `taxes` only confirms the attacker is a creature
+// (defensive; only creatures can attack, CR 506.2).
+export const collectiveRestraint: CardDefinition = {
+    id: "d71daa57-ac02-4dd9-8c90-d38bdd45fb51",
+    name: "Collective Restraint",
+    rarity: "rare",
+    oracleText:
+        "Domain — Creatures can't attack you unless their controller pays {X} for each creature they control that's attacking you, where X is the number of basic land types among lands you control.",
+    manaCost: { X: 3, U: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "attack-mana-tax",
+            id: "collective-restraint-domain-tax",
+            taxes: (attacker: PermanentView, _source, _state, ctx) =>
+                ctx.isCreature(attacker),
+            costPerAttacker: (source, state) => ({
+                X: countDomain(state, source.controllerId),
+            }),
+            oracleText:
+                "Creatures can't attack you unless their controller pays {X} for each creature they control that's attacking you, where X is the number of basic land types among lands you control.",
+        },
+    ],
+};
 
-// Worldly Counsel — Domain instant (dig X = Domain, keep one). Owned by the
-// Domain capability cluster.
-// tracked-by: #1066
-// export const worldlyCounsel: CardDefinition = {
-//     id: "db31e8c4-6791-5472-b9e5-ba7abfa21aa6",
-//     name: "Worldly Counsel",
-//     rarity: "common",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Instant"],
-// };
+// Worldly Counsel — {1}{U} Instant. "Domain — Look at the top X cards of
+// your library, where X is the number of basic land types among lands you
+// control. Put one of those cards into your hand and the rest on the bottom
+// of your library in any order." (CR 401.4 look, CR 702 preamble Domain
+// ability word, issue #1066.) DSL-first: the `digToHand` Op (issue #984)
+// already composes "look at top N, keep one, bottom the rest in look order"
+// — `look` is the ninth EffectValue grammar member `{ domain: { of } }`
+// (issue #1066) instead of a literal/`{X}`; `take` defaults to 1.
+export const worldlyCounsel: CardDefinition = {
+    id: "8fc66fbf-f411-4607-aece-7c35d9a07c80",
+    name: "Worldly Counsel",
+    rarity: "common",
+    oracleText:
+        "Domain — Look at the top X cards of your library, where X is the number of basic land types among lands you control. Put one of those cards into your hand and the rest on the bottom of your library in any order.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Instant"],
+    effects: [
+        {
+            op: "digToHand",
+            player: "controller",
+            look: { domain: { of: "controller" } },
+        },
+    ],
+};
 
 // Fact or Fiction — the marquee pile-division card. Owned by the pile
 // division capability cluster (ADR 0053).

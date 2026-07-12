@@ -5,6 +5,8 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 
 import type { CardDefinition, SpellContext } from "../../types";
+import { countDomain, EFFECT_AFFECTS_SELF } from "../../types";
+import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Overload — "Kicker {2}. Destroy target artifact if its mana value is 2 or
 // less. If this spell was kicked, destroy that artifact if its mana value is 5
@@ -115,5 +117,109 @@ export const urzasRage: CardDefinition = {
             ],
             else: [{ op: "dealDamage", amount: 3, to: { target: 0 } }],
         },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// Domain cluster (parent PRD #1063, issue #1066)
+// ─────────────────────────────────────────────────────────────────────────
+
+// Tribal Flames — {1}{R} Sorcery. "Domain — Tribal Flames deals X damage to
+// any target, where X is the number of basic land types among lands you
+// control." (CR 115.4 any target, CR 120.1 damage, CR 702 preamble Domain
+// ability word, issue #1066.) The ninth EffectValue grammar member
+// `{ domain: { of } }` skins the amount directly — no arithmetic, a straight
+// `dealDamage` reuse.
+export const tribalFlames: CardDefinition = {
+    id: "9b32531e-c759-4603-abd0-1724e8df70db",
+    rarity: "common",
+    name: "Tribal Flames",
+    oracleText:
+        "Domain — Tribal Flames deals X damage to any target, where X is the number of basic land types among lands you control.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "any", count: 1 },
+    effects: [
+        {
+            op: "dealDamage",
+            amount: { domain: { of: "controller" } },
+            to: { target: 0 },
+        },
+    ],
+};
+
+// Kavu Scout — {2}{R} Creature — Kavu Scout, printed 0/2. "Domain — This
+// creature gets +1/+0 for each basic land type among lands you control."
+// (CR 604.3 CDA, CR 702 preamble Domain ability word, issue #1066.) Mirrors
+// Wayfaring Giant's self-scoped `pt-cda` shape (`inv/white.ts`) — only the
+// toughness half of the delta is zero (a +1/+0-per-Domain scaling, not
+// +1/+1).
+export const kavuScout: CardDefinition = {
+    id: "cbc2670d-a3f4-47c2-b424-01fd379ff186",
+    name: "Kavu Scout",
+    rarity: "common",
+    oracleText:
+        "Domain — This creature gets +1/+0 for each basic land type among lands you control. (Plains, Island, Swamp, Mountain, and Forest are basic land types.)",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu", "Scout"],
+    power: 0,
+    toughness: 2,
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: EFFECT_AFFECTS_SELF,
+            compute: (source, state) => {
+                const domain = countDomain(state, source.controllerId);
+                return { power: domain, toughness: 0 };
+            },
+        },
+    ],
+};
+
+// Collapsing Borders — {3}{R} Enchantment. "Domain — At the beginning of
+// each player's upkeep, that player gains 1 life for each basic land type
+// among lands they control. Then this enchantment deals 3 damage to that
+// player." (CR 603.6a phase trigger, CR 119.3a life gain, CR 120.1 damage,
+// CR 702 preamble Domain ability word, issue #1066.) A per-player symmetric
+// trigger (`scope: "each"`) — the DOMAIN READ and both effects target
+// WHOEVER'S upkeep it is, not the enchantment's controller, so both
+// `player`/`to.player` selectors AND the `domain` value's `of` read the
+// scoped player via `{ ref: "$event.activePlayerId" }` (a newly-censused
+// `EVENT_FIELD_REGISTRY` row for `PHASE_BEGIN`, ADR 0049) rather than the
+// plain `"controller"` selector — this is what keeps an `each`-scope
+// triggered ability DSL-first (`phaseTrigger`'s own doc note: a plain
+// `"controller"` selector only works for `scope: "your"`; this ref
+// bypasses `ctx.controller` entirely).
+export const collapsingBorders: CardDefinition = {
+    id: "cc019633-788e-4095-9610-6c0a432f7656",
+    name: "Collapsing Borders",
+    rarity: "rare",
+    oracleText:
+        "Domain — At the beginning of each player's upkeep, that player gains 1 life for each basic land type among lands they control. Then this enchantment deals 3 damage to that player.",
+    manaCost: { X: 3, R: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "collapsing-borders-upkeep",
+            oracleText:
+                "At the beginning of each player's upkeep, that player gains 1 life for each basic land type among lands they control. Then this enchantment deals 3 damage to that player.",
+            phase: "UPKEEP",
+            scope: "each",
+            effects: [
+                {
+                    op: "gainLife",
+                    player: { ref: "$event.activePlayerId" },
+                    amount: {
+                        domain: { of: { ref: "$event.activePlayerId" } },
+                    },
+                },
+                {
+                    op: "dealDamage",
+                    amount: 3,
+                    to: { player: { ref: "$event.activePlayerId" } },
+                },
+            ],
+        }),
     ],
 };

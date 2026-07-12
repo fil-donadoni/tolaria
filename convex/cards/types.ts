@@ -1667,6 +1667,24 @@ export interface SpellContext {
      *  was sacrificed for the cost. Used by Freyalise Supplicant ("deals damage
      *  equal to half the sacrificed creature's power, rounded down"). */
     getAdditionalSacrificePower: () => number | undefined;
+    /** Domain (CR 702 preamble — an italic ability word, no independent rules
+     *  meaning of its own): the number of basic land types among lands
+     *  `playerId` controls (0–5, CR 305.6 — a dual land with two basic
+     *  subtypes contributes two). A thin skin over `countDomain` (this
+     *  module), reading the SAME live `state.players[].battlefield` the layer
+     *  system reads. Used by the ninth `EffectValue` grammar member
+     *  (`{ domain: { of } }`, issue #1066) and by `StaticPTCDA.compute`
+     *  closures (Kavu Scout, Wayfaring Giant, Exotic Curse, Strength of
+     *  Unity) via the shared `countDomain` helper directly. */
+    getDomain: (playerId: string) => number;
+    /** CR 104.2a — an alternate win condition set by a resolving spell/ability
+     *  (Coalition Victory), through the SAME `state.gameOver` seam State-Based
+     *  Actions use (`checkGameOverSBA`, `gre/sba.ts`). Sets `winnerId` to
+     *  `playerId` and `loserId` to the opponent with `reason: "alternate-win"`.
+     *  A no-op if the game already ended (mirrors `drawGame`'s guard — CR
+     *  104.2a doesn't re-decide an already-decided game). Mirrors `loseGame`'s
+     *  direct-assignment shape (CR 104.3), the win-side counterpart. */
+    winGame: (playerId: string) => void;
     /** Deals `totalAmount` damage divided evenly, rounded down, among the
      *  given targets (CR 120.1, 603.3). Remainder (if any) is discarded.
      *  Used by Fireball and other "divided among any number of targets"
@@ -3766,8 +3784,23 @@ export interface StaticAttackManaTax {
         ctx: StaticEffectContext
     ) => boolean;
     /** Mana cost charged once per taxed attacker (Propaganda / Ghostly Prison:
-     *  {2}; Windborn Muse: {2}; Sphere of Safety: {X} where X is enchantments). */
-    costPerAttacker: ManaCost;
+     *  {2}; Windborn Muse: {2}). Either a FIXED `ManaCost`, or a function
+     *  evaluated once per source AT COMBAT TIME (issue #1066 — "generalize,
+     *  don't special-case", `.claude/rules/gre-development.md` § Primitive
+     *  reuse): `(source, state, ctx) => ManaCost` reads the live board through
+     *  the SAME `StaticEffectStateView`/`StaticEffectContext` every other
+     *  static-effect predicate uses. Collective Restraint's tax is `{X}` where
+     *  X is the enchantment'S CONTROLLER's Domain — `costPerAttacker: (source,
+     *  state) => ({ X: countDomain(state, source.controllerId) })`. Also
+     *  unlocks a future Sphere-of-Safety-style "X = your enchantments" tax
+     *  without a second special case. */
+    costPerAttacker:
+        | ManaCost
+        | ((
+              source: PermanentView,
+              state: StaticEffectStateView,
+              ctx: StaticEffectContext
+          ) => ManaCost);
     /** Oracle text surfaced as the rejection reason when the controller cannot
      *  pay the tax for every taxed attacker declared. */
     oracleText: string;
@@ -4245,6 +4278,40 @@ export const BASIC_LAND_SUBTYPES: readonly string[] = [
     "Mountain",
     "Forest",
 ];
+
+/** Domain (CR 702 preamble ability word, issue #1066) — counts the DISTINCT
+ *  basic land subtypes among lands `controllerId` controls (0–5, CR 305.6). A
+ *  dual land (two basic subtypes) contributes both; scanned by CONTROLLER, not
+ *  owner (CR 110.4 — a stolen land still counts for its controller). Shared by
+ *  `SpellContext.getDomain` (the `{ domain: { of } }` EffectValue member) and
+ *  every Domain-scaled `StaticPTCDA.compute` closure (Kavu Scout, Wayfaring
+ *  Giant, Exotic Curse, Strength of Unity) and the Collective Restraint
+ *  dynamic `costPerAttacker` — ONE execution path, no duplicated scan.
+ *  Deliberately reads the RAW `PermanentView.subtypes` (mirroring every other
+ *  `StaticEffectContext`-scoped predicate in this codebase, e.g.
+ *  `STATIC_EFFECT_CTX.hasSubtype`) rather than the text-change-aware
+ *  `applySubstitution` helper `gre/constants.ts`'s `getBasicLandMana` uses —
+ *  no shipped INV card needs a text-changed land to count for Domain, and
+ *  `StaticEffectStateView` carries plain `PermanentView`s, not the raw
+ *  `CardInstanceState` `applySubstitution` reads. */
+export function countDomain(
+    state: StaticEffectStateView,
+    controllerId: string
+): number {
+    const found = new Set<string>();
+    for (const player of state.players) {
+        for (const permanent of player.battlefield) {
+            if (permanent.controllerId !== controllerId) continue;
+            if (!permanent.types.includes("Land")) continue;
+            for (const subtype of permanent.subtypes) {
+                if (BASIC_LAND_SUBTYPES.includes(subtype)) {
+                    found.add(subtype);
+                }
+            }
+        }
+    }
+    return found.size;
+}
 
 /** Canonical "this static effect applies to its source" predicate, used by
  *  self-buffing CDA effects (e.g. Nightmare's flying-Swamp scaling — only the
@@ -5367,11 +5434,37 @@ export type EffectManaValueValue = {
     manaValue: { of: EffectObjectSelector };
 };
 
+/** domain — the Domain ability word (CR 702 preamble, italic, no independent
+ *  rules meaning): the number of basic land types among lands a PLAYER
+ *  controls (0–5, CR 305.6), a thin JSON-pure skin over
+ *  `SpellContext.getDomain` / the shared `countDomain` helper (this module).
+ *  A NINTH `EffectValue` grammar member (issue #1066); like `manaValue` it is
+ *  NOT an Op and NOT a new STRUCTURAL construct — it does not reopen ADR 0045.
+ *  Unlike every other value member's object-scoped `of` (`counters`,
+ *  `manaValue` — "of THIS permanent"), Domain's `of` is a PLAYER selector
+ *  (`EffectPlayerRef`): Domain is a per-player scalar, not a per-object one,
+ *  and some cards read a player OTHER than the resolving controller
+ *  (Collapsing Borders' "that player gains life equal to THEIR OWN Domain" —
+ *  the firing upkeep's player, not the enchantment's owner). Composes with
+ *  every amount-taking Op (`dealDamage` — Tribal Flames, `gainLife` —
+ *  Wandering Stream, `createToken`'s `count` — Ordered Migration, `pump`'s
+ *  `power`/`toughness` — Power Armor). `times` (Wandering Stream's "gain TWO
+ *  life for each basic land type") is a FIXED integer scaling factor baked
+ *  into the construct, defaulting to 1 — mirrors `EffectCountSpec.times`
+ *  (issue #999) exactly, NOT arithmetic composition of two values (the
+ *  frozen-grammar defence, ADR 0045 — nothing else composes it). Beyond that
+ *  one literal multiplier there is still no arithmetic: it reads back one
+ *  count, nothing else composes it. */
+export type EffectDomainValue = {
+    domain: { of: EffectPlayerRef; times?: number };
+};
+
 /** A runtime numeric parameter of an Op (ADR 0045): a literal count, a `ref`
  *  reading a bound object's numeric property, a `count` of a selected set, the
- *  chosen-cost `X` (issue #852), or a `counters` count on a selected object
- *  (issue #1015). The value grammar is capped at these — no arithmetic, no
- *  expressions (the frozen-grammar defence, ADR 0045). */
+ *  chosen-cost `X` (issue #852), a `counters` count on a selected object
+ *  (issue #1015), a selected object's `manaValue` (issue #680), or a player's
+ *  `domain` (issue #1066). The value grammar is capped at these — no
+ *  arithmetic, no expressions (the frozen-grammar defence, ADR 0045). */
 export type EffectValue =
     | number
     | EffectRef
@@ -5379,7 +5472,8 @@ export type EffectValue =
     | EffectXValue
     | EffectCountersValue
     | EffectKickerCountValue
-    | EffectManaValueValue;
+    | EffectManaValueValue
+    | EffectDomainValue;
 
 /** JSON-pure mana specification for the `addMana` Op (CR 106.1, issue #850) —
  *  a per-colour amount map. Only fixed coloured / colorless pips: no variable
@@ -6228,7 +6322,22 @@ export type EffectOp =
      *  simultaneously after all choices (CR 101.4d timing) — visible only
      *  when a later chooser's options depend on an earlier iteration's
      *  action. `forEach` does not nest (the validator rejects it). */
-    | { op: "forEach"; select: EffectForEachSelector; effects: EffectOp[] };
+    | { op: "forEach"; select: EffectForEachSelector; effects: EffectOp[] }
+    /** CR 104.2a — set the DESIGNATED player as the winner, through the SAME
+     *  `state.gameOver` seam State-Based Actions use (issue #1066, Coalition
+     *  Victory). A thin declarative skin over `SpellContext.winGame`, one
+     *  execution path (ADR 0045): `player` names the winner — the resolving
+     *  `"controller"` for every shipped alternate-win card, but an announced
+     *  target-slot / relative player is not precluded by the grammar. Skipped
+     *  when the player cannot be resolved (CR 608.2b) or the game already
+     *  ended (`winGame`'s own no-op guard, mirroring `drawGame`). Coalition
+     *  Victory gates this Op behind nested `if`s checking its own predicate
+     *  (a land of each basic type via `{ domain: { of } } >= 5`, a creature of
+     *  each color via five `count` checks) — the Op ITSELF carries no
+     *  predicate; the calling card's `if` chain is the gate (CR 104.2a: "a
+     *  player CAN win as a result of a spell or ability", not the Op deciding
+     *  who wins). */
+    | { op: "winGame"; player: EffectPlayerRef };
 
 /** A PREDEFINED predicate form for the `if` construct (ADR 0045, issue #806).
  *  The grammar is frozen at two enumerated forms — there are NO arbitrary

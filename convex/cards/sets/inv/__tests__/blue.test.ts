@@ -18,6 +18,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
+    collectiveRestraint,
     disrupt,
     empressGalina,
     exclude,
@@ -32,9 +33,10 @@ import {
     vodalianMerchant,
     vodalianSerpent,
     washOut,
+    worldlyCounsel,
     zanamDjinn,
 } from "../blue";
-import { island } from "../../lea/colorless";
+import { island, plains, swamp } from "../../lea/colorless";
 import { lightningBolt } from "../../lea/red";
 import { grizzlyBears } from "../../lea/green";
 import {
@@ -49,7 +51,10 @@ import {
     applyMayPaySubmit,
     applyPendingChoiceSubmit,
 } from "../../../../gre/pendingChoiceSubmit";
-import { validateAttackerEligibility } from "../../../../gre/combat";
+import {
+    collectAttackManaTax,
+    validateAttackerEligibility,
+} from "../../../../gre/combat";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -770,5 +775,144 @@ describe("Empress Galina ({U}{U},{T}: gain control of target legendary permanent
         expect(ability?.targetRequirement?.supertypeFilter).toEqual([
             "Legendary",
         ]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Domain cluster (parent PRD #1063, issue #1066). Collective Restraint's
+// dynamic `costPerAttacker` earns the mandatory combat integration test
+// (issue #1066 acceptance criteria); Worldly Counsel reuses the already
+// per-Op-tested `digToHand` + `{ domain: { of } }` combination (a light
+// sanity check, not a mandated hand-written test).
+// ---------------------------------------------------------------------------
+
+describe("Collective Restraint (CR 508.1c/1g dynamic attack-mana-tax — Domain, issue #1066)", () => {
+    it("declares an attack-mana-tax static effect with a FUNCTION costPerAttacker", () => {
+        const effect = collectiveRestraint.staticEffects?.find(
+            (e) => e.kind === "attack-mana-tax"
+        );
+        expect(effect).toBeDefined();
+        expect(
+            typeof (effect as { costPerAttacker: unknown })?.costPerAttacker
+        ).toBe("function");
+    });
+
+    it("taxes each attacker {X} where X is the DEFENDING player's (Restraint's controller's) Domain", () => {
+        const attacker1 = makeInstance(grizzlyBears.id, {
+            id: "atk1",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const attacker2 = makeInstance(grizzlyBears.id, {
+            id: "atk2",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const restraint = makeInstance(collectiveRestraint.id, {
+            id: "restraint",
+            controllerId: "p2",
+        });
+        // p2 (the defender, Collective Restraint's controller) has Domain 3;
+        // p1 (the attacker) has none — proving the read is the ENCHANTMENT
+        // controller's Domain, not the attacking player's.
+        const p2Lands = [plains, island, swamp].map((def, i) =>
+            makeInstance(def.id, {
+                id: `cr-land-${i}`,
+                controllerId: "p2",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker1, attacker2] }),
+                makePlayer("p2", {
+                    battlefield: [restraint, ...p2Lands],
+                }),
+            ],
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            combat: {
+                attackerIds: ["atk1", "atk2"],
+                blockerAssignments: {},
+                confirmed: false,
+                blockersConfirmed: false,
+            },
+        });
+        const charges = collectAttackManaTax(state);
+        expect(charges).toHaveLength(2);
+        for (const charge of charges) {
+            expect(charge.controllerId).toBe("p1");
+            expect(charge.cost).toEqual({ X: 3 });
+        }
+    });
+
+    it("scales down to {X:0} (no charge) when the defender has no basic lands", () => {
+        const attacker = makeInstance(grizzlyBears.id, {
+            id: "atk1",
+            controllerId: "p1",
+            isAttacking: true,
+        });
+        const restraint = makeInstance(collectiveRestraint.id, {
+            id: "restraint",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [attacker] }),
+                makePlayer("p2", { battlefield: [restraint] }),
+            ],
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            combat: {
+                attackerIds: ["atk1"],
+                blockerAssignments: {},
+                confirmed: false,
+                blockersConfirmed: false,
+            },
+        });
+        const charges = collectAttackManaTax(state);
+        expect(charges).toEqual([
+            { controllerId: "p1", cost: { X: 0 }, reason: expect.any(String) },
+        ]);
+    });
+});
+
+describe("Worldly Counsel (CR 401.4 dig-to-hand — Domain, issue #1066)", () => {
+    it("looks at the top Domain cards and keeps one", () => {
+        const libCards = ["wc-a", "wc-b", "wc-c"].map((id) =>
+            makeInstance(opt.id, { id, controllerId: "p1", zone: "library" })
+        );
+        const lands = [plains, island].map((def, i) =>
+            makeInstance(def.id, {
+                id: `wc-land-${i}`,
+                controllerId: "p1",
+            })
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: libCards,
+                    battlefield: lands,
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, worldlyCounsel.id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on look-top
+        const head = state.pendingChoices![0];
+        // Domain is 2 — exactly the top two library cards are looked at.
+        expect(head.candidateIds).toEqual(["wc-a", "wc-b"]);
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["wc-a"],
+        });
+        expect(state.players[0].hand.some((c) => c.id === "wc-a")).toBe(true);
+        expect(state.players[0].library.some((c) => c.id === "wc-b")).toBe(
+            true
+        );
     });
 });

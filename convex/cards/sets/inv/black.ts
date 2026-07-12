@@ -37,9 +37,9 @@
 //   • 5 cards are commented stubs, tagged `tracked-by:` — none duplicated
 //     from the Domain (#1066) / pile-division (#1067) / can't-be-countered
 //     (#1065) capability clusters (none of those land on black):
-//       - Exotic Curse and Do or Die are Domain / pile-division cards
-//         respectively and are NOT emitted here at all (owned by their own
-//         cluster's colour file per the rollout plan).
+//       - Exotic Curse shipped below as an active def with the Domain
+//         capability cluster (#1066); Do or Die is a pile-division card and
+//         is NOT emitted here at all (owned by its own cluster's colour file).
 //       - Defiling Tears, Desperate Research, Tsabo's Decree, Twilight's Call
 //         → tracked-by #1085 (setColor / nameCard / choose-a-creature-type /
 //         pay-more-for-flash gaps surfaced by this tranche).
@@ -56,7 +56,11 @@ import type {
     StaticEffectContext,
     StaticEffectStateView,
 } from "../../types";
-import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
+import {
+    AURA_AFFECTS_HOST,
+    countDomain,
+    EFFECT_AFFECTS_SELF,
+} from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
@@ -1329,3 +1333,35 @@ export const urborgSkeleton: CardDefinition = {
 //     manaCost: { X: 3, B: 2 },
 //     types: ["Enchantment"],
 // };
+
+// ─────────────────────────────────────────────────────────────────────────
+// Domain cluster (parent PRD #1063, issue #1066)
+// ─────────────────────────────────────────────────────────────────────────
+
+// Exotic Curse — {2}{B} Enchantment — Aura. "Enchant creature. Domain —
+// Enchanted creature gets -1/-1 for each basic land type among lands you
+// control." (CR 303.4 aura, CR 604.3 CDA, CR 702 preamble Domain ability
+// word, issue #1066.) Mirrors Strength of Unity's `pt-cda` shape exactly
+// (`inv/white.ts`) with a NEGATED delta — the shared `countDomain` helper
+// read against the Aura's OWN controller (`source.controllerId`).
+export const exoticCurse: CardDefinition = {
+    id: "8ee35d99-9a8a-421b-bf43-74446909d87d",
+    name: "Exotic Curse",
+    rarity: "common",
+    oracleText:
+        "Enchant creature\nDomain — Enchanted creature gets -1/-1 for each basic land type among lands you control.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: AURA_AFFECTS_HOST,
+            compute: (source, state) => {
+                const domain = countDomain(state, source.controllerId);
+                return { power: -domain, toughness: -domain };
+            },
+        },
+    ],
+};
