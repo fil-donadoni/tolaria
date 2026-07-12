@@ -18,6 +18,12 @@
         "firstSet": "hou"
     },
     {
+        "name": "Absorb",
+        "scryfallId": "5d6a0f3e-457f-41f5-be26-5fb249874f1a",
+        "oracleId": "132ca99a-a3c7-4ed6-b4d0-0edcd7140ca2",
+        "firstSet": "inv"
+    },
+    {
         "name": "Abu Ja'far",
         "scryfallId": "0e9ad288-d164-44a6-96ec-4185a1587f1a",
         "oracleId": "a2404d88-0621-49ae-9908-052c23a96ac6",
@@ -231,6 +237,12 @@
         "name": "Angel of Mercy",
         "scryfallId": "5b6de688-685f-4389-be35-a472ada988e1",
         "oracleId": "a2daaf32-dbfe-4618-892e-0da24f63a44a",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Angelic Shield",
+        "scryfallId": "5aaa3e4e-4e08-4df2-9e0c-66e15a10fec4",
+        "oracleId": "05b020fd-21be-495d-ae45-7de3b1224e6d",
         "firstSet": "inv"
     },
     {
@@ -3054,6 +3066,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Galina's Knight",
+        "scryfallId": "11b492d6-5e28-4f4b-942c-080d03cb0e92",
+        "oracleId": "9a484eb3-ae4a-465b-9dbc-f7a42a036e07",
+        "firstSet": "inv"
+    },
+    {
         "name": "Game of Chaos",
         "scryfallId": "08265332-2c0e-4c42-8c51-83ac20462eed",
         "oracleId": "b6756608-a618-4e26-a090-ea8fc992def1",
@@ -3544,6 +3562,12 @@
         "scryfallId": "7a899b2d-825c-4929-a769-f4df70bf6a17",
         "oracleId": "af8eb20a-dfa2-49a4-892b-26d7e276fcd2",
         "firstSet": "fem"
+    },
+    {
+        "name": "Hanna, Ship's Navigator",
+        "scryfallId": "83a4e48d-6452-4245-bdad-63fe3263550e",
+        "oracleId": "3b008c71-e2a0-4f56-83d3-655c5dd58e0e",
+        "firstSet": "inv"
     },
     {
         "name": "Harrow",
@@ -6738,6 +6762,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Riptide Crab",
+        "scryfallId": "7e42ae1d-62b4-4b19-aafc-f12bdd6fb8cc",
+        "oracleId": "8ae8a583-9843-474a-bd46-8090df883621",
+        "firstSet": "inv"
+    },
+    {
         "name": "Ritual of Subdual",
         "scryfallId": "5c5c01e7-8116-45fc-afc3-d52a31a635cb",
         "oracleId": "e0587218-206e-41ed-af3c-f06b7a668e90",
@@ -6880,6 +6910,12 @@
         "scryfallId": "b4ff60ce-073c-46b8-807c-8b40467b960c",
         "oracleId": "f34be3cc-ff47-4415-a6a8-ed142891dc0c",
         "firstSet": "atq"
+    },
+    {
+        "name": "Samite Archer",
+        "scryfallId": "07a262d7-6d0c-43d0-89b6-9f46a1a9eb69",
+        "oracleId": "5322a218-6a0c-4d86-835a-c87eb52aaf6a",
+        "firstSet": "inv"
     },
     {
         "name": "Samite Healer",
@@ -8046,6 +8082,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Teferi's Moat",
+        "scryfallId": "9ed5845c-ef6d-4a7b-b725-b09d3e9bbc17",
+        "oracleId": "dafd319e-1d4a-4e08-9167-a82ad8670f6f",
+        "firstSet": "inv"
+    },
+    {
         "name": "Tek",
         "scryfallId": "c1f38104-a699-4bb9-930a-699f7bbc338a",
         "oracleId": "f85aef9b-b6ad-4716-b48b-5e26b474a59d",
@@ -9202,6 +9244,12 @@
         "scryfallId": "eeb0282d-ccec-4556-8b70-b6f665077afe",
         "oracleId": "06413d87-d119-4c04-93d5-5ced7ad4a858",
         "firstSet": "ice"
+    },
+    {
+        "name": "Wings of Hope",
+        "scryfallId": "be0d2402-f1ef-4a71-ac01-c7099c4ce54c",
+        "oracleId": "c1df6359-edf4-48cf-b8d1-6240ac291cf7",
+        "firstSet": "inv"
     },
     {
         "name": "Winter Blast",
