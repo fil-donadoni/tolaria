@@ -19,6 +19,8 @@ import {
     EFFECT_AFFECTS_SELF,
     PERMANENT_TYPES,
 } from "../../types";
+import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Domain cluster (parent PRD #1063, issue #1066)
@@ -1979,3 +1981,395 @@ export const shivanOasis: CardDefinition = {
 // "adds one mana of any type that land produced" doubling effect has no
 // engine precedent (Extraplanar Lens-style mana doublers are unimplemented
 // catalogue-wide). Both gaps block the whole card.)
+
+// ─────────────────────────────────────────────────────────────────────────
+// Free tranche — GW (issue #1079, parent PRD #1063)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// The GW colour-identity cluster (MTGJSON `colors` field, exact {G,W} pips)
+// is 12 cards. All 12 are TRUE gold — no cross-colour mono-cost outliers
+// this pair (unlike BR/RG's Hooded Kavu/Bloodstone Cameo shape) — `colors`
+// omitted below, derived from the pips (CR 202.2). 10 ship free; 2 are
+// deferred (Dueling Grounds, Sterling Grove) — see the section below.
+
+// Armadillo Cloak — {1}{G}{W} Enchantment — Aura. "Enchant creature.
+// Enchanted creature gets +2/+2 and has trample. Whenever enchanted
+// creature deals damage, you gain that much life." (CR 611/613 layer 7c
+// static P/T + layer 6 keyword-grant for the first two clauses — the
+// Wings of Hope `pt-buff` + `keyword-grant` shape, this file's WU tranche,
+// scoped to the aura host via `AURA_AFFECTS_HOST`.)
+//
+// resolve() justification (ADR 0045 DSL-first, precedent-twin): the
+// lifegain-on-damage clause is the EXACT Spirit Link shape (`leg/white.ts`)
+// — a `damageDealtTrigger` factory call, `source: "any"` narrowed by a
+// `condition` checking `event.sourceInstanceId === self.attachedTo` (CR
+// 303.4b, the damage source must be the aura's host), `resolve: (ctx,
+// event) => ctx.gainLife(ctx.controller, event.amount)`. NOT DSL-migratable
+// (documented catalogue-wide, e.g. `arn/black.ts` El-Hajjâj, `tmp/red.ts`):
+// the gained amount is `event.amount`, a runtime value with no
+// `EffectValue` grammar member (literal / ref / count / X / domain only)
+// and no trigger-event `amount` row in `EVENT_FIELD_REGISTRY` — a real,
+// already-flagged composition gap, not an invented shortcut.
+export const armadilloCloak: CardDefinition = {
+    id: "9d816f98-6cb6-432c-b0a4-a0eed21658ac",
+    rarity: "common",
+    name: "Armadillo Cloak",
+    oracleText:
+        "Enchant creature\nEnchanted creature gets +2/+2 and has trample.\nWhenever enchanted creature deals damage, you gain that much life.",
+    manaCost: { X: 1, G: 1, W: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+    staticEffects: [
+        { kind: "pt-buff", applies: AURA_AFFECTS_HOST, power: 2, toughness: 2 },
+        {
+            kind: "keyword-grant",
+            applies: AURA_AFFECTS_HOST,
+            keyword: "trample",
+        },
+    ],
+    triggeredAbilities: [
+        damageDealtTrigger({
+            id: "armadillo-cloak-lifegain",
+            oracleText:
+                "Whenever enchanted creature deals damage, you gain that much life.",
+            source: "any",
+            condition: (event, self) =>
+                event.sourceInstanceId === self.attachedTo,
+            resolve: (ctx, event) => {
+                ctx.gainLife(ctx.controller, event.amount);
+            },
+        }),
+    ],
+};
+
+// Aura Mutation — {G}{W} Instant. "Destroy target enchantment. Create X
+// 1/1 green Saproling creature tokens, where X is that enchantment's mana
+// value." (CR 701.8 destroy + CR 111 token creation with `count` reading
+// the `{ ref: "$x.manaValue" }` snapshot — the exact Artifact Mutation
+// shape, this file's RG tranche, target type swapped Artifact → Enchantment
+// and no `cantBeRegenerated` clause (enchantments don't regenerate).)
+export const auraMutation: CardDefinition = {
+    id: "38421179-615e-4aba-91a4-503bfee05403",
+    rarity: "rare",
+    name: "Aura Mutation",
+    oracleText:
+        "Destroy target enchantment. Create X 1/1 green Saproling creature tokens, where X is that enchantment's mana value.",
+    manaCost: { G: 1, W: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Enchantment", count: 1 },
+    effects: [
+        {
+            op: "destroy",
+            target: { target: 0 },
+            bind: "$ench",
+        },
+        {
+            op: "createToken",
+            token: {
+                name: "Saproling",
+                types: ["Creature"],
+                subtypes: ["Saproling"],
+                power: 1,
+                toughness: 1,
+                colors: ["G"],
+            },
+            controller: "controller",
+            count: { ref: "$ench.manaValue" },
+        },
+    ],
+};
+
+// Aura Shards — {1}{G}{W} Enchantment. "Whenever a creature you control
+// enters, you may destroy target artifact or enchantment." (CR 603.6a
+// ETB trigger, scope "yours" + `filter: { types: "Creature" }" via
+// `enteredTrigger`; CR 701.8 destroy.)
+//
+// resolve() justification (ADR 0045 DSL-first, precedent-twin): the "may
+// destroy target artifact or enchantment" clause is the EXACT Loran of the
+// Third Path shape (`bro/white.ts`) — a `requestChoice({ kind:
+// "choose-permanents", allControllers: true, filter: { types: ["Artifact",
+// "Enchantment"] }, count: { min: 0, max: 1 } })` (the `min: 0` IS the
+// "may"), then `destroy` on the pick. NOT DSL-migratable (documented
+// catalogue-wide, Loran's own comment): the `choice` Op's battlefield
+// candidates are limited to the chooser's OWN permanents
+// (interpreter `choiceCandidates`) — there is no cross-controller
+// (`allControllers`) candidate set for the DSL `choice` Op, only for the
+// imperative `requestChoice`. Real composition gap, not an invented
+// shortcut.
+export const auraShards: CardDefinition = {
+    id: "df4039ef-af72-4267-ade9-fdb7c921279e",
+    rarity: "uncommon",
+    name: "Aura Shards",
+    oracleText:
+        "Whenever a creature you control enters, you may destroy target artifact or enchantment.",
+    manaCost: { X: 1, G: 1, W: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "aura-shards-destroy",
+            oracleText:
+                "Whenever a creature you control enters, you may destroy target artifact or enchantment.",
+            scope: "yours",
+            filter: { types: "Creature" },
+            resolve: (ctx) => {
+                const picks = ctx.requestChoice({
+                    playerId: ctx.controller,
+                    choiceId: `aura-shards-${ctx.sourceInstanceId}`,
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    filter: { types: ["Artifact", "Enchantment"] },
+                    allControllers: true,
+                    count: { min: 0, max: 1 },
+                    prompt: "Aura Shards: destroy target artifact or enchantment (or none)?",
+                });
+                if (picks === undefined) return; // suspended for the choice
+                for (const id of picks) {
+                    ctx.destroy({ type: "permanent", id });
+                }
+            },
+        }),
+    ],
+};
+
+// Captain Sisay — {2}{G}{W} Legendary Creature — Human Soldier, 2/2. "{T}:
+// Search your library for a legendary card, reveal that card, put it into
+// your hand, then shuffle." (CR 605 activated ability, CR 701.23 search
+// filtered by `supertype: "Legendary"`, CR 701.20 reveal, CR 701.24
+// shuffle — the Stoneforge Mystic `choice(search-library)` + `reveal` +
+// `moveZone` + `libraryLook` shape, `wwk/white.ts`, no "may"/no count
+// range since the printed text has neither.)
+export const captainSisay: CardDefinition = {
+    id: "d24d441c-f37f-44fe-8a93-f5c89df807e4",
+    rarity: "rare",
+    name: "Captain Sisay",
+    oracleText:
+        "{T}: Search your library for a legendary card, reveal that card, put it into your hand, then shuffle.",
+    manaCost: { X: 2, G: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Soldier"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "captain-sisay-tutor",
+            oracleText:
+                "{T}: Search your library for a legendary card, reveal that card, put it into your hand, then shuffle.",
+            cost: { tap: true },
+            useStack: true,
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { supertype: "Legendary" },
+                    count: 1,
+                    prompt: "Search your library for a legendary card.",
+                    bind: "$picked",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$picked" },
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked" },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ],
+        },
+    ],
+};
+
+// Charging Troll — {2}{G}{W} Creature — Troll, 3/3. "Vigilance\n{G}:
+// Regenerate this creature." (CR 702.20b vigilance; CR 701.15a
+// regeneration via the shipped `regenerate` Op self-targeted through
+// `$source` — the Clay Statue/Ghost Ship shape, `atq/colorless.ts` /
+// `drk/blue.ts`.)
+export const chargingTroll: CardDefinition = {
+    id: "58956099-6b97-4c7b-ab23-9f9b4d50ef95",
+    rarity: "uncommon",
+    name: "Charging Troll",
+    oracleText: "Vigilance\n{G}: Regenerate this creature.",
+    manaCost: { X: 2, G: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Troll"],
+    power: 3,
+    toughness: 3,
+    staticAbilities: ["vigilance"],
+    activatedAbilities: [
+        {
+            id: "charging-troll-regen",
+            oracleText: "{G}: Regenerate this creature.",
+            cost: { mana: { G: 1 } },
+            useStack: true,
+            effects: [{ op: "regenerate", target: { ref: "$source" } }],
+        },
+    ],
+};
+
+// Dueling Grounds — {1}{G}{W} Enchantment. "No more than one creature can
+// attack each combat.\nNo more than one creature can block each combat."
+// tracked-by: #1127 (a battlefield-wide DECLARED-SET count cap, distinct
+// from every existing attack/block-restriction kind: `declared-attack-
+// restriction` / `declared-block-restriction` (CR 508.1c/509.1b, Orcish
+// Conscripts' "can't attack/block unless...") are only ever collected from
+// the ATTACKING/BLOCKING creature's OWN definition and from Auras attached
+// to it (`collectDeclaredAttackRestrictions` / `collectDeclaredBlockRestrictions`,
+// `gre/combat.ts`) — never scanned battlefield-wide from an unrelated,
+// unattached Enchantment like Dueling Grounds. `global-attack-restriction`
+// (Moat) IS battlefield-scanned but is a per-creature forbid/allow
+// predicate, not a COUNT CAP over the whole declared set — it can't express
+// "no more than one" either. No existing static-effect kind combines
+// "scanned from any battlefield source" with "judged over the complete
+// declared-attacker/-blocker set", so this needs a new kind (a
+// `global-declared-attack-restriction` / `-block-restriction` pair, or an
+// extension of the existing collectors to also scan non-aura battlefield
+// sources) before Dueling Grounds can ship.)
+
+// Heroes' Reunion — {G}{W} Instant. "Target player gains 7 life." (CR
+// 119.3a life gain.) A plain single-Op spell — exact shape precedent
+// Absorb's `gainLife` half (this file's WU tranche), target swapped from
+// the caster to an announced player target.
+export const heroesReunion: CardDefinition = {
+    id: "135d6043-5ec1-4ad4-8296-41fe23f11cb9",
+    rarity: "uncommon",
+    name: "Heroes' Reunion",
+    oracleText: "Target player gains 7 life.",
+    manaCost: { G: 1, W: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "player", count: 1 },
+    effects: [{ op: "gainLife", player: { target: 0 }, amount: 7 }],
+};
+
+// Horned Cheetah — {2}{G}{W} Creature — Cat, 2/2. "Whenever this creature
+// deals damage, you gain that much life." (CR 120.3/603.2 damage-dealt
+// trigger.)
+//
+// resolve() justification (ADR 0045 DSL-first, precedent-twin): identical
+// to Armadillo Cloak's lifegain clause (this file, GW tranche) minus the
+// Aura indirection — the EXACT El-Hajjâj shape (`arn/black.ts`):
+// `damageDealtTrigger({ source: "self", resolve: (ctx, event) =>
+// ctx.gainLife(ctx.controller, event.amount) })`. Same documented gap
+// (`event.amount` has no `EffectValue` grammar member / `$event` field row)
+// — not an invented shortcut.
+export const hornedCheetah: CardDefinition = {
+    id: "a28ad983-ce91-40b6-a1ce-fe36ec7fbce8",
+    rarity: "uncommon",
+    name: "Horned Cheetah",
+    oracleText: "Whenever this creature deals damage, you gain that much life.",
+    manaCost: { X: 2, G: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Cat"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        damageDealtTrigger({
+            id: "horned-cheetah-lifegain",
+            oracleText:
+                "Whenever this creature deals damage, you gain that much life.",
+            source: "self",
+            resolve: (ctx, event) => {
+                ctx.gainLife(ctx.controller, event.amount);
+            },
+        }),
+    ],
+};
+
+// Llanowar Knight — {G}{W} Creature — Elf Knight, 2/2. "Protection from
+// black." (CR 702.16 protection, `bindingPattern` in the Mechanics
+// Registry.) Pure data — a vanilla body with one printed keyword.
+export const llanowarKnight: CardDefinition = {
+    id: "e6c75d89-e432-49aa-a407-555b223b7eff",
+    rarity: "common",
+    name: "Llanowar Knight",
+    oracleText: "Protection from black",
+    manaCost: { G: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Elf", "Knight"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["protection from black"],
+};
+
+// Noble Panther — {1}{G}{W} Creature — Cat, 3/3. "{1}: This creature gains
+// first strike until end of turn." (CR 702.7b first strike, CR 611.1b
+// temporary keyword grant via the shipped `grantAbility` Op self-targeted
+// through `$source` — the exact Hooded Kavu shape, this file's BR
+// tranche, keyword swapped fear → first strike.)
+export const noblePanther: CardDefinition = {
+    id: "3f327818-8222-4295-8cef-118757b34d17",
+    rarity: "rare",
+    name: "Noble Panther",
+    oracleText: "{1}: This creature gains first strike until end of turn.",
+    manaCost: { X: 1, G: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Cat"],
+    power: 3,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "noble-panther-first-strike",
+            oracleText:
+                "{1}: This creature gains first strike until end of turn.",
+            cost: { mana: { X: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "first strike",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
+
+// Sabertooth Nishoba — {4}{G}{W} Creature — Cat Beast Warrior, 5/5.
+// "Trample, protection from blue and from red" (CR 702.19 trample; CR
+// 702.16 protection — TWO independent "protection from <color>" strings in
+// the same `staticAbilities[]` array. `getProtectedColors`
+// (`gre/protection.ts`) iterates and collects EVERY matching entry, so two
+// distinct-color protections stack correctly (CR 702.16m — only literal
+// duplicates collapse) with zero engine change; the catalogue's first
+// double-protection creature, not a new capability.)
+export const sabertoothNishoba: CardDefinition = {
+    id: "8338c296-cf3f-41d7-b380-3fb4237cb41c",
+    rarity: "rare",
+    name: "Sabertooth Nishoba",
+    oracleText: "Trample, protection from blue and from red",
+    manaCost: { X: 4, G: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Cat", "Beast", "Warrior"],
+    power: 5,
+    toughness: 5,
+    staticAbilities: ["trample", "protection from blue", "protection from red"],
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// Deferred (engine capability gaps) — GW (issue #1079)
+// ─────────────────────────────────────────────────────────────────────────
+
+// Sterling Grove — {G}{W} Enchantment. "Other enchantments you control have
+// shroud. (They can't be the targets of spells or abilities.)\n{1},
+// Sacrifice this enchantment: Search your library for an enchantment card,
+// reveal it, then shuffle and put that card on top." tracked-by: #1125 (the
+// FIRST clause is actually free — a `permanent-guard` staticEffect scanning
+// "other enchantments you control" is the exact Guardian Beast shape,
+// `arn/black.ts` — `cantBeTargeted: true` with an `applies` predicate
+// checking `target.controllerId === source.controllerId && target.types.
+// includes("Enchantment") && target.id !== source.id`; shroud itself is
+// CR-702.18 `status: "implemented"` in the Mechanics Registry via this
+// exact live-guard mechanism, issue #959 audit — the SECOND clause is what
+// blocks the whole card: "shuffle and put that card on top" is the
+// documented Mystical Tutor / Vampiric Tutor "put that card on top" gap
+// (`mir/blue.ts`, tracked by issue #1125, which explicitly names Sterling
+// Grove) — no Op reorders the library TOP after a tutor's shuffle. "Never
+// ship silent partials" (PRD #1063) means the whole card waits for #1125
+// even though the shroud clause alone is buildable today.)
