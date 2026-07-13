@@ -783,7 +783,8 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         kind: "keyword-ability",
         cr: "702.14",
         status: "implemented",
-        binding: "convex/gre/combatRegistry.ts (EvasionRule per landwalk variant)",
+        binding:
+            "convex/gre/combatRegistry.ts (EvasionRule per landwalk variant)",
         bindingPattern:
             /^(snow )?(plains|island|swamp|mountain|forest|desert)walk$|^legendary landwalk$/,
         note: "constants.ts LANDWALK_KEYWORDS / LANDWALK_SUPERTYPE_KEYWORDS / LANDWALK_SNOW_SUBTYPE_KEYWORDS + combatRegistry.ts EvasionRule per variant, negation via landwalkNegation.ts",
@@ -826,7 +827,8 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         kind: "keyword-ability",
         cr: "702.18",
         status: "implemented",
-        binding: "permanent-guard staticEffect (gre/permanentGuard.ts isGuardedAgainst)",
+        binding:
+            "permanent-guard staticEffect (gre/permanentGuard.ts isGuardedAgainst)",
         note: 'HONOURED (issue #959): CR 702.18 — every printed-shroud card (Blastoderm nem/green.ts, Blurred Mongoose inv/green.ts, Spectral Cloak leg/blue.ts) pairs the `staticAbilities: ["shroud"]` reminder string with a `permanent-guard` staticEffect (`cantBeTargeted: true`), evaluated live by `isGuardedAgainst` and consumed by `rules.ts::getLegalTargets` + `game.ts::selectTarget` (server-authoritative) — the same "can\'t be the target of spells or abilities" path hexproof\'s controller-relative guard reuses, but unfiltered (blocks the permanent\'s own controller too, unlike hexproof). GAP (narrower than before): a card that grants shroud DYNAMICALLY via `SpellContext.grantStaticAbility(self, "shroud", …)` — Homarid Warrior / Svyelunite Priest (fem/blue.ts), Sylvan Safekeeper (jud/green.ts), Blurred Mongoose\'s own activated ability (inv/green.ts), the usg/green.ts grant — appends only the bare keyword STRING with no paired `permanent-guard` staticEffect, so no live guard reads it and those specific TEMPORARY grants stay inert (each site\'s own code comment documents this). The keyword as a whole is "implemented" because its dominant, CR-compliant enforcement path (the printed/staticEffect-paired form) is real and server-authoritative; the residual dynamic-grant gap is called out here, not glossed over.',
     },
     // 702.19 Trample
@@ -856,7 +858,7 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         kind: "keyword-ability",
         cr: "702.21",
         status: "planned",
-        note: "no dedicated module, no card declares it, no engine check found. Re-verified issue #959: no trigger fires on \"becomes the target\", no counter-unless-pay primitive exists anywhere in gre/**; every \"Ward\"-named card in the catalogue (2ED/3ED/4ED/LEA/ICE white.ts) is the unrelated pre-modern Color Ward cycle (a protection Aura) or Death Ward (regenerate), not the modern templated keyword.",
+        note: 'no dedicated module, no card declares it, no engine check found. Re-verified issue #959: no trigger fires on "becomes the target", no counter-unless-pay primitive exists anywhere in gre/**; every "Ward"-named card in the catalogue (2ED/3ED/4ED/LEA/ICE white.ts) is the unrelated pre-modern Color Ward cycle (a protection Aura) or Death Ward (regenerate), not the modern templated keyword.',
     },
     // 702.22 Banding
     {
@@ -978,7 +980,8 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         kind: "keyword-ability",
         cr: "702.33e",
         status: "implemented",
-        binding: "convex/gre/state.ts (kicker.multi / kickerCount — shared Kicker cost-system path, no dedicated module)",
+        binding:
+            "convex/gre/state.ts (kicker.multi / kickerCount — shared Kicker cost-system path, no dedicated module)",
         note: "The Kicker variant that may be paid any number of times as the spell is cast (CardDefinition.kicker.multi). Shares the whole Kicker cost-system path; kickerCount records how many times it was paid and drives 'a charge counter for each time it was kicked' via entersWith.counters count 'kicker'. Used by Everflowing Chalice.",
     },
     // 702.34 Flashback
@@ -2846,12 +2849,26 @@ export const EVENT_FIELD_REGISTRY: Record<
     },
     // CR 119.3 — damage to a target. `damagedPlayer` FLATTENS the nested
     // `TargetSelection` down to the player id (a single-level ref), or undefined
-    // when the damage went to a permanent (no player was damaged).
+    // when the damage went to a permanent (no player was damaged). `damagedPermanent`
+    // (issue #1078, Voracious Cobra: "whenever this creature deals combat damage
+    // to a creature, destroy that creature") is the OBJECT-family twin: the
+    // damaged permanent's instance id, or undefined when the damage went to a
+    // player instead. `resolveObjectRef`'s generic `$event.<field>` branch
+    // (ADR 0049) already resolves any object-family row through the same
+    // battlefield-presence recheck `damagedPlayer` gets for players — no
+    // interpreter change needed, just this census row.
     DAMAGE_DEALT: {
         damagedPlayer: {
             family: "player",
             resolve: (e) =>
                 e.type === "DAMAGE_DEALT" && e.target.type === "player"
+                    ? e.target.id
+                    : undefined,
+        },
+        damagedPermanent: {
+            family: "object",
+            resolve: (e) =>
+                e.type === "DAMAGE_DEALT" && e.target.type === "permanent"
                     ? e.target.id
                     : undefined,
         },

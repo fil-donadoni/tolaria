@@ -29,6 +29,21 @@ import {
     trenchWurm,
     urborgVolcano,
     viciousKavu,
+    artifactMutation,
+    firesOfYavimaya,
+    frenziedTilling,
+    huntingKavu,
+    meteorStorm,
+    ragingKavu,
+    simoon,
+    voraciousCobra,
+    yavimayaBarbarian,
+    yavimayaKavu,
+    firebrandRanger,
+    savageOffensive,
+    viashinoGrappler,
+    trollHornCameo,
+    shivanOasis,
 } from "../multicolor";
 import {
     makeInstance,
@@ -41,7 +56,14 @@ import {
     applySourceStaticEffects,
     type StackItem,
 } from "../../../../gre/state";
-import { plains, island, swamp, mountain, forest } from "../../lea/colorless";
+import {
+    plains,
+    island,
+    swamp,
+    mountain,
+    forest,
+    icyManipulator,
+} from "../../lea/colorless";
 import { grizzlyBears, scatheZombies } from "../../lea";
 import { registerTokenDefinition } from "../../..";
 import {
@@ -1146,5 +1168,487 @@ describe("Vicious Kavu (CR 508.1 attacks trigger + 613.4c pump, issue #1077)", (
         const live = state.players[0].battlefield.find((c) => c.id === "vk")!;
         expect(getEffectivePower(state, live)).toBe(4);
         expect(getEffectiveToughness(state, live)).toBe(2);
+    });
+});
+
+describe("Artifact Mutation (CR 701.8 destroy + 111 token creation scaled by mana value, issue #1078)", () => {
+    it("destroys the target artifact (can't be regenerated) and creates Saprolings equal to its mana value", () => {
+        const artifact = makeInstance(icyManipulator.id, {
+            id: "art",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [artifact] }),
+            ],
+        });
+        pushSpell(state, artifactMutation.id, "p1", [
+            { type: "permanent", id: "art" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["art"]);
+        // Icy Manipulator is mana value 4 ({4}).
+        const tokens = state.players[0].battlefield;
+        expect(tokens).toHaveLength(4);
+        for (const t of tokens) {
+            expect(t.power).toBe(1);
+            expect(t.toughness).toBe(1);
+        }
+    });
+});
+
+describe("Fires of Yavimaya (controller-scoped haste anthem + sacrifice-for-pump, CR 611/613 layer 6, issue #1078)", () => {
+    it("grants haste to creatures you control (GRE + wire), not the opponent's", () => {
+        const enchantment = makeInstance(firesOfYavimaya.id, {
+            id: "foy",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const mine = makeInstance(grizzlyBears.id, {
+            id: "mine",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const theirs = makeInstance(grizzlyBears.id, {
+            id: "theirs",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [enchantment, mine] }),
+                makePlayer("p2", { battlefield: [theirs] }),
+            ],
+        });
+        applySourceStaticEffects(state, enchantment);
+        const mineLive = state.players[0].battlefield.find(
+            (c) => c.id === "mine"
+        )!;
+        const theirsLive = state.players[1].battlefield.find(
+            (c) => c.id === "theirs"
+        )!;
+        expect(mineLive.staticAbilities).toContain("haste");
+        expect(theirsLive.staticAbilities).not.toContain("haste");
+        const projected = projectPublicState(state, 1, "p1");
+        const slimMine = projected.players[0].battlefield.find(
+            (c) => c.id === "mine"
+        )!;
+        expect(slimMine.staticAbilities).toContain("haste");
+    });
+
+    it("sacrifice: target creature gets +2/+2 until end of turn", () => {
+        const enchantment = makeInstance(firesOfYavimaya.id, {
+            id: "foy2",
+            controllerId: "p1",
+        });
+        const target = makeInstance(grizzlyBears.id, {
+            id: "tgt",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [enchantment, target] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, enchantment, "fires-of-yavimaya-pump", [
+            { type: "permanent", id: "tgt" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "tgt")!;
+        expect(getEffectivePower(state, live)).toBe(4);
+        expect(getEffectiveToughness(state, live)).toBe(4);
+    });
+});
+
+describe("Frenzied Tilling (CR 701.8 destroy + 401.4 search/tapped/701.20 shuffle, issue #1078)", () => {
+    it("destroys the targeted land, then searches a basic land onto the battlefield tapped", () => {
+        const targetLand = makeInstance(forest.id, {
+            id: "victim-land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [makeInstance(mountain.id, { id: "lib-mtn" })],
+                }),
+                makePlayer("p2", { battlefield: [targetLand] }),
+            ],
+        });
+        pushSpell(state, frenziedTilling.id, "p1", [
+            { type: "permanent", id: "victim-land" },
+        ]);
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on the search
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("search-library");
+        submitChoice(state, ["lib-mtn"]);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "victim-land")
+        ).toBe(false);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "victim-land")
+        ).toBe(true);
+        const found = state.players[0].battlefield.find(
+            (c) => c.id === "lib-mtn"
+        );
+        expect(found).toBeDefined();
+        expect(found?.isTapped).toBe(true);
+        expect(state.players[0].library).toHaveLength(0);
+    });
+});
+
+describe("Hunting Kavu (CR 602.1 tap ability, CR 508.1/509.1 attacking-without-flying target filter, CR 701.13 exile, issue #1078)", () => {
+    it("targets an opponent's attacking, non-flying creature", () => {
+        const ability = huntingKavu.activatedAbilities![0];
+        expect(ability.targetRequirement).toMatchObject({
+            type: "Creature",
+            controller: "opponent",
+            combatRoleFilter: "attacking",
+            excludeAbility: "flying",
+        });
+        expect(ability.cost).toEqual({ mana: { X: 1, R: 1, G: 1 }, tap: true });
+    });
+
+    it("exiles itself and the target creature", () => {
+        const kavu = makeInstance(huntingKavu.id, {
+            id: "hk",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const foe = makeInstance(grizzlyBears.id, {
+            id: "foe",
+            controllerId: "p2",
+            ownerId: "p2",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [kavu] }),
+                makePlayer("p2", { battlefield: [foe] }),
+            ],
+        });
+        resolveActivated(state, kavu, "hunting-kavu-exile", [
+            { type: "permanent", id: "foe" },
+        ]);
+        expect(state.players[0].battlefield.some((c) => c.id === "hk")).toBe(
+            false
+        );
+        expect(state.players[0].exile.map((c) => c.id)).toContain("hk");
+        expect(state.players[1].battlefield.some((c) => c.id === "foe")).toBe(
+            false
+        );
+        expect(state.players[1].exile.map((c) => c.id)).toContain("foe");
+    });
+});
+
+describe("Meteor Storm (CR 118.3/701.8 random-discard activation cost + 120.1 damage, issue #1078)", () => {
+    it("costs {2}{R}{G} and discarding two cards at random", () => {
+        const ability = meteorStorm.activatedAbilities![0];
+        expect(ability.cost.mana).toEqual({ X: 2, R: 1, G: 1 });
+        expect(ability.cost.discardAtRandom).toBe(2);
+    });
+
+    it("deals 4 damage to any target", () => {
+        const ench = makeInstance(meteorStorm.id, {
+            id: "ms",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ench] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, ench, "meteor-storm-blast", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].life).toBe(16);
+    });
+});
+
+describe("Raging Kavu (CR 702.8b flash + 702.10b haste, issue #1078)", () => {
+    it("has flash and haste", () => {
+        expect(ragingKavu.staticAbilities).toEqual(
+            expect.arrayContaining(["flash", "haste"])
+        );
+        expect(ragingKavu.power).toBe(3);
+        expect(ragingKavu.toughness).toBe(1);
+    });
+});
+
+describe("Simoon (CR 115 target-opponent player selector + 120.1 damage sweep, issue #1078)", () => {
+    it("deals 1 damage to each creature the target opponent controls, not your own", () => {
+        const theirs1 = makeInstance(grizzlyBears.id, {
+            id: "theirs1",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const theirs2 = makeInstance(grizzlyBears.id, {
+            id: "theirs2",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const mine = makeInstance(grizzlyBears.id, {
+            id: "mine",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mine] }),
+                makePlayer("p2", { battlefield: [theirs1, theirs2] }),
+            ],
+        });
+        pushSpell(state, simoon.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const t1 = state.players[1].battlefield.find(
+            (c) => c.id === "theirs1"
+        )!;
+        expect(t1.damageMarked).toBe(1);
+        // theirs2 is a vanilla 2/2 — 1 damage doesn't kill it, but marks it.
+        const t2 = state.players[1].battlefield.find(
+            (c) => c.id === "theirs2"
+        )!;
+        expect(t2.damageMarked).toBe(1);
+        const mineLive = state.players[0].battlefield.find(
+            (c) => c.id === "mine"
+        )!;
+        expect(mineLive.damageMarked ?? 0).toBe(0);
+    });
+});
+
+describe("Voracious Cobra (CR 702.7 first strike + 510.4/603.2 combat-damage-to-a-creature destroys it, issue #1078)", () => {
+    it("has first strike", () => {
+        expect(voraciousCobra.staticAbilities).toContain("first strike");
+    });
+
+    it("triggers only on its own combat damage dealt to a permanent", () => {
+        const cobra = makeInstance(voraciousCobra.id, {
+            id: "cobra",
+            controllerId: "p1",
+        });
+        const trigger = voraciousCobra.triggeredAbilities![0];
+        const base = {
+            type: "DAMAGE_DEALT" as const,
+            sourceInstanceId: "cobra",
+            sourceControllerId: "p1",
+            target: { type: "permanent" as const, id: "victim" },
+            amount: 2,
+            isCombat: true,
+        };
+        expect(trigger.matches(base, cobra)).toBe(true);
+        expect(trigger.matches({ ...base, isCombat: false }, cobra)).toBe(
+            false
+        );
+        expect(
+            trigger.matches({ ...base, sourceInstanceId: "other" }, cobra)
+        ).toBe(false);
+        expect(
+            trigger.matches(
+                { ...base, target: { type: "player" as const, id: "p2" } },
+                cobra
+            )
+        ).toBe(false);
+    });
+
+    it("destroys the creature it dealt combat damage to (via the newly-censused $event.damagedPermanent row)", () => {
+        const cobra = makeInstance(voraciousCobra.id, {
+            id: "cobra",
+            controllerId: "p1",
+        });
+        const victim = makeInstance(grizzlyBears.id, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cobra] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        resolveTrigger(state, cobra, "voracious-cobra-damage-destroy", {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "cobra",
+            sourceControllerId: "p1",
+            target: { type: "permanent", id: "victim" },
+            amount: 2,
+            isCombat: true,
+        } as never);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "victim")
+        ).toBe(false);
+        expect(state.players[1].graveyard.some((c) => c.id === "victim")).toBe(
+            true
+        );
+    });
+});
+
+describe("Yavimaya Barbarian (CR 702.16 protection, issue #1078)", () => {
+    it("has protection from blue", () => {
+        expect(yavimayaBarbarian.staticAbilities).toContain(
+            "protection from blue"
+        );
+    });
+});
+
+describe("Yavimaya Kavu (CR 604.3 characteristic-defining P/T, global battlefield-wide red/green creature counts, issue #1078)", () => {
+    function setup() {
+        const kavu = makeInstance(yavimayaKavu.id, {
+            id: "yk",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Red creature (controlled by p1, counts toward power). Yavimaya
+        // Kavu is itself R+G, so it self-counts on both sides too (below).
+        const red = makeInstance(hoodedKavu.id, {
+            id: "red-creature",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // Green creature (controlled by p2 — GLOBAL count, not "you control").
+        const green = makeInstance(grizzlyBears.id, {
+            id: "green-creature",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [kavu, red] }),
+                makePlayer("p2", { battlefield: [green] }),
+            ],
+        });
+        return { state };
+    }
+
+    it("power = red creatures on the battlefield (any controller), toughness = green creatures", () => {
+        const { state } = setup();
+        const live = state.players[0].battlefield.find((c) => c.id === "yk")!;
+        // Red creatures: hoodedKavu (mono red) + Yavimaya Kavu itself (RG gold
+        // — its OWN colors are R and G, derived from its mana pips, so the
+        // CDA counts itself, the well-known real-card "gotcha"). Power = 2.
+        expect(getEffectivePower(state, live)).toBe(2);
+        // Green creatures: grizzlyBears (mono green) + Yavimaya Kavu itself
+        // (also green). Toughness = 2.
+        expect(getEffectiveToughness(state, live)).toBe(2);
+    });
+
+    it("wire format: the CDA survives projectPublicState", () => {
+        const { state } = setup();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "yk"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(2);
+        expect(getEffectiveToughness(projected, slim)).toBe(2);
+    });
+});
+
+describe("Firebrand Ranger (CR 602.1 tap ability, hand-source moveZone, issue #1078)", () => {
+    it("puts a chosen basic land from hand onto the battlefield", () => {
+        const ranger = makeInstance(firebrandRanger.id, {
+            id: "fr",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const landInHand = makeInstance(forest.id, {
+            id: "hand-forest",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ranger], hand: [landInHand] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, ranger, "firebrand-ranger-land-drop");
+        expect(state.pendingChoices?.[0]?.kind).toBe("choose-hand-card");
+        submitChoice(state, ["hand-forest"]);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "hand-forest")
+        ).toBe(true);
+        expect(state.players[0].hand.some((c) => c.id === "hand-forest")).toBe(
+            false
+        );
+    });
+});
+
+describe("Savage Offensive (CR 702.33 Kicker + 611/613 temporary keyword grant + pump, issue #1078)", () => {
+    function cast(kicked: boolean) {
+        const mine = makeInstance(grizzlyBears.id, {
+            id: "mine",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mine] }),
+                makePlayer("p2"),
+            ],
+        });
+        const item: StackItem = pushSpell(state, savageOffensive.id, "p1");
+        if (kicked) item.kickerCount = 1;
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("declares Kicker {G}", () => {
+        expect(savageOffensive.kicker?.cost).toEqual({ G: 1 });
+    });
+
+    it("unkicked: grants first strike, no +1/+1", () => {
+        const state = cast(false);
+        const live = state.players[0].battlefield.find((c) => c.id === "mine")!;
+        expect(live.staticAbilities).toContain("first strike");
+        expect(getEffectivePower(state, live)).toBe(2);
+        expect(getEffectiveToughness(state, live)).toBe(2);
+    });
+
+    it("kicked: grants first strike AND +1/+1", () => {
+        const state = cast(true);
+        const live = state.players[0].battlefield.find((c) => c.id === "mine")!;
+        expect(live.staticAbilities).toContain("first strike");
+        expect(getEffectivePower(state, live)).toBe(3);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+    });
+});
+
+describe("Viashino Grappler (CR 613.4c temporary trample grant, issue #1078)", () => {
+    it("{G}: gains trample until end of turn", () => {
+        const creature = makeInstance(viashinoGrappler.id, {
+            id: "vg",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [creature] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, creature, "viashino-grappler-trample");
+        const live = state.players[0].battlefield.find((c) => c.id === "vg")!;
+        expect(live.staticAbilities).toContain("trample");
+    });
+});
+
+describe("Troll-Horn Cameo (CR 605.1a choice-of-color mana ability, issue #1078)", () => {
+    it("is a mana ability (useStack:false) offering R or G", () => {
+        const ability = trollHornCameo.activatedAbilities![0];
+        expect(ability.useStack).toBe(false);
+        expect(ability.manaChoices).toEqual([{ R: 1 }, { G: 1 }]);
+        expect(ability.cost.tap).toBe(true);
+    });
+});
+
+describe("Shivan Oasis (CR 110.5b enters tapped + 605.1a choice-of-color mana ability, issue #1078)", () => {
+    it("enters tapped and taps for R or G", () => {
+        expect(shivanOasis.entersTapped).toBe(true);
+        const ability = shivanOasis.activatedAbilities![0];
+        expect(ability.useStack).toBe(false);
+        expect(ability.manaChoices).toEqual([{ R: 1 }, { G: 1 }]);
     });
 });
