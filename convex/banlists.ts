@@ -13,16 +13,22 @@
 // the cores are what `convex/__tests__/banlists.test.ts` exercises directly.
 
 import { v } from "convex/values";
-import { query, type QueryCtx } from "./_generated/server";
+import { query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { tryGetCardByName } from "./cards";
 import {
     BANLIST_SEEDS,
+    isBanlistFormatId,
     resolveBanlistEnforcement,
     type BanlistEntry,
     type BanlistFormatId,
     type BanlistOverride,
     type ResolveCardByName,
 } from "./formats";
+
+/** Either a Convex query or mutation ctx — `loadRows`/`loadBanlistOverrides`
+ *  below are read-only and callable from both (the game-start gates in
+ *  `game.ts` and the preset-legality queries in `decks.ts`). */
+type ReadCtx = QueryCtx | MutationCtx;
 
 // Exported (not just module-local) so `convex/banlistSync.ts` — the admin
 // sync action/mutation sibling (issue #1143) — shares the exact same
@@ -71,7 +77,7 @@ export function resolveBanlistEnforcementForFormat(
 }
 
 async function loadRows(
-    ctx: QueryCtx,
+    ctx: ReadCtx,
     format: BanlistFormatId
 ): Promise<BanlistEntry[]> {
     const rows = await ctx.db
@@ -124,3 +130,29 @@ export const getBanlistEnforcement = query({
         return { banned: [...banned], restricted: [...restricted] };
     },
 });
+
+/**
+ * Server-side enforcement helper (PRD #1138, issue #1144) — the authoritative
+ * counterpart to `getBanlistEnforcement` above, callable from a mutation
+ * context (not just a query) so the game-start gates (`game.ts`) and deck
+ * legality (`decks.ts`) can load a format's DB banlist override BEFORE
+ * calling `assertDeckLegal` / `validateDeck`. Reuses the SAME pure cores
+ * (`loadRows`, `resolveBanlistEnforcementForFormat`) the client query does —
+ * the two are never allowed to diverge, since that would let the advisory
+ * client and the authoritative server gate disagree.
+ *
+ * Returns `undefined` for a `format` with no DB-backed banlist (Alpha 40,
+ * Freeform, or an unrecognized raw string) — those formats' validators
+ * ignore an injected `banlist` argument anyway (`formats.ts`), so `undefined`
+ * and "ignored" are equivalent and the caller never needs to special-case it.
+ * Takes a raw `string` (not `BanlistFormatId`) so callers can pass a deck's
+ * `format` field directly without pre-narrowing it themselves.
+ */
+export async function loadBanlistOverrides(
+    ctx: ReadCtx,
+    format: string
+): Promise<BanlistOverride | undefined> {
+    if (!isBanlistFormatId(format)) return undefined;
+    const rows = await loadRows(ctx, format);
+    return resolveBanlistEnforcementForFormat(format, rows, tryGetCardByName);
+}

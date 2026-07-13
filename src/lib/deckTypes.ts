@@ -4,7 +4,12 @@ import {
     type DeckPreset,
     resolveFeaturedCardId,
 } from "@convex/deckPresets";
-import { type FormatId, type Reason, validateDeck } from "@convex/formats";
+import {
+    type BanlistOverride,
+    type FormatId,
+    type Reason,
+    validateDeck,
+} from "@convex/formats";
 
 export interface LobbyDeckBase {
     presetId: string;
@@ -49,13 +54,21 @@ type PresetSource = DeckPreset & {
     featuredCardId?: string | null;
 };
 
-export function toPresetLobbyDeck(d: PresetSource): PresetLobbyDeck {
-    // Prefer the server-derived legality when present (the lobby query computes
-    // it); otherwise derive it here via the same pure `validateDeck`.
+export function toPresetLobbyDeck(
+    d: PresetSource,
+    banlist?: BanlistOverride
+): PresetLobbyDeck {
+    // Prefer the server-derived legality when present (the lobby query already
+    // resolved it against the DB banlist — `convex/decks.ts`, issue #1144);
+    // otherwise derive it here via the same pure `validateDeck`, threading the
+    // injected `banlist` (PRD #1138) — `undefined` falls back to the code
+    // const inside `validateDeck` itself, so a caller with no banlist query
+    // result yet regresses to today's behavior, never to a wrong or thrown
+    // legality.
     const legality =
         d.isLegal !== undefined && d.reasons !== undefined
             ? { isLegal: d.isLegal, reasons: d.reasons }
-            : validateDeck(d, d.format);
+            : validateDeck(d, d.format, undefined, banlist);
     // Prefer the server-resolved Featured Card when present (the lobby query
     // resolves it); otherwise resolve here via the same pure resolver (PRD
     // #589, issue #593).
@@ -81,10 +94,15 @@ export function toPresetLobbyDeck(d: PresetSource): PresetLobbyDeck {
     };
 }
 
-export function toUserLobbyDeck(d: Doc<"userDecks">): UserLobbyDeck {
+export function toUserLobbyDeck(
+    d: Doc<"userDecks">,
+    banlist?: BanlistOverride
+): UserLobbyDeck {
     // User decks aren't validated server-side on list; derive legality from
-    // contents via the shared pure validator (ADR 0036).
-    const { isLegal, reasons } = validateDeck(d, d.format);
+    // contents via the shared pure validator (ADR 0036), threading the
+    // injected DB banlist override (PRD #1138, issue #1144) — `undefined`
+    // falls back to the code const inside `validateDeck`.
+    const { isLegal, reasons } = validateDeck(d, d.format, undefined, banlist);
     return {
         kind: "user",
         userDeckId: d._id,

@@ -87,6 +87,7 @@ import {
     getFlashbackCost,
 } from "./gre/flashback";
 import { assertDeckLegal } from "./formats";
+import { loadBanlistOverrides } from "./banlists";
 import type {
     ActivatedAbility,
     CardDefinition,
@@ -2149,8 +2150,14 @@ export const createGame = mutation({
         if (await findActiveMatchForUser(ctx, user._id))
             throw new Error(ACTIVE_GAME_MESSAGE);
         // Authoritative deck legality gate (ADR 0036): reject an illegal deck
-        // before any Match/Game row is written.
-        assertDeckLegal(args.deck);
+        // before any Match/Game row is written. The DB banlist override (PRD
+        // #1138, issue #1144) is loaded first so a card banned in `formatBanlists`
+        // is enforced here even if the client is stale.
+        assertDeckLegal(
+            args.deck,
+            undefined,
+            await loadBanlistOverrides(ctx, args.deck.format)
+        );
         const now = Date.now();
 
         const player: PlayerInput = {
@@ -2210,9 +2217,20 @@ export const createSoloGame = mutation({
             throw new Error(ACTIVE_GAME_MESSAGE);
         const deck2 = args.deck2 ?? args.deck;
         // Authoritative deck legality gate (ADR 0036): both seats' decks must be
-        // legal before the solo/vs-AI Match starts.
-        assertDeckLegal(args.deck);
-        if (args.deck2) assertDeckLegal(args.deck2);
+        // legal before the solo/vs-AI Match starts. Each deck's own DB banlist
+        // override (PRD #1138, issue #1144) is loaded independently — the two
+        // seats' decks aren't guaranteed to share a Format.
+        assertDeckLegal(
+            args.deck,
+            undefined,
+            await loadBanlistOverrides(ctx, args.deck.format)
+        );
+        if (args.deck2)
+            assertDeckLegal(
+                args.deck2,
+                undefined,
+                await loadBanlistOverrides(ctx, args.deck2.format)
+            );
 
         const player1: PlayerInput = {
             id: `${user._id}-p1`,
@@ -2342,7 +2360,13 @@ export const joinGame = mutation({
             throw new Error("Cannot join a game you are already in");
         // Authoritative deck legality gate (ADR 0036): the joiner's deck must be
         // legal for its declared format before the Match flips to "playing".
-        assertDeckLegal(args.deck);
+        // The DB banlist override (PRD #1138, issue #1144) is loaded first so a
+        // joiner can't sneak in a DB-banned card even on a stale client.
+        assertDeckLegal(
+            args.deck,
+            undefined,
+            await loadBanlistOverrides(ctx, args.deck.format)
+        );
 
         const player: PlayerInput = {
             id: user._id,
