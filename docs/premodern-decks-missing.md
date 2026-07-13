@@ -2,11 +2,7 @@ STIFLENOUGHT
 1 Brain Freeze
 
 ENCHANTRESS
-1 Abeyance
-3 Sterling Grove
 2 Solitary Confinement
-
-2 Abeyance
 
 MONOBLACK
 4 Ravenous Rats

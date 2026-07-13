@@ -1145,13 +1145,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // picked card never left the library — a search only chooses).
             if (entry.to === "library-top") {
                 if (!hasCards) {
-                    errors.push(
-                        'to: "library-top" is only valid with "cards"'
-                    );
+                    errors.push('to: "library-top" is only valid with "cards"');
                 } else if (entry.from !== "library") {
-                    errors.push(
-                        'to: "library-top" requires from: "library"'
-                    );
+                    errors.push('to: "library-top" requires from: "library"');
                 }
             }
             return errors;
