@@ -673,11 +673,16 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // land FREE + AFK-ready. Combined net: total 680→685, FREE 438→443,
         // AFK-ready 401→406, Op-blocked 228 / X-only 14 unchanged.
         // Partition: 443+14+228=685.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(685);
+        // Net from a concurrent out-of-band main advance (stub-fury / cross-set
+        // card merges) that added 1 Op-blocked resolve() closure without bumping
+        // this baseline — this reconciliation absorbs that drift: total 685→686,
+        // Op-blocked 228→229, FREE 443 / AFK-ready 406 / X-only 14 unchanged.
+        // Partition: 443+14+229=686.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(686);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(443);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(406);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(228);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(229);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {
