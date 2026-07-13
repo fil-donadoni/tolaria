@@ -20,7 +20,11 @@ import type {
     CardType,
     TargetRequirement,
 } from "../../cards/types";
-import { getDefinition, registerTokenDefinition, tryGetDefinition } from "../../cards";
+import {
+    getDefinition,
+    registerTokenDefinition,
+    tryGetDefinition,
+} from "../../cards";
 import { projectPublicState } from "../../gameProjections";
 
 // ---------------------------------------------------------------------------
@@ -1597,7 +1601,10 @@ describe("player-scoped shroud (CR 702.18 / 115.4, #1128)", () => {
         expect(playerHasShroud(projected, "p2")).toBe(false);
 
         const req: TargetRequirement = { type: "player", count: 1 };
-        const projectedTargets = getLegalTargets(projected, req);
+        const projectedTargets = getLegalTargets(
+            projected as unknown as GameState,
+            req
+        );
         expect(projectedTargets).toEqual([{ type: "player", id: "p2" }]);
     });
 
