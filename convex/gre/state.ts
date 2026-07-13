@@ -5595,7 +5595,10 @@ function stageReanimatedOnBattlefield(
  *  card `stageReanimatedOnBattlefield` already pushed onto the battlefield.
  *  Single-card path only — the batch path applies grants in a batch-correct
  *  order (see `putReanimatedSetOnBattlefield`) rather than per member. */
-function finishReanimatedEntry(state: GameState, card: CardInstanceState): void {
+function finishReanimatedEntry(
+    state: GameState,
+    card: CardInstanceState
+): void {
     // CR 611.2 first read: existing battlefield grants reach the newcomer
     // (Goblin King-style "Goblins have mountainwalk" still grants to a
     // Goblin reanimated under any controller).

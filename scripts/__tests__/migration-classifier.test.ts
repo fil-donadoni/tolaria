@@ -654,9 +654,17 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // strings and the Squirrel factory + anthem are pure DSL.) Net: total
         // 675→679, Op-blocked 224→228, FREE 437 / AFK-ready 400 / X-only 14
         // unchanged. Partition: 437+14+228=679.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(679);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(437);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(400);
+        // Net from #1077 (INV free gold — BR): adds 1 resolve() closure —
+        // Smoldering Tar's upkeep "target player loses 1 life" trigger, which
+        // hits the real architecture limit (TriggeredAbility has no
+        // targetRequirement; no EffectChoiceKind picks a player), the same
+        // ADR-0002 `requestOptionChoice` precedent black.ts already records.
+        // It ships its own per-card test, so it lands FREE + AFK-ready. Net:
+        // total 679→680, FREE 437→438, AFK-ready 400→401, Op-blocked 228 /
+        // X-only 14 unchanged. Partition: 438+14+228=680.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(680);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(438);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(401);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(228);
     });

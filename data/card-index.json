@@ -120,6 +120,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Agonizing Demise",
+        "scryfallId": "539ac5e1-4bad-4f70-abac-e70c406bebec",
+        "oracleId": "41681a1f-0777-4b96-8c7e-d6a5d1b1c8fc",
+        "firstSet": "inv"
+    },
+    {
         "name": "Air Elemental",
         "scryfallId": "69c3b2a3-0daa-4d42-832d-fcdfda6555ea",
         "oracleId": "7744bae4-a8b7-44a5-9b4c-0048ad4cc448",
@@ -834,6 +840,12 @@
         "firstSet": "dsk"
     },
     {
+        "name": "Blazing Specter",
+        "scryfallId": "3bd397be-0e61-4f41-b0cf-f0c9d2440da7",
+        "oracleId": "4c046368-5899-42ef-9972-3a3a6c8fe3fd",
+        "firstSet": "inv"
+    },
+    {
         "name": "Bleachbone Verge",
         "scryfallId": "52dcdabd-a186-45fe-9fee-6c0f1afeaf16",
         "oracleId": "2b8144a0-08d2-4c28-9fd7-5d90f90105e4",
@@ -898,6 +910,12 @@
         "scryfallId": "68c72226-6f52-4322-8b14-18737293dfa0",
         "oracleId": "fc0707c7-d504-4ccf-a0d2-3eb6e26e7a57",
         "firstSet": "ons"
+    },
+    {
+        "name": "Bloodstone Cameo",
+        "scryfallId": "f9db32fa-64b2-4ef6-88f2-28e758d420bb",
+        "oracleId": "1ce6ae30-33c3-4f05-9286-69b0871b1c2d",
+        "firstSet": "inv"
     },
     {
         "name": "Blooming Marsh",
@@ -2742,6 +2760,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Firescreamer",
+        "scryfallId": "155a2213-bf6e-4a54-924b-e450b7d06f26",
+        "oracleId": "b86c0c23-bb29-4af0-bbd4-50b3ae634375",
+        "firstSet": "inv"
+    },
+    {
         "name": "Fishliver Oil",
         "scryfallId": "deb6ed87-aa07-4b5e-ac40-1e16dc2a817a",
         "oracleId": "75457fe5-4ab6-42c4-98e5-8ed6e8bf122c",
@@ -3790,6 +3814,12 @@
         "scryfallId": "ad732186-eeb9-4edb-a17a-51f8bac71802",
         "oracleId": "45beca46-480c-4771-ba46-78b6ac7d5c2c",
         "firstSet": "chk"
+    },
+    {
+        "name": "Hooded Kavu",
+        "scryfallId": "5464b80a-22fe-42c7-a839-31667712fb2d",
+        "oracleId": "52934f16-eb9b-4d0a-b372-155461660f6e",
+        "firstSet": "inv"
     },
     {
         "name": "Horizon Canopy",
@@ -6156,6 +6186,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Plague Spores",
+        "scryfallId": "0d106d56-a688-49cc-8d5d-0279a5a7c0a7",
+        "oracleId": "f79f5cb7-d238-41ab-85f0-eb21cc6bf561",
+        "firstSet": "inv"
+    },
+    {
         "name": "Plains",
         "scryfallId": "b1623d57-4729-4796-b3f7-f1837a05c6ed",
         "oracleId": "bc71ebf6-2056-41f7-be35-b2e5c34afa99",
@@ -6592,6 +6628,12 @@
         "scryfallId": "33296718-0625-4422-a65c-b21cf99c52ec",
         "oracleId": "4158f397-4ee4-4f53-90f2-3b64bfe4f9b8",
         "firstSet": "leg"
+    },
+    {
+        "name": "Reckless Assault",
+        "scryfallId": "ff0f568e-4d3a-40a5-b72a-63040ec5402d",
+        "oracleId": "320820e4-3c7e-4e4d-b23c-63bf13a68e73",
+        "firstSet": "inv"
     },
     {
         "name": "Reckless Spite",
@@ -7320,6 +7362,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Shivan Zombie",
+        "scryfallId": "f4c99269-f730-4d33-bbce-9e855e9ad0fc",
+        "oracleId": "fb3d438e-5e04-45a0-8d16-db63f0faff75",
+        "firstSet": "inv"
+    },
+    {
         "name": "Shyft",
         "scryfallId": "99a60c33-b641-42c4-870d-95d07bc975dc",
         "oracleId": "40c3007a-be6c-4400-9139-12b9ca098ac4",
@@ -7450,6 +7498,12 @@
         "scryfallId": "7c67788e-d713-47c3-ab9f-b8a6212ae24f",
         "oracleId": "8aa97d25-cd51-4ceb-b7eb-af64f0914a8c",
         "firstSet": "lea"
+    },
+    {
+        "name": "Smoldering Tar",
+        "scryfallId": "fcdc55c0-c8ac-49d5-969b-9bf0ee8e696c",
+        "oracleId": "f268699f-c0a2-43f7-b933-7665599ab5ff",
+        "firstSet": "inv"
     },
     {
         "name": "Snapcaster Mage",
@@ -8562,6 +8616,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Trench Wurm",
+        "scryfallId": "1b076f85-d1bf-491a-af9d-f35b8e1bd163",
+        "oracleId": "9cf65178-6408-46da-a940-f5cb0960b61f",
+        "firstSet": "inv"
+    },
+    {
         "name": "Tribal Flames",
         "scryfallId": "9b32531e-c759-4603-abd0-1724e8df70db",
         "oracleId": "c82eda61-d195-49c9-8ff0-a78dfa650689",
@@ -8748,6 +8808,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Urborg Volcano",
+        "scryfallId": "c76f346c-ae34-4f5f-8e3b-6c77b0c4d530",
+        "oracleId": "018129dd-f578-4fc9-b6f8-b13ed0c75a8d",
+        "firstSet": "inv"
+    },
+    {
         "name": "Urborg, Tomb of Yawgmoth",
         "scryfallId": "19e1224f-82cb-4f41-8739-f880cba61bbb",
         "oracleId": "db6174d7-211d-4817-b8e4-8384594c83f9",
@@ -8890,6 +8956,12 @@
         "scryfallId": "48f93ded-ecf6-4a70-8ca3-a9c0c3201c21",
         "oracleId": "8a8fe94f-81aa-4725-ace6-ed56a1e1ed91",
         "firstSet": "ice"
+    },
+    {
+        "name": "Vicious Kavu",
+        "scryfallId": "31e9e629-7c25-4d45-aa35-9ba5f95b43cb",
+        "oracleId": "236fbf12-f908-4918-babb-1558e767cbe3",
+        "firstSet": "inv"
     },
     {
         "name": "Vile Consumption",

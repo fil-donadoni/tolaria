@@ -1936,8 +1936,7 @@ function execForEach(
                 controllerId = resolvePlayerRef(ctx, body.controller);
                 controllerUnresolvable = controllerId === undefined;
             }
-            const entries: { playerId: string; cardInstanceId: string }[] =
-                [];
+            const entries: { playerId: string; cardInstanceId: string }[] = [];
             if (!controllerUnresolvable) {
                 for (const id of members) {
                     const owner = ctx.getGraveyardCardOwner(id);

@@ -9,6 +9,7 @@ import {
     resolveTopOfStack,
     type StackItem,
 } from "../../../../gre/state";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 
 export function resolveActivated(
     state: GameState,
@@ -43,4 +44,20 @@ export function resolveTrigger(
         targets,
     });
     resolveTopOfStack(state);
+}
+
+/** Answers the head `pendingChoices` entry (a `choice` Op suspension, e.g.
+ *  `choose-hand-card`) with the given card instance ids (CR 608.2). */
+export function submitChoice(
+    state: GameState,
+    cardInstanceIds: string[]
+): void {
+    const head = state.pendingChoices![0];
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds,
+    });
 }
