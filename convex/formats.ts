@@ -69,6 +69,21 @@ export interface ValidatableDeck {
 export type ResolveCard = (cardId: string) => DeckCardMeta | null;
 
 /**
+ * An injected banlist override (PRD #1138, issue #1140): banned/restricted
+ * card ids for a single format, sourced from the DB (name→id resolved live at
+ * read time by the caller) rather than the code-side constants below. Mirrors
+ * the existing injected `resolve` dependency (ADR 0036) so `validateDeck` /
+ * `assertDeckLegal` stay pure — the DB read happens above this module, never
+ * inside it. When omitted, each format's own code constants
+ * (`PREMODERN_BANNED`, `OLD_SCHOOL_BANNED`, `OLD_SCHOOL_RESTRICTED`) are used
+ * as the seed/fallback, so existing callers and tests are unaffected.
+ */
+export interface BanlistOverride {
+    banned: ReadonlySet<string>;
+    restricted: ReadonlySet<string>;
+}
+
+/**
  * Static metadata + the per-format validator. Shared fields (`allowedSets`,
  * `minMain`, `maxSide`) drive the shared helpers (`checkSize`, `checkSets`)
  * that compose into each `validate`; the bespoke parts (later slices) live in
@@ -85,8 +100,14 @@ export interface FormatMeta {
     /** Maximum sideboard size. `null` = no maximum (Freeform). */
     maxSide: number | null;
     /** Pure legality check. Returns the list of failure reasons (empty = legal),
-     *  using `resolve` for any card-level lookup. */
-    validate: (deck: ValidatableDeck, resolve: ResolveCard) => Reason[];
+     *  using `resolve` for any card-level lookup. `banlist`, when present, is an
+     *  injected banned/restricted override (issue #1140) — a format whose
+     *  banlist is not DB-backed (Alpha 40, Freeform) simply ignores it. */
+    validate: (
+        deck: ValidatableDeck,
+        resolve: ResolveCard,
+        banlist?: BanlistOverride
+    ) => Reason[];
 }
 
 // --- Shared validation helpers (ADR 0036) ---------------------------------
@@ -351,19 +372,26 @@ const OLD_SCHOOL_COPY_LIMIT = 4;
  * the 4-copy limit + the Eternal Central Restricted list + the (guard) Banned
  * list. Composed from the shared helpers; each violation surfaces its own
  * precise `Reason`. Counting for the copy/restricted/banned rules is by Card ID
- * across printings, with basics exempt.
+ * across printings, with basics exempt. When `banlist` is injected (issue
+ * #1140), its `banned`/`restricted` sets override the code constants; absent,
+ * `OLD_SCHOOL_BANNED`/`OLD_SCHOOL_RESTRICTED` are the seed/fallback.
  */
 function oldSchoolValidate(
     deck: ValidatableDeck,
-    resolve: ResolveCard
+    resolve: ResolveCard,
+    banlist?: BanlistOverride
 ): Reason[] {
     const meta = FORMAT_RULES["old-school"];
     return [
         ...checkSize(deck, meta),
         ...checkSets(deck, meta, resolve),
         ...checkCopyLimit(deck, OLD_SCHOOL_COPY_LIMIT, resolve),
-        ...checkRestricted(deck, OLD_SCHOOL_RESTRICTED, resolve),
-        ...checkBanned(deck, OLD_SCHOOL_BANNED, resolve),
+        ...checkRestricted(
+            deck,
+            banlist?.restricted ?? OLD_SCHOOL_RESTRICTED,
+            resolve
+        ),
+        ...checkBanned(deck, banlist?.banned ?? OLD_SCHOOL_BANNED, resolve),
     ];
 }
 
@@ -720,18 +748,21 @@ const PREMODERN_COPY_LIMIT = 4;
  * membership (the 4th-Edition→Scourge + Portal pool) + the 4-copy limit + the
  * Banned list. Premodern has NO restricted list, so none is applied. Composed
  * from the shared helpers; counting for copy/banned is by Card ID across
- * printings, with basics exempt.
+ * printings, with basics exempt. When `banlist` is injected (issue #1140),
+ * its `banned` set overrides `PREMODERN_BANNED`; absent, the code constant is
+ * the seed/fallback.
  */
 function premodernValidate(
     deck: ValidatableDeck,
-    resolve: ResolveCard
+    resolve: ResolveCard,
+    banlist?: BanlistOverride
 ): Reason[] {
     const meta = FORMAT_RULES["premodern"];
     return [
         ...checkSize(deck, meta),
         ...checkSets(deck, meta, resolve),
         ...checkCopyLimit(deck, PREMODERN_COPY_LIMIT, resolve),
-        ...checkBanned(deck, PREMODERN_BANNED, resolve),
+        ...checkBanned(deck, banlist?.banned ?? PREMODERN_BANNED, resolve),
     ];
 }
 
@@ -800,14 +831,22 @@ export interface DeckLegality {
  * dependency (overridable in tests). An unknown `format` is treated as Freeform
  * (legal) defensively; the schema union already prevents a non-conforming value
  * from being stored.
+ *
+ * `banlist` (issue #1140, PRD #1138) is an optional injected banned/restricted
+ * override, mirroring `resolve` — mandatory purity, no DB access inside this
+ * module. Absent, each format's `validate` falls back to its own code
+ * constants (`PREMODERN_BANNED`, `OLD_SCHOOL_BANNED`, `OLD_SCHOOL_RESTRICTED`),
+ * so existing callers and tests are unaffected. Formats without a DB-backed
+ * banlist (Alpha 40, Freeform) ignore the argument.
  */
 export function validateDeck(
     deck: ValidatableDeck,
     format: FormatId,
-    resolve: ResolveCard = resolveDeckCardMeta
+    resolve: ResolveCard = resolveDeckCardMeta,
+    banlist?: BanlistOverride
 ): DeckLegality {
     const meta = FORMAT_RULES[format] ?? FORMAT_RULES.freeform;
-    const reasons = meta.validate(deck, resolve);
+    const reasons = meta.validate(deck, resolve, banlist);
     return { isLegal: reasons.length === 0, reasons };
 }
 
@@ -827,13 +866,17 @@ export interface GateDeck extends ValidatableDeck {
  * tested directly (the project has no convex-test harness). A raw `format`
  * string is normalized: an unknown value falls back to Freeform (always legal),
  * mirroring `validateDeck`. The thrown message lists every failure reason.
+ *
+ * `banlist` (issue #1140) is threaded straight through to `validateDeck` —
+ * optional injected override, code constants as fallback when absent.
  */
 export function assertDeckLegal(
     deck: GateDeck,
-    resolve: ResolveCard = resolveDeckCardMeta
+    resolve: ResolveCard = resolveDeckCardMeta,
+    banlist?: BanlistOverride
 ): void {
     const format: FormatId = isFormatId(deck.format) ? deck.format : "freeform";
-    const { isLegal, reasons } = validateDeck(deck, format, resolve);
+    const { isLegal, reasons } = validateDeck(deck, format, resolve, banlist);
     if (isLegal) return;
     const label = deck.name ? `"${deck.name}"` : "Deck";
     throw new Error(
