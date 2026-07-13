@@ -7,6 +7,19 @@ type PresetScenario = {
         tapped?: boolean;
         /** Number of copies to place in the zone. Default 1. */
         count?: number;
+        /** Position within the library, counted from the TOP (index 0, where
+         *  `drawCard` reads). `1` = top card, `2` = second from top; negatives
+         *  count from the bottom, so `-1` = bottom card, `-2` = second from
+         *  bottom. Only meaningful for `zone: "library"`. Default: bottom
+         *  (appended). With `count > 1` the copies are placed consecutively
+         *  starting at this position. */
+        position?: number;
+        /** Attach this Aura/Equipment to another battlefield permanent by card
+         *  name (CR 303.4 / 701.3 — sets `attachedTo`). The host is looked up on
+         *  the owner's battlefield first, then the opponent's; the first match
+         *  wins, so keep host names unambiguous within the scenario.
+         *  Battlefield only. */
+        attachedTo?: string;
         /** Marked damage (CR 120.3) on a battlefield creature. */
         damageMarked?: number;
         /** Place face down (CR 708.2): a 2/2 colourless vanilla creature whose
@@ -60,23 +73,6 @@ type PresetScenario = {
 };
 
 export const PRESET_SCENARIOS: PresetScenario[] = [
-    {
-        // Gaea's Blessing mill trigger (issue #1055): tap Millstone targeting
-        // yourself to mill your own library. Gaea's Blessing (seeded on top of
-        // your library) is milled, its "when this card is put into your
-        // graveyard from your library" trigger fires, and your whole graveyard
-        // (the two Forests + Gaea) shuffles back into your library.
-        // `libraryCount` is intentionally UNSET so the seeded Gaea stays the
-        // library's only card and is milled first.
-        label: "Gaea's Blessing — mill trigger",
-        cards: [
-            { name: "Gaea's Blessing", owner: "me", zone: "library" },
-            { name: "Forest", owner: "me", zone: "graveyard", count: 2 },
-            { name: "Millstone", owner: "me", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 2,
-    },
     {
         // Domain payoff board (issue #1066): all five basic land types in play
         // for "me" (Domain 5) so every Domain-scaled effect is at its maximum.
@@ -133,61 +129,33 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
-        label: "Fury",
+        // Aura attachment via `attachedTo` + library `position`. Holy Strength
+        // (+1/+2, CR 303.4) enters already attached to "me"'s Grizzly Bears, so
+        // the 2/2 reads 3/4 on the board with no cast step. A second Grizzly
+        // Bears sits on the OPPONENT's side, and Pacifism-style targeting is not
+        // needed — the debug seed wires the link directly. The library is seeded
+        // with a known top card (`position: 1`) and a known bottom card
+        // (`position: -1`) so a draw pulls Lightning Bolt first while Opt stays
+        // buried at the bottom. `libraryCount` is UNSET so the seeds survive.
+        label: "Aura attach + library position — Holy Strength on Grizzly Bears",
         cards: [
-            { name: "Fury", owner: "me", zone: "hand" },
-            { name: "Mountain", owner: "me", zone: "battlefield", count: 5 },
-            { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
             {
-                name: "Grizzly Bears",
-                owner: "opp",
+                name: "Holy Strength",
+                owner: "me",
                 zone: "battlefield",
-                count: 2,
+                attachedTo: "Grizzly Bears",
             },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Vampiric Tutor — tutor-to-top (issue #1125, CR 701.19 / 701.20 /
-        // 401.4). Cast Vampiric Tutor with one Swamp untapped: search your
-        // library for a card (e.g. Lightning Bolt), then shuffle and put that
-        // card on top — the search-then-shuffle-then-top template exercised
-        // via the new `moveZone` `to: "library-top"` destination — then lose
-        // 2 life. `libraryCount` is intentionally UNSET (mirrors the Gaea's
-        // Blessing / Fact or Fiction scenarios above) so these seeded library
-        // entries stay the whole search space.
-        label: "Vampiric Tutor (#1125) — search, shuffle, put on top",
-        cards: [
-            { name: "Vampiric Tutor", owner: "me", zone: "hand" },
-            { name: "Swamp", owner: "me", zone: "battlefield" },
-            { name: "Lightning Bolt", owner: "me", zone: "library" },
-            { name: "Grizzly Bears", owner: "me", zone: "library" },
-            { name: "Opt", owner: "me", zone: "library" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Solitary Confinement (#1130, parent PRD #1058) — Solitary
-        // Confinement already in play with a card in hand (to feed the next
-        // upkeep's discard-or-sacrifice trigger, #1129) and an opponent
-        // holding Lightning Bolt: try to target "me" with it (rejected —
-        // CR 702.18 shroud, the player-scoped guard from #1128) versus
-        // targeting the opponent's own creature (accepted, and the damage
-        // is dealt normally — the prevention is controller-scoped). Passing
-        // the turn to "me"'s next upkeep exercises the discard-or-sacrifice
-        // trigger; the draw step is skipped automatically the whole time.
-        // `landCount` covers the opponent's {R} for Lightning Bolt.
-        label: "Solitary Confinement (#1130) — shroud + damage prevention + upkeep discard",
-        cards: [
-            { name: "Solitary Confinement", owner: "me", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "me", zone: "hand" },
-            { name: "Lightning Bolt", owner: "opp", zone: "hand" },
             { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            {
+                name: "Lightning Bolt",
+                owner: "me",
+                zone: "library",
+                position: 1,
+            },
+            { name: "Opt", owner: "me", zone: "library", position: -1 },
         ],
         phase: "PRECOMBAT_MAIN",
-        landCount: 3,
-        turn: 2,
+        landCount: 2,
     },
 ];

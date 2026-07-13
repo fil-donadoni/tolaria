@@ -9443,6 +9443,17 @@ export const debugSetupScenario = mutation({
                 ),
                 tapped: v.optional(v.boolean()),
                 count: v.optional(v.number()),
+                /** Position within the library, counted from the TOP (index 0,
+                 *  where `drawCard` reads): `1` = top, `2` = second from top;
+                 *  negatives count from the bottom (`-1` = bottom). Library zone
+                 *  only. Default: bottom (appended). With `count > 1` the copies
+                 *  are placed consecutively starting at this position. */
+                position: v.optional(v.number()),
+                /** Attach this Aura/Equipment to another battlefield permanent by
+                 *  card name (CR 303.4 / 701.3 — sets `attachedTo`). Host looked
+                 *  up on the owner's battlefield first, then the opponent's; first
+                 *  match wins. Battlefield only. */
+                attachedTo: v.optional(v.string()),
                 /** Marked damage (CR 120.3) on a battlefield creature. */
                 damageMarked: v.optional(v.number()),
                 /** Place this card face down (CR 708.2, ADR 0013): a 2/2
@@ -9563,6 +9574,14 @@ export const debugSetupScenario = mutation({
             };
         }
 
+        // Auras/Equipment whose `attachedTo` host must be resolved by name once
+        // every card has been placed (the host may appear later in `args.cards`).
+        const pendingAttach: {
+            aura: CardInstanceState;
+            hostName: string;
+            ownerId: string;
+        }[] = [];
+
         // Place requested cards
         for (const entry of args.cards) {
             const player = entry.owner === "me" ? p1 : p2;
@@ -9575,12 +9594,24 @@ export const debugSetupScenario = mutation({
                 if (zone === "hand") {
                     player.hand.push(instance);
                 } else if (zone === "library") {
-                    // Placed on TOP of the existing deck so a tutor/fetch (e.g.
-                    // a fetch land searching for a specific shock land, CR
-                    // 614.12) can find a known target. `libraryCount` (if set)
+                    // Appended to the BOTTOM of the existing deck by default
+                    // (library index 0 = top, where `drawCard` reads), or spliced
+                    // at an explicit `position` (1 = top, -1 = bottom; negatives
+                    // count from the bottom) so a mill/tutor/fetch can find a
+                    // known target at a known depth. `libraryCount` (if set)
                     // resets the library AFTER this loop, so a scenario seeding
                     // a specific library card must leave `libraryCount` unset.
-                    player.library.push(instance as CardInstanceState);
+                    const lib = player.library;
+                    if (entry.position !== undefined) {
+                        const p = entry.position;
+                        const idx =
+                            p >= 0
+                                ? Math.min(Math.max(p - 1, 0), lib.length)
+                                : Math.max(lib.length + p + 1, 0);
+                        lib.splice(idx, 0, instance as CardInstanceState);
+                    } else {
+                        lib.push(instance as CardInstanceState);
+                    }
                 } else if (zone === "graveyard") {
                     player.graveyard.push(instance);
                 } else if (zone === "exile") {
@@ -9639,6 +9670,16 @@ export const debugSetupScenario = mutation({
                         } as unknown as CardInstanceState;
                         applyCopy(instance as CardInstanceState, source);
                     }
+                    // CR 303.4 / 701.3 — queue this Aura/Equipment for
+                    // attachment; the host is resolved by name after every card
+                    // is placed (it may be listed later in `args.cards`).
+                    if (entry.attachedTo) {
+                        pendingAttach.push({
+                            aura: instance as CardInstanceState,
+                            hostName: entry.attachedTo,
+                            ownerId: player.id,
+                        });
+                    }
                     player.battlefield.push(instance);
                 }
             }
@@ -9649,6 +9690,24 @@ export const debugSetupScenario = mutation({
         for (let i = 0; i < landCount; i++) {
             p1.battlefield.push(makeInstance("Plains", p1.id, "battlefield"));
             p2.battlefield.push(makeInstance("Plains", p2.id, "battlefield"));
+        }
+
+        // CR 303.4 / 701.3 — resolve queued Aura/Equipment attachments now that
+        // every permanent is on the battlefield. The host is matched by card id
+        // (derived from the given name), searching the aura owner's battlefield
+        // first and the opponent's second; the first match wins.
+        for (const { aura, hostName, ownerId } of pendingAttach) {
+            const hostDef = getCardByName(hostName);
+            const owner = state.players.find((pl) => pl.id === ownerId);
+            const opp = state.players.find((pl) => pl.id !== ownerId);
+            const findHost = (pl: PlayerState | undefined) =>
+                pl?.battlefield.find(
+                    (c) =>
+                        c.id !== aura.id &&
+                        (c.card as { id?: string }).id === hostDef.id
+                );
+            const host = findHost(owner) ?? findHost(opp);
+            if (host) aura.attachedTo = host.id;
         }
 
         // Fill libraries if requested

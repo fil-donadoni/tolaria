@@ -78,7 +78,7 @@ export const solitaryConfinement: CardDefinition = {
             id: "solitary-confinement-upkeep",
             oracleText:
                 "At the beginning of your upkeep, sacrifice this enchantment unless you discard a card.",
-            prompt: "Discard a card, or sacrifice Solitary Confinement?",
+            prompt: "Discard a card?",
             onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
     ],
