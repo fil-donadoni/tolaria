@@ -39,6 +39,7 @@ import ResultsGrid from "./results-grid";
 import SaveDeckBar from "./save-deck-bar";
 import SearchBar from "./search-bar";
 import FormatSelect from "./format-select";
+import DeckBanlistPanel from "./deck-banlist-panel";
 import SetFilter from "./set-filter";
 import TypeFilter from "./type-filter";
 import DeckLegalityPanel from "./deck-legality-panel";
@@ -620,6 +621,7 @@ export default function DeckBuilder({
                                 readOnly={formatReadOnly}
                                 onChange={handleSetFormat}
                             />
+                            <DeckBanlistPanel format={deck.format} />
                         </div>
                         <SearchBar value={rawText} onChange={setText} />
                     </div>

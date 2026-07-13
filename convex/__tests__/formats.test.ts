@@ -12,16 +12,31 @@ import {
     FORMAT_RULES,
     isFormatId,
     OLD_SCHOOL_BANNED,
+    OLD_SCHOOL_BANLIST_SEED,
     OLD_SCHOOL_RESTRICTED,
+    PREMODERN_BANLIST_SEED,
+    PREMODERN_BANNED,
+    resolveBanlistEnforcement,
     validateDeck,
+    type BanlistEntry,
     type BanlistOverride,
     type FormatId,
     type ResolveCard,
+    type ResolveCardByName,
     type ValidatableDeck,
 } from "../formats";
 import type { DeckCard } from "../deckPresets";
-import { resolveDeckCardMeta, type DeckCardMeta } from "../cards";
+import {
+    resolveDeckCardMeta,
+    tryGetCardByName,
+    type DeckCardMeta,
+} from "../cards";
 import { normalizeLegacyFormat } from "../userDecks";
+
+// Real `nameRegistry` resolver (issue #1141): structurally satisfies
+// `ResolveCardByName` — used by the seed round-trip tests below to prove the
+// name-keyed seed reproduces the SAME id sets as the id-keyed code consts.
+const realResolveByName: ResolveCardByName = (name) => tryGetCardByName(name);
 
 // Deck Formats — legality pipeline slice (PRD #509, ADR 0036, issue #512). The
 // size + set-membership tracer bullet. These tests pin the registry metadata,
@@ -1335,5 +1350,138 @@ describe("Alpha 40 full legality (issue #517, ADR 0036)", () => {
             );
             expect(reasons).toEqual([]);
         });
+    });
+});
+
+// --- resolveBanlistEnforcement (PRD #1138, issue #1141) --------------------
+//
+// The pure name→id resolver `getBanlistEnforcement` (convex/banlists.ts)
+// delegates to. A stub `resolve` stands in for the real `nameRegistry`
+// (`tryGetCardByName`) so these tests never touch the card catalogue.
+
+describe("resolveBanlistEnforcement — name→id resolution (issue #1141)", () => {
+    // A tiny stub registry: only "Demonic Tutor" and "Balance" are "built".
+    // "Parallax Tide" is deliberately absent — the unbuilt-name case.
+    const stubResolve: ResolveCardByName = (name) => {
+        const ids: Record<string, string> = {
+            "Demonic Tutor": "id-demonic-tutor",
+            Balance: "id-balance",
+        };
+        const id = ids[name];
+        return id ? { id } : null;
+    };
+
+    it("maps a built name into the correct set by status", () => {
+        const entries: BanlistEntry[] = [
+            { cardName: "Demonic Tutor", status: "banned" },
+            { cardName: "Balance", status: "restricted" },
+        ];
+        const { banned, restricted } = resolveBanlistEnforcement(
+            entries,
+            stubResolve
+        );
+        expect(banned.has("id-demonic-tutor")).toBe(true);
+        expect(restricted.has("id-balance")).toBe(true);
+        expect(banned.size).toBe(1);
+        expect(restricted.size).toBe(1);
+    });
+
+    it("drops an unbuilt name (Parallax Tide) from enforcement", () => {
+        const entries: BanlistEntry[] = [
+            { cardName: "Demonic Tutor", status: "banned" },
+            { cardName: "Parallax Tide", status: "banned" },
+        ];
+        const { banned, restricted } = resolveBanlistEnforcement(
+            entries,
+            stubResolve
+        );
+        // Only the built name resolves into enforcement...
+        expect(banned.has("id-demonic-tutor")).toBe(true);
+        expect(banned.size).toBe(1);
+        // ...Parallax Tide contributes nothing (dropped, not thrown).
+        expect(restricted.size).toBe(0);
+    });
+
+    it("an empty entry list resolves to empty sets", () => {
+        const { banned, restricted } = resolveBanlistEnforcement(
+            [],
+            stubResolve
+        );
+        expect(banned.size).toBe(0);
+        expect(restricted.size).toBe(0);
+    });
+});
+
+describe("Banlist seeds (issue #1141) — non-empty, Parallax Tide present", () => {
+    it("PREMODERN_BANLIST_SEED is non-empty and includes Parallax Tide", () => {
+        expect(PREMODERN_BANLIST_SEED.length).toBeGreaterThan(0);
+        expect(
+            PREMODERN_BANLIST_SEED.some((e) => e.cardName === "Parallax Tide")
+        ).toBe(true);
+        // Premodern has no official restricted list — every seed row is banned.
+        expect(PREMODERN_BANLIST_SEED.every((e) => e.status === "banned")).toBe(
+            true
+        );
+    });
+
+    it("OLD_SCHOOL_BANLIST_SEED is non-empty and covers both statuses", () => {
+        expect(OLD_SCHOOL_BANLIST_SEED.length).toBeGreaterThan(0);
+        expect(
+            OLD_SCHOOL_BANLIST_SEED.some((e) => e.status === "restricted")
+        ).toBe(true);
+        expect(OLD_SCHOOL_BANLIST_SEED.some((e) => e.status === "banned")).toBe(
+            true
+        );
+    });
+
+    it("resolving the Old School seed's restricted names through the REAL registry reproduces OLD_SCHOOL_RESTRICTED", () => {
+        // Every Restricted-list card IS built, so the name-keyed seed must
+        // resolve to the exact same id set as the id-keyed code const —
+        // otherwise the seed has silently drifted from OLD_SCHOOL_RESTRICTED.
+        const { restricted } = resolveBanlistEnforcement(
+            OLD_SCHOOL_BANLIST_SEED,
+            realResolveByName
+        );
+        expect(restricted).toEqual(OLD_SCHOOL_RESTRICTED);
+    });
+
+    it("the Old School seed's banned names (Chaos Orb, Falling Star, Shahrazad) are all unbuilt — dropped, not the guard id", () => {
+        // OLD_SCHOOL_BANNED hardcodes a documentation-guard id for the
+        // commented-out Chaos Orb stub (it isn't resolvable by name because
+        // it isn't registered). Resolving the seed's banned names through the
+        // REAL registry must therefore come back EMPTY — proof the drop
+        // behavior holds for the real catalogue, not just a stub.
+        const { banned } = resolveBanlistEnforcement(
+            OLD_SCHOOL_BANLIST_SEED,
+            realResolveByName
+        );
+        expect(banned.size).toBe(0);
+    });
+
+    it("the Premodern seed's built names cover PREMODERN_BANNED and pick up cards built since the guard comment was written", () => {
+        // Real-registry round trip (no stub): every id PREMODERN_BANNED
+        // already lists must still resolve from the seed's names (no drift),
+        // PLUS Parallax Tide/Mystical Tutor/Vampiric Tutor — cards that were
+        // stubbed guards when this seed's rationale was written but have
+        // since shipped, so they now correctly enforce too. Amulet of Quoz
+        // stays deferred (ADR 0010, ante card) and is still dropped.
+        const { banned } = resolveBanlistEnforcement(
+            PREMODERN_BANLIST_SEED,
+            realResolveByName
+        );
+        for (const id of PREMODERN_BANNED) {
+            expect(banned.has(id)).toBe(true);
+        }
+        for (const name of [
+            "Parallax Tide",
+            "Mystical Tutor",
+            "Vampiric Tutor",
+        ]) {
+            const card = tryGetCardByName(name);
+            expect(card).not.toBeNull();
+            expect(banned.has(card!.id)).toBe(true);
+        }
+        expect(tryGetCardByName("Amulet of Quoz")).toBeNull();
+        expect(banned.size).toBe(PREMODERN_BANNED.size + 3);
     });
 });
