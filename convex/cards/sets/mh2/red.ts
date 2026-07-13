@@ -1,4 +1,5 @@
 // mh2 — red cards (ADR 0043 colour split).
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import type { CardDefinition } from "../../types";
 
 // Mine Collapse — {3}{R} Instant. "If it's your turn, you may sacrifice a
@@ -34,23 +35,42 @@ export const mineCollapse: CardDefinition = {
     effects: [{ op: "dealDamage", amount: 5, to: { target: 0 } }],
 };
 
-// TODO(issue #679 stub — Fury needs Evoke (CR 702.74): mechanicsRegistry.ts
-// lists it `status: "planned"` — same gap already flagged for Solitude
-// (mh2/white.ts) and Subtlety (mh2/blue.ts). Evoke is integral to the card
-// (its only realistic cast path in a Cube context), so — matching the
-// Solitude/Subtlety precedent — the whole card stays a stub rather than
-// shipping a hard-cast-only partial. Stop-and-issue per gre-development.md;
-// tracked stub.
-// export const fury: CardDefinition = {
-//     id: "bd281158-8180-40b9-a5b7-03cfc712d81a",
-//     name: "Fury",
-//     rarity: "mythic",
-//     manaCost: { X: 3, R: 2 },
-//     types: ["Creature"],
-//     subtypes: ["Elemental", "Incarnation"],
-//     power: 3,
-//     toughness: 3,
-// };
+export const fury: CardDefinition = {
+    id: "bd281158-8180-40b9-a5b7-03cfc712d81a",
+    name: "Fury",
+    rarity: "mythic",
+    manaCost: { X: 3, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Elemental", "Incarnation"],
+    power: 3,
+    toughness: 3,
+    alternativeCosts: [
+        {
+            id: "pitch-exile-red",
+            description: "Exile a red card from your hand",
+            handCost: {
+                action: "exile",
+                requirements: [{ filter: { color: "R" }, count: 1 }],
+            },
+        },
+    ],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "fury-etb",
+            oracleText:
+                "When this creature enters, it deals 4 damage divided as you choose among any number of target creatures and/or planeswalkers.",
+            scope: "any",
+            targetRequirement: {
+                type: "Creature",
+                count: { min: 1 },
+                divideAsChosen: { total: 4 },
+            },
+            resolve: (ctx) => {
+                ctx.dealDamageDividedAsChosen(ctx.targets, 4);
+            },
+        }),
+    ],
+};
 
 // Unholy Heat — {R} Instant. "Unholy Heat deals 2 damage to target creature or
 // planeswalker. Delirium — Unholy Heat deals 6 damage instead if there are four

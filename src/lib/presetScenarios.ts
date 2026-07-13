@@ -133,6 +133,22 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
+        label: "Fury",
+        cards: [
+            { name: "Fury", owner: "me", zone: "hand" },
+            { name: "Mountain", owner: "me", zone: "battlefield", count: 5 },
+            { name: "Lightning Bolt", owner: "me", zone: "hand" },
+            {
+                name: "Grizzly Bears",
+                owner: "opp",
+                zone: "battlefield",
+                count: 2,
+            },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
+    {
         // Vampiric Tutor — tutor-to-top (issue #1125, CR 701.19 / 701.20 /
         // 401.4). Cast Vampiric Tutor with one Swamp untapped: search your
         // library for a card (e.g. Lightning Bolt), then shuffle and put that
