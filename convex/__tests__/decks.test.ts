@@ -422,7 +422,7 @@ describe("deletePreset — admin gate + hard delete by slug (issue #470)", () =>
     it("drops the deleted slug from the lobby list projection", () => {
         const target = PRESET_DECKS[0].presetId;
         const after = deleteBySlug(rows, target);
-        const listed = sortLobbyPresets(after.map(presetRowToLobby));
+        const listed = sortLobbyPresets(after.map((r) => presetRowToLobby(r)));
         expect(listed.some((d) => d.presetId === target)).toBe(false);
     });
 });

@@ -32,6 +32,7 @@ import {
     type DeckCardMeta,
 } from "../cards";
 import { normalizeLegacyFormat } from "../userDecks";
+import { resolveBanlistEnforcementForFormat } from "../banlists";
 
 // Real `nameRegistry` resolver (issue #1141): structurally satisfies
 // `ResolveCardByName` — used by the seed round-trip tests below to prove the
@@ -1483,5 +1484,98 @@ describe("Banlist seeds (issue #1141) — non-empty, Parallax Tide present", () 
         }
         expect(tryGetCardByName("Amulet of Quoz")).toBeNull();
         expect(banned.size).toBe(PREMODERN_BANNED.size + 3);
+    });
+});
+
+// --- Server-gate integration: loadBanlistOverrides resolution + assertDeckLegal
+// (PRD #1138, issue #1144) --------------------------------------------------
+//
+// `loadBanlistOverrides` (`convex/banlists.ts`) is a thin wrapper: read DB rows
+// via `ctx.db`, then resolve them with `resolveBanlistEnforcementForFormat`
+// (the SAME pure core `getBanlistEnforcement` uses) — exactly the shape the
+// project's no-convex-test-harness convention models directly (prior art:
+// `decks.test.ts`, `matchLifecycle.test.ts`). These tests exercise that
+// resolution against the REAL card registry (`tryGetCardByName`) and feed the
+// result straight into `assertDeckLegal`, the authoritative game-start gate
+// (`game.ts`) and the deck-save legality seam (`decks.ts`) both call after
+// `loadBanlistOverrides` resolves — the highest seam short of a real mutation.
+describe("Server-gate integration — loadBanlistOverrides resolution + assertDeckLegal (issue #1144)", () => {
+    // Necropotence: banned in Premodern, with a Premodern-legal (ice) printing
+    // — chosen (like the earlier fallback test) so a rejection is unambiguously
+    // the BANNED reason, not an incidental set-not-allowed from an off-pool
+    // printing.
+    const NECRO_ID = "54d7a0c1-efb4-4a8d-ad92-a96d43835052";
+    const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56";
+
+    function premodernDeckWith(necroCopies: 0 | 1) {
+        return {
+            name: "Necro Sync Test",
+            format: "premodern",
+            cards: [
+                ...(necroCopies === 1
+                    ? [card(NECRO_ID, "Necropotence")]
+                    : []),
+                ...Array.from(
+                    { length: 60 - necroCopies },
+                    () => card(MOUNTAIN, "Mountain")
+                ),
+            ],
+        };
+    }
+
+    it("a DB row (simulating a post-sync `formatBanlists` table) rejects a deck with the banned built card", () => {
+        // Models the DB read `loadBanlistOverrides` performs: a single fresh
+        // row, resolved through the SAME pure core the server helper wraps.
+        const dbRows = [{ cardName: "Necropotence", status: "banned" as const }];
+        const banlist = resolveBanlistEnforcementForFormat(
+            "premodern",
+            dbRows,
+            tryGetCardByName
+        );
+        expect(banlist.banned.size).toBeGreaterThan(0);
+
+        const legalDeck = premodernDeckWith(0);
+        expect(() => assertDeckLegal(legalDeck, undefined, banlist)).not.toThrow();
+
+        const illegalDeck = premodernDeckWith(1);
+        expect(() => assertDeckLegal(illegalDeck, undefined, banlist)).toThrow(
+            /banned/i
+        );
+    });
+
+    it("empty DB rows fall back to the code-side seed, resolving to the SAME rejection (no silent-legal window pre-sync)", () => {
+        // `loadBanlistOverrides` never returns an empty override for an empty
+        // table — `resolveBanlistEnforcementForFormat` falls back to
+        // `BANLIST_SEEDS[format]` first, so a fresh deploy still enforces a
+        // sane banlist.
+        const banlistFromEmptyDb = resolveBanlistEnforcementForFormat(
+            "premodern",
+            [],
+            tryGetCardByName
+        );
+        expect(banlistFromEmptyDb.banned.has(NECRO_ID)).toBe(true);
+
+        const illegalDeck = premodernDeckWith(1);
+        expect(() =>
+            assertDeckLegal(illegalDeck, undefined, banlistFromEmptyDb)
+        ).toThrow(/banned/i);
+    });
+
+    it("advisory client and authoritative server never disagree: the seed-resolved override and the bare code-const fallback reject the SAME deck", () => {
+        const illegalDeck = premodernDeckWith(1);
+
+        // Path A: `loadBanlistOverrides`-style resolution against an empty DB
+        // (the seed fallback inside `resolveBanlistEnforcementForFormat`).
+        const seedOverride = resolveBanlistEnforcementForFormat(
+            "premodern",
+            [],
+            tryGetCardByName
+        );
+        // Path B: no `banlist` argument at all — `validateDeck`'s OWN internal
+        // fallback to the code constant `PREMODERN_BANNED` (formats.ts).
+        expect(() =>
+            assertDeckLegal(illegalDeck, undefined, seedOverride)
+        ).toThrow(/banned/i);
+        expect(() => assertDeckLegal(illegalDeck)).toThrow(/banned/i);
     });
 });

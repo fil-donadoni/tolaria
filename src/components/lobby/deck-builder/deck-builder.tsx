@@ -9,6 +9,7 @@ import { PointerActivationConstraints } from "@dnd-kit/dom";
 import { getDefinition } from "@convex/cards";
 import { getCardColors } from "@convex/cards/colors";
 import { effectiveFeatured, toggleFeatured } from "~/lib/featuredPicker";
+import { useBanlistOverride } from "~/hooks/useBanlistOverride";
 import { FORMAT_RULES, type FormatId, validateDeck } from "@convex/formats";
 import { type LobbyDeck } from "~/lib/deckTypes";
 import {
@@ -306,16 +307,29 @@ export default function DeckBuilder({
     // never changes its Format (ADR 0036).
     const formatReadOnly = initialDeck !== null;
 
+    // DB banlist override for the deck's Format (PRD #1138, issue #1144). The
+    // shared `useBanlistOverride` hook skips the query for a Format with no
+    // DB-backed banlist (Freeform, Alpha 40) and resolves to `undefined` while
+    // loading — which `validateDeck`'s own code-const fallback below treats as
+    // "no override", so nothing regresses before the query resolves or before
+    // the first DB sync.
+    const banlistOverride = useBanlistOverride(deck.format);
+
     // Live deck legality (ADR 0036, issue #512): the same pure `validateDeck`
     // the server gates on, recomputed as the working deck changes. Advisory in
-    // the builder; authoritative at game start.
+    // the builder; authoritative at game start. Threads the injected DB
+    // banlist override (PRD #1138, issue #1144) so a card banned via the
+    // admin Scryfall sync is flagged illegal here reactively, not just at
+    // game start.
     const legality = useMemo(
         () =>
             validateDeck(
                 { cards: deck.cards, sideboard: deck.sideboard },
-                deck.format
+                deck.format,
+                undefined,
+                banlistOverride
             ),
-        [deck.cards, deck.sideboard, deck.format]
+        [deck.cards, deck.sideboard, deck.format, banlistOverride]
     );
 
     const handleAdd = useCallback(

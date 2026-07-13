@@ -1,14 +1,20 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type QueryCtx } from "./_generated/server";
 import { internalMutation } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { assertIsAdmin } from "./auth";
+import { loadBanlistOverrides } from "./banlists";
 import {
     type DeckCard,
     type DeckPreset,
     resolveFeaturedCardId,
 } from "./deckPresets";
-import { type FormatId, type Reason, validateDeck } from "./formats";
+import {
+    type BanlistOverride,
+    type FormatId,
+    type Reason,
+    validateDeck,
+} from "./formats";
 
 // Typed deck Format (ADR 0036). An Admin chooses it when authoring a preset.
 const formatValidator = v.union(
@@ -98,12 +104,21 @@ export function slugify(name: string): string {
 
 /**
  * Map a stored `presetDecks` row to the lobby wire shape. The public id is the
- * slug (returned as `presetId`), preserving the pre-DB wire format.
+ * slug (returned as `presetId`), preserving the pre-DB wire format. `banlist`
+ * (PRD #1138, issue #1144) is the row's Format's DB banlist override, threaded
+ * straight through to `validateDeck`; absent, `validateDeck` falls back to the
+ * code-side constant for a DB-backed Format, or is a no-op for Alpha 40/
+ * Freeform. Callers load it via `loadBanlistOverrides` (`list`/`getPreset`
+ * below) so a DB-banned, built card is reflected here — the "deck-save
+ * legality" surface — the instant it's synced, not just at game start.
  */
-export function presetRowToLobby(row: Doc<"presetDecks">): LobbyPreset {
+export function presetRowToLobby(
+    row: Doc<"presetDecks">,
+    banlist?: BanlistOverride
+): LobbyPreset {
     // Legality is derived here, on every read (ADR 0036) — never persisted on
     // the row, so a banlist/card-pool change reclassifies presets automatically.
-    const { isLegal, reasons } = validateDeck(row, row.format);
+    const { isLegal, reasons } = validateDeck(row, row.format, undefined, banlist);
     return {
         presetId: row.slug,
         name: row.name,
@@ -163,15 +178,40 @@ export function sortLobbyPresets(presets: LobbyPreset[]): LobbyPreset[] {
     return [...presets].sort((a, b) => a.presetId.localeCompare(b.presetId));
 }
 
+/**
+ * Preload the DB banlist override for BOTH DB-backed Formats (PRD #1138,
+ * issue #1144) in two queries total, regardless of how many preset rows
+ * `list` maps over — avoids an N+1 `loadBanlistOverrides` call per row for a
+ * loop that only ever touches two possible Formats. A row whose Format isn't
+ * DB-backed (Alpha 40, Freeform) simply looks up `undefined` here, which
+ * `presetRowToLobby`/`validateDeck` already treat as "use the code fallback".
+ */
+async function loadBanlistOverridesByFormat(
+    ctx: QueryCtx
+): Promise<Partial<Record<FormatId, BanlistOverride>>> {
+    const [premodern, oldSchool] = await Promise.all([
+        loadBanlistOverrides(ctx, "premodern"),
+        loadBanlistOverrides(ctx, "old-school"),
+    ]);
+    return { premodern, "old-school": oldSchool };
+}
+
 // Lobby deck list, now sourced from the `presetDecks` DB table (ADR 0033).
 // Reactive: an Admin's edit to a preset propagates to every client's lobby
-// without a redeploy. Sorted by slug for stable ordering.
+// without a redeploy. Sorted by slug for stable ordering. Also reactive to a
+// DB banlist sync (PRD #1138, issue #1144): a preset carrying a card newly
+// banned in `formatBanlists` flips to illegal on the next read, no redeploy.
 export const list = query({
     args: {},
     returns: v.array(lobbyPresetValidator),
     handler: async (ctx) => {
         const rows = await ctx.db.query("presetDecks").collect();
-        return sortLobbyPresets(rows.map(presetRowToLobby));
+        const overridesByFormat = await loadBanlistOverridesByFormat(ctx);
+        return sortLobbyPresets(
+            rows.map((row) =>
+                presetRowToLobby(row, overridesByFormat[row.format])
+            )
+        );
     },
 });
 
@@ -288,7 +328,10 @@ export const getPreset = query({
             .query("presetDecks")
             .withIndex("by_slug", (q) => q.eq("slug", args.slug))
             .unique();
-        return row ? presetRowToLobby(row) : null;
+        if (!row) return null;
+        // DB banlist override (PRD #1138, issue #1144) — mirrors `list` above.
+        const banlist = await loadBanlistOverrides(ctx, row.format);
+        return presetRowToLobby(row, banlist);
     },
 });
 

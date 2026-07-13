@@ -60,7 +60,7 @@ export default function JoinGame({ gameId }: JoinGameProps) {
         () =>
             format
                 ? filterDecksByFormat(
-                      (presetDecks ?? []).map(toPresetLobbyDeck),
+                      (presetDecks ?? []).map((d) => toPresetLobbyDeck(d)),
                       format
                   )
                 : [],

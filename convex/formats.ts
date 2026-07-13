@@ -89,6 +89,15 @@ export interface BanlistOverride {
  *  sync with the `formatBanlists.format` union in `convex/schema.ts`. */
 export type BanlistFormatId = "premodern" | "old-school";
 
+/** Type guard: is an arbitrary `FormatId` (or raw string) one of the two
+ *  DB-backed banlist Formats? Mirrors `isFormatId`'s role for `FormatId` —
+ *  the single authority both the server helper (`loadBanlistOverrides`,
+ *  `convex/banlists.ts`) and any client call site key off, so the
+ *  premodern/old-school literal pair is never repeated ad hoc (issue #1144). */
+export function isBanlistFormatId(value: string): value is BanlistFormatId {
+    return value === "premodern" || value === "old-school";
+}
+
 /** A single official banlist entry by oracle NAME (never an id — the DB row
  *  shape minus `source`/`syncedAt`, which only the sync/admin surface cares
  *  about). Shared by the DB-row projection and the code-side seed below. */
