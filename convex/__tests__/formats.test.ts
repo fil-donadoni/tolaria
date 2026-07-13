@@ -36,8 +36,7 @@ import { normalizeLegacyFormat } from "../userDecks";
 // Real `nameRegistry` resolver (issue #1141): structurally satisfies
 // `ResolveCardByName` — used by the seed round-trip tests below to prove the
 // name-keyed seed reproduces the SAME id sets as the id-keyed code consts.
-const realResolveByName: ResolveCardByName = (name) =>
-    tryGetCardByName(name);
+const realResolveByName: ResolveCardByName = (name) => tryGetCardByName(name);
 
 // Deck Formats — legality pipeline slice (PRD #509, ADR 0036, issue #512). The
 // size + set-membership tracer bullet. These tests pin the registry metadata,
@@ -1420,9 +1419,9 @@ describe("Banlist seeds (issue #1141) — non-empty, Parallax Tide present", () 
             PREMODERN_BANLIST_SEED.some((e) => e.cardName === "Parallax Tide")
         ).toBe(true);
         // Premodern has no official restricted list — every seed row is banned.
-        expect(
-            PREMODERN_BANLIST_SEED.every((e) => e.status === "banned")
-        ).toBe(true);
+        expect(PREMODERN_BANLIST_SEED.every((e) => e.status === "banned")).toBe(
+            true
+        );
     });
 
     it("OLD_SCHOOL_BANLIST_SEED is non-empty and covers both statuses", () => {
@@ -1430,9 +1429,9 @@ describe("Banlist seeds (issue #1141) — non-empty, Parallax Tide present", () 
         expect(
             OLD_SCHOOL_BANLIST_SEED.some((e) => e.status === "restricted")
         ).toBe(true);
-        expect(
-            OLD_SCHOOL_BANLIST_SEED.some((e) => e.status === "banned")
-        ).toBe(true);
+        expect(OLD_SCHOOL_BANLIST_SEED.some((e) => e.status === "banned")).toBe(
+            true
+        );
     });
 
     it("resolving the Old School seed's restricted names through the REAL registry reproduces OLD_SCHOOL_RESTRICTED", () => {

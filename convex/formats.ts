@@ -203,11 +203,10 @@ export const OLD_SCHOOL_BANLIST_SEED: readonly BanlistEntry[] = [
 /** `BanlistFormatId → BanlistEntry[]` seed registry, keyed the same way as
  *  `formatBanlists.format`. The single lookup `convex/banlists.ts` uses when
  *  a format's DB rows are empty. */
-export const BANLIST_SEEDS: Record<BanlistFormatId, readonly BanlistEntry[]> =
-    {
-        premodern: PREMODERN_BANLIST_SEED,
-        "old-school": OLD_SCHOOL_BANLIST_SEED,
-    };
+export const BANLIST_SEEDS: Record<BanlistFormatId, readonly BanlistEntry[]> = {
+    premodern: PREMODERN_BANLIST_SEED,
+    "old-school": OLD_SCHOOL_BANLIST_SEED,
+};
 
 /**
  * Static metadata + the per-format validator. Shared fields (`allowedSets`,

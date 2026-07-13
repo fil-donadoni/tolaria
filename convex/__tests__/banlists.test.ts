@@ -96,7 +96,9 @@ describe("getBanlist / getBanlistEnforcement — query shapes (issue #1141)", ()
             { cardName: "Some Card", status: "restricted" },
         ];
         const result = resolveBanlistDisplay("old-school", rows);
-        expect(result).toEqual([{ cardName: "Some Card", status: "restricted" }]);
+        expect(result).toEqual([
+            { cardName: "Some Card", status: "restricted" },
+        ]);
         // no extra keys leak through (e.g. a caller accidentally passing a
         // full DB row with source/syncedAt)
         expect(Object.keys(result[0]).sort()).toEqual(["cardName", "status"]);
