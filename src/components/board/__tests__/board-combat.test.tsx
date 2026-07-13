@@ -47,6 +47,8 @@ vi.mock("@convex/_generated/api", () => {
         "untapForPayment",
         "tapForActivationPayment",
         "untapForActivationPayment",
+        "tapForAttackTax",
+        "untapForAttackTax",
         "toggleAttacker",
         "selectBlocker",
         "assignBlockerTarget",

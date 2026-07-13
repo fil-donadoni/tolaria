@@ -62,6 +62,11 @@ import {
     STATIC_EFFECT_CTX,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
+import {
+    beginAttackManaTax,
+    tryCommitAttackManaTax,
+    tapSourceIntoPayment,
+} from "../../../../game";
 import { resolveActivated, resolveTrigger } from "./helpers";
 
 const lib = (ids: string[]) =>
@@ -876,6 +881,174 @@ describe("Collective Restraint (CR 508.1c/1g dynamic attack-mana-tax — Domain,
         expect(charges).toEqual([
             { controllerId: "p1", cost: { X: 0 }, reason: expect.any(String) },
         ]);
+    });
+});
+
+// The declare-attackers PARKING flow (game.ts, #1053/#1066): confirmAttackers no
+// longer silently auto-taps or throws when a mana attack tax is owed — it parks
+// the aggregated tax on `combat.pendingAttackManaTax` and the attacking player
+// pays it via a prompt (auto-tap or manual land taps). Drives the real
+// `beginAttackManaTax` / `tryCommitAttackManaTax` game.ts helpers over GRE
+// primitives (the ADR 0001 mutation-replica convention — no convex-test harness).
+describe("Collective Restraint — parked mana attack tax (CR 508.1c/1g, #1053/#1066)", () => {
+    /** p1 attacks with two Grizzly Bears into p2's Collective Restraint. p2 has
+     *  Plains + Island → Domain 2, so the tax is {2}/attacker = {4} total. p1
+     *  gets `p1Lands` untapped Islands to pay it. */
+    function taxedAttackState(p1Lands: number) {
+        const atk1 = makeInstance(grizzlyBears.id, {
+            id: "atk1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const atk2 = makeInstance(grizzlyBears.id, {
+            id: "atk2",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const restraint = makeInstance(collectiveRestraint.id, {
+            id: "restraint",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const defenderLands = [plains, island].map((def, i) =>
+            makeInstance(def.id, {
+                id: `def-land-${i}`,
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        const attackerLands = Array.from({ length: p1Lands }, (_, i) =>
+            makeInstance(island.id, {
+                id: `p1-land-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [atk1, atk2, ...attackerLands],
+                }),
+                makePlayer("p2", {
+                    battlefield: [restraint, ...defenderLands],
+                }),
+            ],
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            combat: {
+                attackerIds: ["atk1", "atk2"],
+                blockerAssignments: {},
+                confirmed: false,
+                blockersConfirmed: false,
+            },
+        });
+    }
+
+    it("parks the tax instead of throwing (the reported bug)", () => {
+        const state = taxedAttackState(4);
+        let parked: boolean | undefined;
+        expect(() => {
+            parked = beginAttackManaTax(state);
+        }).not.toThrow();
+        expect(parked).toBe(true);
+        const pending = state.combat!.pendingAttackManaTax;
+        expect(pending).toBeDefined();
+        expect(pending!.playerId).toBe("p1");
+        // Domain 2 × 2 attackers = {4} generic.
+        expect(pending!.cost).toEqual({ generic: 4 });
+        // The declaration is NOT finalized while the tax is unpaid.
+        expect(state.combat!.confirmed).toBe(false);
+    });
+
+    it("does not park when Domain is 0 (a free attack)", () => {
+        const atk = makeInstance(grizzlyBears.id, {
+            id: "atk1",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const restraint = makeInstance(collectiveRestraint.id, {
+            id: "restraint",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [atk] }),
+                makePlayer("p2", { battlefield: [restraint] }),
+            ],
+            phase: "DECLARE_ATTACKERS",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            combat: {
+                attackerIds: ["atk1"],
+                blockerAssignments: {},
+                confirmed: false,
+                blockersConfirmed: false,
+            },
+        });
+        expect(beginAttackManaTax(state)).toBe(false);
+        expect(state.combat!.pendingAttackManaTax).toBeUndefined();
+    });
+
+    it("finalizes the declaration once the tax is fully paid", () => {
+        const state = taxedAttackState(4);
+        beginAttackManaTax(state);
+        const p1 = state.players[0];
+        const pending = state.combat!.pendingAttackManaTax!;
+        // Pay {4} by tapping all four Islands into the tax (the auto-tap / manual
+        // land-tap path both funnel through tapSourceIntoPayment).
+        for (let i = 0; i < 4; i++) {
+            const land = p1.battlefield.find((c) => c.id === `p1-land-${i}`)!;
+            tapSourceIntoPayment(
+                state,
+                p1,
+                land,
+                undefined,
+                pending.tappedLandIds
+            );
+        }
+        const committed = tryCommitAttackManaTax(state);
+        expect(committed).toBe(true);
+        expect(state.combat!.pendingAttackManaTax).toBeUndefined();
+        expect(state.combat!.confirmed).toBe(true);
+        // finalize ran: the attackers are now marked attacking.
+        expect(p1.battlefield.find((c) => c.id === "atk1")!.isAttacking).toBe(
+            true
+        );
+        expect(p1.battlefield.find((c) => c.id === "atk2")!.isAttacking).toBe(
+            true
+        );
+    });
+
+    it("keeps the tax parked on a partial payment (banner stays up)", () => {
+        const state = taxedAttackState(4);
+        beginAttackManaTax(state);
+        const p1 = state.players[0];
+        const pending = state.combat!.pendingAttackManaTax!;
+        // Only {2} of {4} paid — the cost is not covered.
+        for (let i = 0; i < 2; i++) {
+            const land = p1.battlefield.find((c) => c.id === `p1-land-${i}`)!;
+            tapSourceIntoPayment(
+                state,
+                p1,
+                land,
+                undefined,
+                pending.tappedLandIds
+            );
+        }
+        expect(tryCommitAttackManaTax(state)).toBe(false);
+        expect(state.combat!.pendingAttackManaTax).toBeDefined();
+        expect(state.combat!.confirmed).toBe(false);
+    });
+
+    it("survives the wire projection so the client can render the banner", () => {
+        const state = taxedAttackState(4);
+        beginAttackManaTax(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.combat?.pendingAttackManaTax).toEqual(
+            state.combat!.pendingAttackManaTax
+        );
     });
 });
 

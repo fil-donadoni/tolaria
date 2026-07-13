@@ -6593,8 +6593,7 @@ function aggregateManaCosts(costs: ManaCost[]): ManaCost {
     const total: Record<string, number> = {};
     for (const c of costs) {
         for (const [k, v] of Object.entries(normalizeManaCost(c))) {
-            if (typeof v === "number" && v > 0)
-                total[k] = (total[k] ?? 0) + v;
+            if (typeof v === "number" && v > 0) total[k] = (total[k] ?? 0) + v;
         }
     }
     const result: ManaCost = {};
@@ -6615,7 +6614,7 @@ function aggregateManaCosts(costs: ManaCost[]): ManaCost {
  *  caller saves and returns, suspending the declaration); false when there is no
  *  tax (or it aggregates to zero — Domain 0), in which case the declaration
  *  continues to the sacrifice tax + finalize. */
-function beginAttackManaTax(state: GameState): boolean {
+export function beginAttackManaTax(state: GameState): boolean {
     const combat = state.combat;
     if (!combat) return false;
     const charges = collectAttackManaTax(state);
@@ -6655,7 +6654,9 @@ function applyAttackSacrificeTaxAndFinalize(state: GameState): boolean {
         // charges share one controller. A future multi-payer tax would need a
         // per-payer selection — flag it rather than silently paying one.
         if (new Set(charges.map((c) => c.controllerId)).size > 1) {
-            throw new Error("Multi-payer attack sacrifice tax is not supported");
+            throw new Error(
+                "Multi-payer attack sacrifice tax is not supported"
+            );
         }
         const payerId = charges[0].controllerId;
         const landFilter: PermanentFilter = { types: ["Land"] };
@@ -6690,7 +6691,7 @@ function applyAttackSacrificeTaxAndFinalize(state: GameState): boolean {
  *  declaration through the sacrifice-tax + finalize continuation. Returns true
  *  when it committed (nothing further to pay). No-op / false while the pool is
  *  short — the player keeps tapping (or cancels). */
-function tryCommitAttackManaTax(state: GameState): boolean {
+export function tryCommitAttackManaTax(state: GameState): boolean {
     const combat = state.combat;
     const pending = combat?.pendingAttackManaTax;
     if (!combat || !pending) return false;

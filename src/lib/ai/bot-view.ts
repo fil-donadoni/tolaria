@@ -419,6 +419,36 @@ export function buildBotView(state: PublicGameState, botId: string): BotView {
         gameOver: state.gameOver !== undefined,
     };
 
+    // CR 508.1c/1g — the parked per-attacker MANA attack tax (Propaganda /
+    // Collective Restraint). When the bot is the payer, gate on whether it can
+    // plausibly cover the (generic-only) tax from its pool plus untapped mana
+    // sources, so the driver pays when it can and cancels the declaration when
+    // it can't (rather than looping on a locked declaration).
+    const tax = combat?.pendingAttackManaTax;
+    if (tax && tax.playerId === botId) {
+        view.attackManaTaxOwed = true;
+        const bot = state.players.find((p) => p.id === botId);
+        const pool = bot?.manaPool ?? {};
+        const poolTotal = Object.values(pool).reduce(
+            (a, v) => a + (typeof v === "number" ? v : 0),
+            0
+        );
+        // Untapped lands as a conservative available-mana proxy (attack taxes
+        // are all {N}); the server's auto-tap does the real solving.
+        const untappedSources = (bot?.battlefield ?? []).filter(
+            (c) => !c.isTapped && (c.types ?? []).includes("Land")
+        ).length;
+        const cost = tax.cost;
+        const need =
+            (typeof cost.generic === "number" ? cost.generic : 0) +
+            (typeof cost.X === "number" ? cost.X : 0) +
+            (["W", "U", "B", "R", "G", "C"] as const).reduce((a, k) => {
+                const v = cost[k];
+                return a + (typeof v === "number" ? v : 0);
+            }, 0);
+        view.attackManaTaxAffordable = poolTotal + untappedSources >= need;
+    }
+
     // Mulligan window: expose the bot's hand (land flags) and counts so the
     // gate can run the land-count keep/mull heuristic and the bottom-N pick.
     if (state.phase === "MULLIGAN" && state.mulligan) {
@@ -557,12 +587,14 @@ export function botActionToMove(
                 choiceId: head.choiceId,
             };
         }
-        // Realised by the driver directly (Worker search / confirmDamage / no-op),
-        // never translated to a Move through this path.
+        // Realised by the driver directly (Worker search / confirmDamage /
+        // attack-tax pay-cancel / no-op), never translated to a Move here.
         case "pass":
         case "declare-attackers":
         case "declare-blockers":
         case "confirm-combat-damage":
+        case "pay-attack-tax":
+        case "cancel-attack-tax":
         case "none":
             return null;
         default:

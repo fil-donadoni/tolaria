@@ -62,6 +62,14 @@ export type BotView = {
      *  — set only when the active bottoming choice belongs to the bot, else
      *  undefined (some other player is bottoming, or nobody is). */
     mulliganBottomCount?: number;
+    /** CR 508.1c/1g — the bot owes the parked per-attacker MANA attack tax
+     *  (Propaganda / Collective Restraint): it declared an attack against a
+     *  taxing opponent and must pay to legalize it. */
+    attackManaTaxOwed?: boolean;
+    /** Whether the bot can plausibly cover the parked attack tax from its pool
+     *  plus untapped mana sources. Drives pay-vs-cancel: pay when affordable,
+     *  else cancel the declaration (a taxed attack it can't fund is dropped). */
+    attackManaTaxAffordable?: boolean;
     /** True once the game has ended — the bot must not act. */
     gameOver?: boolean;
     /** A mid-resolution interactive choice owed to the bot (ADR 0016), already
@@ -193,6 +201,8 @@ export type BotAction =
     | { kind: "declare-attackers" }
     | { kind: "declare-blockers" }
     | { kind: "confirm-combat-damage" }
+    | { kind: "pay-attack-tax" }
+    | { kind: "cancel-attack-tax" }
     | { kind: "pass" }
     | { kind: "none" };
 
@@ -220,6 +230,7 @@ export type BotActionRealisation =
     | "executor"
     | "worker"
     | "confirm-damage"
+    | "attack-tax"
     | "none";
 
 export function botActionRealisation(
@@ -230,6 +241,12 @@ export function botActionRealisation(
             return "none";
         case "confirm-combat-damage":
             return "confirm-damage";
+        // CR 508.1c/1g — the parked mana attack tax is resolved by a direct
+        // mutation (auto-tap to pay, or cancel the declaration), like the
+        // damage-confirmation step; no Worker search, no pending choice.
+        case "pay-attack-tax":
+        case "cancel-attack-tax":
+            return "attack-tax";
         case "keep":
         case "mull":
         case "mulligan-bottom":
@@ -677,6 +694,19 @@ export function decideBotAction(view: BotView): BotAction {
             kind: "resolution-choice",
             cardInstanceIds: chooseResolution(choice),
         };
+    }
+
+    // CR 508.1c/1g — the parked per-attacker MANA attack tax (Propaganda /
+    // Collective Restraint). The bot declared a taxed attack and now owes the
+    // tax: pay it (auto-tap) when it can plausibly cover it, else cancel the
+    // whole declaration. Handled BEFORE the declare-attackers branch — while the
+    // tax is parked the declaration is locked, and re-declaring would be
+    // rejected by the gate (the recurring "bot loops on a new waiting state"
+    // class, closed by routing this to a direct mutation).
+    if (view.attackManaTaxOwed) {
+        return view.attackManaTaxAffordable
+            ? { kind: "pay-attack-tax" }
+            : { kind: "cancel-attack-tax" };
     }
 
     // Combat declarations are gated before priority can pass (the server

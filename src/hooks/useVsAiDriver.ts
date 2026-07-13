@@ -74,6 +74,12 @@ export function useVsAiDriver(
         passPriority: useMutation(api.game.passPriority),
     };
 
+    // CR 508.1c/1g — the parked mana attack tax mutations. Kept OUT of the
+    // `MoveMutations` object (they aren't Move-realised) and driven directly,
+    // like `confirmDamage`.
+    const autoTapForAttackTax = useMutation(api.game.autoTapForAttackTax);
+    const cancelAttackTax = useMutation(api.game.cancelAttackTax);
+
     const inFlight = useRef(false);
     const lastSignature = useRef<string | null>(null);
     const lastGameId = useRef<Id<"games"> | null>(null);
@@ -123,6 +129,23 @@ export function useVsAiDriver(
                 .catch(() => {
                     lastSignature.current = null;
                 });
+            return;
+        }
+
+        // CR 508.1c/1g — the parked mana attack tax (Propaganda / Collective
+        // Restraint): the gate decided the bot owes a direct pay/cancel, so
+        // realise it straight through (no Worker, no search), mirroring the
+        // damage-confirmation short-circuit above.
+        if (botActionRealisation(action.kind) === "attack-tax") {
+            if (inFlight.current) return;
+            lastSignature.current = signature;
+            const mutation =
+                action.kind === "pay-attack-tax"
+                    ? autoTapForAttackTax
+                    : cancelAttackTax;
+            void mutation({ gameId, playerId: botId }).catch(() => {
+                lastSignature.current = null;
+            });
             return;
         }
 

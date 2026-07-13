@@ -56,6 +56,7 @@ import CastAlternativeHandCostDialog from "./cast-alternative-hand-cost-dialog";
 import { isGraveyardTargetForViewer } from "~/lib/graveyard-targets";
 import PaymentBanner from "./payment-banner";
 import SacrificeBanner from "./sacrifice-banner";
+import AttackManaTaxBanner from "./attack-mana-tax-banner";
 import { isSacrificeComplete } from "~/lib/sacrifice-selection";
 import PendingChoicePrompt from "./pending-choice-prompt";
 import HandCardPick from "./hand-card-pick";
@@ -666,6 +667,22 @@ export default function Board({
                                         <SacrificeBanner
                                             selection={
                                                 combat.pendingAttackSacrifice
+                                            }
+                                        />
+                                    )}
+                                {/* CR 508.1c/1g — the per-attacker MANA attack
+                                tax (Propaganda / Collective Restraint) suspends
+                                the declaration on a parked payment. Prompt the
+                                attacking player to pay (Auto-tap / manual taps)
+                                or cancel, the same way casts do. */}
+                                {combat?.pendingAttackManaTax &&
+                                    combat.pendingAttackManaTax.playerId ===
+                                        viewerId && (
+                                        <AttackManaTaxBanner
+                                            gameId={gameId}
+                                            playerId={viewerId}
+                                            payment={
+                                                combat.pendingAttackManaTax
                                             }
                                         />
                                     )}

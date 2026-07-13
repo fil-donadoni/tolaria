@@ -65,7 +65,13 @@ export function useBattlefieldVisualState(player: Player) {
         isMe && !!pendingCast && pendingCast.playerId === playerId;
     const isPayingActivation =
         isMe && !!pendingActivation && pendingActivation.playerId === playerId;
-    const isInPayment = isPayingCast || isPayingActivation;
+    // CR 508.1c/1g — the parked per-attacker MANA attack tax (Propaganda /
+    // Collective Restraint): mana sources are tappable toward it like a cast.
+    const isPayingAttackTax =
+        isMe &&
+        !!combat?.pendingAttackManaTax &&
+        combat.pendingAttackManaTax.playerId === playerId;
+    const isInPayment = isPayingCast || isPayingActivation || isPayingAttackTax;
 
     const hasPriority = isMe && priorityPlayerId === playerId;
 
@@ -152,6 +158,9 @@ export function useBattlefieldVisualState(player: Player) {
         phase === "DECLARE_ATTACKERS" &&
         !!combat &&
         !combat.confirmed &&
+        // While the mana attack tax is parked the declaration is locked pending
+        // payment — mana sources tap toward the tax, they aren't attacker picks.
+        !combat.pendingAttackManaTax &&
         isMe &&
         playerId === activePlayerId;
 
@@ -348,7 +357,11 @@ export function useBattlefieldVisualState(player: Player) {
         if (isInPayment) {
             const tappedDuringPayment = isPayingCast
                 ? pendingCast!.tappedLandIds.includes(card.id)
-                : pendingActivation!.tappedLandIds.includes(card.id);
+                : isPayingActivation
+                  ? pendingActivation!.tappedLandIds.includes(card.id)
+                  : combat!.pendingAttackManaTax!.tappedLandIds.includes(
+                        card.id
+                    );
             return card.isTapped
                 ? tappedDuringPayment
                 : getLandManaColor(card) !== null ||

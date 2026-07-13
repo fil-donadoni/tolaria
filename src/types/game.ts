@@ -1,9 +1,8 @@
 import type { Color } from "./cards";
 import type { Zone, CardAction } from "@convex/gre/types";
-import type {
-    RestrictedMana,
-    AttackManaTaxPayment,
-} from "@convex/gre/state";
+import type { RestrictedMana, AttackManaTaxPayment } from "@convex/gre/state";
+
+export type { AttackManaTaxPayment };
 import type { SacrificeSelection } from "@convex/gre/sacrificeChoice";
 import type { PublicGrantedAbility } from "@convex/gameProjections";
 

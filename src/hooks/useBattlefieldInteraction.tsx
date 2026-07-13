@@ -97,6 +97,8 @@ export function useBattlefieldInteraction(player: Player) {
     const untapForActivationPayment = useMutation(
         api.game.untapForActivationPayment
     );
+    const tapForAttackTax = useMutation(api.game.tapForAttackTax);
+    const untapForAttackTax = useMutation(api.game.untapForAttackTax);
     const toggleAttacker = useMutation(api.game.toggleAttacker);
     const selectBlocker = useMutation(api.game.selectBlocker);
     const assignBlockerTarget = useMutation(api.game.assignBlockerTarget);
@@ -152,7 +154,15 @@ export function useBattlefieldInteraction(player: Player) {
     const isPayingActivation =
         isMe && !!pendingActivation && pendingActivation.playerId === playerId;
 
-    const isInPayment = isPayingCast || isPayingActivation;
+    // CR 508.1c/1g — the parked per-attacker MANA attack tax (Propaganda /
+    // Collective Restraint): the attacking player taps mana sources toward the
+    // tax the same way a cast payment does (via tapForAttackTax).
+    const isPayingAttackTax =
+        isMe &&
+        !!combat?.pendingAttackManaTax &&
+        combat.pendingAttackManaTax.playerId === playerId;
+
+    const isInPayment = isPayingCast || isPayingActivation || isPayingAttackTax;
 
     // A mana-choice picker opened to pay a cast/activation cost is anchored to
     // that payment. If the payment ends by another route — the player presses
@@ -246,6 +256,9 @@ export function useBattlefieldInteraction(player: Player) {
         phase === "DECLARE_ATTACKERS" &&
         !!combat &&
         !combat.confirmed &&
+        // While the mana attack tax is parked the declaration is locked pending
+        // payment — clicks are taps toward the tax, not attacker toggles.
+        !combat.pendingAttackManaTax &&
         isMe &&
         playerId === activePlayerId;
 
@@ -419,10 +432,14 @@ export function useBattlefieldInteraction(player: Player) {
         if (isInPayment) {
             const tapMutation = isPayingCast
                 ? tapForPayment
-                : tapForActivationPayment;
+                : isPayingActivation
+                  ? tapForActivationPayment
+                  : tapForAttackTax;
             const untapMutation = isPayingCast
                 ? untapForPayment
-                : untapForActivationPayment;
+                : isPayingActivation
+                  ? untapForActivationPayment
+                  : untapForAttackTax;
             if (card.isTapped) {
                 guardMutation(
                     untapMutation({
@@ -718,7 +735,9 @@ export function useBattlefieldInteraction(player: Player) {
                         if (manaChoiceState.inPayment) {
                             const mutation = isPayingCast
                                 ? tapForPayment
-                                : tapForActivationPayment;
+                                : isPayingActivation
+                                  ? tapForActivationPayment
+                                  : tapForAttackTax;
                             guardMutation(mutation(args));
                         } else {
                             guardMutation(tapUntap(args));

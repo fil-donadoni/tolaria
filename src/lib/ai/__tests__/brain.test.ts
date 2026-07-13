@@ -297,6 +297,61 @@ describe("decideBotAction does not pass into a combat-step rejection", () => {
     });
 });
 
+// CR 508.1c/1g — the parked per-attacker mana attack tax (Propaganda / Collective
+// Restraint). The bot declared a taxed attack and must resolve the parked tax via
+// a direct pay/cancel BEFORE any other combat step — re-declaring would be
+// rejected by the gate, freezing the bot (the recurring class the exhaustive
+// dispatch guard closes).
+describe("decideBotAction resolves the parked attack mana tax (#1053/#1066)", () => {
+    it("pays the tax (auto-tap) when it is affordable", () => {
+        expect(
+            decideBotAction(
+                view({
+                    phase: "DECLARE_ATTACKERS",
+                    activePlayerId: BOT,
+                    priorityPlayerId: BOT,
+                    hasCombat: true,
+                    attackManaTaxOwed: true,
+                    attackManaTaxAffordable: true,
+                })
+            )
+        ).toEqual({ kind: "pay-attack-tax" });
+    });
+
+    it("cancels the whole declaration when the tax is unaffordable", () => {
+        expect(
+            decideBotAction(
+                view({
+                    phase: "DECLARE_ATTACKERS",
+                    activePlayerId: BOT,
+                    priorityPlayerId: BOT,
+                    hasCombat: true,
+                    attackManaTaxOwed: true,
+                    attackManaTaxAffordable: false,
+                })
+            )
+        ).toEqual({ kind: "cancel-attack-tax" });
+    });
+
+    it("resolves the tax BEFORE re-declaring attackers (no gate-rejection loop)", () => {
+        // combat is unconfirmed and the bot is the active attacker, so the naive
+        // path would return declare-attackers again — the tax branch must win.
+        const action = decideBotAction(
+            view({
+                phase: "DECLARE_ATTACKERS",
+                activePlayerId: BOT,
+                priorityPlayerId: BOT,
+                hasCombat: true,
+                attackersConfirmed: false,
+                attackManaTaxOwed: true,
+                attackManaTaxAffordable: true,
+            })
+        );
+        expect(action.kind).not.toBe("declare-attackers");
+        expect(action).toEqual({ kind: "pay-attack-tax" });
+    });
+});
+
 describe("chooseResolution default policy (ADR 0016, issue #162)", () => {
     function owed(overrides: Partial<OwedChoice> = {}): OwedChoice {
         return {
