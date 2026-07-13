@@ -4187,6 +4187,44 @@ export interface StaticPermanentGuard {
     controlCantChange?: boolean;
 }
 
+/** Continuous PLAYER-scoped shroud static effect (CR 702.18 applied to a
+ *  player via CR 115.4 — "You have shroud" / "can't be the target of spells
+ *  or abilities"). `StaticPermanentGuard` is per-permanent (`applies(target,
+ *  source, ctx)` re-evaluated against every candidate); a player has no
+ *  `staticAbilities` array to carry a keyword and no per-object identity to
+ *  match against, so this kind is player-scoped instead — mirroring how
+ *  `StaticHandSizeOverride` is player-scoped rather than per-permanent. The
+ *  reader, `playerHasShroud` (`convex/gre/permanentGuard.ts`), walks every
+ *  battlefield (the guard can be granted by a permanent EITHER player
+ *  controls) looking for a `player-guard` effect whose `appliesTo` resolves
+ *  to the queried player id, evaluated live (CR 611.2) — no per-instance
+ *  apply/unapply bookkeeping, the same live-query model `isGuardedAgainst`
+ *  uses for permanents.
+ *
+ *  First consumer: Solitary Confinement ("You have shroud") — the blocked-by
+ *  child of issue #1058 / #1128. No shipped card declares this kind yet. */
+export interface StaticPlayerGuard {
+    kind: "player-guard";
+    /** Stable id (for debugging / oracle tracing). */
+    id: string;
+    /** CR 702.18 shroud / CR 115.4 — "can't be the target of spells or
+     *  abilities". Kept as an explicit boolean (not inferred from `kind`),
+     *  mirroring `StaticPermanentGuard`'s clause-per-boolean shape, so a
+     *  future player-scoped guard clause can be added without a breaking
+     *  shape change. Unlike hexproof (CR 702.11b, controller-relative),
+     *  shroud has no source-controller exception — it bars EVERY source,
+     *  including the guarded player's own spells/abilities. */
+    cantBeTargeted?: boolean;
+    /** Whose shroud this is. Defaults to `"controller"` (the source
+     *  permanent's controller — "You have shroud", read directly off the
+     *  card that grants it). `"chosen-player"` mirrors
+     *  `StaticHandSizeOverride`'s Cursed-Rack-style shape for a future card
+     *  that grants shroud to a player OTHER than its own controller
+     *  (resolved via the source instance's stored `chosenPlayerId`); no
+     *  shipped card uses this branch yet. */
+    appliesTo?: "controller" | "chosen-player";
+}
+
 /** Read-only board + combat view passed to a `combat-damage-prevention`
  *  predicate. Extends the layer-system `StaticEffectStateView` (so the
  *  predicate can scan every battlefield for an Aura attached to the damage
@@ -4305,6 +4343,7 @@ export type StaticEffect =
     | StaticAdditionalCost
     | StaticManaSubstitution
     | StaticPermanentGuard
+    | StaticPlayerGuard
     | StaticCombatDamagePrevention
     | StaticKeywordRemove
     | StaticAbilityLoss

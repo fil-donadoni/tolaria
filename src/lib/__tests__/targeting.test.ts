@@ -1,6 +1,11 @@
-import { describe, it, expect } from "vitest";
-import { isUntargetableByPending } from "../targeting";
+import { describe, it, expect, beforeAll } from "vitest";
+import {
+    isUntargetableByPending,
+    isPlayerUntargetableByPending,
+} from "../targeting";
 import type { CardInstance, Player } from "~/types/game";
+import { registerTokenDefinition } from "@convex/cards";
+import type { CardDefinition } from "@convex/cards/types";
 
 // Client mirror of the server `cantBeTargeted` gate (#382, CR 702.18 / 611 /
 // 113.3 / 109.5). When `isUntargetableByPending` returns true the battlefield
@@ -223,5 +228,57 @@ describe("isUntargetableByPending — Sylvan Caryatid hexproof (CR 702.11b)", ()
         expect(
             isUntargetableByPending(players, caryatid, "own-bolt", "cast", "p1")
         ).toBe(false);
+    });
+});
+
+// Player-scoped shroud (CR 702.18 applied to a player via CR 115.4, #1128).
+// Mirrors the permanent suites above but drives `isPlayerUntargetableByPending`
+// — the client mirror of the server's `playerHasShroud` gate — through a
+// player nameplate rather than a battlefield card. No shipped card grants
+// this yet (Solitary Confinement is the real consumer, blocked-by child of
+// #1058); verified here with a fixture permanent registered via
+// `registerTokenDefinition`, mirroring the GRE suite's synthetic-card
+// pattern ("no real card this slice", per the issue).
+const PLAYER_SHROUD_SOURCE_ID = "test-player-shroud-source-client";
+const playerShroudFixture: CardDefinition = {
+    id: PLAYER_SHROUD_SOURCE_ID,
+    name: "Test Player Shroud Source",
+    rarity: "common",
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "player-guard",
+            id: "test-player-shroud-client",
+            cantBeTargeted: true,
+        },
+    ],
+};
+
+beforeAll(() => {
+    registerTokenDefinition(playerShroudFixture);
+});
+
+describe("isPlayerUntargetableByPending — player-scoped shroud (CR 702.18 / 115.4, #1128)", () => {
+    function board(): Player[] {
+        const source = inst({
+            id: "shroud-source",
+            card: { id: PLAYER_SHROUD_SOURCE_ID },
+            types: ["Enchantment"],
+            subtypes: [],
+        });
+        return [
+            player({ id: "p1", battlefield: [source] }),
+            player({ id: "p2" }),
+        ];
+    }
+
+    it("marks the shrouded player's controller as not clickable", () => {
+        const players = board();
+        expect(isPlayerUntargetableByPending(players, "p1")).toBe(true);
+    });
+
+    it("leaves the non-shrouded player clickable (no regression)", () => {
+        const players = board();
+        expect(isPlayerUntargetableByPending(players, "p2")).toBe(false);
     });
 });

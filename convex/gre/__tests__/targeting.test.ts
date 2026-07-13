@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import {
     getPlayer,
     resolveTopOfStack,
@@ -14,9 +14,14 @@ import {
     spellMatchesCreaturePtFilter,
     spellMatchesExcludeTypeFilter,
 } from "../rules";
-import { isGuardedAgainst } from "../permanentGuard";
-import type { CardType, TargetRequirement } from "../../cards/types";
-import { getDefinition, tryGetDefinition } from "../../cards";
+import { isGuardedAgainst, playerHasShroud } from "../permanentGuard";
+import type {
+    CardDefinition,
+    CardType,
+    TargetRequirement,
+} from "../../cards/types";
+import { getDefinition, registerTokenDefinition, tryGetDefinition } from "../../cards";
+import { projectPublicState } from "../../gameProjections";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1490,5 +1495,121 @@ describe("hexproof backend gate (#958, CR 702.11b)", () => {
                 isSpell: true,
             })
         ).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Player-scoped shroud (CR 702.18 applied to a player via CR 115.4, #1128)
+//
+// A player-level sibling of the `permanent-guard`/`isGuardedAgainst` suite
+// above: `StaticPlayerGuard` (`kind: "player-guard"`) is materialized/derived
+// like `StaticHandSizeOverride` (player-scoped, no per-permanent `applies`
+// predicate) and read by `playerHasShroud`. No shipped card grants this yet
+// (Solitary Confinement is the real consumer, the blocked-by child of
+// #1058) — verified here with a fixture permanent registered via
+// `registerTokenDefinition`, mirroring `intervening-if.test.ts`'s
+// synthetic-card pattern ("no real card this slice", per the issue).
+// ---------------------------------------------------------------------------
+
+const PLAYER_SHROUD_SOURCE_ID = "test-player-shroud-source";
+const playerShroudFixture: CardDefinition = {
+    id: PLAYER_SHROUD_SOURCE_ID,
+    name: "Test Player Shroud Source",
+    rarity: "common",
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "player-guard",
+            id: "test-player-shroud",
+            cantBeTargeted: true,
+        },
+    ],
+};
+
+beforeAll(() => {
+    registerTokenDefinition(playerShroudFixture);
+});
+
+function makeShroudSource(controllerId = "p1"): CardInstanceState {
+    return makeCard({
+        id: "shroud-source",
+        card: { id: PLAYER_SHROUD_SOURCE_ID },
+        controllerId,
+        ownerId: controllerId,
+    });
+}
+
+describe("player-scoped shroud (CR 702.18 / 115.4, #1128)", () => {
+    it("playerHasShroud is true for the granting permanent's controller, false otherwise", () => {
+        const source = makeShroudSource("p1");
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [source] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        expect(playerHasShroud(state, "p1")).toBe(true);
+        // Non-shrouded player unaffected — no regression.
+        expect(playerHasShroud(state, "p2")).toBe(false);
+    });
+
+    it("getLegalTargets excludes the shrouded player from player candidates (regression: non-shrouded player stays targetable)", () => {
+        const source = makeShroudSource("p1");
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [source] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        const req: TargetRequirement = { type: "player", count: 1 };
+        const targets = getLegalTargets(state, req);
+        expect(targets).toEqual([{ type: "player", id: "p2" }]);
+    });
+
+    it("backend gate: mirrors the exact decision game.ts::selectTarget's player branch makes (server-authoritative)", () => {
+        // selectTarget's player branch calls `playerHasShroud(state, found.id)`
+        // and throws when it returns true — this replicates that decision the
+        // same way the "can't-be-targeted backend gate" suite above does for
+        // the permanent branch's `isGuardedAgainst` call.
+        const source = makeShroudSource("p1");
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [source] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        expect(playerHasShroud(state, "p1")).toBe(true); // rejected
+        expect(playerHasShroud(state, "p2")).toBe(false); // accepted
+    });
+
+    it("shroud exclusion survives the wire-format projection (#1128)", () => {
+        const source = makeShroudSource("p1");
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1", battlefield: [source] }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        const projected = projectPublicState(state, 1, "p1");
+        // The guard reads card definitions by id from the registry, so the
+        // restriction must hold on the slim projected state too.
+        expect(playerHasShroud(projected, "p1")).toBe(true);
+        expect(playerHasShroud(projected, "p2")).toBe(false);
+
+        const req: TargetRequirement = { type: "player", count: 1 };
+        const projectedTargets = getLegalTargets(projected, req);
+        expect(projectedTargets).toEqual([{ type: "player", id: "p2" }]);
+    });
+
+    it("appliesTo defaults to 'controller' — a copy of the source controlled by the other player shrouds that player instead", () => {
+        const source = makeShroudSource("p2");
+        const state = makeGameState({
+            players: [
+                makePlayer({ id: "p1" }),
+                makePlayer({ id: "p2", battlefield: [source] }),
+            ],
+        });
+        expect(playerHasShroud(state, "p2")).toBe(true);
+        expect(playerHasShroud(state, "p1")).toBe(false);
     });
 });

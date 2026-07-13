@@ -26,7 +26,7 @@ import {
 } from "./layers";
 import { isProtectedFromColors } from "./protection";
 import { hasSupertypeLive } from "./snow";
-import { isGuardedAgainst } from "./permanentGuard";
+import { isGuardedAgainst, playerHasShroud } from "./permanentGuard";
 import { castProhibitionReason } from "../cards/castRestrictions";
 import { matchesPermanentFilter } from "../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
@@ -1190,6 +1190,11 @@ export function getLegalTargets(
             ) {
                 continue;
             }
+            // CR 702.18 (applied to a player via CR 115.4) — a shrouded
+            // player "can't be the target of spells or abilities". Unlike
+            // hexproof/Guardian-Beast-style permanent guards, shroud has no
+            // source-controller exception, so no `actionSource` is threaded.
+            if (playerHasShroud(state, player.id)) continue;
             targets.push({ type: "player", id: player.id });
         }
     }
