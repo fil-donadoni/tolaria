@@ -1579,3 +1579,122 @@ describe("Server-gate integration — loadBanlistOverrides resolution + assertDe
         expect(() => assertDeckLegal(illegalDeck)).toThrow(/banned/i);
     });
 });
+
+// --- Server-gate integration: Old School — restricted (1-copy) + banned via
+// DB overrides (PRD #1138, issue #1147) --------------------------------------
+//
+// `checkRestricted`/`checkBanned`, `resolveBanlistEnforcement`, and
+// `loadBanlistOverrides`/`resolveBanlistEnforcementForFormat` are ALL already
+// format-generic (they key off `BanlistOverride.restricted`/`.banned`
+// regardless of which `BanlistFormatId` produced them) — issue #1147's actual
+// gap was the missing Old School exercise of that same seam the Premodern
+// block above already covers, plus proving the RESTRICTED dimension
+// specifically (the Premodern slice only exercised `banned`). These tests
+// mirror the Premodern "Server-gate integration" block exactly, resolving
+// against the REAL card registry (`tryGetCardByName`) and feeding the result
+// straight into `assertDeckLegal`.
+describe("Server-gate integration — Old School restricted + banned via loadBanlistOverrides resolution (issue #1147)", () => {
+    // Regrowth: officially RESTRICTED in Old School (on `OLD_SCHOOL_RESTRICTED`
+    // by real Card ID), with an Old-School-legal (lea) printing — chosen so a
+    // rejection is unambiguously the RESTRICTED reason, not an incidental
+    // set-not-allowed from an off-pool printing.
+    const REGROWTH_ID = "badc73ec-3728-4246-90c7-5f4eb7051ed5";
+    // Sol Ring: also officially restricted in Old School, but used here as the
+    // DB-BANNED subject — a distinct card from Regrowth so the two tests don't
+    // overlap — proving `checkBanned` keys off the injected `banned` set
+    // independently of what the code-side `OLD_SCHOOL_RESTRICTED`/`OLD_SCHOOL_
+    // BANNED` constants say about the same card.
+    const SOL_RING_ID = "c4300d24-1cae-4dd5-be7e-38cc677cf5bd";
+    // Time Walk: officially RESTRICTED in Old School AND has a real
+    // `CardDefinition` (unlike the code `OLD_SCHOOL_BANNED` guard entries —
+    // Chaos Orb/Falling Star/Shahrazad — which are all unbuilt stubs with no
+    // resolvable id), so it's the one that can prove the empty-DB → code-seed
+    // fallback still enforces without a silent-legal window.
+    const TIME_WALK_ID = "e0139f60-d48e-46fb-9f5a-1e3d7558c834";
+    const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56";
+
+    function oldSchoolDeckWith(cardId: string, copies: 0 | 1 | 2): {
+        name: string;
+        format: "old-school";
+        cards: DeckCard[];
+    } {
+        return {
+            name: "Old School Sync Test",
+            format: "old-school",
+            cards: [
+                ...repeat(cardId, copies),
+                ...repeat(MOUNTAIN, 60 - copies),
+            ],
+        };
+    }
+
+    it("a DB row (restricted) rejects a deck with 2 copies of the DB-restricted card, allows 1", () => {
+        const dbRows = [{ cardName: "Regrowth", status: "restricted" as const }];
+        const banlist = resolveBanlistEnforcementForFormat(
+            "old-school",
+            dbRows,
+            tryGetCardByName
+        );
+        expect(banlist.restricted.has(REGROWTH_ID)).toBe(true);
+
+        const oneCopy = oldSchoolDeckWith(REGROWTH_ID, 1);
+        expect(() =>
+            assertDeckLegal(oneCopy, undefined, banlist)
+        ).not.toThrow();
+
+        const twoCopies = oldSchoolDeckWith(REGROWTH_ID, 2);
+        expect(() => assertDeckLegal(twoCopies, undefined, banlist)).toThrow(
+            /restricted/i
+        );
+    });
+
+    it("a DB row (banned) rejects a deck with the DB-banned built card", () => {
+        const dbRows = [{ cardName: "Sol Ring", status: "banned" as const }];
+        const banlist = resolveBanlistEnforcementForFormat(
+            "old-school",
+            dbRows,
+            tryGetCardByName
+        );
+        expect(banlist.banned.has(SOL_RING_ID)).toBe(true);
+
+        const legalDeck = oldSchoolDeckWith(SOL_RING_ID, 0);
+        expect(() => assertDeckLegal(legalDeck, undefined, banlist)).not.toThrow();
+
+        const illegalDeck = oldSchoolDeckWith(SOL_RING_ID, 1);
+        expect(() => assertDeckLegal(illegalDeck, undefined, banlist)).toThrow(
+            /banned/i
+        );
+    });
+
+    it("empty DB rows fall back to the code-side seed, still enforcing the restricted 1-copy cap (no silent-legal window pre-sync)", () => {
+        const banlistFromEmptyDb = resolveBanlistEnforcementForFormat(
+            "old-school",
+            [],
+            tryGetCardByName
+        );
+        expect(banlistFromEmptyDb.restricted.has(TIME_WALK_ID)).toBe(true);
+
+        const illegalDeck = oldSchoolDeckWith(TIME_WALK_ID, 2);
+        expect(() =>
+            assertDeckLegal(illegalDeck, undefined, banlistFromEmptyDb)
+        ).toThrow(/restricted/i);
+    });
+
+    it("advisory client and authoritative server never disagree: the seed-resolved override and the bare code-const fallback reject the SAME deck", () => {
+        const illegalDeck = oldSchoolDeckWith(TIME_WALK_ID, 2);
+
+        // Path A: `loadBanlistOverrides`-style resolution against an empty DB
+        // (the seed fallback inside `resolveBanlistEnforcementForFormat`).
+        const seedOverride = resolveBanlistEnforcementForFormat(
+            "old-school",
+            [],
+            tryGetCardByName
+        );
+        // Path B: no `banlist` argument at all — `validateDeck`'s OWN internal
+        // fallback to the code constant `OLD_SCHOOL_RESTRICTED` (formats.ts).
+        expect(() =>
+            assertDeckLegal(illegalDeck, undefined, seedOverride)
+        ).toThrow(/restricted/i);
+        expect(() => assertDeckLegal(illegalDeck)).toThrow(/restricted/i);
+    });
+});
