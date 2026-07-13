@@ -2856,12 +2856,26 @@ export const EVENT_FIELD_REGISTRY: Record<
     },
     // CR 119.3 — damage to a target. `damagedPlayer` FLATTENS the nested
     // `TargetSelection` down to the player id (a single-level ref), or undefined
-    // when the damage went to a permanent (no player was damaged).
+    // when the damage went to a permanent (no player was damaged). `damagedPermanent`
+    // (issue #1078, Voracious Cobra: "whenever this creature deals combat damage
+    // to a creature, destroy that creature") is the OBJECT-family twin: the
+    // damaged permanent's instance id, or undefined when the damage went to a
+    // player instead. `resolveObjectRef`'s generic `$event.<field>` branch
+    // (ADR 0049) already resolves any object-family row through the same
+    // battlefield-presence recheck `damagedPlayer` gets for players — no
+    // interpreter change needed, just this census row.
     DAMAGE_DEALT: {
         damagedPlayer: {
             family: "player",
             resolve: (e) =>
                 e.type === "DAMAGE_DEALT" && e.target.type === "player"
+                    ? e.target.id
+                    : undefined,
+        },
+        damagedPermanent: {
+            family: "object",
+            resolve: (e) =>
+                e.type === "DAMAGE_DEALT" && e.target.type === "permanent"
                     ? e.target.id
                     : undefined,
         },

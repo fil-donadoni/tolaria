@@ -14,7 +14,11 @@ import type {
     PermanentView,
     SpellContext,
 } from "../../types";
-import { AURA_AFFECTS_HOST, PERMANENT_TYPES } from "../../types";
+import {
+    AURA_AFFECTS_HOST,
+    EFFECT_AFFECTS_SELF,
+    PERMANENT_TYPES,
+} from "../../types";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Domain cluster (parent PRD #1063, issue #1066)
@@ -1414,3 +1418,564 @@ export const viciousKavu: CardDefinition = {
 //     manaCost: { G: 1, W: 1 },
 //     types: ["Enchantment"],
 // };
+
+// ─────────────────────────────────────────────────────────────────────────
+// Free tranche — RG (issue #1078, parent PRD #1063)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// The RG colour-identity cluster (MTGJSON `colorIdentity` superset) is 19
+// cards: 12 TRUE gold (mana cost carries both {R} and {G} pips — `colors`
+// omitted below, derived from the pips per issue #1078's guidance) + 5
+// mono-cost cards whose colour identity crosses into RG via a
+// cross-colour activated-ability cost (the Hooded Kavu/Bloodstone
+// Cameo/Urborg Volcano shape already established by the BR tranche,
+// issue #1077). Serpentine Kavu is ALREADY shipped by the mono green free
+// tranche (issue #1073, `inv/green.ts`); Verduran Emissary is a DEFERRED
+// stub there (tracked-by #1086) — neither is re-declared here (never
+// duplicate a `CardDefinition`, and never activate a tracked stub as a side
+// effect).
+
+// Artifact Mutation — {R}{G} Instant. "Destroy target artifact. It can't be
+// regenerated. Create X 1/1 green Saproling creature tokens, where X is
+// that artifact's mana value." (CR 701.8 destroy + 701.15c regeneration
+// suppression — the Agonizing Demise `cantBeRegenerated` + `bind` shape,
+// this file's BR tranche — then CR 111 token creation with `count` reading
+// the ninth EffectValue grammar member's SIBLING, `{ ref: "$x.manaValue" }`
+// (issue #680), off the destroyed artifact's own snapshot.)
+export const artifactMutation: CardDefinition = {
+    id: "d5eef49c-a80f-4622-ba77-999f9151c841",
+    rarity: "uncommon",
+    name: "Artifact Mutation",
+    oracleText:
+        "Destroy target artifact. It can't be regenerated. Create X 1/1 green Saproling creature tokens, where X is that artifact's mana value.",
+    manaCost: { R: 1, G: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "Artifact", count: 1 },
+    effects: [
+        {
+            op: "destroy",
+            target: { target: 0 },
+            bind: "$art",
+            cantBeRegenerated: true,
+        },
+        {
+            op: "createToken",
+            token: {
+                name: "Saproling",
+                types: ["Creature"],
+                subtypes: ["Saproling"],
+                power: 1,
+                toughness: 1,
+                colors: ["G"],
+            },
+            controller: "controller",
+            count: { ref: "$art.manaValue" },
+        },
+    ],
+};
+
+// Fires of Yavimaya — {1}{R}{G} Enchantment. "Creatures you control have
+// haste. Sacrifice this enchantment: Target creature gets +2/+2 until end
+// of turn." (CR 611/613 layer 6 controller-scoped keyword-grant — the exact
+// Goblin War Drums `keyword-grant` shape, `fem/red.ts`, keyword swapped to
+// haste — then the Angelic Shield sacrifice-for-effect shape, this file's
+// WU tranche, target creature `pump` instead of `moveZone`.)
+export const firesOfYavimaya: CardDefinition = {
+    id: "967f1658-8777-46fc-a648-07fb19e46745",
+    rarity: "rare",
+    name: "Fires of Yavimaya",
+    oracleText:
+        "Creatures you control have haste.\nSacrifice this enchantment: Target creature gets +2/+2 until end of turn.",
+    manaCost: { X: 1, R: 1, G: 1 },
+    types: ["Enchantment"],
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: (target, source) =>
+                target.types.includes("Creature") &&
+                target.controllerId === source.controllerId,
+            keyword: "haste",
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "fires-of-yavimaya-pump",
+            oracleText:
+                "Sacrifice this enchantment: Target creature gets +2/+2 until end of turn.",
+            cost: { sacrifice: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 2,
+                    toughness: 2,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
+
+// Frenzied Tilling — {3}{R}{G} Sorcery. "Destroy target land. Search your
+// library for a basic land card, put that card onto the battlefield
+// tapped, then shuffle." (CR 701.8 destroy, CR 401.4 search / 701.20
+// shuffle — the Quirion Trailblazer / Harrow search-put-tapped-shuffle
+// idiom, `inv/green.ts`, composed after a plain land `destroy`.)
+export const frenziedTilling: CardDefinition = {
+    id: "15875876-3341-40fb-866f-5587c3638538",
+    rarity: "uncommon",
+    name: "Frenzied Tilling",
+    oracleText:
+        "Destroy target land. Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+    manaCost: { X: 3, R: 1, G: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "Land", count: 1 },
+    effects: [
+        { op: "destroy", target: { target: 0 } },
+        {
+            op: "choice",
+            kind: "search-library",
+            player: "controller",
+            zone: "library",
+            filter: { type: "Land", supertype: "Basic" },
+            count: { min: 0, max: 1 },
+            prompt: "Search your library for a basic land card.",
+            bind: "$land",
+        },
+        {
+            op: "moveZone",
+            cards: { ref: "$land" },
+            player: "controller",
+            from: "library",
+            to: "battlefield",
+            tapped: true,
+        },
+        { op: "libraryLook", action: "shuffle", player: "controller" },
+    ],
+};
+
+// Hunting Kavu — {1}{R}{G} Creature — Kavu, 2/3. "{1}{R}{G}, {T}: Exile
+// this creature and target creature without flying that's attacking you."
+// (CR 602.1 activated ability, CR 508.1/509.1 `combatRoleFilter:
+// "attacking"` + `excludeAbility: "flying"` — both already-censused
+// `TargetRequirement` fields — CR 701.13 exile, one `exile` Op per object:
+// `$source` and the announced target.)
+export const huntingKavu: CardDefinition = {
+    id: "8943304a-89c9-48b0-97b4-3e1aa690ca4d",
+    rarity: "uncommon",
+    name: "Hunting Kavu",
+    oracleText:
+        "{1}{R}{G}, {T}: Exile this creature and target creature without flying that's attacking you.",
+    manaCost: { X: 1, R: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 2,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "hunting-kavu-exile",
+            oracleText:
+                "{1}{R}{G}, {T}: Exile this creature and target creature without flying that's attacking you.",
+            cost: { mana: { X: 1, R: 1, G: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                controller: "opponent",
+                combatRoleFilter: "attacking",
+                excludeAbility: "flying",
+            },
+            effects: [
+                { op: "exile", target: { ref: "$source" } },
+                { op: "exile", target: { target: 0 } },
+            ],
+        },
+    ],
+};
+
+// Meteor Storm — {R}{G} Enchantment. "{2}{R}{G}, Discard two cards at
+// random: This enchantment deals 4 damage to any target." (CR 118.3/701.8
+// random-discard ACTIVATION COST — the Coral Helm `discardAtRandom` cost
+// shape — CR 120.1 damage to `type: "any"`, the Zap shape, `inv/red.ts`.)
+export const meteorStorm: CardDefinition = {
+    id: "36489b24-f8a8-46b6-b879-0a5ce400a6dc",
+    rarity: "rare",
+    name: "Meteor Storm",
+    oracleText:
+        "{2}{R}{G}, Discard two cards at random: This enchantment deals 4 damage to any target.",
+    manaCost: { R: 1, G: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "meteor-storm-blast",
+            oracleText:
+                "{2}{R}{G}, Discard two cards at random: This enchantment deals 4 damage to any target.",
+            cost: { mana: { X: 2, R: 1, G: 1 }, discardAtRandom: 2 },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            effects: [{ op: "dealDamage", amount: 4, to: { target: 0 } }],
+        },
+    ],
+};
+
+// Raging Kavu — {1}{R}{G} Creature — Kavu, 3/1. "Flash. Haste." (CR 702.8b
+// flash + CR 702.10b haste, pure printed-keyword data.)
+export const ragingKavu: CardDefinition = {
+    id: "27573679-e9e5-4bfc-b5d5-85d4648b01b6",
+    rarity: "common",
+    name: "Raging Kavu",
+    oracleText: "Flash\nHaste",
+    manaCost: { X: 1, R: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 3,
+    toughness: 1,
+    staticAbilities: ["flash", "haste"],
+};
+
+// Simoon — {R}{G} Instant. "Simoon deals 1 damage to each creature target
+// opponent controls." (CR 115 `controller: "opponent"` player target, CR
+// 120.1 damage — a `forEach` battlefield sweep scoped to the TARGETED
+// player via the `{ target: 0 }` `EffectPlayerRef` shape, the Do or Die
+// `controller: { target: 0 }` `divideIntoPiles.objects` precedent
+// generalized to a plain `forEach` selector, `inv/black.ts`.)
+export const simoon: CardDefinition = {
+    id: "84b1930d-2e4b-472f-98a9-008fd632f3be",
+    rarity: "common",
+    name: "Simoon",
+    oracleText:
+        "Simoon deals 1 damage to each creature target opponent controls.",
+    manaCost: { R: 1, G: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "player", count: 1, controller: "opponent" },
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                controller: { target: 0 },
+                filter: { type: "Creature" },
+            },
+            effects: [{ op: "dealDamage", amount: 1, to: { ref: "$each" } }],
+        },
+    ],
+};
+
+// Voracious Cobra — {2}{R}{G} Creature — Snake, 2/2. "First strike.
+// Whenever this creature deals combat damage to a creature, destroy that
+// creature." (CR 702.7 first strike + CR 510.4/603.2 combat-damage trigger
+// — the Blazing Specter `DAMAGE_DEALT` shape, this file's WU tranche,
+// scoped to a PERMANENT target instead of a player via the newly-censused
+// `EVENT_FIELD_REGISTRY.DAMAGE_DEALT.damagedPermanent` row (issue #1078,
+// mirroring the existing `damagedPlayer` row 1:1 — `resolveObjectRef`'s
+// generic `$event.<field>` branch, ADR 0049, already resolves any
+// object-family row, so this is a pure census addition, no interpreter
+// change) — then CR 701.8 destroy on that permanent.)
+export const voraciousCobra: CardDefinition = {
+    id: "9d8c5669-11a9-4d95-8431-7065037f1fb6",
+    rarity: "uncommon",
+    name: "Voracious Cobra",
+    oracleText:
+        "First strike\nWhenever this creature deals combat damage to a creature, destroy that creature.",
+    manaCost: { X: 2, R: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Snake"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["first strike"],
+    triggeredAbilities: [
+        {
+            id: "voracious-cobra-damage-destroy",
+            oracleText:
+                "Whenever this creature deals combat damage to a creature, destroy that creature.",
+            event: "DAMAGE_DEALT",
+            matches: (event, self) =>
+                event.type === "DAMAGE_DEALT" &&
+                event.sourceInstanceId === self.id &&
+                event.isCombat === true &&
+                event.target.type === "permanent",
+            effects: [
+                {
+                    op: "destroy",
+                    target: { ref: "$event.damagedPermanent" },
+                },
+            ],
+        },
+    ],
+};
+
+// Yavimaya Barbarian — {R}{G} Creature — Elf Barbarian, 2/2. "Protection
+// from blue." (CR 702.16 protection, pure printed-keyword data — the
+// `bindingPattern` census in the Mechanics Registry.)
+export const yavimayaBarbarian: CardDefinition = {
+    id: "8e17377d-4dad-4144-b0ce-c849636096a2",
+    rarity: "common",
+    name: "Yavimaya Barbarian",
+    oracleText: "Protection from blue",
+    manaCost: { R: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Elf", "Barbarian"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["protection from blue"],
+};
+
+// Yavimaya Kavu — {2}{R}{G} Creature — Kavu, */*. "Yavimaya Kavu's power is
+// equal to the number of red creatures on the battlefield. Yavimaya Kavu's
+// toughness is equal to the number of green creatures on the battlefield."
+// (CR 604.3 characteristic-defining ability, layer 7b — the Keldon Warlord
+// / Drift of the Dead `pt-cda` `compute` closure shape, `lea/red.ts` /
+// `ice/black.ts`, generalized from a CONTROLLER-scoped count to a GLOBAL
+// battlefield-wide one — the oracle text reads "on the battlefield", not
+// "you control" — by dropping the `controllerId` equality check.)
+export const yavimayaKavu: CardDefinition = {
+    id: "1872f104-7cf1-41e3-b1b4-ca75c678e08b",
+    rarity: "rare",
+    name: "Yavimaya Kavu",
+    oracleText:
+        "Yavimaya Kavu's power is equal to the number of red creatures on the battlefield.\nYavimaya Kavu's toughness is equal to the number of green creatures on the battlefield.",
+    manaCost: { X: 2, R: 1, G: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 0,
+    toughness: 0,
+    staticEffects: [
+        {
+            kind: "pt-cda",
+            applies: EFFECT_AFFECTS_SELF,
+            compute: (_source, state, ctx) => {
+                let red = 0;
+                let green = 0;
+                for (const player of state.players) {
+                    for (const p of player.battlefield) {
+                        if (!ctx.isCreature(p)) continue;
+                        if (ctx.getColors(p).includes("R")) red++;
+                        if (ctx.getColors(p).includes("G")) green++;
+                    }
+                }
+                return { power: red, toughness: green };
+            },
+        },
+    ],
+};
+
+// Firebrand Ranger — {1}{R} Creature — Human Soldier Ranger, 2/1. "{G},
+// {T}: You may put a basic land card from your hand onto the battlefield."
+// (Colour-identity RG via a cross-colour activated-ability cost, mono {R}
+// cast cost — the Hooded Kavu / Bloodstone Cameo shape, this file's BR
+// tranche, ships alongside the true-gold cards per issue #1078. CR 602.1
+// activated ability — the Stoneforge Mystic hand-source `choice` +
+// `moveZone` shape, `wwk/white.ts`: `count: { min: 0, max: 1 }` makes it
+// "you may".)
+export const firebrandRanger: CardDefinition = {
+    id: "ee05211e-cf08-4dea-9740-ed06f8682153",
+    rarity: "common",
+    name: "Firebrand Ranger",
+    oracleText:
+        "{G}, {T}: You may put a basic land card from your hand onto the battlefield.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Soldier", "Ranger"],
+    power: 2,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "firebrand-ranger-land-drop",
+            oracleText:
+                "{G}, {T}: You may put a basic land card from your hand onto the battlefield.",
+            cost: { mana: { G: 1 }, tap: true },
+            useStack: true,
+            effects: [
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    filter: { type: "Land", supertype: "Basic" },
+                    count: { min: 0, max: 1 },
+                    prompt: "Put a basic land card from your hand onto the battlefield (or none).",
+                    bind: "$land",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$land" },
+                    player: "controller",
+                    from: "hand",
+                    to: "battlefield",
+                },
+            ],
+        },
+    ],
+};
+
+// Savage Offensive — {1}{R} Sorcery. "Kicker {G}. Creatures you control
+// gain first strike until end of turn. If this spell was kicked, they get
+// +1/+1 until end of turn." (Colour-identity RG via Kicker, mono {R} cast
+// cost — same tranche placement as Firebrand Ranger above. CR 702.33
+// Kicker read at spell RESOLUTION (not a later-firing ETB trigger, so the
+// Shivan Emissary/Kangee `kickerCount`-persistence gap doesn't apply — the
+// exact Agonizing Demise `{ kickerCount: true } >= 1` shape, this file's BR
+// tranche) gating a SECOND `forEach` + `pump` pass over the same
+// controller-scoped creature sweep the unconditional `grantAbility` pass
+// uses.)
+export const savageOffensive: CardDefinition = {
+    id: "356744f3-e444-4f4e-bf00-80bb6b2ef76f",
+    rarity: "uncommon",
+    name: "Savage Offensive",
+    oracleText:
+        "Kicker {G} (You may pay an additional {G} as you cast this spell.)\nCreatures you control gain first strike until end of turn. If this spell was kicked, they get +1/+1 until end of turn.",
+    manaCost: { X: 1, R: 1 },
+    types: ["Sorcery"],
+    kicker: { cost: { G: 1 } },
+    effects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                controller: "controller",
+                filter: { type: "Creature" },
+            },
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "first strike",
+                    target: { ref: "$each" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+        {
+            op: "if",
+            predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
+            then: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$each" },
+                            power: 1,
+                            toughness: 1,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
+
+// Viashino Grappler — {2}{R} Creature — Lizard, 3/1. "{G}: This creature
+// gains trample until end of turn." (Colour-identity RG via a
+// cross-colour activated-ability cost, mono {R} cast cost — the exact
+// Hooded Kavu (fear) / Serpentine Kavu (haste) firebreathing-keyword
+// shape, this file's BR tranche / `inv/green.ts`, keyword swapped to
+// trample.)
+export const viashinoGrappler: CardDefinition = {
+    id: "4a94aeb4-349c-4394-848d-c1c9133856e2",
+    rarity: "common",
+    name: "Viashino Grappler",
+    oracleText: "{G}: This creature gains trample until end of turn.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Lizard"],
+    power: 3,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "viashino-grappler-trample",
+            oracleText: "{G}: This creature gains trample until end of turn.",
+            cost: { mana: { G: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "trample",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
+
+// Troll-Horn Cameo — {3} Artifact. "{T}: Add {R} or {G}." (Colourless,
+// colour-identity RG via its own mana ability — the Bloodstone Cameo
+// choice-of-color shape, this file's BR tranche, ships alongside the true
+// RG gold cards per issue #1078's colour-identity cluster scoping.)
+export const trollHornCameo: CardDefinition = {
+    id: "42b1ca6c-6ca0-4b02-885a-58cee3fa2aa8",
+    rarity: "uncommon",
+    name: "Troll-Horn Cameo",
+    oracleText: "{T}: Add {R} or {G}.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "troll-horn-cameo-tap",
+            oracleText: "{T}: Add {R} or {G}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ R: 1 }),
+            manaChoices: [{ R: 1 }, { G: 1 }],
+        },
+    ],
+};
+
+// Shivan Oasis — Land. "This land enters tapped. {T}: Add {R} or {G}."
+// (CR 110.5b enters tapped + CR 605.1a choice-of-color mana ability — the
+// exact Urborg Volcano shape, this file's BR tranche, colours swapped to
+// R/G.)
+export const shivanOasis: CardDefinition = {
+    id: "9841f7e8-162c-44a3-96f3-af944fce15d1",
+    rarity: "uncommon",
+    name: "Shivan Oasis",
+    oracleText: "This land enters tapped.\n{T}: Add {R} or {G}.",
+    manaCost: {},
+    types: ["Land"],
+    entersTapped: true,
+    activatedAbilities: [
+        {
+            id: "shivan-oasis-tap",
+            oracleText: "{T}: Add {R} or {G}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ R: 1 }),
+            manaChoices: [{ R: 1 }, { G: 1 }],
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// Deferred (engine capability gaps) — RG (issue #1078, tracked-by #1123)
+// ─────────────────────────────────────────────────────────────────────────
+
+// Aether Rift — {1}{R}{G} Enchantment. "At the beginning of your upkeep,
+// discard a card at random. If you discard a creature card this way,
+// return it from your graveyard to the battlefield unless any player pays
+// 5 life." tracked-by: #1123 (three separate gaps: (1) no random-discard
+// Effect Script Op — `discardAtRandom` only exists as an ACTIVATION COST
+// (Coral Helm), never as a triggered-ability EFFECT; (2) no `bind` on a
+// random discard to read the discarded card's type back for the "if you
+// discard a creature card" `if`; (3) `mayPay`'s `player` is a single named
+// ref (CR 117.3a) — "unless ANY player pays" lets EITHER player respond,
+// a different (first-responder) shape `mayPay` doesn't express.)
+
+// Overabundance — {1}{R}{G} Enchantment. "Whenever a player taps a land
+// for mana, that player adds one mana of any type that land produced, and
+// this enchantment deals 1 damage to the player." tracked-by: #1123 (no
+// `GameEvent` / `EVENT_FIELD_REGISTRY` row exists for "a land was tapped
+// for mana" — `TriggeredAbility.event` has nothing to key off — AND the
+// "adds one mana of any type that land produced" doubling effect has no
+// engine precedent (Extraplanar Lens-style mana doublers are unimplemented
+// catalogue-wide). Both gaps block the whole card.)
