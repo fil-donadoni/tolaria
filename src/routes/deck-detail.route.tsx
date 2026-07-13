@@ -24,7 +24,7 @@ export default function DeckDetailRoute() {
     const selectedPresetId = getStoredDeckPresetId();
 
     const allDecks = useMemo<LobbyDeck[]>(() => {
-        const presets = (presetDecks ?? []).map(toPresetLobbyDeck);
+        const presets = (presetDecks ?? []).map((d) => toPresetLobbyDeck(d));
         return [...(userDecks ?? []), ...presets];
     }, [presetDecks, userDecks]);
 

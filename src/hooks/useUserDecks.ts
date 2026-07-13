@@ -2,10 +2,20 @@ import { useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { type UserLobbyDeck, toUserLobbyDeck } from "~/lib/deckTypes";
+import { useBanlistOverridesByFormat } from "~/hooks/useBanlistOverride";
 
 export function useUserDecks(): UserLobbyDeck[] | undefined {
     const docs = useQuery(api.userDecks.listMine);
-    return useMemo(() => docs?.map(toUserLobbyDeck), [docs]);
+    // User decks aren't validated server-side on list, so legality is derived
+    // client-side (`toUserLobbyDeck`). Thread the per-Format DB banlist override
+    // (PRD #1138, issue #1144) so a saved deck holding a card newly banned via
+    // the admin Scryfall sync flips to illegal here reactively. The list mixes
+    // Formats, so each row is matched to its own Format's override.
+    const banlistByFormat = useBanlistOverridesByFormat();
+    return useMemo(
+        () => docs?.map((d) => toUserLobbyDeck(d, banlistByFormat[d.format])),
+        [docs, banlistByFormat]
+    );
 }
 
 export function useUserDeckMutations() {

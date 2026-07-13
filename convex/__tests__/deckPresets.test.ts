@@ -56,7 +56,9 @@ function seededRows(): Doc<"presetDecks">[] {
 
 describe("DB-backed api.decks.list", () => {
     it("lists every seeded preset (all nine)", () => {
-        const list = sortLobbyPresets(seededRows().map(presetRowToLobby));
+        const list = sortLobbyPresets(
+            seededRows().map((r) => presetRowToLobby(r))
+        );
         expect(list.length).toBe(PRESET_DECKS.length);
         expect(list.map((d) => d.presetId).sort()).toEqual(
             PRESET_DECKS.map((p) => p.presetId).sort()
@@ -64,7 +66,9 @@ describe("DB-backed api.decks.list", () => {
     });
 
     it("keeps the slug as the public deck id (unchanged wire format)", () => {
-        const list = sortLobbyPresets(seededRows().map(presetRowToLobby));
+        const list = sortLobbyPresets(
+            seededRows().map((r) => presetRowToLobby(r))
+        );
         for (const preset of PRESET_DECKS) {
             const lobby = list.find((d) => d.presetId === preset.presetId);
             expect(lobby).toBeDefined();
@@ -75,7 +79,9 @@ describe("DB-backed api.decks.list", () => {
     });
 
     it("returns presets sorted by slug", () => {
-        const list = sortLobbyPresets(seededRows().map(presetRowToLobby));
+        const list = sortLobbyPresets(
+            seededRows().map((r) => presetRowToLobby(r))
+        );
         const slugs = list.map((d) => d.presetId);
         expect(slugs).toEqual([...slugs].sort((a, b) => a.localeCompare(b)));
     });

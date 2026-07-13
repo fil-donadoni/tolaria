@@ -92,7 +92,7 @@ function Lobby() {
     );
 
     const presetLobbyDecks = useMemo<LobbyDeck[]>(
-        () => (presetDecks ?? []).map(toPresetLobbyDeck),
+        () => (presetDecks ?? []).map((d) => toPresetLobbyDeck(d)),
         [presetDecks]
     );
     const userLobbyDecks = useMemo<LobbyDeck[]>(
