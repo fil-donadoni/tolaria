@@ -231,4 +231,20 @@ export default defineSchema({
     })
         .index("by_status", ["status"])
         .index("by_match", ["matchId"]),
+    // Format banlists (PRD #1138, ADR 0057, issue #1141) — the full OFFICIAL
+    // banlist by oracle name, including cards not yet implemented in the
+    // engine (e.g. Parallax Tide for Premodern). Names only — NO cardId is
+    // stored; enforcement resolves name → `CardDefinition.id` LIVE at read
+    // time via the `nameRegistry` (`resolveBanlistEnforcement` in
+    // `convex/formats.ts`), so a card built after a sync is banned instantly.
+    // Populated by the (future) admin "Sync from Scryfall" action; until then,
+    // `convex/banlists.ts` falls back to a code-side seed when a format has no
+    // rows, so the display list is never empty pre-sync.
+    formatBanlists: defineTable({
+        format: v.union(v.literal("premodern"), v.literal("old-school")),
+        cardName: v.string(),
+        status: v.union(v.literal("banned"), v.literal("restricted")),
+        source: v.string(),
+        syncedAt: v.number(),
+    }).index("by_format", ["format"]),
 });

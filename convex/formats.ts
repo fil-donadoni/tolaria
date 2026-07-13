@@ -83,6 +83,132 @@ export interface BanlistOverride {
     restricted: ReadonlySet<string>;
 }
 
+/** The two formats a DB-backed banlist exists for (PRD #1138). Narrower than
+ *  `FormatId`: Alpha 40 keeps its bespoke Eternal Central lists fully
+ *  code-managed and Freeform has no banlist, so neither is DB-backed. Kept in
+ *  sync with the `formatBanlists.format` union in `convex/schema.ts`. */
+export type BanlistFormatId = "premodern" | "old-school";
+
+/** A single official banlist entry by oracle NAME (never an id — the DB row
+ *  shape minus `source`/`syncedAt`, which only the sync/admin surface cares
+ *  about). Shared by the DB-row projection and the code-side seed below. */
+export interface BanlistEntry {
+    cardName: string;
+    status: "banned" | "restricted";
+}
+
+/**
+ * Resolves a card NAME to its built `CardDefinition.id` (or `null` if no
+ * card by that name is registered yet). Structurally satisfied by
+ * `tryGetCardByName` (`convex/cards/index.ts`, the `nameRegistry` authority);
+ * injected here (rather than imported) so this module stays free of the
+ * `convex/cards/index.ts` card-catalogue import, mirroring `ResolveCard`.
+ */
+export type ResolveCardByName = (cardName: string) => { id: string } | null;
+
+/**
+ * Maps a format's full banlist `entries` (by name — DB rows or the seed
+ * fallback) to enforcement `BanlistOverride` cardId sets (PRD #1138, issue
+ * #1141). PURE: `resolve` is the only impure dependency, injected by the
+ * caller (`convex/banlists.ts`) exactly like `ResolveCard` elsewhere in this
+ * module. A name with no built card is DROPPED from enforcement (the
+ * silent-legal window stays closed the other way: an unbuilt card can't be
+ * illegally "in" a deck) while it remains visible in the `entries` list the
+ * caller also serves for display — the two lists diverge on purpose.
+ */
+export function resolveBanlistEnforcement(
+    entries: readonly BanlistEntry[],
+    resolve: ResolveCardByName
+): BanlistOverride {
+    const banned = new Set<string>();
+    const restricted = new Set<string>();
+    for (const entry of entries) {
+        const card = resolve(entry.cardName);
+        if (!card) continue; // unbuilt name — enforcement can't gate it yet
+        if (entry.status === "banned") banned.add(card.id);
+        else restricted.add(card.id);
+    }
+    return { banned, restricted };
+}
+
+/** Source tag stamped on every code-side seed row (`convex/banlists.ts`),
+ *  distinguishing it from a Scryfall-synced row once the sync action ships. */
+export const BANLIST_SEED_SOURCE = "code-seed";
+
+/**
+ * Premodern BANLIST SEED (issue #1141) — the DB fallback used while
+ * `formatBanlists` has no Premodern rows yet (pre-first-sync). Derived from
+ * `PREMODERN_BANNED`'s own cards (by name, so the built ones round-trip back
+ * to the SAME ids through `resolveBanlistEnforcement`) plus officially
+ * banned names with no `CardDefinition` yet — the exact gap this feature
+ * closes (Parallax Tide is the canonical example from the PRD). Not
+ * exhaustive of the real-world Premodern banlist; the admin Scryfall sync
+ * (a later slice) replaces this with the authoritative list.
+ */
+export const PREMODERN_BANLIST_SEED: readonly BanlistEntry[] = [
+    { cardName: "Balance", status: "banned" },
+    { cardName: "Brainstorm", status: "banned" },
+    { cardName: "Channel", status: "banned" },
+    { cardName: "Demonic Consultation", status: "banned" },
+    { cardName: "Demonic Tutor", status: "banned" },
+    { cardName: "Entomb", status: "banned" },
+    { cardName: "Grim Monolith", status: "banned" },
+    { cardName: "Mana Vault", status: "banned" },
+    { cardName: "Memory Jar", status: "banned" },
+    { cardName: "Mind Twist", status: "banned" },
+    { cardName: "Necropotence", status: "banned" },
+    { cardName: "Strip Mine", status: "banned" },
+    { cardName: "Tolarian Academy", status: "banned" },
+    // Officially banned, no CardDefinition yet (dropped from enforcement,
+    // still shown in the display list — the point of this feature):
+    { cardName: "Amulet of Quoz", status: "banned" },
+    { cardName: "Mystical Tutor", status: "banned" },
+    { cardName: "Vampiric Tutor", status: "banned" },
+    { cardName: "Parallax Tide", status: "banned" },
+];
+
+/**
+ * Old School BANLIST SEED (issue #1141) — mirrors `OLD_SCHOOL_RESTRICTED` /
+ * `OLD_SCHOOL_BANNED` by name (same rationale as the Premodern seed above),
+ * plus the two ante/dexterity-ban names those constants document but don't
+ * yet carry an id for (Falling Star, Shahrazad — ADR 0010 / CR 712).
+ */
+export const OLD_SCHOOL_BANLIST_SEED: readonly BanlistEntry[] = [
+    { cardName: "Ancestral Recall", status: "restricted" },
+    { cardName: "Balance", status: "restricted" },
+    { cardName: "Black Lotus", status: "restricted" },
+    { cardName: "Braingeyser", status: "restricted" },
+    { cardName: "Demonic Tutor", status: "restricted" },
+    { cardName: "Library of Alexandria", status: "restricted" },
+    { cardName: "Mind Twist", status: "restricted" },
+    { cardName: "Mishra's Workshop", status: "restricted" },
+    { cardName: "Mox Emerald", status: "restricted" },
+    { cardName: "Mox Jet", status: "restricted" },
+    { cardName: "Mox Pearl", status: "restricted" },
+    { cardName: "Mox Ruby", status: "restricted" },
+    { cardName: "Mox Sapphire", status: "restricted" },
+    { cardName: "Recall", status: "restricted" },
+    { cardName: "Regrowth", status: "restricted" },
+    { cardName: "Sol Ring", status: "restricted" },
+    { cardName: "Strip Mine", status: "restricted" },
+    { cardName: "The Abyss", status: "restricted" },
+    { cardName: "Time Vault", status: "restricted" },
+    { cardName: "Time Walk", status: "restricted" },
+    { cardName: "Timetwister", status: "restricted" },
+    { cardName: "Chaos Orb", status: "banned" },
+    { cardName: "Falling Star", status: "banned" },
+    { cardName: "Shahrazad", status: "banned" },
+];
+
+/** `BanlistFormatId → BanlistEntry[]` seed registry, keyed the same way as
+ *  `formatBanlists.format`. The single lookup `convex/banlists.ts` uses when
+ *  a format's DB rows are empty. */
+export const BANLIST_SEEDS: Record<BanlistFormatId, readonly BanlistEntry[]> =
+    {
+        premodern: PREMODERN_BANLIST_SEED,
+        "old-school": OLD_SCHOOL_BANLIST_SEED,
+    };
+
 /**
  * Static metadata + the per-format validator. Shared fields (`allowedSets`,
  * `minMain`, `maxSide`) drive the shared helpers (`checkSize`, `checkSets`)
