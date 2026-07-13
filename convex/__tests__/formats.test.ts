@@ -250,7 +250,12 @@ describe("validateDeck / assertDeckLegal — injected banlist override (issue #1
             rarity: "common",
             isBasic: false,
         },
-        island: { cardId: "island", setCode: "scg", rarity: "common", isBasic: true },
+        island: {
+            cardId: "island",
+            setCode: "scg",
+            rarity: "common",
+            isBasic: true,
+        },
     };
     const pmResolve: ResolveCard = (id) => PM_POOL[id] ?? null;
 

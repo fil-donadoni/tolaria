@@ -32,7 +32,12 @@ export type ZoneBox = {
 export const ZONE_BOXES: Record<PileKey, ZoneBox> = {
     candidates: { left: 0, top: 0, width: STAGE_W, height: 170 },
     A: { left: 0, top: 186, width: PILE_W, height: 174 },
-    B: { left: STAGE_W / 2 + HALF_GUTTER, top: 186, width: PILE_W, height: 174 },
+    B: {
+        left: STAGE_W / 2 + HALF_GUTTER,
+        top: 186,
+        width: PILE_W,
+        height: 174,
+    },
 };
 
 const CARD_Y: Record<PileKey, number> = {

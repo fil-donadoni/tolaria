@@ -32,7 +32,11 @@ export default function PileCard({
                 transform: `translate(${x}px, ${y}px)${dragging ? " scale(1.05)" : ""}`,
                 transition: dragging ? "none" : "transform 180ms ease-out",
                 zIndex: dragging ? 50 : 1,
-                cursor: interactive ? (dragging ? "grabbing" : "grab") : "default",
+                cursor: interactive
+                    ? dragging
+                        ? "grabbing"
+                        : "grab"
+                    : "default",
             }}
         >
             <img

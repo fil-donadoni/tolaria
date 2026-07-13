@@ -72,4 +72,40 @@ type PresetScenario = {
     poison?: { me?: number; opp?: number };
 };
 
-export const PRESET_SCENARIOS: PresetScenario[] = [];
+export const PRESET_SCENARIOS: PresetScenario[] = [
+    {
+        // Fact or Fiction (ADR 0053, pile division). Four Islands to cast the
+        // {3}{U}, five distinct cards fixed on top of the library so the
+        // revealed set is deterministic. In solo mode you divide (as the
+        // opponent) then choose a pile (as the controller) — exercising both the
+        // 3-zone drag stage and the face-up two-pile pick.
+        label: "Fact or Fiction — divide the top five",
+        cards: [
+            { name: "Fact or Fiction", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 4 },
+            { name: "Serra Angel", owner: "me", zone: "library", position: 1 },
+            {
+                name: "Shivan Dragon",
+                owner: "me",
+                zone: "library",
+                position: 2,
+            },
+            {
+                name: "Lightning Bolt",
+                owner: "me",
+                zone: "library",
+                position: 3,
+            },
+            {
+                name: "Llanowar Elves",
+                owner: "me",
+                zone: "library",
+                position: 4,
+            },
+            { name: "Dark Ritual", owner: "me", zone: "library", position: 5 },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+        libraryCount: 12,
+    },
+];

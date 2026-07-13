@@ -712,7 +712,8 @@ export default function Board({
                                     pendingChoices.length > 0 &&
                                     !minimizedChoice.isMinimized &&
                                     pendingChoices[0].playerId === viewerId &&
-                                    (pendingChoices[0].kind === "divide-piles" ||
+                                    (pendingChoices[0].kind ===
+                                        "divide-piles" ||
                                         pendingChoices[0].kind ===
                                             "pick-pile") && (
                                         <PileDivisionPicker

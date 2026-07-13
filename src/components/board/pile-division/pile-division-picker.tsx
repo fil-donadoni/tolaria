@@ -191,15 +191,7 @@ export default function PileDivisionPicker({
         } finally {
             setBusy(false);
         }
-    }, [
-        canConfirm,
-        cards,
-        assignment,
-        submitChoice,
-        gameId,
-        playerId,
-        choice,
-    ]);
+    }, [canConfirm, cards, assignment, submitChoice, gameId, playerId, choice]);
 
     const takePile = useCallback(
         async (pile: "A" | "B") => {
@@ -228,9 +220,7 @@ export default function PileDivisionPicker({
                 transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
             }}
         >
-            <div
-                className="relative flex flex-col items-center gap-2 bg-surface border border-border-subtle backdrop-blur-md rounded-sm px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)] select-none pointer-events-auto"
-            >
+            <div className="relative flex flex-col items-center gap-2 bg-surface border border-border-subtle backdrop-blur-md rounded-sm px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)] select-none pointer-events-auto">
                 <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-border-accent/40" />
                 <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-border-accent/40" />
                 <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-border-accent/40" />
@@ -298,9 +288,7 @@ export default function PileDivisionPicker({
                                 y={y}
                                 dragging={isDragging}
                                 interactive={!isPick && !busy}
-                                onPointerDown={(e) =>
-                                    onPointerDown(e, card.id)
-                                }
+                                onPointerDown={(e) => onPointerDown(e, card.id)}
                             />
                         );
                     })}
@@ -330,9 +318,9 @@ export default function PileDivisionPicker({
                     <div className="flex flex-col items-center gap-1 mt-1">
                         {remaining > 0 && (
                             <p className="text-text-disabled text-xs">
-                                {remaining} card{remaining === 1 ? "" : "s"} left
-                                — drag {remaining === 1 ? "it" : "each"} into a
-                                pile
+                                {remaining} card{remaining === 1 ? "" : "s"}{" "}
+                                left — drag {remaining === 1 ? "it" : "each"}{" "}
+                                into a pile
                             </p>
                         )}
                         <button

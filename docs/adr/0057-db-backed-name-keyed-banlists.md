@@ -61,7 +61,7 @@ intersection.
 (`resolveBanlistEnforcement(entries, resolve) → { banned, restricted }`)
 maps each name to a `CardDefinition.id` via the existing `nameRegistry`
 (`convex/cards/index.ts`) at every read, dropping names with no built card
-from the *enforcement* sets while keeping them in the *display* list. This
+from the _enforcement_ sets while keeping them in the _display_ list. This
 is a deliberate design choice, not an oversight: if the id were captured and
 cached at sync time, a card built after the last sync would stay silently
 legal until the next manual sync — exactly the window this ADR exists to

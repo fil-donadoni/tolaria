@@ -978,3 +978,102 @@ describe("divide-as-you-choose pendingTarget survives the wire (CR 601.2d)", () 
         expect(pub.pendingTarget?.divideAmounts).toEqual({ "permanent:a": 3 });
     });
 });
+
+// Fact or Fiction (ADR 0053) — a LIBRARY-zone divide is hidden, so the
+// projection must expose the divided cards face-up to the acting player: the
+// divided `candidateIds` to the DIVIDER (step 1, `divide-piles`), and the two
+// completed piles to the CHOOSER (step 2, `pick-pile`). Battlefield / graveyard
+// divides are already public and need no exposure.
+describe("pile-division library exposure (ADR 0053, CR 401.4)", () => {
+    // p1 casts Fact or Fiction on their own library; p2 (opponent) divides the
+    // revealed top 3. Chooser of `divide-piles` = the divider p2; zone owner =
+    // p1's library.
+    function stateWithDivide(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        makeCard("p1-l1", { zone: "library" }),
+                        makeCard("p1-l2", { zone: "library" }),
+                        makeCard("p1-l3", { zone: "library" }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            pendingChoices: [
+                {
+                    stackItemId: "s1",
+                    step: 0,
+                    choiceId: "fof:divide",
+                    playerId: "p2",
+                    zoneOwnerId: "p1",
+                    kind: "divide-piles",
+                    zone: "library",
+                    count: { min: 0, max: 3 },
+                    candidateIds: ["p1-l1", "p1-l2", "p1-l3"],
+                    prompt: "Separate the revealed cards into two piles.",
+                },
+            ],
+        });
+    }
+
+    // Step 2: p2 submitted pile A = [l1], pile B = [l2, l3]; now p1 (caster)
+    // chooses. The pile cards still sit in p1's library.
+    function stateWithPick(): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        makeCard("p1-l1", { zone: "library" }),
+                        makeCard("p1-l2", { zone: "library" }),
+                        makeCard("p1-l3", { zone: "library" }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            pendingChoices: [
+                {
+                    stackItemId: "s1",
+                    step: 0,
+                    choiceId: "fof:pick",
+                    playerId: "p1",
+                    kind: "pick-pile",
+                    count: 1,
+                    pileA: ["p1-l1"],
+                    pileB: ["p1-l2", "p1-l3"],
+                    prompt: "Choose a pile.",
+                },
+            ],
+        });
+    }
+
+    it("exposes the divided candidateIds face-up to the divider only", () => {
+        const result = projectPublicState(stateWithDivide(), 1, "p2");
+        const owner = result.players.find((p) => p.id === "p1")!;
+        expect(owner.libraryPeek!.map((c) => c.id)).toEqual([
+            "p1-l1",
+            "p1-l2",
+            "p1-l3",
+        ]);
+    });
+
+    it("hides the divided cards from the non-divider (the caster waits)", () => {
+        const result = projectPublicState(stateWithDivide(), 1, "p1");
+        const owner = result.players.find((p) => p.id === "p1")!;
+        expect(owner.libraryPeek).toBeUndefined();
+    });
+
+    it("exposes both piles face-up to the chooser at pick-pile", () => {
+        const result = projectPublicState(stateWithPick(), 1, "p1");
+        const owner = result.players.find((p) => p.id === "p1")!;
+        expect(new Set(owner.libraryPeek!.map((c) => c.id))).toEqual(
+            new Set(["p1-l1", "p1-l2", "p1-l3"])
+        );
+    });
+
+    it("hides the piles from the non-chooser at pick-pile", () => {
+        const result = projectPublicState(stateWithPick(), 1, "p2");
+        const owner = result.players.find((p) => p.id === "p1")!;
+        expect(owner.libraryPeek).toBeUndefined();
+    });
+});
