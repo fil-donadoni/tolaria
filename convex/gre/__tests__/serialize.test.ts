@@ -12,6 +12,7 @@ import {
     makeState,
 } from "../../cards/__tests__/setup";
 import {
+    animateArtifact,
     lightningBolt,
     mountain,
     plains,
@@ -75,6 +76,23 @@ describe("game_state serialize round-trip", () => {
             requirements: [{ filter: { subtypes: ["Swamp"] }, count: 2 }],
             picked: [forestId],
         });
+    });
+
+    // CR 303.4f — an Aura held off every zone while its controller owes a
+    // `choose-aura-host` pick must survive the DB round-trip, so a save/load
+    // mid-choice reloads the staged Aura (a stable save point can fall here).
+    it("preserves stagedAuraEntries mid aura-host choice", () => {
+        const state = freshState();
+        const aura = makeInstance(animateArtifact.id, {
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        state.stagedAuraEntries = [{ aura, controllerId: "p1" }];
+        const expanded = expandState(compactState(state));
+        expect(expanded.stagedAuraEntries).toEqual([
+            { aura, controllerId: "p1" },
+        ]);
     });
 
     it("re-expands a fresh state to a deeply-equal GameState", () => {

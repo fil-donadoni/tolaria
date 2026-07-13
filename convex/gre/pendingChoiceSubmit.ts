@@ -16,6 +16,7 @@ import {
     mayPaySacrificeSetPower,
     normalizeMayPayCost,
     grantKnowledge,
+    finalizeAuraHost,
     type CardInstanceState,
     type GameState,
 } from "./state";
@@ -695,6 +696,18 @@ export function applyPendingChoiceSubmit(
             throw new Error("Card is not an eligible choice");
         }
         finalizeLegendKeep(state, args.cardInstanceIds);
+        return;
+    }
+
+    if (head.kind === "choose-aura-host" && head.stackItemId === "") {
+        // CR 303.4f — non-cast Aura host pick. The battlefield + candidateIds
+        // validation above already verified the selection is a legal host; the
+        // attach, staged-entry removal, SBA re-sweep, and priority resumption
+        // live in `finalizeAuraHost`.
+        if (!head.candidateIds?.includes(args.cardInstanceIds[0])) {
+            throw new Error("Card is not an eligible choice");
+        }
+        finalizeAuraHost(state, args.cardInstanceIds);
         return;
     }
 

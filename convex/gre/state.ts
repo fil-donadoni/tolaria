@@ -40,6 +40,7 @@ import {
     solveSmartAutoTap,
 } from "./autoTap";
 import { applyPlayLand, enqueueLandEntryChoice } from "./playLand";
+import { checkStateBasedActions } from "./sba";
 import { getExtraLandDrops, getLegalTargets } from "./rules";
 import { resolveEntersTapped } from "../cards/entersTapped";
 import { getAbilityEffectFn, getResolveFn } from "../cards/effectRegistry";
@@ -1512,6 +1513,12 @@ export type PendingChoice = {
      *  the zone move). `finalizeLandEntry` reads it to complete the entry on
      *  submit. */
     landInstanceId?: string;
+    /** For `kind: "choose-aura-host"` only (CR 303.4f) — the instance id of the
+     *  Aura currently entering, held off every zone in
+     *  `GameState.stagedAuraEntries` while this choice is pending.
+     *  `finalizeAuraHost` reads it to match the choice to its staged Aura and
+     *  complete the attachment + entry on submit. */
+    auraInstanceId?: string;
     /** For `kind: "may-pay"` only — a spend restriction the mana leg may draw
      *  on in addition to the fungible pool (CR 106.6, ADR 0022 / 0042). Set to
      *  `"cumulative-upkeep"` by the cumulative-upkeep trigger so Adarkar Unicorn
@@ -2268,6 +2275,16 @@ export type GameState = {
      *  card state — so it serializes as plain data. Its existence is also the
      *  "delayed return is armed" flag (see TriggerStateView.exileHeld). */
     exileHeld?: ExileReturnBundle[];
+    /** CR 303.4f — Auras that have left their origin zone but have NOT yet
+     *  entered the battlefield because their controller still owes a "choose
+     *  what to enchant" pick (a `choose-aura-host` PendingChoice is queued for
+     *  each). Held here — off every zone — so no SBA (704.5m unattached-Aura
+     *  sweep) or wire projection ever observes an unattached Aura on the
+     *  battlefield mid-choice. `finalizeAuraHost` pulls the entry, attaches the
+     *  Aura to the chosen host, and runs the deferred entry. Only ever populated
+     *  transiently while a matching choice is pending; empty (undefined) at a
+     *  fully-resolved stable point. */
+    stagedAuraEntries?: StagedAuraEntry[];
     /** Authoritative Expected Input (ADR 0047) — the single answer to "what is
      *  the game waiting for, from whom?". Maintained by the engine at every
      *  stable point via {@link refreshExpectedInput} (persistence seam +
@@ -2489,6 +2506,20 @@ export interface ExileReturnBundle {
     counters: Record<string, number>;
     /** The host returns tapped (Tawnos's Coffin: "tapped"). */
     returnTapped: boolean;
+}
+
+/** CR 303.4f — an Aura removed from its origin zone and awaiting its
+ *  controller's "choose what to enchant" pick before it enters the
+ *  battlefield. Carries the fat Aura object itself (it lives in no zone while
+ *  staged) plus the controller under whom it will enter. Matched to its
+ *  `choose-aura-host` PendingChoice by the Aura's instance id. See
+ *  {@link GameState.stagedAuraEntries}. */
+export interface StagedAuraEntry {
+    /** The Aura card, off every zone until the host is chosen. */
+    aura: CardInstanceState;
+    /** Player under whose control the Aura enters (the reanimator's controller,
+     *  or the returning effect's controller). */
+    controllerId: string;
 }
 
 /** Returns true if a prevention effect matches (source, player) and consumes
@@ -3125,15 +3156,7 @@ function finalizeSpellResolution(
             }
 
             const isLegalHost =
-                host !== undefined &&
-                isLegalAuraHost(host, item) &&
-                // CR 702.16b: the target can't have acquired protection
-                // matching the aura's color between cast and resolution.
-                !isProtectedFromSource(host, item) &&
-                // CR 303.4 — the host can't have become "can't be enchanted"
-                // (Guardian Beast) between cast and resolution. Already-attached
-                // Auras are unaffected; this gate only blocks new attachment.
-                !isGuardedAgainst(state, host, "cantBeEnchanted");
+                host !== undefined && isFullyLegalAuraHost(state, host, item);
             if (!isLegalHost || host === undefined) {
                 item.zone = "graveyard";
                 getPlayer(state, item.ownerId).graveyard.push(item);
@@ -3988,6 +4011,48 @@ function isLegalAuraHost(
         if (host.types.includes(t)) return true;
     }
     return false;
+}
+
+/** CR 303.4 / 702.16b — the FULL host-legality predicate: `host` satisfies
+ *  `aura`'s enchant restriction (`isLegalAuraHost`), is not protected from the
+ *  Aura's color (CR 702.16b), and hasn't become "can't be enchanted" (Guardian
+ *  Beast, CR 303.4). This is the same three-part gate the cast path applies at
+ *  resolution (CR 608.2b) — factored out so the non-cast entry paths
+ *  (`findAllLegalAuraHosts`, reanimation) enforce it identically instead of the
+ *  type-only `isLegalAuraHost`. `aura` may be a resolving StackItem or a
+ *  reanimated CardInstanceState (both carry `.card` + `types`). */
+function isFullyLegalAuraHost(
+    state: GameState,
+    host: CardInstanceState,
+    aura: CardInstanceState
+): boolean {
+    return (
+        isLegalAuraHost(host, aura) &&
+        !isProtectedFromSource(host, aura) &&
+        !isGuardedAgainst(state, host, "cantBeEnchanted")
+    );
+}
+
+/** CR 303.4f — every permanent on the battlefield (any controller) that is a
+ *  fully-legal host for `aura`, in deterministic player/battlefield scan order.
+ *  The candidate set offered when an Aura enters NOT as a cast spell and the
+ *  effect doesn't name what it enchants. An Aura with an "enchant player"
+ *  restriction has no permanent host and yields `[]` (CR 303.4g handles it).
+ *  `excludeId` drops one permanent from consideration (an Aura can't enchant
+ *  itself / a sibling Aura's own object). */
+function findAllLegalAuraHosts(
+    state: GameState,
+    aura: CardInstanceState,
+    excludeId?: string
+): CardInstanceState[] {
+    const hosts: CardInstanceState[] = [];
+    for (const player of state.players) {
+        for (const host of player.battlefield) {
+            if (host.id === excludeId) continue;
+            if (isFullyLegalAuraHost(state, host, aura)) hosts.push(host);
+        }
+    }
+    return hosts;
 }
 
 /** Applies the first matching `control-change` static effect declared on
@@ -5661,15 +5726,24 @@ function putReanimatedOnBattlefield(
  *  battlefield) can treat a NON-AURA SIBLING entering as part of this same
  *  event as an available host, not just pre-existing permanents — that
  *  simultaneity is the whole point of the batch. An Aura with no legal host
- *  anywhere stays in the graveyard (CR 303.4c / 704.5m never gets a chance
- *  to bounce it back — it never enters in the first place).
- *  SIMPLIFICATION (documented, issue #1094): when more than one legal host
- *  exists, the FIRST one found (deterministic player/battlefield order) is
- *  auto-picked — no player choice is modeled, matching the bulk sweep's own
- *  "no per-card choice" design (Replenish's enchantment filter has the same
- *  simplification for which cards return).
+ *  anywhere stays in the graveyard (CR 303.4g — it never enters in the first
+ *  place).
  *
- *  Returns the cardInstanceIds that actually entered the battlefield. */
+ *  CR 303.4f host choice (issue #1094 follow-up): each reanimated Aura's
+ *  controller chooses its host among the legal candidates. Zero legal hosts →
+ *  the Aura stays in the graveyard (303.4g). Exactly one → auto-attached as
+ *  part of this simultaneous batch (Arena-UX auto-resolve, ADR 0003). Two or
+ *  more → the Aura is held off every zone (`stagedAuraEntries`) and a
+ *  `choose-aura-host` PendingChoice is enqueued; it enters LATER, via
+ *  `finalizeAuraHost`, when the controller answers. DOCUMENTED SIMPLIFICATION:
+ *  a ≥2-host Aura that requires a prompt enters as its OWN later event rather
+ *  than truly simultaneously with the rest of the batch — modeling N genuinely
+ *  simultaneous host prompts is out of scope; the candidate set is still
+ *  computed against the fully-staged batch, so a sibling that entered here is a
+ *  valid host.
+ *
+ *  Returns the cardInstanceIds that actually entered the battlefield NOW
+ *  (excludes any Aura deferred on a host choice — those enter on submit). */
 export function putReanimatedSetOnBattlefield(
     state: GameState,
     cards: { card: CardInstanceState; controllerId: string }[]
@@ -5686,9 +5760,11 @@ export function putReanimatedSetOnBattlefield(
         }
     }
     for (const { card, controllerId } of auras) {
-        const host = findFirstLegalAuraHost(state, card);
-        if (!host) {
-            // CR 303.4c — no legal object to enchant (not even a non-Aura
+        // CR 303.4f — legal hosts among the fully-staged batch + pre-existing
+        // permanents (exclude the Aura's own object).
+        const hosts = findAllLegalAuraHosts(state, card, card.id);
+        if (hosts.length === 0) {
+            // CR 303.4g — no legal object to enchant (not even a non-Aura
             // sibling that entered as part of this same event): the Aura
             // never enters, it remains in its owner's graveyard. The caller
             // already spliced it OUT of that graveyard to make the set-wide
@@ -5698,10 +5774,24 @@ export function putReanimatedSetOnBattlefield(
             getPlayer(state, card.ownerId).graveyard.push(card);
             continue;
         }
-        if (stageReanimatedOnBattlefield(state, card, controllerId)) {
-            card.attachedTo = host.id;
-            staged.push(card);
+        if (hosts.length === 1) {
+            // CR 303.4f + ADR 0003 — a single legal host is a zero-branch
+            // decision: auto-attach and enter now, inside the simultaneous
+            // batch (no prompt).
+            if (stageReanimatedOnBattlefield(state, card, controllerId)) {
+                card.attachedTo = hosts[0].id;
+                staged.push(card);
+            }
+            continue;
         }
+        // CR 303.4f — 2+ legal hosts: the controller chooses. Hold the Aura
+        // off every zone and enqueue the pick; it enters via `finalizeAuraHost`.
+        enqueueAuraHostChoice(
+            state,
+            card,
+            controllerId,
+            hosts.map((h) => h.id)
+        );
     }
 
     // CR 611.2 grant application, batch-correct ordering (issue #1094). Every
@@ -5724,30 +5814,111 @@ export function putReanimatedSetOnBattlefield(
     return staged.map((c) => c.id);
 }
 
-/** CR 303.4 / 702.5a — the first permanent (deterministic player/battlefield
- *  scan order) that satisfies `aura`'s enchant restriction, or undefined if
- *  none does. Used only by the no-player-choice bulk-reanimation path
- *  (`putReanimatedSetOnBattlefield`, issue #1094); a CAST Aura's target is
- *  chosen by the player at announcement (CR 601.2c) and re-checked via
- *  `isLegalAuraHost` directly in `finalizeSpellResolution`.
- *
- *  TODO(#1094-followup, CR 702.16b/303.4): this only checks the type-line
- *  enchant restriction and only scans permanents — it does NOT reject a host
- *  with protection from the Aura's quality (CR 702.16b) or one that "can't be
- *  enchanted" (CR 303.4), and it never considers an "enchant player" Aura. A
- *  bulk-reanimated Aura of those shapes would pick an illegal host / find
- *  none. Acceptable for the current pool (no such Aura is bulk-reanimatable);
- *  tracked for a follow-up. */
-function findFirstLegalAuraHost(
+/** CR 303.4f — hold `aura` off every zone (the caller has already removed it
+ *  from its origin) and enqueue the controller's "choose what to enchant" pick.
+ *  Freezes priority on the chooser; the Aura enters via `finalizeAuraHost` when
+ *  the choice is answered. `candidateIds` are the legal hosts computed by the
+ *  caller (`findAllLegalAuraHosts`). Only called with ≥2 candidates — a 0/1-host
+ *  Aura is resolved inline without a prompt (CR 303.4g / ADR 0003). */
+function enqueueAuraHostChoice(
     state: GameState,
-    aura: CardInstanceState
-): CardInstanceState | undefined {
-    for (const player of state.players) {
-        for (const host of player.battlefield) {
-            if (isLegalAuraHost(host, aura)) return host;
+    aura: CardInstanceState,
+    controllerId: string,
+    candidateIds: string[]
+): void {
+    // The Aura leaves no footprint in any zone array while staged — its stale
+    // `.zone` string is never read (it is not in any zone's array), and
+    // `stageReanimatedOnBattlefield` resets it on entry.
+    state.stagedAuraEntries = [
+        ...(state.stagedAuraEntries ?? []),
+        { aura, controllerId },
+    ];
+    const name = (aura.card as { name?: string }).name ?? "this Aura";
+    state.pendingChoices = [
+        ...(state.pendingChoices ?? []),
+        {
+            stackItemId: "", // stackless — the Aura enters during a zone move
+            step: 0,
+            choiceId: `aura-host-${aura.id}`,
+            playerId: controllerId,
+            zoneOwnerId: controllerId,
+            actingPlayerId: controllerId,
+            kind: "choose-aura-host",
+            zone: "battlefield",
+            // A legal host may be any player's permanent (Control Magic can be
+            // reanimated onto an opponent's creature), so the pick spans every
+            // battlefield; `candidateIds` is the authoritative allow-list.
+            allControllers: true,
+            auraInstanceId: aura.id,
+            candidateIds,
+            count: 1,
+            prompt: `Choose what ${name} enchants.`,
+        },
+    ];
+    state.priorityPlayerId = controllerId;
+}
+
+/** CR 611.2 / 613.1b / 603.6 — finish an Aura's entry once its host is set:
+ *  absorb existing grants, push its own static effects (aura → host grant),
+ *  apply any control-change (Control Magic), then emit the ETB notification.
+ *  Mirrors the aura tail of `finalizeSpellResolution` so a reanimated Aura
+ *  behaves exactly like a cast one. The Aura must already be on the battlefield
+ *  with `attachedTo` set. */
+function finishAuraEntry(state: GameState, aura: CardInstanceState): void {
+    applyExistingGrantsTo(state, aura);
+    applySourceStaticEffects(state, aura);
+    applyAuraControlChange(state, aura);
+    emitPermanentEntered(state, aura);
+}
+
+/** CR 303.4f — commit a `choose-aura-host` PendingChoice: attach the staged
+ *  Aura to the chosen host and finish its entry. Drops the head choice, removes
+ *  the staged entry, re-runs SBAs (the new attachment / control change may
+ *  trigger one), and restores priority to the active player once the queue
+ *  drains — mirroring `finalizeLegendKeep`. No-op if the head is not a stackless
+ *  `choose-aura-host`. If the chosen host is gone / no longer legal (defensive —
+ *  the game is frozen while the choice is pending, so this should not happen),
+ *  the Aura is put into its owner's graveyard (CR 303.4g). */
+export function finalizeAuraHost(
+    state: GameState,
+    selectedIds: string[]
+): void {
+    const queue = state.pendingChoices ?? [];
+    const head = queue[0];
+    if (!head || head.kind !== "choose-aura-host" || head.stackItemId !== "") {
+        return;
+    }
+    queue.shift();
+    state.pendingChoices = queue.length > 0 ? queue : undefined;
+
+    const entries = state.stagedAuraEntries ?? [];
+    const idx = entries.findIndex((e) => e.aura.id === head.auraInstanceId);
+    if (idx !== -1) {
+        const [entry] = entries.splice(idx, 1);
+        state.stagedAuraEntries = entries.length > 0 ? entries : undefined;
+        const aura = entry.aura;
+        const hostId = selectedIds[0];
+        const host = hostId ? findOnBattlefield(state, hostId)?.card : undefined;
+        if (host && isFullyLegalAuraHost(state, host, aura)) {
+            if (stageReanimatedOnBattlefield(state, aura, entry.controllerId)) {
+                aura.attachedTo = host.id;
+                finishAuraEntry(state, aura);
+            }
+        } else {
+            // CR 303.4g — the chosen host is no longer a legal object: the Aura
+            // never enters, it goes to its owner's graveyard.
+            aura.attachedTo = undefined;
+            aura.zone = "graveyard";
+            getPlayer(state, aura.ownerId).graveyard.push(aura);
         }
     }
-    return undefined;
+
+    // A new attachment / control change may create an SBA (CR 704.3 — repeat
+    // until none applies); more aura-host choices may still be queued.
+    checkStateBasedActions(state);
+    if ((state.pendingChoices?.length ?? 0) === 0 && !state.gameOver) {
+        state.priorityPlayerId = state.activePlayerId;
+    }
 }
 
 /** Single source of truth lives in `convex/cards/filters.ts` (ADR 0002).
@@ -6798,6 +6969,19 @@ export function buildSpellContext(
             // CR 400.7 / 800.4a — owner stays the source pile's owner; the new
             // controller defaults to that owner (Resurrection) but may differ
             // (Hymn of Rebirth: "from a graveyard ... under your control").
+            if (isAura(card)) {
+                // CR 303.4f — an Aura reanimated with no specified host must
+                // choose what it enchants. Route through the batch helper (a
+                // batch of one) so the 0/1/≥2-host decision is identical to the
+                // mass-reanimation path. A ≥2-host Aura enters LATER on the
+                // controller's choice, so `entered` is empty NOW (documented:
+                // the boolean under-reports a deferred entry — no single Aura
+                // reanimator in the pool ties an "if you do" rider to it).
+                const entered = putReanimatedSetOnBattlefield(state, [
+                    { card, controllerId: controllerId ?? playerId },
+                ]);
+                return entered.length > 0;
+            }
             putReanimatedOnBattlefield(state, card, controllerId ?? playerId);
             return true;
         },
