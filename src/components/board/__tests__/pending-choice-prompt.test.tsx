@@ -97,7 +97,11 @@ describe("PendingChoicePrompt suppression", () => {
 });
 
 describe("PendingChoicePrompt — pick-pile (ADR 0053, pile division)", () => {
-    it("renders two pile-option buttons sized from pileA/pileB, for the chooser", () => {
+    it("renders nothing for the chooser — the pile pick is delegated to the dedicated PileDivisionPicker", () => {
+        // ADR 0053: for the chooser, pick-pile is owned by PileDivisionPicker
+        // (mounted by the board), so PendingChoicePrompt suppresses its generic
+        // banner and renders null. The face-up two-pile pick UI (labels + Take
+        // buttons) is exercised in pile-division-picker.test.tsx.
         const choice: PendingChoice = {
             stackItemId: "stk",
             step: 0,
@@ -109,9 +113,8 @@ describe("PendingChoicePrompt — pick-pile (ADR 0053, pile division)", () => {
             pileA: ["c1", "c2"],
             pileB: ["c3"],
         } as PendingChoice;
-        const { getByText } = renderPrompt(choice);
-        expect(getByText(/Pile A \(2 cards\)/)).toBeTruthy();
-        expect(getByText(/Pile B \(1 card\)/)).toBeTruthy();
+        const { container } = renderPrompt(choice);
+        expect(container.firstChild).toBeNull();
     });
 
     it("shows the waiting banner (not the option buttons) for the non-chooser viewer", () => {
