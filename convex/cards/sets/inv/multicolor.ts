@@ -11,6 +11,7 @@ import type {
     ActivatedAbilityContext,
     CardDefinition,
     Color,
+    EffectOp,
     PermanentView,
     SpellContext,
 } from "../../types";
@@ -2373,3 +2374,976 @@ export const sabertoothNishoba: CardDefinition = {
 // Grove) — no Op reorders the library TOP after a tutor's shuffle. "Never
 // ship silent partials" (PRD #1063) means the whole card waits for #1125
 // even though the shroud clause alone is buildable today.)
+
+// ─────────────────────────────────────────────────────────────────────────
+// Free tranche — 3-colour + WUBRG (issue #1080, parent PRD #1063)
+// ─────────────────────────────────────────────────────────────────────────
+//
+// The Nephilim-style dragon cycle (Crosis/Darigaaz/Dromar/Rith/Treva — each
+// {3}{X}{Y}{Z}, three colour-pip mana costs) plus their five sacrifice-for-
+// mana Attendants ({5} artifact creatures) and five sacrifice-for-two-colour
+// tri-lands, plus the three remaining Apprentice/Master wizard pairs whose
+// FULL colour identity (CR 202.2 — mana symbols in the cost OR the rules
+// text) spans three colours via off-cost activated-ability mana symbols even
+// though each is a MONO-cost creature (the PRD's "mana-cost colour identity
+// (CR 202.2)" routing rule for this module). Sunscape/Thornscape — the other
+// two pairs of this same five-pair cycle — already shipped in
+// white.ts/green.ts per the earlier White/Green free-tranche issues
+// (#1069/#1073); not re-declared here (ADR 0043 one-definition-per-card, ADR
+// 0014). Coalition Victory and Ordered Migration (the Domain cluster's own
+// two gold cards, issue #1066) are already active above this section — not
+// duplicated. Two of the five dragons (Crosis, Darigaaz) and one Apprentice
+// (Nightscape) hit genuine capability gaps and are deferred at the end of
+// this file.
+// ─────────────────────────────────────────────────────────────────────────
+
+// The five WUBRG "choose a color, then return every creature of that color
+// to its owner's hand" modes Dromar's triggered ability offers (CR 700.2
+// modal colour pick via `optionChoice`). The body is the SAME
+// `forEach(permanents) + moveZone(to: "hand")` combination Upheaval
+// (`ody/blue.ts`) already exercises and earned its own interpreter test for
+// ("the FIRST card to pair forEach's $each with moveZone's target-shape"),
+// just scoped to ONE color via `filter` (an already-supported `forEach`
+// field, Voracious Cobra/Yavimaya Kavu this same set already filter
+// `forEach` by `type`) and every player's battlefield (omitted `controller`
+// — the same "all permanents" sweep default Upheaval itself uses) — no new
+// construct combination, so no new interpreter test is owed here.
+const DROMAR_BOUNCE_COLOR_MODES: NonNullable<
+    Extract<EffectOp, { op: "optionChoice" }>["modes"]
+> = [
+    {
+        label: "Return all white creatures to their owners' hands",
+        effects: [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature", color: "W" },
+                },
+                effects: [
+                    { op: "moveZone", target: { ref: "$each" }, to: "hand" },
+                ],
+            },
+        ],
+    },
+    {
+        label: "Return all blue creatures to their owners' hands",
+        effects: [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature", color: "U" },
+                },
+                effects: [
+                    { op: "moveZone", target: { ref: "$each" }, to: "hand" },
+                ],
+            },
+        ],
+    },
+    {
+        label: "Return all black creatures to their owners' hands",
+        effects: [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature", color: "B" },
+                },
+                effects: [
+                    { op: "moveZone", target: { ref: "$each" }, to: "hand" },
+                ],
+            },
+        ],
+    },
+    {
+        label: "Return all red creatures to their owners' hands",
+        effects: [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature", color: "R" },
+                },
+                effects: [
+                    { op: "moveZone", target: { ref: "$each" }, to: "hand" },
+                ],
+            },
+        ],
+    },
+    {
+        label: "Return all green creatures to their owners' hands",
+        effects: [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature", color: "G" },
+                },
+                effects: [
+                    { op: "moveZone", target: { ref: "$each" }, to: "hand" },
+                ],
+            },
+        ],
+    },
+];
+
+// Dromar, the Banisher — {3}{W}{U}{B} Legendary Creature — Dragon, 6/6.
+// "Flying. Whenever Dromar deals combat damage to a player, you may pay
+// {2}{U}. If you do, choose a color, then return all creatures of that
+// color to their owners' hands." (CR 702.9b flying; CR 510.4/603.2
+// combat-damage trigger — the firing `DAMAGE_DEALT` event's `damagedPlayer`
+// field is unused here (the effect isn't about the damaged PLAYER, only the
+// gate that damage was dealt), so the trigger's `matches` closure mirrors
+// Blazing Specter's (this file) minus the `$event.damagedPlayer` ref; CR
+// 117.3a/118.4 optional additional-cost `mayPay`; CR 700.2 modal colour
+// pick; CR 400.7 mass zone change.) A card whose script contains `mayPay`
+// is SKIPPED by the auto-generated canned-scenario smoke test (it can't
+// answer a live Pay/Skip decision) — the per-card tests below cover both
+// the accept and decline paths by hand.
+export const dromar: CardDefinition = {
+    id: "cfcc3c72-fff5-454c-814c-eb952fd23ba9",
+    rarity: "rare",
+    name: "Dromar, the Banisher",
+    oracleText:
+        "Flying\nWhenever Dromar deals combat damage to a player, you may pay {2}{U}. If you do, choose a color, then return all creatures of that color to their owners' hands.",
+    manaCost: { X: 3, W: 1, U: 1, B: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Dragon"],
+    power: 6,
+    toughness: 6,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        {
+            id: "dromar-damage-bounce",
+            oracleText:
+                "Whenever Dromar deals combat damage to a player, you may pay {2}{U}. If you do, choose a color, then return all creatures of that color to their owners' hands.",
+            event: "DAMAGE_DEALT",
+            matches: (event, self) =>
+                event.type === "DAMAGE_DEALT" &&
+                event.sourceInstanceId === self.id &&
+                event.isCombat === true &&
+                event.target.type === "player",
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    cost: { X: 2, U: 1 },
+                    prompt: "Pay {2}{U} to have Dromar bounce a color (Dromar, the Banisher)?",
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [
+                        {
+                            op: "optionChoice",
+                            player: "controller",
+                            prompt: "Choose a color — return all creatures of that color to their owners' hands (Dromar, the Banisher)",
+                            modes: DROMAR_BOUNCE_COLOR_MODES,
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
+
+// The five WUBRG "choose a color, then create a 1/1 green Saproling for each
+// permanent of that color" modes Rith's triggered ability offers (CR 700.2
+// modal colour pick). `count` reuses the `acrossAllPlayers` generalization of
+// the `count` value construct (Phyrexian Infiltrator/Accumulated Knowledge
+// this same catalogue) scoped to `zone: "battlefield"` instead of
+// `"graveyard"` — no new value-construct shape.
+const RITH_SAPROLING_COLOR_MODES: NonNullable<
+    Extract<EffectOp, { op: "optionChoice" }>["modes"]
+> = (
+    [
+        ["W", "white"],
+        ["U", "blue"],
+        ["B", "black"],
+        ["R", "red"],
+        ["G", "green"],
+    ] as const
+).map(([color, label]) => ({
+    label: `Create a 1/1 green Saproling for each ${label} permanent`,
+    effects: [
+        {
+            op: "createToken",
+            token: {
+                name: "Saproling",
+                types: ["Creature"],
+                subtypes: ["Saproling"],
+                power: 1,
+                toughness: 1,
+                colors: ["G"],
+            },
+            controller: "controller",
+            count: {
+                count: {
+                    zone: "battlefield",
+                    filter: { color },
+                    acrossAllPlayers: true,
+                },
+            },
+        },
+    ],
+}));
+
+// Rith, the Awakener — {3}{R}{G}{W} Legendary Creature — Dragon, 6/6.
+// "Flying. Whenever Rith deals combat damage to a player, you may pay
+// {2}{G}. If you do, choose a color, then create a 1/1 green Saproling
+// creature token for each permanent of that color." (CR 702.9b flying; CR
+// 510.4/603.2 combat-damage trigger; CR 117.3a/118.4 optional
+// additional-cost `mayPay`; CR 700.2 modal colour pick; CR 111/701.7 token
+// creation scaled by a battlefield-wide `count`.) Same smoke-skip note as
+// Dromar (this file) — `mayPay` is hand-tested below.
+export const rith: CardDefinition = {
+    id: "c30be387-280d-49bd-a3d1-c1636ee931ce",
+    rarity: "rare",
+    name: "Rith, the Awakener",
+    oracleText:
+        "Flying\nWhenever Rith deals combat damage to a player, you may pay {2}{G}. If you do, choose a color, then create a 1/1 green Saproling creature token for each permanent of that color.",
+    manaCost: { X: 3, R: 1, G: 1, W: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Dragon"],
+    power: 6,
+    toughness: 6,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        {
+            id: "rith-damage-saprolings",
+            oracleText:
+                "Whenever Rith deals combat damage to a player, you may pay {2}{G}. If you do, choose a color, then create a 1/1 green Saproling creature token for each permanent of that color.",
+            event: "DAMAGE_DEALT",
+            matches: (event, self) =>
+                event.type === "DAMAGE_DEALT" &&
+                event.sourceInstanceId === self.id &&
+                event.isCombat === true &&
+                event.target.type === "player",
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    cost: { X: 2, G: 1 },
+                    prompt: "Pay {2}{G} to have Rith make Saprolings (Rith, the Awakener)?",
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [
+                        {
+                            op: "optionChoice",
+                            player: "controller",
+                            prompt: "Choose a color — create a Saproling for each permanent of that color (Rith, the Awakener)",
+                            modes: RITH_SAPROLING_COLOR_MODES,
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
+
+// The five WUBRG "choose a color, then gain 1 life for each permanent of
+// that color" modes Treva's triggered ability offers (CR 700.2 modal colour
+// pick). Same `acrossAllPlayers` count shape as Rith's Saproling modes
+// (this file), fed into `gainLife` instead of `createToken`.
+const TREVA_LIFEGAIN_COLOR_MODES: NonNullable<
+    Extract<EffectOp, { op: "optionChoice" }>["modes"]
+> = (
+    [
+        ["W", "white"],
+        ["U", "blue"],
+        ["B", "black"],
+        ["R", "red"],
+        ["G", "green"],
+    ] as const
+).map(([color, label]) => ({
+    label: `Gain 1 life for each ${label} permanent`,
+    effects: [
+        {
+            op: "gainLife",
+            player: "controller",
+            amount: {
+                count: {
+                    zone: "battlefield",
+                    filter: { color },
+                    acrossAllPlayers: true,
+                },
+            },
+        },
+    ],
+}));
+
+// Treva, the Renewer — {3}{G}{W}{U} Legendary Creature — Dragon, 6/6.
+// "Flying. Whenever Treva deals combat damage to a player, you may pay
+// {2}{W}. If you do, choose a color, then you gain 1 life for each
+// permanent of that color." (CR 702.9b flying; CR 510.4/603.2 combat-damage
+// trigger; CR 117.3a/118.4 optional additional-cost `mayPay`; CR 700.2
+// modal colour pick; CR 119.3a life gain scaled by a battlefield-wide
+// `count`.) Same smoke-skip note as Dromar (this file).
+export const treva: CardDefinition = {
+    id: "4ee67039-6cee-4a2d-b973-570f5060f550",
+    rarity: "rare",
+    name: "Treva, the Renewer",
+    oracleText:
+        "Flying\nWhenever Treva deals combat damage to a player, you may pay {2}{W}. If you do, choose a color, then you gain 1 life for each permanent of that color.",
+    manaCost: { X: 3, G: 1, W: 1, U: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Dragon"],
+    power: 6,
+    toughness: 6,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        {
+            id: "treva-damage-lifegain",
+            oracleText:
+                "Whenever Treva deals combat damage to a player, you may pay {2}{W}. If you do, choose a color, then you gain 1 life for each permanent of that color.",
+            event: "DAMAGE_DEALT",
+            matches: (event, self) =>
+                event.type === "DAMAGE_DEALT" &&
+                event.sourceInstanceId === self.id &&
+                event.isCombat === true &&
+                event.target.type === "player",
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    cost: { X: 2, W: 1 },
+                    prompt: "Pay {2}{W} to have Treva gain you life (Treva, the Renewer)?",
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [
+                        {
+                            op: "optionChoice",
+                            player: "controller",
+                            prompt: "Choose a color — gain 1 life for each permanent of that color (Treva, the Renewer)",
+                            modes: TREVA_LIFEGAIN_COLOR_MODES,
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
+
+// The five Attendants — {5} Artifact Creature — Golem, 3/3. "{1}, Sacrifice
+// this creature: Add <the paired dragon's three colours>." (CR 605.1a mana
+// ability with a {1} + self-sacrifice cost — the exact Coal Golem shape,
+// `drk/colorless.ts`, generalized from one fixed colour to three.)
+export const crosisAttendant: CardDefinition = {
+    id: "45edc18c-2046-4d0e-92fe-a6cf4aaf1c6f",
+    rarity: "uncommon",
+    name: "Crosis's Attendant",
+    oracleText: "{1}, Sacrifice this creature: Add {U}{B}{R}.",
+    manaCost: { X: 5 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Golem"],
+    power: 3,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "crosis-attendant-sacrifice-mana",
+            oracleText: "{1}, Sacrifice this creature: Add {U}{B}{R}.",
+            cost: { mana: { X: 1 }, sacrifice: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) =>
+                ctx.addMana({ U: 1, B: 1, R: 1 }),
+            manaProduced: { U: 1, B: 1, R: 1 },
+        },
+    ],
+};
+
+export const darigaazAttendant: CardDefinition = {
+    id: "6f22b575-443a-4c06-8e75-d4140cbd3660",
+    rarity: "uncommon",
+    name: "Darigaaz's Attendant",
+    oracleText: "{1}, Sacrifice this creature: Add {B}{R}{G}.",
+    manaCost: { X: 5 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Golem"],
+    power: 3,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "darigaaz-attendant-sacrifice-mana",
+            oracleText: "{1}, Sacrifice this creature: Add {B}{R}{G}.",
+            cost: { mana: { X: 1 }, sacrifice: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) =>
+                ctx.addMana({ B: 1, R: 1, G: 1 }),
+            manaProduced: { B: 1, R: 1, G: 1 },
+        },
+    ],
+};
+
+export const dromarAttendant: CardDefinition = {
+    id: "24936fa9-41a3-4da5-91cf-c28fa45f47c9",
+    rarity: "uncommon",
+    name: "Dromar's Attendant",
+    oracleText: "{1}, Sacrifice this creature: Add {W}{U}{B}.",
+    manaCost: { X: 5 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Golem"],
+    power: 3,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "dromar-attendant-sacrifice-mana",
+            oracleText: "{1}, Sacrifice this creature: Add {W}{U}{B}.",
+            cost: { mana: { X: 1 }, sacrifice: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) =>
+                ctx.addMana({ W: 1, U: 1, B: 1 }),
+            manaProduced: { W: 1, U: 1, B: 1 },
+        },
+    ],
+};
+
+export const rithAttendant: CardDefinition = {
+    id: "a26e8130-7fe9-4ef4-98af-928814f5b130",
+    rarity: "uncommon",
+    name: "Rith's Attendant",
+    oracleText: "{1}, Sacrifice this creature: Add {R}{G}{W}.",
+    manaCost: { X: 5 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Golem"],
+    power: 3,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "rith-attendant-sacrifice-mana",
+            oracleText: "{1}, Sacrifice this creature: Add {R}{G}{W}.",
+            cost: { mana: { X: 1 }, sacrifice: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) =>
+                ctx.addMana({ R: 1, G: 1, W: 1 }),
+            manaProduced: { R: 1, G: 1, W: 1 },
+        },
+    ],
+};
+
+export const trevaAttendant: CardDefinition = {
+    id: "9857af81-fb95-4dc4-b048-9ce4e96d1eca",
+    rarity: "uncommon",
+    name: "Treva's Attendant",
+    oracleText: "{1}, Sacrifice this creature: Add {G}{W}{U}.",
+    manaCost: { X: 5 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Golem"],
+    power: 3,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "treva-attendant-sacrifice-mana",
+            oracleText: "{1}, Sacrifice this creature: Add {G}{W}{U}.",
+            cost: { mana: { X: 1 }, sacrifice: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) =>
+                ctx.addMana({ G: 1, W: 1, U: 1 }),
+            manaProduced: { G: 1, W: 1, U: 1 },
+        },
+    ],
+};
+
+// The five tri-lands — Land. "This land enters tapped. {T}: Add <its own
+// colour>. {T}, Sacrifice this land: Add <the other two colours of its
+// paired dragon>." (CR 110.5b enters tapped; CR 605.1a two chained mana
+// abilities — the first the plain Urborg Volcano/Shivan Oasis shape (this
+// file) minus the choice, the second the Coal Golem sacrifice-for-mana
+// shape, `drk/colorless.ts`, with a {T} rider added alongside the
+// sacrifice, generalized from one fixed colour to two.)
+export const ancientSpring: CardDefinition = {
+    id: "004eefa4-947b-45fc-b45c-5263bfd763bc",
+    rarity: "common",
+    name: "Ancient Spring",
+    oracleText:
+        "This land enters tapped.\n{T}: Add {U}.\n{T}, Sacrifice this land: Add {W}{B}.",
+    manaCost: {},
+    types: ["Land"],
+    entersTapped: true,
+    activatedAbilities: [
+        {
+            id: "ancient-spring-tap",
+            oracleText: "{T}: Add {U}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ U: 1 }),
+            manaProduced: { U: 1 },
+        },
+        {
+            id: "ancient-spring-sacrifice-mana",
+            oracleText: "{T}, Sacrifice this land: Add {W}{B}.",
+            cost: { tap: true, sacrifice: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) =>
+                ctx.addMana({ W: 1, B: 1 }),
+            manaProduced: { W: 1, B: 1 },
+        },
+    ],
+};
+
+export const geothermalCrevice: CardDefinition = {
+    id: "e744b593-13fe-4967-b492-ac02f5815e57",
+    rarity: "common",
+    name: "Geothermal Crevice",
+    oracleText:
+        "This land enters tapped.\n{T}: Add {R}.\n{T}, Sacrifice this land: Add {B}{G}.",
+    manaCost: {},
+    types: ["Land"],
+    entersTapped: true,
+    activatedAbilities: [
+        {
+            id: "geothermal-crevice-tap",
+            oracleText: "{T}: Add {R}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ R: 1 }),
+            manaProduced: { R: 1 },
+        },
+        {
+            id: "geothermal-crevice-sacrifice-mana",
+            oracleText: "{T}, Sacrifice this land: Add {B}{G}.",
+            cost: { tap: true, sacrifice: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) =>
+                ctx.addMana({ B: 1, G: 1 }),
+            manaProduced: { B: 1, G: 1 },
+        },
+    ],
+};
+
+export const irrigationDitch: CardDefinition = {
+    id: "977f1b44-166c-4faf-8a7b-d431707e90ce",
+    rarity: "common",
+    name: "Irrigation Ditch",
+    oracleText:
+        "This land enters tapped.\n{T}: Add {W}.\n{T}, Sacrifice this land: Add {G}{U}.",
+    manaCost: {},
+    types: ["Land"],
+    entersTapped: true,
+    activatedAbilities: [
+        {
+            id: "irrigation-ditch-tap",
+            oracleText: "{T}: Add {W}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ W: 1 }),
+            manaProduced: { W: 1 },
+        },
+        {
+            id: "irrigation-ditch-sacrifice-mana",
+            oracleText: "{T}, Sacrifice this land: Add {G}{U}.",
+            cost: { tap: true, sacrifice: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) =>
+                ctx.addMana({ G: 1, U: 1 }),
+            manaProduced: { G: 1, U: 1 },
+        },
+    ],
+};
+
+export const sulfurVent: CardDefinition = {
+    id: "22c66ed6-55fb-4c65-aac4-26d9cc3053b8",
+    rarity: "common",
+    name: "Sulfur Vent",
+    oracleText:
+        "This land enters tapped.\n{T}: Add {B}.\n{T}, Sacrifice this land: Add {U}{R}.",
+    manaCost: {},
+    types: ["Land"],
+    entersTapped: true,
+    activatedAbilities: [
+        {
+            id: "sulfur-vent-tap",
+            oracleText: "{T}: Add {B}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ B: 1 }),
+            manaProduced: { B: 1 },
+        },
+        {
+            id: "sulfur-vent-sacrifice-mana",
+            oracleText: "{T}, Sacrifice this land: Add {U}{R}.",
+            cost: { tap: true, sacrifice: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) =>
+                ctx.addMana({ U: 1, R: 1 }),
+            manaProduced: { U: 1, R: 1 },
+        },
+    ],
+};
+
+export const tinderFarm: CardDefinition = {
+    id: "989b5901-aeb0-4a48-8c53-3b0ec0e0deba",
+    rarity: "common",
+    name: "Tinder Farm",
+    oracleText:
+        "This land enters tapped.\n{T}: Add {G}.\n{T}, Sacrifice this land: Add {R}{W}.",
+    manaCost: {},
+    types: ["Land"],
+    entersTapped: true,
+    activatedAbilities: [
+        {
+            id: "tinder-farm-tap",
+            oracleText: "{T}: Add {G}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ G: 1 }),
+            manaProduced: { G: 1 },
+        },
+        {
+            id: "tinder-farm-sacrifice-mana",
+            oracleText: "{T}, Sacrifice this land: Add {R}{W}.",
+            cost: { tap: true, sacrifice: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) =>
+                ctx.addMana({ R: 1, W: 1 }),
+            manaProduced: { R: 1, W: 1 },
+        },
+    ],
+};
+
+// Stormscape Apprentice — {U} Creature — Human Wizard, 1/1. "{W}, {T}: Tap
+// target creature. {B}, {T}: Target player loses 1 life." (CR 602.1
+// activated ability, CR 701.26 tap; CR 119.3b life loss.) Two independent
+// tap-only activated abilities — same fused-pair shape as Samite Archer
+// (this file, WU tranche) and Stormscape Apprentice's own sibling Sunscape
+// Apprentice (`white.ts`, deferred elsewhere — a DIFFERENT ability pair).
+export const stormscapeApprentice: CardDefinition = {
+    id: "1eb42f39-9187-44e4-aa34-14ab31977199",
+    rarity: "common",
+    name: "Stormscape Apprentice",
+    oracleText:
+        "{W}, {T}: Tap target creature.\n{B}, {T}: Target player loses 1 life.",
+    manaCost: { U: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "stormscape-apprentice-tap",
+            oracleText: "{W}, {T}: Tap target creature.",
+            cost: { mana: { W: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
+        },
+        {
+            id: "stormscape-apprentice-drain",
+            oracleText: "{B}, {T}: Target player loses 1 life.",
+            cost: { mana: { B: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "player", count: 1 },
+            effects: [{ op: "loseLife", player: { target: 0 }, amount: 1 }],
+        },
+    ],
+};
+
+// The five WUBRG "protection from the color of your choice" modes Stormscape
+// Master's second ability offers — the exact Thornscape Master shape
+// (`green.ts`, this same five-pair cycle) reproduced module-locally: each
+// per-colour module authors its own mode array rather than importing across
+// files (Urborg Volcano/Shivan Oasis, this file, likewise each hand-write
+// their own `manaChoices` instead of sharing one).
+const STORMSCAPE_MASTER_PROTECTION_MODES: NonNullable<
+    Extract<EffectOp, { op: "optionChoice" }>["modes"]
+> = [
+    {
+        label: "Protection from white",
+        effects: [
+            {
+                op: "grantAbility",
+                ability: "protection from white",
+                target: { target: 0 },
+                duration: { phase: "end-of-turn" },
+            },
+        ],
+    },
+    {
+        label: "Protection from blue",
+        effects: [
+            {
+                op: "grantAbility",
+                ability: "protection from blue",
+                target: { target: 0 },
+                duration: { phase: "end-of-turn" },
+            },
+        ],
+    },
+    {
+        label: "Protection from black",
+        effects: [
+            {
+                op: "grantAbility",
+                ability: "protection from black",
+                target: { target: 0 },
+                duration: { phase: "end-of-turn" },
+            },
+        ],
+    },
+    {
+        label: "Protection from red",
+        effects: [
+            {
+                op: "grantAbility",
+                ability: "protection from red",
+                target: { target: 0 },
+                duration: { phase: "end-of-turn" },
+            },
+        ],
+    },
+    {
+        label: "Protection from green",
+        effects: [
+            {
+                op: "grantAbility",
+                ability: "protection from green",
+                target: { target: 0 },
+                duration: { phase: "end-of-turn" },
+            },
+        ],
+    },
+];
+
+// Stormscape Master — {2}{U}{U} Creature — Human Wizard, 2/2. "{W}{W}, {T}:
+// Target creature gains protection from the color of your choice until end
+// of turn. {B}{B}, {T}: Target player loses 2 life and you gain 2 life."
+// (CR 613.1f keyword grant + CR 700.2 modal colour pick; CR 119.3b life loss
+// + CR 119.3a life gain.)
+export const stormscapeMaster: CardDefinition = {
+    id: "9b704165-4587-48f1-8830-c5a07ec666cc",
+    rarity: "rare",
+    name: "Stormscape Master",
+    oracleText:
+        "{W}{W}, {T}: Target creature gains protection from the color of your choice until end of turn.\n{B}{B}, {T}: Target player loses 2 life and you gain 2 life.",
+    manaCost: { X: 2, U: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "stormscape-master-protection",
+            oracleText:
+                "{W}{W}, {T}: Target creature gains protection from the color of your choice until end of turn.",
+            cost: { mana: { W: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "optionChoice",
+                    player: "controller",
+                    prompt: "Grant protection from which color?",
+                    modes: STORMSCAPE_MASTER_PROTECTION_MODES,
+                },
+            ],
+        },
+        {
+            id: "stormscape-master-drain",
+            oracleText:
+                "{B}{B}, {T}: Target player loses 2 life and you gain 2 life.",
+            cost: { mana: { B: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "player", count: 1 },
+            effects: [
+                { op: "loseLife", player: { target: 0 }, amount: 2 },
+                { op: "gainLife", player: "controller", amount: 2 },
+            ],
+        },
+    ],
+};
+
+// Nightscape Master — {2}{B}{B} Creature — Zombie Wizard, 2/2. "{U}{U}, {T}:
+// Return target creature to its owner's hand. {R}{R}, {T}: This creature
+// deals 2 damage to target creature." (CR 400.7 zone change; CR 120.1
+// damage.)
+export const nightscapeMaster: CardDefinition = {
+    id: "d86174b8-dd9e-4ece-bc23-4f9ac50bccd3",
+    rarity: "rare",
+    name: "Nightscape Master",
+    oracleText:
+        "{U}{U}, {T}: Return target creature to its owner's hand.\n{R}{R}, {T}: This creature deals 2 damage to target creature.",
+    manaCost: { X: 2, B: 2 },
+    types: ["Creature"],
+    subtypes: ["Zombie", "Wizard"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "nightscape-master-bounce",
+            oracleText:
+                "{U}{U}, {T}: Return target creature to its owner's hand.",
+            cost: { mana: { U: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
+        },
+        {
+            id: "nightscape-master-damage",
+            oracleText:
+                "{R}{R}, {T}: This creature deals 2 damage to target creature.",
+            cost: { mana: { R: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
+        },
+    ],
+};
+
+// Thunderscape Apprentice — {R} Creature — Human Wizard, 1/1. "{B}, {T}:
+// Target player loses 1 life. {G}, {T}: Target creature gets +1/+1 until
+// end of turn." (CR 119.3b life loss; CR 613.4c temporary P/T pump.)
+export const thunderscapeApprentice: CardDefinition = {
+    id: "75a0b075-5414-48d3-a2b1-47dc20213e96",
+    rarity: "common",
+    name: "Thunderscape Apprentice",
+    oracleText:
+        "{B}, {T}: Target player loses 1 life.\n{G}, {T}: Target creature gets +1/+1 until end of turn.",
+    manaCost: { R: 1 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 1,
+    toughness: 1,
+    activatedAbilities: [
+        {
+            id: "thunderscape-apprentice-drain",
+            oracleText: "{B}, {T}: Target player loses 1 life.",
+            cost: { mana: { B: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "player", count: 1 },
+            effects: [{ op: "loseLife", player: { target: 0 }, amount: 1 }],
+        },
+        {
+            id: "thunderscape-apprentice-pump",
+            oracleText:
+                "{G}, {T}: Target creature gets +1/+1 until end of turn.",
+            cost: { mana: { G: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: 1,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
+
+// Thunderscape Master — {2}{R}{R} Creature — Human Wizard, 2/2. "{B}{B},
+// {T}: Target player loses 2 life and you gain 2 life. {G}{G}, {T}:
+// Creatures you control get +2/+2 until end of turn." (CR 119.3b life loss
+// + CR 119.3a life gain; CR 613.4c temporary P/T pump swept over a
+// `forEach` — the exact Sunscape Master (`white.ts`)/Thornscape Master
+// (`green.ts`) "creatures you control get +2/+2" shape, this cycle's third
+// occurrence.)
+export const thunderscapeMaster: CardDefinition = {
+    id: "22abdc2f-bdc8-46c4-8ce2-f06befedbc32",
+    rarity: "rare",
+    name: "Thunderscape Master",
+    oracleText:
+        "{B}{B}, {T}: Target player loses 2 life and you gain 2 life.\n{G}{G}, {T}: Creatures you control get +2/+2 until end of turn.",
+    manaCost: { X: 2, R: 2 },
+    types: ["Creature"],
+    subtypes: ["Human", "Wizard"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "thunderscape-master-drain",
+            oracleText:
+                "{B}{B}, {T}: Target player loses 2 life and you gain 2 life.",
+            cost: { mana: { B: 2 }, tap: true },
+            useStack: true,
+            targetRequirement: { type: "player", count: 1 },
+            effects: [
+                { op: "loseLife", player: { target: 0 }, amount: 2 },
+                { op: "gainLife", player: "controller", amount: 2 },
+            ],
+        },
+        {
+            id: "thunderscape-master-pump-team",
+            oracleText:
+                "{G}{G}, {T}: Creatures you control get +2/+2 until end of turn.",
+            cost: { mana: { G: 2 }, tap: true },
+            useStack: true,
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$each" },
+                            power: 2,
+                            toughness: 2,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// Deferred (engine capability gaps) — 3-colour + WUBRG (issue #1080)
+// ─────────────────────────────────────────────────────────────────────────
+
+// Crosis, the Purger — {3}{U}{B}{R} Legendary Creature — Dragon, 6/6.
+// "Flying. Whenever Crosis deals combat damage to a player, you may pay
+// {2}{B}. If you do, choose a color, then that player reveals their hand
+// and discards all cards of that color." tracked-by: #1120 (the identical
+// root cause already catalogued as gap 6 for Void, `red.ts` this same set:
+// "`forEach`'s `select` union has no 'hand' set member, and `discard` only
+// consumes a `choice` Op's picks — there is no way to sweep a player's hand
+// for an UNCHOSEN, filter-matched bulk discard." `EffectCountSpec.zone` is
+// likewise restricted to `"battlefield" | "graveyard"` — no hand-zone count
+// either, so even a "reveal, then count matching cards" workaround is
+// unavailable. The flying body + trigger gate + `mayPay` + colour-choice
+// modal are all free; only the mandatory hand-side bulk discard blocks the
+// whole card.)
+
+// Darigaaz, the Igniter — {3}{B}{R}{G} Legendary Creature — Dragon, 6/6.
+// "Flying. Whenever Darigaaz deals combat damage to a player, you may pay
+// {2}{R}. If you do, choose a color, then that player reveals their hand
+// and Darigaaz deals damage to the player equal to the number of cards of
+// that color revealed this way." tracked-by: #1120 (the SAME root cause as
+// Crosis above — "the number of cards of that color revealed this way"
+// needs a hand-zone, filter-matched `count`, which `EffectCountSpec` does
+// not support for `zone: "hand"`. `reveal`'s player/zone shape carries no
+// `bind`, so there is no snapshot to count off of either.)
+
+// Nightscape Apprentice — {B} Creature — Zombie Wizard, 1/1. "{U}, {T}: Put
+// target creature you control on top of its owner's library. {R}, {T}:
+// Target creature gains first strike until end of turn." tracked-by: #1086
+// (same root cause as Sunscape Apprentice, `white.ts`, this same five-pair
+// cycle: the `moveZone` Op's `target`-shape, a live battlefield permanent,
+// only supports `to: "hand"` — any other destination including `library`
+// from a live permanent is unhandled by the interpreter's `moveZone`
+// executor. The SECOND ability alone — first-strike grant — is free, but
+// "never ship silent partials" (PRD #1063) means the whole card waits for
+// the same `moveZone`-to-library extension Sunscape Apprentice is already
+// tracked against.)
