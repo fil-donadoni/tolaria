@@ -1,16 +1,15 @@
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { canEditPresets } from "~/lib/adminGating";
+import { type BanlistFormatId } from "@convex/formats";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import BanlistFormatSyncRow from "./banlist-format-sync-row";
 
-// The two Formats a DB-backed official banlist exists for (PRD #1138), same
-// local literal set `DeckBanlistPanel` uses — `BanlistFormatId` isn't
-// exported for frontend consumption (`convex/formats.ts`).
-const BANLIST_FORMATS: readonly { id: "premodern" | "old-school"; label: string }[] =
-    [
-        { id: "premodern", label: "Premodern" },
-        { id: "old-school", label: "Old School" },
-    ];
+// The two Formats a DB-backed official banlist exists for (PRD #1138), keyed by
+// the source-of-truth `BanlistFormatId` union (`convex/formats.ts`).
+const BANLIST_FORMATS: readonly { id: BanlistFormatId; label: string }[] = [
+    { id: "premodern", label: "Premodern" },
+    { id: "old-school", label: "Old School" },
+];
 
 /**
  * Admin-only Scryfall banlist sync control (PRD #1138 User Stories 5-9, issue

@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useAction, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { type BanlistFormatId } from "@convex/formats";
 import ActionButton from "~/components/board/action-button";
 
 interface BanlistFormatSyncRowProps {
-    format: "premodern" | "old-school";
+    format: BanlistFormatId;
     label: string;
 }
 
@@ -45,6 +46,7 @@ export default function BanlistFormatSyncRow({
         if (syncing) return;
         setSyncing(true);
         setError(null);
+        setResult(null);
         try {
             const summary = await syncBanlist({ format });
             setResult(summary);
