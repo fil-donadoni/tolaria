@@ -9,6 +9,8 @@
 // or ambiguous ids/bindings.
 
 import { describe, it, expect } from "vitest";
+import * as fs from "fs";
+import * as path from "path";
 import { getAllCards } from "../index";
 import {
     MECHANICS_REGISTRY,
@@ -113,6 +115,15 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
         // to the shroud `cantBeTargeted` guard.
         ["hexproof", "702.11", "hexproof"],
         ["unblockable", undefined, "unblockable"],
+        // #959 — shroud: reconciled from a stale "planned" (the registry
+        // previously said the keyword STRING was unenforced, true only for
+        // dynamically-granted shroud). Every printed-shroud card pairs the
+        // string with a `permanent-guard` staticEffect that IS enforced.
+        [
+            "shroud",
+            "702.18",
+            "permanent-guard staticEffect (gre/permanentGuard.ts isGuardedAgainst)",
+        ],
     ] as const)(
         "%s is implemented with binding %s",
         (id, cr, expectedBinding) => {
@@ -134,13 +145,15 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
         }
     );
 
-    // Known gaps (see module header): declared on cards, not actually
-    // enforced anywhere in the engine. Documented as a fact, not silently
-    // marked implemented.
+    // Known gaps (see module header): declared on cards (or not declared at
+    // all), not actually enforced anywhere in the engine. Documented as a
+    // fact, not silently marked implemented.
     // Haste graduated to `implemented` in issue #730 (combat honours it for
-    // attack eligibility); hexproof in issue #958 (CR 702.11b targeting). The
-    // remaining rows are still declared-but-unenforced keyword strings.
-    it.each(["shroud", "ward"] as const)(
+    // attack eligibility); hexproof in issue #958 (CR 702.11b targeting);
+    // shroud in issue #959 (permanent-guard staticEffect enforcement). `ward`
+    // was re-audited in issue #959 and confirmed to have zero engine wiring —
+    // it stays the one honestly-planned row here.
+    it.each(["ward"] as const)(
         "%s is honestly marked planned (declared-but-unenforced gap)",
         (id) => {
             const row = MECHANICS_REGISTRY.find((r) => r.id === id);
@@ -211,6 +224,197 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
             offenders,
             "staticAbilities strings not covered by the Mechanics Registry — " +
                 "either a typo, or a genuinely new mechanic that needs a registry row first"
+        ).toEqual([]);
+    });
+});
+
+// -----------------------------------------------------------------------
+// Self-verifying implementation status (issue #959).
+//
+// The audit that shipped with this suite found `shroud` drifted from actual
+// engine wiring (marked "planned" despite being genuinely enforced via a
+// `permanent-guard` staticEffect), and confirmed `ward` is genuinely unwired
+// (its row correctly stays "planned"). To stop the next such drift from
+// waiting on a manual audit, these tests make the `status` field
+// self-verifying:
+//
+//   1. every `implemented` mechanic must have a findable engine consumer, and
+//   2. no shipped card may declare (in `staticAbilities[]`) a keyword whose
+//      registry row is still `planned` — the exact shape of the shroud
+//      regression, turned into a permanent CI guard.
+//
+// "Findable engine consumer" is deliberately NOT a hand-maintained per-mechanic
+// map (86 rows and growing — a hand-kept map goes stale exactly like the field
+// it guards). Instead, for each `implemented` row we accept EITHER:
+//   (a) its `binding` names a real engine file (a `convex/path/to/file.ts`
+//       that exists, or a bare `file.ts` whose basename exists under convex/),
+//       or
+//   (b) the mechanic's `id` or `name` appears as a QUOTED STRING LITERAL
+//       (`"flying"`, `'flashback'`) somewhere in the engine source
+//       (convex/gre/** + convex/cards/** minus sets/** and __tests__/**).
+// A quoted keyword literal is deliberate wiring — the engine consuming the
+// keyword as a string — and, unlike free-form prose, does not match incidental
+// English: a genuinely-unwired mechanic like `ward` (whose name appears in
+// engine files only inside identifiers/comments such as "Artifact Ward", never
+// as the bare literal `"ward"`) has no evidence and would fail here if it were
+// ever mismarked `implemented`. The sanity test below proves the probe rejects
+// both a fabricated binding and ward's real (unwired) row — i.e. it is not
+// tautological.
+// -----------------------------------------------------------------------
+describe("Self-verifying implementation status (issue #959)", () => {
+    // Engine wiring = the code that CONSUMES a mechanic. Excludes card DATA
+    // (sets/**, pure declarations) and tests (proof, not the thing proved): a
+    // card merely declaring a keyword, or a test merely asserting one, is not
+    // evidence the engine enforces it.
+    function collectFiles(root: string, skip: string[]): string[] {
+        const out: string[] = [];
+        const walk = (dir: string) => {
+            for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+                const p = path.join(dir, e.name);
+                if (e.isDirectory()) {
+                    if (!skip.includes(e.name)) walk(p);
+                } else if (e.name.endsWith(".ts")) {
+                    out.push(p);
+                }
+            }
+        };
+        walk(root);
+        return out;
+    }
+
+    const engineSrc = [
+        ...collectFiles("convex/gre", ["__tests__"]),
+        ...collectFiles("convex/cards", ["__tests__", "sets"]),
+    ]
+        .filter((f) => !f.endsWith("mechanicsRegistry.ts"))
+        .map((f) => fs.readFileSync(f, "utf8"))
+        .join("\n");
+
+    // All convex/ .ts basenames (minus generated + tests), for resolving a
+    // `binding` file-pointer.
+    const allBasenames = new Set(
+        collectFiles("convex", ["__tests__", "_generated"]).map((f) =>
+            path.basename(f)
+        )
+    );
+
+    /** The mechanic keyword consumed as a quoted string literal in engine src
+     *  (`"flying"` / `'flying'`). Deliberate wiring, not incidental prose. */
+    function quotedLiteralInEngine(token: string | undefined): boolean {
+        if (!token) return false;
+        const t = token.toLowerCase();
+        return engineSrc.includes(`"${t}"`) || engineSrc.includes(`'${t}'`);
+    }
+
+    /** `binding` names a real engine file (full convex/… path or bare X.ts). */
+    function bindingNamesRealFile(binding: string | undefined): boolean {
+        if (!binding) return false;
+        for (const m of binding.matchAll(/\bconvex\/[A-Za-z0-9_/]+\.ts\b/g)) {
+            if (fs.existsSync(m[0])) return true;
+        }
+        for (const m of binding.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\.ts\b/g)) {
+            if (allBasenames.has(`${m[1]}.ts`)) return true;
+        }
+        return false;
+    }
+
+    // Ubiquitous shared types — too generic to prove a SPECIFIC mechanic
+    // (they appear in nearly every engine file), so they never count as a
+    // binding symbol.
+    const GENERIC_SYMBOLS = new Set([
+        "SpellContext",
+        "CardDefinition",
+        "TargetRequirement",
+        "GameState",
+        "PlayerState",
+        "CardInstanceState",
+        "EffectOp",
+    ]);
+
+    /** `binding` names a real engine SYMBOL: a mixed-case (camelCase /
+     *  PascalCase) identifier of length >= 5 that occurs in the engine source.
+     *  Mixed case = code, not prose, so this does not match incidental English
+     *  in a note; it is mined from `binding` (a deliberate authored pointer)
+     *  only, never the free-form `note`. */
+    function bindingNamesRealSymbol(binding: string | undefined): boolean {
+        if (!binding) return false;
+        for (const m of binding.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\b/g)) {
+            const w = m[1];
+            if (w.length < 5) continue;
+            if (!/[a-z]/.test(w) || !/[A-Z]/.test(w)) continue;
+            if (GENERIC_SYMBOLS.has(w)) continue;
+            if (new RegExp(`\\b${w}\\b`).test(engineSrc)) return true;
+        }
+        return false;
+    }
+
+    function hasEngineEvidence(row: MechanicRow): boolean {
+        return (
+            bindingNamesRealFile(row.binding) ||
+            bindingNamesRealSymbol(row.binding) ||
+            quotedLiteralInEngine(row.id) ||
+            quotedLiteralInEngine(row.name)
+        );
+    }
+
+    it("every `implemented` mechanic has a findable engine consumer", () => {
+        const offenders = MECHANICS_REGISTRY.filter(
+            (r) => r.status === "implemented" && !hasEngineEvidence(r)
+        ).map((r) => `${r.id} (${r.cr}) — binding: ${r.binding}`);
+        expect(
+            offenders,
+            "`implemented` rows with no findable engine consumer — neither a " +
+                "`binding` naming a real convex/** file nor the mechanic id/name " +
+                "consumed as a quoted string literal in convex/gre|cards (minus " +
+                "sets/tests). Either wire it, give `binding` a concrete file " +
+                'pointer, or move the row back to `status: "planned"`.'
+        ).toEqual([]);
+    });
+
+    it("sanity: the evidence probe is not tautological", () => {
+        // A fabricated mechanic with a made-up binding + name must NOT pass.
+        const fake = {
+            id: "totallyfabricatedxyz",
+            name: "Totally Fabricated Xyz",
+            kind: "keyword-ability",
+            cr: "999.99",
+            status: "implemented",
+            binding: "nonexistentModule.ts",
+        } as MechanicRow;
+        expect(hasEngineEvidence(fake)).toBe(false);
+
+        // ward's REAL row (genuinely unwired) must not pass either — proving
+        // the probe would have caught the shroud-style drift, had ward been
+        // mismarked "implemented".
+        const ward = MECHANICS_REGISTRY.find((r) => r.id === "ward")!;
+        expect(hasEngineEvidence(ward)).toBe(false);
+    });
+
+    it("no card declares a `staticAbilities` keyword whose registry row is still `planned`", () => {
+        // The exact shape of the shroud regression this suite fixes: a card
+        // declares the keyword string (decoratively or otherwise) while its
+        // registry row still says "planned". Engine-internal markers
+        // (ENGINE_INTERNAL_MARKERS) are a separate, deliberately planned-free
+        // allowlist and are not in scope here.
+        const plannedNames = new Set(
+            MECHANICS_REGISTRY.filter((r) => r.status === "planned").map((r) =>
+                r.name.toLowerCase()
+            )
+        );
+        const offenders: string[] = [];
+        for (const card of getAllCards()) {
+            for (const s of card.staticAbilities ?? []) {
+                if (plannedNames.has(s.toLowerCase())) {
+                    offenders.push(`${card.id} (${card.name}): "${s}"`);
+                }
+            }
+        }
+        expect(
+            offenders,
+            "cards declaring a keyword the registry still marks `planned` — " +
+                "either the card is decorative-only (confirm no paired " +
+                "staticEffect/primitive enforces it) or the registry row is " +
+                "stale and should flip to `implemented` (the shroud case)."
         ).toEqual([]);
     });
 });
