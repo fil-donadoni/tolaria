@@ -59,6 +59,8 @@ import SacrificeBanner from "./sacrifice-banner";
 import AttackManaTaxBanner from "./attack-mana-tax-banner";
 import { isSacrificeComplete } from "~/lib/sacrifice-selection";
 import PendingChoicePrompt from "./pending-choice-prompt";
+import PileDivisionPicker from "./pile-division/pile-division-picker";
+import { resolvePileDivisionCards } from "~/lib/pile-division";
 import HandCardPick from "./hand-card-pick";
 import MinimizedChoiceIndicator from "./minimized-choice-indicator";
 import MulliganPrompt from "./mulligan-prompt";
@@ -700,6 +702,29 @@ export default function Board({
                                             gameId={gameId}
                                         />
                                     ))}
+                                {/* Fact or Fiction (ADR 0053) — the divider's
+                                    3-zone drag stage / the chooser's face-up
+                                    two-pile pick. Owns the surface for the
+                                    chooser; the generic prompt above suppresses
+                                    itself for these kinds and shows only the
+                                    non-chooser's "Waiting" line. */}
+                                {pendingChoices &&
+                                    pendingChoices.length > 0 &&
+                                    !minimizedChoice.isMinimized &&
+                                    pendingChoices[0].playerId === viewerId &&
+                                    (pendingChoices[0].kind === "divide-piles" ||
+                                        pendingChoices[0].kind ===
+                                            "pick-pile") && (
+                                        <PileDivisionPicker
+                                            choice={pendingChoices[0]}
+                                            cards={resolvePileDivisionCards(
+                                                state.players,
+                                                pendingChoices[0]
+                                            )}
+                                            playerId={viewerId}
+                                            gameId={gameId}
+                                        />
+                                    )}
                                 <HandCardPick />
 
                                 {mulligan && !mulligan.bottoming && (

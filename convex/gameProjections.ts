@@ -454,7 +454,13 @@ function computeChoiceExposure(
             head.kind === "order-top" ||
             // look-distribute (Impulse / Stock Up) — same top-N peek, rendered
             // by the unified HAND/BOTTOM drag picker.
-            head.kind === "look-distribute") &&
+            head.kind === "look-distribute" ||
+            // divide-piles (Fact or Fiction, ADR 0053) — the DIVIDER separates
+            // the revealed cards of the library owner's library into two piles.
+            // Only the LIBRARY-zone divide is hidden (battlefield / graveyard
+            // divides are already public); expose exactly the divided
+            // `candidateIds` face-up so the pile picker can render them.
+            head.kind === "divide-piles") &&
         head.zone === "library";
     // reorder-library shows `count` cards; draw-look-keep, look-top and
     // order-top show all the looked-at cards named in `candidateIds`.
@@ -466,12 +472,35 @@ function computeChoiceExposure(
     const peekZoneOwner = exposeLibraryPeek
         ? (head.zoneOwnerId ?? head.playerId)
         : undefined;
-    // A pinned `reorder-library` exposes exactly its `candidateIds` (they may
-    // sit anywhere in the library), not a blind top-N slice.
+    // A pinned `reorder-library` / `divide-piles` exposes exactly its
+    // `candidateIds` (they may sit anywhere in the library), not a blind top-N
+    // slice.
     const peekCandidateIds =
-        exposeLibraryPeek && head.kind === "reorder-library"
+        exposeLibraryPeek &&
+        (head.kind === "reorder-library" || head.kind === "divide-piles")
             ? head.candidateIds
             : undefined;
+
+    // pick-pile (Fact or Fiction step 2, ADR 0053) — the CHOOSER sees both
+    // completed piles face-up before picking. The pile cards still sit in the
+    // library owner's library (the zone moves run only after the pick), so
+    // expose exactly pileA∪pileB from whichever library holds them. When the
+    // piles are public (battlefield / graveyard divides) no library holds them
+    // and no exposure is needed.
+    let pickPeekOwner: string | undefined;
+    let pickPeekIds: string[] | undefined;
+    if (isChooser && head.kind === "pick-pile") {
+        const ids = [...(head.pileA ?? []), ...(head.pileB ?? [])];
+        if (ids.length > 0) {
+            const owner = state.players.find((p) =>
+                p.library.some((c) => c.id === ids[0])
+            );
+            if (owner) {
+                pickPeekOwner = owner.id;
+                pickPeekIds = ids;
+            }
+        }
+    }
 
     // CR 401.4: reveal-hand exposes the zone owner's hand to the chooser.
     const exposeRevealHand =
@@ -482,9 +511,9 @@ function computeChoiceExposure(
 
     return {
         searchZoneOwner,
-        peekZoneOwner,
-        peekCount,
-        peekCandidateIds,
+        peekZoneOwner: pickPeekOwner ?? peekZoneOwner,
+        peekCount: pickPeekIds ? pickPeekIds.length : peekCount,
+        peekCandidateIds: pickPeekIds ?? peekCandidateIds,
         revealZoneOwner,
     };
 }

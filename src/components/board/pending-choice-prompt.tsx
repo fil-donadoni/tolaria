@@ -146,6 +146,17 @@ export default function PendingChoicePrompt({
         );
     }
 
+    // divide-piles / pick-pile (Fact or Fiction, ADR 0053) own the dedicated
+    // `PileDivisionPicker` (mounted by the board) for the CHOOSER — a 3-zone
+    // drag stage for the divider, a face-up two-pile pick for the chooser.
+    // Suppress this generic banner for the chooser so it doesn't double up; the
+    // non-chooser still gets the "Waiting for X" line below.
+    if (
+        isChooser &&
+        (choice.kind === "divide-piles" || choice.kind === "pick-pile")
+    )
+        return null;
+
     // order-top (scry / surveil / ponder), look-distribute (Impulse / Stock Up)
     // and reorder-library ("put them back in any order" — Portent, Natural
     // Selection, Drafna's Restoration) all own the same full-screen drag picker

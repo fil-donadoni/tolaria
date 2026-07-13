@@ -1,0 +1,351 @@
+// The Fact-or-Fiction pile-division dialog (ADR 0053, `divide-piles` /
+// `pick-pile`). Two modes over ONE 3-zone stage:
+//
+//   • DIVIDE (`divide-piles`, the divider) — a CANDIDATES row on top and two
+//     empty PILE boxes below. Every candidate is dragged down into pile A or B;
+//     Done submits pile A's ids (the engine takes the remainder as pile B, so
+//     the divide contract is unchanged — see `divideIntoPiles`).
+//   • PICK (`pick-pile`, the chooser) — no candidates row; the two completed
+//     piles are shown face-up and the chooser takes one.
+//
+// The drag reuses the HAND / scry mechanism — pointer capture + a stable DOM
+// node whose only mutation mid-gesture is its transform — NOT a dnd library, so
+// capture is never dropped and the motion stays fluid. Cards are keyed by
+// instance id and laid out absolutely from a computed position map; on drop the
+// assignment changes and every card springs to its new slot.
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
+import type { CardInstance, PendingChoice } from "~/types/game";
+import { formatOracleText } from "~/lib/oracle-text";
+import { useDraggable } from "~/hooks/useDraggable";
+import MinimizeChoiceButton from "~/components/board/minimize-choice-button";
+import PileZone from "./pile-zone";
+import PileCard from "./pile-card";
+import { CARD_H, STAGE_W, computePileLayout } from "./layout";
+import type { PileKey } from "./layout";
+
+const DRAG_START_PX = 6;
+
+type Drag = {
+    id: string;
+    /** Live pointer position in stage-local px. */
+    x: number;
+    y: number;
+    /** Pointer position (stage-local) at grab time — the drag-threshold anchor. */
+    startX: number;
+    startY: number;
+    /** Pointer − card origin at grab time, so the card tracks the pointer 1:1. */
+    grabX: number;
+    grabY: number;
+    /** True once the pointer has travelled past the drag threshold. */
+    moved: boolean;
+};
+
+export default function PileDivisionPicker({
+    choice,
+    cards,
+    playerId,
+    gameId,
+}: {
+    choice: PendingChoice;
+    /** The divided cards, resolved to face-up instances (candidateIds for
+     *  divide; pileA∪pileB for pick). */
+    cards: CardInstance[];
+    playerId: string;
+    gameId: Id<"games">;
+}) {
+    const submitChoice = useMutation(api.game.submitResolutionChoice);
+    const [busy, setBusy] = useState(false);
+    // Draggable window chrome (the whole stage), shared with the other choice
+    // dialogs so the player can move it off the board.
+    const { offset, dragHandlers } = useDraggable();
+
+    const isPick = choice.kind === "pick-pile";
+
+    // divide: all candidates start in the CANDIDATES zone. pick: cards are
+    // pre-split into A / B and never move (read-only).
+    const initialAssignment = useMemo(() => {
+        const m: Record<string, PileKey> = {};
+        if (isPick) {
+            const inA = new Set(choice.pileA ?? []);
+            for (const c of cards) m[c.id] = inA.has(c.id) ? "A" : "B";
+        } else {
+            for (const c of cards) m[c.id] = "candidates";
+        }
+        return m;
+    }, [cards, isPick, choice.pileA]);
+
+    const [assignment, setAssignment] =
+        useState<Record<string, PileKey>>(initialAssignment);
+    const [drag, setDrag] = useState<Drag | null>(null);
+
+    const stageRef = useRef<HTMLDivElement>(null);
+    const zoneRefs = useRef<Record<PileKey, HTMLDivElement | null>>({
+        candidates: null,
+        A: null,
+        B: null,
+    });
+
+    const layout = useMemo(
+        () => computePileLayout(cards, assignment, isPick),
+        [cards, assignment, isPick]
+    );
+
+    // Which zone contains the pointer, by hit-testing the three zone boxes.
+    const zoneAtPoint = useCallback(
+        (clientX: number, clientY: number): PileKey | null => {
+            for (const key of ["A", "B", "candidates"] as PileKey[]) {
+                const el = zoneRefs.current[key];
+                if (!el) continue;
+                const r = el.getBoundingClientRect();
+                if (
+                    clientX >= r.left &&
+                    clientX <= r.right &&
+                    clientY >= r.top &&
+                    clientY <= r.bottom
+                )
+                    return key;
+            }
+            return null;
+        },
+        []
+    );
+
+    const onPointerDown = useCallback(
+        (e: React.PointerEvent, id: string) => {
+            if (isPick || busy) return; // pick mode: cards are read-only
+            const stage = stageRef.current;
+            if (!stage) return;
+            const stageRect = stage.getBoundingClientRect();
+            const pos = layout.get(id);
+            if (!pos) return;
+            // Card origin in stage-local px; pointer offset within the card.
+            const px = e.clientX - stageRect.left;
+            const py = e.clientY - stageRect.top;
+            e.currentTarget.setPointerCapture(e.pointerId);
+            setDrag({
+                id,
+                x: px,
+                y: py,
+                startX: px,
+                startY: py,
+                grabX: px - pos.x,
+                grabY: py - pos.y,
+                moved: false,
+            });
+        },
+        [isPick, busy, layout]
+    );
+
+    const onPointerMove = useCallback(
+        (e: React.PointerEvent) => {
+            if (!drag) return;
+            const stage = stageRef.current;
+            if (!stage) return;
+            const stageRect = stage.getBoundingClientRect();
+            const px = e.clientX - stageRect.left;
+            const py = e.clientY - stageRect.top;
+            const moved =
+                drag.moved ||
+                Math.hypot(px - drag.startX, py - drag.startY) > DRAG_START_PX;
+            setDrag({ ...drag, x: px, y: py, moved });
+        },
+        [drag]
+    );
+
+    const onPointerUp = useCallback(
+        (e: React.PointerEvent) => {
+            if (!drag) return;
+            const id = drag.id;
+            const target = zoneAtPoint(e.clientX, e.clientY);
+            setDrag(null);
+            if (drag.moved && target && target !== assignment[id]) {
+                setAssignment((a) => ({ ...a, [id]: target }));
+            }
+        },
+        [drag, assignment, zoneAtPoint]
+    );
+
+    const remaining = cards.filter(
+        (c) => assignment[c.id] === "candidates"
+    ).length;
+    const canConfirm = !isPick && remaining === 0 && !busy;
+
+    const submitDivide = useCallback(async () => {
+        if (!canConfirm) return;
+        setBusy(true);
+        try {
+            const pileA = cards
+                .filter((c) => assignment[c.id] === "A")
+                .map((c) => c.id);
+            await submitChoice({
+                gameId,
+                playerId,
+                stackItemId: choice.stackItemId,
+                step: choice.step,
+                choiceId: choice.choiceId,
+                cardInstanceIds: pileA,
+            });
+        } finally {
+            setBusy(false);
+        }
+    }, [
+        canConfirm,
+        cards,
+        assignment,
+        submitChoice,
+        gameId,
+        playerId,
+        choice,
+    ]);
+
+    const takePile = useCallback(
+        async (pile: "A" | "B") => {
+            if (busy) return;
+            setBusy(true);
+            try {
+                await submitChoice({
+                    gameId,
+                    playerId,
+                    stackItemId: choice.stackItemId,
+                    step: choice.step,
+                    choiceId: choice.choiceId,
+                    cardInstanceIds: [pile],
+                });
+            } finally {
+                setBusy(false);
+            }
+        },
+        [busy, submitChoice, gameId, playerId, choice]
+    );
+
+    return (
+        <div
+            className="absolute top-1/2 left-1/2 z-100 pointer-events-none"
+            style={{
+                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+            }}
+        >
+            <div
+                className="relative flex flex-col items-center gap-2 bg-surface border border-border-subtle backdrop-blur-md rounded-sm px-5 py-3 shadow-[0_0_50px_rgba(0,0,0,0.8)] select-none pointer-events-auto"
+            >
+                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t border-l border-border-accent/40" />
+                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t border-r border-border-accent/40" />
+                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b border-l border-border-accent/40" />
+                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b border-r border-border-accent/40" />
+                <MinimizeChoiceButton className="absolute top-1.5 right-1.5" />
+
+                {/* Header — draggable handle for the whole dialog. */}
+                <div
+                    {...dragHandlers}
+                    className="flex flex-col items-center text-center gap-1 cursor-move w-full"
+                >
+                    <p className="font-beleren text-sm tracking-wide text-parchment">
+                        {isPick ? "Choose a Pile" : "Divide into Two Piles"}
+                    </p>
+                    <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-border-accent/40 to-transparent" />
+                    <p className="text-text-muted text-xs">
+                        {formatOracleText(choice.prompt)}
+                    </p>
+                </div>
+
+                {/* The 3-zone stage. */}
+                <div
+                    ref={stageRef}
+                    className="relative"
+                    style={{ width: STAGE_W, height: CARD_H * 2 + 96 }}
+                    onPointerMove={onPointerMove}
+                    onPointerUp={onPointerUp}
+                >
+                    {!isPick && (
+                        <PileZone
+                            label="Revealed"
+                            variant="candidates"
+                            zoneRef={(el) => (zoneRefs.current.candidates = el)}
+                        />
+                    )}
+                    <PileZone
+                        label={
+                            isPick
+                                ? `Pile A (${choice.pileA?.length ?? 0})`
+                                : "Pile A"
+                        }
+                        variant="pileA"
+                        zoneRef={(el) => (zoneRefs.current.A = el)}
+                    />
+                    <PileZone
+                        label={
+                            isPick
+                                ? `Pile B (${choice.pileB?.length ?? 0})`
+                                : "Pile B"
+                        }
+                        variant="pileB"
+                        zoneRef={(el) => (zoneRefs.current.B = el)}
+                    />
+
+                    {cards.map((card) => {
+                        const pos = layout.get(card.id)!;
+                        const isDragging = drag?.id === card.id && drag.moved;
+                        const x = isDragging ? drag!.x - drag!.grabX : pos.x;
+                        const y = isDragging ? drag!.y - drag!.grabY : pos.y;
+                        return (
+                            <PileCard
+                                key={card.id}
+                                card={card}
+                                x={x}
+                                y={y}
+                                dragging={isDragging}
+                                interactive={!isPick && !busy}
+                                onPointerDown={(e) =>
+                                    onPointerDown(e, card.id)
+                                }
+                            />
+                        );
+                    })}
+                </div>
+
+                {/* Footer actions. */}
+                {isPick ? (
+                    <div className="flex gap-2 mt-1">
+                        <button
+                            type="button"
+                            disabled={busy}
+                            className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                            onClick={() => takePile("A")}
+                        >
+                            Take Pile A
+                        </button>
+                        <button
+                            type="button"
+                            disabled={busy}
+                            className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                            onClick={() => takePile("B")}
+                        >
+                            Take Pile B
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center gap-1 mt-1">
+                        {remaining > 0 && (
+                            <p className="text-text-disabled text-xs">
+                                {remaining} card{remaining === 1 ? "" : "s"} left
+                                — drag {remaining === 1 ? "it" : "each"} into a
+                                pile
+                            </p>
+                        )}
+                        <button
+                            type="button"
+                            disabled={!canConfirm}
+                            className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                            onClick={submitDivide}
+                        >
+                            Done
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
