@@ -24,12 +24,15 @@ import {
     type ResolveCardByName,
 } from "./formats";
 
-const banlistFormatValidator = v.union(
+// Exported (not just module-local) so `convex/banlistSync.ts` — the admin
+// sync action/mutation sibling (issue #1143) — shares the exact same
+// validator shapes rather than duplicating the literal unions.
+export const banlistFormatValidator = v.union(
     v.literal("premodern"),
     v.literal("old-school")
 );
 
-const banlistEntryValidator = v.object({
+export const banlistEntryValidator = v.object({
     cardName: v.string(),
     status: v.union(v.literal("banned"), v.literal("restricted")),
 });

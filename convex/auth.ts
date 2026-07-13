@@ -1,7 +1,9 @@
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
+import { v } from "convex/values";
 import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
+import { internalQuery } from "./_generated/server";
 
 type AnyCtx = GenericQueryCtx<DataModel> | GenericMutationCtx<DataModel>;
 
@@ -84,3 +86,21 @@ export async function assertIsAdmin(ctx: AnyCtx): Promise<Doc<"users">> {
     // `isAdminUser` guarantees user is non-null here.
     return user as Doc<"users">;
 }
+
+/**
+ * Admin gate callable from an `action` (issue #1143). Actions have no
+ * `ctx.db`, so `assertIsAdmin` can't run inline in one — an action reaches it
+ * via `ctx.runQuery(internal.auth.requireAdminQuery, {})`, which propagates
+ * the calling user's identity into this internal query. Throws (mirroring
+ * `assertIsAdmin`) for a non-admin/unauthenticated caller; the thrown error
+ * surfaces back through the action to the client. `syncBanlist`
+ * (`convex/banlistSync.ts`) is the first consumer.
+ */
+export const requireAdminQuery = internalQuery({
+    args: {},
+    returns: v.null(),
+    handler: async (ctx) => {
+        await assertIsAdmin(ctx);
+        return null;
+    },
+});
