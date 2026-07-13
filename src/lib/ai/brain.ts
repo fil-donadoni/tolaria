@@ -536,6 +536,14 @@ export function chooseResolution(choice: OwedChoice): string[] {
                 .slice(0, min)
                 .map((c) => c.id);
 
+        // Non-cast Aura host (CR 303.4f — Replenish, Living Death): pick the one
+        // legal host the reanimated Aura enchants. Minimal-legal default
+        // (ADR 0016) — first candidate in scan order, so the engine never
+        // freezes. Smart host selection (buff my best creature vs. steal the
+        // opponent's for Control Magic) is deferred to the evaluation work.
+        case "choose-aura-host":
+            return candidates.slice(0, min).map((c) => c.id);
+
         // "As it enters, choose …" body selection (CR 614.12 — Primal Clay,
         // Shapeshifter). The options are appended to `candidates` as neutral-
         // value picks in `buildOwedChoice`; a minimal-legal default (ADR 0016)

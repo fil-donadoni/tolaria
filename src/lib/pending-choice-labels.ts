@@ -31,6 +31,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "look-distribute": "Look",
     // legend rule (CR 704.5j)
     "legend-keep": "Legend rule",
+    // non-cast Aura host choice (CR 303.4f — Replenish, Living Death)
+    "choose-aura-host": "Choose host",
     // yes-no family
     "may-pay": "Optional",
     // land-entry pay-choice (CR 614.12, ADR 0051 — shock lands)
