@@ -40,7 +40,11 @@ import {
 import { collectTriggers } from "../triggers";
 import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup";
 import { uroTitanOfNaturesWrath } from "../../cards/sets/thb/multicolor";
 import { underworldBreach } from "../../cards/sets/thb/red";
 import { phlageTitanOfFiresFury } from "../../cards/sets/mh3/multicolor";
@@ -279,10 +283,7 @@ describe("Escape capability (CR 702.138)", () => {
                 }),
             ];
             const state = makeState({
-                players: [
-                    makePlayer("p1", { graveyard }),
-                    makePlayer("p2"),
-                ],
+                players: [makePlayer("p1", { graveyard }), makePlayer("p2")],
             });
             state.pendingCast = {
                 playerId: "p1",
@@ -381,7 +382,9 @@ describe("Escape capability (CR 702.138)", () => {
 
         it("an escape cast enters the permanent with escaped=true and does not exile it", () => {
             const state = escapeCastUro(true);
-            const uro = state.players[0].battlefield.find((c) => c.id === "uro");
+            const uro = state.players[0].battlefield.find(
+                (c) => c.id === "uro"
+            );
             expect(uro).toBeDefined();
             expect(uro!.escaped).toBe(true);
             expect(state.players[0].exile.some((c) => c.id === "uro")).toBe(
@@ -403,8 +406,7 @@ describe("Escape capability (CR 702.138)", () => {
                     types: ["Creature"],
                 },
             ]).filter(
-                (t) =>
-                    t.triggeredAbilityId === "uro-sacrifice-unless-escaped"
+                (t) => t.triggeredAbilityId === "uro-sacrifice-unless-escaped"
             );
             state.stack.push(...triggers);
             let guard = 0;
@@ -433,8 +435,7 @@ describe("Escape capability (CR 702.138)", () => {
                     types: ["Creature"],
                 },
             ]).filter(
-                (t) =>
-                    t.triggeredAbilityId === "uro-sacrifice-unless-escaped"
+                (t) => t.triggeredAbilityId === "uro-sacrifice-unless-escaped"
             );
             state.stack.push(...triggers);
             let guard = 0;

@@ -348,7 +348,11 @@ function projectGraveyardCard(
     // escape by Underworld Breach) so the client can offer + gate the escape
     // cast (the board never sees the GRE).
     if (isOwnGraveyard && hasFlashback(card)) {
-        return { ...slim, legalActions: legalActionsFor(), castKind: "flashback" };
+        return {
+            ...slim,
+            legalActions: legalActionsFor(),
+            castKind: "flashback",
+        };
     }
     if (isOwnGraveyard && hasEscape(state, card)) {
         return { ...slim, legalActions: legalActionsFor(), castKind: "escape" };

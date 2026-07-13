@@ -220,4 +220,3 @@ export const phlageTitanOfFiresFury: CardDefinition = {
     // CR 702.138 — Escape. {R}{R}{W}{W} + exile five OTHER graveyard cards.
     escape: { mana: { R: 2, W: 2 }, exile: { count: 5 } },
 };
-

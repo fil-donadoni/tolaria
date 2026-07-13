@@ -12,7 +12,11 @@ import type { CardType } from "../../../types";
 
 // A dead card of a chosen card type sitting in a graveyard (the CDA reads the
 // instance `.types`).
-function deadCard(id: string, owner: string, types: CardType[]): CardInstanceState {
+function deadCard(
+    id: string,
+    owner: string,
+    types: CardType[]
+): CardInstanceState {
     return {
         id,
         card: { id: `fake-${id}` },

@@ -117,9 +117,18 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         // draw + may drop a land.
         label: "Escape — Uro from the graveyard",
         cards: [
-            { name: "Uro, Titan of Nature's Wrath", owner: "me", zone: "graveyard" },
+            {
+                name: "Uro, Titan of Nature's Wrath",
+                owner: "me",
+                zone: "graveyard",
+            },
             { name: "Grizzly Bears", owner: "me", zone: "graveyard", count: 3 },
-            { name: "Lightning Bolt", owner: "me", zone: "graveyard", count: 2 },
+            {
+                name: "Lightning Bolt",
+                owner: "me",
+                zone: "graveyard",
+                count: 2,
+            },
             { name: "Forest", owner: "me", zone: "battlefield", count: 2 },
             { name: "Island", owner: "me", zone: "battlefield", count: 2 },
         ],

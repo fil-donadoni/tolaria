@@ -183,7 +183,8 @@ export function getLegalActions(
     // ability to pay the "exile N other cards from your graveyard" additional
     // cost (CR 702.138a).
     const isEscapeCast =
-        player.graveyard.some((c) => c.id === card.id) && hasEscape(state, card);
+        player.graveyard.some((c) => c.id === card.id) &&
+        hasEscape(state, card);
     if (isEscapeCast) {
         const baseLegal = hasInstantTiming(card)
             ? true
