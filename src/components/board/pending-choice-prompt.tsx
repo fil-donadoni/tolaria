@@ -67,23 +67,10 @@ export default function PendingChoicePrompt({
     const isLandEntry = choice.kind === "land-entry-tapped";
     const isYesNoPay = isMayPay || isLandEntry;
     const isOptionPick = choice.kind === "option-pick";
-    // ADR 0053 (pile division) — step 2 of the divide-then-choose family:
-    // pick pile "A" or "B". Reuses the same option-button UI as `option-pick`,
-    // synthesizing labels from the completed piles' sizes so the chooser can
-    // tell them apart before deciding.
-    const isPickPile = choice.kind === "pick-pile";
-    const pickPileOptions = isPickPile
-        ? [
-              {
-                  id: "A",
-                  label: `Pile A (${choice.pileA?.length ?? 0} card${(choice.pileA?.length ?? 0) === 1 ? "" : "s"})`,
-              },
-              {
-                  id: "B",
-                  label: `Pile B (${choice.pileB?.length ?? 0} card${(choice.pileB?.length ?? 0) === 1 ? "" : "s"})`,
-              },
-          ]
-        : [];
+    // ADR 0053 pile division (`divide-piles` / `pick-pile`) is NOT handled here:
+    // the chooser's surface is owned by `PileDivisionPicker` (this component
+    // returns null for the chooser of those kinds, above); the non-chooser gets
+    // the generic "Waiting for X" line at the bottom.
     const isNameCard = choice.kind === "name-card";
 
     // All zone-pick kinds use the client-side buffer (ADR 0007).
@@ -224,13 +211,9 @@ export default function PendingChoicePrompt({
                                 />
                             </div>
                         )}
-                        {isOptionPick || isPickPile ? (
+                        {isOptionPick ? (
                             <PendingChoiceOptions
-                                options={
-                                    isPickPile
-                                        ? pickPileOptions
-                                        : (choice.options ?? [])
-                                }
+                                options={choice.options ?? []}
                                 disabled={isBusy}
                                 onPick={async (id) => {
                                     if (isBusy) return;

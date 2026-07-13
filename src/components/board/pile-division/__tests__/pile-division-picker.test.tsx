@@ -67,8 +67,10 @@ describe("PileDivisionPicker — divide mode", () => {
                 gameId={"g1" as never}
             />
         );
-        const done = screen.getByRole("button", { name: "Done" });
-        expect(done).toBeDisabled();
+        const done = screen.getByRole("button", {
+            name: "Done",
+        }) as HTMLButtonElement;
+        expect(done.disabled).toBe(true);
         expect(screen.getByText(/3 cards left/)).toBeTruthy();
         // Every candidate renders a face (img alt="" → role img has no name).
         expect(document.querySelectorAll("img").length).toBe(3);

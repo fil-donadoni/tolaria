@@ -64,13 +64,12 @@ function fanX(box: ZoneBox, n: number): number[] {
 }
 
 /** Position map (instanceId → stage-local top-left) for every card, grouped by
- *  its current zone assignment and fanned within that zone. `isPick` is unused
- *  by the maths (the assignment already reflects the A/B split) but kept for
- *  call-site symmetry with the picker. */
+ *  its current zone assignment and fanned within that zone. The assignment
+ *  already reflects the A/B split (pick mode) or the candidates-then-piles state
+ *  (divide mode), so the maths is identical for both. */
 export function computePileLayout(
     cards: CardInstance[],
-    assignment: Record<string, PileKey>,
-    _isPick: boolean
+    assignment: Record<string, PileKey>
 ): Map<string, { x: number; y: number }> {
     const groups: Record<PileKey, CardInstance[]> = {
         candidates: [],

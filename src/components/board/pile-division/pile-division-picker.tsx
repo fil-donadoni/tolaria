@@ -89,8 +89,8 @@ export default function PileDivisionPicker({
     });
 
     const layout = useMemo(
-        () => computePileLayout(cards, assignment, isPick),
-        [cards, assignment, isPick]
+        () => computePileLayout(cards, assignment),
+        [cards, assignment]
     );
 
     // Which zone contains the pointer, by hit-testing the three zone boxes.
