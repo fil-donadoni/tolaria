@@ -72,6 +72,7 @@ export function computePileLayout(
     assignment: Record<string, PileKey>,
     _isPick: boolean
 ): Map<string, { x: number; y: number }> {
+    void _isPick; // kept for call-site symmetry with the picker; unused by the maths
     const groups: Record<PileKey, CardInstance[]> = {
         candidates: [],
         A: [],
