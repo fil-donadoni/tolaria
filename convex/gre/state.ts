@@ -73,10 +73,12 @@ import {
     applyDamageReplacements,
     applyDestroyReplacements,
     applyDiscardReplacements,
+    applyGraveyardRedirectCounters,
     applyLifeChangeReplacements,
     applyTapReplacements,
     applyTransientDamageRedirections,
     describeDamageSource,
+    graveyardDestinationFor,
 } from "./replacements";
 import { collectTriggers } from "./triggers";
 import { getColorsFromCost } from "../cards/colors";
@@ -2284,6 +2286,18 @@ export type GameState = {
      *  `duration` expires. Consumed via `destroyWithReplacements`; unconsumed
      *  remainder purged at expiry. See ADR 0020. */
     destroyReplacementShields?: DestroyReplacementShield[];
+    /** CR 614 (issue #1145) — turn-scoped "if a card would be put into your
+     *  graveyard from anywhere this turn, exile it instead" grants
+     *  (Yawgmoth's Will). Distinct from a permanent-bound
+     *  `replacementEffects[]` entry with `eventKind: "graveyard-bound"`
+     *  (Dauthi Voidwalker), which lasts only as long as its source stays on
+     *  the battlefield — a one-shot SORCERY has no battlefield presence to
+     *  carry a continuous effect, so its "until end of turn" redirect rides
+     *  this transient list instead, consulted by
+     *  `applyGraveyardBoundReplacements` after the permanent-bound loop
+     *  (mirrors `destroyReplacementShields`). Cleared unconditionally at
+     *  CLEANUP (CR 514.2), same boundary as `cannotCastSpellsThisTurn`. */
+    graveyardBoundRedirectThisTurn?: GraveyardBoundRedirectGrant[];
     /** Per-instance "prevent all combat damage to and by this permanent"
      *  shields (CR 615, Ebony Horse). Consumed in the combat damage step;
      *  unconsumed remainder purged at `duration` expiry. */
@@ -2424,6 +2438,20 @@ export type PlayerPreferences = {
  *  - `from-source-to-permanent-redirect-to-player`: the next damage that
  *    source X would deal to a specific creature is dealt to a chosen
  *    player instead. Jade Monolith's `{1}` activated ability. */
+/** A turn-scoped grant redirecting a card entering `ownerId`'s OWN graveyard
+ *  to exile instead (CR 614, issue #1145 — Yawgmoth's Will's shape). Applied
+ *  by `applyGraveyardBoundReplacements` as a transient layer on top of the
+ *  permanent-bound `replacementEffects[]` loop; armed via
+ *  `SpellContext.armGraveyardRedirectThisTurn` and cleared at CLEANUP. */
+export interface GraveyardBoundRedirectGrant {
+    /** The player whose own graveyard-bound cards this redirects (CR 400.7
+     *  — a card always goes to ITS OWNER's graveyard). */
+    ownerId: string;
+    /** Counters to stamp on the redirected card, for parity with the
+     *  permanent-bound shape's `tagCounters` (unused by Yawgmoth's Will). */
+    tagCounters?: Record<string, number>;
+}
+
 export type DamageRedirection =
     | {
           kind: "prevent-from-source-gain-life";
@@ -2831,9 +2859,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             // for permanent spells a fully-illegal target means it never enters
             // play, so it likewise goes to the graveyard as a countered spell.
             if (isSpell && !top.isCopy) {
-                const owner = getPlayer(state, top.ownerId);
-                top.zone = "graveyard";
-                owner.graveyard.push(top);
+                sendStackItemToGraveyard(state, top);
             }
             return top;
         }
@@ -3130,6 +3156,28 @@ export function shouldEnterTapped(
     );
 }
 
+/** Moves a stack item (a spell that failed to resolve/finished resolving as
+ *  a non-permanent/was countered) into its owner's graveyard — CR 614
+ *  (issue #1145) consulted first so a graveyard-bound replacement
+ *  (Yawgmoth's Will / Dauthi Voidwalker) can redirect it to exile instead.
+ *  Single chokepoint shared by the target-legality fizzle path, the
+ *  land-can't-enter / illegal-aura-host paths, the plain spell-resolves
+ *  path, and `SpellContext.counter`'s default destination. */
+function sendStackItemToGraveyard(state: GameState, item: StackItem): void {
+    const owner = getPlayer(state, item.ownerId);
+    const { destination, tagCounters } = graveyardDestinationFor(
+        state,
+        item.id,
+        item.ownerId,
+        "stack"
+    );
+    item.zone = destination;
+    (owner[destination] as CardInstanceState[]).push(item);
+    if (destination !== "graveyard") {
+        applyGraveyardRedirectCounters(item, tagCounters);
+    }
+}
+
 /** Moves a resolved spell from the stack to its destination zone (CR 608.3
  *  for permanents, CR 608.2k for instants/sorceries). Extracted so both
  *  stepped and single-shot paths share the same transition. */
@@ -3166,8 +3214,7 @@ function finalizeSpellResolution(
         // still try to enter via a spell/ability that puts it onto the
         // battlefield — this is the catch-all for that path.
         if (!canLandEnterBattlefield(state, item.types)) {
-            item.zone = "graveyard";
-            getPlayer(state, item.ownerId).graveyard.push(item);
+            sendStackItemToGraveyard(state, item);
             return;
         }
         // CR 303.4: an Aura enters the battlefield attached to its target.
@@ -3203,8 +3250,7 @@ function finalizeSpellResolution(
             const isLegalHost =
                 host !== undefined && isFullyLegalAuraHost(state, host, item);
             if (!isLegalHost || host === undefined) {
-                item.zone = "graveyard";
-                getPlayer(state, item.ownerId).graveyard.push(item);
+                sendStackItemToGraveyard(state, item);
                 return;
             }
             item.attachedTo = host.id;
@@ -3288,8 +3334,7 @@ function finalizeSpellResolution(
             owner.exile.push(item);
             return;
         }
-        item.zone = "graveyard";
-        owner.graveyard.push(item);
+        sendStackItemToGraveyard(state, item);
     }
 }
 
@@ -4877,6 +4922,21 @@ export function removePermanentTo(
     if (initial.card.exileOnLeave && toZone !== "exile") {
         toZone = "exile";
     }
+    // CR 614 (issue #1145) — graveyard-bound replacement (Yawgmoth's Will /
+    // Dauthi Voidwalker): "if a card would be put into a graveyard from
+    // anywhere, exile it instead." Consulted AFTER `exileOnLeave` (which
+    // already forces exile) so an already-redirected card isn't re-checked.
+    let graveyardRedirectCounters: Record<string, number> | undefined;
+    if (toZone === "graveyard") {
+        const { destination, tagCounters } = graveyardDestinationFor(
+            state,
+            cardId,
+            initial.card.ownerId,
+            "battlefield"
+        );
+        toZone = destination;
+        graveyardRedirectCounters = tagCounters;
+    }
     // CR 603.10 last-known-information snapshot for PERMANENT_LEFT. Capture
     // attachedTo here because the aura cleanup below clears it on the
     // leaving card; LTB-triggers on the aura itself (Animate Dead) read this
@@ -4939,6 +4999,9 @@ export function removePermanentTo(
     }
     const owner = getPlayer(state, creature.ownerId);
     (owner[toZone] as CardInstanceState[]).push(creature);
+    if (toZone === "exile" && graveyardRedirectCounters) {
+        applyGraveyardRedirectCounters(creature, graveyardRedirectCounters);
+    }
     // CR 700.4 — a creature "dies" when it's put into a graveyard from the
     // battlefield. Queued on `pendingEvents` so the caller can scan for
     // matching triggers (CR 603.2) once the current action settles.
@@ -7265,10 +7328,28 @@ export function buildSpellContext(
                 const types = cardId
                     ? tryGetDefinition(cardId)?.types
                     : undefined;
-                moveCard(player, top.id, "library", "graveyard");
+                // CR 614 (issue #1145) — a graveyard-bound replacement
+                // (Yawgmoth's Will / Dauthi Voidwalker) can redirect this
+                // mill to exile instead of the graveyard.
+                const { destination, tagCounters } = graveyardDestinationFor(
+                    state,
+                    top.id,
+                    top.ownerId,
+                    "library"
+                );
+                moveCard(player, top.id, "library", destination);
+                if (destination !== "graveyard") {
+                    applyGraveyardRedirectCounters(top, tagCounters);
+                }
                 // Emit AFTER the move so the trigger scan finds the card in its
                 // destination graveyard (CR 603.10 emit-after-move discipline).
-                emitCardMilled(state, playerId, top.id, cardId, types);
+                // Only a genuine "put into graveyard from library" counts as a
+                // mill (CR 701.17a) — a replacement-redirected card was exiled,
+                // not milled, so Gaea's Blessing-style "put into your graveyard
+                // from your library" triggers correctly don't see it.
+                if (destination === "graveyard") {
+                    emitCardMilled(state, playerId, top.id, cardId, types);
+                }
             }
         },
         // CR 614 — arm a one-shot replacement for the next draw `playerId`
@@ -7279,6 +7360,19 @@ export function buildSpellContext(
             state.drawLookReplacements = state.drawLookReplacements ?? [];
             state.drawLookReplacements.push({ playerId, x });
         },
+        // CR 614 (issue #1145) — arm a turn-scoped "if a card would be put
+        // into your graveyard from anywhere this turn, exile it instead"
+        // grant (Yawgmoth's Will's redirect clause). Unlike a permanent-bound
+        // `replacementEffects[]` entry, this survives the SOURCE leaving play
+        // (a one-shot sorcery has no battlefield presence to carry a
+        // continuous effect) — it rides `state.graveyardBoundRedirectThisTurn`
+        // instead, cleared at CLEANUP (CR 514.2).
+        armGraveyardRedirectThisTurn(ownerId: string): void {
+            state.graveyardBoundRedirectThisTurn = [
+                ...(state.graveyardBoundRedirectThisTurn ?? []),
+                { ownerId },
+            ];
+        },
         // CR 400.7: general zone-change primitive. Iterates over a snapshot
         // of source ids so moveCard's splice doesn't perturb iteration.
         moveZone(playerId: string, from: MovableZone, to: MovableZone): void {
@@ -7288,7 +7382,8 @@ export function buildSpellContext(
             const ids = (player[fromField] as CardInstanceState[]).map(
                 (c) => c.id
             );
-            for (const id of ids) moveCard(player, id, from, to);
+            for (const id of ids)
+                moveCardWithGraveyardReplacement(state, player, id, from, to);
         },
         moveCardById(
             playerId: string,
@@ -7303,7 +7398,13 @@ export function buildSpellContext(
                 (c) => c.id === cardInstanceId
             );
             if (!exists) return;
-            moveCard(player, cardInstanceId, from, to);
+            moveCardWithGraveyardReplacement(
+                state,
+                player,
+                cardInstanceId,
+                from,
+                to
+            );
         },
         // CR 702.26 — phase a permanent (and its Auras/Equipment) out of
         // existence. See `phaseOutPermanent`.
@@ -7389,8 +7490,11 @@ export function buildSpellContext(
                     break;
                 case "graveyard":
                 default:
-                    item.zone = "graveyard";
-                    owner.graveyard.push(item);
+                    // CR 614 (issue #1145) — a countered spell heading to its
+                    // owner's graveyard is itself a graveyard-bound event; a
+                    // matching replacement (Yawgmoth's Will / Dauthi
+                    // Voidwalker) can redirect it to exile instead.
+                    sendStackItemToGraveyard(state, item);
                     break;
             }
         },
@@ -9610,8 +9714,19 @@ export function buildSpellContext(
             // cards live under the sibling `:second` key (submit-time split).
             const second = item.collectedChoices?.[`${key}:second`] ?? [];
             if (opts.destination === "graveyard") {
+                // CR 614 (issue #1145) — Surveil's "put into graveyard" leg is
+                // itself a card-entering-a-graveyard event; a graveyard-bound
+                // replacement (Yawgmoth's Will / Dauthi Voidwalker) can
+                // redirect it to exile.
                 for (const id of second) {
-                    moveCard(player, id, "library", "graveyard");
+                    const card = player.library.find((c) => c.id === id);
+                    const ownerId = card?.ownerId ?? playerId;
+                    const { destination, tagCounters } =
+                        graveyardDestinationFor(state, id, ownerId, "library");
+                    const moved = moveCard(player, id, "library", destination);
+                    if (destination !== "graveyard") {
+                        applyGraveyardRedirectCounters(moved, tagCounters);
+                    }
                 }
             } else if (opts.destination === "library-bottom") {
                 for (const id of second) {
@@ -10314,6 +10429,39 @@ export function moveCard(
     return card;
 }
 
+/** `moveCard`, but consults the CR 614 graveyard-bound replacement layer
+ *  (issue #1145) first when `to === "graveyard"` — the general zone-change
+ *  primitives (`SpellContext.moveZone`/`moveCardById`) are a chokepoint many
+ *  card effects route a "put into graveyard" through (self-mill, forced
+ *  discard-alikes, library manipulation), so a matching replacement
+ *  (Yawgmoth's Will / Dauthi Voidwalker) can redirect the move to exile
+ *  before it lands. Falls straight through to `moveCard` for any other
+ *  destination. */
+function moveCardWithGraveyardReplacement(
+    state: GameState,
+    player: PlayerState,
+    cardInstanceId: string,
+    from: Exclude<Zone, "stack">,
+    to: Exclude<Zone, "stack">
+): CardInstanceState {
+    if (to !== "graveyard") return moveCard(player, cardInstanceId, from, to);
+    const sourceCard = (
+        player[ZONE_TO_FIELD[from]] as CardInstanceState[]
+    ).find((c) => c.id === cardInstanceId);
+    const ownerId = sourceCard?.ownerId ?? player.id;
+    const { destination, tagCounters } = graveyardDestinationFor(
+        state,
+        cardInstanceId,
+        ownerId,
+        from as Exclude<Zone, "graveyard">
+    );
+    const moved = moveCard(player, cardInstanceId, from, destination);
+    if (destination !== "graveyard") {
+        applyGraveyardRedirectCounters(moved, tagCounters);
+    }
+    return moved;
+}
+
 /** ADR 0026 / PRD #338 (slice 6) — exiles a card FACE DOWN for `knowerId` to
  *  look at (impulse-draw, e.g. "exile the top card; you may look at it"). The
  *  card moves to its owner's exile pile but, unlike a normal (face-up) exile,
@@ -10473,7 +10621,8 @@ export function discardToGraveyard(
     cardInstanceId: string
 ): boolean {
     const player = getPlayer(state, playerId);
-    if (!player.hand.some((c) => c.id === cardInstanceId)) return false;
+    const handCard = player.hand.find((c) => c.id === cardInstanceId);
+    if (!handCard) return false;
     // CR 614 — discard replacements (Library of Leng) intercept here.
     const repl = applyDiscardReplacements(state, {
         kind: "discard",
@@ -10481,7 +10630,19 @@ export function discardToGraveyard(
         cardInstanceId,
     });
     if (repl === null) return false; // replacement routed the card elsewhere
-    const moved = moveCard(player, repl.cardInstanceId, "hand", "graveyard");
+    // CR 614 (issue #1145) — the card HAS been discarded (CARD_DISCARDED still
+    // fires below), but a graveyard-bound replacement (Yawgmoth's Will /
+    // Dauthi Voidwalker) can redirect where it actually lands.
+    const { destination, tagCounters } = graveyardDestinationFor(
+        state,
+        repl.cardInstanceId,
+        handCard.ownerId,
+        "hand"
+    );
+    const moved = moveCard(player, repl.cardInstanceId, "hand", destination);
+    if (destination !== "graveyard") {
+        applyGraveyardRedirectCounters(moved, tagCounters);
+    }
     const cardId = (moved.card as { id?: string }).id;
     emitCardDiscarded(state, playerId, repl.cardInstanceId, cardId);
     return true;

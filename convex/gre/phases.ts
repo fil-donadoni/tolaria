@@ -2333,6 +2333,12 @@ function tickAllDurations(state: GameState): void {
     if (view.phase === "CLEANUP" && state.cannotActivateAbilitiesThisTurn) {
         state.cannotActivateAbilitiesThisTurn = undefined;
     }
+    // CR 614 / 514.2 (issue #1145) — Yawgmoth's Will's turn-scoped
+    // graveyard-bound redirect expires at end of turn, same CLEANUP-only
+    // boundary as the cast/activation locks above.
+    if (view.phase === "CLEANUP" && state.graveyardBoundRedirectThisTurn) {
+        state.graveyardBoundRedirectThisTurn = undefined;
+    }
     // ICE Gaze of Pain — the "until end of turn" floating rider expires.
     if (state.gazeOfPainActiveThisTurn) {
         state.gazeOfPainActiveThisTurn = undefined;

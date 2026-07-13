@@ -1,5 +1,6 @@
 import type {
     Phase,
+    Zone,
     ZonePickKind,
     ManaRestriction,
     PhaseReturnCondition,
@@ -1500,6 +1501,14 @@ export interface SpellContext {
      *  suspends on a `draw-look-keep` choice. No-op for `x ≤ 0` ("X can't be
      *  0"). Turn-scoped — cleared at the start of the next turn. */
     armNextDraw: (playerId: string, x: number) => void;
+    /** CR 614 (issue #1145) — arms a turn-scoped "if a card would be put into
+     *  YOUR graveyard from anywhere this turn, exile that card instead" grant
+     *  (Yawgmoth's Will's redirect clause). Distinct from a permanent-bound
+     *  `replacementEffects[]` entry with `eventKind: "graveyard-bound"`
+     *  (Dauthi Voidwalker) — that lasts only as long as its source stays on
+     *  the battlefield, while this survives the casting spell leaving the
+     *  stack. Cleared unconditionally at CLEANUP (CR 514.2). */
+    armGraveyardRedirectThisTurn: (ownerId: string) => void;
     /** Moves every card a player owns in `from` to `to` (CR 400.7). Cards are
      *  appended to the destination in source order. Library order after a
      *  move is not meaningful — pair with `shuffleLibrary` when the effect
@@ -5120,7 +5129,8 @@ export type ReplacementEventKind =
     | "discard"
     | "lose-game"
     | "tap"
-    | "destroy";
+    | "destroy"
+    | "graveyard-bound";
 
 /** Damage event subject to CR 614 redirection / prevention. */
 export interface DamageReplacementEvent {
@@ -5205,13 +5215,54 @@ export interface DestroyReplacementEvent {
     targetInstanceId: string;
 }
 
+/** Graveyard-bound event: a card about to be put into a graveyard FROM
+ *  ANYWHERE (CR 400.7) — a permanent dying/being sacrificed/destroyed off
+ *  the battlefield, a hand card being discarded, a milled library card, a
+ *  spell finishing resolution or being countered. Distinct from `"discard"`
+ *  (hand→graveyard only, intercepts the discard action itself, e.g. Library
+ *  of Leng redirecting to library top) and `"destroy"` (battlefield-only
+ *  pre-image of one graveyard-bound path). This is the general chokepoint
+ *  for "if a card would be put into a graveyard, exile it instead"-style
+ *  effects (Yawgmoth's Will, Dauthi Voidwalker — issue #1145). Engine
+ *  callers consult `applyGraveyardBoundReplacements` (`gre/replacements.ts`)
+ *  BEFORE committing the move so a matching replacement can redirect the
+ *  card before it ever touches the graveyard array. */
+export interface GraveyardBoundReplacementEvent {
+    kind: "graveyard-bound";
+    /** Instance id of the card about to enter a graveyard. */
+    cardInstanceId: string;
+    /** The card's owner (CR 400.7 — a card always goes to ITS OWNER's
+     *  graveyard, regardless of who controlled it). Replacements filter on
+     *  this to scope "your graveyard" (Yawgmoth's Will) vs "an opponent's
+     *  graveyard" (Dauthi Voidwalker). */
+    ownerId: string;
+    /** Zone the card is leaving. Read by source-filtering replacements that
+     *  care where the card came from (none shipped yet, but the field is
+     *  carried for parity with `DiscardReplacementEvent`/`DestroyReplacementEvent`
+     *  and future cards). */
+    fromZone: Exclude<Zone, "graveyard">;
+    /** Mutable: the zone the card actually lands in once the replacement
+     *  loop settles. Starts as `"graveyard"`; a matching replacement
+     *  rewrites this to `"exile"` to redirect the card (CR 614.1a). Unlike
+     *  `"destroy"`, this event never fully cancels (`{kind:"consumed"}`) —
+     *  the card always ends up SOMEWHERE, so redirection is expressed as a
+     *  `"modified"` rewrite of `destination`, not a null result. */
+    destination: "graveyard" | "exile";
+    /** Counters to stamp on the card once it lands in `destination` (Dauthi
+     *  Voidwalker's void counter). Only meaningful when `destination !==
+     *  "graveyard"` — a card that lands in the graveyard normally is never
+     *  tagged. */
+    tagCounters?: Record<string, number>;
+}
+
 export type ReplacementEvent =
     | DamageReplacementEvent
     | LifeChangeReplacementEvent
     | DiscardReplacementEvent
     | LoseGameReplacementEvent
     | TapReplacementEvent
-    | DestroyReplacementEvent;
+    | DestroyReplacementEvent
+    | GraveyardBoundReplacementEvent;
 
 /** Side-effect mutators handed to a `ReplacementEffect.replace` body. Lets
  *  the effect issue follow-up actions ("draw N cards instead", "sacrifice
