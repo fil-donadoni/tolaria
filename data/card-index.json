@@ -234,6 +234,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Ancient Spring",
+        "scryfallId": "004eefa4-947b-45fc-b45c-5263bfd763bc",
+        "oracleId": "2160849a-184f-4a49-8931-fd021e16f7cb",
+        "firstSet": "inv"
+    },
+    {
         "name": "Ancient Tomb",
         "scryfallId": "30e401e3-282b-4524-87e1-c6cd50cd6d00",
         "oracleId": "23467047-6dba-4498-b783-1ebc4f74b8c2",
@@ -1668,6 +1674,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Crosis's Attendant",
+        "scryfallId": "45edc18c-2046-4d0e-92fe-a6cf4aaf1c6f",
+        "oracleId": "6223b1c0-bfe0-490c-b2d4-28537b05f571",
+        "firstSet": "inv"
+    },
+    {
         "name": "Crown of Flames",
         "scryfallId": "5a46239c-3de7-48ca-8f5c-b51f307fd0e5",
         "oracleId": "f14fb965-5ebc-427a-a5b8-149f54c64171",
@@ -1810,6 +1822,12 @@
         "scryfallId": "414d3cae-b8cf-4d53-bd6b-1aa83a828ba9",
         "oracleId": "88929373-b2c8-4a81-a809-fed87fd5b0d7",
         "firstSet": "arn"
+    },
+    {
+        "name": "Darigaaz's Attendant",
+        "scryfallId": "6f22b575-443a-4c06-8e75-d4140cbd3660",
+        "oracleId": "c0ad16d7-2550-47e0-8581-0e22b27cb0d0",
+        "firstSet": "inv"
     },
     {
         "name": "Dark Banishing",
@@ -2128,6 +2146,18 @@
         "scryfallId": "d8b65656-9f8c-4179-81aa-4b15d8280baa",
         "oracleId": "bcea5e7e-655d-48ea-871e-28ca49e5c574",
         "firstSet": "ice"
+    },
+    {
+        "name": "Dromar, the Banisher",
+        "scryfallId": "cfcc3c72-fff5-454c-814c-eb952fd23ba9",
+        "oracleId": "35ad7f82-a1b1-4aa7-a8b0-3f99ca2cff52",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Dromar's Attendant",
+        "scryfallId": "24936fa9-41a3-4da5-91cf-c28fa45f47c9",
+        "oracleId": "91d36a9d-3a3f-4cb7-837d-b1e8f6730512",
+        "firstSet": "inv"
     },
     {
         "name": "Drop of Honey",
@@ -3202,6 +3232,12 @@
         "scryfallId": "6a4f5a28-0bd2-4cc4-b67f-324e89193caa",
         "oracleId": "64df77f6-4f7e-442a-971c-8ad3f7d1c979",
         "firstSet": "ice"
+    },
+    {
+        "name": "Geothermal Crevice",
+        "scryfallId": "e744b593-13fe-4967-b492-ac02f5815e57",
+        "oracleId": "83f9d84a-a011-4fa9-a3a4-51eb39159c54",
+        "firstSet": "inv"
     },
     {
         "name": "Ghazbán Ogre",
@@ -4306,6 +4342,12 @@
         "scryfallId": "b93c5869-7777-44bb-967a-e9439b25ced4",
         "oracleId": "b7c0bb85-fb87-4c73-bc1b-7b4dc763c7e8",
         "firstSet": "lea"
+    },
+    {
+        "name": "Irrigation Ditch",
+        "scryfallId": "977f1b44-166c-4faf-8a7b-d431707e90ce",
+        "oracleId": "e0c3c87b-83e3-4cff-b05f-78a192e2bba4",
+        "firstSet": "inv"
     },
     {
         "name": "Island",
@@ -5814,6 +5856,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Nightscape Master",
+        "scryfallId": "d86174b8-dd9e-4ece-bc23-4f9ac50bccd3",
+        "oracleId": "e5f9bd6b-0aa6-4f61-b101-ec194af6d632",
+        "firstSet": "inv"
+    },
+    {
         "name": "No More Lies",
         "scryfallId": "1e0c695d-62f9-4805-9e2f-7032e8464136",
         "oracleId": "ead1ee6a-e0da-46d5-89e8-31e8c0270bc2",
@@ -6966,6 +7014,18 @@
         "firstSet": "inv"
     },
     {
+        "name": "Rith, the Awakener",
+        "scryfallId": "c30be387-280d-49bd-a3d1-c1636ee931ce",
+        "oracleId": "97e5d788-2dd3-4c8e-9ab6-f4ea9c7a9a3d",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Rith's Attendant",
+        "scryfallId": "a26e8130-7fe9-4ef4-98af-928814f5b130",
+        "oracleId": "781542b7-155b-4a66-aa52-eec0ebb29bb2",
+        "firstSet": "inv"
+    },
+    {
         "name": "Ritual of Subdual",
         "scryfallId": "5c5c01e7-8116-45fc-afc3-d52a31a635cb",
         "oracleId": "e0587218-206e-41ed-af3c-f06b7a668e90",
@@ -8088,6 +8148,18 @@
         "firstSet": "ice"
     },
     {
+        "name": "Stormscape Apprentice",
+        "scryfallId": "1eb42f39-9187-44e4-aa34-14ab31977199",
+        "oracleId": "cf2bacd3-b1ac-4863-b9c7-1e0a8d4854f3",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Stormscape Master",
+        "scryfallId": "9b704165-4587-48f1-8830-c5a07ec666cc",
+        "oracleId": "bfcd6c5d-7189-4d84-b0df-0a5ce5f43528",
+        "firstSet": "inv"
+    },
+    {
         "name": "Stream of Life",
         "scryfallId": "aa1c4d4b-2645-4cd9-823e-3c9bb2eb48f9",
         "oracleId": "9eb2912d-2130-49f2-9529-b58fa5a97a15",
@@ -8133,6 +8205,12 @@
         "name": "Sulam Djinn",
         "scryfallId": "7aeab16f-e104-47e7-81c7-b6e0123120d7",
         "oracleId": "01e311d2-8fe6-4e64-9575-3ef266985f0b",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Sulfur Vent",
+        "scryfallId": "22c66ed6-55fb-4c65-aac4-26d9cc3053b8",
+        "oracleId": "bc2906cd-9e0c-4aa8-b656-fb1045d810ac",
         "firstSet": "inv"
     },
     {
@@ -8568,6 +8646,18 @@
         "firstSet": "mkm"
     },
     {
+        "name": "Thunderscape Apprentice",
+        "scryfallId": "75a0b075-5414-48d3-a2b1-47dc20213e96",
+        "oracleId": "34e325f0-b66f-44b9-a25c-da88357dbac4",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Thunderscape Master",
+        "scryfallId": "22abdc2f-bdc8-46c4-8ce2-f06befedbc32",
+        "oracleId": "e1db1798-17d1-4ef3-80d7-3f9115a01f7b",
+        "firstSet": "inv"
+    },
+    {
         "name": "Thwart",
         "scryfallId": "c12a0717-e9ea-4be3-a29f-179671ed4489",
         "oracleId": "615a149a-2869-4b18-bbbe-9ec1825049d7",
@@ -8620,6 +8710,12 @@
         "scryfallId": "9a49dc44-616e-4bdd-8220-0bb71eccc512",
         "oracleId": "c823e687-6311-4c99-974b-fd77d204141a",
         "firstSet": "lea"
+    },
+    {
+        "name": "Tinder Farm",
+        "scryfallId": "989b5901-aeb0-4a48-8c53-3b0ec0e0deba",
+        "oracleId": "af0ad159-8264-4526-9a95-eddd32c0a13f",
+        "firstSet": "inv"
     },
     {
         "name": "Tinder Wall",
@@ -8769,6 +8865,18 @@
         "name": "Trench Wurm",
         "scryfallId": "1b076f85-d1bf-491a-af9d-f35b8e1bd163",
         "oracleId": "9cf65178-6408-46da-a940-f5cb0960b61f",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Treva, the Renewer",
+        "scryfallId": "4ee67039-6cee-4a2d-b973-570f5060f550",
+        "oracleId": "72524f3c-674b-4ebf-9526-18737b354010",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Treva's Attendant",
+        "scryfallId": "9857af81-fb95-4dc4-b048-9ce4e96d1eca",
+        "oracleId": "ff7d927f-0a01-4243-ad00-c65686ee86bb",
         "firstSet": "inv"
     },
     {

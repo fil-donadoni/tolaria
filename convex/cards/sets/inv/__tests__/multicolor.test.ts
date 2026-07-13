@@ -7,7 +7,7 @@
 // Coalition Victory's compound win predicate (both clauses required).
 
 import { describe, it, expect } from "vitest";
-import type { CardType } from "../../../types";
+import type { CardDefinition, CardType } from "../../../types";
 import {
     orderedMigration,
     coalitionVictory,
@@ -53,6 +53,24 @@ import {
     llanowarKnight,
     noblePanther,
     sabertoothNishoba,
+    dromar,
+    rith,
+    treva,
+    crosisAttendant,
+    darigaazAttendant,
+    dromarAttendant,
+    rithAttendant,
+    trevaAttendant,
+    ancientSpring,
+    geothermalCrevice,
+    irrigationDitch,
+    sulfurVent,
+    tinderFarm,
+    stormscapeApprentice,
+    stormscapeMaster,
+    nightscapeMaster,
+    thunderscapeApprentice,
+    thunderscapeMaster,
     sterlingGrove,
 } from "../multicolor";
 import {
@@ -74,7 +92,13 @@ import {
     forest,
     icyManipulator,
 } from "../../lea/colorless";
-import { grizzlyBears, scatheZombies } from "../../lea";
+import {
+    grizzlyBears,
+    scatheZombies,
+    airElemental,
+    dwarvenWarriors,
+    benalishHero,
+} from "../../lea";
 import { empressGalina } from "../blue";
 import { registerTokenDefinition } from "../../..";
 import {
@@ -1931,6 +1955,19 @@ describe("Sabertooth Nishoba (CR 702.19 trample + 702.16 double protection, GW i
     });
 });
 
+describe("Dromar, the Banisher (CR 702.9b flying + 510.4/603.2 combat-damage trigger + 117.3a/118.4 mayPay + 700.2 modal, issue #1080)", () => {
+    function setup() {
+        const dromarInst = makeInstance(dromar.id, {
+            id: "dromar",
+            controllerId: "p1",
+        });
+        const blueGuy = makeInstance(airElemental.id, {
+            id: "blue-guy",
+            controllerId: "p2",
+        });
+        const greenGuy = makeInstance(grizzlyBears.id, {
+            id: "green-guy",
+            controllerId: "p2",
 describe("Sterling Grove (CR 611/613 layer 6 keyword grant + 702.18 Shroud, issue #1125)", () => {
     // Builds a board with Sterling Grove + a second enchantment + a
     // non-enchantment (all controlled by p1) and an opponent's enchantment.
@@ -1966,6 +2003,434 @@ describe("Sterling Grove (CR 611/613 layer 6 keyword grant + 702.18 Shroud, issu
         const state = makeState({
             players: [
                 makePlayer("p1", {
+                    battlefield: [dromarInst],
+                    manaPool: { U: 3 },
+                }),
+                makePlayer("p2", { battlefield: [blueGuy, greenGuy] }),
+            ],
+        });
+        return { state, dromarInst, blueGuy, greenGuy };
+    }
+
+    it("has flying", () => {
+        expect(dromar.staticAbilities).toContain("flying");
+    });
+
+    it("paying {2}{U} and choosing blue bounces only the blue creature", () => {
+        const { state } = setup();
+        resolveTrigger(state, dromarInst(state), "dromar-damage-bounce", {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "dromar",
+            isCombat: true,
+            amount: 6,
+            target: { type: "player", id: "p2" },
+        } as never);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        submitChoice(state, ["1"]); // modes: [W,U,B,R,G] — index 1 = blue
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "blue-guy")
+        ).toBe(false);
+        expect(state.players[1].hand.some((c) => c.id === "blue-guy")).toBe(
+            true
+        );
+        // The green creature is untouched.
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "green-guy")
+        ).toBe(true);
+    });
+
+    it("declining the may-pay leaves the board untouched", () => {
+        const { state } = setup();
+        resolveTrigger(state, dromarInst(state), "dromar-damage-bounce", {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "dromar",
+            isCombat: true,
+            amount: 6,
+            target: { type: "player", id: "p2" },
+        } as never);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.players[1].battlefield).toHaveLength(2);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    function dromarInst(state: ReturnType<typeof makeState>) {
+        return state.players[0].battlefield.find((c) => c.id === "dromar")!;
+    }
+});
+
+describe("Rith, the Awakener (CR 702.9b flying + 510.4/603.2 combat-damage trigger + 117.3a/118.4 mayPay + 700.2 modal + 111/701.7 domain-agnostic count, issue #1080)", () => {
+    function setup() {
+        const rithInst = makeInstance(rith.id, {
+            id: "rith",
+            controllerId: "p1",
+        });
+        const greenGuy1 = makeInstance(grizzlyBears.id, {
+            id: "green-guy-1",
+            controllerId: "p1",
+        });
+        const greenGuy2 = makeInstance(dwarvenWarriors.id, {
+            id: "red-guy",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [rithInst, greenGuy1],
+                    manaPool: { G: 3 },
+                }),
+                makePlayer("p2", { battlefield: [greenGuy2] }),
+            ],
+        });
+        return { state, rithInst, greenGuy1 };
+    }
+
+    it("has flying", () => {
+        expect(rith.staticAbilities).toContain("flying");
+    });
+
+    it("paying {2}{G} and choosing green creates one Saproling per green permanent", () => {
+        const { state } = setup();
+        const rithLive = state.players[0].battlefield.find(
+            (c) => c.id === "rith"
+        )!;
+        resolveTrigger(state, rithLive, "rith-damage-saprolings", {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "rith",
+            isCombat: true,
+            amount: 6,
+            target: { type: "player", id: "p2" },
+        } as never);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        submitChoice(state, ["4"]); // modes: [W,U,B,R,G] — index 4 = green
+        // Rith's own cost includes {G}, so it is itself a green permanent —
+        // 2 green permanents total: Rith and "green-guy-1" ("red-guy" on
+        // p2's side is red, not green, and is NOT counted).
+        const saprolings = state.players[0].battlefield.filter(
+            (c) => c.id !== "rith" && c.id !== "green-guy-1"
+        );
+        expect(saprolings).toHaveLength(2);
+        for (const token of saprolings) {
+            expect(token.power).toBe(1);
+            expect(token.toughness).toBe(1);
+        }
+    });
+});
+
+describe("Treva, the Renewer (CR 702.9b flying + 510.4/603.2 combat-damage trigger + 117.3a/118.4 mayPay + 700.2 modal + 119.3a life gain scaled by count, issue #1080)", () => {
+    it("has flying", () => {
+        expect(treva.staticAbilities).toContain("flying");
+    });
+
+    it("paying {2}{W} and choosing white gains 1 life per white permanent", () => {
+        const trevaInst = makeInstance(treva.id, {
+            id: "treva",
+            controllerId: "p1",
+        });
+        const whiteGuy1 = makeInstance(benalishHero.id, {
+            id: "white-guy-1",
+            controllerId: "p1",
+        });
+        const whiteGuy2 = makeInstance(benalishHero.id, {
+            id: "white-guy-2",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [trevaInst, whiteGuy1],
+                    manaPool: { W: 3 },
+                    life: 20,
+                }),
+                makePlayer("p2", { battlefield: [whiteGuy2] }),
+            ],
+        });
+        resolveTrigger(state, trevaInst, "treva-damage-lifegain", {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "treva",
+            isCombat: true,
+            amount: 6,
+            target: { type: "player", id: "p2" },
+        } as never);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        submitChoice(state, ["0"]); // modes: [W,U,B,R,G] — index 0 = white
+        // Treva's own cost includes {W}, so it is itself a white permanent —
+        // 3 white permanents total: Treva, whiteGuy1, and whiteGuy2 (across
+        // both battlefields).
+        expect(state.players[0].life).toBe(23);
+    });
+});
+
+describe("Attendants (CR 605.1a sacrifice-for-3-colour mana, issue #1080)", () => {
+    const cases: Array<
+        [
+            CardDefinition,
+            { W?: number; U?: number; B?: number; R?: number; G?: number },
+        ]
+    > = [
+        [crosisAttendant, { U: 1, B: 1, R: 1 }],
+        [darigaazAttendant, { B: 1, R: 1, G: 1 }],
+        [dromarAttendant, { W: 1, U: 1, B: 1 }],
+        [rithAttendant, { R: 1, G: 1, W: 1 }],
+        [trevaAttendant, { G: 1, W: 1, U: 1 }],
+    ];
+    it.each(cases)(
+        "%s sacrifices itself for {1} to add its 3 colours",
+        (card, mana) => {
+            const ability = card.activatedAbilities![0];
+            expect(ability.useStack).toBe(false);
+            expect(ability.cost.sacrifice).toBe(true);
+            expect(ability.cost.mana).toEqual({ X: 1 });
+            expect(ability.manaProduced).toEqual(mana);
+        }
+    );
+});
+
+describe("Tri-lands (CR 110.5b enters tapped + 605.1a own-colour tap + sacrifice-for-2-colour, issue #1080)", () => {
+    const cases: Array<
+        [
+            CardDefinition,
+            { W?: number; U?: number; B?: number; R?: number; G?: number },
+            { W?: number; U?: number; B?: number; R?: number; G?: number },
+        ]
+    > = [
+        [ancientSpring, { U: 1 }, { W: 1, B: 1 }],
+        [geothermalCrevice, { R: 1 }, { B: 1, G: 1 }],
+        [irrigationDitch, { W: 1 }, { G: 1, U: 1 }],
+        [sulfurVent, { B: 1 }, { U: 1, R: 1 }],
+        [tinderFarm, { G: 1 }, { R: 1, W: 1 }],
+    ];
+    it.each(cases)(
+        "%s enters tapped, taps for its own colour, sacrifices for the other 2",
+        (card, own, other) => {
+            expect(card.entersTapped).toBe(true);
+            const [tapAbility, sacAbility] = card.activatedAbilities!;
+            expect(tapAbility.useStack).toBe(false);
+            expect(tapAbility.cost.sacrifice).toBeFalsy();
+            expect(tapAbility.manaProduced).toEqual(own);
+            expect(sacAbility.useStack).toBe(false);
+            expect(sacAbility.cost.sacrifice).toBe(true);
+            expect(sacAbility.manaProduced).toEqual(other);
+        }
+    );
+});
+
+describe("Stormscape Apprentice (CR 602.1 tap-cost activated abilities, issue #1080)", () => {
+    it("{W}, {T}: taps target creature; {B}, {T}: target player loses 1 life", () => {
+        const apprentice = makeInstance(stormscapeApprentice.id, {
+            id: "sa",
+            controllerId: "p1",
+        });
+        const foe = makeInstance(grizzlyBears.id, {
+            id: "foe",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [apprentice] }),
+                makePlayer("p2", { battlefield: [foe], life: 20 }),
+            ],
+        });
+        resolveActivated(state, apprentice, "stormscape-apprentice-tap", [
+            { type: "permanent", id: "foe" },
+        ]);
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "foe")?.isTapped
+        ).toBe(true);
+
+        resolveActivated(state, apprentice, "stormscape-apprentice-drain", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].life).toBe(19);
+    });
+});
+
+describe("Stormscape Master (CR 613.1f keyword grant + 700.2 modal + 119.3 life drain, issue #1080)", () => {
+    it("grants protection from the chosen color", () => {
+        const master = makeInstance(stormscapeMaster.id, {
+            id: "sm",
+            controllerId: "p1",
+        });
+        const target = makeInstance(grizzlyBears.id, {
+            id: "target",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [master, target] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, master, "stormscape-master-protection", [
+            { type: "permanent", id: "target" },
+        ]);
+        submitChoice(state, ["2"]); // protection modes: [W,U,B,R,G] — index 2 = black
+        const live = state.players[0].battlefield.find(
+            (c) => c.id === "target"
+        )!;
+        expect(live.staticAbilities).toContain("protection from black");
+    });
+
+    it("drains 2 life from target player and gains the controller 2", () => {
+        const master = makeInstance(stormscapeMaster.id, {
+            id: "sm",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [master], life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        resolveActivated(state, master, "stormscape-master-drain", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].life).toBe(18);
+        expect(state.players[0].life).toBe(22);
+    });
+});
+
+describe("Nightscape Master (CR 400.7 bounce + 120.1 damage, issue #1080)", () => {
+    it("{U}{U}, {T}: returns target creature to hand", () => {
+        const master = makeInstance(nightscapeMaster.id, {
+            id: "nm",
+            controllerId: "p1",
+        });
+        const foe = makeInstance(grizzlyBears.id, {
+            id: "foe",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [master] }),
+                makePlayer("p2", { battlefield: [foe] }),
+            ],
+        });
+        resolveActivated(state, master, "nightscape-master-bounce", [
+            { type: "permanent", id: "foe" },
+        ]);
+        expect(state.players[1].battlefield.some((c) => c.id === "foe")).toBe(
+            false
+        );
+        expect(state.players[1].hand.some((c) => c.id === "foe")).toBe(true);
+    });
+
+    it("{R}{R}, {T}: deals 2 damage to target creature", () => {
+        const master = makeInstance(nightscapeMaster.id, {
+            id: "nm",
+            controllerId: "p1",
+        });
+        // A 4/4 (not the 2/2 Grizzly Bears) so it survives 2 damage and the
+        // marked-damage assertion below isn't wiped by the SBA destroy.
+        const foe = makeInstance(airElemental.id, {
+            id: "foe",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [master] }),
+                makePlayer("p2", { battlefield: [foe] }),
+            ],
+        });
+        resolveActivated(state, master, "nightscape-master-damage", [
+            { type: "permanent", id: "foe" },
+        ]);
+        const live = state.players[1].battlefield.find((c) => c.id === "foe")!;
+        expect(live.damageMarked ?? 0).toBe(2);
+    });
+});
+
+describe("Thunderscape Apprentice (CR 119.3b life loss + 613.4c temporary pump, issue #1080)", () => {
+    it("{B}, {T}: target player loses 1 life", () => {
+        const apprentice = makeInstance(thunderscapeApprentice.id, {
+            id: "ta",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [apprentice] }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        resolveActivated(state, apprentice, "thunderscape-apprentice-drain", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("{G}, {T}: target creature gets +1/+1 until end of turn", () => {
+        const apprentice = makeInstance(thunderscapeApprentice.id, {
+            id: "ta",
+            controllerId: "p1",
+        });
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [apprentice, bear] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, apprentice, "thunderscape-apprentice-pump", [
+            { type: "permanent", id: "bear" },
+        ]);
+        const live = state.players[0].battlefield.find((c) => c.id === "bear")!;
+        expect(getEffectivePower(state, live)).toBe(3);
+        expect(getEffectiveToughness(state, live)).toBe(3);
+    });
+});
+
+describe("Thunderscape Master (CR 119.3 life drain + 613.4c team pump, issue #1080)", () => {
+    it("{B}{B}, {T}: target player loses 2 life and controller gains 2", () => {
+        const master = makeInstance(thunderscapeMaster.id, {
+            id: "tm",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [master], life: 20 }),
+                makePlayer("p2", { life: 20 }),
+            ],
+        });
+        resolveActivated(state, master, "thunderscape-master-drain", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].life).toBe(18);
+        expect(state.players[0].life).toBe(22);
+    });
+
+    it("{G}{G}, {T}: creatures you control get +2/+2 until end of turn", () => {
+        const master = makeInstance(thunderscapeMaster.id, {
+            id: "tm",
+            controllerId: "p1",
+        });
+        const ownBear = makeInstance(grizzlyBears.id, {
+            id: "own-bear",
+            controllerId: "p1",
+        });
+        const foeBear = makeInstance(grizzlyBears.id, {
+            id: "foe-bear",
+            controllerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [master, ownBear] }),
+                makePlayer("p2", { battlefield: [foeBear] }),
+            ],
+        });
+        resolveActivated(state, master, "thunderscape-master-pump-team", []);
+        const own = state.players[0].battlefield.find(
+            (c) => c.id === "own-bear"
+        )!;
+        const foe = state.players[1].battlefield.find(
+            (c) => c.id === "foe-bear"
+        )!;
+        expect(getEffectivePower(state, own)).toBe(4);
+        expect(getEffectiveToughness(state, own)).toBe(4);
+        // The opponent's creature is untouched — "creatures YOU control".
+        expect(getEffectivePower(state, foe)).toBe(2);
+        expect(getEffectiveToughness(state, foe)).toBe(2);
                     battlefield: [grove, otherEnch, myCreature],
                 }),
                 makePlayer("p2", { battlefield: [oppEnch] }),
