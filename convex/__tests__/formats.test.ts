@@ -14,6 +14,7 @@ import {
     OLD_SCHOOL_BANNED,
     OLD_SCHOOL_RESTRICTED,
     validateDeck,
+    type BanlistOverride,
     type FormatId,
     type ResolveCard,
     type ValidatableDeck,
@@ -227,6 +228,153 @@ describe("Premodern validator (ADR 0036)", () => {
         const { reasons } = validateDeck(deck, "premodern", pmResolve);
         expect(reasons.some((r) => r.code === "copy-limit")).toBe(true);
         expect(reasons.some((r) => r.code === "restricted")).toBe(false);
+    });
+});
+
+// --- Injected banlist override (issue #1140, PRD #1138) -------------------
+//
+// `validateDeck` / `assertDeckLegal` accept an optional `banlist` of Card ID
+// sets that OVERRIDES the code-side constants (`PREMODERN_BANNED`,
+// `OLD_SCHOOL_BANNED`, `OLD_SCHOOL_RESTRICTED`) for the formats that read
+// them. Absent the arg, behavior is identical to today — the code constants
+// are the seed/fallback. These tests exercise BOTH paths against a stub pool
+// so they never depend on the real registry contents changing underneath.
+describe("validateDeck / assertDeckLegal — injected banlist override (issue #1140)", () => {
+    // A Premodern-legal-set pool: a plain playable card + a basic, neither of
+    // which sits on PREMODERN_BANNED — so any rejection below must come from
+    // the injected override, not the code fallback.
+    const PM_POOL: Record<string, DeckCardMeta> = {
+        "scg-card": {
+            cardId: "scg-card",
+            setCode: "scg",
+            rarity: "common",
+            isBasic: false,
+        },
+        island: { cardId: "island", setCode: "scg", rarity: "common", isBasic: true },
+    };
+    const pmResolve: ResolveCard = (id) => PM_POOL[id] ?? null;
+
+    function premodernDeck(bannedCopies: number): ValidatableDeck {
+        return {
+            cards: [
+                ...repeat("scg-card", bannedCopies),
+                ...repeat("island", 60 - bannedCopies),
+            ],
+        };
+    }
+
+    it("Premodern: an injected banned set rejects a card absent from PREMODERN_BANNED", () => {
+        const deck = premodernDeck(1);
+        // No override → legal (scg-card is not code-banned).
+        expect(validateDeck(deck, "premodern", pmResolve).isLegal).toBe(true);
+
+        // With an injected override banning scg-card → rejected, precise code.
+        const banlist: BanlistOverride = {
+            banned: new Set(["scg-card"]),
+            restricted: new Set(),
+        };
+        const result = validateDeck(deck, "premodern", pmResolve, banlist);
+        expect(result.isLegal).toBe(false);
+        expect(result.reasons.some((r) => r.code === "banned")).toBe(true);
+    });
+
+    it("Old School: an injected restricted set caps a card absent from OLD_SCHOOL_RESTRICTED", () => {
+        const osPool: Record<string, DeckCardMeta> = {
+            "lea-card": {
+                cardId: "lea-card",
+                setCode: "lea",
+                rarity: "common",
+                isBasic: false,
+            },
+            basic: {
+                cardId: "basic",
+                setCode: "lea",
+                rarity: "common",
+                isBasic: true,
+            },
+        };
+        const osResolve: ResolveCard = (id) => osPool[id] ?? null;
+        const deck: ValidatableDeck = {
+            cards: [...repeat("lea-card", 2), ...repeat("basic", 58)],
+        };
+
+        // No override → legal (lea-card is not code-restricted in this pool).
+        expect(validateDeck(deck, "old-school", osResolve).isLegal).toBe(true);
+
+        const banlist: BanlistOverride = {
+            banned: new Set(),
+            restricted: new Set(["lea-card"]),
+        };
+        const result = validateDeck(deck, "old-school", osResolve, banlist);
+        expect(result.isLegal).toBe(false);
+        expect(result.reasons.some((r) => r.code === "restricted")).toBe(true);
+    });
+
+    it("Old School: an injected banned set rejects a card absent from OLD_SCHOOL_BANNED", () => {
+        const osPool: Record<string, DeckCardMeta> = {
+            "lea-card": {
+                cardId: "lea-card",
+                setCode: "lea",
+                rarity: "common",
+                isBasic: false,
+            },
+            basic: {
+                cardId: "basic",
+                setCode: "lea",
+                rarity: "common",
+                isBasic: true,
+            },
+        };
+        const osResolve: ResolveCard = (id) => osPool[id] ?? null;
+        const deck: ValidatableDeck = {
+            cards: [card("lea-card"), ...repeat("basic", 59)],
+        };
+        const banlist: BanlistOverride = {
+            banned: new Set(["lea-card"]),
+            restricted: new Set(),
+        };
+        const result = validateDeck(deck, "old-school", osResolve, banlist);
+        expect(result.isLegal).toBe(false);
+        expect(result.reasons.some((r) => r.code === "banned")).toBe(true);
+    });
+
+    it("with no injected banlist, the code constants are used (fallback unchanged)", () => {
+        // Necropotence is on PREMODERN_BANNED by real Card ID; no override
+        // supplied, so the code constant must still catch it.
+        const pool: Record<string, DeckCardMeta> = {
+            ...PM_POOL,
+            "necro-print": {
+                cardId: "54d7a0c1-efb4-4a8d-ad92-a96d43835052", // on PREMODERN_BANNED
+                setCode: "ice",
+                rarity: "rare",
+                isBasic: false,
+            },
+        };
+        const resolve: ResolveCard = (id) => pool[id] ?? null;
+        const deck: ValidatableDeck = {
+            cards: [card("necro-print"), ...repeat("island", 59)],
+        };
+        const result = validateDeck(deck, "premodern", resolve);
+        expect(result.isLegal).toBe(false);
+        expect(result.reasons.some((r) => r.code === "banned")).toBe(true);
+    });
+
+    it("assertDeckLegal threads the injected banlist through and throws with the precise reason", () => {
+        const deck = {
+            name: "Injected Banlist Deck",
+            format: "premodern",
+            cards: premodernDeck(1).cards,
+        };
+        const banlist: BanlistOverride = {
+            banned: new Set(["scg-card"]),
+            restricted: new Set(),
+        };
+        // Legal without the override.
+        expect(() => assertDeckLegal(deck, pmResolve)).not.toThrow();
+        // Illegal with the injected override, precise reason surfaced.
+        expect(() => assertDeckLegal(deck, pmResolve, banlist)).toThrow(
+            /banned/i
+        );
     });
 });
 
