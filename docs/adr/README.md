@@ -75,3 +75,4 @@ added later (see issue tracker).
 | 0054 | Fading & Vanishing: implicit keyword expansion + counter-removed trigger                           | [link](0054-fading-vanishing-implicit-keyword-expansion.md)            |
 | 0055 | Limited Event: ends at the deck, pool-as-sideboard, server-side Bot Drafter                        | [link](0054-limited-event-architecture.md)                             |
 | 0056 | Boosters from MTGJSON print sheets, draftability gated on complete sets                            | [link](0055-booster-mtgjson-sheets-complete-set-gate.md)               |
+| 0057 | Premodern/Old School banlists become DB-backed, name-keyed, Scryfall-synced (supersedes ADR 0036 banlist clause, scoped to those two formats) | [link](0057-db-backed-name-keyed-banlists.md)                          |
