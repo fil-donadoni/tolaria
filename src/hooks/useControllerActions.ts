@@ -70,6 +70,8 @@ export function useControllerActions(): ControllerState {
     const confirmDamage = useMutation(api.game.confirmDamage);
     const passPriority = useMutation(api.game.passPriority);
     const autoTap = useMutation(api.game.autoTapForPayment);
+    const autoTapForAttackTax = useMutation(api.game.autoTapForAttackTax);
+    const cancelAttackTax = useMutation(api.game.cancelAttackTax);
     const endTurn = useMutation(api.game.endTurn);
     const cancelAutoPass = useMutation(api.game.cancelAutoPass);
 
@@ -93,6 +95,14 @@ export function useControllerActions(): ControllerState {
     const isPayingCast = !!pendingCast && pendingCast.playerId === playerId;
     const isPayingActivation =
         !!pendingActivation && pendingActivation.playerId === playerId;
+    // CR 508.1c/1g — while a declared attack is parked on a mana attack tax
+    // (Propaganda / Ghostly Prison), the engine waits for attack-mana-tax input,
+    // NOT priority. `isSelectingAttackers` is still true here, so this flag MUST
+    // be checked before it everywhere: Space/buttons that fall through to
+    // `confirmAttackers` are rejected by `assertExpectedInput` (ADR 0047).
+    const isPayingAttackTax =
+        !!combat?.pendingAttackManaTax &&
+        combat.pendingAttackManaTax.playerId === playerId;
     const isSelectingAttackers = isSelectingAttackersFn(priorityCtx);
     const isSelectingBlockers = isSelectingBlockersFn(priorityCtx);
     const isAssigningDamage = isAssigningDamageFn(priorityCtx);
@@ -185,6 +195,9 @@ export function useControllerActions(): ControllerState {
                 } else if (isPayingActivation) {
                     e.preventDefault();
                     cancelActivation({ gameId, playerId });
+                } else if (isPayingAttackTax) {
+                    e.preventDefault();
+                    cancelAttackTax({ gameId, playerId });
                 }
                 return;
             }
@@ -194,6 +207,12 @@ export function useControllerActions(): ControllerState {
                     // While the PaymentBanner is up, Space mirrors its
                     // "Auto-tap" button instead of passing priority.
                     autoTap({ gameId, playerId });
+                } else if (isPayingAttackTax) {
+                    // AttackManaTaxBanner is up: Space mirrors its "Auto-tap"
+                    // button. Must precede isSelectingAttackers — the engine is
+                    // waiting on attack-mana-tax input, so confirmAttackers here
+                    // is rejected (ADR 0047).
+                    autoTapForAttackTax({ gameId, playerId });
                 } else if (pendingChoiceAction) {
                     // A mid-resolution choice is waiting on this viewer: Space
                     // mirrors the prompt's affirmative button. When not yet
@@ -227,6 +246,11 @@ export function useControllerActions(): ControllerState {
                     cancelCast({ gameId, playerId });
                 } else if (isPayingActivation) {
                     cancelActivation({ gameId, playerId });
+                } else if (isPayingAttackTax) {
+                    // Same rationale as cast/activation: ending the turn while an
+                    // attack is parked on its tax is illegal (not priority), so
+                    // Enter cancels the tax and drops the declaration cleanly.
+                    cancelAttackTax({ gameId, playerId });
                 } else if (isAutoPass || isQueuedEndTurn) {
                     handleCancelAutoPass();
                 } else {
@@ -245,6 +269,9 @@ export function useControllerActions(): ControllerState {
         isQueuedEndTurn,
         isPayingCast,
         isPayingActivation,
+        isPayingAttackTax,
+        autoTapForAttackTax,
+        cancelAttackTax,
         pendingChoiceAction,
         autoTap,
         isSelectingAttackers,
@@ -287,6 +314,18 @@ export function useControllerActions(): ControllerState {
             tone: "destructive",
             disabled: isBusy,
             onClick: runBusy(() => cancelActivation({ gameId, playerId })),
+        });
+    } else if (isPayingAttackTax) {
+        // The parked attack tax mirrors a cast: the pod shows only Cancel (the
+        // Auto-tap affordance lives on AttackManaTaxBanner). Must precede
+        // isSelectingAttackers so the pod does not offer a doomed
+        // "Confirm Attackers" while the engine waits on tax input.
+        actions.push({
+            key: "cancel-attack-tax",
+            label: "Cancel Attack",
+            tone: "destructive",
+            disabled: isBusy,
+            onClick: runBusy(() => cancelAttackTax({ gameId, playerId })),
         });
     } else if (isSelectingAttackers) {
         actions.push({
@@ -391,6 +430,7 @@ export function useControllerActions(): ControllerState {
         hasPriority ||
         isPayingCast ||
         isPayingActivation ||
+        isPayingAttackTax ||
         isSelectingAttackers ||
         isSelectingBlockers ||
         isAssigningDamage ||

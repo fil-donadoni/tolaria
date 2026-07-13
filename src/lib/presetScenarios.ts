@@ -74,39 +74,6 @@ type PresetScenario = {
 
 export const PRESET_SCENARIOS: PresetScenario[] = [
     {
-        // Domain payoff board (issue #1066): all five basic land types in play
-        // for "me" (Domain 5) so every Domain-scaled effect is at its maximum.
-        // Kavu Scout is already sitting at 5/2 (+5/+0); Power Armor is ready to
-        // activate ({3},{T}: target creature +5/+5 until end of turn); Tribal
-        // Flames / Wayfaring Giant / Coalition Victory are in hand to cast —
-        // Coalition Victory only needs a creature of each color to complete the
-        // marquee win (the land clause is already satisfied). Collective
-        // Restraint sits on the OPPONENT's side with two basic land types of
-        // their own, so declaring attackers demonstrates the dynamic {X}
-        // attack-mana tax (X = 2, the opponent's own Domain) from the
-        // defending side.
-        label: "Domain payoff board (#1066) — Kavu Scout / Power Armor / Tribal Flames / Coalition Victory",
-        cards: [
-            { name: "Plains", owner: "me", zone: "battlefield" },
-            { name: "Island", owner: "me", zone: "battlefield" },
-            { name: "Swamp", owner: "me", zone: "battlefield" },
-            { name: "Mountain", owner: "me", zone: "battlefield" },
-            { name: "Forest", owner: "me", zone: "battlefield" },
-            { name: "Kavu Scout", owner: "me", zone: "battlefield" },
-            { name: "Power Armor", owner: "me", zone: "battlefield" },
-            { name: "Wayfaring Giant", owner: "me", zone: "hand" },
-            { name: "Tribal Flames", owner: "me", zone: "hand" },
-            { name: "Coalition Victory", owner: "me", zone: "hand" },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-            { name: "Collective Restraint", owner: "opp", zone: "battlefield" },
-            { name: "Island", owner: "opp", zone: "battlefield" },
-            { name: "Swamp", owner: "opp", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
         // Fact or Fiction — pile division (ADR 0053, issue #1067). Cast Fact
         // or Fiction with a stocked library so the top 5 reveal + divide (by
         // the opponent, "opp") + choose (by the caster, "me") + hand/graveyard
@@ -124,22 +91,6 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
             { name: "Grizzly Bears", owner: "me", zone: "library" },
             { name: "Lightning Bolt", owner: "me", zone: "library" },
             { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
-        // Time Warp (Vintage Cube FREE tranche, issue #686) — extra turn
-        // golden path. Five untapped Islands pay {3}{U}{U}; Grizzly Bears is
-        // already on the battlefield (not summoning sick) so the extra turn's
-        // payoff — declaring attackers a second time in a row — is
-        // immediately observable after resolving and advancing through
-        // cleanup.
-        label: "Time Warp (#686) — extra turn after this one",
-        cards: [
-            { name: "Time Warp", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield", count: 5 },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,

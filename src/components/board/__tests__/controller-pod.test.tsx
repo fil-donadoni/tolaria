@@ -30,6 +30,8 @@ vi.mock("@convex/_generated/api", () => ({
             confirmDamage: "confirmDamage",
             passPriority: "passPriority",
             autoTapForPayment: "autoTapForPayment",
+            autoTapForAttackTax: "autoTapForAttackTax",
+            cancelAttackTax: "cancelAttackTax",
             endTurn: "endTurn",
             cancelAutoPass: "cancelAutoPass",
             submitMayPay: "submitMayPay",
@@ -324,6 +326,48 @@ describe("ControllerPod render beats", () => {
             gameId: "game-id",
             playerId: "me",
         });
+    });
+
+    // CR 508.1c/1g — a declared attack parked on its mana tax (Propaganda /
+    // Ghostly Prison). The engine waits on attack-mana-tax input, NOT priority,
+    // so Space/pod must dispatch the tax mutations, never confirmAttackers
+    // (which the server rejects — ADR 0047). Regression for the reported bug.
+    it("parked attack tax: Space dispatches autoTapForAttackTax, not confirmAttackers", () => {
+        renderPod({
+            phase: "DECLARE_ATTACKERS",
+            combat: {
+                attackerIds: ["a1"],
+                confirmed: false,
+                pendingAttackManaTax: {
+                    playerId: "me",
+                    cost: { generic: 2 },
+                },
+            } as never,
+        });
+        pressSpace();
+        expect(
+            calls.find((c) => c.ref === "autoTapForAttackTax")?.args
+        ).toMatchObject({ gameId: "game-id", playerId: "me" });
+        expect(calls.find((c) => c.ref === "confirmAttackers")).toBeUndefined();
+    });
+
+    it("parked attack tax: pod shows Cancel Attack (never Confirm Attackers)", () => {
+        renderPod({
+            phase: "DECLARE_ATTACKERS",
+            combat: {
+                attackerIds: ["a1"],
+                confirmed: false,
+                pendingAttackManaTax: {
+                    playerId: "me",
+                    cost: { generic: 2 },
+                },
+            } as never,
+        });
+        expect(screen.queryByText(/Confirm Attackers/)).toBeNull();
+        fireEvent.click(screen.getByText("Cancel Attack"));
+        expect(
+            calls.find((c) => c.ref === "cancelAttackTax")?.args
+        ).toMatchObject({ gameId: "game-id", playerId: "me" });
     });
 
     it("assigning damage: Confirm Damage dispatches confirmDamage once fully assigned", () => {
