@@ -2346,24 +2346,6 @@ const STERLING_GROVE_AFFECTS_OTHER_ENCHANTMENTS: StaticKeywordGrant["applies"] =
         target.types.includes("Enchantment") &&
         target.controllerId === source.controllerId;
 
-// Sterling Grove — {G}{W} Enchantment. "Other enchantments you control have
-// shroud. (They can't be the targets of spells or abilities.)\n{1},
-// Sacrifice this enchantment: Search your library for an enchantment card,
-// reveal it, then shuffle and put that card on top." tracked-by: #1125 (the
-// FIRST clause is actually free — a `permanent-guard` staticEffect scanning
-// "other enchantments you control" is the exact Guardian Beast shape,
-// `arn/black.ts` — `cantBeTargeted: true` with an `applies` predicate
-// checking `target.controllerId === source.controllerId && target.types.
-// includes("Enchantment") && target.id !== source.id`; shroud itself is
-// CR-702.18 `status: "implemented"` in the Mechanics Registry via this
-// exact live-guard mechanism, issue #959 audit — the SECOND clause is what
-// blocks the whole card: "shuffle and put that card on top" is the
-// documented Mystical Tutor / Vampiric Tutor "put that card on top" gap
-// (`mir/blue.ts`, tracked by issue #1125, which explicitly names Sterling
-// Grove) — no Op reorders the library TOP after a tutor's shuffle. "Never
-// ship silent partials" (PRD #1063) means the whole card waits for #1125
-// even though the shroud clause alone is buildable today.)
-
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche — 3-colour + WUBRG (issue #1080, parent PRD #1063)
 // ─────────────────────────────────────────────────────────────────────────

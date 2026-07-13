@@ -2467,9 +2467,9 @@ describe("Sterling Grove (CR 611/613 layer 6 keyword grant + 702.18 Shroud, issu
 
     it("grants shroud to another enchantment you control (cantBeTargeted true)", () => {
         const { state, otherEnch } = makeBoard();
-        expect(
-            isGuardedAgainst(state, otherEnch, "cantBeTargeted", SRC)
-        ).toBe(true);
+        expect(isGuardedAgainst(state, otherEnch, "cantBeTargeted", SRC)).toBe(
+            true
+        );
     });
 
     it("does NOT grant shroud to Sterling Grove itself (excludes self)", () => {
@@ -2481,16 +2481,16 @@ describe("Sterling Grove (CR 611/613 layer 6 keyword grant + 702.18 Shroud, issu
 
     it("does NOT grant shroud to an opponent's enchantment", () => {
         const { state, oppEnch } = makeBoard();
-        expect(
-            isGuardedAgainst(state, oppEnch, "cantBeTargeted", SRC)
-        ).toBe(false);
+        expect(isGuardedAgainst(state, oppEnch, "cantBeTargeted", SRC)).toBe(
+            false
+        );
     });
 
     it("does NOT grant shroud to a non-enchantment you control", () => {
         const { state, myCreature } = makeBoard();
-        expect(
-            isGuardedAgainst(state, myCreature, "cantBeTargeted", SRC)
-        ).toBe(false);
+        expect(isGuardedAgainst(state, myCreature, "cantBeTargeted", SRC)).toBe(
+            false
+        );
     });
 
     // Wire format (mandatory for board-visible staticEffects, CLAUDE.md GRE
@@ -2508,17 +2508,17 @@ describe("Sterling Grove (CR 611/613 layer 6 keyword grant + 702.18 Shroud, issu
         const pOther = p1bf.find((c) => c.id === "other-ench")!;
         const pBear = p1bf.find((c) => c.id === "my-bear")!;
         const pOpp = p2bf.find((c) => c.id === "opp-ench")!;
-        expect(
-            isGuardedAgainst(projected, pOther, "cantBeTargeted", SRC)
-        ).toBe(true);
-        expect(
-            isGuardedAgainst(projected, pGrove, "cantBeTargeted", SRC)
-        ).toBe(false);
-        expect(
-            isGuardedAgainst(projected, pBear, "cantBeTargeted", SRC)
-        ).toBe(false);
-        expect(
-            isGuardedAgainst(projected, pOpp, "cantBeTargeted", SRC)
-        ).toBe(false);
+        expect(isGuardedAgainst(projected, pOther, "cantBeTargeted", SRC)).toBe(
+            true
+        );
+        expect(isGuardedAgainst(projected, pGrove, "cantBeTargeted", SRC)).toBe(
+            false
+        );
+        expect(isGuardedAgainst(projected, pBear, "cantBeTargeted", SRC)).toBe(
+            false
+        );
+        expect(isGuardedAgainst(projected, pOpp, "cantBeTargeted", SRC)).toBe(
+            false
+        );
     });
 });
