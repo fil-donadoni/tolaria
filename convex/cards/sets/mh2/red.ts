@@ -35,42 +35,43 @@ export const mineCollapse: CardDefinition = {
     effects: [{ op: "dealDamage", amount: 5, to: { target: 0 } }],
 };
 
-export const fury: CardDefinition = {
-    id: "bd281158-8180-40b9-a5b7-03cfc712d81a",
-    name: "Fury",
-    rarity: "mythic",
-    manaCost: { X: 3, R: 2 },
-    types: ["Creature"],
-    subtypes: ["Elemental", "Incarnation"],
-    power: 3,
-    toughness: 3,
-    alternativeCosts: [
-        {
-            id: "pitch-exile-red",
-            description: "Exile a red card from your hand",
-            handCost: {
-                action: "exile",
-                requirements: [{ filter: { color: "R" }, count: 1 }],
-            },
-        },
-    ],
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "fury-etb",
-            oracleText:
-                "When this creature enters, it deals 4 damage divided as you choose among any number of target creatures and/or planeswalkers.",
-            scope: "any",
-            targetRequirement: {
-                type: "Creature",
-                count: { min: 1 },
-                divideAsChosen: { total: 4 },
-            },
-            resolve: (ctx) => {
-                ctx.dealDamageDividedAsChosen(ctx.targets, 4);
-            },
-        }),
-    ],
-};
+// Stub con errori, correggere e completare quando avremo Evoke.
+// export const fury: CardDefinition = {
+//     id: "bd281158-8180-40b9-a5b7-03cfc712d81a",
+//     name: "Fury",
+//     rarity: "mythic",
+//     manaCost: { X: 3, R: 2 },
+//     types: ["Creature"],
+//     subtypes: ["Elemental", "Incarnation"],
+//     power: 3,
+//     toughness: 3,
+//     alternativeCosts: [
+//         {
+//             id: "pitch-exile-red",
+//             description: "Exile a red card from your hand",
+//             handCost: {
+//                 action: "exile",
+//                 requirements: [{ filter: { color: "R" }, count: 1 }],
+//             },
+//         },
+//     ],
+//     triggeredAbilities: [
+//         enteredTrigger({
+//             id: "fury-etb",
+//             oracleText:
+//                 "When this creature enters, it deals 4 damage divided as you choose among any number of target creatures and/or planeswalkers.",
+//             scope: "any",
+//             targetRequirement: {
+//                 type: "Creature",
+//                 count: { min: 1 },
+//                 divideAsChosen: { total: 4 },
+//             },
+//             resolve: (ctx) => {
+//                 ctx.dealDamageDividedAsChosen(ctx.targets, 4);
+//             },
+//         }),
+//     ],
+// };
 
 // Unholy Heat — {R} Instant. "Unholy Heat deals 2 damage to target creature or
 // planeswalker. Delirium — Unholy Heat deals 6 damage instead if there are four
