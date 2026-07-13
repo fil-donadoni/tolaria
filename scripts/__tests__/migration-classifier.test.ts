@@ -643,11 +643,22 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // AFK-ready 398→400, Op-blocked 227→224 (three closures move
         // Op-blocked→FREE, two of them AFK-ready), X-only 14 unchanged.
         // Partition: 437+14+224=675.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(675);
+        // Net from #676 (Fading/Vanishing + Parallax cycle): adds 4 resolve()
+        // closures, both Parallax cards (Wave/Tide) contributing an activated
+        // exile resolve + a leaves-the-battlefield return resolve. Both key off
+        // the exile-and-return bundle pair (`exileWithAttachments` /
+        // `returnExiledForSource`, ADR 0028) — a resolve()-only SpellContext
+        // primitive with no Op wrapper, the Banishing Light / Safe Haven
+        // precedent — so all four land Op-blocked. (Blastoderm / Deep Forest
+        // Hermit add no closures: fading/vanishing are seam-expanded keyword
+        // strings and the Squirrel factory + anthem are pure DSL.) Net: total
+        // 675→679, Op-blocked 224→228, FREE 437 / AFK-ready 400 / X-only 14
+        // unchanged. Partition: 437+14+228=679.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(679);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(437);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(400);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(224);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(228);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

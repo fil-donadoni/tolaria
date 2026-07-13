@@ -5,7 +5,7 @@
 // wire coverage per § Card testing convention.
 
 import { describe, it, expect } from "vitest";
-import { accumulatedKnowledge, dominate, daze } from "..";
+import { accumulatedKnowledge, dominate, daze, parallaxTide } from "..";
 import { grizzlyBears, serraAngel } from "../../lea";
 import { ornithopter } from "../../atq/colorless";
 import { island } from "../../lea/colorless";
@@ -18,6 +18,7 @@ import {
     makeState,
     pushSpell,
 } from "../../../__tests__/setup";
+import { resolveActivated, resolveTrigger, LEFT } from "./helpers";
 
 // Accumulated Knowledge exercises the `count` construct's NEW dynamic-count
 // path (name filter + acrossAllPlayers scope, issue #985), which the canned-
@@ -259,5 +260,114 @@ describe("Daze (pitch: return an Island; counter unless pays {1})", () => {
         expect(daze.targetRequirement).toEqual({ type: "spell", count: 1 });
         expect(daze.effects?.[0]).toMatchObject({ op: "mayPay" });
         expect(daze.effects?.[1]).toMatchObject({ op: "if" });
+    });
+});
+
+// Parallax Tide — protocol card (ADR 0028 exile-and-return bundle, resolve()).
+// Fading 5 rides the getDefinition seam; the repeatable "remove a fade counter:
+// exile target land" activation and the leaves-the-battlefield return both use
+// the resolve()-only `exileWithAttachments` / `returnExiledForSource` pair, so
+// it earns hand-written GRE + wire coverage per § Card testing convention.
+describe("Parallax Tide (Fading 5 + remove-fade-counter: exile target land; return on leave, CR 702.32 / 603.7a)", () => {
+    it("declares fading 5, the remove-fade-counter exile ability, and the return trigger", () => {
+        expect(parallaxTide.staticAbilities).toEqual(["fading 5"]);
+        expect(parallaxTide.types).toEqual(["Enchantment"]);
+        const ability = parallaxTide.activatedAbilities![0];
+        expect(ability.cost).toEqual({
+            removeCounter: { type: "fade", count: 1 },
+        });
+        expect(ability.targetRequirement).toEqual({ type: "Land", count: 1 });
+        expect(parallaxTide.triggeredAbilities?.[0].event).toBe(
+            "PERMANENT_LEFT"
+        );
+    });
+
+    it("enters with five fade counters (Fading 5 seam injection, ADR 0054)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, parallaxTide.id, "p1");
+        resolveTopOfStack(state);
+        const tide = state.players[0].battlefield.find(
+            (c) => c.card.id === parallaxTide.id
+        )!;
+        expect(tide.counters).toEqual({ fade: 5 });
+    });
+
+    it("exiles the target land keyed to itself, then returns it to its owner when it leaves (CR 603.7a)", () => {
+        const tide = makeInstance(parallaxTide.id, {
+            id: "tide",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { fade: 5 },
+        });
+        const victim = makeInstance(island.id, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tide] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+
+        // Activate: exile the opponent's land (cost payment is exercised by
+        // game.ts + the affordability catalogue; resolve just does the exile).
+        resolveActivated(state, tide, "parallax-tide-exile", [
+            { type: "permanent", id: "victim" },
+        ]);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "victim")
+        ).toBe(false);
+        expect(state.players[1].exile.some((c) => c.id === "victim")).toBe(
+            true
+        );
+        // ADR 0028 — the exile is keyed to this enchantment's instance id.
+        expect(state.exileHeld?.some((b) => b.sourceId === "tide")).toBe(true);
+
+        // Tide leaves the battlefield → the return trigger fires and each owner
+        // gets their exiled card back (CR 603.7a).
+        const tideInPlay = state.players[0].battlefield.find(
+            (c) => c.id === "tide"
+        )!;
+        resolveTrigger(state, tideInPlay, "parallax-tide-return", LEFT("tide"));
+        expect(state.players[1].exile.some((c) => c.id === "victim")).toBe(
+            false
+        );
+        const returned = state.players[1].battlefield.find(
+            (c) => c.id === "victim"
+        );
+        expect(returned).toBeDefined();
+        expect(returned?.ownerId).toBe("p2");
+    });
+
+    it("wire format: an exiled land is off every battlefield after projectPublicState", () => {
+        const tide = makeInstance(parallaxTide.id, {
+            id: "tide",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { fade: 5 },
+        });
+        const victim = makeInstance(island.id, {
+            id: "victim",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tide] }),
+                makePlayer("p2", { battlefield: [victim] }),
+            ],
+        });
+        resolveActivated(state, tide, "parallax-tide-exile", [
+            { type: "permanent", id: "victim" },
+        ]);
+        const projected = projectPublicState(state, 1, "p1");
+        const stillOnBoard = projected.players
+            .flatMap((p) => p.battlefield)
+            .some((c) => c.id === "victim");
+        expect(stillOnBoard).toBe(false);
     });
 });

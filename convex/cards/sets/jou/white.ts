@@ -1,6 +1,7 @@
 import type { CardDefinition, SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
+import { holdsExileBundle } from "../../abilities/exileBundle";
 
 // Banishing Light — O-Ring-style exile-until-leaves (Journey into Nyx).
 //
@@ -15,14 +16,9 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 // `exiledByPermanentId` projection link (derived from the `exileHeld` bundle's
 // `sourceId`), the same affordance Ice Cauldron's noted card uses.
 //
-// The return half is an armed delayed trigger: its condition gates on the
-// bundle's existence so it never fires with nothing held.
-const banishingLightHoldsSomething = (
-    _event: unknown,
-    self: { id: string },
-    state?: { exileHeld?: ReadonlyArray<{ sourceId: string }> }
-): boolean => !!state?.exileHeld?.some((b) => b.sourceId === self.id);
-
+// The return half is an armed delayed trigger: its condition (`holdsExileBundle`,
+// shared with the Parallax cycle) gates on the bundle's existence so it never
+// fires with nothing held.
 export const banishingLight: CardDefinition = {
     id: "fbaa4800-30cc-4a80-a6cc-9a24ada9eb40",
     rarity: "uncommon",
@@ -82,7 +78,7 @@ export const banishingLight: CardDefinition = {
             oracleText:
                 "When this enchantment leaves the battlefield, return the exiled card to the battlefield under its owner's control.",
             scope: "self",
-            condition: banishingLightHoldsSomething,
+            condition: holdsExileBundle,
             resolve: (ctx: SpellContext) => {
                 ctx.returnExiledForSource(ctx.sourceInstanceId);
             },

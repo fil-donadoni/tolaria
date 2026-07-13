@@ -2,9 +2,10 @@
 // the new mechanism's permanent test suite: the implicit-expansion parser, the
 // injected ETB counters + upkeep triggers, and — Vanishing's divergent half —
 // the COUNTER_REMOVED-driven sacrifice trigger (CR 702.63d). Fading's end-to-end
-// clock is exercised through the shipped Blastoderm in nem/__tests__/green.test.ts;
-// here we cover the shared parser plus Vanishing, which has no shipped card until
-// Chronozoa (slice 4), via a registered synthetic definition.
+// clock is exercised through the shipped Blastoderm, and Vanishing's through the
+// shipped Deep Forest Hermit, both in nem/__tests__/green.test.ts; here we cover
+// the shared parser plus the Vanishing sacrifice-trigger semantics in isolation,
+// via a registered synthetic definition.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -134,9 +135,10 @@ describe("expandFadingVanishing (ADR 0054 injection)", () => {
     });
 });
 
-// A registered synthetic vanishing creature — no shipped vanishing card exists
-// until Chronozoa (slice 4). getDefinition expands it at the seam, so the
-// battlefield permanent surfaces the injected upkeep + sacrifice triggers.
+// A registered synthetic vanishing creature — isolates the sacrifice-trigger
+// semantics from Deep Forest Hermit's other behavior. getDefinition expands it
+// at the seam, so the battlefield permanent surfaces the injected upkeep +
+// sacrifice triggers.
 const VANISHER_ID = "test-vanisher";
 registerTokenDefinition({
     id: VANISHER_ID,

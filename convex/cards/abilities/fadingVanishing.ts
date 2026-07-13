@@ -63,7 +63,7 @@ function fadingUpkeepTrigger(): TriggeredAbility {
     return phaseTrigger({
         id: "fading",
         oracleText:
-            "At the beginning of your upkeep, remove a fade counter from this permanent. If you can't, sacrifice it. (CR 702.32)",
+            "At the beginning of your upkeep, remove a fade counter from this permanent. If you can't, sacrifice it.",
         phase: "UPKEEP",
         scope: "your",
         resolve: (ctx) => {

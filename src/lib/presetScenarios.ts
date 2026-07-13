@@ -219,4 +219,22 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 5,
     },
+    {
+        // Parallax Tide — the land-exiling half of the cycle (issue #676).
+        // Tide in play with five fade counters; a couple of opponent lands to
+        // exile and later return.
+        label: "Parallax Tide (#676) — remove fade counter: exile land",
+        cards: [
+            {
+                name: "Parallax Tide",
+                owner: "me",
+                zone: "battlefield",
+                counters: { fade: 5 },
+            },
+            { name: "Island", owner: "opp", zone: "battlefield" },
+            { name: "Island", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
 ];

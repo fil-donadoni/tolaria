@@ -5946,6 +5946,18 @@
         "firstSet": "ice"
     },
     {
+        "name": "Parallax Tide",
+        "scryfallId": "7fe593eb-df3c-43e5-97a6-418f91e87cb3",
+        "oracleId": "e36a92be-537d-4a63-858a-afaab064fbf7",
+        "firstSet": "nem"
+    },
+    {
+        "name": "Parallax Wave",
+        "scryfallId": "cef789e8-e4cc-4f61-bc15-debc2487777f",
+        "oracleId": "0accfb04-bc8b-4cab-997a-2337ac42db8f",
+        "firstSet": "nem"
+    },
+    {
         "name": "Paralyze",
         "scryfallId": "be33a155-de26-43d1-88f1-c926f1b7cb7c",
         "oracleId": "e9b4e857-39e5-4a06-89ad-3dd94b3f252a",

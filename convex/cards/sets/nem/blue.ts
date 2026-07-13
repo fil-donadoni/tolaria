@@ -3,7 +3,65 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import type { CardDefinition, SpellContext } from "../../types";
+import { leftTrigger } from "../../abilities/triggers/leftTrigger";
+import { holdsExileBundle } from "../../abilities/exileBundle";
+
+// Parallax Tide — "Fading 5 (…) Remove a fade counter from this enchantment:
+// Exile target land. When this enchantment leaves the battlefield, each player
+// returns to the battlefield all cards they own exiled with it."
+// (CR 702.32 Fading; CR 701.18 exile; CR 603.7a leaves-the-battlefield.)
+//
+// The blue land-exiling half of the Parallax Wave cycle — identical structure
+// (see nem/white.ts for the full rationale), the only divergence being the
+// target type (`Land` instead of `Creature`). Fading 5 rides the getDefinition
+// seam (ADR 0054); the exile-and-return bundle stays resolve() (ADR 0028 —
+// `exileWithAttachments` / `returnExiledForSource` are not EffectOps).
+//
+// protocol card: source-linked exile-that-returns-on-leave has no JSON-pure Op.
+const PARALLAX_TIDE_ID = "7fe593eb-df3c-43e5-97a6-418f91e87cb3"; // NEM 37
+export const parallaxTide: CardDefinition = {
+    id: PARALLAX_TIDE_ID,
+    name: "Parallax Tide",
+    rarity: "rare",
+    oracleText:
+        "Fading 5 (This enchantment enters with five fade counters on it. At the beginning of your upkeep, remove a fade counter from it. If you can't, sacrifice it.)\nRemove a fade counter from this enchantment: Exile target land.\nWhen this enchantment leaves the battlefield, each player returns to the battlefield all cards they own exiled with it.",
+    manaCost: { X: 2, U: 2 },
+    types: ["Enchantment"],
+    staticAbilities: ["fading 5"],
+    activatedAbilities: [
+        {
+            id: "parallax-tide-exile",
+            oracleText:
+                "Remove a fade counter from this enchantment: Exile target land.",
+            cost: { removeCounter: { type: "fade", count: 1 } },
+            useStack: true,
+            targetRequirement: { type: "Land", count: 1 },
+            resolve: (ctx: SpellContext) => {
+                const t = ctx.targets[0];
+                if (t?.type !== "permanent") return;
+                // CR 701.18 host-only exile; ADR 0028 arms the keyed return.
+                ctx.exileWithAttachments(t.id, {
+                    sourceId: ctx.sourceInstanceId,
+                    returnTapped: false,
+                    includeAttachments: false,
+                });
+            },
+        },
+    ],
+    triggeredAbilities: [
+        leftTrigger({
+            id: "parallax-tide-return",
+            oracleText:
+                "When this enchantment leaves the battlefield, each player returns to the battlefield all cards they own exiled with it.",
+            scope: "self",
+            condition: holdsExileBundle,
+            resolve: (ctx: SpellContext) => {
+                ctx.returnExiledForSource(ctx.sourceInstanceId);
+            },
+        }),
+    ],
+};
 
 // Accumulated Knowledge — {1}{U} Instant. "Draw a card, then draw cards equal
 // to the number of cards named Accumulated Knowledge in all graveyards."
