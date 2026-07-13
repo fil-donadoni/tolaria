@@ -168,4 +168,26 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Solitary Confinement (#1130, parent PRD #1058) — Solitary
+        // Confinement already in play with a card in hand (to feed the next
+        // upkeep's discard-or-sacrifice trigger, #1129) and an opponent
+        // holding Lightning Bolt: try to target "me" with it (rejected —
+        // CR 702.18 shroud, the player-scoped guard from #1128) versus
+        // targeting the opponent's own creature (accepted, and the damage
+        // is dealt normally — the prevention is controller-scoped). Passing
+        // the turn to "me"'s next upkeep exercises the discard-or-sacrifice
+        // trigger; the draw step is skipped automatically the whole time.
+        // `landCount` covers the opponent's {R} for Lightning Bolt.
+        label: "Solitary Confinement (#1130) — shroud + damage prevention + upkeep discard",
+        cards: [
+            { name: "Solitary Confinement", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "me", zone: "hand" },
+            { name: "Lightning Bolt", owner: "opp", zone: "hand" },
+            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 3,
+        turn: 2,
+    },
 ];
