@@ -126,22 +126,26 @@ export const archonOfCruelty: CardDefinition = {
 //     types: ["Sorcery"],
 // };
 
-// STOP-AND-ISSUE (tracked-by: #1145) — Dauthi Voidwalker: "Shadow. If a card
+// STOP-AND-ISSUE (tracked-by: #1156) — Dauthi Voidwalker: "Shadow. If a card
 // would be put into an opponent's graveyard from anywhere, instead exile it
 // with a void counter on it. {T}, Sacrifice this creature: Choose an exiled
 // card an opponent owns with a void counter on it. You may play it this turn
-// without paying its mana cost. Activate only as a sorcery." The replacement
-// clause needs a `ReplacementEventKind` for "card entering a graveyard from
-// anywhere", scoped to an OPPONENT's graveyard and tagging the redirected
-// card with a counter — no such event kind exists (shipped kinds: damage /
-// lifegain / lifeloss / discard / lose-game / tap / destroy). The second
-// ability's "play it without paying its mana cost" is close to free —
-// `SpellContext.grantCastFromExile` already ships a cross-player,
-// `"this-turn"`-windowed cast-from-exile grant (Robber of the Rich,
-// Headliner Scarlett) — but isn't wrapped as an Op yet either (see #1145's
-// addendum comment). Vintage Cube FREE tranche, issue #686. Whole card left
-// as one stub — the replacement is the entire point of the first ability and
-// the second ability depends on cards it exiles.
+// without paying its mana cost. Activate only as a sorcery." The FIRST
+// ability's replacement clause SHIPPED via #1145: the `"graveyard-bound"`
+// `ReplacementEventKind` + apply-loop hook
+// (`gre/replacements.ts::applyGraveyardBoundReplacements`), scoped to an
+// OPPONENT's graveyard and tagging the redirected card with a `void` counter
+// — fully implemented and tested
+// (`gre/__tests__/graveyardBoundReplacement.test.ts`). Still missing: the
+// SECOND ability, which needs three new pieces of engine surface with no
+// existing precedent — an exile-zone filtered choice kind ("choose an exiled
+// card an opponent owns with a void counter"), a free-cast primitive ("play
+// it without paying its mana cost" — `SpellContext.grantCastFromExile` grants
+// CAST PERMISSION only, no cost waiver), and an "activate only as a sorcery"
+// timing restriction on `ActivatedAbility` (no such field exists today). See
+// #1156 for the full design notes. Vintage Cube FREE tranche, issue #686.
+// Whole card left as one stub (never ship partial, Grief/Evoke precedent in
+// this same file) — the first ability alone is not the full printed card.
 // export const dauthiVoidwalker: CardDefinition = {
 //     id: "dce5db87-4a78-4b8d-b5c2-918ccd1ba4e3", // MH2 81
 //     name: "Dauthi Voidwalker",

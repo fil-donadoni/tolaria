@@ -1632,6 +1632,16 @@ describe("optional field round-trip smoke tests", () => {
         );
     });
 
+    it("graveyardBoundRedirectThisTurn (issue #1145 — Yawgmoth's Will)", () => {
+        const state = freshState();
+        state.graveyardBoundRedirectThisTurn = [
+            { ownerId: "p1", tagCounters: { void: 1 } },
+        ];
+        expect(roundTrip(state).graveyardBoundRedirectThisTurn).toEqual(
+            state.graveyardBoundRedirectThisTurn
+        );
+    });
+
     it("combatDamageImmunity", () => {
         const state = freshState();
         state.combatDamageImmunity = [

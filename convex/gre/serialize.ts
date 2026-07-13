@@ -840,6 +840,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "islandSanctuaryProtection",
     "allCreaturesMustAttack",
     "destroyReplacementShields",
+    "graveyardBoundRedirectThisTurn",
     "combatDamageImmunity",
     "damageTriggeredLifegain",
     "phasedOut",

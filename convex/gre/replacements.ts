@@ -23,6 +23,7 @@ import type {
     DamageReplacementEvent,
     DestroyReplacementEvent,
     DiscardReplacementEvent,
+    GraveyardBoundReplacementEvent,
     LifeChangeReplacementEvent,
     LoseGameReplacementEvent,
     PermanentView,
@@ -469,6 +470,91 @@ export function applyLoseGameReplacements(
 ): LoseGameReplacementEvent | null {
     const result = applyReplacementsLoop(state, "lose-game", event);
     return result === null ? null : (result as LoseGameReplacementEvent);
+}
+
+/** Consumes a turn-scoped graveyard-bound redirect grant (`state
+ *  .graveyardBoundRedirectThisTurn`, CR 614/514.2 — Yawgmoth's Will's
+ *  redirect clause), keyed to the event's `ownerId`. Distinct from the
+ *  permanent-bound `replacementEffects[]` loop above (Dauthi Voidwalker):
+ *  a one-shot sorcery has no battlefield presence to carry a continuous
+ *  effect, so its "until end of turn" grant lives here instead — mirrors
+ *  `applyTransientDestroyShields`. Runs AFTER the continuous loop so a
+ *  permanent-bound effect gets first crack; a no-op once `destination` is
+ *  already redirected (CR 616.1d — a redirected event isn't re-intercepted). */
+function applyTransientGraveyardRedirects(
+    state: GameState,
+    event: GraveyardBoundReplacementEvent
+): GraveyardBoundReplacementEvent {
+    if (event.destination !== "graveyard") return event;
+    const grants = state.graveyardBoundRedirectThisTurn;
+    if (!grants || grants.length === 0) return event;
+    const match = grants.find((g) => g.ownerId === event.ownerId);
+    if (!match) return event;
+    return {
+        ...event,
+        destination: "exile",
+        tagCounters: match.tagCounters,
+    };
+}
+
+/** Runs CR 614 graveyard-bound replacements (issue #1145) — "if a card
+ *  would be put into a/your/an opponent's graveyard from anywhere, exile it
+ *  instead" (Yawgmoth's Will, Dauthi Voidwalker). Unlike `destroy`/`discard`
+ *  this event never fully cancels: a card entering a graveyard always ends
+ *  up somewhere, so a matching replacement rewrites `event.destination` to
+ *  `"exile"` (and optionally `event.tagCounters`) rather than returning
+ *  `{kind:"consumed"}`. Always returns a non-null event; the `?? event`
+ *  fallback only guards a replacement author misusing `"consumed"` (a
+ *  contract violation caught by validation/tests, not expected at runtime).
+ *  Consults the permanent-bound loop FIRST, then the turn-scoped transient
+ *  grant layer (Yawgmoth's Will) — the same two-layer shape as
+ *  `applyDestroyReplacements`/`applyTransientDestroyShields`. */
+export function applyGraveyardBoundReplacements(
+    state: GameState,
+    event: GraveyardBoundReplacementEvent
+): GraveyardBoundReplacementEvent {
+    const result = applyReplacementsLoop(state, "graveyard-bound", event);
+    const settled = (result as GraveyardBoundReplacementEvent | null) ?? event;
+    return applyTransientGraveyardRedirects(state, settled);
+}
+
+/** Convenience wrapper around `applyGraveyardBoundReplacements` for the
+ *  zone-change chokepoints (mill, discard-resolution, SBA/sacrifice/destroy
+ *  death path, spell resolution/countering) that only need the resolved
+ *  destination + any counters to stamp, not the full event shape. */
+export function graveyardDestinationFor(
+    state: GameState,
+    cardInstanceId: string,
+    ownerId: string,
+    fromZone: GraveyardBoundReplacementEvent["fromZone"]
+): {
+    destination: "graveyard" | "exile";
+    tagCounters?: Record<string, number>;
+} {
+    const result = applyGraveyardBoundReplacements(state, {
+        kind: "graveyard-bound",
+        cardInstanceId,
+        ownerId,
+        fromZone,
+        destination: "graveyard",
+    });
+    return { destination: result.destination, tagCounters: result.tagCounters };
+}
+
+/** Stamps `tagCounters` (Dauthi Voidwalker's void counter) onto a card that
+ *  a graveyard-bound replacement redirected away from the graveyard. No-op
+ *  when there's nothing to tag. */
+export function applyGraveyardRedirectCounters(
+    card: CardInstanceState,
+    tagCounters: Record<string, number> | undefined
+): void {
+    if (!tagCounters) return;
+    const counters: Record<string, number> = { ...(card.counters ?? {}) };
+    for (const [type, count] of Object.entries(tagCounters)) {
+        if (count <= 0) continue;
+        counters[type] = (counters[type] ?? 0) + count;
+    }
+    if (Object.keys(counters).length > 0) card.counters = counters;
 }
 
 /** Public helper for resolving a damage source's identity at the moment a
