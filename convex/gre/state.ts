@@ -2725,16 +2725,57 @@ export function resolveTopOfStack(state: GameState): StackItem | null {
     return result;
 }
 
+/** True when this trigger StackItem is a triggered MANA ability (CR 605.1b):
+ *  its ability declares `manaAbility`. Such an ability does not use the stack
+ *  (CR 605.4) — the caller resolves it immediately instead of pushing it. */
+function isManaAbilityTriggerItem(state: GameState, item: StackItem): boolean {
+    if (!item.triggeredAbilityId) return false;
+    const ability = findTriggeredAbility(item, item.triggeredAbilityId);
+    return ability?.manaAbility === true;
+}
+
+/** CR 605.4 — resolve a triggered mana ability in place, in the same game
+ *  action that fired it, WITHOUT granting priority. The item is pushed only
+ *  transiently so the standard resolution path (`resolveTopOfStack`) can run
+ *  it; on success it pops itself and the mana is in the pool. If resolution
+ *  suspends on a player choice made as it resolves (CR 605.4b — Fertile
+ *  Ground's colour pick), the item stays on the stack with a pending choice
+ *  and finishes once that choice is submitted; a triggered mana ability still
+ *  never hands priority to the non-active player to respond. */
+function resolveManaAbilityTriggerImmediately(
+    state: GameState,
+    item: StackItem
+): void {
+    state.stack.push(item);
+    resolveTopOfStack(state);
+}
+
 /** Drains `state.pendingEvents`, scans for matching triggered abilities, and
  *  pushes them onto the stack (CR 603.2). Hands priority back to the active
  *  player (CR 117.3c) when at least one trigger lands on the stack. Safe to
- *  call repeatedly — a no-op when the queue is empty. */
+ *  call repeatedly — a no-op when the queue is empty.
+ *
+ *  CR 605.1b / 605.4 — triggered MANA abilities (Wild Growth, Mana Flare,
+ *  Gauntlet of Might, Snowfall) are the exception: they do not use the stack.
+ *  Each is resolved immediately, before any player receives priority, so the
+ *  extra mana is available within the very cost payment / cumulative-upkeep
+ *  step that tapped the land — no intervening priority pass, and the player is
+ *  never forced to commit "pay"/"skip" before the bonus mana arrives. */
 export function processPendingActionTriggers(state: GameState): void {
     const events = flushPendingEvents(state);
     if (events.length === 0) return;
     const triggers = collectTriggers(state, events);
     if (triggers.length === 0) return;
-    state.stack.push(...triggers);
+    const stackTriggers: StackItem[] = [];
+    for (const trigger of triggers) {
+        if (isManaAbilityTriggerItem(state, trigger)) {
+            resolveManaAbilityTriggerImmediately(state, trigger);
+        } else {
+            stackTriggers.push(trigger);
+        }
+    }
+    if (stackTriggers.length === 0) return;
+    state.stack.push(...stackTriggers);
     state.priorityPlayerId = state.activePlayerId;
     state.passCount = 0;
 }

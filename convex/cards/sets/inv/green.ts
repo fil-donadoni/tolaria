@@ -1118,6 +1118,7 @@ export const fertileGround: CardDefinition = {
                 "Whenever enchanted land is tapped for mana, its controller adds an additional one mana of any color.",
             scope: "any",
             forMana: true,
+            manaAbility: true, // CR 605.1b / 605.4 — resolves without the stack
             condition: (event, self) =>
                 !!self.attachedTo && event.permanentId === self.attachedTo,
             resolve: (ctx, _event, tapped) => {

@@ -5104,6 +5104,17 @@ export interface TriggeredAbility {
      *  trigger sets this so it keeps functioning after the copy overwrites the
      *  presented characteristics. Ignored for non-copies. */
     retainedThroughCopy?: boolean;
+    /** CR 605.1b / 605.4 — this triggered ability is a MANA ABILITY: it has no
+     *  target, triggers from an activated mana ability resolving (or mana being
+     *  added), and could add mana when it resolves (Wild Growth, Mana Flare,
+     *  Gauntlet of Might, Snowfall). A triggered mana ability does NOT use the
+     *  stack: the engine resolves it immediately, in the same game action that
+     *  fired it, before any player receives priority (`processPendingActionTriggers`).
+     *  This is what makes the extra mana available WITHIN the same cost payment /
+     *  cumulative-upkeep step that tapped the land, with no intervening priority
+     *  pass. A trigger that adds no mana (Manabarbs' damage) must NOT set this —
+     *  it is a normal stack trigger. */
+    manaAbility?: boolean;
 }
 
 // --- Replacement effects (CR 614) ---

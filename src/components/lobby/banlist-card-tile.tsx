@@ -19,10 +19,12 @@ export default function BanlistCardTile({
     status,
 }: BanlistCardTileProps) {
     const def = tryGetCardByName(cardName);
+    // Same badge tints the sibling `DeckBanlistPanel` uses (proven design
+    // tokens): danger for banned, accent for restricted.
     const badgeClass =
         status === "banned"
-            ? "bg-danger/80 text-text-on-danger"
-            : "bg-accent/80 text-text-on-accent";
+            ? "bg-danger/20 text-danger"
+            : "bg-accent-soft text-accent-strong";
 
     return (
         <div className="flex w-28 flex-col gap-1">

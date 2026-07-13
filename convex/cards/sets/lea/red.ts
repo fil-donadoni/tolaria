@@ -670,6 +670,7 @@ export const manaFlare: CardDefinition = {
             scope: "any",
             filter: { types: "Land" },
             forMana: true,
+            manaAbility: true, // CR 605.1b / 605.4 — resolves without the stack
             resolve: (ctx, _event, tapped) => {
                 const produced = tapped.manaProduced ?? {};
                 for (const [color, amount] of Object.entries(produced)) {

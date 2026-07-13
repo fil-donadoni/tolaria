@@ -1267,6 +1267,7 @@ export const wildGrowth: CardDefinition = {
             id: "wild-growth-extra-green",
             oracleText:
                 "Whenever enchanted land is tapped for mana, its controller adds an additional {G}.",
+            manaAbility: true, // CR 605.1b / 605.4 — resolves without the stack
             scope: "any",
             forMana: true,
             condition: (event, self) =>

@@ -38,6 +38,13 @@ export interface TappedTriggerArgs {
     /** CR 605.1 — gate on "tapped for mana". `true` only mana-ability taps,
      *  `false` only non-mana taps, undefined matches either. */
     forMana?: boolean;
+    /** CR 605.1b / 605.4 — this tap trigger is itself a MANA ABILITY (it could
+     *  add mana when it resolves and has no target: Wild Growth, Mana Flare,
+     *  Gauntlet of Might, Snowfall). The engine resolves it immediately without
+     *  using the stack, so the extra mana is in the pool within the same cost
+     *  payment that tapped the land. Leave `false`/undefined for a `forMana` tap
+     *  trigger that adds NO mana (Manabarbs' damage) — that one uses the stack. */
+    manaAbility?: boolean;
     /** CR 603.4 check-time predicate. Runs after scope+filter+forMana pass. */
     condition?: (
         event: PermanentTappedEvent,
@@ -112,6 +119,10 @@ export function tappedTrigger(args: TappedTriggerArgs): TriggeredAbility {
         id: args.id,
         oracleText: args.oracleText,
         event: "PERMANENT_TAPPED",
+        // CR 605.1b / 605.4 — a mana-adding tap trigger resolves immediately
+        // without using the stack; the engine reads this flag in
+        // `processPendingActionTriggers`.
+        ...(args.manaAbility ? { manaAbility: true } : {}),
         matches: (event: GameEvent, self, state) => {
             if (event.type !== "PERMANENT_TAPPED") return false;
             return tappedMatches(event, self, state);

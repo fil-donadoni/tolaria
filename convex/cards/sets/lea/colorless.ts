@@ -510,6 +510,7 @@ export const gauntletOfMight: CardDefinition = {
             scope: "any",
             filter: { subtypes: "Mountain" },
             forMana: true,
+            manaAbility: true, // CR 605.1b / 605.4 — resolves without the stack
             resolve: (ctx, _event, tapped) => {
                 ctx.addManaTo(tapped.controllerId, { R: 1 });
             },

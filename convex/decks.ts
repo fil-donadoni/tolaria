@@ -118,7 +118,12 @@ export function presetRowToLobby(
 ): LobbyPreset {
     // Legality is derived here, on every read (ADR 0036) — never persisted on
     // the row, so a banlist/card-pool change reclassifies presets automatically.
-    const { isLegal, reasons } = validateDeck(row, row.format, undefined, banlist);
+    const { isLegal, reasons } = validateDeck(
+        row,
+        row.format,
+        undefined,
+        banlist
+    );
     return {
         presetId: row.slug,
         name: row.name,

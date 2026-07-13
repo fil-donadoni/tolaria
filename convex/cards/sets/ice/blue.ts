@@ -1984,6 +1984,7 @@ export const snowfall: CardDefinition = {
             scope: "any",
             filter: { subtypes: "Island" },
             forMana: true,
+            manaAbility: true, // CR 605.1b / 605.4 — resolves without the stack
             resolve: (ctx, _event, tapped) => {
                 // CR 106.6 — the Island controller gets the bonus {U} in their
                 // CU-restricted pool (ADR 0022). CR 205.4a — if the tapped
