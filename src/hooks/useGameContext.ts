@@ -31,6 +31,12 @@ type GameContext = {
      *  combat. Flows from the projected GameState so block-declaration UI flips
      *  to the right seat. */
     meleeCombat?: boolean;
+    /** Player ids under Abeyance's turn-scoped "can't activate abilities that
+     *  aren't mana abilities" lock (CR 602.1 / 605.1a, issue #1124). Forwarded
+     *  from the wire `GameState.cannotActivateAbilitiesThisTurn` to
+     *  `buildTriggerStateView` call sites so `getStackAbilities` can hide the
+     *  affected controller's non-mana abilities as a UI hint. */
+    cannotActivateAbilitiesThisTurn?: string[];
     gameOver?: GameOver;
     allPlayers: Player[];
     /** CR 702.26 — permanents currently phased out (host + attachments),

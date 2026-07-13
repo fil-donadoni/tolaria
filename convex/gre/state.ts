@@ -2190,15 +2190,25 @@ export type GameState = {
      *  assignment is skipped, so it can't be lethal to a blocker either).
      *  Cleared at CLEANUP. */
     assignsNoCombatDamageThisTurn?: string[];
-    /** CR 601.3a / 514.2 — player ids under a turn-scoped "can't cast spells
-     *  this turn" restriction (Xantid Swarm's attack trigger locks the
-     *  defending player). Enforced by the shared cast gate
-     *  `castProhibitionReason` (read by both the GRE `getLegalActions` and the
-     *  client). Distinct from the permanent-sourced `cast-restriction` statics
-     *  in `castRestrictions.ts`: this is a per-player turn flag set by an
-     *  effect, so it does NOT revert when a source leaves play — it is cleared
-     *  unconditionally at CLEANUP. */
-    cannotCastSpellsThisTurn?: string[];
+    /** CR 601.3a / 514.2 — players under a turn-scoped "can't cast spells this
+     *  turn" restriction (Xantid Swarm's attack trigger locks the defending
+     *  player; Abeyance narrows it to instant/sorcery only via `cardTypes`).
+     *  Enforced by the shared cast gate `castProhibitionReason` (read by both
+     *  the GRE `getLegalActions` and the client). Distinct from the
+     *  permanent-sourced `cast-restriction` statics in `castRestrictions.ts`:
+     *  this is a per-player turn flag set by an effect, so it does NOT revert
+     *  when a source leaves play — it is cleared unconditionally at CLEANUP.
+     *  An omitted/empty `cardTypes` forbids ALL spells (the original Xantid
+     *  Swarm shape); a non-empty list narrows the lock to those card types. */
+    cannotCastSpellsThisTurn?: { playerId: string; cardTypes?: CardType[] }[];
+    /** CR 602.1 / 605.1a / 514.2 — player ids under a turn-scoped "can't
+     *  activate abilities that aren't mana abilities" restriction (Abeyance).
+     *  Mana abilities (`useStack: false`) are structurally exempt: they never
+     *  go through the `activateAbility` mutation this flag gates (they use
+     *  `tapUntap` instead), so the restriction only ever needs to check
+     *  non-mana (`useStack: true`) activation, with no separate mana-ability
+     *  branch to special-case. Cleared unconditionally at CLEANUP. */
+    cannotActivateAbilitiesThisTurn?: string[];
     /** Turn-scoped all-unblocked combat-damage redirects (CR 614.6 — Kjeldoran
      *  Royal Guard). Each entry redirects ALL combat damage that unblocked
      *  attackers would deal to `playerId` onto the permanent `toPermanentId`
@@ -7920,13 +7930,32 @@ export function buildSpellContext(
             state.preventAllCombatDamageThisTurn = true;
         },
 
-        restrictSpellCasting(playerId: string): void {
+        restrictSpellCasting(playerId: string, cardTypes?: CardType[]): void {
             // CR 601.3a — mark `playerId` unable to cast spells for the rest of
             // this turn (Xantid Swarm: "defending player can't cast spells this
-            // turn"). Idempotent; cleared unconditionally at CLEANUP (CR 514.2).
+            // turn"; Abeyance passes `cardTypes: ["Instant", "Sorcery"]` to
+            // narrow the lock instead of forbidding every spell). Idempotent
+            // per player+cardTypes shape; cleared unconditionally at CLEANUP
+            // (CR 514.2).
             const list = state.cannotCastSpellsThisTurn ?? [];
-            if (!list.includes(playerId)) list.push(playerId);
+            const already = list.find((e) => e.playerId === playerId);
+            if (!already) {
+                list.push({ playerId, cardTypes });
+            } else if (cardTypes === undefined) {
+                // A blanket (all-spells) lock always wins over a narrower one.
+                already.cardTypes = undefined;
+            }
             state.cannotCastSpellsThisTurn = list;
+        },
+
+        restrictAbilityActivation(playerId: string): void {
+            // CR 602.1 / 605.1a — mark `playerId` unable to activate non-mana
+            // abilities for the rest of this turn (Abeyance: "that player can't
+            // activate abilities that aren't mana abilities"). Idempotent;
+            // cleared unconditionally at CLEANUP (CR 514.2).
+            const list = state.cannotActivateAbilitiesThisTurn ?? [];
+            if (!list.includes(playerId)) list.push(playerId);
+            state.cannotActivateAbilitiesThisTurn = list;
         },
 
         markAssignsNoCombatDamage(target: TargetSelection): void {

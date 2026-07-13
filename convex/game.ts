@@ -7932,6 +7932,15 @@ export const activateAbility = mutation({
         if (!ability.useStack) {
             throw new Error("Use tapUntap for mana abilities");
         }
+        // CR 602.1 / 605.1a (issue #1124) — a turn-scoped "can't activate
+        // abilities that aren't mana abilities" lock (Abeyance). Every ability
+        // reaching this point is non-mana (the check above already rejected
+        // `useStack: false`), so no separate mana-ability exemption is needed.
+        if (state.cannotActivateAbilitiesThisTurn?.includes(args.playerId)) {
+            throw new Error(
+                "You can't activate abilities that aren't mana abilities this turn"
+            );
+        }
         // CR 602.5 — phase-restricted activated abilities ("activate only
         // during combat" etc.) are illegal outside their declared phase
         // allow-list. Mirrors spell-level `castPhaseRestriction`.

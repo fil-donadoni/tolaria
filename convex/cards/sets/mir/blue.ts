@@ -5,9 +5,10 @@
 // Mystical Tutor — "Search your library for an instant or sorcery card,
 // reveal it, then shuffle and put that card on top." Blocked: same
 // "put that card on top" gap as Vampiric Tutor — a choice-driven reorder of
-// the library top after a shuffle, deferred to the `scryReorder` backlog Op
-// (mechanicsRegistry.ts, issue #885).
-// tracked-by: #885
+// an arbitrary searched card on top of the library after a shuffle — no Op
+// does this (`scryReorder`, #885, reorders only the top N; the searched card
+// sits at arbitrary depth).
+// tracked-by: #1125
 // export const mysticalTutor: CardDefinition = {
 //     id: "5d98101f-e32a-4a4a-a649-faa920d111ee",
 //     name: "Mystical Tutor",

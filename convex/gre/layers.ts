@@ -159,17 +159,29 @@ export function getStaticPTBuff(
 }
 
 /**
- * Layer 7a characteristic-defining contribution: sum of `pt-cda` effects
- * (CR 613.4a, 604.3). The result is added on top of the printed base P/T to
- * form the starting value of the pipeline; a layer 7b set (`temporaryPTSet`)
- * may override it. Promoted out of the summed buff bucket so a set can win
- * over it (ADR 0017).
+ * Layer 7a/7b characteristic-defining contribution (CR 613.3a self-CDA,
+ * 613.4b external "set to a value" effects — Animate Artifact / Titania's
+ * Song / Opalescence). `pt-cda` conflates both: a self-targeting CDA only
+ * ever matches its own source (one contributor per target, so overwrite vs
+ * sum is moot), but an EXTERNAL set-style effect can have several sources
+ * targeting the same permanent at once (two Opalescences on the battlefield
+ * both matching the same enchantment). CR 613.4b/613.7 is explicit these
+ * don't stack: multiple such effects resolve in timestamp order and the
+ * latest one OVERWRITES every earlier one entirely — never summed (official
+ * Opalescence ruling: duplicate Opalescences don't compound a target's P/T).
+ * Timestamp isn't tracked per effect; battlefield array order (append order
+ * = entry order) is used as the ordering proxy, mirroring the "array order
+ * is the timestamp" convention `temporaryPTSet` already relies on. The
+ * result is set on top of the printed base P/T to form the starting value of
+ * the pipeline; a layer 7b `temporaryPTSet` (from a spell/ability, not a
+ * continuous static effect) may still override it afterward (ADR 0017).
  */
 function getCDAContribution(
     state: LayerStateView,
     target: PermanentView
 ): PTBuff {
     if (!STATIC_EFFECT_CTX.isCreature(target)) return ZERO;
+    let matched = false;
     let power = 0;
     let toughness = 0;
     for (const player of state.players) {
@@ -185,12 +197,15 @@ function getCDAContribution(
                     STATIC_EFFECT_CTX,
                     target
                 );
-                power += pt.power;
-                toughness += pt.toughness;
+                // Overwrite, don't accumulate — the latest matching source
+                // (by battlefield/timestamp order) wins outright.
+                power = pt.power;
+                toughness = pt.toughness;
+                matched = true;
             }
         }
     }
-    if (power === 0 && toughness === 0) return ZERO;
+    if (!matched) return ZERO;
     return { power, toughness };
 }
 
@@ -313,7 +328,8 @@ function getCounterPTBuff(target: PermanentView): PTBuff {
 /**
  * Evaluates the CR 613.4 P/T sublayers in order (ADR 0017), per characteristic:
  *
- *   7a CDA      → starting value = printed base + Σ pt-cda
+ *   7a CDA      → starting value = printed base + pt-cda (latest source wins,
+ *                 never summed across sources — see `getCDAContribution`)
  *   7b set      → if a `temporaryPTSet` overrides this characteristic, replace
  *   7c counters → += counter contribution
  *   7d modifier → += static pt-buff + temporaryPTMods (pump, anthems)

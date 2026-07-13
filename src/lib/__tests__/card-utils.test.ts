@@ -365,6 +365,26 @@ describe("getStackAbilities", () => {
         expect(getStackAbilities(card)).toHaveLength(0);
     });
 
+    // CR 602.1 / 605.1a (issue #1124) — Abeyance's "can't activate abilities
+    // that aren't mana abilities" lock. Reducer-driven: builds the view via
+    // `buildTriggerStateView` (not a hand-built state) so a dropped field
+    // would surface here.
+    it("hides a non-mana ability when the controller is under Abeyance's lock", () => {
+        const card = makeCardInstance({
+            card: { id: "12926dc8-8e6f-4a47-a12b-4d674189615a" },
+            types: ["Artifact"],
+            isTapped: false,
+        });
+        const lockedView = buildTriggerStateView([], undefined, ["p1"]);
+        expect(
+            getStackAbilities(card, undefined, true, lockedView)
+        ).toHaveLength(0);
+        const unlockedView = buildTriggerStateView([], undefined, ["p2"]);
+        expect(
+            getStackAbilities(card, undefined, true, unlockedView)
+        ).toHaveLength(1);
+    });
+
     it("filters out phase-restricted abilities outside their allow-list (Jade Statue)", () => {
         // Jade Statue's animate is activationPhaseRestriction-limited to
         // combat. Outside combat the menu must hide it (CR 602.5).
@@ -680,6 +700,32 @@ describe("getGraveyardStackAbilities (CR 113.6 — Ashen Ghoul, #737)", () => {
             viewWith(3, "p2")
         );
         expect(abilities).toHaveLength(0);
+    });
+
+    // CR 602.1 / 605.1a (issue #1124) — Abeyance's lock also hides a
+    // graveyard-activated ability regardless of source zone.
+    it("hides it when the owner is under Abeyance's activation lock", () => {
+        const lockedView = buildTriggerStateView(
+            [
+                {
+                    id: "p1",
+                    life: 20,
+                    hand: [],
+                    battlefield: [],
+                    graveyard: [
+                        makeGhoul(),
+                        creatureAbove("bear-0"),
+                        creatureAbove("bear-1"),
+                        creatureAbove("bear-2"),
+                    ],
+                },
+            ],
+            "p1",
+            ["p1"]
+        );
+        expect(
+            getGraveyardStackAbilities(makeGhoul(), "UPKEEP", lockedView)
+        ).toHaveLength(0);
     });
 });
 
@@ -2199,6 +2245,20 @@ describe("getHandStackAbilities (CR 113.6 / 702.29a — Cycling, #689)", () => {
         });
         expect(
             getHandStackAbilities(bears, "PRECOMBAT_MAIN", viewFor(bears))
+        ).toHaveLength(0);
+    });
+
+    // CR 602.1 / 605.1a (issue #1124) — Abeyance's lock also hides a
+    // hand-activated ability (Cycling) regardless of source zone.
+    it("hides Cycling when the owner is under Abeyance's activation lock", () => {
+        const triome = makeTriomeInHand();
+        const lockedView = buildTriggerStateView(
+            [{ id: "p1", life: 20, hand: [triome], battlefield: [] }],
+            "p1",
+            ["p1"]
+        );
+        expect(
+            getHandStackAbilities(triome, "PRECOMBAT_MAIN", lockedView)
         ).toHaveLength(0);
     });
 });

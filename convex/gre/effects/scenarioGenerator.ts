@@ -339,8 +339,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             return;
         case "restrictCasting":
             // CR 601.3a (issue #1057) — a turn-scoped cast lock on a player; the
-            // deterministic outcome is the player id landing in
+            // deterministic outcome is the player id (with its optional
+            // cardTypes filter, issue #1124) landing in
             // state.cannotCastSpellsThisTurn (asserted below).
+            analysePlayer(op.player, req, false);
+            return;
+        case "restrictActivation":
+            // CR 602.1 / 605.1a (issue #1124) — a turn-scoped ability-activation
+            // lock on a player; the deterministic outcome is the player id
+            // landing in state.cannotActivateAbilitiesThisTurn (asserted below).
             analysePlayer(op.player, req, false);
             return;
         case "addMana":
@@ -899,12 +906,37 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     restrictCasting(rawOp, _scenario, pre) {
         const op = rawOp as Extract<EffectOp, { op: "restrictCasting" }>;
         const pid = assertionPlayerId(op.player);
-        const wasLocked = pre.cannotCastSpellsThisTurn?.includes(pid) ?? false;
+        const wasLocked =
+            pre.cannotCastSpellsThisTurn?.some((e) => e.playerId === pid) ??
+            false;
         return {
             label: `restrictCasting locks player ${pid} out of casting this turn`,
             check: (post) => {
                 const locked =
-                    post.cannotCastSpellsThisTurn?.includes(pid) ?? false;
+                    post.cannotCastSpellsThisTurn?.some(
+                        (e) => e.playerId === pid
+                    ) ?? false;
+                return {
+                    ok: locked && !wasLocked,
+                    detail: `locked=${locked} (was ${wasLocked})`,
+                };
+            },
+        };
+    },
+    // `restrictActivation` (CR 602.1 / 605.1a, issue #1124) — a deterministic
+    // same-resolution state change: the named player's id lands in
+    // state.cannotActivateAbilitiesThisTurn. Asserted directly.
+    restrictActivation(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "restrictActivation" }>;
+        const pid = assertionPlayerId(op.player);
+        const wasLocked =
+            pre.cannotActivateAbilitiesThisTurn?.includes(pid) ?? false;
+        return {
+            label: `restrictActivation locks player ${pid} out of activating abilities this turn`,
+            check: (post) => {
+                const locked =
+                    post.cannotActivateAbilitiesThisTurn?.includes(pid) ??
+                    false;
                 return {
                     ok: locked && !wasLocked,
                     detail: `locked=${locked} (was ${wasLocked})`,

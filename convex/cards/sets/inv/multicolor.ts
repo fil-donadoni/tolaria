@@ -1387,3 +1387,30 @@ export const viciousKavu: CardDefinition = {
 // only ever consumes a `choice` Op's player-picked cards, never an
 // automatic mana-value sweep. Both halves are blocked on capabilities that
 // don't exist.)
+
+// Sterling Grove — {G}{W} Enchantment. "Other enchantments you control have
+// shroud. {1}, Sacrifice this enchantment: Search your library for an
+// enchantment card, reveal it, then shuffle and put that card on top."
+// The static half IS buildable now: a `permanent-guard` staticEffect on
+// Grove's own def (`isGuardedAgainst` scans every battlefield def, so the
+// guard needn't live on the granted card) with `applies: target is an
+// Enchantment && target.id !== source.id && same controller`, paired with a
+// `keyword-grant` for the "shroud" display string — the printed-shroud
+// pattern (Blurred Mongoose inv/green.ts) applied to OTHER permanents.
+// Blocked on the activated half: "shuffle and put that card on top" is the
+// same choice-driven put-a-searched-card-on-top-after-shuffle gap as
+// Vampiric Tutor / Mystical Tutor / Imperial Seal — no Op places an
+// arbitrary searched card on top of a library (`moveCardById` library →
+// library is a `from === to` no-op; `scryReorder` reorders only the top N).
+// The card is atomic: shipping the shroud grant with a dead activated
+// ability is the "shipped but dead" anti-pattern, so the whole card waits.
+// Not a `resolve()` card — the missing Op is the stop-and-issue case, not
+// the escape hatch.
+// tracked-by: #1125
+// export const sterlingGrove: CardDefinition = {
+//     id: "40b26aa3-8169-4978-9554-bd2fc8e18e3b",
+//     name: "Sterling Grove",
+//     rarity: "uncommon",
+//     manaCost: { G: 1, W: 1 },
+//     types: ["Enchantment"],
+// };

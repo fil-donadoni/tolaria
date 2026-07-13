@@ -783,7 +783,8 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         kind: "keyword-ability",
         cr: "702.14",
         status: "implemented",
-        binding: "convex/gre/combatRegistry.ts (EvasionRule per landwalk variant)",
+        binding:
+            "convex/gre/combatRegistry.ts (EvasionRule per landwalk variant)",
         bindingPattern:
             /^(snow )?(plains|island|swamp|mountain|forest|desert)walk$|^legendary landwalk$/,
         note: "constants.ts LANDWALK_KEYWORDS / LANDWALK_SUPERTYPE_KEYWORDS / LANDWALK_SNOW_SUBTYPE_KEYWORDS + combatRegistry.ts EvasionRule per variant, negation via landwalkNegation.ts",
@@ -826,7 +827,8 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         kind: "keyword-ability",
         cr: "702.18",
         status: "implemented",
-        binding: "permanent-guard staticEffect (gre/permanentGuard.ts isGuardedAgainst)",
+        binding:
+            "permanent-guard staticEffect (gre/permanentGuard.ts isGuardedAgainst)",
         note: 'HONOURED (issue #959): CR 702.18 — every printed-shroud card (Blastoderm nem/green.ts, Blurred Mongoose inv/green.ts, Spectral Cloak leg/blue.ts) pairs the `staticAbilities: ["shroud"]` reminder string with a `permanent-guard` staticEffect (`cantBeTargeted: true`), evaluated live by `isGuardedAgainst` and consumed by `rules.ts::getLegalTargets` + `game.ts::selectTarget` (server-authoritative) — the same "can\'t be the target of spells or abilities" path hexproof\'s controller-relative guard reuses, but unfiltered (blocks the permanent\'s own controller too, unlike hexproof). GAP (narrower than before): a card that grants shroud DYNAMICALLY via `SpellContext.grantStaticAbility(self, "shroud", …)` — Homarid Warrior / Svyelunite Priest (fem/blue.ts), Sylvan Safekeeper (jud/green.ts), Blurred Mongoose\'s own activated ability (inv/green.ts), the usg/green.ts grant — appends only the bare keyword STRING with no paired `permanent-guard` staticEffect, so no live guard reads it and those specific TEMPORARY grants stay inert (each site\'s own code comment documents this). The keyword as a whole is "implemented" because its dominant, CR-compliant enforcement path (the printed/staticEffect-paired form) is real and server-authoritative; the residual dynamic-grant gap is called out here, not glossed over.',
     },
     // 702.19 Trample
@@ -856,7 +858,7 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         kind: "keyword-ability",
         cr: "702.21",
         status: "planned",
-        note: "no dedicated module, no card declares it, no engine check found. Re-verified issue #959: no trigger fires on \"becomes the target\", no counter-unless-pay primitive exists anywhere in gre/**; every \"Ward\"-named card in the catalogue (2ED/3ED/4ED/LEA/ICE white.ts) is the unrelated pre-modern Color Ward cycle (a protection Aura) or Death Ward (regenerate), not the modern templated keyword.",
+        note: 'no dedicated module, no card declares it, no engine check found. Re-verified issue #959: no trigger fires on "becomes the target", no counter-unless-pay primitive exists anywhere in gre/**; every "Ward"-named card in the catalogue (2ED/3ED/4ED/LEA/ICE white.ts) is the unrelated pre-modern Color Ward cycle (a protection Aura) or Death Ward (regenerate), not the modern templated keyword.',
     },
     // 702.22 Banding
     {
@@ -978,7 +980,8 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         kind: "keyword-ability",
         cr: "702.33e",
         status: "implemented",
-        binding: "convex/gre/state.ts (kicker.multi / kickerCount — shared Kicker cost-system path, no dedicated module)",
+        binding:
+            "convex/gre/state.ts (kicker.multi / kickerCount — shared Kicker cost-system path, no dedicated module)",
         note: "The Kicker variant that may be paid any number of times as the spell is cast (CardDefinition.kicker.multi). Shares the whole Kicker cost-system path; kickerCount records how many times it was paid and drives 'a charge counter for each time it was kicked' via entersWith.counters count 'kicker'. Used by Everflowing Chalice.",
     },
     // 702.34 Flashback
@@ -2376,7 +2379,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         status: "implemented",
         cr: "601.3a",
         binding: "SpellContext.restrictSpellCasting",
-        note: 'Impose a turn-scoped per-player "can\'t cast spells this turn" restriction (CR 601.3a, issue #1057 — Xantid Swarm: "defending player can\'t cast spells this turn"). A thin declarative skin over the single SpellContext primitive `restrictSpellCasting`, one execution path (ADR 0045): `player` names whom to lock — Xantid Swarm\'s ATTACKERS_DECLARED trigger uses `player: "opponent"` (the defending player in a 2-player game, CR 102.2). Adds the player id to `state.cannotCastSpellsThisTurn`, enforced by the SHARED cast gate `castProhibitionReason` (convex/cards/castRestrictions.ts) that both the GRE `getLegalActions` and the client read, and cleared unconditionally at CLEANUP (CR 514.2). Distinct from the permanent-sourced `cast-restriction` statics (Brand of Ill Omen), which are battlefield-scanned, class-filtered and auto-revert when their source leaves play; this is a per-player turn flag that does not revert on a source leaving. Lands are unaffected (playing a land is not casting a spell, CR 601 / 305).',
+        note: 'Impose a turn-scoped per-player "can\'t cast spells this turn" restriction (CR 601.3a, issue #1057 — Xantid Swarm: "defending player can\'t cast spells this turn"). A thin declarative skin over the single SpellContext primitive `restrictSpellCasting`, one execution path (ADR 0045): `player` names whom to lock — Xantid Swarm\'s ATTACKERS_DECLARED trigger uses `player: "opponent"` (the defending player in a 2-player game, CR 102.2). Adds the player id to `state.cannotCastSpellsThisTurn`, enforced by the SHARED cast gate `castProhibitionReason` (convex/cards/castRestrictions.ts) that both the GRE `getLegalActions` and the client read, and cleared unconditionally at CLEANUP (CR 514.2). Distinct from the permanent-sourced `cast-restriction` statics (Brand of Ill Omen), which are battlefield-scanned, class-filtered and auto-revert when their source leaves play; this is a per-player turn flag that does not revert on a source leaving. Lands are unaffected (playing a land is not casting a spell, CR 601 / 305). Optional `cardTypes` (issue #1124, Abeyance: "can\'t cast instant or sorcery spells") narrows the lock to the listed card types instead of every spell — `state.cannotCastSpellsThisTurn` entries carry `{ playerId, cardTypes? }`, checked against the would-be-cast card\'s printed types via the same `castProhibitionReason` gate.',
+    },
+    {
+        op: "restrictActivation",
+        status: "implemented",
+        cr: "602.1",
+        binding: "SpellContext.restrictAbilityActivation",
+        note: "Impose a turn-scoped per-player \"can't activate abilities that aren't mana abilities\" restriction (CR 602.1 / 605.1a, issue #1124 — Abeyance: \"target player can't cast instant or sorcery spells, and that player can't activate abilities that aren't mana abilities\"). A thin declarative skin over the single SpellContext primitive `restrictAbilityActivation`, one execution path (ADR 0045): `player` names whom to lock. Adds the player id to `state.cannotActivateAbilitiesThisTurn`, enforced directly by the `activateAbility` mutation (`convex/game.ts`) — the ONLY mutation that handles non-mana (`useStack: true`) abilities (mana abilities go through the separate `tapUntap` mutation and are structurally exempt, so the restriction needs no explicit mana-ability carve-out) — and cleared unconditionally at CLEANUP (CR 514.2). Mirrored as a UI hint in `getStackAbilities` (`src/lib/card-utils.ts`) via the wire-projected `TriggerStateView.cannotActivateAbilitiesThisTurn`.",
     },
     {
         op: "destroy",

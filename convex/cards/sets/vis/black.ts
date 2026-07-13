@@ -4,13 +4,12 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 // Vampiric Tutor — "Search your library for a card, then shuffle and put
 // that card on top. You lose 2 life." Blocked: "put that card on top"
-// requires reordering the top of the library AFTER a shuffle — the
-// `reorderLibraryTop` / `peekLibraryTop` primitives stay a `planned`
-// backlog Op (`scryReorder`, mechanicsRegistry.ts) until a choice-driven
-// reorder construct exists (issue #677's own authoring note). NOT a
-// `resolve()` card: "the Op doesn't exist yet" is the stop-and-issue case,
-// not the escape hatch.
-// tracked-by: #885
+// requires placing an arbitrary searched card on top of the library AFTER a
+// shuffle — no Op does this (`moveCardById` library → library is a
+// `from === to` no-op; `scryReorder`, #885, reorders only the top N, not a
+// card fetched from arbitrary depth). NOT a `resolve()` card: "the Op
+// doesn't exist yet" is the stop-and-issue case, not the escape hatch.
+// tracked-by: #1125
 // export const vampiricTutor: CardDefinition = {
 //     id: "0a07cba3-2e8d-48ec-a6f8-4d2edfcd833d",
 //     name: "Vampiric Tutor",

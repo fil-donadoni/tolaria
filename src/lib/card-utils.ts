@@ -564,7 +564,12 @@ export function buildTriggerStateView(
         battlefield: ReadonlyArray<CardInstance>;
         graveyard?: ReadonlyArray<CardInstance>;
     }>,
-    activePlayerId?: string
+    activePlayerId?: string,
+    /** Player ids under Abeyance's "can't activate abilities that aren't mana
+     *  abilities" lock (CR 602.1, issue #1124) — forwarded from the wire
+     *  `GameState.cannotActivateAbilitiesThisTurn` so `getStackAbilities` can
+     *  hide the affected controller's non-mana abilities as a UI hint. */
+    cannotActivateAbilitiesThisTurn?: ReadonlyArray<string>
 ): TriggerStateView {
     return {
         players: players.map((p) => ({
@@ -598,6 +603,7 @@ export function buildTriggerStateView(
             })),
         })),
         activePlayerId,
+        cannotActivateAbilitiesThisTurn,
     };
 }
 
@@ -689,6 +695,24 @@ export function getStackAbilities(
         ) => boolean;
     }): boolean => {
         if (!a.useStack || !a.oracleText) return false;
+        // CR 602.1 / 605.1a (issue #1124) — Abeyance's "can't activate abilities
+        // that aren't mana abilities" lock hides every non-mana ability on the
+        // controller's permanents as a UI hint; the `activateAbility` mutation
+        // is the authoritative gate. SCOPE: gates on the card's CONTROLLER,
+        // which is correct for every normal (`isMe`-only) call site, but
+        // `getAnyPlayerStackAbilities` re-filters this same list for a
+        // non-controller ACTIVATOR (an "any player may activate" / "opponents
+        // only" ability) — that narrower activator-vs-controller distinction
+        // isn't threaded through here, so a locked non-controller activator on
+        // an unlocked controller's permanent is not hidden client-side. The
+        // server gate is unaffected and remains correct either way.
+        if (
+            stateView?.cannotActivateAbilitiesThisTurn?.includes(
+                card.controllerId
+            )
+        ) {
+            return false;
+        }
         // CR 113.6 / 702.29a — a zone-restricted ability functions ONLY from the
         // zone it opts into: Cycling (`activateFromHand`) from the hand, Ashen
         // Ghoul (`activateFromGraveyard`) from the graveyard. Neither is a
@@ -818,6 +842,17 @@ export function getGraveyardStackAbilities(
             if (!a.activateFromGraveyard || !a.useStack || !a.oracleText) {
                 return false;
             }
+            // CR 602.1 / 605.1a (issue #1124) — Abeyance's "can't activate
+            // abilities that aren't mana abilities" lock also hides a
+            // graveyard-activated ability (Ashen Ghoul); the `activateAbility`
+            // mutation is the authoritative gate regardless of source zone.
+            if (
+                stateView.cannotActivateAbilitiesThisTurn?.includes(
+                    card.ownerId
+                )
+            ) {
+                return false;
+            }
             if (
                 a.activationPhaseRestriction &&
                 phase !== undefined &&
@@ -871,6 +906,17 @@ export function getHandStackAbilities(
     return (cardDef?.activatedAbilities ?? [])
         .filter((a) => {
             if (!a.activateFromHand || !a.useStack || !a.oracleText) {
+                return false;
+            }
+            // CR 602.1 / 605.1a (issue #1124) — Abeyance's "can't activate
+            // abilities that aren't mana abilities" lock also hides a
+            // hand-activated ability (Cycling); the `activateAbility` mutation
+            // is the authoritative gate regardless of source zone.
+            if (
+                stateView.cannotActivateAbilitiesThisTurn?.includes(
+                    card.ownerId
+                )
+            ) {
                 return false;
             }
             if (

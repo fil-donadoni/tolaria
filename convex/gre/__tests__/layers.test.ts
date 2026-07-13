@@ -7,6 +7,7 @@ import {
 import {
     getPlayer,
     resolveTopOfStack,
+    applySourceStaticEffects,
     type CardInstanceState,
     type GameState,
     type PlayerState,
@@ -18,11 +19,13 @@ import { projectPublicState } from "../../gameProjections";
 import { checkCounterAnnihilationSBA } from "../sba";
 import {
     castle,
+    crusade,
     lightningBolt,
     giantGrowth,
     badMoon,
     bogWraith,
 } from "../../cards/sets/lea";
+import { opalescence } from "../../cards/sets/uds";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -655,6 +658,75 @@ describe("CR 613.4 ordered P/T pipeline (set effects, ADR 0017)", () => {
         )!;
         expect(getEffectivePower(projected, slim)).toBe(1);
         expect(getEffectiveToughness(projected, slim)).toBe(3);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Opalescence — duplicate external "set P/T" CDA sources don't stack
+// (CR 613.4b / 613.7: multiple such effects resolve in timestamp order, the
+// latest one overwrites every earlier one entirely — never summed).
+// ---------------------------------------------------------------------------
+
+describe("multiple pt-cda sources on the same target (CR 613.4b — overwrite, not sum)", () => {
+    it("two Opalescences give the same P/T on a shared target as just one", () => {
+        const makeCrusade = (id: string) =>
+            makeCard({
+                id,
+                card: { id: crusade.id },
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+        const makeOpal = (id: string) =>
+            makeCard({
+                id,
+                card: { id: opalescence.id },
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+
+        const singleCrusade = makeCrusade("crusade-single");
+        const opal1 = makeOpal("opal-1");
+        const singleState = makeGameState({
+            players: [
+                makePlayer({
+                    id: "p1",
+                    battlefield: [opal1, singleCrusade],
+                }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        applySourceStaticEffects(singleState, opal1);
+
+        const doubleCrusade = makeCrusade("crusade-double");
+        const opal2 = makeOpal("opal-2");
+        const opal3 = makeOpal("opal-3");
+        const doubleState = makeGameState({
+            players: [
+                makePlayer({
+                    id: "p1",
+                    battlefield: [opal2, opal3, doubleCrusade],
+                }),
+                makePlayer({ id: "p2" }),
+            ],
+        });
+        applySourceStaticEffects(doubleState, opal2);
+        applySourceStaticEffects(doubleState, opal3);
+
+        // Crusade (mana value 2) is animated to base 2/2, then its own
+        // "White creatures get +1/+1" self-applies (it's now a white
+        // creature) → 3/3, with exactly ONE Opalescence in play.
+        expect(getEffectivePower(singleState, singleCrusade)).toBe(3);
+        expect(getEffectiveToughness(singleState, singleCrusade)).toBe(3);
+
+        // A SECOND Opalescence targeting the same Crusade must not double
+        // the base P/T contribution — same result as the single-Opalescence
+        // board, not 4/4 → 5/5.
+        expect(getEffectivePower(doubleState, doubleCrusade)).toBe(
+            getEffectivePower(singleState, singleCrusade)
+        );
+        expect(getEffectiveToughness(doubleState, doubleCrusade)).toBe(
+            getEffectiveToughness(singleState, singleCrusade)
+        );
     });
 });
 

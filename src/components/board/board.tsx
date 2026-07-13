@@ -289,6 +289,11 @@ export default function Board({
     const queuedEndTurn = state.queuedEndTurn;
     const combat = state.combat;
     const meleeCombat = state.meleeCombat;
+    // CR 602.1 / 605.1a (issue #1124) — Abeyance's turn-scoped "can't activate
+    // abilities that aren't mana abilities" lock, forwarded to
+    // `buildTriggerStateView` call sites via GameContext.
+    const cannotActivateAbilitiesThisTurn =
+        state.cannotActivateAbilitiesThisTurn;
     const pendingTarget = state.pendingTarget;
     const pendingChoices = state.pendingChoices;
     const mulligan = state.mulligan;
@@ -345,6 +350,7 @@ export default function Board({
                 queuedEndTurn,
                 combat,
                 meleeCombat,
+                cannotActivateAbilitiesThisTurn,
                 gameOver,
                 allPlayers,
                 phasedOutCards,

@@ -2327,6 +2327,12 @@ function tickAllDurations(state: GameState): void {
     if (view.phase === "CLEANUP" && state.cannotCastSpellsThisTurn) {
         state.cannotCastSpellsThisTurn = undefined;
     }
+    // CR 602.1 / 605.1a / 514.2 (issue #1124) — a turn-scoped per-player "can't
+    // activate abilities that aren't mana abilities" lock (Abeyance) expires at
+    // end of turn, same CLEANUP-only boundary as the cast lock above.
+    if (view.phase === "CLEANUP" && state.cannotActivateAbilitiesThisTurn) {
+        state.cannotActivateAbilitiesThisTurn = undefined;
+    }
     // ICE Gaze of Pain — the "until end of turn" floating rider expires.
     if (state.gazeOfPainActiveThisTurn) {
         state.gazeOfPainActiveThisTurn = undefined;

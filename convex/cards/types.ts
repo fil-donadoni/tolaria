@@ -2122,11 +2122,20 @@ export interface SpellContext {
     preventAllCombatDamage: () => void;
     /** CR 601.3a — marks `playerId` unable to cast spells for the remainder of
      *  this turn (Xantid Swarm's "defending player can't cast spells this
-     *  turn"). A turn-scoped per-player restriction, cleared at CLEANUP
-     *  (CR 514.2); unlike a permanent-sourced `cast-restriction` static it does
-     *  not revert when a source leaves play. Enforced by the shared cast gate
-     *  `castProhibitionReason` (read by the GRE and the client alike). */
-    restrictSpellCasting: (playerId: string) => void;
+     *  turn"; Abeyance passes `cardTypes: ["Instant", "Sorcery"]` to narrow the
+     *  lock to those types instead of every spell). A turn-scoped per-player
+     *  restriction, cleared at CLEANUP (CR 514.2); unlike a permanent-sourced
+     *  `cast-restriction` static it does not revert when a source leaves play.
+     *  Enforced by the shared cast gate `castProhibitionReason` (read by the
+     *  GRE and the client alike). */
+    restrictSpellCasting: (playerId: string, cardTypes?: CardType[]) => void;
+    /** CR 602.1 / 605.1a — marks `playerId` unable to activate abilities that
+     *  aren't mana abilities for the remainder of this turn (Abeyance). A
+     *  turn-scoped per-player restriction, cleared at CLEANUP (CR 514.2).
+     *  Enforced directly in the `activateAbility` mutation (`convex/game.ts`),
+     *  which only ever handles non-mana (`useStack: true`) abilities — mana
+     *  abilities go through `tapUntap` and are structurally unaffected. */
+    restrictAbilityActivation: (playerId: string) => void;
     /** Replaces the mana produced by `playerId`'s LANDS with {U} until end of
      *  turn (CR 614 — Deep Water: "if you tap a land you control for mana, it
      *  produces {U} instead of any other type"). The same total quantity of mana
@@ -4931,6 +4940,12 @@ export interface TriggerStateView {
      *  without waiting for resolve — Osai Vultures' end-step intervening-if
      *  reads it. Mirrors `GameState.deathsThisTurn`; undefined defaults to 0. */
     deathsThisTurn?: number;
+    /** Player ids under Abeyance's turn-scoped "can't activate abilities that
+     *  aren't mana abilities" lock (CR 602.1 / 605.1a, issue #1124). Mirrors
+     *  `GameState.cannotActivateAbilitiesThisTurn`; exposed so `getStackAbilities`
+     *  (`src/lib/card-utils.ts`) can hide a controller's non-mana abilities as a
+     *  UI hint — the `activateAbility` mutation is the authoritative gate. */
+    cannotActivateAbilitiesThisTurn?: ReadonlyArray<string>;
     /** Source ids that currently hold an armed exile-and-return bundle
      *  (ADR 0028). The bundle's existence is the "delayed trigger is armed"
      *  flag: a return trigger (Tawnos's Coffin's leaves/untaps) gates its
@@ -5787,8 +5802,25 @@ export type EffectOp =
      *  `SpellContext.restrictSpellCasting`, one execution path (ADR 0045): the
      *  player's id is added to `state.cannotCastSpellsThisTurn`, checked by the
      *  shared cast gate `castProhibitionReason` and cleared at CLEANUP
-     *  (CR 514.2). Skipped when the player cannot be resolved (CR 608.2b). */
-    | { op: "restrictCasting"; player: EffectPlayerRef }
+     *  (CR 514.2). Skipped when the player cannot be resolved (CR 608.2b).
+     *  `cardTypes` (issue #1124, Abeyance: "can't cast instant or sorcery
+     *  spells") optionally narrows the lock to the listed card types; omitted
+     *  forbids every spell (the original Xantid Swarm shape). */
+    | {
+          op: "restrictCasting";
+          player: EffectPlayerRef;
+          cardTypes?: CardType[];
+      }
+    /** CR 602.1 / 605.1a (issue #1124) — impose a turn-scoped "can't activate
+     *  abilities that aren't mana abilities" restriction on `player` (Abeyance).
+     *  A thin declarative skin over `SpellContext.restrictAbilityActivation`,
+     *  one execution path (ADR 0045): the player's id is added to
+     *  `state.cannotActivateAbilitiesThisTurn`, enforced directly by the
+     *  `activateAbility` mutation (`convex/game.ts`) — which only ever handles
+     *  non-mana abilities, so mana abilities need no separate exemption check —
+     *  and cleared at CLEANUP (CR 514.2). Skipped when the player cannot be
+     *  resolved (CR 608.2b). */
+    | { op: "restrictActivation"; player: EffectPlayerRef }
     /** CR 106.1 (issue #850) — add mana to a player's mana pool (a one-shot
      *  effect that produces mana: a ritual like Dark Ritual "Add {B}{B}{B}").
      *  A thin declarative skin over the SpellContext mana-add primitives

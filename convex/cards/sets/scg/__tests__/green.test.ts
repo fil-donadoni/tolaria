@@ -80,7 +80,9 @@ describe("Xantid Swarm (SCG, CR 601.3a — defending player can't cast spells th
         resolveAttackTrigger(state, swarm);
         // "opponent" = the non-controller of the trigger (the defending
         // player), CR 102.2.
-        expect(state.cannotCastSpellsThisTurn).toEqual(["p2"]);
+        expect(state.cannotCastSpellsThisTurn).toEqual([
+            { playerId: "p2", cardTypes: undefined },
+        ]);
     });
 
     it("the shared cast gate rejects the defending player's spell (GRE + client agree)", () => {
@@ -110,7 +112,9 @@ describe("Xantid Swarm (SCG, CR 601.3a — defending player can't cast spells th
         const { state, swarm } = boardWithSwarm();
         resolveAttackTrigger(state, swarm);
         const projected = projectPublicState(state, 1, "p2");
-        expect(projected.cannotCastSpellsThisTurn).toEqual(["p2"]);
+        expect(projected.cannotCastSpellsThisTurn).toEqual([
+            { playerId: "p2", cardTypes: undefined },
+        ]);
         // The projected hand card p2 sees carries no "cast" affordance.
         const projectedBolt = projected.players[1].hand.find(
             (c) => c?.id === "bolt-1"
@@ -122,13 +126,17 @@ describe("Xantid Swarm (SCG, CR 601.3a — defending player can't cast spells th
         const { state, swarm } = boardWithSwarm();
         resolveAttackTrigger(state, swarm);
         state.stack = [];
-        expect(state.cannotCastSpellsThisTurn).toEqual(["p2"]);
+        expect(state.cannotCastSpellsThisTurn).toEqual([
+            { playerId: "p2", cardTypes: undefined },
+        ]);
         // The duration tick also runs at END_OF_COMBAT (CR 511.3) — the lock
         // must NOT clear there, or the defending player could cast in the
         // postcombat main phase.
         state.phase = "END_OF_COMBAT";
         finalizeCleanup(state);
-        expect(state.cannotCastSpellsThisTurn).toEqual(["p2"]);
+        expect(state.cannotCastSpellsThisTurn).toEqual([
+            { playerId: "p2", cardTypes: undefined },
+        ]);
         // At the CLEANUP boundary the lock finally lifts (CR 514.2).
         state.phase = "CLEANUP";
         finalizeCleanup(state);

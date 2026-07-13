@@ -125,14 +125,14 @@ describe("castProhibitionReason (client-side cast gate, CR 601.3a)", () => {
         expect(
             castProhibitionReason("p2", creatureSpell as never, {
                 players: board as never,
-                cannotCastSpellsThisTurn: ["p2"],
+                cannotCastSpellsThisTurn: [{ playerId: "p2" }],
             })
         ).toBeDefined();
         // The lock is per-player: the attacker (p1) is unaffected.
         expect(
             castProhibitionReason("p1", creatureSpell as never, {
                 players: board as never,
-                cannotCastSpellsThisTurn: ["p2"],
+                cannotCastSpellsThisTurn: [{ playerId: "p2" }],
             })
         ).toBeUndefined();
         // Not locked (empty list) → casts freely.
@@ -142,5 +142,29 @@ describe("castProhibitionReason (client-side cast gate, CR 601.3a)", () => {
                 cannotCastSpellsThisTurn: [],
             })
         ).toBeUndefined();
+    });
+
+    // Abeyance's typed cast lock (CR 601.3a, issue #1124) — `cardTypes`
+    // narrows the lock to the listed printed types instead of every spell.
+    it("Abeyance: a typed lock only blocks the listed card types", () => {
+        const board = [player("p1", []), player("p2", [])];
+        // A Creature spell is unaffected by an instant/sorcery-only lock.
+        expect(
+            castProhibitionReason("p2", creatureSpell as never, {
+                players: board as never,
+                cannotCastSpellsThisTurn: [
+                    { playerId: "p2", cardTypes: ["Instant", "Sorcery"] },
+                ],
+            })
+        ).toBeUndefined();
+        // The same lock forbids the listed type.
+        expect(
+            castProhibitionReason("p2", creatureSpell as never, {
+                players: board as never,
+                cannotCastSpellsThisTurn: [
+                    { playerId: "p2", cardTypes: ["Creature"] },
+                ],
+            })
+        ).toBeDefined();
     });
 });

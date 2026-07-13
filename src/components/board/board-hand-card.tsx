@@ -82,6 +82,7 @@ export default function BoardHandCard({
         pendingCast,
         pendingActivation,
         pendingTarget,
+        cannotActivateAbilitiesThisTurn,
     } = useGameContext();
     const activateAbility = useMutation(api.game.activateAbility);
     const bufferCtx = usePendingChoiceBuffer();
@@ -127,7 +128,11 @@ export default function BoardHandCard({
             ? getHandStackAbilities(
                   card,
                   phase,
-                  buildTriggerStateView(allPlayers, activePlayerId)
+                  buildTriggerStateView(
+                      allPlayers,
+                      activePlayerId,
+                      cannotActivateAbilitiesThisTurn
+                  )
               )
             : [];
 

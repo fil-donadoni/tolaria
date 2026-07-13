@@ -1669,8 +1669,20 @@ describe("optional field round-trip smoke tests", () => {
 
     it("cannotCastSpellsThisTurn (Xantid Swarm, CR 601.3a / 514.2)", () => {
         const state = freshState();
-        state.cannotCastSpellsThisTurn = ["p2"];
-        expect(roundTrip(state).cannotCastSpellsThisTurn).toEqual(["p2"]);
+        state.cannotCastSpellsThisTurn = [
+            { playerId: "p2", cardTypes: ["Instant", "Sorcery"] },
+        ];
+        expect(roundTrip(state).cannotCastSpellsThisTurn).toEqual([
+            { playerId: "p2", cardTypes: ["Instant", "Sorcery"] },
+        ]);
+    });
+
+    it("cannotActivateAbilitiesThisTurn (Abeyance, CR 602.1 / 514.2, issue #1124)", () => {
+        const state = freshState();
+        state.cannotActivateAbilitiesThisTurn = ["p2"];
+        expect(roundTrip(state).cannotActivateAbilitiesThisTurn).toEqual([
+            "p2",
+        ]);
     });
 
     it("combatDamageRedirectToPermanent (Kjeldoran Royal Guard, CR 614.6)", () => {

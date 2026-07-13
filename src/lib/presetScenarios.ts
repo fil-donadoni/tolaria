@@ -78,28 +78,6 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 2,
     },
     {
-        // Obliterate — "This spell can't be countered." (CR 701.5c, #1065).
-        // Cast Obliterate; the opponent has Counterspell ready in hand and
-        // enough mana to cast it targeting Obliterate on the stack (a legal
-        // target — shroud/hexproof-style targeting restrictions do NOT apply
-        // here, per the official ruling: "Counterspells can be cast that
-        // target it, but when they resolve they simply don't counter it
-        // since it can't be countered."). Resolving the opponent's
-        // Counterspell demonstrates the fizzle: Obliterate stays on the
-        // stack and then resolves normally, wiping both battlefields.
-        label: "Obliterate can't be countered (#1065) — opponent's Counterspell fizzles",
-        cards: [
-            { name: "Obliterate", owner: "me", zone: "hand" },
-            { name: "Mountain", owner: "me", zone: "battlefield", count: 8 },
-            { name: "Counterspell", owner: "opp", zone: "hand" },
-            { name: "Island", owner: "opp", zone: "battlefield", count: 2 },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
         // Domain payoff board (issue #1066): all five basic land types in play
         // for "me" (Domain 5) so every Domain-scaled effect is at its maximum.
         // Kavu Scout is already sitting at 5/2 (+5/+0); Power Armor is ready to
@@ -141,6 +119,10 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         label: "Replenish (#1056) — return all enchantments from graveyard at once",
         cards: [
             { name: "Replenish", owner: "me", zone: "hand" },
+            { name: "Llanowar Elves", owner: "me", zone: "battlefield" },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+            { name: "Unholy Strength", owner: "me", zone: "graveyard" },
+            { name: "Warp Artifact", owner: "me", zone: "graveyard" },
             { name: "Plains", owner: "me", zone: "battlefield", count: 4 },
             { name: "Crusade", owner: "me", zone: "graveyard" },
             { name: "Castle", owner: "me", zone: "graveyard" },

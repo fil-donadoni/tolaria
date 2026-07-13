@@ -78,6 +78,7 @@ export function useBattlefieldInteraction(player: Player) {
         combat,
         meleeCombat,
         allPlayers,
+        cannotActivateAbilitiesThisTurn,
     } = useGameContext();
     const isMe = player.id === playerId;
     // Melee (#669) — under `meleeCombat` the attacking (active) player declares
@@ -516,7 +517,11 @@ export function useBattlefieldInteraction(player: Player) {
         // seven-card hand, Pestilence's creature-present, Nettling Imp's
         // active-player check) evaluate correctly as a UI hint (#436). Server
         // validation against the full GameState remains authoritative.
-        const stateView = buildTriggerStateView(allPlayers, activePlayerId);
+        const stateView = buildTriggerStateView(
+            allPlayers,
+            activePlayerId,
+            cannotActivateAbilitiesThisTurn
+        );
         // CR 113.3c — on an OPPONENT's permanent, the viewer may only activate
         // "any player may activate" abilities, and only while holding priority.
         // Controller-only abilities and mana abilities stay hidden there.

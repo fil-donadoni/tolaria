@@ -863,11 +863,20 @@ export const OP_EXECUTORS: {
     },
     // CR 601.3a (issue #1057) — impose a turn-scoped per-player "can't cast
     // spells this turn" restriction (Xantid Swarm locks the defending player via
-    // `player: "opponent"`). Skipped when the player is gone (CR 608.2b).
+    // `player: "opponent"`; Abeyance, issue #1124, narrows it via `cardTypes`).
+    // Skipped when the player is gone (CR 608.2b).
     restrictCasting(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
-        ctx.restrictSpellCasting(playerId);
+        ctx.restrictSpellCasting(playerId, op.cardTypes);
+    },
+    // CR 602.1 / 605.1a (issue #1124) — impose a turn-scoped per-player "can't
+    // activate abilities that aren't mana abilities" restriction (Abeyance).
+    // Skipped when the player is gone (CR 608.2b).
+    restrictActivation(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.restrictAbilityActivation(playerId);
     },
     // CR 106.1 (issue #850) — add mana to a player's mana pool. A thin
     // declarative skin over the SpellContext primitive `addManaTo`, ONE

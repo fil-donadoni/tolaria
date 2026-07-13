@@ -12,6 +12,12 @@
         "firstSet": "tla"
     },
     {
+        "name": "Abeyance",
+        "scryfallId": "125a355d-bfcf-4125-aa6c-35e7dea6f63e",
+        "oracleId": "6300de53-6e71-4f0e-87e1-b0acd25c59a8",
+        "firstSet": "wth"
+    },
+    {
         "name": "Abrade",
         "scryfallId": "84319dfb-eaf7-4b98-8c4f-30f5e779591b",
         "oracleId": "f9db72dc-9a5b-48a4-a86e-7464d9a2166a",
@@ -5794,6 +5800,12 @@
         "scryfallId": "a89b2368-1180-4821-bcb8-8161c18e5538",
         "oracleId": "d19a19ed-33f9-400d-9669-c393d7127652",
         "firstSet": "ice"
+    },
+    {
+        "name": "Opalescence",
+        "scryfallId": "3c0071fb-afa5-47b5-b266-2b10a4f5a98a",
+        "oracleId": "59489b46-9d02-4f3c-bcd0-884e7605e9a5",
+        "firstSet": "uds"
     },
     {
         "name": "Opt",

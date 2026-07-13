@@ -1041,7 +1041,17 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     loseLife: { required: { player: isPlayerRef, amount: isEffectValue } },
     // CR 601.3a (issue #1057) — a turn-scoped per-player cast lock (Xantid
     // Swarm). `player` names whom to lock (the defending player via "opponent").
-    restrictCasting: { required: { player: isPlayerRef } },
+    // `cardTypes` (issue #1124, Abeyance) optionally narrows the lock to those
+    // card types; omitted forbids every spell.
+    restrictCasting: {
+        required: { player: isPlayerRef },
+        optional: {
+            cardTypes: (v: unknown) => isStringArray(v, TOKEN_CARD_TYPES),
+        },
+    },
+    // CR 602.1 / 605.1a (issue #1124) — a turn-scoped per-player "can't
+    // activate non-mana abilities" lock (Abeyance). `player` names whom to lock.
+    restrictActivation: { required: { player: isPlayerRef } },
     // CR 106.1 (issue #850) — add mana to a player's mana pool. `mana` is the
     // JSON-pure per-colour amount map (WUBRGC, positive integers); `player`
     // (optional) names whose pool (default the resolving controller).

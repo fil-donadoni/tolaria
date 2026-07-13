@@ -4,9 +4,10 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 // Imperial Seal — "Search your library for a card, then shuffle and put
 // that card on top. You lose 2 life." Blocked: same "put that card on top"
-// gap as Vampiric Tutor / Mystical Tutor — deferred to the `scryReorder`
-// backlog Op (mechanicsRegistry.ts, issue #885).
-// tracked-by: #885
+// gap as Vampiric Tutor / Mystical Tutor — no Op places an arbitrary
+// searched card on top of a library after a shuffle (`scryReorder`, #885,
+// reorders only the top N; the searched card sits at arbitrary depth).
+// tracked-by: #1125
 // export const imperialSeal: CardDefinition = {
 //     id: "822e30db-40c5-4099-868b-185ad9b7c7dc",
 //     name: "Imperial Seal",

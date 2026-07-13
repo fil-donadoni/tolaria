@@ -1476,7 +1476,9 @@ describe("Effect Script Op: restrictCasting (CR 601.3a, issue #1057)", () => {
         const state = makeState();
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
-        expect(state.cannotCastSpellsThisTurn).toEqual(["p2"]);
+        expect(state.cannotCastSpellsThisTurn).toEqual([
+            { playerId: "p2", cardTypes: undefined },
+        ]);
     });
 
     it("locks the announced player target", () => {
@@ -1488,7 +1490,9 @@ describe("Effect Script Op: restrictCasting (CR 601.3a, issue #1057)", () => {
         const state = makeState();
         pushSpell(state, id, "p1", [{ type: "player", id: "p1" }]);
         resolveTopOfStack(state);
-        expect(state.cannotCastSpellsThisTurn).toEqual(["p1"]);
+        expect(state.cannotCastSpellsThisTurn).toEqual([
+            { playerId: "p1", cardTypes: undefined },
+        ]);
     });
 
     it("is idempotent — a second resolution does not duplicate the id", () => {
@@ -1500,7 +1504,9 @@ describe("Effect Script Op: restrictCasting (CR 601.3a, issue #1057)", () => {
         resolveTopOfStack(state);
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
-        expect(state.cannotCastSpellsThisTurn).toEqual(["p1"]);
+        expect(state.cannotCastSpellsThisTurn).toEqual([
+            { playerId: "p1", cardTypes: undefined },
+        ]);
     });
 
     it("the cast lock survives projection (wire format)", () => {
@@ -1511,7 +1517,94 @@ describe("Effect Script Op: restrictCasting (CR 601.3a, issue #1057)", () => {
         pushSpell(state, id, "p1");
         resolveTopOfStack(state);
         const projected = projectPublicState(state, 1, "p2");
-        expect(projected.cannotCastSpellsThisTurn).toEqual(["p2"]);
+        expect(projected.cannotCastSpellsThisTurn).toEqual([
+            { playerId: "p2", cardTypes: undefined },
+        ]);
+    });
+
+    // issue #1124 (Abeyance) — the optional `cardTypes` filter narrows the
+    // lock to the listed card types instead of every spell.
+    it("with cardTypes, locks only the listed types (Abeyance: instant/sorcery)", () => {
+        const id = registerScript("test-op-restrict-typed", [
+            {
+                op: "restrictCasting",
+                player: "opponent",
+                cardTypes: ["Instant", "Sorcery"],
+            },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.cannotCastSpellsThisTurn).toEqual([
+            { playerId: "p2", cardTypes: ["Instant", "Sorcery"] },
+        ]);
+    });
+
+    it("a blanket lock (no cardTypes) always wins over a narrower one for the same player", () => {
+        const id = registerScript("test-op-restrict-widen", [
+            {
+                op: "restrictCasting",
+                player: "opponent",
+                cardTypes: ["Instant"],
+            },
+            { op: "restrictCasting", player: "opponent" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.cannotCastSpellsThisTurn).toEqual([
+            { playerId: "p2", cardTypes: undefined },
+        ]);
+    });
+});
+
+// New Op (issue #1124) → full per-Op regime: interpreter coverage of the
+// construct combinations it participates in (opponent / announced player
+// slot), plus a wire-format assertion through projectPublicState.
+describe("Effect Script Op: restrictActivation (CR 602.1 / 605.1a, issue #1124)", () => {
+    it("adds the opponent to state.cannotActivateAbilitiesThisTurn (Abeyance)", () => {
+        const id = registerScript("test-op-restrict-act-opp", [
+            { op: "restrictActivation", player: "opponent" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.cannotActivateAbilitiesThisTurn).toEqual(["p2"]);
+    });
+
+    it("locks the announced player target", () => {
+        const id = registerScript(
+            "test-op-restrict-act-target",
+            [{ op: "restrictActivation", player: { target: 0 } }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p1" }]);
+        resolveTopOfStack(state);
+        expect(state.cannotActivateAbilitiesThisTurn).toEqual(["p1"]);
+    });
+
+    it("is idempotent — a second resolution does not duplicate the id", () => {
+        const id = registerScript("test-op-restrict-act-idem", [
+            { op: "restrictActivation", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.cannotActivateAbilitiesThisTurn).toEqual(["p1"]);
+    });
+
+    it("the activation lock survives projection (wire format)", () => {
+        const id = registerScript("test-op-restrict-act-wire", [
+            { op: "restrictActivation", player: "opponent" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.cannotActivateAbilitiesThisTurn).toEqual(["p2"]);
     });
 });
 

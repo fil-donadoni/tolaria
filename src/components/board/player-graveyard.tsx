@@ -34,6 +34,7 @@ export default function PlayerGraveyard({
         phase,
         activePlayerId,
         allPlayers,
+        cannotActivateAbilitiesThisTurn,
     } = useGameContext();
     const selectTarget = useMutation(api.game.selectTarget);
     const bufferCtx = usePendingChoiceBuffer();
@@ -165,7 +166,8 @@ export default function PlayerGraveyard({
                                           phase,
                                           buildTriggerStateView(
                                               allPlayers,
-                                              activePlayerId
+                                              activePlayerId,
+                                              cannotActivateAbilitiesThisTurn
                                           )
                                       );
                                   if (graveyardAbilities.length > 0) {

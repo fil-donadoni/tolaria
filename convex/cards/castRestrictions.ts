@@ -86,13 +86,17 @@ export const CAST_RESTRICTION_CTX: StaticEffectContext = {
  *  client's `Player[]` satisfy this structurally. */
 export interface CastRestrictionStateView {
     players: ReadonlyArray<{ battlefield: ReadonlyArray<PermanentView> }>;
-    /** CR 601.3a / 514.2 — player ids under a turn-scoped "can't cast spells
-     *  this turn" lock (Xantid Swarm, issue #1057). A per-player turn flag set
-     *  by an effect and cleared at CLEANUP — distinct from the battlefield-
-     *  scanned, permanent-sourced `cast-restriction` statics below. Survives the
-     *  wire projection (`projectPublicState` spreads it), so the client's cast
-     *  gate reads it too. */
-    cannotCastSpellsThisTurn?: readonly string[];
+    /** CR 601.3a / 514.2 — players under a turn-scoped "can't cast spells this
+     *  turn" lock (Xantid Swarm, issue #1057; Abeyance narrows it via
+     *  `cardTypes`, issue #1124). A per-player turn flag set by an effect and
+     *  cleared at CLEANUP — distinct from the battlefield-scanned,
+     *  permanent-sourced `cast-restriction` statics below. Survives the wire
+     *  projection (`projectPublicState` spreads it), so the client's cast gate
+     *  reads it too. An omitted/empty `cardTypes` forbids every spell. */
+    cannotCastSpellsThisTurn?: ReadonlyArray<{
+        playerId: string;
+        cardTypes?: readonly CardType[];
+    }>;
 }
 
 /** Scans EVERY permanent on the battlefield for `cast-restriction` static
@@ -106,13 +110,23 @@ export function castProhibitionReason(
     state: CastRestrictionStateView
 ): string | undefined {
     // CR 601.3a (issue #1057) — a turn-scoped per-player cast lock (Xantid
-    // Swarm: "defending player can't cast spells this turn"). Unlike the
+    // Swarm: "defending player can't cast spells this turn"; Abeyance, issue
+    // #1124, narrows it to instant/sorcery via `cardTypes`). Unlike the
     // permanent-sourced statics scanned below, this is a PlayerState-turn flag
     // set by an effect and cleared at CLEANUP (CR 514.2), so it is checked
     // directly rather than via a battlefield scan. Lands are unaffected —
     // rules.ts only calls this on the spell-cast path, never on land plays.
-    if (state.cannotCastSpellsThisTurn?.includes(casterId)) {
-        return "That player can't cast spells this turn.";
+    const lock = state.cannotCastSpellsThisTurn?.find(
+        (e) => e.playerId === casterId
+    );
+    if (lock) {
+        const printedTypes = CAST_RESTRICTION_CTX.getPrintedTypes(spell);
+        if (
+            !lock.cardTypes ||
+            lock.cardTypes.some((t) => printedTypes.includes(t))
+        ) {
+            return "That player can't cast spells this turn.";
+        }
     }
     for (const player of state.players) {
         for (const source of player.battlefield) {
