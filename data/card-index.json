@@ -7806,6 +7806,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Solitary Confinement",
+        "scryfallId": "e7a8eb7a-eb3f-405e-8f44-d8ea64d76386",
+        "oracleId": "d41ab41d-07c8-4f6d-be5e-7aec9f5f6365",
+        "firstSet": "jud"
+    },
+    {
         "name": "Songs of the Damned",
         "scryfallId": "6cff3547-8c72-439a-91fe-ebe729dab748",
         "oracleId": "39419d29-47e7-4d71-953b-96a2e14ae964",
