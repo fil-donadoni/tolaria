@@ -1373,6 +1373,26 @@ export interface SpellContext {
         fromZone: "graveyard" | "exile",
         controllerId?: string
     ) => boolean;
+    /** CR 400.7 / 614-batch (issue #1094) — the SIMULTANEOUS twin of
+     *  `returnToBattlefield`: returns a whole set of graveyard cards to the
+     *  battlefield as ONE event, not N sequential calls. Every entry is
+     *  staged onto the battlefield (or Aura-attached, CR 303.4c) BEFORE any
+     *  of them runs its grant-application / ETB pass, so no returned
+     *  permanent's static-effect grants or "enters the battlefield" trigger
+     *  observe only a partial subset of its siblings. Backs the `forEach {
+     *  set: "graveyard" }, simultaneous: true` DSL shape (Replenish); a mass
+     *  reanimation across multiple players' graveyards (Living Death) passes
+     *  each entry's own `playerId`. `controllerId` — when given — redirects
+     *  EVERY entry the same way `returnToBattlefield`'s 4th argument does;
+     *  omitted defaults each entry to its own owner. An entry no longer in
+     *  its named graveyard at resolution is silently skipped (CR 608.2b).
+     *  Returns the cardInstanceIds that actually entered the battlefield —
+     *  excludes vanished entries and a hostless Aura (CR 303.4c: no legal
+     *  object to enchant, even among its own reanimating siblings). */
+    returnGraveyardSetToBattlefield: (
+        entries: { playerId: string; cardInstanceId: string }[],
+        controllerId?: string
+    ) => string[];
     /** Library tutor → battlefield primitive (CR 400.7 zone change, ADR
      *  0027). Moves a card a player owns from their library onto their
      *  battlefield — the destination half of a search effect whose search
@@ -6432,8 +6452,26 @@ export type EffectOp =
      *  actions apply as soon as they resolve (sequential), not batched
      *  simultaneously after all choices (CR 101.4d timing) — visible only
      *  when a later chooser's options depend on an earlier iteration's
-     *  action. `forEach` does not nest (the validator rejects it). */
-    | { op: "forEach"; select: EffectForEachSelector; effects: EffectOp[] }
+     *  action. `forEach` does not nest (the validator rejects it).
+     *
+     *  `simultaneous` (CR 400.7 / 614-batch, issue #1094) — ONLY valid over a
+     *  `{ set: "graveyard" }` selector, and ONLY with the canonical
+     *  single-Op reanimation body `[{ op: "moveZone", target: { ref: "$each"
+     *  }, to: "battlefield" }]` (optionally `controller`). When set, the
+     *  interpreter bypasses the normal per-member `runOpList` walk entirely
+     *  and hands the WHOLE frozen member set to
+     *  `SpellContext.returnGraveyardSetToBattlefield` in one call, so every
+     *  reanimated permanent enters as a single event — none of their static-
+     *  effect grants or ETB triggers observe only some of the others already
+     *  on the battlefield (Replenish; Living Death would set it too).
+     *  Omitted/false keeps the original sequential per-member walk (the only
+     *  behavior every OTHER `forEach` selector still has). */
+    | {
+          op: "forEach";
+          select: EffectForEachSelector;
+          effects: EffectOp[];
+          simultaneous?: boolean;
+      }
     /** CR 104.2a — set the DESIGNATED player as the winner, through the SAME
      *  `state.gameOver` seam State-Based Actions use (issue #1066, Coalition
      *  Victory). A thin declarative skin over `SpellContext.winGame`, one

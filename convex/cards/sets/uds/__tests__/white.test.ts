@@ -36,8 +36,41 @@ registerTokenDefinition({
     toughness: 1,
 });
 
+// An Aura fixture (CR 303.4c) — needs a legal host to enter at all.
+const AURA_ID = "uds-test-aura";
+registerTokenDefinition({
+    id: AURA_ID,
+    name: AURA_ID,
+    rarity: "common",
+    manaCost: { W: 1 },
+    types: ["Enchantment"],
+    subtypes: ["Aura"],
+    targetRequirement: { type: "Creature", count: 1 },
+});
+
+// An enchantment creature — swept by Replenish's Enchantment filter AND a
+// legal creature host for the Aura, so it can host an Aura reanimated in the
+// SAME simultaneous event (CR 400.7 / 614-batch, issue #1094).
+const ENCH_CREATURE_ID = "uds-test-ench-creature";
+registerTokenDefinition({
+    id: ENCH_CREATURE_ID,
+    name: ENCH_CREATURE_ID,
+    rarity: "common",
+    manaCost: { W: 2 },
+    types: ["Enchantment", "Creature"],
+    power: 2,
+    toughness: 2,
+});
+
 const gyEnchant = (id: string) =>
     makeInstance(ENCH_ID, {
+        id,
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "graveyard",
+    });
+const gyCard = (cardId: string, id: string) =>
+    makeInstance(cardId, {
         id,
         controllerId: "p1",
         ownerId: "p1",
@@ -89,5 +122,54 @@ describe("Replenish (CR 404 / 400.7 — bulk graveyard-set move, issue #1056)", 
         const slimBf = projected.players[0].battlefield.map((c) => c.id);
         expect(slimBf).toContain("ench-1");
         expect(slimBf).toContain("ench-2");
+    });
+
+    it("returns the whole set as ONE simultaneous event — a reanimated Aura attaches to an enchantment-creature returned in the same sweep (CR 400.7 / 614-batch, issue #1094)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [
+                        gyCard(AURA_ID, "rep-aura"),
+                        gyCard(ENCH_CREATURE_ID, "rep-host"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, replenish.id, "p1");
+        resolveTopOfStack(state);
+        const aura = state.players[0].battlefield.find(
+            (c) => c.id === "rep-aura"
+        );
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "rep-host")
+        ).toBe(true);
+        expect(aura?.attachedTo).toBe("rep-host");
+
+        // Wire format: the attachment survives projection.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimAura = projected.players[0].battlefield.find(
+            (c) => c.id === "rep-aura"
+        );
+        expect(slimAura?.attachedTo).toBe("rep-host");
+    });
+
+    it("an Aura with no legal host stays in the graveyard (CR 303.4c, issue #1094)", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    graveyard: [gyCard(AURA_ID, "rep-orphan")],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, replenish.id, "p1");
+        resolveTopOfStack(state);
+        expect(
+            state.players[0].battlefield.some((c) => c.id === "rep-orphan")
+        ).toBe(false);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "rep-orphan")
+        ).toBe(true);
     });
 });

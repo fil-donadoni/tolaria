@@ -4,23 +4,25 @@
 
 import type { CardDefinition } from "../../types";
 
-// CR 404 / 400.7 — a bulk graveyard-set sweep (issue #1056). "Return all
-// enchantment cards from your graveyard to the battlefield" is a `forEach` over
-// the controller's graveyard filtered to enchantments, each member reanimated by
-// a `moveZone { ref: "$each" } → battlefield` (no per-card choice). The frozen
-// member set is snapshotted once (CR 608.2i); a card leaving mid-resolution is
-// skipped (CR 608.2b).
+// CR 404 / 400.7 / 614-batch — a bulk graveyard-set sweep (issue #1056),
+// returned as ONE simultaneous event (issue #1094). "Return all enchantment
+// cards from your graveyard to the battlefield" is a `forEach` over the
+// controller's graveyard filtered to enchantments, `simultaneous: true`: the
+// interpreter hands the WHOLE frozen member set to
+// `SpellContext.returnGraveyardSetToBattlefield` in one call instead of
+// reanimating members one `moveZone` at a time, so no returned enchantment's
+// static-effect grants or "enters the battlefield" trigger observe only some
+// of the others already on the battlefield (Opalescence/Parallax-style
+// interactions). The frozen member set is snapshotted once (CR 608.2i); a
+// card leaving mid-resolution is skipped (CR 608.2b).
 //
-// KNOWN CR DEVIATIONS (tracked in issue #1094, not blockers for the
-// cube-relevant enchantment-permanent recursion this ships for):
-//  - Simultaneity: CR 400.7 / 614-batch returns all the cards as ONE event, so
-//    no returned enchantment's ETB sees the others already on the battlefield.
-//    The `forEach` reanimates one `moveZone` at a time, so a later card's ETB
-//    DOES observe earlier ones — divergent for Opalescence/Parallax-style
-//    interactions. Needs a batched simultaneous graveyard→battlefield primitive.
-//  - Aura-with-nothing-to-enchant: an Aura entering with no legal object stays
-//    in the graveyard (CR 303.4) — not yet modelled; such an Aura is currently
-//    reanimated regardless.
+// Aura-with-nothing-to-enchant (CR 303.4c, issue #1094): an Aura in the swept
+// set with no legal host — not even a non-Aura sibling entering as part of
+// this SAME event — stays in the graveyard rather than entering unattached.
+// SIMPLIFICATION: when more than one legal host exists, the batch primitive
+// auto-picks the first one (deterministic order) — no player choice is
+// modeled, matching this sweep's own "no per-card choice" design for which
+// enchantments return.
 export const replenish: CardDefinition = {
     id: "7fd2fe13-bbc0-42b7-bc42-3b51910ce118",
     rarity: "rare",
@@ -37,6 +39,7 @@ export const replenish: CardDefinition = {
                 controller: "controller",
                 filter: { type: "Enchantment" },
             },
+            simultaneous: true,
             effects: [
                 {
                     op: "moveZone",
