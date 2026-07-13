@@ -80,7 +80,7 @@ import {
     buildBoardAbilityDemands,
     buildHandSpellDemands,
 } from "./gre/autoTapDemands";
-import { isGuardedAgainst } from "./gre/permanentGuard";
+import { isGuardedAgainst, playerHasShroud } from "./gre/permanentGuard";
 import {
     findFlashbackCastable,
     getFlashbackAdditionalCost,
@@ -5974,6 +5974,16 @@ export const selectTarget = mutation({
                 !found.battlefield.some((c) => c.hasAttackedThisTurn)
             ) {
                 throw new Error("Target player did not attack this turn");
+            }
+            // CR 702.18 (applied to a player via CR 115.4) — a shrouded
+            // player can't be the target of spells or abilities. Mirror of
+            // the permanent branch's `isGuardedAgainst` gate above; no
+            // source narrowing (shroud bars every source, including the
+            // guarded player's own).
+            if (playerHasShroud(state, found.id)) {
+                throw new Error(
+                    "Target can't be the target of spells or abilities"
+                );
             }
         } else {
             // "spell" target (CR 114.1): must match a stack item.

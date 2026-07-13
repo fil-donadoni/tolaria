@@ -2786,6 +2786,18 @@ export interface SpellContext {
      *  given by `orderedIds` (CR 401). All ids must already be in the top N. */
     reorderLibraryTop: (playerId: string, orderedIds: string[]) => void;
 
+    /** CR 401.4 "put it on top of your library" (issue #1125) — the
+     *  tutor-to-top template: relocates specific card(s), by id, from
+     *  ANYWHERE in `playerId`'s library onto the top, preserving `orderedIds`'
+     *  order (index 0 ends up the very top). Unlike `reorderLibraryTop`, the
+     *  ids need NOT already sit within a known top-N window — a search
+     *  `choice` can pick a card from the whole library, and the shuffle that
+     *  precedes this call (Vampiric Tutor's "then shuffle") can leave it
+     *  anywhere. An id no longer present is silently skipped (CR 608.2b). The
+     *  moved cards are marked known to `playerId` (ADR 0026 — the searcher
+     *  placed them there), mirroring `orderTop`'s "kept cards stay known". */
+    putLibraryCardsOnTop: (playerId: string, orderedIds: string[]) => void;
+
     /** The reusable ordered-top primitive behind the drag picker — Scry
      *  (CR 701.22), Surveil (CR 701.44) and order-only "put them back in any
      *  order" (Ponder / Index). Looks at the top `n` cards and raises an
@@ -4187,6 +4199,44 @@ export interface StaticPermanentGuard {
     controlCantChange?: boolean;
 }
 
+/** Continuous PLAYER-scoped shroud static effect (CR 702.18 applied to a
+ *  player via CR 115.4 — "You have shroud" / "can't be the target of spells
+ *  or abilities"). `StaticPermanentGuard` is per-permanent (`applies(target,
+ *  source, ctx)` re-evaluated against every candidate); a player has no
+ *  `staticAbilities` array to carry a keyword and no per-object identity to
+ *  match against, so this kind is player-scoped instead — mirroring how
+ *  `StaticHandSizeOverride` is player-scoped rather than per-permanent. The
+ *  reader, `playerHasShroud` (`convex/gre/permanentGuard.ts`), walks every
+ *  battlefield (the guard can be granted by a permanent EITHER player
+ *  controls) looking for a `player-guard` effect whose `appliesTo` resolves
+ *  to the queried player id, evaluated live (CR 611.2) — no per-instance
+ *  apply/unapply bookkeeping, the same live-query model `isGuardedAgainst`
+ *  uses for permanents.
+ *
+ *  First consumer: Solitary Confinement ("You have shroud") — the blocked-by
+ *  child of issue #1058 / #1128. No shipped card declares this kind yet. */
+export interface StaticPlayerGuard {
+    kind: "player-guard";
+    /** Stable id (for debugging / oracle tracing). */
+    id: string;
+    /** CR 702.18 shroud / CR 115.4 — "can't be the target of spells or
+     *  abilities". Kept as an explicit boolean (not inferred from `kind`),
+     *  mirroring `StaticPermanentGuard`'s clause-per-boolean shape, so a
+     *  future player-scoped guard clause can be added without a breaking
+     *  shape change. Unlike hexproof (CR 702.11b, controller-relative),
+     *  shroud has no source-controller exception — it bars EVERY source,
+     *  including the guarded player's own spells/abilities. */
+    cantBeTargeted?: boolean;
+    /** Whose shroud this is. Defaults to `"controller"` (the source
+     *  permanent's controller — "You have shroud", read directly off the
+     *  card that grants it). `"chosen-player"` mirrors
+     *  `StaticHandSizeOverride`'s Cursed-Rack-style shape for a future card
+     *  that grants shroud to a player OTHER than its own controller
+     *  (resolved via the source instance's stored `chosenPlayerId`); no
+     *  shipped card uses this branch yet. */
+    appliesTo?: "controller" | "chosen-player";
+}
+
 /** Read-only board + combat view passed to a `combat-damage-prevention`
  *  predicate. Extends the layer-system `StaticEffectStateView` (so the
  *  predicate can scan every battlefield for an Aura attached to the damage
@@ -4305,6 +4355,7 @@ export type StaticEffect =
     | StaticAdditionalCost
     | StaticManaSubstitution
     | StaticPermanentGuard
+    | StaticPlayerGuard
     | StaticCombatDamagePrevention
     | StaticKeywordRemove
     | StaticAbilityLoss
@@ -5923,13 +5974,26 @@ export type EffectOp =
      *  routes through `returnToBattlefield` (owner control, same as the
      *  `target`-shape above); every other destination is the existing generic
      *  `moveCardById` branch (already used with a graveyard source
-     *  elsewhere). */
+     *  elsewhere). `to: "library-top"` (issue #1125) is the tutor-to-top
+     *  template — "Search your library for a card, then shuffle and put that
+     *  card on top" (Vampiric Tutor, Mystical Tutor, Imperial Seal, Sterling
+     *  Grove): routes through `SpellContext.putLibraryCardsOnTop`, which
+     *  relocates the picked id(s) from ANYWHERE in the library (not just a
+     *  known top-N window) onto the top, preserving pick order. Valid ONLY
+     *  with `from: "library"` (validator-enforced) — pair with a PRECEDING
+     *  `libraryLook`(shuffle) Op, per every real tutor-to-top oracle text's
+     *  "then shuffle and put that card on top" ordering: the found card stays
+     *  in the library through the shuffle (mathematically equivalent to
+     *  setting it aside first, since a full shuffle including it then
+     *  relocating it to the front yields the same distribution as shuffling
+     *  the remainder and placing it on top), then this Op moves it to the
+     *  front. */
     | {
           op: "moveZone";
           cards: EffectRef;
           player: EffectPlayerRef;
           from: "library" | "hand" | "graveyard";
-          to: EffectMoveZone;
+          to: EffectMoveZone | "library-top";
           tapped?: boolean;
       }
     /** CR 613.4c (layer 7c, issue #840) — a temporary P/T modification that

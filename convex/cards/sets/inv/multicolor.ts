@@ -14,6 +14,7 @@ import type {
     EffectOp,
     PermanentView,
     SpellContext,
+    StaticKeywordGrant,
 } from "../../types";
 import {
     AURA_AFFECTS_HOST,
@@ -1395,33 +1396,6 @@ export const viciousKavu: CardDefinition = {
 // automatic mana-value sweep. Both halves are blocked on capabilities that
 // don't exist.)
 
-// Sterling Grove — {G}{W} Enchantment. "Other enchantments you control have
-// shroud. {1}, Sacrifice this enchantment: Search your library for an
-// enchantment card, reveal it, then shuffle and put that card on top."
-// The static half IS buildable now: a `permanent-guard` staticEffect on
-// Grove's own def (`isGuardedAgainst` scans every battlefield def, so the
-// guard needn't live on the granted card) with `applies: target is an
-// Enchantment && target.id !== source.id && same controller`, paired with a
-// `keyword-grant` for the "shroud" display string — the printed-shroud
-// pattern (Blurred Mongoose inv/green.ts) applied to OTHER permanents.
-// Blocked on the activated half: "shuffle and put that card on top" is the
-// same choice-driven put-a-searched-card-on-top-after-shuffle gap as
-// Vampiric Tutor / Mystical Tutor / Imperial Seal — no Op places an
-// arbitrary searched card on top of a library (`moveCardById` library →
-// library is a `from === to` no-op; `scryReorder` reorders only the top N).
-// The card is atomic: shipping the shroud grant with a dead activated
-// ability is the "shipped but dead" anti-pattern, so the whole card waits.
-// Not a `resolve()` card — the missing Op is the stop-and-issue case, not
-// the escape hatch.
-// tracked-by: #1125
-// export const sterlingGrove: CardDefinition = {
-//     id: "40b26aa3-8169-4978-9554-bd2fc8e18e3b",
-//     name: "Sterling Grove",
-//     rarity: "uncommon",
-//     manaCost: { G: 1, W: 1 },
-//     types: ["Enchantment"],
-// };
-
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche — RG (issue #1078, parent PRD #1063)
 // ─────────────────────────────────────────────────────────────────────────
@@ -1990,8 +1964,9 @@ export const shivanOasis: CardDefinition = {
 // The GW colour-identity cluster (MTGJSON `colors` field, exact {G,W} pips)
 // is 12 cards. All 12 are TRUE gold — no cross-colour mono-cost outliers
 // this pair (unlike BR/RG's Hooded Kavu/Bloodstone Cameo shape) — `colors`
-// omitted below, derived from the pips (CR 202.2). 10 ship free; 2 are
-// deferred (Dueling Grounds, Sterling Grove) — see the section below.
+// omitted below, derived from the pips (CR 202.2). 11 ship free (Sterling
+// Grove shipped with issue #1125's tutor-to-top Op — see the end of this
+// file); Dueling Grounds is deferred — see the section below.
 
 // Armadillo Cloak — {1}{G}{W} Enchantment — Aura. "Enchant creature.
 // Enchanted creature gets +2/+2 and has trample. Whenever enchanted
@@ -2354,8 +2329,22 @@ export const sabertoothNishoba: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Deferred (engine capability gaps) — GW (issue #1079)
+// GW (issue #1125 — unblocked by the tutor-to-top `moveZone` destination)
 // ─────────────────────────────────────────────────────────────────────────
+
+// Sterling Grove — other enchantments you control affected by this static
+// effect (excludes Sterling Grove itself and any enchantment a different
+// player controls). Shared `applies` predicate for both the cosmetic
+// `keyword-grant` (staticAbilities display) and the enforcing
+// `permanent-guard` (CR 702.18 shroud — `cantBeTargeted`), mirroring the
+// shroud dominant-enforcement pattern (mechanicsRegistry.ts's "shroud" row)
+// but scoped to OTHER permanents instead of self, precedent Elvish
+// Champion's own-type lord anthem (`inv/green.ts`).
+const STERLING_GROVE_AFFECTS_OTHER_ENCHANTMENTS: StaticKeywordGrant["applies"] =
+    (target, source) =>
+        target.id !== source.id &&
+        target.types.includes("Enchantment") &&
+        target.controllerId === source.controllerId;
 
 // Sterling Grove — {G}{W} Enchantment. "Other enchantments you control have
 // shroud. (They can't be the targets of spells or abilities.)\n{1},
@@ -3347,3 +3336,73 @@ export const thunderscapeMaster: CardDefinition = {
 // "never ship silent partials" (PRD #1063) means the whole card waits for
 // the same `moveZone`-to-library extension Sunscape Apprentice is already
 // tracked against.)
+// shroud. (They can't be the targets of spells or abilities.) {1}, Sacrifice
+// this enchantment: Search your library for an enchantment card, reveal it,
+// then shuffle and put that card on top." (CR 611/613 layer 6 keyword grant
+// + CR 702.18 shroud enforcement, scoped to "other enchantments you
+// control"; CR 701.19 search / 701.20 reveal + shuffle / 401.4
+// top-of-library, issue #1125.) The static half pairs a `keyword-grant`
+// (the reminder string) with a `permanent-guard` (`cantBeTargeted: true`,
+// the real CR-702.18-compliant enforcement `isGuardedAgainst` reads) — the
+// SAME two-piece pattern every printed-shroud card uses, just both scoped
+// by `STERLING_GROVE_AFFECTS_OTHER_ENCHANTMENTS` instead of a self-applies
+// predicate. The activated half is the tutor-to-top template: `{1},
+// Sacrifice` as its entire cost (no tap), then
+// choice(search-library, filter Enchantment) → reveal → shuffle →
+// `library-top`.
+export const sterlingGrove: CardDefinition = {
+    id: "40b26aa3-8169-4978-9554-bd2fc8e18e3b",
+    name: "Sterling Grove",
+    rarity: "uncommon",
+    manaCost: { G: 1, W: 1 },
+    types: ["Enchantment"],
+    oracleText:
+        "Other enchantments you control have shroud. (They can't be the targets of spells or abilities.)\n{1}, Sacrifice this enchantment: Search your library for an enchantment card, reveal it, then shuffle and put that card on top.",
+    staticEffects: [
+        {
+            kind: "keyword-grant",
+            applies: STERLING_GROVE_AFFECTS_OTHER_ENCHANTMENTS,
+            keyword: "shroud",
+        },
+        {
+            kind: "permanent-guard",
+            id: "sterling-grove-shroud",
+            applies: STERLING_GROVE_AFFECTS_OTHER_ENCHANTMENTS,
+            cantBeTargeted: true,
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "sterling-grove-search",
+            oracleText:
+                "{1}, Sacrifice this enchantment: Search your library for an enchantment card, reveal it, then shuffle and put that card on top.",
+            cost: { mana: { X: 1 }, sacrifice: true },
+            useStack: true,
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { type: "Enchantment" },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for an enchantment card.",
+                    bind: "$picked",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$picked" },
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked" },
+                    player: "controller",
+                    from: "library",
+                    to: "library-top",
+                },
+            ],
+        },
+    ],
+};

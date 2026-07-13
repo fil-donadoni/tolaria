@@ -111,27 +111,6 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
-        // Replenish — bulk graveyard-set move (issue #1056, CR 404 / 400.7).
-        // Cast Replenish ({3}{W}) with four Plains untapped; it sweeps your
-        // graveyard and returns BOTH enchantment cards (Crusade + Castle) to the
-        // battlefield at once, with no per-card choice. The graveyard also holds
-        // a creature (Grizzly Bears) the enchantment filter leaves behind.
-        label: "Replenish (#1056) — return all enchantments from graveyard at once",
-        cards: [
-            { name: "Replenish", owner: "me", zone: "hand" },
-            { name: "Llanowar Elves", owner: "me", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-            { name: "Unholy Strength", owner: "me", zone: "graveyard" },
-            { name: "Warp Artifact", owner: "me", zone: "graveyard" },
-            { name: "Plains", owner: "me", zone: "battlefield", count: 4 },
-            { name: "Crusade", owner: "me", zone: "graveyard" },
-            { name: "Castle", owner: "me", zone: "graveyard" },
-            { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
         // Fact or Fiction — pile division (ADR 0053, issue #1067). Cast Fact
         // or Fiction with a stocked library so the top 5 reveal + divide (by
         // the opponent, "opp") + choose (by the caster, "me") + hand/graveyard
@@ -154,69 +133,23 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
-        // Phyrexian Infiltrator — exchange control (issue #1068, CR 701.12e /
-        // 611.2b / 613.1b). Four untapped Islands pay the {2}{U}{U} activation
-        // cost; activate targeting the opponent's Grizzly Bears to swap
-        // control indefinitely — Grizzly Bears comes to "me", Phyrexian
-        // Infiltrator goes to "opp".
-        label: "Phyrexian Infiltrator (#1068) — exchange control indefinitely",
+        // Vampiric Tutor — tutor-to-top (issue #1125, CR 701.19 / 701.20 /
+        // 401.4). Cast Vampiric Tutor with one Swamp untapped: search your
+        // library for a card (e.g. Lightning Bolt), then shuffle and put that
+        // card on top — the search-then-shuffle-then-top template exercised
+        // via the new `moveZone` `to: "library-top"` destination — then lose
+        // 2 life. `libraryCount` is intentionally UNSET (mirrors the Gaea's
+        // Blessing / Fact or Fiction scenarios above) so these seeded library
+        // entries stay the whole search space.
+        label: "Vampiric Tutor (#1125) — search, shuffle, put on top",
         cards: [
-            { name: "Phyrexian Infiltrator", owner: "me", zone: "battlefield" },
-            { name: "Island", owner: "me", zone: "battlefield", count: 4 },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            { name: "Vampiric Tutor", owner: "me", zone: "hand" },
+            { name: "Swamp", owner: "me", zone: "battlefield" },
+            { name: "Lightning Bolt", owner: "me", zone: "library" },
+            { name: "Grizzly Bears", owner: "me", zone: "library" },
+            { name: "Opt", owner: "me", zone: "library" },
         ],
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
-    },
-    {
-        // Blastoderm — Fading 3 (issue #676, CR 702.32, ADR 0054). One copy on
-        // the battlefield pre-seeded down to its LAST fade counter, and one in
-        // hand. Cast the hand copy to watch it enter with three fresh fade
-        // counters (implicit keyword expansion); pass to your next upkeep and
-        // the on-battlefield copy removes its last fade counter — the upkeep
-        // after that it can't, and sacrifices itself.
-        label: "Blastoderm (#676) — Fading 3 clock (last counter on board)",
-        cards: [
-            {
-                name: "Blastoderm",
-                owner: "me",
-                zone: "battlefield",
-                counters: { fade: 1 },
-            },
-            { name: "Blastoderm", owner: "me", zone: "hand" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 4,
-    },
-    {
-        // Deep Forest Hermit — Vanishing 3 (issue #676, CR 702.63, ADR 0054) +
-        // ETB four 1/1 Squirrels + "Squirrels you control get +1/+1" anthem.
-        // Cast the hand copy to watch it enter with three time counters and drop
-        // four 2/2 Squirrels (base 1/1 + anthem). Pass to successive upkeeps to
-        // strip the time counters; the upkeep the last one is removed the Hermit
-        // sacrifices itself — and the Squirrels revert to 1/1 as the anthem
-        // leaves with it.
-        label: "Deep Forest Hermit (#676) — Vanishing 3 + Squirrel anthem",
-        cards: [{ name: "Deep Forest Hermit", owner: "me", zone: "hand" }],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 5,
-    },
-    {
-        // Parallax Tide — the land-exiling half of the cycle (issue #676).
-        // Tide in play with five fade counters; a couple of opponent lands to
-        // exile and later return.
-        label: "Parallax Tide (#676) — remove fade counter: exile land",
-        cards: [
-            {
-                name: "Parallax Tide",
-                owner: "me",
-                zone: "battlefield",
-                counters: { fade: 5 },
-            },
-            { name: "Island", owner: "opp", zone: "battlefield" },
-            { name: "Island", owner: "opp", zone: "battlefield" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 4,
     },
 ];

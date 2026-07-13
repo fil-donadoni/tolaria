@@ -71,6 +71,7 @@ import {
     nightscapeMaster,
     thunderscapeApprentice,
     thunderscapeMaster,
+    sterlingGrove,
 } from "../multicolor";
 import {
     makeInstance,
@@ -105,6 +106,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
+import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 import {
     validateAttackerEligibility,
     mustAttack,
@@ -1966,6 +1968,37 @@ describe("Dromar, the Banisher (CR 702.9b flying + 510.4/603.2 combat-damage tri
         const greenGuy = makeInstance(grizzlyBears.id, {
             id: "green-guy",
             controllerId: "p2",
+describe("Sterling Grove (CR 611/613 layer 6 keyword grant + 702.18 Shroud, issue #1125)", () => {
+    // Builds a board with Sterling Grove + a second enchantment + a
+    // non-enchantment (all controlled by p1) and an opponent's enchantment.
+    // `angelicShield` is a plain non-Aura Enchantment (its own `pt-buff`
+    // static doesn't interfere with the guard); `grizzlyBears` is the
+    // non-enchantment control. The shroud grant is the real CR-702.18
+    // enforcement — a `permanent-guard` staticEffect read live by
+    // `isGuardedAgainst` (`cantBeTargeted`), the SAME path Blurred Mongoose's
+    // printed shroud uses (`inv/green.ts`), scoped by
+    // STERLING_GROVE_AFFECTS_OTHER_ENCHANTMENTS to OTHER enchantments the
+    // Grove's controller owns.
+    const makeBoard = () => {
+        const grove = makeInstance(sterlingGrove.id, {
+            id: "grove",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const otherEnch = makeInstance(angelicShield.id, {
+            id: "other-ench",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const myCreature = makeInstance(grizzlyBears.id, {
+            id: "my-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppEnch = makeInstance(angelicShield.id, {
+            id: "opp-ench",
+            controllerId: "p2",
+            ownerId: "p2",
         });
         const state = makeState({
             players: [
@@ -2398,5 +2431,87 @@ describe("Thunderscape Master (CR 119.3 life drain + 613.4c team pump, issue #10
         // The opponent's creature is untouched — "creatures YOU control".
         expect(getEffectivePower(state, foe)).toBe(2);
         expect(getEffectiveToughness(state, foe)).toBe(2);
+                    battlefield: [grove, otherEnch, myCreature],
+                }),
+                makePlayer("p2", { battlefield: [oppEnch] }),
+            ],
+        });
+        return { state, grove, otherEnch, myCreature, oppEnch };
+    };
+
+    // A spell/ability source; shroud is unfiltered (not controller-relative),
+    // so which player controls the source is irrelevant to the guard.
+    const SRC = { isSpell: true, controllerId: "p1" } as const;
+
+    it("declares the shroud keyword-grant + permanent-guard scoped to other enchantments", () => {
+        const grant = sterlingGrove.staticEffects?.find(
+            (e) => e.kind === "keyword-grant"
+        );
+        const guard = sterlingGrove.staticEffects?.find(
+            (e) => e.kind === "permanent-guard"
+        );
+        expect(grant).toBeDefined();
+        expect((grant as { keyword: string }).keyword).toBe("shroud");
+        expect(guard).toBeDefined();
+        expect((guard as { cantBeTargeted?: boolean }).cantBeTargeted).toBe(
+            true
+        );
+    });
+
+    it("grants shroud to another enchantment you control (cantBeTargeted true)", () => {
+        const { state, otherEnch } = makeBoard();
+        expect(
+            isGuardedAgainst(state, otherEnch, "cantBeTargeted", SRC)
+        ).toBe(true);
+    });
+
+    it("does NOT grant shroud to Sterling Grove itself (excludes self)", () => {
+        const { state, grove } = makeBoard();
+        expect(isGuardedAgainst(state, grove, "cantBeTargeted", SRC)).toBe(
+            false
+        );
+    });
+
+    it("does NOT grant shroud to an opponent's enchantment", () => {
+        const { state, oppEnch } = makeBoard();
+        expect(
+            isGuardedAgainst(state, oppEnch, "cantBeTargeted", SRC)
+        ).toBe(false);
+    });
+
+    it("does NOT grant shroud to a non-enchantment you control", () => {
+        const { state, myCreature } = makeBoard();
+        expect(
+            isGuardedAgainst(state, myCreature, "cantBeTargeted", SRC)
+        ).toBe(false);
+    });
+
+    // Wire format (mandatory for board-visible staticEffects, CLAUDE.md GRE
+    // testing convention): the guard reads the source's `staticEffects` off its
+    // `{ id }` and the target's live `types`/`controllerId`, all of which
+    // survive `projectPublicState` (only `card` is slimmed). Re-run the whole
+    // scoping matrix through the projection so a dropped instance field would
+    // fail here.
+    it("the shroud scoping survives projection (wire format)", () => {
+        const { state } = makeBoard();
+        const projected = projectPublicState(state, 1, "p2");
+        const p1bf = projected.players[0].battlefield;
+        const p2bf = projected.players[1].battlefield;
+        const pGrove = p1bf.find((c) => c.id === "grove")!;
+        const pOther = p1bf.find((c) => c.id === "other-ench")!;
+        const pBear = p1bf.find((c) => c.id === "my-bear")!;
+        const pOpp = p2bf.find((c) => c.id === "opp-ench")!;
+        expect(
+            isGuardedAgainst(projected, pOther, "cantBeTargeted", SRC)
+        ).toBe(true);
+        expect(
+            isGuardedAgainst(projected, pGrove, "cantBeTargeted", SRC)
+        ).toBe(false);
+        expect(
+            isGuardedAgainst(projected, pBear, "cantBeTargeted", SRC)
+        ).toBe(false);
+        expect(
+            isGuardedAgainst(projected, pOpp, "cantBeTargeted", SRC)
+        ).toBe(false);
     });
 });

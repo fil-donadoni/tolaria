@@ -104,7 +104,19 @@ export type ZonePickKind =
     // the same-name duplicates) and the rest go to their owners' graveyards.
     // An SBA-level choice (stackItemId === "") raised by `checkLegendRuleSBA`,
     // committed by `finalizeLegendKeep`.
-    | "legend-keep";
+    | "legend-keep"
+    // Aura host on non-cast entry (CR 303.4f): when an Aura enters the
+    // battlefield by any means OTHER than resolving as an Aura spell
+    // (reanimation — Replenish, Living Death; exile-return; put-onto-battlefield)
+    // and the effect doesn't name what it enchants, its controller chooses a
+    // legal host "as it enters". A stackless choice (stackItemId === "") raised
+    // during the reanimation staging path; `candidateIds` are the legal hosts
+    // (`findAllLegalAuraHosts`), the awaiting Aura is held off-battlefield in
+    // `GameState.stagedAuraEntries` until the pick, and `finalizeAuraHost`
+    // attaches it and finishes the entry. Auto-resolved (no prompt) when exactly
+    // one legal host exists; a zero-host Aura never enters (CR 303.4g). NOT a
+    // target — bypasses hexproof/shroud (CR 303.4f). `count` is always 1.
+    | "choose-aura-host";
 
 /** Where the un-kept cards of an `order-top` choice go (the SECOND zone of the
  *  drag picker). `library-bottom` = scry (CR 701.22), `graveyard` = surveil

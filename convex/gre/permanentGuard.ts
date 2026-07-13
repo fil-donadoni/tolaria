@@ -22,6 +22,14 @@
 //   - cantBeEnchanted  → state.ts aura-resolution attach gate
 //   - indestructible   → state.ts::regenerateOrDestroy
 //   - controlCantChange→ state.ts::applyControlChange
+//
+// `player-guard` (`StaticPlayerGuard`, `playerHasShroud` below) is the
+// PLAYER-scoped sibling (CR 702.18 shroud applied to a player, CR 115.4):
+// players have no `staticAbilities`/per-object identity to carry a keyword,
+// so it is materialized/derived by scanning battlefields (mirroring
+// `StaticHandSizeOverride`'s player-scoped read) rather than matched against
+// a candidate permanent. Same live-query model, same callers
+// (`getLegalTargets`, `selectTarget`), issue #1128.
 
 import type { CardInstanceState } from "./state";
 import type { StaticPermanentGuard } from "../cards/types";
@@ -181,6 +189,50 @@ export function isGuardedAgainst(
                 if (effect.applies(target, source, STATIC_EFFECT_CTX)) {
                     return true;
                 }
+            }
+        }
+    }
+    return false;
+}
+
+/** True if `playerId` currently has shroud (CR 702.18 applied to a player via
+ *  CR 115.4 — "can't be the target of spells or abilities"). Scans EVERY
+ *  battlefield (a `player-guard` static effect can be granted by a permanent
+ *  either player controls — mirroring `effectiveMaxHandSize`'s
+ *  `hand-size-override` scan in `gre/phases.ts`) for a `player-guard`
+ *  `StaticEffect` whose `appliesTo` resolves to `playerId`, read live so a
+ *  source leaving the battlefield drops the guard automatically (CR 611.2) —
+ *  no per-instance apply/unapply bookkeeping.
+ *
+ *  Unlike `isGuardedAgainst`'s `cantBeTargeted` clause, shroud has no
+ *  source-narrowing (no hexproof-style controller exception, no
+ *  Artifact-Ward-style type/subtype filter, no spell-only filter): CR 702.18
+ *  bars EVERY spell/ability source, including ones the guarded player
+ *  controls, so the reader takes no `actionSource` parameter — callers don't
+ *  need to thread one.
+ *
+ *  Pure function of `state` — safe to call from the client's targeting helper
+ *  (`src/lib/targeting.ts`) against a projected `PublicGameState`, the same
+ *  boundary relaxation `isGuardedAgainst` already crosses. */
+export function playerHasShroud(
+    state: BattlefieldView,
+    playerId: string
+): boolean {
+    for (const player of state.players) {
+        for (const source of player.battlefield) {
+            const cardId = (source.card as { id?: string }).id;
+            const def = cardId ? tryGetDefinition(cardId) : null;
+            const effects = def?.staticEffects;
+            if (!effects) continue;
+            for (const effect of effects) {
+                if (effect.kind !== "player-guard") continue;
+                if (!effect.cantBeTargeted) continue;
+                const appliesTo = effect.appliesTo ?? "controller";
+                const targetPlayerId =
+                    appliesTo === "controller"
+                        ? source.controllerId
+                        : source.chosenPlayerId;
+                if (targetPlayerId === playerId) return true;
             }
         }
     }

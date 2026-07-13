@@ -937,6 +937,15 @@ export const OP_EXECUTORS: {
             if (playerId === undefined) return;
             const ids = resolvePicks(ctx, op.cards);
             if (!ids) return; // binding never captured — CR 608.2b, skip
+            // issue #1125 — the tutor-to-top template. `from: "library"` is
+            // validator-enforced for this destination: the picked card never
+            // left the library (a search only chooses, it doesn't move), so
+            // there is nothing to relocate INTO the library first — just
+            // reposition it to the front, preserving `ids`' pick order.
+            if (op.to === "library-top") {
+                ctx.putLibraryCardsOnTop(playerId, ids);
+                return;
+            }
             for (const id of ids) {
                 if (op.to === "battlefield") {
                     // `from: "graveyard"` (issue #680) reanimates each picked

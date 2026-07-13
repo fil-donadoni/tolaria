@@ -844,6 +844,11 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "damageTriggeredLifegain",
     "phasedOut",
     "exileHeld",
+    // CR 303.4f — Auras held off every zone while their controller owes a
+    // `choose-aura-host` pick. Transiently non-empty only while a matching
+    // choice is pending (which is itself a stable save point), so it must
+    // survive the DB round-trip. Empty (undefined) at a fully-resolved point.
+    "stagedAuraEntries",
     "drawLookReplacements",
     // ADR 0047 — authoritative Expected Input. Plain-data discriminated union,
     // so it round-trips through the DB as-is.
