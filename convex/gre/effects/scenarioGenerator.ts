@@ -249,6 +249,14 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         req.skip ??= `amount reads a player's Domain — the canned generator does not seed basic lands to size it`;
         return;
     }
+    // escaped (CR 702.138e, issue #695): a 0/1 read of whether a permanent
+    // escaped. The canned generator casts spells from hand, never via escape, so
+    // it can't set an escaped=1 outcome; skip-with-reason — the value member's
+    // own interpreter test is the behavioural guarantor (new-construct regime).
+    if ("escaped" in value) {
+        req.skip ??= `amount reads a permanent's escaped flag — the canned generator does not cast via escape`;
+        return;
+    }
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;

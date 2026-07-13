@@ -222,6 +222,12 @@ function compactCard(
     if (card.grantedFlashback) {
         out.grantedFlashback = card.grantedFlashback;
     }
+    // CR 702.138e — a permanent that escaped carries the flag for the life of
+    // the permanent (Uro/Phlage "unless it escaped", Nethergoyf "as long as ~
+    // escaped"); it must survive save/load.
+    if (card.escaped) {
+        out.escaped = card.escaped;
+    }
     return out;
 }
 
@@ -447,6 +453,10 @@ function expandCard(
     if (compact.grantedFlashback) {
         result.grantedFlashback =
             compact.grantedFlashback as CardInstanceState["grantedFlashback"];
+    }
+    // CR 702.138e — restore the escaped flag on the permanent.
+    if (compact.escaped) {
+        result.escaped = compact.escaped as boolean;
     }
     return result;
 }
@@ -780,6 +790,11 @@ function expandStackItem(compact: CompactCard): StackItem {
     }
     if (compact.castFromGraveyard) {
         item.castFromGraveyard = compact.castFromGraveyard as boolean;
+    }
+    // CR 702.138e — rehydrate the escaped marker mid-resolution so the resulting
+    // permanent still reads as having escaped.
+    if (compact.escaped) {
+        item.escaped = compact.escaped as boolean;
     }
     // Acting Player (ADR 0037) — rehydrate the controlled-cast override.
     if (compact.actingPlayerId) {

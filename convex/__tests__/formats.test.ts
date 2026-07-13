@@ -1512,12 +1512,9 @@ describe("Server-gate integration — loadBanlistOverrides resolution + assertDe
             name: "Necro Sync Test",
             format: "premodern",
             cards: [
-                ...(necroCopies === 1
-                    ? [card(NECRO_ID, "Necropotence")]
-                    : []),
-                ...Array.from(
-                    { length: 60 - necroCopies },
-                    () => card(MOUNTAIN, "Mountain")
+                ...(necroCopies === 1 ? [card(NECRO_ID, "Necropotence")] : []),
+                ...Array.from({ length: 60 - necroCopies }, () =>
+                    card(MOUNTAIN, "Mountain")
                 ),
             ],
         };
@@ -1526,7 +1523,9 @@ describe("Server-gate integration — loadBanlistOverrides resolution + assertDe
     it("a DB row (simulating a post-sync `formatBanlists` table) rejects a deck with the banned built card", () => {
         // Models the DB read `loadBanlistOverrides` performs: a single fresh
         // row, resolved through the SAME pure core the server helper wraps.
-        const dbRows = [{ cardName: "Necropotence", status: "banned" as const }];
+        const dbRows = [
+            { cardName: "Necropotence", status: "banned" as const },
+        ];
         const banlist = resolveBanlistEnforcementForFormat(
             "premodern",
             dbRows,
@@ -1535,7 +1534,9 @@ describe("Server-gate integration — loadBanlistOverrides resolution + assertDe
         expect(banlist.banned.size).toBeGreaterThan(0);
 
         const legalDeck = premodernDeckWith(0);
-        expect(() => assertDeckLegal(legalDeck, undefined, banlist)).not.toThrow();
+        expect(() =>
+            assertDeckLegal(legalDeck, undefined, banlist)
+        ).not.toThrow();
 
         const illegalDeck = premodernDeckWith(1);
         expect(() => assertDeckLegal(illegalDeck, undefined, banlist)).toThrow(
@@ -1613,7 +1614,10 @@ describe("Server-gate integration — Old School restricted + banned via loadBan
     const TIME_WALK_ID = "e0139f60-d48e-46fb-9f5a-1e3d7558c834";
     const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56";
 
-    function oldSchoolDeckWith(cardId: string, copies: 0 | 1 | 2): {
+    function oldSchoolDeckWith(
+        cardId: string,
+        copies: 0 | 1 | 2
+    ): {
         name: string;
         format: "old-school";
         cards: DeckCard[];
@@ -1629,7 +1633,9 @@ describe("Server-gate integration — Old School restricted + banned via loadBan
     }
 
     it("a DB row (restricted) rejects a deck with 2 copies of the DB-restricted card, allows 1", () => {
-        const dbRows = [{ cardName: "Regrowth", status: "restricted" as const }];
+        const dbRows = [
+            { cardName: "Regrowth", status: "restricted" as const },
+        ];
         const banlist = resolveBanlistEnforcementForFormat(
             "old-school",
             dbRows,
@@ -1658,7 +1664,9 @@ describe("Server-gate integration — Old School restricted + banned via loadBan
         expect(banlist.banned.has(SOL_RING_ID)).toBe(true);
 
         const legalDeck = oldSchoolDeckWith(SOL_RING_ID, 0);
-        expect(() => assertDeckLegal(legalDeck, undefined, banlist)).not.toThrow();
+        expect(() =>
+            assertDeckLegal(legalDeck, undefined, banlist)
+        ).not.toThrow();
 
         const illegalDeck = oldSchoolDeckWith(SOL_RING_ID, 1);
         expect(() => assertDeckLegal(illegalDeck, undefined, banlist)).toThrow(

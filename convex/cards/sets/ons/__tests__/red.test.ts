@@ -81,11 +81,11 @@ describe("Lava Dart (CR 702.34) — 1 damage + flashback sacrifice a Mountain", 
         const state = makeState({ players: [p1, p2] });
 
         // Drive the real cast-source resolution announceCast uses.
-        const src = locateCastSource(getPlayer(state, "p1"), dart.id);
+        const src = locateCastSource(state, getPlayer(state, "p1"), dart.id);
         expect(src.zone).toBe("graveyard");
         // No mana portion — Lava Dart's flashback cost is purely "Sacrifice a
         // Mountain" (CR 702.34a).
-        expect(castRawManaCost(src.card!, src.zone)).toBeUndefined();
+        expect(castRawManaCost(state, src.card!, src.zone)).toBeUndefined();
 
         // Assemble + auto-resolve the fungible single-Mountain sacrifice
         // requirement folded onto this flashback cast.
