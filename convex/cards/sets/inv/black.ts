@@ -1320,15 +1320,17 @@ export const urborgSkeleton: CardDefinition = {
     ],
 };
 
-// STOP-AND-ISSUE (tracked-by: #686) — Yawgmoth's Agenda: "You can't cast
-// more than one spell each turn. You may play lands and cast spells from
-// your graveyard. If a card would be put into your graveyard from anywhere,
-// exile it instead." The graveyard-cast-permission clause is the exact
-// capability #686 ("Cube FREE: graveyard-cast permission / replacement",
-// already open before this tranche — Yawgmoth's Will is on that issue's own
-// card list) tracks; the whole card is left as one stub rather than a
-// partial (every clause must be enforced together). Not invented; left a
-// stub.
+// STOP-AND-ISSUE (tracked-by: #1145 + #1149) — Yawgmoth's Agenda: "You can't
+// cast more than one spell each turn. You may play lands and cast spells
+// from your graveyard. If a card would be put into your graveyard from
+// anywhere, exile it instead." Same two capabilities Yawgmoth's Will (USG)
+// needs — a broad graveyard-cast/land-play permission (#1149) and a
+// graveyard-redirect-to-exile replacement (#1145, this variant is
+// INDEFINITE rather than turn-scoped) — split out of #686 ("Cube FREE:
+// graveyard-cast permission / replacement") once the Vintage Cube FREE
+// tranche confirmed neither capability shipped; the whole card is left as
+// one stub rather than a partial (every clause must be enforced together).
+// Not invented; left a stub.
 // export const yawgmothsAgenda: CardDefinition = {
 //     id: "50f7ea7f-4f17-4f78-b68e-693e265ca829", // INV 135
 //     name: "Yawgmoth's Agenda",

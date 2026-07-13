@@ -5847,6 +5847,16 @@ export type EffectOp =
     /** CR 119.3b — `player` loses `amount` life (not damage — no
      *  damage-replacement interaction). */
     | { op: "loseLife"; player: EffectPlayerRef; amount: EffectValue }
+    /** CR 500.7 (issue #686) — schedule `player` to take an extra turn after
+     *  the current one (Time Warp: "Target player takes an extra turn after
+     *  this one"). A thin declarative skin over `SpellContext.takeExtraTurn`
+     *  — the SAME primitive Time Walk's imperative `resolve()` already calls,
+     *  which pushes onto the LIFO `state.extraTurns` queue `advanceTurn`
+     *  (phases.ts) pops at each turn boundary (CR 500.7) — one execution
+     *  path (ADR 0045). `player` is an announced target slot (Time Warp
+     *  targets a player), the resolving controller, or a relative player.
+     *  Skipped when the player cannot be resolved (CR 608.2b). */
+    | { op: "extraTurn"; player: EffectPlayerRef }
     /** CR 601.3a (issue #1057) — impose a turn-scoped "can't cast spells this
      *  turn" restriction on `player` (Xantid Swarm's attack trigger targets the
      *  defending player via `player: "opponent"`). A thin declarative skin over

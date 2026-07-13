@@ -83,3 +83,21 @@ export const duress: CardDefinition = {
         },
     ],
 };
+
+// STOP-AND-ISSUE (tracked-by: #1145 + #1149) — Yawgmoth's Will: "Until end of
+// turn, you may play lands and cast spells from your graveyard. If a card
+// would be put into your graveyard from anywhere this turn, exile that card
+// instead." Two distinct missing capabilities, both required for this card
+// (never ship partial): (1) a BROAD, turn-scoped graveyard-cast/land-play
+// permission over the caster's own graveyard — no primitive/Op exists
+// (flashback's `grantedFlashback` is per-instance, spells-only; tracked-by
+// #1149); (2) a `ReplacementEventKind` for "a card entering a graveyard from
+// anywhere, this turn, redirected to exile" — no such event kind exists
+// (tracked-by #1145). Vintage Cube FREE tranche, issue #686.
+// export const yawgmothsWill: CardDefinition = {
+//     id: "6d3e3c3a-d351-4d91-8884-312d4b6f540d", // USG 171
+//     name: "Yawgmoth's Will",
+//     rarity: "rare",
+//     manaCost: { X: 2, B: 1 },
+//     types: ["Sorcery"],
+// };

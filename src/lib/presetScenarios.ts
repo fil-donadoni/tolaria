@@ -128,4 +128,20 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Time Warp (Vintage Cube FREE tranche, issue #686) — extra turn
+        // golden path. Five untapped Islands pay {3}{U}{U}; Grizzly Bears is
+        // already on the battlefield (not summoning sick) so the extra turn's
+        // payoff — declaring attackers a second time in a row — is
+        // immediately observable after resolving and advancing through
+        // cleanup.
+        label: "Time Warp (#686) — extra turn after this one",
+        cards: [
+            { name: "Time Warp", owner: "me", zone: "hand" },
+            { name: "Island", owner: "me", zone: "battlefield", count: 5 },
+            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];

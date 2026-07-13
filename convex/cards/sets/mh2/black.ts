@@ -125,3 +125,31 @@ export const archonOfCruelty: CardDefinition = {
 //     manaCost: { B: 2 },
 //     types: ["Sorcery"],
 // };
+
+// STOP-AND-ISSUE (tracked-by: #1145) — Dauthi Voidwalker: "Shadow. If a card
+// would be put into an opponent's graveyard from anywhere, instead exile it
+// with a void counter on it. {T}, Sacrifice this creature: Choose an exiled
+// card an opponent owns with a void counter on it. You may play it this turn
+// without paying its mana cost. Activate only as a sorcery." The replacement
+// clause needs a `ReplacementEventKind` for "card entering a graveyard from
+// anywhere", scoped to an OPPONENT's graveyard and tagging the redirected
+// card with a counter — no such event kind exists (shipped kinds: damage /
+// lifegain / lifeloss / discard / lose-game / tap / destroy). The second
+// ability's "play it without paying its mana cost" is close to free —
+// `SpellContext.grantCastFromExile` already ships a cross-player,
+// `"this-turn"`-windowed cast-from-exile grant (Robber of the Rich,
+// Headliner Scarlett) — but isn't wrapped as an Op yet either (see #1145's
+// addendum comment). Vintage Cube FREE tranche, issue #686. Whole card left
+// as one stub — the replacement is the entire point of the first ability and
+// the second ability depends on cards it exiles.
+// export const dauthiVoidwalker: CardDefinition = {
+//     id: "dce5db87-4a78-4b8d-b5c2-918ccd1ba4e3", // MH2 81
+//     name: "Dauthi Voidwalker",
+//     rarity: "rare",
+//     manaCost: { B: 2 },
+//     types: ["Creature"],
+//     subtypes: ["Dauthi", "Rogue"],
+//     power: 3,
+//     toughness: 2,
+//     staticAbilities: ["shadow"],
+// };

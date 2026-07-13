@@ -1465,6 +1465,72 @@ describe("Effect Script Op: loseLife (CR 119.3b)", () => {
     });
 });
 
+// New Op (issue #686, Time Warp) → full per-Op regime: interpreter coverage
+// of the construct combinations it participates in (announced player slot,
+// controller, opponent), plus a wire-format assertion through
+// projectPublicState. `extraTurn` is a thin declarative skin over the
+// already-shipped `SpellContext.takeExtraTurn` primitive Time Walk's
+// pre-DSL `resolve()` closure already exercises (lea/blue.ts) — the CR 500.7
+// turn-advance mechanics themselves (LIFO queue, `advanceTurn` pop) are
+// already covered by `phases.test.ts` / `lea/__tests__/blue.test.ts`; this
+// suite covers only the new Op's player-ref resolution and wire survival.
+describe("Effect Script Op: extraTurn (CR 500.7, issue #686)", () => {
+    it("schedules the announced target player for an extra turn", () => {
+        const id = registerScript(
+            "test-op-extra-turn-target",
+            [{ op: "extraTurn", player: { target: 0 } }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        expect(state.extraTurns).toBeUndefined();
+        resolveTopOfStack(state);
+        expect(state.extraTurns).toEqual(["p2"]);
+    });
+
+    it("schedules the resolving controller for an extra turn (player: controller)", () => {
+        const id = registerScript("test-op-extra-turn-controller", [
+            { op: "extraTurn", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.extraTurns).toEqual(["p1"]);
+    });
+
+    it("is a no-op when the announced target is not a player (CR 608.2b)", () => {
+        const id = registerScript("test-op-extra-turn-nonplayer", [
+            { op: "extraTurn", player: { target: 0 } },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            id: "bearExtraTurn",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "bearExtraTurn" },
+        ]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.extraTurns).toBeUndefined();
+    });
+
+    it("survives projection (wire format) — extraTurns is spread verbatim onto PublicGameState", () => {
+        const id = registerScript("test-op-extra-turn-wire", [
+            { op: "extraTurn", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.extraTurns).toEqual(["p1"]);
+    });
+});
+
 // New Op (issue #1057) → full per-Op regime: interpreter coverage of the
 // construct combinations it participates in (controller / opponent / announced
 // player slot), plus a wire-format assertion through projectPublicState.

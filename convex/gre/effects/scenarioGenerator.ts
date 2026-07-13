@@ -337,6 +337,16 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             analysePlayer(op.player, req, false);
             analyseValue(op.amount, req);
             return;
+        case "extraTurn":
+            // CR 500.7 (issue #686) — scheduling an extra turn mutates
+            // `state.extraTurns`, a queue the turn-advance machinery (not the
+            // stack-resolution scenario harness) later drains — not a
+            // same-step observable outcome this generator can size a
+            // deterministic assertion against. Covered instead by the Op's
+            // own hand-written interpreter test plus Time Warp's card test
+            // (tmp/__tests__/blue.test.ts).
+            req.skip ??= `Op "extraTurn" mutates a turn-boundary queue, not a same-step outcome — covered by hand-written tests`;
+            return;
         case "restrictCasting":
             // CR 601.3a (issue #1057) — a turn-scoped cast lock on a player; the
             // deterministic outcome is the player id (with its optional
@@ -1342,6 +1352,16 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // Fight or Flight / Stand or Fall's hand-written combat tests are the
     // behavioural guarantor.
     restrictCombat() {
+        return null;
+    },
+    // `extraTurn` (CR 500.7, issue #686) — never reached: `analyseOp` skips
+    // every script with this Op (it mutates the turn-boundary `extraTurns`
+    // queue, not a same-step board/life delta the canned generator's
+    // immediate-post-resolution assertions can size). Kept for the 1:1
+    // coverage guard; the Op's own interpreter test plus Time Warp's
+    // hand-written card test (tmp/__tests__/blue.test.ts) are the
+    // behavioural guarantor.
+    extraTurn() {
         return null;
     },
 };

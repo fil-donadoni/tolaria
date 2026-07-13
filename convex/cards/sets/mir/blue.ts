@@ -46,3 +46,22 @@ export const mysticalTutor: CardDefinition = {
         },
     ],
 };
+
+// STOP-AND-ISSUE (tracked-by: #1150) — Flash: "You may put a creature card
+// from your hand onto the battlefield. If you do, sacrifice it unless you
+// pay its mana cost reduced by {2}." The "put a creature from hand onto the
+// battlefield" half is free (`choice(hand)` + `moveZone(hand->battlefield)`,
+// already shipped and used by Stoneforge Mystic, wwk/white.ts) — ONLY the
+// `mayPay` leg is blocked: `MayPayCost` is a STATIC cost fixed at authoring
+// time (ADR 0042); there's no leg for "pay a runtime-selected object's own
+// printed mana cost, reduced by a fixed amount" (the reduced cost isn't
+// knowable until the creature is chosen during resolution). Vintage Cube
+// FREE tranche, issue #686. Whole card left as one stub (the mayPay leg is
+// half the card's function — sacrifice-unless-paid, not a bare "you may").
+// export const flash: CardDefinition = {
+//     id: "63af3c26-5b1f-46f6-9aa2-036c615bf5ea", // MIR 66
+//     name: "Flash",
+//     rarity: "rare",
+//     manaCost: { X: 1, U: 1 },
+//     types: ["Instant"],
+// };
