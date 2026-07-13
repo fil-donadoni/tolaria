@@ -678,15 +678,16 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // this baseline — this reconciliation absorbs that drift: total 685→686,
         // Op-blocked 228→229, FREE 443 / AFK-ready 406 / X-only 14 unchanged.
         // Partition: 443+14+229=686.
-        // Net from #686 (Cube FREE graveyard-cast/replacement): shipping the new
-        // `extraTurn` Op unblocks 2 extra-turn resolve() closures that were
-        // Op-blocked on that capability — they move Op-blocked→FREE, and both
-        // carry per-card tests so they also land AFK-ready. Total unchanged:
-        // total 686, Op-blocked 229→227, FREE 443→445, AFK-ready 406→408,
-        // X-only 14 unchanged. Partition: 445+14+227=686.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(686);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(445);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(408);
+        // Net from #695 (Cube CAP: Escape): the escape cards add 2 new resolve()
+        // closures (Phlage's `choose-damage-target` value ability + one more),
+        // both FREE (no missing Op) and both carrying per-card tests, so both
+        // also land AFK-ready. Reconciled against the rebased tree via
+        // `bun scripts/migration-classifier.mjs`: total 686→688, FREE 445→447,
+        // AFK-ready 408→410, X-only 14 / Op-blocked 227 unchanged.
+        // Partition: 447+14+227=688.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(688);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(447);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(410);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(227);
     });
