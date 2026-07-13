@@ -87,6 +87,51 @@ async function loadRows(
     return rows.map((r) => ({ cardName: r.cardName, status: r.status }));
 }
 
+/** One `formatBanlists` row's sync provenance — the `source`/`syncedAt`
+ *  fields `resolveBanlistDisplay` deliberately drops for the display shape
+ *  (see `BanlistEntry`'s doc comment), needed here for the admin meta read. */
+export interface BanlistSyncRow {
+    source: string;
+    syncedAt: number;
+}
+
+/** Per-format sync metadata for the admin panel (PRD #1138 User Story 7,
+ *  issue #1146): `syncedAt`/`source` of the format's most recent sync, or
+ *  `null` when the format has no DB rows yet (pre-first-sync — `getBanlist`
+ *  is still serving the code-side seed, `resolveBanlistDisplay`). */
+export interface BanlistMeta {
+    syncedAt: number | null;
+    source: string | null;
+}
+
+export const banlistMetaValidator = v.object({
+    syncedAt: v.union(v.number(), v.null()),
+    source: v.union(v.string(), v.null()),
+});
+
+/**
+ * Resolves `BanlistMeta` from a format's raw DB rows (PRD #1138 User Story 7,
+ * issue #1146): every row of a single sync shares the same `syncedAt`/`source`
+ * (`replaceBanlist` stamps them uniformly across the whole batch), so the
+ * first row's provenance is authoritative — this still takes the max
+ * `syncedAt` defensively rather than assuming uniformity. PURE — the
+ * `getBanlistMeta` query's entire body, extracted so it's directly
+ * unit-testable without a convex-test harness (mirrors
+ * `resolveBanlistDisplay` / `resolveBanlistEnforcementForFormat` above).
+ */
+export function resolveBanlistMeta(
+    rows: readonly BanlistSyncRow[]
+): BanlistMeta {
+    if (rows.length === 0) return { syncedAt: null, source: null };
+    return rows.reduce<BanlistMeta>(
+        (latest, row) =>
+            latest.syncedAt === null || row.syncedAt > latest.syncedAt
+                ? { syncedAt: row.syncedAt, source: row.source }
+                : latest,
+        { syncedAt: null, source: null }
+    );
+}
+
 /**
  * The full official banlist for `format`, for display (PRD #1138 User Story
  * 2 — every player, not just admins). Includes cards with no built
@@ -156,3 +201,25 @@ export async function loadBanlistOverrides(
     const rows = await loadRows(ctx, format);
     return resolveBanlistEnforcementForFormat(format, rows, tryGetCardByName);
 }
+
+/**
+ * Per-format sync metadata for the admin panel (PRD #1138 User Story 7, issue
+ * #1146 `BanlistAdminPanel`): when the format was last Scryfall-synced (or
+ * `null` pre-first-sync, when `getBanlist` is still serving the code-side
+ * seed). Public — the admin UI check is cosmetic client-side gating only
+ * (`canEditPresets`), same as every other read query in this file; the
+ * mutating `syncBanlist` action is what actually enforces admin server-side.
+ */
+export const getBanlistMeta = query({
+    args: { format: banlistFormatValidator },
+    returns: banlistMetaValidator,
+    handler: async (ctx, { format }) => {
+        const rows = await ctx.db
+            .query("formatBanlists")
+            .withIndex("by_format", (q) => q.eq("format", format))
+            .collect();
+        return resolveBanlistMeta(
+            rows.map((r) => ({ source: r.source, syncedAt: r.syncedAt }))
+        );
+    },
+});

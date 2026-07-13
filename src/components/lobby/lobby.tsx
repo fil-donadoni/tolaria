@@ -44,6 +44,7 @@ import DeckList from "./deck-list";
 import DeckFormatFilter from "./deck-format-filter";
 import LobbyBackground from "./lobby-background";
 import ActiveGameNotice from "./active-game-notice";
+import BanlistAdminPanel from "./banlist-admin-panel";
 
 function Lobby() {
     const navigate = useNavigate();
@@ -477,6 +478,8 @@ function Lobby() {
                         </PanelBody>
                     </Panel>
                 </div>
+
+                <BanlistAdminPanel />
 
                 <LobbyFooter />
             </div>

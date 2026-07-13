@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
     resolveBanlistDisplay,
     resolveBanlistEnforcementForFormat,
+    resolveBanlistMeta,
+    type BanlistSyncRow,
 } from "../banlists";
 import {
     BANLIST_SEEDS,
@@ -116,5 +118,38 @@ describe("getBanlist / getBanlistEnforcement — query shapes (issue #1141)", ()
         expect(banned).toBeInstanceOf(Set);
         expect(restricted).toBeInstanceOf(Set);
         for (const id of banned) expect(restricted.has(id)).toBe(false);
+    });
+});
+
+// `getBanlistMeta` — pure core (PRD #1138 User Story 7, issue #1146
+// BanlistAdminPanel). Same no-convex-test-harness pattern as the describe
+// blocks above: `getBanlistMeta`'s entire behavior is `resolveBanlistMeta`
+// over the format's raw rows.
+describe("resolveBanlistMeta — sync provenance for the admin panel (issue #1146)", () => {
+    it("returns null syncedAt/source when the format has no DB rows (pre-first-sync)", () => {
+        expect(resolveBanlistMeta([])).toEqual({
+            syncedAt: null,
+            source: null,
+        });
+    });
+
+    it("returns the row's syncedAt/source for a single-row format", () => {
+        const rows: BanlistSyncRow[] = [{ source: "scryfall", syncedAt: 100 }];
+        expect(resolveBanlistMeta(rows)).toEqual({
+            syncedAt: 100,
+            source: "scryfall",
+        });
+    });
+
+    it("takes the MOST RECENT syncedAt/source across a format's rows", () => {
+        const rows: BanlistSyncRow[] = [
+            { source: "scryfall", syncedAt: 100 },
+            { source: "scryfall", syncedAt: 300 },
+            { source: "scryfall", syncedAt: 200 },
+        ];
+        expect(resolveBanlistMeta(rows)).toEqual({
+            syncedAt: 300,
+            source: "scryfall",
+        });
     });
 });
