@@ -1519,6 +1519,12 @@ export type PendingChoice = {
      *  `finalizeAuraHost` reads it to match the choice to its staged Aura and
      *  complete the attachment + entry on submit. */
     auraInstanceId?: string;
+    /** The card definition id of the subject this choice is ABOUT, when that
+     *  subject is not reachable in any projected zone (e.g. a `choose-aura-host`
+     *  Aura held in `stagedAuraEntries`, off every zone). The client renders it
+     *  as a card image inside the choice dialog so the chooser sees WHICH card
+     *  the prompt refers to. Carried verbatim through the wire projection. */
+    subjectCardId?: string;
     /** For `kind: "may-pay"` only — a spend restriction the mana leg may draw
      *  on in addition to the fungible pool (CR 106.6, ADR 0022 / 0042). Set to
      *  `"cumulative-upkeep"` by the cumulative-upkeep trigger so Adarkar Unicorn
@@ -5833,7 +5839,10 @@ function enqueueAuraHostChoice(
         ...(state.stagedAuraEntries ?? []),
         { aura, controllerId },
     ];
-    const name = (aura.card as { name?: string }).name ?? "this Aura";
+    // The Aura instance only carries a slim `{ id }` in `card`; resolve the
+    // printed name (and card id for the dialog image) from the definition.
+    const cardId = (aura.card as { id?: string }).id;
+    const name = (cardId ? tryGetDefinition(cardId) : undefined)?.name;
     state.pendingChoices = [
         ...(state.pendingChoices ?? []),
         {
@@ -5850,9 +5859,14 @@ function enqueueAuraHostChoice(
             // battlefield; `candidateIds` is the authoritative allow-list.
             allControllers: true,
             auraInstanceId: aura.id,
+            // Rendered as a card image in the dialog (the Aura is off every
+            // projected zone while staged).
+            subjectCardId: cardId,
             candidateIds,
             count: 1,
-            prompt: `Choose what ${name} enchants.`,
+            prompt: name
+                ? `Choose what ${name} enchants.`
+                : "Choose what this Aura enchants.",
         },
     ];
     state.priorityPlayerId = controllerId;
@@ -5898,7 +5912,9 @@ export function finalizeAuraHost(
         state.stagedAuraEntries = entries.length > 0 ? entries : undefined;
         const aura = entry.aura;
         const hostId = selectedIds[0];
-        const host = hostId ? findOnBattlefield(state, hostId)?.card : undefined;
+        const host = hostId
+            ? findOnBattlefield(state, hostId)?.card
+            : undefined;
         if (host && isFullyLegalAuraHost(state, host, aura)) {
             if (stageReanimatedOnBattlefield(state, aura, entry.controllerId)) {
                 aura.attachedTo = host.id;

@@ -21,6 +21,7 @@ import {
 } from "~/lib/pending-choice-confirm";
 import PendingChoiceOptions from "~/components/board/pending-choice-options";
 import CardNameInput from "~/components/board/card-name-input";
+import CardImage from "~/components/cards/card-image";
 import RandomRevealOverlay from "~/components/board/random-reveal-overlay";
 import MinimizeChoiceButton from "~/components/board/minimize-choice-button";
 
@@ -202,6 +203,16 @@ export default function PendingChoicePrompt({
                                 {formatOracleText(choice.prompt)}
                             </p>
                         </div>
+                        {choice.subjectCardId && (
+                            // CR 303.4f — show WHICH card the choice is about
+                            // (e.g. the reanimated Aura, held off every zone).
+                            <div className="w-28 shrink-0">
+                                <CardImage
+                                    card={{ id: choice.subjectCardId }}
+                                    sizes="112px"
+                                />
+                            </div>
+                        )}
                         {isOptionPick || isPickPile ? (
                             <PendingChoiceOptions
                                 options={
