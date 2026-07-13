@@ -755,6 +755,14 @@ export type CardInstanceState = {
      *  card's mana cost), but may carry a full {@link FlashbackCost} shape when
      *  the granted flashback also has a non-mana component (CR 702.34a). */
     grantedFlashback?: CardManaCost | FlashbackCost;
+    /** CR 702.138e — true iff this permanent ESCAPED, i.e. it was cast from a
+     *  graveyard via Escape. Set on the stack item at the escape cast and rides
+     *  onto the resulting battlefield permanent (a stack item IS its
+     *  CardInstanceState). Read by "sacrifice it unless it escaped" (Uro,
+     *  Phlage) and "as long as ~ escaped" clauses (Nethergoyf) via
+     *  `SpellContext.isEscaped`. Unlike Flashback, an escape cast does NOT set
+     *  `exileOnResolve` — the card resolves to its normal destination. */
+    escaped?: boolean;
 };
 
 /** ADR 0026 — clears persistent card knowledge over a Hidden Zone. The single
@@ -1239,6 +1247,14 @@ export type PendingCast = {
         excludeInstanceId: string;
         zone?: "graveyard" | "hand";
         pickedCardIds?: string[];
+        /** CR 702.138a (Nethergoyf) — the ESCAPE variable exile cost "exile any
+         *  number of other cards from your graveyard with N or more card types
+         *  among them". When set, the picker accepts ANY number (≥1) of cards
+         *  whose combined DISTINCT card types number ≥ `minCardTypes`, and
+         *  `count` is ignored (it is a nominal 1). Undefined for the ordinary
+         *  fixed-`count` exile cost (Flashback, and the fixed escape costs of
+         *  Uro / Phlage / Underworld Breach). */
+        minCardTypes?: number;
     };
     /** In-progress "exile / discard N cards from your HAND" ALTERNATIVE-cost
      *  picker (CR 118.9 — Force of Will's "exile a blue card", Foil's "discard
@@ -6140,6 +6156,10 @@ function cloneSpellOntoStack(
     // one-shot effect per CR 707.10/112.5).
     delete copy.castFromGraveyard;
     delete copy.exileOnResolve;
+    // CR 702.138e — "escaped" is a cast-site artifact; a copy was not cast via
+    // escape, so it must not inherit the flag (a copied escape permanent would
+    // otherwise read as having escaped).
+    delete copy.escaped;
     // CR 707.10b / 707.12 — the copy is controlled by the controller of the
     // effect that created it (e.g. Fork's controller, or the resolving spell's
     // own controller for "copy this spell"), unless the effect names a specific
@@ -7000,6 +7020,17 @@ export function buildSpellContext(
             // it had — read them so the count reflects the pre-sacrifice state.
             if (target.id === item.id) return item.counters?.[type] ?? 0;
             return 0;
+        },
+        isEscaped(target: TargetSelection): boolean {
+            // CR 702.138e — "escaped" is a permanent-level flag stamped at the
+            // escape cast; it rides the stack item onto the battlefield.
+            if (target.type !== "permanent") return false;
+            const found = findOnBattlefield(state, target.id);
+            if (found) return found.card.escaped === true;
+            // Last-known information (CR 608.2g): the resolving stack item still
+            // carries the flag (e.g. read during its own ETB resolution).
+            if (target.id === item.id) return item.escaped === true;
+            return false;
         },
         getDeathsThisTurn(): number {
             return state.deathsThisTurn ?? 0;

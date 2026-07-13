@@ -112,6 +112,31 @@ export interface FlashbackCost {
     exileFromHand?: { color?: Color };
 }
 
+/** CR 702.138 — Escape. A card with escape may be cast from its owner's
+ *  graveyard by paying its ESCAPE COST: a mana cost PLUS exiling OTHER cards
+ *  from that graveyard (CR 702.138a). A permanent cast this way "escaped"
+ *  (CR 702.138e) — a flag the resulting permanent carries
+ *  (`CardInstanceState.escaped`), read by "as long as ~ escaped" /
+ *  "sacrifice it unless it escaped" clauses (Uro, Phlage, Nethergoyf).
+ *  Unlike Flashback (CR 702.34), an escaped card is NOT exiled as it resolves —
+ *  it moves graveyard → stack → its normal destination (battlefield for a
+ *  permanent, graveyard for an instant/sorcery). Read by
+ *  `convex/gre/escape.ts`. */
+export interface EscapeCost {
+    /** The mana portion of the escape cost (CR 702.138a). */
+    mana: ManaCost;
+    /** CR 702.138a — exile OTHER cards from the caster's graveyard as an
+     *  additional cost; the escaping card itself is never eligible ("other
+     *  cards"). Two shapes:
+     *   - FIXED count ("exile three/five other cards", Uro / Phlage /
+     *     Underworld Breach): `{ count: N }`.
+     *   - VARIABLE, card-type-constrained ("exile any number of other cards …
+     *     with four or more card types among them", Nethergoyf):
+     *     `{ minCardTypes: N }` — the caster exiles any number (≥1) of other
+     *     graveyard cards whose combined distinct card types number ≥ N. */
+    exile: { count: number } | { minCardTypes: number };
+}
+
 /** CR 702.33 — Kicker. An OPTIONAL additional cost the caster may choose to pay
  *  as they cast the spell ("You may pay an additional [cost] as you cast this
  *  spell"). Paid ON TOP of the mana cost at cast time (unlike an
@@ -1278,6 +1303,11 @@ export interface SpellContext {
     /** Reads the count of a given counter type on `target` (CR 122.6). Returns
      *  0 if the target has no counters of that type or has left play. */
     getCounterCount: (target: TargetSelection, type: string) => number;
+    /** CR 702.138e — true iff `target` is a permanent that ESCAPED (was cast
+     *  from a graveyard via Escape, `CardInstanceState.escaped`). False for a
+     *  non-permanent target or one that left play. Read by the `escaped`
+     *  EffectValue ("sacrifice it unless it escaped"). */
+    isEscaped: (target: TargetSelection) => boolean;
     /** Number of creatures that have died this turn (CR 603 — running tally
      *  scoped per turn, reset at turn start). Read by triggers like
      *  Scavenging Ghoul's end-step "for each creature that died this turn". */
@@ -5661,7 +5691,20 @@ export type EffectValue =
     | EffectCountersValue
     | EffectKickerCountValue
     | EffectManaValueValue
-    | EffectDomainValue;
+    | EffectDomainValue
+    | EffectEscapedValue;
+
+/** CR 702.138e — resolves to 1 if the referenced permanent ESCAPED (was cast
+ *  from a graveyard via Escape, `CardInstanceState.escaped`), else 0. Powers the
+ *  "sacrifice it unless it escaped" branch as a numeric comparison
+ *  (`{ left: { escaped: { ref: "$source" } }, op: "eq", right: 0 }` → true when
+ *  NOT escaped). `of` resolves through the same object-ref path every
+ *  object-acting Op uses ($source / an announced slot / $each); an unresolvable
+ *  object yields 0 (CR 608.2b — the effect treats a gone permanent as
+ *  not-escaped). */
+export interface EffectEscapedValue {
+    escaped: { of: EffectObjectSelector };
+}
 
 /** JSON-pure mana specification for the `addMana` Op (CR 106.1, issue #850) —
  *  a per-colour amount map. Only fixed coloured / colorless pips: no variable
@@ -7149,6 +7192,18 @@ export interface CardDefinition {
      *  (Lava Dart: "Sacrifice a Mountain") — that never leaks onto the hand
      *  cast (CR 702.34a). */
     flashback?: ManaCost | FlashbackCost;
+    /** CR 702.138 — Escape. The escape cost this card may be cast from its own
+     *  owner's graveyard for (mana + exile other graveyard cards). The engine
+     *  (`convex/gre/escape.ts`) reads this to make the graveyard card castable;
+     *  the resolving permanent is flagged `escaped` (CR 702.138e). Used by Uro,
+     *  Phlage, Nethergoyf. */
+    escape?: EscapeCost;
+    /** CR 702.138 — a static ability granting escape to EVERY nonland card in
+     *  its controller's graveyard (Underworld Breach). The granted escape cost
+     *  is each card's OWN mana cost plus exiling `exileOtherCount` other cards
+     *  from that graveyard (CR 702.138a). Functions only while this permanent is
+     *  on the battlefield. */
+    grantsEscapeToOwnGraveyard?: { exileOtherCount: number };
     /** CR 702.33 — Kicker. An OPTIONAL additional cost the caster may pay as
      *  they cast this spell, snapshotted on the resulting stack item and read at
      *  resolution ({@link KickerCost}). The on-resolution effect stays DSL-first

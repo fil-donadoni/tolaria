@@ -38,6 +38,12 @@ import {
     hasFlashback,
     type FlashbackAdditionalCost,
 } from "./flashback";
+import {
+    countDistinctCardTypes,
+    getEscapeExileSpec,
+    getEscapeManaCost,
+    hasEscape,
+} from "./escape";
 import type { ManaCost } from "../cards/types";
 import {
     landPlayLockActive,
@@ -170,6 +176,35 @@ export function getLegalActions(
         return actions;
     }
 
+    // CR 702.138 — a card in the player's OWN graveyard that currently has an
+    // ESCAPE cost (printed — Uro/Phlage/Nethergoyf — or granted by Underworld
+    // Breach) is castable from there for that cost. Same timing/phase gates as a
+    // hand cast; affordability is checked against the escape mana cost AND the
+    // ability to pay the "exile N other cards from your graveyard" additional
+    // cost (CR 702.138a).
+    const isEscapeCast =
+        player.graveyard.some((c) => c.id === card.id) && hasEscape(state, card);
+    if (isEscapeCast) {
+        const baseLegal = hasInstantTiming(card)
+            ? true
+            : isSorceryTiming(state);
+        if (
+            baseLegal &&
+            passesCastPhaseRestriction(state, card) &&
+            castProhibitionReason(player.id, card, state) === undefined &&
+            canPotentiallyPayCost(
+                player,
+                card,
+                getEscapeManaCost(state, card) ?? {}
+            ) &&
+            hasEnoughLegalTargets(state, player, card) &&
+            hasPayableEscapeExileCost(state, player, card)
+        ) {
+            actions.push("cast");
+        }
+        return actions;
+    }
+
     // "Cast" is for all non-land cards
     if (!types.includes("Land")) {
         const baseLegal = hasInstantTiming(card)
@@ -232,6 +267,25 @@ function hasPayableAdditionalCost(
             selfControllerId: player.id,
         });
     });
+}
+
+/** CR 702.138a — affordability gate for the ESCAPE additional cost "exile N
+ *  other cards from your graveyard". A fixed-count escape (Uro/Phlage/Underworld
+ *  Breach) needs at least N OTHER cards in the caster's graveyard; the Nethergoyf
+ *  variable cost needs enough OTHER cards to muster its card-type threshold. An
+ *  escape with no reachable cost is unannounceable. */
+function hasPayableEscapeExileCost(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState
+): boolean {
+    const spec = getEscapeExileSpec(state, card);
+    if (!spec) return true;
+    const others = player.graveyard.filter((c) => c.id !== card.id);
+    if ("minCardTypes" in spec) {
+        return countDistinctCardTypes(others) >= spec.minCardTypes;
+    }
+    return others.length >= spec.count;
 }
 
 /** CR 702.34a / 118.5 — affordability gate for the flashback-only non-mana

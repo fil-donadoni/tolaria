@@ -1831,7 +1831,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Escape",
         kind: "keyword-ability",
         cr: "702.138",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/gre/escape.ts",
+        note: 'Cost-system / keyword-cast capability (engine/cost infra, NOT an Effect Script Op, issue #695): convex/gre/escape.ts (getEscapeCost / findEscapeCastable / hasEscape + countDistinctCardTypes) + CardDefinition.escape (mana + exile N other graveyard cards, CR 702.138a) + CardDefinition.grantsEscapeToOwnGraveyard (Underworld Breach\'s zone-wide grant). locateCastSource/castRawManaCost/graveyardCastStackFlags (convex/game.ts) route the graveyard cast: pay the escape mana, exile the "other" cards via the reused flashback exileFromGraveyardChoice picker (fixed count, or the Nethergoyf variable "any number with N+ card types" via minCardTypes), and stamp the stack item `escaped` (CR 702.138e) — which rides onto the resulting permanent (a stack item IS its CardInstanceState), NO exileOnResolve. getLegalActions offers the cast; projectPublicState carries the affordance to the client. The `escaped` game-state is read in DSL via the `{ escaped: { of } }` EffectValue (SpellContext.isEscaped) for "sacrifice it unless it escaped". Used by Uro, Phlage, Nethergoyf; granted by Underworld Breach.',
     },
     // 702.139 Companion
     {

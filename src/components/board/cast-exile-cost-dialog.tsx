@@ -28,6 +28,10 @@ export default function CastExileCostDialog({
         color?: Color;
         excludeInstanceId: string;
         zone?: "graveyard" | "hand";
+        /** CR 702.138a (Nethergoyf escape) — variable exile cost: exile ANY
+         *  number of other cards with ≥ this many distinct card types among
+         *  them. When set, `count` is ignored. */
+        minCardTypes?: number;
     };
     me: Player | undefined;
     gameId: Id<"games">;
@@ -70,17 +74,37 @@ export default function CastExileCostDialog({
         }
     }
 
+    // CR 702.138a — the variable escape cost (Nethergoyf) takes ANY number of
+    // cards as long as their combined DISTINCT card types reach `minCardTypes`;
+    // the fixed cost (Flashback, Uro/Phlage escape) takes EXACTLY `count`.
+    const isVariable = choice.minCardTypes !== undefined;
+    const selectedTypeCount = useMemo(() => {
+        if (!isVariable) return 0;
+        const types = new Set<string>();
+        for (const id of selected) {
+            const card = eligible.find((c) => c.id === id);
+            if (card) {
+                for (const t of getDefinition(card.card.id).types) types.add(t);
+            }
+        }
+        return types.size;
+    }, [isVariable, selected, eligible]);
+    const requirementMet = isVariable
+        ? selectedTypeCount >= (choice.minCardTypes ?? 0)
+        : selected.length === choice.count;
+
     function toggle(cardId: string) {
         setSelected((prev) => {
             if (prev.includes(cardId))
                 return prev.filter((id) => id !== cardId);
-            if (prev.length >= choice.count) return prev; // cap at count
+            // Fixed cost caps at `count`; the variable cost has no cap.
+            if (!isVariable && prev.length >= choice.count) return prev;
             return [...prev, cardId];
         });
     }
 
     async function handleConfirm() {
-        if (isPending || selected.length !== choice.count) return;
+        if (isPending || !requirementMet) return;
         setIsPending(true);
         try {
             await selectExileCost({
@@ -99,8 +123,12 @@ export default function CastExileCostDialog({
             onOpenChange={(open) => {
                 if (!open) void handleCancel();
             }}
-            title="Flashback cost"
-            subtitle={`Exile ${choice.count} ${choice.color === "U" ? "blue " : ""}card(s) from your ${zone}`}
+            title={isVariable ? "Escape cost" : "Flashback cost"}
+            subtitle={
+                isVariable
+                    ? `Exile any number of cards with ${choice.minCardTypes}+ card types among them (${selectedTypeCount} selected)`
+                    : `Exile ${choice.count} ${choice.color === "U" ? "blue " : ""}card(s) from your ${zone}`
+            }
             size="wide"
             dismissable={!isPending}
         >
@@ -128,11 +156,13 @@ export default function CastExileCostDialog({
             <div className="mt-3 flex justify-end">
                 <button
                     type="button"
-                    disabled={isPending || selected.length !== choice.count}
+                    disabled={isPending || !requirementMet}
                     onClick={() => void handleConfirm()}
                     className="rounded-sm px-4 py-2 bg-accent hover:bg-accent-strong text-black font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
-                    Exile {selected.length}/{choice.count}
+                    {isVariable
+                        ? `Exile ${selected.length} (${selectedTypeCount}/${choice.minCardTypes} types)`
+                        : `Exile ${selected.length}/${choice.count}`}
                 </button>
             </div>
         </GameDialog>

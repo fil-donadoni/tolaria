@@ -3,8 +3,15 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import type {
+    CardDefinition,
+    EffectOp,
+    SpellContext,
+    TargetSelection,
+} from "../../types";
+import { DAMAGEABLE_PERMANENT_TYPES } from "../../types";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Psychic Frog — {U}{B} Creature — Frog 1/2.
 // "Whenever this creature deals combat damage to a player, draw a card." (CR
@@ -111,3 +118,106 @@ export const psychicFrog: CardDefinition = {
         },
     ],
 };
+
+// CR 702.138e — "sacrifice it unless it escaped": sacrifice $source when the
+// escaped flag reads 0 (a non-escape cast). The escaped EffectValue resolves to
+// 1 (escaped) or 0 (not); `< 1` selects the 0 case.
+const phlageSacrificeUnlessEscaped: EffectOp[] = [
+    {
+        op: "if",
+        predicate: {
+            left: { escaped: { of: { ref: "$source" } } },
+            op: "lt",
+            right: 1,
+        },
+        then: [{ op: "sacrifice", target: { ref: "$source" } }],
+    },
+];
+
+// Phlage's recurring value (fires on both enter and attack): it deals 3 damage
+// to any target and you gain 3 life. NOT DSL-migratable (ADR 0045): "any
+// target" chosen mid-resolution by a triggered ability is a
+// `choose-damage-target` Pending Choice over players + damageable permanents
+// (CR 115.4), a targeting mechanism outside the scriptable `EffectChoiceKind`
+// subset — the same protocol-shaped reason Cuombajj Witches / Firebrand stay
+// resolve(). The escape cost/permission is still engine infra; only THIS
+// targeted damage clause is imperative.
+function resolvePhlageValue(ctx: SpellContext): void {
+    // Request the target FIRST so a suspend/resume never double-applies the
+    // unconditional life gain (CR 601.2c pattern, mirrors Cuombajj Witches).
+    const permanentCandidates = ctx.allPlayerIds.flatMap((pid) =>
+        ctx.getBattlefieldIds(pid, { types: [...DAMAGEABLE_PERMANENT_TYPES] })
+    );
+    const playerCandidates = [...ctx.allPlayerIds];
+    let target: TargetSelection | undefined;
+    if (permanentCandidates.length > 0 || playerCandidates.length > 0) {
+        const picked = ctx.requestChoice({
+            playerId: ctx.controller,
+            choiceId: `phlage-${ctx.sourceInstanceId}`,
+            kind: "choose-damage-target",
+            zone: "battlefield",
+            allControllers: true,
+            filter: { types: [...DAMAGEABLE_PERMANENT_TYPES] },
+            candidateIds: permanentCandidates,
+            candidatePlayerIds: playerCandidates,
+            count: 1,
+            prompt: "Phlage deals 3 damage to any target.",
+        });
+        if (picked === undefined) return; // suspend: awaiting the pick
+        const id = picked[0];
+        if (id) {
+            target = playerCandidates.includes(id)
+                ? { type: "player", id }
+                : { type: "permanent", id };
+        }
+    }
+    if (target) ctx.dealDamage(target, 3);
+    ctx.gainLife(ctx.controller, 3);
+}
+
+// Phlage, Titan of Fire's Fury — {1}{R}{W} Legendary Creature — Elder Giant 6/6.
+// "When Phlage enters, sacrifice it unless it escaped." (CR 702.138e escaped.)
+// "Whenever Phlage enters or attacks, it deals 3 damage to any target and you
+//  gain 3 life."
+// "Escape—{R}{R}{W}{W}, Exile five other cards from your graveyard." (CR 702.138.)
+export const phlageTitanOfFiresFury: CardDefinition = {
+    id: "e419cd0b-2449-4cc5-9ead-b9e45e271700",
+    name: "Phlage, Titan of Fire's Fury",
+    rarity: "mythic",
+    oracleText:
+        "When Phlage enters, sacrifice it unless it escaped.\nWhenever Phlage enters or attacks, it deals 3 damage to any target and you gain 3 life.\nEscape—{R}{R}{W}{W}, Exile five other cards from your graveyard. (You may cast this card from your graveyard for its escape cost.)",
+    manaCost: { X: 1, R: 1, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Elder", "Giant"],
+    supertypes: ["Legendary"],
+    power: 6,
+    toughness: 6,
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "phlage-sacrifice-unless-escaped",
+            oracleText: "When Phlage enters, sacrifice it unless it escaped.",
+            scope: "self",
+            effects: phlageSacrificeUnlessEscaped,
+        }),
+        enteredTrigger({
+            id: "phlage-enters-value",
+            oracleText:
+                "Whenever Phlage enters, it deals 3 damage to any target and you gain 3 life.",
+            scope: "self",
+            resolve: resolvePhlageValue,
+        }),
+        {
+            id: "phlage-attacks-value",
+            oracleText:
+                "Whenever Phlage attacks, it deals 3 damage to any target and you gain 3 life.",
+            event: "ATTACKERS_DECLARED",
+            matches: (event, self) =>
+                event.type === "ATTACKERS_DECLARED" &&
+                event.attackerIds.includes(self.id),
+            resolve: resolvePhlageValue,
+        },
+    ],
+    // CR 702.138 — Escape. {R}{R}{W}{W} + exile five OTHER graveyard cards.
+    escape: { mana: { R: 2, W: 2 }, exile: { count: 5 } },
+};
+

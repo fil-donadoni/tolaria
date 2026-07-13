@@ -162,11 +162,11 @@ describe("Flashback capability (CR 702.34)", () => {
             const state = makeState({ players: [p1, makePlayer("p2")] });
 
             // Drive the REAL cast-source resolution announceCast uses.
-            const src = locateCastSource(getPlayer(state, "p1"), fb.id);
+            const src = locateCastSource(state, getPlayer(state, "p1"), fb.id);
             expect(src.zone).toBe("graveyard");
             expect(src.card?.id).toBe(fb.id);
             // CR 702.34a — the cost paid is the flashback cost, not the printed {R}.
-            expect(castRawManaCost(src.card!, src.zone)).toEqual({
+            expect(castRawManaCost(state, src.card!, src.zone)).toEqual({
                 X: 4,
                 R: 1,
             });

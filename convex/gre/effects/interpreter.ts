@@ -281,6 +281,15 @@ function resolveValue(
         }
         return undefined;
     }
+    // escaped (CR 702.138e, issue #695) — 1 if the referenced permanent escaped
+    // (was cast from a graveyard via Escape), else 0. Powers "sacrifice it
+    // unless it escaped" as a numeric comparison. `of` resolves through the same
+    // resolveObjectRef path every object-acting Op uses; an unresolvable object
+    // yields 0 (CR 608.2b — treated as not-escaped).
+    if ("escaped" in value) {
+        const target = resolveObjectRef(ctx, value.escaped.of);
+        return target && ctx.isEscaped(target) ? 1 : 0;
+    }
     // Chosen-cost X (CR 107.3, 601.2b) — the value announced for {X} at cast
     // time, read back off the stack item via getX(). One execution path, no
     // duplicated logic (ADR 0045, issue #852).
