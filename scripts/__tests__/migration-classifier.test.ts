@@ -662,9 +662,20 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // It ships its own per-card test, so it lands FREE + AFK-ready. Net:
         // total 679→680, FREE 437→438, AFK-ready 400→401, Op-blocked 228 /
         // X-only 14 unchanged. Partition: 438+14+228=680.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(680);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(438);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(401);
+        // Net from the concurrent "nuove carte per enchantress" merge (88893eea,
+        // an out-of-band main advance): adds 2 resolve() closures (FREE +
+        // AFK-ready) whose merge did NOT bump this baseline — this reconciliation
+        // absorbs that drift alongside #1079. Net from #1079 (INV free gold —
+        // GW): adds 3 resolve() closures — Armadillo Cloak / Horned Cheetah
+        // (lifegain-equal-to-damage, the `event.amount` DSL gap; Spirit Link /
+        // El-Hajjâj precedent) and Aura Shards (cross-controller `allControllers`
+        // choice gap; Loran precedent) — all three ship per-card tests, so all
+        // land FREE + AFK-ready. Combined net: total 680→685, FREE 438→443,
+        // AFK-ready 401→406, Op-blocked 228 / X-only 14 unchanged.
+        // Partition: 443+14+228=685.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(685);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(443);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(406);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(228);
     });

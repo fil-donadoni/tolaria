@@ -7,6 +7,7 @@
 // Coalition Victory's compound win predicate (both clauses required).
 
 import { describe, it, expect } from "vitest";
+import type { CardType } from "../../../types";
 import {
     orderedMigration,
     coalitionVictory,
@@ -44,6 +45,14 @@ import {
     viashinoGrappler,
     trollHornCameo,
     shivanOasis,
+    armadilloCloak,
+    auraShards,
+    captainSisay,
+    chargingTroll,
+    hornedCheetah,
+    llanowarKnight,
+    noblePanther,
+    sabertoothNishoba,
 } from "../multicolor";
 import {
     makeInstance,
@@ -65,6 +74,7 @@ import {
     icyManipulator,
 } from "../../lea/colorless";
 import { grizzlyBears, scatheZombies } from "../../lea";
+import { empressGalina } from "../blue";
 import { registerTokenDefinition } from "../../..";
 import {
     getEffectivePower,
@@ -1650,5 +1660,271 @@ describe("Shivan Oasis (CR 110.5b enters tapped + 605.1a choice-of-color mana ab
         const ability = shivanOasis.activatedAbilities![0];
         expect(ability.useStack).toBe(false);
         expect(ability.manaChoices).toEqual([{ R: 1 }, { G: 1 }]);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// GW free-tranche coverage (issue #1079) — per the card-testing convention,
+// only board-visible behavior not already covered by the catalogue-wide
+// per-Op sweeps gets a hand-written describe here: two resolve()
+// damage-dealt lifegain triggers (Armadillo Cloak, Horned Cheetah, both
+// precedent-twins of the shipped Spirit Link/El-Hajjâj shape), a resolve()
+// cross-controller ETB trigger (Aura Shards, precedent-twin of Loran of the
+// Third Path), three activatedAbilities[] visible on the board (Captain
+// Sisay's tutor, Charging Troll's regenerate, Noble Panther's temporary
+// keyword grant), and the two vanilla-keyword creatures (Llanowar Knight,
+// Sabertooth Nishoba — the catalogue's first double-color protection body).
+// Aura Mutation and Heroes' Reunion are plain `effects[]` spells reusing
+// already-exercised Ops (the `ref: "$x.manaValue"` construct is already
+// exercised by Artifact Mutation in this same file) and ride the per-Op
+// regime (catalogue `effectScripts.test.ts` static sweep +
+// `effectScriptSmoke.test.ts` canned-scenario smoke test) with no
+// hand-written test required.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("Armadillo Cloak (Aura +2/+2 + trample, CR 611/613 layer 6/7c, + resolve() damage-dealt lifegain, GW issue #1079)", () => {
+    function setup() {
+        const host = makeInstance(grizzlyBears.id, {
+            id: "host",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const cloak = makeInstance(armadilloCloak.id, {
+            id: "cloak",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, cloak] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state };
+    }
+    it("grants +2/+2 to the enchanted creature", () => {
+        const { state } = setup();
+        const host = state.players[0].battlefield.find((c) => c.id === "host")!;
+        expect(getEffectivePower(state, host)).toBe(4);
+        expect(getEffectiveToughness(state, host)).toBe(4);
+    });
+    it("grants trample to the enchanted creature", () => {
+        const grants = (armadilloCloak.staticEffects ?? [])
+            .filter((e) => e.kind === "keyword-grant")
+            .map((e) => (e as { keyword: string }).keyword);
+        expect(grants).toEqual(["trample"]);
+    });
+    it("wire format: the +2/+2 survives projectPublicState", () => {
+        const { state } = setup();
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].battlefield.find(
+            (c) => c.id === "host"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(4);
+        expect(getEffectiveToughness(projected, slim)).toBe(4);
+    });
+    it("gains its controller life equal to damage dealt by the enchanted creature only", () => {
+        const { state } = setup();
+        const cloak = state.players[0].battlefield.find(
+            (c) => c.id === "cloak"
+        )!;
+        const trigger = armadilloCloak.triggeredAbilities![0];
+        const fromHost = {
+            type: "DAMAGE_DEALT" as const,
+            sourceInstanceId: "host",
+            sourceControllerId: "p1",
+            target: { type: "player" as const, id: "p2" },
+            amount: 5,
+            isCombat: true,
+        };
+        expect(trigger.matches(fromHost, cloak)).toBe(true);
+        expect(
+            trigger.matches({ ...fromHost, sourceInstanceId: "other" }, cloak)
+        ).toBe(false);
+        resolveTrigger(state, cloak, "armadillo-cloak-lifegain", fromHost);
+        expect(state.players[0].life).toBe(25);
+    });
+});
+
+describe("Aura Shards (CR 603.6a creature-you-control ETB + resolve() may-destroy artifact/enchantment, GW issue #1079)", () => {
+    it("triggers only when a creature the controller controls enters", () => {
+        const shards = makeInstance(auraShards.id, {
+            id: "shards",
+            controllerId: "p1",
+        });
+        const trigger = auraShards.triggeredAbilities![0];
+        const yourCreature = {
+            type: "PERMANENT_ENTERED" as const,
+            instanceId: "new",
+            controllerId: "p1",
+            types: ["Creature"] as CardType[],
+        };
+        expect(trigger.matches(yourCreature, shards)).toBe(true);
+        expect(
+            trigger.matches({ ...yourCreature, controllerId: "p2" }, shards)
+        ).toBe(false);
+        expect(
+            trigger.matches(
+                { ...yourCreature, types: ["Land"] as CardType[] },
+                shards
+            )
+        ).toBe(false);
+    });
+
+    it("may destroy a target artifact or enchantment across either battlefield", () => {
+        const shards = makeInstance(auraShards.id, {
+            id: "shards",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppArtifact = makeInstance(icyManipulator.id, {
+            id: "opp-artifact",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shards] }),
+                makePlayer("p2", { battlefield: [oppArtifact] }),
+            ],
+        });
+        resolveTrigger(state, shards, "aura-shards-destroy", {
+            type: "PERMANENT_ENTERED",
+            instanceId: "creature",
+            controllerId: "p1",
+            types: ["Creature"],
+        } as never);
+        expect(state.pendingChoices?.[0]?.kind).toBe("choose-permanents");
+        submitChoice(state, ["opp-artifact"]);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "opp-artifact")
+        ).toBe(false);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "opp-artifact")
+        ).toBe(true);
+    });
+});
+
+describe("Captain Sisay (CR 605 tap ability, CR 701.23 search-by-supertype + reveal + shuffle, GW issue #1079)", () => {
+    it("searches library for a legendary card, revealed, into hand, then shuffles", () => {
+        const sisay = makeInstance(captainSisay.id, {
+            id: "sisay",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const legendaryInLib = makeInstance(empressGalina.id, {
+            id: "lib-legend",
+            ownerId: "p1",
+        });
+        const nonLegendInLib = makeInstance(grizzlyBears.id, {
+            id: "lib-bear",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [sisay],
+                    library: [legendaryInLib, nonLegendInLib],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, sisay, "captain-sisay-tutor");
+        expect(state.pendingChoices?.[0]?.kind).toBe("search-library");
+        submitChoice(state, ["lib-legend"]);
+        expect(state.players[0].hand.some((c) => c.id === "lib-legend")).toBe(
+            true
+        );
+        expect(
+            state.players[0].library.some((c) => c.id === "lib-legend")
+        ).toBe(false);
+        // "then shuffle" — the non-legendary card stays in the library.
+        expect(state.players[0].library).toHaveLength(1);
+    });
+});
+
+describe("Charging Troll (CR 702.20b vigilance + CR 701.15a self-regenerate, GW issue #1079)", () => {
+    it("has vigilance", () => {
+        expect(chargingTroll.staticAbilities).toContain("vigilance");
+    });
+    it("stacks a regeneration shield on itself for {G}", () => {
+        const troll = makeInstance(chargingTroll.id, {
+            id: "troll",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [troll] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, troll, "charging-troll-regen");
+        expect(
+            state.players[0].battlefield.find((c) => c.id === "troll")!
+                .regenerationShields
+        ).toBe(1);
+    });
+});
+
+describe("Horned Cheetah (CR 120.3/603.2 resolve() damage-dealt lifegain, GW issue #1079)", () => {
+    it("gains its controller life equal to the damage it deals", () => {
+        const cheetah = makeInstance(hornedCheetah.id, {
+            id: "cheetah",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [cheetah] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, cheetah, "horned-cheetah-lifegain", {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "cheetah",
+            sourceControllerId: "p1",
+            target: { type: "player", id: "p2" },
+            amount: 2,
+            isCombat: true,
+        } as never);
+        expect(state.players[0].life).toBe(22);
+    });
+});
+
+describe("Llanowar Knight (CR 702.16 protection, GW issue #1079)", () => {
+    it("has protection from black", () => {
+        expect(llanowarKnight.staticAbilities).toContain(
+            "protection from black"
+        );
+    });
+});
+
+describe("Noble Panther (CR 611.1b temporary first strike grant, GW issue #1079)", () => {
+    it("{1}: gains first strike until end of turn", () => {
+        const panther = makeInstance(noblePanther.id, {
+            id: "np",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [panther] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, panther, "noble-panther-first-strike");
+        const live = state.players[0].battlefield.find((c) => c.id === "np")!;
+        expect(live.staticAbilities).toContain("first strike");
+    });
+});
+
+describe("Sabertooth Nishoba (CR 702.19 trample + 702.16 double protection, GW issue #1079)", () => {
+    it("has trample and protection from both blue and red", () => {
+        expect(sabertoothNishoba.staticAbilities).toEqual(
+            expect.arrayContaining([
+                "trample",
+                "protection from blue",
+                "protection from red",
+            ])
+        );
     });
 });

@@ -420,6 +420,12 @@
         "firstSet": "zen"
     },
     {
+        "name": "Armadillo Cloak",
+        "scryfallId": "9d816f98-6cb6-432c-b0a4-a0eed21658ac",
+        "oracleId": "15397a59-70a8-441f-abf7-230405a1602b",
+        "firstSet": "inv"
+    },
+    {
         "name": "Armageddon",
         "scryfallId": "5b6ddce7-b9c5-431d-a0b0-46d4aa93cbcb",
         "oracleId": "c9ed8b01-959a-47d6-891e-0abbdccf6e4f",
@@ -522,10 +528,22 @@
         "firstSet": "atq"
     },
     {
+        "name": "Aura Mutation",
+        "scryfallId": "38421179-615e-4aba-91a4-503bfee05403",
+        "oracleId": "19bb51dd-2b93-45f0-927d-bbafddadd0a3",
+        "firstSet": "inv"
+    },
+    {
         "name": "Aura of Silence",
         "scryfallId": "57e6c366-b8c7-4f66-b8e1-82dc69c0081c",
         "oracleId": "e7faf8eb-e829-4109-8dfe-42865a23ba86",
         "firstSet": "wth"
+    },
+    {
+        "name": "Aura Shards",
+        "scryfallId": "df4039ef-af72-4267-ade9-fdb7c921279e",
+        "oracleId": "8d03d050-391c-4311-8c42-4ee632d40fdc",
+        "firstSet": "inv"
     },
     {
         "name": "Aurochs",
@@ -1182,6 +1200,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Captain Sisay",
+        "scryfallId": "d24d441c-f37f-44fe-8a93-f5c89df807e4",
+        "oracleId": "2e7a9ea9-f76c-4c12-950f-c613fa16cfa8",
+        "firstSet": "inv"
+    },
+    {
         "name": "Caribou Range",
         "scryfallId": "1e5f8041-67fc-4e00-b119-d216e5cc5a3a",
         "oracleId": "39229fbc-1296-4ac7-9f79-65c6f0d09991",
@@ -1299,6 +1323,12 @@
         "name": "Chaotic Strike",
         "scryfallId": "061df8e4-6947-4bbb-9fe7-52ca4fd95d65",
         "oracleId": "1f0b3549-2d24-49e8-85bc-55e3a5e5f6b8",
+        "firstSet": "inv"
+    },
+    {
+        "name": "Charging Troll",
+        "scryfallId": "58956099-6b97-4c7b-ab23-9f9b4d50ef95",
+        "oracleId": "bbc1b96d-5a63-4091-a2c7-08bd289e0bf2",
         "firstSet": "inv"
     },
     {
@@ -3744,6 +3774,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Heroes' Reunion",
+        "scryfallId": "135d6043-5ec1-4ad4-8296-41fe23f11cb9",
+        "oracleId": "beab66e0-2b6c-478f-ba42-8c0c216a527e",
+        "firstSet": "inv"
+    },
+    {
         "name": "Heroism",
         "scryfallId": "08ee87a0-a7eb-4472-9045-85d11e8a1501",
         "oracleId": "74716642-fc8c-4f62-a556-154ed0b4af0e",
@@ -3856,6 +3892,12 @@
         "scryfallId": "d5dfc25d-a17b-4ead-9484-e8a18b8fa176",
         "oracleId": "262a5d83-506c-4781-9bc9-1a2b5d83955c",
         "firstSet": "fut"
+    },
+    {
+        "name": "Horned Cheetah",
+        "scryfallId": "a28ad983-ce91-40b6-a1ce-fe36ec7fbce8",
+        "oracleId": "a552edbe-bd5d-4281-8d9f-d03f4b10815d",
+        "firstSet": "inv"
     },
     {
         "name": "Hornet Cobra",
@@ -4950,6 +4992,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Llanowar Knight",
+        "scryfallId": "e6c75d89-e432-49aa-a407-555b223b7eff",
+        "oracleId": "6b26951f-57be-4524-ae0e-a102e84e81ef",
+        "firstSet": "inv"
+    },
+    {
         "name": "Llanowar Vanguard",
         "scryfallId": "72e6ed79-bdfd-49f9-bfa4-be4196880487",
         "oracleId": "9123086e-ae67-46c5-aed5-6366e2fe5a8c",
@@ -5758,6 +5806,12 @@
         "scryfallId": "1e0c695d-62f9-4805-9e2f-7032e8464136",
         "oracleId": "ead1ee6a-e0da-46d5-89e8-31e8c0270bc2",
         "firstSet": "mkm"
+    },
+    {
+        "name": "Noble Panther",
+        "scryfallId": "3f327818-8222-4295-8cef-118757b34d17",
+        "oracleId": "bfb799d2-b2fa-4efb-91d7-a457230b370f",
+        "firstSet": "inv"
     },
     {
         "name": "Nomadic Elf",
@@ -7000,6 +7054,12 @@
         "scryfallId": "ca02861b-9639-480d-8e54-e024f0c70158",
         "oracleId": "32717625-46c6-45c5-ad0a-fb6a91f9878c",
         "firstSet": "ice"
+    },
+    {
+        "name": "Sabertooth Nishoba",
+        "scryfallId": "8338c296-cf3f-41d7-b380-3fb4237cb41c",
+        "oracleId": "ce82aa79-bb50-47bc-84f5-eae30249c7a5",
+        "firstSet": "inv"
     },
     {
         "name": "Sabretooth Tiger",
