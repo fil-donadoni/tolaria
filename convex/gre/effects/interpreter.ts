@@ -1910,6 +1910,52 @@ function execForEach(
         ctx.noteChoice(setKey, members);
     }
 
+    // Simultaneous batch reanimation (CR 400.7 / 614-batch, issue #1094):
+    // bypass the per-member `runOpList` walk entirely. The validator
+    // guarantees `select.set === "graveyard"` and a single reanimating
+    // `moveZone` body when `simultaneous` is set, so the WHOLE frozen member
+    // set moves through `returnGraveyardSetToBattlefield` in one call — every
+    // reanimated permanent stages onto the battlefield before ANY of them
+    // runs its grant/ETB pass (no partial-sibling visibility). Never
+    // suspends, but is NOT naturally idempotent (unlike the per-member path,
+    // whose individual body Ops are each checkpoint-gated by `runOpList`), so
+    // the result is persisted under its own key — `forEach` is a "structural
+    // construct" that always re-descends on a re-walk (a LATER Op suspending
+    // elsewhere in the script), and without this guard a resume would
+    // re-run the batch move a second time.
+    if (op.select.set === "graveyard" && op.simultaneous) {
+        const resultKey = `#forEach:${pos}:simultaneousResult`;
+        if (ctx.recallChoice(resultKey) === undefined) {
+            const body = op.effects[0] as { controller?: EffectPlayerRef };
+            // Mirrors the per-member `moveZone` path: an explicit `controller`
+            // override that fails to resolve skips the WHOLE batch (CR
+            // 608.2b), rather than silently falling back to owner control.
+            let controllerId: string | undefined;
+            let controllerUnresolvable = false;
+            if (body.controller) {
+                controllerId = resolvePlayerRef(ctx, body.controller);
+                controllerUnresolvable = controllerId === undefined;
+            }
+            const entries: { playerId: string; cardInstanceId: string }[] =
+                [];
+            if (!controllerUnresolvable) {
+                for (const id of members) {
+                    const owner = ctx.getGraveyardCardOwner(id);
+                    // A member that already left the graveyard mid-resolution
+                    // is skipped (CR 608.2b) — never reaches the primitive.
+                    if (owner !== undefined) {
+                        entries.push({ playerId: owner, cardInstanceId: id });
+                    }
+                }
+            }
+            const entered = controllerUnresolvable
+                ? []
+                : ctx.returnGraveyardSetToBattlefield(entries, controllerId);
+            ctx.noteChoice(resultKey, entered);
+        }
+        return undefined;
+    }
+
     for (let k = 0; k < members.length; k++) {
         const inner = scopedContext(ctx, pos, k);
         // Bind `$each` once per iteration (a resume mid-iteration keeps the
