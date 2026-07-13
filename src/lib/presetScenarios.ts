@@ -111,29 +111,6 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         landCount: 0,
     },
     {
-        // Replenish — bulk graveyard-set move (issue #1056, CR 404 / 400.7).
-        // Cast Replenish ({3}{W}) with four Plains untapped; it sweeps your
-        // graveyard and returns BOTH enchantment cards (Crusade + Castle) to the
-        // battlefield at once, with no per-card choice. The graveyard also holds
-        // a creature (Grizzly Bears) the enchantment filter leaves behind.
-        label: "Replenish (#1056) — return all enchantments from graveyard at once",
-        cards: [
-            { name: "Replenish", owner: "me", zone: "hand" },
-            { name: "Llanowar Elves", owner: "me", zone: "battlefield" },
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-            { name: "Shivan Dragon", owner: "me", zone: "battlefield" },
-            { name: "Unholy Strength", owner: "me", zone: "graveyard" },
-            { name: "Holy Strength", owner: "me", zone: "graveyard" },
-            { name: "Warp Artifact", owner: "me", zone: "graveyard" },
-            { name: "Plains", owner: "me", zone: "battlefield", count: 4 },
-            { name: "Crusade", owner: "me", zone: "graveyard" },
-            { name: "Castle", owner: "me", zone: "graveyard" },
-            { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
         // Fact or Fiction — pile division (ADR 0053, issue #1067). Cast Fact
         // or Fiction with a stocked library so the top 5 reveal + divide (by
         // the opponent, "opp") + choose (by the caster, "me") + hand/graveyard
