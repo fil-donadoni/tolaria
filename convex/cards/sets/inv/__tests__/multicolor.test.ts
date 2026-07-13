@@ -17,6 +17,18 @@ import {
     stalkingAssassin,
     urborgDrake,
     vileConsumption,
+    agonizingDemise,
+    blazingSpecter,
+    bloodstoneCameo,
+    firescreamer,
+    hoodedKavu,
+    plagueSpores,
+    recklessAssault,
+    shivanZombie,
+    smolderingTar,
+    trenchWurm,
+    urborgVolcano,
+    viciousKavu,
 } from "../multicolor";
 import {
     makeInstance,
@@ -27,6 +39,7 @@ import {
 import {
     resolveTopOfStack,
     applySourceStaticEffects,
+    type StackItem,
 } from "../../../../gre/state";
 import { plains, island, swamp, mountain, forest } from "../../lea/colorless";
 import { grizzlyBears, scatheZombies } from "../../lea";
@@ -43,6 +56,7 @@ import {
 import { effectiveTriggeredAbilities } from "../../../../gre/copy";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
+import { resolveActivated, resolveTrigger, submitChoice } from "./helpers";
 
 describe("Ordered Migration (CR 111 / 701.7 token creation, Domain, issue #1066)", () => {
     it("creates one 1/1 blue flying Bird per basic land type controlled", () => {
@@ -737,5 +751,400 @@ describe("Vile Consumption (triggered-grant to every creature, CR 113.1/611 + up
         expect(state.players[0].graveyard.some((c) => c.id === "bear")).toBe(
             true
         );
+    });
+});
+
+describe("Agonizing Demise (CR 702.33 Kicker + 701.8 destroy + 701.15c regen-suppression, issue #1077)", () => {
+    function cast(kicked: boolean) {
+        const foe = makeInstance(grizzlyBears.id, {
+            id: "foe",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [foe] }),
+            ],
+        });
+        const item: StackItem = pushSpell(state, agonizingDemise.id, "p1", [
+            { type: "permanent", id: "foe" },
+        ]);
+        if (kicked) item.kickerCount = 1;
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("declares Kicker {1}{R}, a nonblack-creature target filter, and a can't-be-regenerated destroy", () => {
+        expect(agonizingDemise.kicker?.cost).toEqual({ X: 1, R: 1 });
+        expect(agonizingDemise.targetRequirement?.excludeColors).toBe("B");
+        expect(agonizingDemise.effects?.[0]).toMatchObject({
+            op: "destroy",
+            cantBeRegenerated: true,
+        });
+    });
+
+    it("unkicked: destroys the target creature, no damage dealt", () => {
+        const state = cast(false);
+        expect(state.players[1].battlefield.some((c) => c.id === "foe")).toBe(
+            false
+        );
+        expect(state.players[1].graveyard.some((c) => c.id === "foe")).toBe(
+            true
+        );
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("kicked: also deals damage equal to the slain creature's power to its controller", () => {
+        const state = cast(true);
+        expect(state.players[1].graveyard.some((c) => c.id === "foe")).toBe(
+            true
+        );
+        // Grizzly Bears is a 2/2 — 2 damage to its controller (p2).
+        expect(state.players[1].life).toBe(18);
+    });
+});
+
+describe("Blazing Specter (CR 702.9b flying + 702.10b haste + combat-damage discard, issue #1077)", () => {
+    it("has flying and haste", () => {
+        expect(blazingSpecter.staticAbilities).toEqual(
+            expect.arrayContaining(["flying", "haste"])
+        );
+    });
+
+    it("triggers only on its own combat damage dealt to a player", () => {
+        const specter = makeInstance(blazingSpecter.id, {
+            id: "specter",
+            controllerId: "p1",
+        });
+        const trigger = blazingSpecter.triggeredAbilities![0];
+        const base = {
+            type: "DAMAGE_DEALT" as const,
+            sourceInstanceId: "specter",
+            sourceControllerId: "p1",
+            target: { type: "player" as const, id: "p2" },
+            amount: 2,
+            isCombat: true,
+        };
+        expect(trigger.matches(base, specter)).toBe(true);
+        expect(trigger.matches({ ...base, isCombat: false }, specter)).toBe(
+            false
+        );
+        expect(
+            trigger.matches({ ...base, sourceInstanceId: "other" }, specter)
+        ).toBe(false);
+        expect(
+            trigger.matches(
+                { ...base, target: { type: "permanent" as const, id: "x" } },
+                specter
+            )
+        ).toBe(false);
+    });
+
+    it("makes the damaged player discard a card of their own choosing", () => {
+        const specter = makeInstance(blazingSpecter.id, {
+            id: "specter",
+            controllerId: "p1",
+        });
+        const oppCard = makeInstance(grizzlyBears.id, {
+            id: "opp-hand-1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [specter] }),
+                makePlayer("p2", { hand: [oppCard] }),
+            ],
+        });
+        resolveTrigger(state, specter, "blazing-specter-damage-discard", {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "specter",
+            sourceControllerId: "p1",
+            target: { type: "player", id: "p2" },
+            amount: 2,
+            isCombat: true,
+        } as never);
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p2");
+        submitChoice(state, ["opp-hand-1"]);
+        expect(state.players[1].hand).toHaveLength(0);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "opp-hand-1")
+        ).toBe(true);
+    });
+});
+
+describe("Bloodstone Cameo (CR 605.1a choice-of-color mana ability, issue #1077)", () => {
+    it("is a mana ability (useStack:false) offering B or R", () => {
+        const ability = bloodstoneCameo.activatedAbilities![0];
+        expect(ability.useStack).toBe(false);
+        expect(ability.manaChoices).toEqual([{ B: 1 }, { R: 1 }]);
+        expect(ability.cost.tap).toBe(true);
+    });
+});
+
+describe("Firescreamer (CR 613.4c firebreathing pump, issue #1077)", () => {
+    it("{R}: gets +1/+0 until end of turn", () => {
+        const creature = makeInstance(firescreamer.id, {
+            id: "fs",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [creature] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, creature, "firescreamer-pump");
+        const live = state.players[0].battlefield.find((c) => c.id === "fs")!;
+        expect(getEffectivePower(state, live)).toBe(3);
+        expect(getEffectiveToughness(state, live)).toBe(2);
+    });
+});
+
+describe("Hooded Kavu (CR 702.14b fear temporary grant, issue #1077)", () => {
+    it("{B}: gains fear until end of turn", () => {
+        const creature = makeInstance(hoodedKavu.id, {
+            id: "hk",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [creature] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, creature, "hooded-kavu-fear");
+        const live = state.players[0].battlefield.find((c) => c.id === "hk")!;
+        expect(live.staticAbilities).toContain("fear");
+    });
+});
+
+describe("Plague Spores (CR 701.8 destroy x2 + 701.15c regen-suppression, issue #1077)", () => {
+    it("targets a nonblack creature AND an independent land slot", () => {
+        expect(plagueSpores.targetRequirement).toMatchObject({
+            type: "Creature",
+            excludeColors: "B",
+        });
+        expect(plagueSpores.additionalTargetRequirements?.[0]).toMatchObject({
+            type: "Land",
+        });
+    });
+
+    it("destroys both the creature and the land, neither regenerable", () => {
+        const foe = makeInstance(grizzlyBears.id, {
+            id: "foe",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const land = makeInstance(forest.id, {
+            id: "land",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [foe, land] }),
+            ],
+        });
+        pushSpell(state, plagueSpores.id, "p1", [
+            { type: "permanent", id: "foe" },
+            { type: "permanent", id: "land" },
+        ]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "foe",
+            "land",
+        ]);
+    });
+});
+
+describe("Reckless Assault (CR 602.1/118.5 mana+life activation cost, issue #1077)", () => {
+    it("costs {1} and 2 life", () => {
+        const ability = recklessAssault.activatedAbilities![0];
+        expect(ability.cost.mana).toEqual({ X: 1 });
+        expect(ability.cost.life).toBe(2);
+    });
+
+    it("deals 1 damage to any target", () => {
+        const ench = makeInstance(recklessAssault.id, {
+            id: "ra",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [ench] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, ench, "reckless-assault-ping", [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].life).toBe(19);
+    });
+});
+
+describe("Shivan Zombie (CR 702.16 protection, issue #1077)", () => {
+    it("has protection from white", () => {
+        expect(shivanZombie.staticAbilities).toContain("protection from white");
+    });
+});
+
+describe("Smoldering Tar (CR 603.6a upkeep target-player drain + 701.16 sacrifice-for-damage, issue #1077)", () => {
+    it("the detonate ability is sacrifice-only and sorcery-speed-restricted", () => {
+        const detonate = smolderingTar.activatedAbilities![0];
+        expect(detonate.cost).toEqual({ sacrifice: true });
+        expect(detonate.controllerTurnOnly).toBe(true);
+        expect(detonate.activationPhaseRestriction).toEqual([
+            "PRECOMBAT_MAIN",
+            "POSTCOMBAT_MAIN",
+        ]);
+    });
+
+    it("upkeep trigger: choosing the opponent makes them lose 1 life", () => {
+        const tar = makeInstance(smolderingTar.id, {
+            id: "tar",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tar] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.stack.push({
+            ...tar,
+            zone: "stack",
+            castById: "p1",
+            triggeredAbilityId: "smoldering-tar-upkeep",
+            triggerSourceId: tar.id,
+            triggerEvent: {
+                type: "PHASE_BEGIN",
+                phase: "UPKEEP",
+                activePlayerId: "p1",
+            } as never,
+            targets: [],
+        });
+        expect(resolveTopOfStack(state)).toBeNull(); // suspends on the player pick
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        submitChoice(state, ["p2"]);
+        expect(state.players[1].life).toBe(19);
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("Sacrifice: deals 4 damage to target creature", () => {
+        const tar = makeInstance(smolderingTar.id, {
+            id: "tar",
+            controllerId: "p1",
+        });
+        const foe = makeInstance(grizzlyBears.id, {
+            id: "foe",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [tar] }),
+                makePlayer("p2", { battlefield: [foe] }),
+            ],
+        });
+        resolveActivated(state, tar, "smoldering-tar-detonate", [
+            { type: "permanent", id: "foe" },
+        ]);
+        expect(state.players[1].battlefield.some((c) => c.id === "foe")).toBe(
+            false
+        );
+        expect(state.players[1].graveyard.some((c) => c.id === "foe")).toBe(
+            true
+        );
+    });
+});
+
+describe("Trench Wurm (CR 605 activated ability, 701.8 destroy nonbasic land, issue #1077)", () => {
+    it("targets a nonbasic land", () => {
+        const ability = trenchWurm.activatedAbilities![0];
+        expect(ability.targetRequirement?.excludeSupertypes).toBe("Basic");
+    });
+
+    it("{2}{R}, {T}: destroys target nonbasic land", () => {
+        const wurm = makeInstance(trenchWurm.id, {
+            id: "wurm",
+            controllerId: "p1",
+        });
+        const nonbasic = makeInstance(urborgVolcano.id, {
+            id: "vol",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [wurm] }),
+                makePlayer("p2", { battlefield: [nonbasic] }),
+            ],
+        });
+        resolveActivated(state, wurm, "trench-wurm-destroy-land", [
+            { type: "permanent", id: "vol" },
+        ]);
+        expect(state.players[1].battlefield.some((c) => c.id === "vol")).toBe(
+            false
+        );
+        expect(state.players[1].graveyard.some((c) => c.id === "vol")).toBe(
+            true
+        );
+    });
+});
+
+describe("Urborg Volcano (CR 110.5b enters tapped + 605.1a choice-of-color mana ability, issue #1077)", () => {
+    it("enters tapped and taps for B or R", () => {
+        expect(urborgVolcano.entersTapped).toBe(true);
+        const ability = urborgVolcano.activatedAbilities![0];
+        expect(ability.useStack).toBe(false);
+        expect(ability.manaChoices).toEqual([{ B: 1 }, { R: 1 }]);
+    });
+});
+
+describe("Vicious Kavu (CR 508.1 attacks trigger + 613.4c pump, issue #1077)", () => {
+    it("triggers only when it is among the declared attackers", () => {
+        const kavu = makeInstance(viciousKavu.id, { id: "vk" });
+        const trigger = viciousKavu.triggeredAbilities![0];
+        expect(
+            trigger.matches(
+                {
+                    type: "ATTACKERS_DECLARED",
+                    attackerIds: ["vk", "other"],
+                } as never,
+                kavu
+            )
+        ).toBe(true);
+        expect(
+            trigger.matches(
+                { type: "ATTACKERS_DECLARED", attackerIds: ["other"] } as never,
+                kavu
+            )
+        ).toBe(false);
+    });
+
+    it("gets +2/+0 until end of turn when it attacks", () => {
+        const kavu = makeInstance(viciousKavu.id, {
+            id: "vk",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [kavu] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, kavu, "vicious-kavu-attacks", {
+            type: "ATTACKERS_DECLARED",
+            attackerIds: ["vk"],
+        } as never);
+        const live = state.players[0].battlefield.find((c) => c.id === "vk")!;
+        expect(getEffectivePower(state, live)).toBe(4);
+        expect(getEffectiveToughness(state, live)).toBe(2);
     });
 });

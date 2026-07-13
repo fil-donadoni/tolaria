@@ -7,7 +7,13 @@
 // module empty ("sparse modules are accepted", ADR 0043). The Domain
 // capability cluster (#1066) ships its two gold cards here.
 
-import type { CardDefinition, Color, PermanentView } from "../../types";
+import type {
+    ActivatedAbilityContext,
+    CardDefinition,
+    Color,
+    PermanentView,
+    SpellContext,
+} from "../../types";
 import { AURA_AFFECTS_HOST, PERMANENT_TYPES } from "../../types";
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -891,3 +897,493 @@ export const vodalianZombie: CardDefinition = {
 // Op, not a continuous one. Same root-cause gap already flagged inline,
 // uncommented, for Enduring Renewal `ice/white.ts`, issue #628 — never
 // given its own tracking issue until now.)
+
+// ─────────────────────────────────────────────────────────────────────────
+// Free tranche — BR (issue #1077, parent PRD #1063)
+// ─────────────────────────────────────────────────────────────────────────
+
+// Agonizing Demise — {3}{B} Instant. "Kicker {1}{R}. Destroy target
+// nonblack creature. It can't be regenerated. If this spell was kicked,
+// Agonizing Demise deals damage equal to that creature's power to the
+// creature's controller." (CR 702.33 Kicker; CR 701.8 destroy +
+// `excludeColors` target filter, "nonblack creature" — Terror precedent;
+// CR 701.15c "can't be regenerated" via `destroy`'s `cantBeRegenerated`;
+// CR 120.1 damage.) `bind: "$slain"` snapshots the destroyed creature's
+// power/controller BEFORE it leaves the battlefield (CR 608.2h last-known
+// information) — the kicked damage reads `$slain.power` to `$slain`'s
+// controller. `{ kickerCount: true } >= 1` is the standard "if this spell
+// was kicked" gate (Overload, Explosive Growth this same set).
+export const agonizingDemise: CardDefinition = {
+    id: "539ac5e1-4bad-4f70-abac-e70c406bebec",
+    rarity: "common",
+    name: "Agonizing Demise",
+    oracleText:
+        "Kicker {1}{R} (You may pay an additional {1}{R} as you cast this spell.)\nDestroy target nonblack creature. It can't be regenerated. If this spell was kicked, Agonizing Demise deals damage equal to that creature's power to the creature's controller.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Instant"],
+    kicker: { cost: { X: 1, R: 1 } },
+    targetRequirement: { type: "Creature", count: 1, excludeColors: "B" },
+    effects: [
+        {
+            op: "destroy",
+            target: { target: 0 },
+            bind: "$slain",
+            cantBeRegenerated: true,
+        },
+        {
+            op: "if",
+            predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
+            then: [
+                {
+                    op: "dealDamage",
+                    amount: { ref: "$slain.power" },
+                    to: { player: { ref: "$slain.controller" } },
+                },
+            ],
+        },
+    ],
+};
+
+// Blazing Specter — {2}{B}{R} Creature — Specter, 2/2. "Flying, haste.
+// Whenever this creature deals combat damage to a player, that player
+// discards a card." (CR 702.9b flying, CR 702.10b haste, CR 510.4/603.2
+// combat-damage trigger.) The firing `DAMAGE_DEALT` event's `damagedPlayer`
+// field (ADR 0049's event-field registry) is a PLAYER-family ref legal
+// directly in a triggered ability's own `effects[]` — no bind/capture
+// needed: `{ ref: "$event.damagedPlayer" }` names both the chooser of
+// `choice(choose-hand-card)` and the `discard` player (CR 701.8a default —
+// the discarding player picks their own card).
+export const blazingSpecter: CardDefinition = {
+    id: "3bd397be-0e61-4f41-b0cf-f0c9d2440da7",
+    rarity: "rare",
+    name: "Blazing Specter",
+    oracleText:
+        "Flying, haste\nWhenever this creature deals combat damage to a player, that player discards a card.",
+    manaCost: { X: 2, B: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Specter"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["flying", "haste"],
+    triggeredAbilities: [
+        {
+            id: "blazing-specter-damage-discard",
+            oracleText:
+                "Whenever this creature deals combat damage to a player, that player discards a card.",
+            event: "DAMAGE_DEALT",
+            matches: (event, self) =>
+                event.type === "DAMAGE_DEALT" &&
+                event.sourceInstanceId === self.id &&
+                event.isCombat === true &&
+                event.target.type === "player",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: { ref: "$event.damagedPlayer" },
+                    zone: "hand",
+                    count: 1,
+                    prompt: "Discard a card (Blazing Specter).",
+                    bind: "$disc",
+                },
+                {
+                    op: "discard",
+                    player: { ref: "$event.damagedPlayer" },
+                    cards: { ref: "$disc" },
+                },
+            ],
+        },
+    ],
+};
+
+// Bloodstone Cameo — {3} Artifact. "{T}: Add {B} or {R}." (CR 605.1a
+// choice-of-color mana ability — the Fellwar Stone / Nomadic Elf
+// `manaChoices` shape, restricted to the two printed colors instead of
+// "any color.")
+export const bloodstoneCameo: CardDefinition = {
+    id: "f9db32fa-64b2-4ef6-88f2-28e758d420bb",
+    rarity: "uncommon",
+    name: "Bloodstone Cameo",
+    oracleText: "{T}: Add {B} or {R}.",
+    manaCost: { X: 3 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "bloodstone-cameo-tap",
+            oracleText: "{T}: Add {B} or {R}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ B: 1 }),
+            manaChoices: [{ B: 1 }, { R: 1 }],
+        },
+    ],
+};
+
+// Firescreamer — {3}{B} Creature — Kavu, 2/2. "{R}: This creature gets
+// +1/+0 until end of turn." (CR 613.4c firebreathing-style pump, the
+// Dragon Whelp / Rogue Kavu `pump` Op shape self-targeted via `$source`.)
+export const firescreamer: CardDefinition = {
+    id: "155a2213-bf6e-4a54-924b-e450b7d06f26",
+    rarity: "common",
+    name: "Firescreamer",
+    oracleText: "{R}: This creature gets +1/+0 until end of turn.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "firescreamer-pump",
+            oracleText: "{R}: This creature gets +1/+0 until end of turn.",
+            cost: { mana: { R: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 1,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
+
+// Hooded Kavu — {2}{R} Creature — Kavu, 2/2. "{B}: This creature gains fear
+// until end of turn." (CR 702.14b fear, CR 611.1b temporary keyword grant
+// via the shipped `grantAbility` Op self-targeted via `$source`.)
+export const hoodedKavu: CardDefinition = {
+    id: "5464b80a-22fe-42c7-a839-31667712fb2d",
+    rarity: "common",
+    name: "Hooded Kavu",
+    oracleText: "{B}: This creature gains fear until end of turn.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "hooded-kavu-fear",
+            oracleText: "{B}: This creature gains fear until end of turn.",
+            cost: { mana: { B: 1 } },
+            useStack: true,
+            effects: [
+                {
+                    op: "grantAbility",
+                    ability: "fear",
+                    target: { ref: "$source" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
+
+// Plague Spores — {4}{B}{R} Sorcery. "Destroy target nonblack creature and
+// target land. They can't be regenerated." (CR 701.8 destroy +
+// `excludeColors` "nonblack creature" filter, CR 701.15c "can't be
+// regenerated"; two INDEPENDENT target groups — Fumarole's "destroy target
+// creature and target land" `additionalTargetRequirements` precedent.)
+export const plagueSpores: CardDefinition = {
+    id: "0d106d56-a688-49cc-8d5d-0279a5a7c0a7",
+    rarity: "common",
+    name: "Plague Spores",
+    oracleText:
+        "Destroy target nonblack creature and target land. They can't be regenerated.",
+    manaCost: { X: 4, B: 1, R: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "Creature", count: 1, excludeColors: "B" },
+    additionalTargetRequirements: [{ type: "Land", count: 1 }],
+    effects: [
+        { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
+        { op: "destroy", target: { target: 1 }, cantBeRegenerated: true },
+    ],
+};
+
+// Reckless Assault — {2}{B}{R} Enchantment. "{1}, Pay 2 life: This
+// enchantment deals 1 damage to any target." (CR 602.1/118.5 mana + life
+// activation cost — the Bloodstained Mire / City of Brass `cost.life`
+// shape; CR 115.4 any-target; CR 120.1 damage.)
+export const recklessAssault: CardDefinition = {
+    id: "ff0f568e-4d3a-40a5-b72a-63040ec5402d",
+    rarity: "rare",
+    name: "Reckless Assault",
+    oracleText:
+        "{1}, Pay 2 life: This enchantment deals 1 damage to any target.",
+    manaCost: { X: 2, B: 1, R: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "reckless-assault-ping",
+            oracleText:
+                "{1}, Pay 2 life: This enchantment deals 1 damage to any target.",
+            cost: { mana: { X: 1 }, life: 2 },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
+        },
+    ],
+};
+
+// Shivan Zombie — {B}{R} Creature — Phyrexian Barbarian Zombie, 2/2.
+// "Protection from white." (CR 702.16 protection.) Pure data — a vanilla
+// body with one printed keyword.
+export const shivanZombie: CardDefinition = {
+    id: "f4c99269-f730-4d33-bbce-9e855e9ad0fc",
+    rarity: "common",
+    name: "Shivan Zombie",
+    oracleText: "Protection from white",
+    manaCost: { B: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Phyrexian", "Barbarian", "Zombie"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["protection from white"],
+};
+
+// Smoldering Tar — {2}{B}{R} Enchantment. "At the beginning of your
+// upkeep, target player loses 1 life. Sacrifice this enchantment: It deals
+// 4 damage to target creature. Activate only as a sorcery." (CR 603.6a
+// upkeep trigger; CR 701.16 sacrifice cost; CR 120.1 damage.)
+//
+// protocol card (upkeep trigger only): `TriggeredAbility` has no
+// `targetRequirement` (ADR 0002) and no `EffectChoiceKind` member picks a
+// PLAYER (only cards/permanents) — the established architecture-limit
+// precedent this same set's `black.ts` already documents and uses `resolve()`
+// for (Annihilate/Phyrexian Reaper/Spreading Plague/Tsabo's Assassin), NOT an
+// invented capability. "Target player" is a genuine choice between either
+// player (not a fixed relative ref like "opponent"), so it's built with the
+// same `requestOptionChoice` generic-picker idiom Shapeshifter (`atq/
+// colorless.ts`) already uses for an open-ended decision. The second
+// (sacrifice-for-damage) ability is fully DSL — no gap.
+export const smolderingTar: CardDefinition = {
+    id: "fcdc55c0-c8ac-49d5-969b-9bf0ee8e696c",
+    rarity: "uncommon",
+    name: "Smoldering Tar",
+    oracleText:
+        "At the beginning of your upkeep, target player loses 1 life.\nSacrifice this enchantment: It deals 4 damage to target creature. Activate only as a sorcery.",
+    manaCost: { X: 2, B: 1, R: 1 },
+    types: ["Enchantment"],
+    triggeredAbilities: [
+        {
+            id: "smoldering-tar-upkeep",
+            oracleText:
+                "At the beginning of your upkeep, target player loses 1 life.",
+            event: "PHASE_BEGIN",
+            matches: (event, self) =>
+                event.type === "PHASE_BEGIN" &&
+                event.phase === "UPKEEP" &&
+                event.activePlayerId === self.controllerId,
+            resolve: (ctx: SpellContext) => {
+                const choice = ctx.requestOptionChoice({
+                    playerId: ctx.controller,
+                    choiceId: `smoldering-tar-target-${ctx.sourceInstanceId}`,
+                    options: ctx.allPlayerIds.map((id) => ({
+                        id,
+                        label: id === ctx.controller ? "You" : "Opponent",
+                    })),
+                    prompt: "Choose target player to lose 1 life (Smoldering Tar).",
+                });
+                if (choice === undefined) return; // suspended
+                ctx.loseLife(choice, 1);
+            },
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "smoldering-tar-detonate",
+            oracleText:
+                "Sacrifice this enchantment: It deals 4 damage to target creature. Activate only as a sorcery.",
+            cost: { sacrifice: true },
+            useStack: true,
+            controllerTurnOnly: true,
+            activationPhaseRestriction: ["PRECOMBAT_MAIN", "POSTCOMBAT_MAIN"],
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [{ op: "dealDamage", amount: 4, to: { target: 0 } }],
+        },
+    ],
+};
+
+// Trench Wurm — {3}{B} Creature — Wurm, 3/3. "{2}{R}, {T}: Destroy target
+// nonbasic land." (CR 605 activated ability; CR 701.8 destroy filtered by
+// `excludeSupertypes: "Basic"` — the Wasteland / Vandalblast-cycle
+// precedent, e.g. `inv/red.ts`'s own "Sacrifice a creature: Destroy target
+// nonbasic land.")
+export const trenchWurm: CardDefinition = {
+    id: "1b076f85-d1bf-491a-af9d-f35b8e1bd163",
+    rarity: "uncommon",
+    name: "Trench Wurm",
+    oracleText: "{2}{R}, {T}: Destroy target nonbasic land.",
+    manaCost: { X: 3, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Wurm"],
+    power: 3,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "trench-wurm-destroy-land",
+            oracleText: "{2}{R}, {T}: Destroy target nonbasic land.",
+            cost: { mana: { X: 2, R: 1 }, tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Land",
+                count: 1,
+                excludeSupertypes: "Basic",
+            },
+            effects: [{ op: "destroy", target: { target: 0 } }],
+        },
+    ],
+};
+
+// Urborg Volcano — Land. "This land enters tapped. {T}: Add {B} or {R}."
+// (CR 110.5b enters tapped; CR 605.1a choice-of-color mana ability — same
+// `manaChoices` shape as Bloodstone Cameo, this same file.)
+export const urborgVolcano: CardDefinition = {
+    id: "c76f346c-ae34-4f5f-8e3b-6c77b0c4d530",
+    rarity: "uncommon",
+    name: "Urborg Volcano",
+    oracleText: "This land enters tapped.\n{T}: Add {B} or {R}.",
+    manaCost: {},
+    types: ["Land"],
+    entersTapped: true,
+    activatedAbilities: [
+        {
+            id: "urborg-volcano-tap",
+            oracleText: "{T}: Add {B} or {R}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx: ActivatedAbilityContext) => ctx.addMana({ B: 1 }),
+            manaChoices: [{ B: 1 }, { R: 1 }],
+        },
+    ],
+};
+
+// Vicious Kavu — {1}{B}{R} Creature — Kavu, 2/2. "Whenever this creature
+// attacks, it gets +2/+0 until end of turn." (CR 508.1 attack declaration +
+// CR 613.4c until-end-of-turn pump — the exact Rogue Kavu (`inv/red.ts`)
+// "attacks alone" shape, generalized to "attacks" by dropping the
+// single-attacker constraint.)
+export const viciousKavu: CardDefinition = {
+    id: "31e9e629-7c25-4d45-aa35-9ba5f95b43cb",
+    rarity: "uncommon",
+    name: "Vicious Kavu",
+    oracleText:
+        "Whenever this creature attacks, it gets +2/+0 until end of turn.",
+    manaCost: { X: 1, B: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Kavu"],
+    power: 2,
+    toughness: 2,
+    triggeredAbilities: [
+        {
+            id: "vicious-kavu-attacks",
+            oracleText:
+                "Whenever this creature attacks, it gets +2/+0 until end of turn.",
+            event: "ATTACKERS_DECLARED",
+            matches: (event, self) =>
+                event.type === "ATTACKERS_DECLARED" &&
+                event.attackerIds.includes(self.id),
+            effects: [
+                {
+                    op: "pump",
+                    target: { ref: "$source" },
+                    power: 2,
+                    toughness: 0,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// Deferred (engine capability gaps) — BR (issue #1077, tracked-by #1120
+// unless otherwise noted)
+// ─────────────────────────────────────────────────────────────────────────
+
+// Backlash — {1}{B}{R} Instant. "Tap target untapped creature. That
+// creature deals damage equal to its power to its controller." tracked-by:
+// #1120 (no Op binds/snapshots a LIVE target's power without a zone change
+// — `tapUntap` has no `bind` field, and the `ref` grammar's `power` read
+// only resolves off a snapshot `destroy`/`exile`/`moveZone` produced. This
+// card taps, it doesn't move or destroy, so nothing captures the tapped
+// creature's power for the trailing `dealDamage`.)
+
+// Cauldron Dance — {4}{B}{R} Instant. "Cast this spell only during combat.
+// Return target creature card from your graveyard to the battlefield. That
+// creature gains haste. Return it to your hand at the beginning of the next
+// end step. You may put a creature card from your hand onto the
+// battlefield. That creature gains haste. Its controller sacrifices it at
+// the beginning of the next end step." tracked-by: #1120 (the graveyard→
+// battlefield half is free — the announced-target `moveZone` shape's
+// `bind` captures the reanimated permanent for the haste grant + delayed
+// return, same idiom Spinal Embrace uses in this file. The HAND→battlefield
+// half is blocked: the choice-driven `moveZone(cards, from: "hand", to:
+// "battlefield")` shape has no `bind` field, so there is no way to capture
+// the newly-entered permanent's instance id for its own haste grant +
+// delayed sacrifice. Shipping only the graveyard half would silently drop
+// half the printed card, so the whole card waits.)
+
+// Cinder Shade — {1}{B}{R} Creature — Shade, 1/1. "{B}: This creature gets
+// +1/+1 until end of turn. {R}, Sacrifice this creature: It deals damage
+// equal to its power to target creature." tracked-by: #1120 (the first
+// ability alone is a free self-pump, but the second needs the SACRIFICED
+// creature's own power as last-known information — no DSL Op has the
+// `$source`-after-cost-sacrifice LKI fallback the `counters` value member
+// carries (Powder Keg, issue #997); the identical shape already ships as
+// `resolve()`-only precedent, Freyalise Supplicant `ice/green.ts`, via
+// `ctx.getAdditionalSacrificePower()`. "Never ship silent partials" means
+// the whole card waits rather than shipping only the pump half.)
+
+// Pyre Zombie — {1}{B}{R} Creature — Zombie, 2/1. "At the beginning of your
+// upkeep, if this card is in your graveyard, you may pay {1}{B}{B}. If you
+// do, return it to your hand. {1}{R}{R}, Sacrifice this creature: It deals
+// 2 damage to any target." tracked-by: #1120 (the battlefield sac-for-
+// damage half is a free fixed-amount `dealDamage` — no power reference
+// needed, so it doesn't hit the Cinder Shade gap above. The upkeep
+// graveyard-recursion half needs a TRIGGERED ability that functions from
+// the graveyard (CR 603.6e) reading "while this card is in your graveyard"
+// — distinct from `activateFromGraveyard`, which only covers ACTIVATED
+// abilities; no such triggered-ability graveyard scan variant exists.
+// Shipping only the sac-damage half would silently drop the card's
+// signature recursion clause, so the whole card waits.)
+
+// Shivan Emissary — {2}{R} Creature — Human Wizard, 1/1. "Kicker {1}{B}.
+// When this creature enters, if it was kicked, destroy target nonblack
+// creature. It can't be regenerated." tracked-by: #1086 (same root cause as
+// Benalish Emissary, `inv/white.ts`: `kickerCount` lives only on the
+// resolving `StackItem`, never persisted onto `CardInstanceState`/
+// `PERMANENT_ENTERED` for a LATER-firing ETB `TriggeredAbility` to read —
+// `entersWith.counters`' `count: "kicker"` reads it fine at ETB-resolution
+// time itself, but a separate triggered ability firing off the
+// `PERMANENT_ENTERED` event has no access.)
+
+// Tsabo Tavoc — {5}{B}{R} Legendary Creature — Phyrexian Horror, 7/4.
+// "First strike, protection from legendary creatures. {B}{B}, {T}: Destroy
+// target legendary creature. It can't be regenerated." tracked-by: #1120
+// (first strike and the activated ability are both free — the destroy
+// clause's `excludeSupertypes`/`bindingPattern` machinery composes fine for
+// "target legendary creature" via `TargetRequirement.requireSupertype`-style
+// filtering. The static keyword clause is the blocker: `protection.ts` only
+// parses "protection from <color/colorless>" (CR 702.16a-g) — a non-color
+// quality like "protection from legendary creatures" (CR 702.16h-k) has no
+// engine support anywhere protection is consulted [targeting/damage/
+// blocking], so granting the literal string would silently no-op — the
+// "shipped but dead" anti-pattern the Mechanics Registry census exists to
+// catch. Shipping without it would misrepresent a core printed keyword, so
+// the whole card waits.)
+
+// Void — {3}{B}{R} Sorcery. "Choose a number. Destroy all artifacts and
+// creatures with mana value equal to that number. Then target player
+// reveals their hand and discards all nonland cards with mana value equal
+// to the number." tracked-by: #1120 (the battlefield sweep half alone would
+// be buildable per fixed number via Powder Keg's `forEach` + `manaValue`
+// `if`-check idiom, but there is no general "choose a number" DSL primitive
+// to drive it, AND the hand-discard half needs a filtered, UNCHOSEN bulk
+// discard from a zone `forEach` has no "hand" set member for — `discard`
+// only ever consumes a `choice` Op's player-picked cards, never an
+// automatic mana-value sweep. Both halves are blocked on capabilities that
+// don't exist.)

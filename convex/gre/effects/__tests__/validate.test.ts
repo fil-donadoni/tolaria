@@ -1200,9 +1200,9 @@ describe("validateEffectScript — forEach simultaneous batch reanimation (CR 40
             select: { set: "graveyard", filter: { type: "Enchantment" } },
             effects: reanimateBody,
         };
-        expect(
-            validateEffectScript(host({ effects: [sequential] }))
-        ).toEqual([]);
+        expect(validateEffectScript(host({ effects: [sequential] }))).toEqual(
+            []
+        );
     });
 
     it("rejects a non-boolean simultaneous value", () => {

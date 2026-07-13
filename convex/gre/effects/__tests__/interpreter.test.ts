@@ -1151,7 +1151,7 @@ describe("Effect Script construct: forEach { set: 'graveyard' }, simultaneous (C
         expect(b).toBeDefined();
 
         // A got B's grants once; B got A's grants once (and NOT their own).
-        const count = <T,>(arr: readonly T[], pred: (x: T) => boolean) =>
+        const count = <T>(arr: readonly T[], pred: (x: T) => boolean) =>
             arr.filter(pred).length;
         // keyword-grant duplication (staticAbilities + grantedStaticAbilities).
         expect(count(a.staticAbilities, (k) => k === "trample")).toBe(1);

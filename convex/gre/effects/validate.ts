@@ -1433,9 +1433,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // per-member side effects would still need sequencing), so it
             // stays sequential (`simultaneous` omitted/false).
             if (entry.simultaneous === true) {
-                const select = entry.select as
-                    | { set?: unknown }
-                    | undefined;
+                const select = entry.select as { set?: unknown } | undefined;
                 if (!select || select.set !== "graveyard") {
                     errors.push(
                         'field "simultaneous" is only valid with { select: { set: "graveyard" } }'
