@@ -93,6 +93,19 @@ export function computeExpectedInput(
         return { kind: "sacrifice", playerId: attackSac.playerId };
     }
 
+    // CR 508.1c/1g — the per-attacker MANA attack tax (Propaganda / Ghostly
+    // Prison / Collective Restraint) parks mid declare-attackers on
+    // `combat.pendingAttackManaTax` until the attacking player pays it. Like the
+    // land-sacrifice tax above this is a turn-based action, NOT a priority
+    // window, so it outranks the priority default: only the attack-tax payment
+    // mutations make progress, and endTurn / passPriority / casting are rejected
+    // until it clears. (Charged BEFORE the sacrifice tax at confirm, so the two
+    // never park simultaneously.)
+    const attackMana = state.combat?.pendingAttackManaTax;
+    if (attackMana) {
+        return { kind: "attack-mana-tax", playerId: attackMana.playerId };
+    }
+
     // CR 117 — default: the game is waiting for the priority player to act.
     // A spell/ability payment in progress (pendingCast / pendingActivation)
     // falls through here: the payer holds priority while paying.
@@ -145,6 +158,7 @@ export const EXPECTED_INPUT_KINDS = [
     "target",
     "blockers",
     "sacrifice",
+    "attack-mana-tax",
     "priority",
 ] as const satisfies readonly ExpectedInputKind[];
 
@@ -266,6 +280,8 @@ function expectedInputEquals(
             return b.kind === "blockers" && a.playerId === b.playerId;
         case "sacrifice":
             return b.kind === "sacrifice" && a.playerId === b.playerId;
+        case "attack-mana-tax":
+            return b.kind === "attack-mana-tax" && a.playerId === b.playerId;
         case "priority":
             return b.kind === "priority" && a.playerId === b.playerId;
     }

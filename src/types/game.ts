@@ -1,6 +1,9 @@
 import type { Color } from "./cards";
 import type { Zone, CardAction } from "@convex/gre/types";
-import type { RestrictedMana } from "@convex/gre/state";
+import type {
+    RestrictedMana,
+    AttackManaTaxPayment,
+} from "@convex/gre/state";
 import type { SacrificeSelection } from "@convex/gre/sacrificeChoice";
 import type { PublicGrantedAbility } from "@convex/gameProjections";
 
@@ -217,6 +220,9 @@ export interface Combat {
     /** Parked land-sacrifice attack tax awaiting the attacking player's choice
      *  (CR 508.1c/1g, 701.21a — Flooded Woodlands). */
     pendingAttackSacrifice?: SacrificeSelection;
+    /** Parked mana attack tax awaiting the attacking player's payment
+     *  (CR 508.1c/1g — Propaganda, Ghostly Prison, Collective Restraint). */
+    pendingAttackManaTax?: AttackManaTaxPayment;
     blockersConfirmed: boolean;
     damageAssignments?: Record<string, Record<string, number>>;
     damageConfirmed?: boolean;

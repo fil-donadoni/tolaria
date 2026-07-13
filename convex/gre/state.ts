@@ -1877,6 +1877,29 @@ export type RevealNotification = {
     cards: { instanceId: string; cardId: string }[];
 };
 
+/** CR 508.1c/1g — a parked per-attacker MANA attack tax awaiting the attacking
+ *  player's payment (Propaganda / Ghostly Prison / Windborn Muse / Collective
+ *  Restraint). Set at declare-attackers confirmation once the aggregated tax is
+ *  non-zero; the declaration suspends here until the payer covers `cost` (via
+ *  auto-tap or manual land taps, mirroring a cast payment) or cancels the whole
+ *  declaration. Unlike a cast/activation payment this is NOT a priority window —
+ *  it is a turn-based action (its own `attack-mana-tax` Expected Input), so only
+ *  the dedicated tax mutations make progress. `tappedLandIds` records sources
+ *  tapped so far for the cost so an un-tap / cancel can refund them. */
+export interface AttackManaTaxPayment {
+    /** The payer — the attacking (active) player whose creatures are taxed. */
+    playerId: string;
+    /** The aggregated mana still owed for the whole declaration (summed across
+     *  every taxed attacker and every taxing source, normalized so a variable
+     *  `{X}` is already folded into generic). */
+    cost: ManaCost;
+    /** Oracle text of the taxing effect, shown on the payment banner. */
+    reason: string;
+    /** Ids of mana sources tapped toward this cost so far (CR 601.2g), so
+     *  un-tap / cancel can untap them and refund their mana. */
+    tappedLandIds: string[];
+}
+
 export type GameState = {
     players: PlayerState[];
     stack: StackItem[];
@@ -1949,6 +1972,11 @@ export type GameState = {
          *  Present only while the tax is non-fungible; confirmAttackers
          *  finalizes once complete. */
         pendingAttackSacrifice?: SacrificeSelection;
+        /** Parked mana attack tax awaiting the attacking player's payment
+         *  (CR 508.1c/1g — Propaganda, Ghostly Prison, Collective Restraint).
+         *  Present only while the aggregated tax is unpaid; confirmAttackers
+         *  (via the tax mutations) resumes the declaration once it clears. */
+        pendingAttackManaTax?: AttackManaTaxPayment;
         blockersConfirmed: boolean;
         /** sourceId → { targetId/defenderId: damage } for damage distribution.
          *  A source is any combat-damage dealer: an attacker (targets are its
@@ -2351,6 +2379,17 @@ export type ExpectedInput =
            *  so it gets its own waiting state and only `selectSacrifice` makes
            *  progress — endTurn / passPriority / casting must NOT bypass it. */
           kind: "sacrifice";
+          playerId: string;
+      }
+    | {
+          /** CR 508.1c/1g — the attacking player is paying the per-attacker
+           *  MANA attack tax (Propaganda, Ghostly Prison, Collective Restraint)
+           *  parked mid declare-attackers on `combat.pendingAttackManaTax`. Like
+           *  the land-sacrifice tax this is a turn-based action, NOT a priority
+           *  window, so it gets its own waiting state: only the attack-tax
+           *  payment mutations make progress, and endTurn / passPriority /
+           *  casting must NOT bypass it. */
+          kind: "attack-mana-tax";
           playerId: string;
       }
     | {

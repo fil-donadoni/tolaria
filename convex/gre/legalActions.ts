@@ -159,6 +159,16 @@ export type SacrificeAction = {
     cardInstanceId: string;
 };
 
+/** Actions legal while the game waits for `attack-mana-tax` input — the parked
+ *  per-attacker MANA attack tax (CR 508.1c/1g, Propaganda / Collective
+ *  Restraint). The attacking player either pays (auto-tap or a manual land tap,
+ *  realised through `autoTapForAttackTax` / `tapForAttackTax`) or cancels the
+ *  whole declaration (`cancelAttackTax`). */
+export type AttackManaTaxAction =
+    | { kind: "auto-tap-attack-tax" }
+    | { kind: "tap-attack-tax"; cardInstanceId: string }
+    | { kind: "cancel-attack-tax" };
+
 /** One legal action at the current decision point, tagged with the Expected
  *  Input variant (`expect`) and acting player (`playerId`) it belongs to — the
  *  exact class the gate (`assertExpectedInput`) authorizes. Build the gate
@@ -168,7 +178,12 @@ export type LegalAction =
     | { expect: "choice"; playerId: string; action: ChoiceAction }
     | { expect: "target"; playerId: string; action: TargetAction }
     | { expect: "blockers"; playerId: string; action: BlockersAction }
-    | { expect: "sacrifice"; playerId: string; action: SacrificeAction };
+    | { expect: "sacrifice"; playerId: string; action: SacrificeAction }
+    | {
+          expect: "attack-mana-tax";
+          playerId: string;
+          action: AttackManaTaxAction;
+      };
 
 /** The {@link GateRequest} the action's mutation would submit to the Expected
  *  Input gate. Combat-damage confirmation folds into a priority window whose
@@ -211,6 +226,8 @@ export function legalActions(state: GameState): LegalAction[] {
             return blockersActions(state, expected);
         case "sacrifice":
             return sacrificeActions(state, expected);
+        case "attack-mana-tax":
+            return attackManaTaxActions(state, expected);
         case "priority":
             return priorityActions(state, expected);
         default: {
@@ -565,6 +582,34 @@ function sacrificeActions(
             playerId: expected.playerId,
             action: { kind: "select-sacrifice" as const, cardInstanceId: c.id },
         }));
+}
+
+// ---------------------------------------------------------------------------
+// attack-mana-tax variant (CR 508.1c/1g — Propaganda / Collective Restraint)
+// ---------------------------------------------------------------------------
+
+/** Legal actions for the parked per-attacker mana attack tax: pay it (auto-tap,
+ *  or the server-validated manual per-source tap the UI drives directly) or
+ *  cancel the whole declaration. The manual per-source taps are enumerated at
+ *  the interaction layer (`useBattlefieldInteraction`) from the payer's mana
+ *  sources; here the macro choices — pay / cancel — represent the family. */
+function attackManaTaxActions(
+    _state: GameState,
+    expected: Extract<ExpectedInput, { kind: "attack-mana-tax" }>
+): LegalAction[] {
+    const playerId = expected.playerId;
+    return [
+        {
+            expect: "attack-mana-tax",
+            playerId,
+            action: { kind: "auto-tap-attack-tax" },
+        },
+        {
+            expect: "attack-mana-tax",
+            playerId,
+            action: { kind: "cancel-attack-tax" },
+        },
+    ];
 }
 
 function priorityActions(

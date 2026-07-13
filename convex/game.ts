@@ -6520,10 +6520,11 @@ export const removeBand = mutation({
  *  (generic/fungible; CR 605.1a taps produce mana into the pool, CR 601.2g pays
  *  from it) and committing lands used for the cost. Throws `reason` when the
  *  cost cannot be covered — the caller's mutation clone is discarded, so no
- *  partial state persists. Shared by the pay-to-block bypass (Hipparion
- *  `bypassCost`, `collectBlockBypassCharges`) and the per-attacker mana attack
- *  tax (Propaganda / Elephant Grass, `collectAttackManaTax`). Pure apart from
- *  mutating `state` in place. */
+ *  partial state persists. Used by the pay-to-block bypass (Hipparion
+ *  `bypassCost`, `collectBlockBypassCharges`). The per-attacker mana attack tax
+ *  no longer auto-taps here — it parks on `combat.pendingAttackManaTax` and the
+ *  attacking player pays it via a prompt (`beginAttackManaTax` /
+ *  `autoTapForAttackTax`, #1053/#1066). Pure apart from mutating `state`. */
 function chargeManaCostOrThrow(
     state: GameState,
     controllerId: string,
@@ -6582,6 +6583,128 @@ export function finalizeConfirmAttackers(state: GameState): void {
     drainAutoPasses(state);
 }
 
+/** Aggregate a list of mana costs into a single ManaCost (CR 508.1c/1g — one
+ *  charge per taxed attacker per taxing source). Each cost is normalized (a
+ *  numeric `{X}` folded into generic), then summed per colour; the total generic
+ *  lands in `generic`. Colourless-generic-only in practice (attack taxes are all
+ *  `{N}`), but colour-safe. Returns `{}` when every charge is zero (Domain-0
+ *  Collective Restraint), which the caller reads as "no tax". */
+function aggregateManaCosts(costs: ManaCost[]): ManaCost {
+    const total: Record<string, number> = {};
+    for (const c of costs) {
+        for (const [k, v] of Object.entries(normalizeManaCost(c))) {
+            if (typeof v === "number" && v > 0)
+                total[k] = (total[k] ?? 0) + v;
+        }
+    }
+    const result: ManaCost = {};
+    for (const [k, v] of Object.entries(total)) {
+        if (v <= 0) continue;
+        // normalizeManaCost stores the whole generic total under key "X".
+        if (k === "X") result.generic = (result.generic ?? 0) + v;
+        else (result as Record<string, number>)[k] = v;
+    }
+    return result;
+}
+
+/** CR 508.1c/1g — park the per-attacker MANA attack tax (Propaganda / Ghostly
+ *  Prison / Collective Restraint) so the attacking player PAYS it via a prompt
+ *  (auto-tap or manual land taps) instead of the engine silently auto-tapping.
+ *  Aggregates every taxed-attacker charge into one payment on
+ *  `combat.pendingAttackManaTax`. Returns true when a payment was parked (the
+ *  caller saves and returns, suspending the declaration); false when there is no
+ *  tax (or it aggregates to zero — Domain 0), in which case the declaration
+ *  continues to the sacrifice tax + finalize. */
+function beginAttackManaTax(state: GameState): boolean {
+    const combat = state.combat;
+    if (!combat) return false;
+    const charges = collectAttackManaTax(state);
+    if (charges.length === 0) return false;
+    // The directed "creatures can't attack YOU" tax is always paid by the
+    // attacking (active) player, so all charges share one payer. A future
+    // multi-payer tax would need per-payer prompts — flag rather than mis-charge.
+    if (new Set(charges.map((c) => c.controllerId)).size > 1) {
+        throw new Error("Multi-payer attack mana tax is not supported");
+    }
+    const cost = aggregateManaCosts(charges.map((c) => c.cost));
+    // Domain-0 Collective Restraint (every {X} = 0) — the attack is free.
+    if (Object.keys(normalizeManaCost(cost)).length === 0) return false;
+    combat.pendingAttackManaTax = {
+        playerId: charges[0].controllerId,
+        cost,
+        reason: charges[0].reason,
+        tappedLandIds: [],
+    };
+    return true;
+}
+
+/** CR 508.1c/1g / 701.21a — the per-attacker land-SACRIFICE attack tax (Flooded
+ *  Woodlands, Reclamation) plus the finalize. Factored out of confirmAttackers so
+ *  both the inline path and the mana-tax resume path (`tryCommitAttackManaTax`)
+ *  run the identical continuation. Returns true when the declaration parked on a
+ *  real sacrifice choice (`combat.pendingAttackSacrifice` — the caller saves and
+ *  waits); false once the attack was finalized. Throws when the payer has too few
+ *  lands to pay (the declaration is illegal — pre-existing Flooded Woodlands
+ *  behavior, unchanged). */
+function applyAttackSacrificeTaxAndFinalize(state: GameState): boolean {
+    const combat = state.combat;
+    if (!combat) return false;
+    const charges = collectAttackSacrificeTax(state);
+    if (charges.length > 0) {
+        // The attack-tax cards tax the attacking (active) player, so all
+        // charges share one controller. A future multi-payer tax would need a
+        // per-payer selection — flag it rather than silently paying one.
+        if (new Set(charges.map((c) => c.controllerId)).size > 1) {
+            throw new Error("Multi-payer attack sacrifice tax is not supported");
+        }
+        const payerId = charges[0].controllerId;
+        const landFilter: PermanentFilter = { types: ["Land"] };
+        const totalNeeded = charges.reduce((a, ch) => a + ch.count, 0);
+        if (
+            sacrificeCandidates(state, payerId, landFilter).length < totalNeeded
+        ) {
+            throw new Error(charges[0].reason);
+        }
+        const sel: SacrificeSelection = {
+            playerId: payerId,
+            reason: charges[0].reason,
+            requirements: buildSacrificeRequirements(
+                charges.map((ch) => ({ filter: landFilter, count: ch.count }))
+            ),
+            picked: [],
+        };
+        autoResolveFungible(state, sel);
+        if (!isSacrificeSelectionComplete(sel)) {
+            // Park the choice; selectSacrifice resumes finalizeConfirmAttackers.
+            combat.pendingAttackSacrifice = sel;
+            return true;
+        }
+        applySacrificeSelection(state, sel);
+    }
+    finalizeConfirmAttackers(state);
+    return false;
+}
+
+/** If the payer's mana pool now covers the parked attack mana tax, pay it (CR
+ *  601.2g), commit the lands tapped for it, clear the parking, and RESUME the
+ *  declaration through the sacrifice-tax + finalize continuation. Returns true
+ *  when it committed (nothing further to pay). No-op / false while the pool is
+ *  short — the player keeps tapping (or cancels). */
+function tryCommitAttackManaTax(state: GameState): boolean {
+    const combat = state.combat;
+    const pending = combat?.pendingAttackManaTax;
+    if (!combat || !pending) return false;
+    const payer = getPlayer(state, pending.playerId);
+    const subs = getManaSubstitutions(state, pending.playerId);
+    const cost = normalizeManaCost(pending.cost);
+    if (!isManaCostCovered(payer.manaPool, cost, subs)) return false;
+    payManaCost(payer.manaPool, cost, subs);
+    commitLandsForCost(payer, cost);
+    combat.pendingAttackManaTax = undefined;
+    applyAttackSacrificeTaxAndFinalize(state);
+    return true;
+}
+
 /** Lock in the attacker selection, tap attackers, and pass priority. */
 export const confirmAttackers = mutation({
     args: {
@@ -6638,80 +6761,247 @@ export const confirmAttackers = mutation({
         }
 
         // CR 508.1c/1g — per-attacker MANA attack tax directed at the taxing
-        // player (Propaganda / Ghostly Prison / Windborn Muse / Elephant Grass
-        // clause 3, #1053). Each attacker declared against a taxing player forces
-        // its controller to pay the tax cost; the engine auto-taps the payer's
-        // mana sources (generic/fungible), the attack-side analogue of the
-        // Hipparion pay-to-block bypass. Charged BEFORE the land-sacrifice tax
-        // (which can PARK on a real land choice): the mana tax never parks, and a
-        // failed payment throws to reject the whole declaration (the mutation
-        // clone is discarded, so nothing persists — CR 508.1c the declaration is
-        // illegal and the player must re-declare). If both taxes are unpayable
-        // the sacrifice tax below still throws before any save.
-        for (const charge of collectAttackManaTax(state)) {
-            chargeManaCostOrThrow(
+        // player (Propaganda / Ghostly Prison / Windborn Muse / Collective
+        // Restraint, #1053/#1066). Each attacker declared against a taxing player
+        // forces its controller to pay {X}. Rather than silently auto-tapping the
+        // payer's lands (or throwing when unpayable — the reported bug), the
+        // declaration PARKS on `combat.pendingAttackManaTax` and the player pays
+        // via a prompt (Auto-tap or manual land taps), mirroring a cast payment.
+        // Charged BEFORE the land-sacrifice tax; the two never park at once (the
+        // mana tax resumes into the sacrifice tax once paid).
+        if (beginAttackManaTax(state)) {
+            await saveGameState(
+                ctx,
+                args.gameId,
+                gameState.seq + 1,
                 state,
-                charge.controllerId,
-                charge.cost,
-                charge.reason
+                gameState
             );
+            return;
         }
 
         // CR 508.1c/1g / 701.21a — per-attacker sacrifice-a-land attack tax
-        // (Flooded Woodlands, Reclamation, #733). Each taxed attacker forces its
-        // controller to sacrifice one land as attackers are declared; the cost
-        // scales with the taxed-attacker count. The controller CHOOSES which
-        // lands to sacrifice: a fungible/forced board auto-resolves inline, a
-        // real choice parks on `combat.pendingAttackSacrifice` and suspends the
-        // declaration until the player picks via selectSacrifice. Too few lands
-        // to pay for every taxed attacker → the declaration is illegal.
-        const charges = collectAttackSacrificeTax(state);
-        if (charges.length > 0) {
-            // The attack-tax cards tax the attacking (active) player, so all
-            // charges share one controller. A future multi-payer tax would need
-            // a per-payer selection — flag it rather than silently paying one.
-            if (new Set(charges.map((c) => c.controllerId)).size > 1) {
-                throw new Error(
-                    "Multi-payer attack sacrifice tax is not supported"
-                );
-            }
-            const payerId = charges[0].controllerId;
-            const landFilter: PermanentFilter = { types: ["Land"] };
-            const totalNeeded = charges.reduce((a, ch) => a + ch.count, 0);
-            if (
-                sacrificeCandidates(state, payerId, landFilter).length <
-                totalNeeded
-            ) {
-                throw new Error(charges[0].reason);
-            }
-            const sel: SacrificeSelection = {
-                playerId: payerId,
-                reason: charges[0].reason,
-                requirements: buildSacrificeRequirements(
-                    charges.map((ch) => ({
-                        filter: landFilter,
-                        count: ch.count,
-                    }))
-                ),
-                picked: [],
-            };
-            autoResolveFungible(state, sel);
-            if (!isSacrificeSelectionComplete(sel)) {
-                // Park the choice; selectSacrifice resumes finalizeConfirmAttackers.
-                state.combat.pendingAttackSacrifice = sel;
-                await saveGameState(
-                    ctx,
-                    args.gameId,
-                    gameState.seq + 1,
-                    state,
-                    gameState
-                );
-                return;
-            }
-            applySacrificeSelection(state, sel);
+        // (Flooded Woodlands, Reclamation, #733) then finalize. Parks on a real
+        // sacrifice choice (`combat.pendingAttackSacrifice`) or finalizes inline.
+        if (applyAttackSacrificeTaxAndFinalize(state)) {
+            await saveGameState(
+                ctx,
+                args.gameId,
+                gameState.seq + 1,
+                state,
+                gameState
+            );
+            return;
         }
 
-        finalizeConfirmAttackers(state);
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** CR 508.1c/1g — pay the parked attack MANA tax (Propaganda / Collective
+ *  Restraint) by AUTO-TAPPING the payer's mana sources toward it. When the pool
+ *  then covers the cost the declaration resumes and finalizes; a partial plan
+ *  leaves the banner up so the player finishes by hand (or cancels). The
+ *  attack-side analogue of `autoTapForPayment`. */
+export const autoTapForAttackTax = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "attack-mana-tax",
+        });
+
+        const pending = state.combat?.pendingAttackManaTax;
+        if (!pending || pending.playerId !== args.playerId) {
+            throw new Error("No attack tax to pay");
+        }
+
+        const player = getPlayer(state, args.playerId);
+        const subs = getManaSubstitutions(state, player.id);
+        const sources = buildAutoTapSources(player.battlefield);
+        const cost = normalizeManaCost(pending.cost);
+        // Prefer a minimal full plan; fall back to the maximal-useful partial
+        // (a manual source like Black Lotus still owed) so we tap what we can.
+        const plan =
+            solveSmartAutoTap(player.manaPool, cost, subs, sources) ??
+            solveAutoTapPartial(player.manaPool, cost, subs, sources);
+        for (const step of plan) {
+            const card = player.battlefield.find((c) => c.id === step.cardId);
+            if (!card || card.isTapped) continue;
+            tapSourceIntoPayment(
+                state,
+                player,
+                card,
+                step.manaChoiceIndex,
+                pending.tappedLandIds
+            );
+        }
+
+        // Commit + resume the declaration only if the cost is now fully covered.
+        tryCommitAttackManaTax(state);
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** CR 508.1c/1g — tap ONE mana source by hand toward the parked attack mana tax
+ *  (the manual analogue of `tapForPayment`). Auto-commits + resumes the
+ *  declaration once the pool covers the cost. */
+export const tapForAttackTax = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+        /** Required for sources with manaChoices (duals, Birds, Black Lotus). */
+        manaChoiceIndex: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "attack-mana-tax",
+        });
+
+        const pending = state.combat?.pendingAttackManaTax;
+        if (!pending || pending.playerId !== args.playerId) {
+            throw new Error("No attack tax to pay");
+        }
+
+        const player = getPlayer(state, args.playerId);
+        const card = player.battlefield.find(
+            (c) => c.id === args.cardInstanceId
+        );
+        if (!card) throw new Error("Card not on battlefield");
+
+        tapSourceIntoPayment(
+            state,
+            player,
+            card,
+            args.manaChoiceIndex,
+            pending.tappedLandIds
+        );
+        tryCommitAttackManaTax(state);
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** CR 508.1c/1g — untap a source tapped for the attack mana tax (undo one tap,
+ *  the analogue of `untapForPayment`). */
+export const untapForAttackTax = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "attack-mana-tax",
+        });
+
+        const pending = state.combat?.pendingAttackManaTax;
+        if (!pending || pending.playerId !== args.playerId) {
+            throw new Error("No attack tax to pay");
+        }
+
+        const idx = pending.tappedLandIds.indexOf(args.cardInstanceId);
+        if (idx === -1) {
+            throw new Error("This land was not tapped during this tax");
+        }
+
+        const player = getPlayer(state, args.playerId);
+        const card = player.battlefield.find(
+            (c) => c.id === args.cardInstanceId
+        );
+        if (!card) throw new Error("Cannot undo: source was sacrificed");
+
+        untapSourceFromPayment(state, player, card);
+        pending.tappedLandIds.splice(idx, 1);
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** CR 508.1c/1g — cancel the whole attacker declaration rather than pay the
+ *  parked mana tax. Untaps every source tapped for the tax (refunding its mana),
+ *  clears the parking, and empties the declared-attacker set so the active player
+ *  returns to attacker selection. No attacker was tapped or marked attacking yet
+ *  (that happens only at finalize), so nothing else needs undoing. */
+export const cancelAttackTax = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "attack-mana-tax",
+        });
+
+        const combat = state.combat;
+        const pending = combat?.pendingAttackManaTax;
+        if (!combat || !pending || pending.playerId !== args.playerId) {
+            throw new Error("No attack tax to cancel");
+        }
+
+        const player = getPlayer(state, args.playerId);
+        for (const cardId of pending.tappedLandIds) {
+            const card = player.battlefield.find((c) => c.id === cardId);
+            if (card) untapSourceFromPayment(state, player, card);
+        }
+        combat.pendingAttackManaTax = undefined;
+        // Return to attacker selection: drop the declared attackers/bands. The
+        // active player still holds priority at DECLARE_ATTACKERS, so they can
+        // re-declare (or decline to attack).
+        combat.attackerIds = [];
+        combat.bands = undefined;
 
         await saveGameState(
             ctx,
