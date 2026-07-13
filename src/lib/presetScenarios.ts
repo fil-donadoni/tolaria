@@ -128,34 +128,4 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
-    {
-        // Aura attachment via `attachedTo` + library `position`. Holy Strength
-        // (+1/+2, CR 303.4) enters already attached to "me"'s Grizzly Bears, so
-        // the 2/2 reads 3/4 on the board with no cast step. A second Grizzly
-        // Bears sits on the OPPONENT's side, and Pacifism-style targeting is not
-        // needed — the debug seed wires the link directly. The library is seeded
-        // with a known top card (`position: 1`) and a known bottom card
-        // (`position: -1`) so a draw pulls Lightning Bolt first while Opt stays
-        // buried at the bottom. `libraryCount` is UNSET so the seeds survive.
-        label: "Aura attach + library position — Holy Strength on Grizzly Bears",
-        cards: [
-            { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
-            {
-                name: "Holy Strength",
-                owner: "me",
-                zone: "battlefield",
-                attachedTo: "Grizzly Bears",
-            },
-            { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
-            {
-                name: "Lightning Bolt",
-                owner: "me",
-                zone: "library",
-                position: 1,
-            },
-            { name: "Opt", owner: "me", zone: "library", position: -1 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 2,
-    },
 ];
