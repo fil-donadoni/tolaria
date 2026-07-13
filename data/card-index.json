@@ -8712,6 +8712,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Time Warp",
+        "scryfallId": "3447aeaf-3b26-442a-99d4-0a7ee76c8e76",
+        "oracleId": "dbd6a94b-62ff-4a10-9d52-bdd90b26e425",
+        "firstSet": "tmp"
+    },
+    {
         "name": "Timetwister",
         "scryfallId": "9a49dc44-616e-4bdd-8220-0bb71eccc512",
         "oracleId": "c823e687-6311-4c99-974b-fd77d204141a",

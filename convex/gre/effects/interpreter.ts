@@ -861,6 +861,13 @@ export const OP_EXECUTORS: {
         if (amount === undefined || amount <= 0) return;
         ctx.loseLife(playerId, amount);
     },
+    // CR 500.7 (issue #686) — schedule an extra turn for `player` (Time
+    // Warp). Skipped when the player cannot be resolved (CR 608.2b).
+    extraTurn(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.takeExtraTurn(playerId);
+    },
     // CR 601.3a (issue #1057) — impose a turn-scoped per-player "can't cast
     // spells this turn" restriction (Xantid Swarm locks the defending player via
     // `player: "opponent"`; Abeyance, issue #1124, narrows it via `cardTypes`).

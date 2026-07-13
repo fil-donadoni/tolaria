@@ -20,4 +20,28 @@
 //     types: ["Enchantment"],
 // };
 
+// STOP-AND-ISSUE (tracked-by: #1149) — Serra Paragon: "Flying. Once during
+// each of your turns, you may play a land from your graveyard or cast a
+// permanent spell with mana value 3 or less from your graveyard. If you do,
+// it gains \"When this permanent is put into a graveyard from the
+// battlefield, exile it and you gain 2 life.\"" A SCOPED (once/turn,
+// land-or-MV<=3-permanent) graveyard-cast/land-play permission has no
+// primitive or Op — flashback (`grantedFlashback`) is a per-instance grant,
+// not a player-wide "may play from graveyard" permission — and the "if you
+// do, it gains ..." clause is a RUNTIME ability grant onto the specific card
+// played this way, a second capability on top of the permission itself.
+// Vintage Cube FREE tranche, issue #686. Whole card left as one stub (both
+// clauses must land together).
+// export const serraParagon: CardDefinition = {
+//     id: "ce295f1e-fb31-4275-a5d3-8c6f29afff40",
+//     name: "Serra Paragon",
+//     rarity: "mythic",
+//     manaCost: { X: 2, W: 2 },
+//     types: ["Creature"],
+//     subtypes: ["Angel"],
+//     power: 3,
+//     toughness: 4,
+//     staticAbilities: ["flying"],
+// };
+
 export {};

@@ -34,7 +34,8 @@ export const mineCollapse: CardDefinition = {
     effects: [{ op: "dealDamage", amount: 5, to: { target: 0 } }],
 };
 
-// Stub con errori, correggere e completare quando avremo Evoke.
+// Buggy WIP stub — needs fixing and completing once Evoke ships (tracked-by:
+// #900 — Cube CAP: Evoke keyword + spent-mana-color tracking).
 // export const fury: CardDefinition = {
 //     id: "bd281158-8180-40b9-a5b7-03cfc712d81a",
 //     name: "Fury",

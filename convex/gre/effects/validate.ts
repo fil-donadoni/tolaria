@@ -1042,6 +1042,8 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     draw: { required: { player: isPlayerRef, count: isEffectValue } },
     gainLife: { required: { player: isPlayerRef, amount: isEffectValue } },
     loseLife: { required: { player: isPlayerRef, amount: isEffectValue } },
+    // CR 500.7 (issue #686) — schedule an extra turn for `player` (Time Warp).
+    extraTurn: { required: { player: isPlayerRef } },
     // CR 601.3a (issue #1057) — a turn-scoped per-player cast lock (Xantid
     // Swarm). `player` names whom to lock (the defending player via "opponent").
     // `cardTypes` (issue #1124, Abeyance) optionally narrows the lock to those

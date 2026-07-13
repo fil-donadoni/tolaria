@@ -84,3 +84,23 @@ export const goblinCadets: CardDefinition = {
         },
     ],
 };
+
+// STOP-AND-ISSUE (tracked-by: #1151) — Sneak Attack: "{R}: You may put a
+// creature card from your hand onto the battlefield. That creature gains
+// haste. Sacrifice the creature at the beginning of the next end step." The
+// put-onto-battlefield + haste-grant + delayedTrigger(next end step) shape is
+// otherwise fully composable from shipped Ops (`choice(hand)` +
+// `moveZone(hand->battlefield)`, already used by Stoneforge Mystic +
+// `grantAbility(haste)` + `delayedTrigger`) — ONLY the delayed body's
+// sacrifice of the SPECIFIC captured creature is blocked: the shipped
+// `sacrifice` Op consumes a `choice` picks-list binding, not a single
+// captured/bound object (a `sacrificeObject` Op is `planned` in
+// `EFFECT_OP_BACKLOG`, matching Goblin Kites' identical gap). Vintage Cube
+// FREE tranche, issue #686.
+// export const sneakAttack: CardDefinition = {
+//     id: "d07dc95d-82a8-4a58-8ea2-d4513bd7316d", // USG 218
+//     name: "Sneak Attack",
+//     rarity: "rare",
+//     manaCost: { X: 3, R: 1 },
+//     types: ["Enchantment"],
+// };
