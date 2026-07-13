@@ -31,11 +31,30 @@
 // permanent's `staticAbilities` by cards (granted dynamically, e.g. Instill
 // Energy / Homarid Warrior) with no engine-side check consuming the string.
 // `haste` and `hexproof` have since graduated to `implemented` (combat
-// eligibility / CR 702.11b targeting legality respectively). `shroud` as a
-// KEYWORD STRING is still unenforced (shroud ships as a `permanent-guard`
-// staticEffect on the cards that need it, not via the keyword), so its row
-// stays `status: "planned"` with a `note`, to keep the registry an honest
-// source of truth.
+// eligibility / CR 702.11b targeting legality respectively).
+//
+// `shroud` graduated too (issue #959 audit): every PRINTED-shroud card
+// (Blastoderm, Blurred Mongoose, Spectral Cloak, …) pairs the decorative
+// `staticAbilities: ["shroud"]` string with a `permanent-guard` staticEffect
+// (`cantBeTargeted: true`) that `gre/permanentGuard.ts::isGuardedAgainst`
+// evaluates live, consumed by `rules.ts::getLegalTargets` and
+// `game.ts::selectTarget` — the SAME code path hexproof's controller-relative
+// guard reuses. That is a real, CR-702.18-compliant enforcement, so the row
+// is `status: "implemented"`. The narrower residual gap (documented on its
+// `note`): a card that grants shroud DYNAMICALLY via
+// `SpellContext.grantStaticAbility(self, "shroud", …)` (Homarid Warrior,
+// Svyelunite Priest, Sylvan Safekeeper, Blurred Mongoose's activated variant)
+// appends only the bare STRING with no paired `permanent-guard` staticEffect
+// — no live guard reads that raw string — so those specific temporary grants
+// stay inert, same class as an unenforced keyword. A future card/primitive
+// that makes a granted shroud spawn its own guard closes that residual gap.
+//
+// `ward` (CR 702.21) was re-audited for the same issue #959 pass: zero
+// engine hits for the actual keyword (no trigger firing on "becomes the
+// target", no counter-unless-pay primitive, no card declares it — grep
+// confirms the "Ward"-named 2ED/LEA/ICE reprints are the unrelated Color
+// Ward cycle, a protection Aura, not the modern templated keyword). Its row
+// stays `status: "planned"`, unchanged.
 
 import type { GameEvent } from "./types";
 
@@ -764,6 +783,7 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         kind: "keyword-ability",
         cr: "702.14",
         status: "implemented",
+        binding: "convex/gre/combatRegistry.ts (EvasionRule per landwalk variant)",
         bindingPattern:
             /^(snow )?(plains|island|swamp|mountain|forest|desert)walk$|^legendary landwalk$/,
         note: "constants.ts LANDWALK_KEYWORDS / LANDWALK_SUPERTYPE_KEYWORDS / LANDWALK_SNOW_SUBTYPE_KEYWORDS + combatRegistry.ts EvasionRule per variant, negation via landwalkNegation.ts",
@@ -785,6 +805,7 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         kind: "keyword-ability",
         cr: "702.16",
         status: "implemented",
+        binding: "convex/gre/protection.ts",
         bindingPattern: /^protection from /,
         note: "dedicated convex/gre/protection.ts module (targeting, damage, blocking per CR 702.16b/e/f)",
     },
@@ -804,8 +825,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Shroud",
         kind: "keyword-ability",
         cr: "702.18",
-        status: "planned",
-        note: "GAP: granted via SpellContext.grantStaticAbility on multiple fem/blue.ts cards but no target-legality check anywhere reads the string — decorative only, same class as haste.",
+        status: "implemented",
+        binding: "permanent-guard staticEffect (gre/permanentGuard.ts isGuardedAgainst)",
+        note: 'HONOURED (issue #959): CR 702.18 — every printed-shroud card (Blastoderm nem/green.ts, Blurred Mongoose inv/green.ts, Spectral Cloak leg/blue.ts) pairs the `staticAbilities: ["shroud"]` reminder string with a `permanent-guard` staticEffect (`cantBeTargeted: true`), evaluated live by `isGuardedAgainst` and consumed by `rules.ts::getLegalTargets` + `game.ts::selectTarget` (server-authoritative) — the same "can\'t be the target of spells or abilities" path hexproof\'s controller-relative guard reuses, but unfiltered (blocks the permanent\'s own controller too, unlike hexproof). GAP (narrower than before): a card that grants shroud DYNAMICALLY via `SpellContext.grantStaticAbility(self, "shroud", …)` — Homarid Warrior / Svyelunite Priest (fem/blue.ts), Sylvan Safekeeper (jud/green.ts), Blurred Mongoose\'s own activated ability (inv/green.ts), the usg/green.ts grant — appends only the bare keyword STRING with no paired `permanent-guard` staticEffect, so no live guard reads it and those specific TEMPORARY grants stay inert (each site\'s own code comment documents this). The keyword as a whole is "implemented" because its dominant, CR-compliant enforcement path (the printed/staticEffect-paired form) is real and server-authoritative; the residual dynamic-grant gap is called out here, not glossed over.',
     },
     // 702.19 Trample
     {
@@ -834,7 +856,7 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         kind: "keyword-ability",
         cr: "702.21",
         status: "planned",
-        note: "no dedicated module, no card declares it, no engine check found",
+        note: "no dedicated module, no card declares it, no engine check found. Re-verified issue #959: no trigger fires on \"becomes the target\", no counter-unless-pay primitive exists anywhere in gre/**; every \"Ward\"-named card in the catalogue (2ED/3ED/4ED/LEA/ICE white.ts) is the unrelated pre-modern Color Ward cycle (a protection Aura) or Death Ward (regenerate), not the modern templated keyword.",
     },
     // 702.22 Banding
     {
@@ -956,7 +978,7 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         kind: "keyword-ability",
         cr: "702.33e",
         status: "implemented",
-        binding: "multikicker",
+        binding: "convex/gre/state.ts (kicker.multi / kickerCount — shared Kicker cost-system path, no dedicated module)",
         note: "The Kicker variant that may be paid any number of times as the spell is cast (CardDefinition.kicker.multi). Shares the whole Kicker cost-system path; kickerCount records how many times it was paid and drives 'a charge counter for each time it was kicked' via entersWith.counters count 'kicker'. Used by Everflowing Chalice.",
     },
     // 702.34 Flashback
@@ -966,7 +988,7 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         kind: "keyword-ability",
         cr: "702.34",
         status: "implemented",
-        binding: "flashback",
+        binding: "convex/gre/flashback.ts",
         note: "Cost-system / keyword-cast capability (engine infra, NOT an Effect Script Op): convex/gre/flashback.ts (getFlashbackCost / findFlashbackCastable) + CardDefinition.flashback (printed cost) + CardInstanceState.grantedFlashback (Snapcaster's until-EOT grant, cleared at CLEANUP). announceCast/finalizeTargetSelection/commitPendingCast (convex/game.ts) locate the graveyard card, pay the flashback cost, and flag the stack item exileOnResolve + castFromGraveyard; finalizeSpellResolution exiles it (CR 702.34a). getLegalActions offers the cast; projectPublicState carries the affordance to the client (GraveyardFlashbackButton). Used by Faithless Looting, Firebolt, Lingering Souls, Echo of Eons, Sevinne's Reclamation; granted by Snapcaster Mage.",
     },
     // 702.35 Madness
