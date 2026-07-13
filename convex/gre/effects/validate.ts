@@ -557,11 +557,14 @@ function isPreventDamageMode(value: unknown): boolean {
 }
 
 /** The destination zones a `moveZone` Op may name (issue #839, EffectMoveZone).
- *  The five zones a one-shot effect addresses (CR 400.7). */
+ *  The five zones a one-shot effect addresses (CR 400.7), plus `"library-top"`
+ *  (issue #1125) — the `cards`-shape-only tutor-to-top destination ("search
+ *  … then shuffle and put that card on top", Vampiric Tutor). */
 function isMoveZone(value: unknown): boolean {
     return (
         value === "hand" ||
         value === "library" ||
+        value === "library-top" ||
         value === "graveyard" ||
         value === "exile" ||
         value === "battlefield"
@@ -1134,6 +1137,22 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 errors.push(
                     'field "tapped" is only valid with "cards" and to: "battlefield"'
                 );
+            }
+            // issue #1125 — "library-top" is the search-then-shuffle-then-top
+            // tutor destination, meaningless outside the `cards` shape (a
+            // `target`-shape object has no "put it on top" primitive) and
+            // meaningless from any source other than the library itself (the
+            // picked card never left the library — a search only chooses).
+            if (entry.to === "library-top") {
+                if (!hasCards) {
+                    errors.push(
+                        'to: "library-top" is only valid with "cards"'
+                    );
+                } else if (entry.from !== "library") {
+                    errors.push(
+                        'to: "library-top" requires from: "library"'
+                    );
+                }
             }
             return errors;
         },

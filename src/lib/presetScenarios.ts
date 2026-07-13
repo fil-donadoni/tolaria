@@ -132,4 +132,24 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 0,
     },
+    {
+        // Vampiric Tutor — tutor-to-top (issue #1125, CR 701.19 / 701.20 /
+        // 401.4). Cast Vampiric Tutor with one Swamp untapped: search your
+        // library for a card (e.g. Lightning Bolt), then shuffle and put that
+        // card on top — the search-then-shuffle-then-top template exercised
+        // via the new `moveZone` `to: "library-top"` destination — then lose
+        // 2 life. `libraryCount` is intentionally UNSET (mirrors the Gaea's
+        // Blessing / Fact or Fiction scenarios above) so these seeded library
+        // entries stay the whole search space.
+        label: "Vampiric Tutor (#1125) — search, shuffle, put on top",
+        cards: [
+            { name: "Vampiric Tutor", owner: "me", zone: "hand" },
+            { name: "Swamp", owner: "me", zone: "battlefield" },
+            { name: "Lightning Bolt", owner: "me", zone: "library" },
+            { name: "Grizzly Bears", owner: "me", zone: "library" },
+            { name: "Opt", owner: "me", zone: "library" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 0,
+    },
 ];

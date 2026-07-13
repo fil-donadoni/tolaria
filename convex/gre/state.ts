@@ -9491,6 +9491,37 @@ export function buildSpellContext(
             });
             player.library.unshift(...reordered);
         },
+        // CR 401.4 "put it on top of your library" (issue #1125) — the
+        // tutor-to-top template: relocate specific card(s), by id, from
+        // ANYWHERE in `playerId`'s library onto the top, preserving
+        // `orderedIds`' order (index 0 ends up the very top). Unlike
+        // `reorderLibraryTop`, the ids are NOT required to already be within
+        // a known top-N window — a search `choice` picks a card from the
+        // WHOLE library, and the classic tutor sequence (Vampiric Tutor,
+        // Mystical Tutor, Imperial Seal) shuffles the rest of the library
+        // BEFORE this runs, so the picked card can be anywhere. An id no
+        // longer present is silently skipped (CR 608.2b). The searcher
+        // selected and placed these cards, so they stay known to `playerId`
+        // (ADR 0026 self-knowledge) until the next shuffle clears it —
+        // mirrors `orderTop`'s "kept cards stay known" grant.
+        putLibraryCardsOnTop(playerId: string, orderedIds: string[]): void {
+            const player = getPlayer(state, playerId);
+            const moved: CardInstanceState[] = [];
+            for (const id of orderedIds) {
+                const idx = player.library.findIndex((c) => c.id === id);
+                if (idx === -1) continue;
+                const [card] = player.library.splice(idx, 1);
+                moved.push(card);
+            }
+            if (moved.length === 0) return;
+            player.library.unshift(...moved);
+            grantKnowledge(
+                state,
+                playerId,
+                moved.map((c) => c.id),
+                playerId
+            );
+        },
         // CR 701.22 Scry / 701.44 Surveil / "put them back in any order" (Ponder,
         // Index) — the single reusable ordered-top primitive behind the drag
         // picker. Looks at the top `n` cards, raises an `order-top` PendingChoice

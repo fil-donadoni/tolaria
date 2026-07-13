@@ -2786,6 +2786,18 @@ export interface SpellContext {
      *  given by `orderedIds` (CR 401). All ids must already be in the top N. */
     reorderLibraryTop: (playerId: string, orderedIds: string[]) => void;
 
+    /** CR 401.4 "put it on top of your library" (issue #1125) — the
+     *  tutor-to-top template: relocates specific card(s), by id, from
+     *  ANYWHERE in `playerId`'s library onto the top, preserving `orderedIds`'
+     *  order (index 0 ends up the very top). Unlike `reorderLibraryTop`, the
+     *  ids need NOT already sit within a known top-N window — a search
+     *  `choice` can pick a card from the whole library, and the shuffle that
+     *  precedes this call (Vampiric Tutor's "then shuffle") can leave it
+     *  anywhere. An id no longer present is silently skipped (CR 608.2b). The
+     *  moved cards are marked known to `playerId` (ADR 0026 — the searcher
+     *  placed them there), mirroring `orderTop`'s "kept cards stay known". */
+    putLibraryCardsOnTop: (playerId: string, orderedIds: string[]) => void;
+
     /** The reusable ordered-top primitive behind the drag picker — Scry
      *  (CR 701.22), Surveil (CR 701.44) and order-only "put them back in any
      *  order" (Ponder / Index). Looks at the top `n` cards and raises an
@@ -5923,13 +5935,26 @@ export type EffectOp =
      *  routes through `returnToBattlefield` (owner control, same as the
      *  `target`-shape above); every other destination is the existing generic
      *  `moveCardById` branch (already used with a graveyard source
-     *  elsewhere). */
+     *  elsewhere). `to: "library-top"` (issue #1125) is the tutor-to-top
+     *  template — "Search your library for a card, then shuffle and put that
+     *  card on top" (Vampiric Tutor, Mystical Tutor, Imperial Seal, Sterling
+     *  Grove): routes through `SpellContext.putLibraryCardsOnTop`, which
+     *  relocates the picked id(s) from ANYWHERE in the library (not just a
+     *  known top-N window) onto the top, preserving pick order. Valid ONLY
+     *  with `from: "library"` (validator-enforced) — pair with a PRECEDING
+     *  `libraryLook`(shuffle) Op, per every real tutor-to-top oracle text's
+     *  "then shuffle and put that card on top" ordering: the found card stays
+     *  in the library through the shuffle (mathematically equivalent to
+     *  setting it aside first, since a full shuffle including it then
+     *  relocating it to the front yields the same distribution as shuffling
+     *  the remainder and placing it on top), then this Op moves it to the
+     *  front. */
     | {
           op: "moveZone";
           cards: EffectRef;
           player: EffectPlayerRef;
           from: "library" | "hand" | "graveyard";
-          to: EffectMoveZone;
+          to: EffectMoveZone | "library-top";
           tapped?: boolean;
       }
     /** CR 613.4c (layer 7c, issue #840) — a temporary P/T modification that

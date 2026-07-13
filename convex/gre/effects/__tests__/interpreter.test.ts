@@ -3021,6 +3021,147 @@ describe("Effect Script Op: moveZone — cards/player shape (CR 400.7, issue #67
     });
 });
 
+// issue #1125 — the tutor-to-top template: choice(search-library) →
+// libraryLook(shuffle) → moveZone(cards, from: "library", to: "library-top").
+// The permanent test for the new destination (per gre-development.md's "a
+// card introducing a new Op/construct-usage earns it a permanent test" —
+// `library-top` is new vocabulary on an already-registered Op). Mirrors
+// Vampiric Tutor / Mystical Tutor / Imperial Seal / Sterling Grove's shared
+// oracle-text shape: "Search your library for a card, then shuffle and put
+// that card on top."
+describe("Effect Script Op: moveZone — library-top destination (CR 401.4, issue #1125)", () => {
+    const libraryOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    const tutorToTopScript = (scriptId: string): string =>
+        registerScript(scriptId, [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                count: { min: 0, max: 1 },
+                prompt: "Search your library for a card.",
+                bind: "$picked",
+            },
+            { op: "libraryLook", action: "shuffle", player: "controller" },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "library",
+                to: "library-top",
+            },
+        ]);
+
+    it("shuffles the library, then places the searched card on top — multiset preserved, found card is the new top", () => {
+        const id = tutorToTopScript("test-op-movezone-library-top");
+        const lib = libraryOf("p1", [
+            "found1",
+            "other1",
+            "other2",
+            "other3",
+            "other4",
+            "other5",
+        ]);
+        const before = lib.map((c) => c.id);
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the search
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["found1"],
+        });
+        const after = state.players[0].library.map((c) => c.id);
+        // Multiset preserved (CR 701.20 randomizes order, never adds/removes).
+        expect([...after].sort()).toEqual([...before].sort());
+        // The searched card is now the very top of the library.
+        expect(after[0]).toBe("found1");
+        // The searcher placed it there deliberately — they know the top card
+        // (ADR 0026 self-knowledge, mirrors orderTop's "kept cards stay
+        // known"), even though the rest of the shuffled library is unknown.
+        const top = state.players[0].library[0];
+        expect(top.knownTo).toEqual(["p1"]);
+        expect(state.players[0].library[1].knownTo ?? []).toEqual([]);
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices).toBeUndefined();
+    });
+
+    it("fail-to-find (0 picked): the library is still shuffled, nothing is relocated", () => {
+        const id = tutorToTopScript("test-op-movezone-library-top-fail");
+        const lib = libraryOf("p1", ["a", "b", "c", "d", "e", "f"]);
+        const before = lib.map((c) => c.id);
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [],
+        });
+        const after = state.players[0].library.map((c) => c.id);
+        expect([...after].sort()).toEqual([...before].sort());
+        expect(state.stack).toHaveLength(0);
+    });
+
+    // Wire format (mandatory, GRE testing convention): the searcher's own
+    // projection must show the new top card face-up (ADR 0026 self-
+    // knowledge survives the projection); the opponent's projection must
+    // still only show `{ count }` — the tutored card's identity never
+    // crosses to a non-knower.
+    it("the tutored top card survives projection: known to the searcher, hidden count-only to the opponent", () => {
+        const id = tutorToTopScript("test-op-movezone-library-top-wire");
+        const lib = libraryOf("p1", ["found2", "x1", "x2", "x3"]);
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["found2"],
+        });
+        expect(state.players[0].library[0].id).toBe("found2");
+
+        // Self-view: the searcher sees their own known top card.
+        const selfView = projectPublicState(state, 0, "p1");
+        expect(selfView.players[0].library.count).toBe(4);
+        expect(
+            selfView.players[0].library.known.some(
+                (k) => k.index === 0 && k.card.id === "found2"
+            )
+        ).toBe(true);
+
+        // Opponent view: hidden — count only, no `known` entries leak the
+        // searcher's tutored card.
+        const oppView = projectPublicState(state, 1, "p2");
+        expect(oppView.players[0].library.count).toBe(4);
+        expect(oppView.players[0].library.known).toEqual([]);
+    });
+});
+
 describe("Effect Script Op: pump (CR 613.4c, layer 7c, issue #840)", () => {
     // A one-shot pump spell targeting a creature: Giant Growth (+3/+3).
     // Wire-format assertion — the buffed P/T must survive the projection
