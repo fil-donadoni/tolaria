@@ -1968,37 +1968,6 @@ describe("Dromar, the Banisher (CR 702.9b flying + 510.4/603.2 combat-damage tri
         const greenGuy = makeInstance(grizzlyBears.id, {
             id: "green-guy",
             controllerId: "p2",
-describe("Sterling Grove (CR 611/613 layer 6 keyword grant + 702.18 Shroud, issue #1125)", () => {
-    // Builds a board with Sterling Grove + a second enchantment + a
-    // non-enchantment (all controlled by p1) and an opponent's enchantment.
-    // `angelicShield` is a plain non-Aura Enchantment (its own `pt-buff`
-    // static doesn't interfere with the guard); `grizzlyBears` is the
-    // non-enchantment control. The shroud grant is the real CR-702.18
-    // enforcement — a `permanent-guard` staticEffect read live by
-    // `isGuardedAgainst` (`cantBeTargeted`), the SAME path Blurred Mongoose's
-    // printed shroud uses (`inv/green.ts`), scoped by
-    // STERLING_GROVE_AFFECTS_OTHER_ENCHANTMENTS to OTHER enchantments the
-    // Grove's controller owns.
-    const makeBoard = () => {
-        const grove = makeInstance(sterlingGrove.id, {
-            id: "grove",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const otherEnch = makeInstance(angelicShield.id, {
-            id: "other-ench",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const myCreature = makeInstance(grizzlyBears.id, {
-            id: "my-bear",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
-        const oppEnch = makeInstance(angelicShield.id, {
-            id: "opp-ench",
-            controllerId: "p2",
-            ownerId: "p2",
         });
         const state = makeState({
             players: [
@@ -2431,6 +2400,44 @@ describe("Thunderscape Master (CR 119.3 life drain + 613.4c team pump, issue #10
         // The opponent's creature is untouched — "creatures YOU control".
         expect(getEffectivePower(state, foe)).toBe(2);
         expect(getEffectiveToughness(state, foe)).toBe(2);
+    });
+});
+
+describe("Sterling Grove (CR 611/613 layer 6 keyword grant + 702.18 Shroud, issue #1125)", () => {
+    // Builds a board with Sterling Grove + a second enchantment + a
+    // non-enchantment (all controlled by p1) and an opponent's enchantment.
+    // `angelicShield` is a plain non-Aura Enchantment (its own `pt-buff`
+    // static doesn't interfere with the guard); `grizzlyBears` is the
+    // non-enchantment control. The shroud grant is the real CR-702.18
+    // enforcement — a `permanent-guard` staticEffect read live by
+    // `isGuardedAgainst` (`cantBeTargeted`), the SAME path Blurred Mongoose's
+    // printed shroud uses (`inv/green.ts`), scoped by
+    // STERLING_GROVE_AFFECTS_OTHER_ENCHANTMENTS to OTHER enchantments the
+    // Grove's controller owns.
+    const makeBoard = () => {
+        const grove = makeInstance(sterlingGrove.id, {
+            id: "grove",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const otherEnch = makeInstance(angelicShield.id, {
+            id: "other-ench",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const myCreature = makeInstance(grizzlyBears.id, {
+            id: "my-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const oppEnch = makeInstance(angelicShield.id, {
+            id: "opp-ench",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
                     battlefield: [grove, otherEnch, myCreature],
                 }),
                 makePlayer("p2", { battlefield: [oppEnch] }),
