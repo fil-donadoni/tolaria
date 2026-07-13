@@ -3,6 +3,7 @@ import { useAction, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { type BanlistFormatId } from "@convex/formats";
 import ActionButton from "~/components/board/action-button";
+import BanlistCardsDialog from "./banlist-cards-dialog";
 
 interface BanlistFormatSyncRowProps {
     format: BanlistFormatId;
@@ -36,6 +37,7 @@ export default function BanlistFormatSyncRow({
     const [syncing, setSyncing] = useState(false);
     const [result, setResult] = useState<SyncSummary | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [cardsOpen, setCardsOpen] = useState(false);
 
     const bannedCount =
         entries?.filter((e) => e.status === "banned").length ?? null;
@@ -62,11 +64,21 @@ export default function BanlistFormatSyncRow({
             <div className="flex items-center justify-between gap-3">
                 <div className="flex flex-col gap-0.5">
                     <p className="text-sm font-semibold text-text">{label}</p>
-                    <p className="text-xs text-text-muted">
-                        {bannedCount === null
-                            ? "Loading…"
-                            : `${bannedCount} banned, ${restrictedCount} restricted`}
-                    </p>
+                    <div className="flex items-center gap-2">
+                        <p className="text-xs text-text-muted">
+                            {bannedCount === null
+                                ? "Loading…"
+                                : `${bannedCount} banned, ${restrictedCount} restricted`}
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => setCardsOpen(true)}
+                            disabled={bannedCount === null}
+                            className="btn-base btn-tone-ghost px-2 py-0.5 text-[11px] disabled:opacity-50"
+                        >
+                            View cards
+                        </button>
+                    </div>
                     <p className="text-xs text-text-muted">
                         {meta === undefined
                             ? "Loading…"
@@ -82,15 +94,19 @@ export default function BanlistFormatSyncRow({
                     disabled={syncing}
                 />
             </div>
-            {error && (
-                <p className="text-xs text-danger-strong">{error}</p>
-            )}
+            {error && <p className="text-xs text-danger-strong">{error}</p>}
             {result && (
                 <p className="text-xs text-text-muted">
-                    Added {result.added.length}, removed{" "}
-                    {result.removed.length}.
+                    Added {result.added.length}, removed {result.removed.length}
+                    .
                 </p>
             )}
+            <BanlistCardsDialog
+                format={format}
+                label={label}
+                open={cardsOpen}
+                onOpenChange={setCardsOpen}
+            />
         </div>
     );
 }

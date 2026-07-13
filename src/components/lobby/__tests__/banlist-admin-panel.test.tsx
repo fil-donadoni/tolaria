@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, waitFor } from "@testing-library/react";
+import { render, fireEvent, waitFor, screen } from "@testing-library/react";
 import BanlistAdminPanel from "../banlist-admin-panel";
 
 // BanlistAdminPanel (PRD #1138 User Stories 5-9, issue #1146). convex/react
@@ -91,15 +91,15 @@ describe("BanlistAdminPanel (issue #1146)", () => {
         const { getByText } = render(<BanlistAdminPanel />);
         expect(getByText("Never synced (showing seed data)")).toBeTruthy();
         expect(
-            getByText(
-                `Last synced ${new Date(1700000000000).toLocaleString()}`
-            )
+            getByText(`Last synced ${new Date(1700000000000).toLocaleString()}`)
         ).toBeTruthy();
     });
 
     it("disables the Sync button for the row being synced while pending, and leaves the other row untouched", async () => {
-        let resolveSync: (value: { added: string[]; removed: string[] }) => void =
-            () => {};
+        let resolveSync: (value: {
+            added: string[];
+            removed: string[];
+        }) => void = () => {};
         syncBanlist.mockImplementation(
             () =>
                 new Promise((resolve) => {
@@ -141,9 +141,7 @@ describe("BanlistAdminPanel (issue #1146)", () => {
         ) as HTMLButtonElement;
         fireEvent.click(button);
 
-        expect(
-            await findByText("Added 2, removed 1.")
-        ).toBeTruthy();
+        expect(await findByText("Added 2, removed 1.")).toBeTruthy();
         expect(syncBanlist).toHaveBeenCalledWith({ format: "premodern" });
     });
 
@@ -156,5 +154,25 @@ describe("BanlistAdminPanel (issue #1146)", () => {
         fireEvent.click(button);
 
         expect(await findByText("Forbidden: admin only")).toBeTruthy();
+    });
+
+    it("opens a dialog with the format's banned + restricted card piles when View cards is clicked", async () => {
+        const { getAllByText } = render(<BanlistAdminPanel />);
+        const viewButtons = getAllByText("View cards").map(
+            (el) => el.closest("button") as HTMLButtonElement
+        );
+        // One per DB-backed format (Premodern, Old School).
+        expect(viewButtons).toHaveLength(2);
+
+        // Open the Old School pile: 1 banned (Black Lotus), 1 restricted
+        // (Time Walk). The dialog renders into a portal, so assert via `screen`.
+        fireEvent.click(viewButtons[1]);
+        expect(await screen.findByText("Old School banlist")).toBeTruthy();
+        expect(screen.getByText("Banned (1)")).toBeTruthy();
+        expect(screen.getByText("Restricted (1)")).toBeTruthy();
+        // Each card name appears (tile caption, and the placeholder frame when
+        // the name has no built CardDefinition) — assert presence, not count.
+        expect(screen.getAllByText("Black Lotus").length).toBeGreaterThan(0);
+        expect(screen.getAllByText("Time Walk").length).toBeGreaterThan(0);
     });
 });
