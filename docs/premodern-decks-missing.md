@@ -1,9 +1,6 @@
 STIFLENOUGHT
 1 Brain Freeze
 
-ENCHANTRESS
-2 Solitary Confinement
-
 MONOBLACK
 4 Ravenous Rats
 2 Withered Wretch

@@ -1,5 +1,4 @@
 // mh2 — red cards (ADR 0043 colour split).
-import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import type { CardDefinition } from "../../types";
 
 // Mine Collapse — {3}{R} Instant. "If it's your turn, you may sacrifice a
