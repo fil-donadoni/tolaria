@@ -3,6 +3,7 @@ import type { CardType, PermanentView } from "@convex/cards/types";
 import type { CardInstanceState } from "@convex/gre/state";
 import {
     isGuardedAgainst,
+    playerHasShroud,
     type GuardActionSource,
 } from "@convex/gre/permanentGuard";
 
@@ -13,6 +14,12 @@ import {
 // (issue #382). This imports only the PURE guard helper from the GRE (the same
 // boundary relaxation `effective-stats.ts` uses for the layer system); it never
 // touches a mutation or transport module.
+//
+// `playerHasShroud` (issue #1128) is the PLAYER-scoped sibling: a shrouded
+// player's nameplate should read as un-clickable the same way a shrouded
+// permanent does. `isPlayerUntargetableByPending` below wraps it for
+// `usePlayerInteraction` the same way `isUntargetableByPending` wraps
+// `isGuardedAgainst` for the battlefield.
 
 /** Projects a frontend `CardInstance` into the `PermanentView` the guard
  *  predicates read. Spread-forwarding keeps every field (`attachedTo`,
@@ -108,4 +115,20 @@ export function isUntargetableByPending(
         "cantBeTargeted",
         source
     );
+}
+
+/** True if `candidatePlayerId` is barred from being targeted by ANY
+ *  spell/ability under an active player-scoped shroud guard (CR 702.18
+ *  applied to a player via CR 115.4, CR 611). Used by the player-nameplate
+ *  click gate (`usePlayerInteraction`) to make a shrouded player
+ *  un-clickable, mirroring `isUntargetableByPending` for permanents. Unlike
+ *  that helper, this takes no source-characteristics parameters: CR 702.18
+ *  shroud has no hexproof-style controller exception and no
+ *  Artifact-Ward-style source filter — it bars every source unconditionally,
+ *  including the guarded player's own spells/abilities. */
+export function isPlayerUntargetableByPending(
+    players: Player[],
+    candidatePlayerId: string
+): boolean {
+    return playerHasShroud(toGuardState(players), candidatePlayerId);
 }

@@ -1,5 +1,6 @@
 import type { Player } from "~/types/game";
 import { wantsPlayerTarget } from "~/lib/card-utils";
+import { isPlayerUntargetableByPending } from "~/lib/targeting";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useDivideBuffer } from "~/hooks/useDivideBuffer";
@@ -24,7 +25,11 @@ import { api } from "@convex/_generated/api";
  *
  *  Reads ONLY projected (`PublicGameState` / `FullGameState`) fields exposed by
  *  `useGameContext()` — no GRE engine import, consistent with the wire-format
- *  rule in CLAUDE.md. */
+ *  rule in CLAUDE.md. The one exception is `isPlayerUntargetableByPending`
+ *  (`~/lib/targeting.ts`), a PURE guard helper re-exported through the same
+ *  boundary relaxation `useBattlefieldInteraction` already uses for
+ *  `isUntargetableByPending` — it never touches a mutation or transport
+ *  module. */
 export type PlayerInteraction = {
     /** This nameplate represents the local viewer's own seat. */
     isMe: boolean;
@@ -62,6 +67,7 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
         priorityPlayerId,
         pendingTarget,
         pendingChoices,
+        allPlayers,
     } = useGameContext();
     const isMe = player.id === playerId;
     const hasPriority = player.id === priorityPlayerId;
@@ -81,7 +87,12 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
         // flagged as having attacked. The server enforces this too, but gating
         // clickability keeps the Arena-style UX honest.
         (!pendingTarget.playerAttackedThisTurn ||
-            player.battlefield.some((c) => c.hasAttackedThisTurn));
+            player.battlefield.some((c) => c.hasAttackedThisTurn)) &&
+        // CR 702.18 (applied to a player via CR 115.4) — don't offer a
+        // shrouded player as a click-to-target candidate; the server would
+        // reject it anyway (issue #1128, mirrors the battlefield's
+        // `isUntargetableByPending` gate for shrouded permanents, #382).
+        !isPlayerUntargetableByPending(allPlayers, player.id);
 
     // Mid-resolution "any target of an opponent's choice" (CR 115.4 / 608.2,
     // Cuombajj Witches). The chooser (viewer == choice.playerId) may pick a
