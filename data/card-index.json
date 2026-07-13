@@ -4158,6 +4158,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Imperial Seal",
+        "scryfallId": "822e30db-40c5-4099-868b-185ad9b7c7dc",
+        "oracleId": "16cd0b90-f70c-4efa-b252-8de8784ef9a3",
+        "firstSet": "ptk"
+    },
+    {
         "name": "Implements of Sacrifice",
         "scryfallId": "aa5deb95-79a6-4398-b82a-c1df169550d9",
         "oracleId": "74558981-4226-4961-be33-0af867d0bdf2",
@@ -5686,6 +5692,12 @@
         "scryfallId": "58e93dff-b774-4765-b7bd-d3957e42ff4a",
         "oracleId": "8a52f3c0-2552-4425-b2e3-5496eb2232a7",
         "firstSet": "ice"
+    },
+    {
+        "name": "Mystical Tutor",
+        "scryfallId": "5d98101f-e32a-4a4a-a649-faa920d111ee",
+        "oracleId": "fb81f95c-70f8-4eb7-8d15-15d0ae23ec03",
+        "firstSet": "mir"
     },
     {
         "name": "Nacre Talisman",
@@ -7986,6 +7998,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Sterling Grove",
+        "scryfallId": "40b26aa3-8169-4978-9554-bd2fc8e18e3b",
+        "oracleId": "2c275a85-5a15-46cd-a6e7-add63f9b853d",
+        "firstSet": "inv"
+    },
+    {
         "name": "Stern Scolding",
         "scryfallId": "3ca1e1de-b916-445f-b3b2-0f4d0cc7ceeb",
         "oracleId": "3bc8a406-3ae7-4f56-a33c-b4a2c115b917",
@@ -9028,6 +9046,12 @@
         "scryfallId": "22ea73ec-1325-4437-a23f-dcda1767c713",
         "oracleId": "4d2cc2a8-e08a-420a-8922-c63e39129e23",
         "firstSet": "leg"
+    },
+    {
+        "name": "Vampiric Tutor",
+        "scryfallId": "0a07cba3-2e8d-48ec-a6f8-4d2edfcd833d",
+        "oracleId": "ededbdae-d9dc-4206-9335-d7158f2d7700",
+        "firstSet": "vis"
     },
     {
         "name": "Veldt",
