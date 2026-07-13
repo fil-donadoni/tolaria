@@ -216,7 +216,9 @@ describe("upkeepDiscardOrElseTrigger (CR 603.6a + 117.3a + 701.8, #1129)", () =>
         expect(onBattlefield(state, "src")).toBeUndefined();
         expect(inGraveyard(state, "src")).toBeDefined();
         // The card stayed in hand — it was never discarded.
-        expect(state.players[0].hand.find((c) => c.id === "hand1")).toBeDefined();
+        expect(
+            state.players[0].hand.find((c) => c.id === "hand1")
+        ).toBeDefined();
     });
 
     it("auto-resolves straight to sacrifice with an empty hand (no prompt shown)", () => {
