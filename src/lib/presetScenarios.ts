@@ -206,4 +206,17 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 4,
     },
+    {
+        // Deep Forest Hermit — Vanishing 3 (issue #676, CR 702.63, ADR 0054) +
+        // ETB four 1/1 Squirrels + "Squirrels you control get +1/+1" anthem.
+        // Cast the hand copy to watch it enter with three time counters and drop
+        // four 2/2 Squirrels (base 1/1 + anthem). Pass to successive upkeeps to
+        // strip the time counters; the upkeep the last one is removed the Hermit
+        // sacrifices itself — and the Squirrels revert to 1/1 as the anthem
+        // leaves with it.
+        label: "Deep Forest Hermit (#676) — Vanishing 3 + Squirrel anthem",
+        cards: [{ name: "Deep Forest Hermit", owner: "me", zone: "hand" }],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 5,
+    },
 ];

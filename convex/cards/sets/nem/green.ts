@@ -5,6 +5,8 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 
 import type { CardDefinition } from "../../types";
+import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
+import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 // Blastoderm — "Shroud (This creature can't be the target of spells or
 // abilities.) Fading 3 (This creature enters with three fade counters on it.
@@ -35,6 +37,74 @@ export const blastoderm: CardDefinition = {
             id: "blastoderm-shroud",
             cantBeTargeted: true,
             applies: (target, source) => target.id === source.id,
+        },
+    ],
+};
+
+// Deep Forest Hermit — "Vanishing 3 (…) When this creature enters, create four
+// 1/1 green Squirrel creature tokens. Squirrels you control get +1/+1."
+// (CR 702.63 Vanishing; CR 111/701.7 Create; CR 613/611 anthem.)
+//
+// Vanishing is expanded implicitly at the getDefinition seam (ADR 0054): the
+// `"vanishing 3"` string injects `entersWith` three time counters plus the
+// upkeep remove-a-time-counter trigger AND the COUNTER_REMOVED-driven
+// sacrifice trigger — no per-card boilerplate. It is the first shipped card
+// exercising Vanishing end-to-end. The ETB Squirrel factory is a DSL
+// `enteredTrigger` (`scope: "self"`) whose `effects` run the `createToken` Op
+// (Icatian Town shape). The anthem is a controller-scoped `pt-buff` static
+// effect (Angelic Shield shape) narrowed to the Squirrel subtype; it buffs the
+// four tokens (and any other Squirrels the controller owns) but not the Hermit
+// itself, an Elf Druid.
+const DEEP_FOREST_HERMIT_ID = "3287775f-7bec-4e8f-bb8d-daf5ce92e4a8";
+export const deepForestHermit: CardDefinition = {
+    id: DEEP_FOREST_HERMIT_ID,
+    rarity: "rare",
+    name: "Deep Forest Hermit",
+    oracleText:
+        "Vanishing 3 (This creature enters with three time counters on it. At the beginning of your upkeep, remove a time counter from it. When the last is removed, sacrifice it.)\nWhen this creature enters, create four 1/1 green Squirrel creature tokens.\nSquirrels you control get +1/+1.",
+    manaCost: { X: 3, G: 2 },
+    types: ["Creature"],
+    subtypes: ["Elf", "Druid"],
+    power: 1,
+    toughness: 1,
+    staticAbilities: ["vanishing 3"],
+    triggeredAbilities: [
+        enteredTrigger({
+            id: "deep-forest-hermit-squirrels",
+            oracleText:
+                "When this creature enters, create four 1/1 green Squirrel creature tokens.",
+            scope: "self",
+            effects: [
+                {
+                    op: "createToken",
+                    token: {
+                        name: "Squirrel",
+                        types: ["Creature"],
+                        subtypes: ["Squirrel"],
+                        power: 1,
+                        toughness: 1,
+                        colors: ["G"],
+                        imagePrintId: tokenPrintIdFor(
+                            DEEP_FOREST_HERMIT_ID,
+                            "Squirrel"
+                        ),
+                    },
+                    controller: "controller",
+                    count: 4,
+                },
+            ],
+        }),
+    ],
+    staticEffects: [
+        {
+            // CR 613.4c anthem — Squirrels the controller owns get +1/+1.
+            kind: "pt-buff",
+            applies: (target, source, ctx) =>
+                ctx.isCreature(target) &&
+                target.controllerId === source.controllerId &&
+                target.subtypes.includes("Squirrel"),
+            power: 1,
+            toughness: 1,
         },
     ],
 };

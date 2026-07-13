@@ -5,10 +5,14 @@
 // remove-or-sacrifice endgame.
 
 import { describe, it, expect } from "vitest";
-import { blastoderm } from "..";
+import { blastoderm, deepForestHermit } from "..";
 import { forest } from "../../lea/colorless";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+} from "../../../../gre/layers";
 import type {
     CardInstanceState,
     GameState,
@@ -157,5 +161,79 @@ describe("Blastoderm (Shroud + Fading 3, CR 702.18 / 702.32)", () => {
             (c) => c.id === "derm"
         )!;
         expect(slim.counters).toEqual({ fade: 2 });
+    });
+});
+
+describe("Deep Forest Hermit (Vanishing 3 + Squirrel factory/anthem, CR 702.63 / 111 / 613)", () => {
+    it("declares vanishing 3, the ETB Squirrel trigger, and the Squirrel anthem", () => {
+        expect(deepForestHermit.staticAbilities).toEqual(["vanishing 3"]);
+        expect(deepForestHermit.subtypes).toEqual(["Elf", "Druid"]);
+        expect(deepForestHermit.power).toBe(1);
+        expect(deepForestHermit.toughness).toBe(1);
+        expect(deepForestHermit.triggeredAbilities?.[0].id).toBe(
+            "deep-forest-hermit-squirrels"
+        );
+        expect(deepForestHermit.staticEffects?.[0]).toMatchObject({
+            kind: "pt-buff",
+            power: 1,
+            toughness: 1,
+        });
+    });
+
+    it("enters with three time counters (Vanishing 3 seam injection, ADR 0054)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, deepForestHermit.id, "p1");
+        resolveTopOfStack(state);
+        const hermit = state.players[0].battlefield.find(
+            (c) => c.card.id === deepForestHermit.id
+        )!;
+        expect(hermit.counters).toEqual({ time: 3 });
+    });
+
+    it("creates four 1/1 green Squirrel tokens on ETB, each buffed to 2/2 by the anthem (CR 111 / 613.4c)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, deepForestHermit.id, "p1");
+        // Resolve the creature spell — it enters and the ETB Squirrel trigger
+        // is collected onto the stack (CR 603.6a).
+        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].triggeredAbilityId).toBe(
+            "deep-forest-hermit-squirrels"
+        );
+        // Resolve the ETB trigger — four Squirrels enter.
+        resolveTopOfStack(state);
+
+        const tokens = state.players[0].battlefield.filter(
+            (c) => c.isToken && c.subtypes.includes("Squirrel")
+        );
+        expect(tokens).toHaveLength(4);
+        for (const sq of tokens) {
+            // Base 1/1 + anthem +1/+1 = 2/2 (the anthem's own source is present).
+            expect(getEffectivePower(state, sq)).toBe(2);
+            expect(getEffectiveToughness(state, sq)).toBe(2);
+        }
+    });
+
+    it("wire format: Squirrel tokens read as 2/2 after projectPublicState (anthem survives the wire)", () => {
+        const state = makeState({
+            players: [makePlayer("p1"), makePlayer("p2")],
+        });
+        pushSpell(state, deepForestHermit.id, "p1");
+        resolveTopOfStack(state); // spell resolves, ETB trigger stacks
+        resolveTopOfStack(state); // ETB trigger resolves, tokens enter
+
+        const projected = projectPublicState(state, 1, "p1");
+        const slimTokens = projected.players[0].battlefield.filter(
+            (c) => c.isToken && c.subtypes.includes("Squirrel")
+        );
+        expect(slimTokens).toHaveLength(4);
+        for (const sq of slimTokens) {
+            expect(getEffectivePower(projected, sq)).toBe(2);
+            expect(getEffectiveToughness(projected, sq)).toBe(2);
+        }
     });
 });

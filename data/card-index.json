@@ -1824,6 +1824,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Deep Forest Hermit",
+        "scryfallId": "3287775f-7bec-4e8f-bb8d-daf5ce92e4a8",
+        "oracleId": "80e9a42e-f4f4-4bfc-91a2-ad124737dca2",
+        "firstSet": "mh1"
+    },
+    {
         "name": "Deep Spawn",
         "scryfallId": "69c9e4a5-735f-471c-ab1a-6e6d50ba5724",
         "oracleId": "d1aba343-d85a-4829-bdfe-db31fcb3c320",
