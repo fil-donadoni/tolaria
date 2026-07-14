@@ -25,10 +25,7 @@ import type {
     TriggeredAbility,
     TriggerStateView,
 } from "../../types";
-import {
-    enteredTrigger,
-    type EnteredPermanentInfo,
-} from "./enteredTrigger";
+import { enteredTrigger, type EnteredPermanentInfo } from "./enteredTrigger";
 
 export interface LandfallTriggerArgs {
     /** Stable id within the source card's `triggeredAbilities` array. */

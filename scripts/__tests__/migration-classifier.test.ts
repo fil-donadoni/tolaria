@@ -694,9 +694,21 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // uncovered Op). Both are Op-blocked (no missing-Op-free path), so
         // total 688→690, Op-blocked 227→229, FREE/AFK-ready/X-only unchanged.
         // Partition: 447+14+229=690.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(690);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(447);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(410);
+        // #694 (Cube CAP: Landfall) ADDED one resolve() closure — Bristly Bill,
+        // Spine Sower's landfall trigger (`sets/otj/green.ts`). Its effect (add
+        // a +1/+1 counter via requestChoice) uses only COVERED primitives, so
+        // the classifier's static heuristic buckets it FREE (it cannot see the
+        // real DSL-migration blocker: the engine has no announcement-time
+        // targeted-trigger support, tracked #1193 — same class as the Loran /
+        // Aura Shards resolve() closures already counted FREE). It carries a
+        // per-card test (`sets/otj/__tests__/green.test.ts`) → AFK-ready. The
+        // activated double-counters ability is pure DSL (0 closures); the four
+        // other cluster cards are commented stubs (0 closures). Net: total
+        // 690→691, FREE 447→448, AFK-ready 410→411, X-only 14 / Op-blocked 229
+        // unchanged. Partition: 448+14+229=691.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(691);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(448);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(411);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(229);
     });

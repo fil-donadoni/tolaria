@@ -13,7 +13,10 @@ import { swamp, grizzlyBears } from "../../lea";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { collectTriggers } from "../../../../gre/triggers";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
-import { getEffectivePower, getEffectiveToughness } from "../../../../gre/layers";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+} from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import type { GameState, StackItem } from "../../../../gre/state";
@@ -64,7 +67,10 @@ describe("Bristly Bill, Spine Sower — Landfall (CR 603.6a / 109.2)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        const land = makeInstance(swamp.id, { id: "land1", controllerId: "p1" });
+        const land = makeInstance(swamp.id, {
+            id: "land1",
+            controllerId: "p1",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [bill, bear, land] }),
@@ -123,7 +129,10 @@ describe("Bristly Bill, Spine Sower — Landfall (CR 603.6a / 109.2)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        const land = makeInstance(swamp.id, { id: "land1", controllerId: "p1" });
+        const land = makeInstance(swamp.id, {
+            id: "land1",
+            controllerId: "p1",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [bill, bear, land] }),
