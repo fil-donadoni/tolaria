@@ -2,7 +2,10 @@ import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { Id } from "@convex/_generated/dataModel";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
-import { useLimitedEvent, useLimitedEventMutations } from "~/hooks/useLimitedEvent";
+import {
+    useLimitedEvent,
+    useLimitedEventMutations,
+} from "~/hooks/useLimitedEvent";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import LoadingScreen from "~/components/ui/loading-screen";
 import ActionButton from "~/components/board/action-button";
@@ -97,9 +100,21 @@ export default function LimitedEventDetail({
 
                 {event.status === "started" && viewerSeat?.pool && (
                     <div className="mt-4 border-t border-border-accent/20 pt-4">
-                        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-text-muted">
-                            Your Pool
-                        </h3>
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                            <h3 className="text-sm font-semibold uppercase tracking-wide text-text-muted">
+                                Your Pool
+                            </h3>
+                            <ActionButton
+                                onClick={() =>
+                                    void navigate({
+                                        to: "/limited/$eventId/build",
+                                        params: { eventId },
+                                    })
+                                }
+                                label="Build Deck"
+                                tone="primary"
+                            />
+                        </div>
                         <LimitedPoolView pool={viewerSeat.pool} />
                     </div>
                 )}

@@ -5,6 +5,7 @@
 import { describe, it, expect } from "vitest";
 import type { Doc } from "@convex/_generated/dataModel";
 import type { DeckPreset } from "@convex/deckPresets";
+import type { Reason } from "@convex/formats";
 import {
     toUserLobbyDeck,
     toPresetLobbyDeck,
@@ -13,7 +14,18 @@ import {
 } from "../deckTypes";
 import type { FormatId } from "@convex/formats";
 
-function userDeck(overrides: Partial<Doc<"userDecks">> = {}): Doc<"userDecks"> {
+// `isLegal`/`reasons` aren't part of the `userDecks` schema — they're only
+// ever attached server-side by `userDecks.listMine` for a `limited` deck
+// (issue #1111), mirroring `PresetSource`'s same optional override.
+type UserDeckFixture = Partial<Doc<"userDecks">> & {
+    isLegal?: boolean;
+    reasons?: Reason[];
+};
+
+function userDeck(overrides: UserDeckFixture = {}): Doc<"userDecks"> & {
+    isLegal?: boolean;
+    reasons?: Reason[];
+} {
     return {
         _id: "deck_1" as Doc<"userDecks">["_id"],
         _creationTime: 0,
@@ -142,6 +154,40 @@ describe("derived deck legality on lobby decks (ADR 0036, issue #512)", () => {
             cards: [{ cardId: BOLT_LEA, cardName: "Lightning Bolt" }],
         });
         expect(deck.isLegal).toBe(false);
+    });
+
+    it("a bare limited user deck (no server-attached legality) reads pool-unresolved, never a silent pass", () => {
+        // A `limited` deck's Pool lives on its Limited Event Seat, not the
+        // deck row (issue #1111) — without `userDecks.listMine` attaching
+        // server-resolved legality, the client has no way to derive a
+        // `ResolvePool` on its own.
+        const deck = toUserLobbyDeck(
+            userDeck({
+                format: "limited",
+                limitedEventId: "event1",
+                limitedSeatId: "0",
+            })
+        );
+        expect(deck.isLegal).toBe(false);
+        expect(deck.reasons.some((r) => r.code === "pool-unresolved")).toBe(
+            true
+        );
+        expect(deck.limitedEventId).toBe("event1");
+        expect(deck.limitedSeatId).toBe("0");
+    });
+
+    it("a limited user deck passes through server-derived legality when present (issue #1111)", () => {
+        const deck = toUserLobbyDeck(
+            userDeck({
+                format: "limited",
+                limitedEventId: "event1",
+                limitedSeatId: "0",
+                isLegal: true,
+                reasons: [],
+            })
+        );
+        expect(deck.isLegal).toBe(true);
+        expect(deck.reasons).toEqual([]);
     });
 });
 

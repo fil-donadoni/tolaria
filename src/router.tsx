@@ -15,6 +15,7 @@ import GameRoute from "./routes/game.route";
 import JoinRoute from "./routes/join.route";
 import LimitedEventsRoute from "./routes/limited-events.route";
 import LimitedEventDetailRoute from "./routes/limited-event-detail.route";
+import LimitedDeckBuilderRoute from "./routes/limited-deck-builder.route";
 
 const rootRoute = createRootRoute({
     component: () => (
@@ -105,6 +106,15 @@ const limitedEventDetailRoute = createRoute({
     component: LimitedEventDetailRoute,
 });
 
+// Pool-scoped deckbuilding (PRD #1107, ADR 0054/0055, issue #1111): a seat's
+// constrained builder, entered from the event detail page once the event has
+// started and the viewer's own Pool exists.
+const limitedDeckBuilderRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/limited/$eventId/build",
+    component: LimitedDeckBuilderRoute,
+});
+
 const routeTree = rootRoute.addChildren([
     indexRoute,
     decksCreateRoute,
@@ -116,6 +126,7 @@ const routeTree = rootRoute.addChildren([
     joinRoute,
     limitedEventsRoute,
     limitedEventDetailRoute,
+    limitedDeckBuilderRoute,
 ]);
 
 const router = createRouter({ routeTree });

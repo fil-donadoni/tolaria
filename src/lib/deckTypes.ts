@@ -31,6 +31,11 @@ export interface LobbyDeckBase {
     // so the lobby and the live builder panel never disagree with the server.
     isLegal: boolean;
     reasons: Reason[];
+    // Limited Event + Seat reference (ADR 0054/0055, issue #1109/#1111). Set
+    // only on a `format: "limited"` user deck — a preset never carries these.
+    // Absent on every other deck.
+    limitedEventId?: string;
+    limitedSeatId?: string;
 }
 
 export interface PresetLobbyDeck extends LobbyDeckBase {
@@ -94,15 +99,31 @@ export function toPresetLobbyDeck(
     };
 }
 
+// A `userDecks.listMine` row may already carry server-resolved legality for a
+// `limited`-format deck (`convex/userDecks.ts`, issue #1111): its Pool lives
+// on the Limited Event Seat, not the deck row, so the client has no way to
+// derive a `ResolvePool` on its own — without the server attaching these, a
+// bare client-side `validateDeck` call would always read "pool-unresolved"
+// and block Limited decks everywhere except the pool-scoped builder. Mirrors
+// `PresetSource`'s same optional-override shape in `toPresetLobbyDeck` above.
+type UserDeckSource = Doc<"userDecks"> & {
+    isLegal?: boolean;
+    reasons?: Reason[];
+};
+
 export function toUserLobbyDeck(
-    d: Doc<"userDecks">,
+    d: UserDeckSource,
     banlist?: BanlistOverride
 ): UserLobbyDeck {
-    // User decks aren't validated server-side on list; derive legality from
-    // contents via the shared pure validator (ADR 0036), threading the
-    // injected DB banlist override (PRD #1138, issue #1144) — `undefined`
-    // falls back to the code const inside `validateDeck`.
-    const { isLegal, reasons } = validateDeck(d, d.format, undefined, banlist);
+    // Prefer the server-derived legality when present (limited decks,
+    // `userDecks.listMine`); otherwise derive it here via the shared pure
+    // validator (ADR 0036), threading the injected DB banlist override (PRD
+    // #1138, issue #1144) — `undefined` falls back to the code const inside
+    // `validateDeck`. Every non-limited deck takes this branch unchanged.
+    const legality =
+        d.isLegal !== undefined && d.reasons !== undefined
+            ? { isLegal: d.isLegal, reasons: d.reasons }
+            : validateDeck(d, d.format, undefined, banlist);
     return {
         kind: "user",
         userDeckId: d._id,
@@ -117,8 +138,10 @@ export function toUserLobbyDeck(
         // (PRD #589, issue #593) — user-deck rows aren't projected server-side,
         // so resolution happens here via the shared pure resolver.
         featuredCardId: resolveFeaturedCardId(d),
-        isLegal,
-        reasons,
+        isLegal: legality.isLegal,
+        reasons: legality.reasons,
+        limitedEventId: d.limitedEventId,
+        limitedSeatId: d.limitedSeatId,
     };
 }
 
@@ -159,6 +182,8 @@ export function deckPayload(d: LobbyDeck): {
     format: FormatId;
     cards: DeckCard[];
     sideboard: DeckCard[];
+    limitedEventId?: string;
+    limitedSeatId?: string;
 } {
     return {
         id: d.presetId,
@@ -168,5 +193,11 @@ export function deckPayload(d: LobbyDeck): {
         // Snapshotted into the Match deck copy (PRD #387). Empty for legacy
         // decks; the Match owns this list for sideboarding.
         sideboard: d.sideboard ?? [],
+        // Limited Event + Seat reference (ADR 0054/0055, issue #1109/#1111) —
+        // `assertDeckLegal`'s injected `ResolvePool` reads these two at game
+        // start. Absent on every non-Limited deck (a preset never carries
+        // them either).
+        limitedEventId: d.limitedEventId,
+        limitedSeatId: d.limitedSeatId,
     };
 }
