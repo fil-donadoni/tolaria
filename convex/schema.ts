@@ -271,6 +271,67 @@ export default defineSchema({
     // panel lists a user's rows and, on click, passes the stored `spec` straight
     // to `debugSetupScenario`. The write path is `assertIsAdmin`-gated
     // (`convex/debugScenarios.ts`), inheriting the same gate as the builder.
+    // Limited Event skeleton + Sealed flow (PRD #1107, ADR 0054/0055, issue
+    // #1110). A single row per event carries every Seat inline (array, like
+    // `matches.players` — at most 8 seats, so an atomic single-row patch is
+    // simpler than a child table and keeps join/start race-free under Convex
+    // OCC). `createLimitedEvent` is `assertIsAdmin`-gated; `joinEvent` fills a
+    // free seat for any authenticated user; `startEvent` (the event's
+    // `createdBy`) fills every still-empty seat with a Bot Drafter placeholder
+    // and — for a Sealed event — deals each seat's Pool via the pure seeded
+    // Booster generator (`convex/limited/boosterGenerator.ts`). Draft's
+    // synchronous pick/pass flow is a later slice; this table already carries
+    // `type: "draft"` so the event/lobby skeleton doesn't need a second
+    // migration when that lands.
+    limitedEvents: defineTable({
+        createdBy: v.id("users"),
+        type: v.union(v.literal("sealed"), v.literal("draft")),
+        // "open": joining seats, not yet started. "started": every seat is
+        // filled (human or bot) and — for Sealed — Pools are generated.
+        // Completion / all-Pools-reveal (PRD #1107 story 26) is deck-building
+        // integration, deferred to a later slice.
+        status: v.union(v.literal("open"), v.literal("started")),
+        seatCount: v.number(),
+        // Pack Source per pack slot (Draftable Set codes, e.g. ["lea"] or
+        // ["lea","lea","lea"] for a 3-round Draft). A Sealed event cycles this
+        // list across `sealedBoosterCount` boosters per seat.
+        packSlots: v.array(v.string()),
+        // Sealed boosters per seat (default 6). Optional so a Draft-typed
+        // event (whose pack count is `packSlots.length`, not this field) can
+        // omit it; `startEvent` defaults it when generating a Sealed Pool.
+        sealedBoosterCount: v.optional(v.number()),
+        // Event RNG seed (ADR 0055), set once at `startEvent` so the seat
+        // Pools it produced are reproducible/replayable given the same seed.
+        seed: v.optional(v.number()),
+        seats: v.array(
+            v.object({
+                seatIndex: v.number(),
+                userId: v.optional(v.id("users")),
+                nickname: v.optional(v.string()),
+                // Bot Drafter placeholder (PRD #1107 story 8), set at
+                // `startEvent` for every seat still unclaimed by a human.
+                isBot: v.optional(v.boolean()),
+                // The seat's authoritative Pool (ADR 0054/0055) — one entry
+                // per physical card opened, not yet grouped into counts (the
+                // legality-side `Pool`/`PoolCard` shape in `convex/formats.ts`
+                // is derived from this at the deckbuilding seam, a later
+                // slice). Absent until `startEvent` generates it.
+                pool: v.optional(
+                    v.array(
+                        v.object({
+                            scryfallId: v.string(),
+                            cardId: v.string(),
+                            cardName: v.string(),
+                        })
+                    )
+                ),
+            })
+        ),
+        createdAt: v.number(),
+        updatedAt: v.number(),
+    })
+        .index("by_status", ["status"])
+        .index("by_createdBy", ["createdBy"]),
     debugScenarios: defineTable({
         userId: v.id("users"),
         label: v.string(),

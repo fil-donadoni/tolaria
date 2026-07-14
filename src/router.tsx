@@ -13,6 +13,8 @@ import DeckBuilderRoute from "./routes/deck-builder.route";
 import DeckDetailRoute from "./routes/deck-detail.route";
 import GameRoute from "./routes/game.route";
 import JoinRoute from "./routes/join.route";
+import LimitedEventsRoute from "./routes/limited-events.route";
+import LimitedEventDetailRoute from "./routes/limited-event-detail.route";
 
 const rootRoute = createRootRoute({
     component: () => (
@@ -90,6 +92,19 @@ const joinRoute = createRoute({
     component: JoinRoute,
 });
 
+// Limited Events lobby + detail (PRD #1107, ADR 0054/0055, issue #1110).
+const limitedEventsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/limited",
+    component: LimitedEventsRoute,
+});
+
+const limitedEventDetailRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/limited/$eventId",
+    component: LimitedEventDetailRoute,
+});
+
 const routeTree = rootRoute.addChildren([
     indexRoute,
     decksCreateRoute,
@@ -99,6 +114,8 @@ const routeTree = rootRoute.addChildren([
     presetEditRoute,
     gameRoute,
     joinRoute,
+    limitedEventsRoute,
+    limitedEventDetailRoute,
 ]);
 
 const router = createRouter({ routeTree });
