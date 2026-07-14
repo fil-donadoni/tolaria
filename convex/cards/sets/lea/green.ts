@@ -1268,6 +1268,13 @@ export const wildGrowth: CardDefinition = {
             oracleText:
                 "Whenever enchanted land is tapped for mana, its controller adds an additional {G}.",
             manaAbility: true, // CR 605.1b / 605.4 — resolves without the stack
+            // CR 605.4 — teach the predictive potential-mana models (castability
+            // gate + auto-tap solver) that the enchanted land yields an extra
+            // {G} when tapped for mana; the `resolve` closure above still adds it.
+            manaBonusForPotential: {
+                appliesTo: "host",
+                amount: { kind: "fixed", mana: { G: 1 } },
+            },
             scope: "any",
             forMana: true,
             condition: (event, self) =>

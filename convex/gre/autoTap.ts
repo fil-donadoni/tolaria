@@ -10,6 +10,7 @@ import {
 } from "./constants";
 import type { CardInstanceState } from "./state";
 import { isManaCostCovered, type ManaSubstitution } from "./state";
+import { extraTapManaForOption } from "./tapManaBonus";
 
 /**
  * Auto-tap mana solver (issue #154).
@@ -91,6 +92,23 @@ function toContribution(cost: {
     return out;
 }
 
+/** Fold the extra mana a Wild-Growth-style triggered mana ability adds when
+ *  `card` (a land) is tapped for this `base` option into the option's output
+ *  (CR 605.4). No-op when no bonus applies, so ordinary sources are unchanged. */
+function withTapBonus(
+    battlefield: CardInstanceState[],
+    card: CardInstanceState,
+    base: ManaContribution
+): ManaContribution {
+    const extra = extraTapManaForOption(battlefield, card, base);
+    const merged: ManaContribution = { ...base };
+    for (const color of MANA_COLORS) {
+        const v = extra[color];
+        if (v) merged[color] = (merged[color] ?? 0) + v;
+    }
+    return merged;
+}
+
 /** Build the solver's source list from a player's battlefield, excluding
  *  tapped sources, summoning-sick creature dorks (CR 302.1), sacrifice mana
  *  abilities, and anything that doesn't produce a single known mana output.
@@ -117,7 +135,7 @@ export function buildAutoTapSources(
         if (ability?.manaChoices) {
             const options = ability.manaChoices.map((mc, index) => ({
                 manaChoiceIndex: index,
-                mana: toContribution(mc),
+                mana: withTapBonus(battlefield, card, toContribution(mc)),
             }));
             // A choice with no usable color (e.g. Black Lotus's {C}{C}{C}
             // entry survives toContribution; that's fine) — keep all options.
@@ -132,7 +150,11 @@ export function buildAutoTapSources(
         const amount = getFixedManaAmount(card, color, battlefield);
         sources.push({
             cardId: card.id,
-            options: [{ mana: { [color]: amount } }],
+            options: [
+                {
+                    mana: withTapBonus(battlefield, card, { [color]: amount }),
+                },
+            ],
         });
     }
 

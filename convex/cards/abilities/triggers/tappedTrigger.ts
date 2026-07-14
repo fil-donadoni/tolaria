@@ -19,6 +19,7 @@ import type {
     SpellContext,
     TriggerStateView,
     TriggeredAbility,
+    TapManaBonusForPotential,
     ManaCost,
     CardType,
 } from "../../types";
@@ -45,6 +46,12 @@ export interface TappedTriggerArgs {
      *  payment that tapped the land. Leave `false`/undefined for a `forMana` tap
      *  trigger that adds NO mana (Manabarbs' damage) — that one uses the stack. */
     manaAbility?: boolean;
+    /** CR 605.4 — declarative descriptor of the guaranteed extra mana this
+     *  mana-ability tap trigger adds, for the PREDICTIVE potential-mana models
+     *  (castability gate + auto-tap solver). See
+     *  `TriggeredAbility.manaBonusForPotential`. Omit for a restricted-mana
+     *  bonus (Snowfall) — it must stay invisible to spell affordability. */
+    manaBonusForPotential?: TapManaBonusForPotential;
     /** CR 603.4 check-time predicate. Runs after scope+filter+forMana pass. */
     condition?: (
         event: PermanentTappedEvent,
@@ -123,6 +130,11 @@ export function tappedTrigger(args: TappedTriggerArgs): TriggeredAbility {
         // without using the stack; the engine reads this flag in
         // `processPendingActionTriggers`.
         ...(args.manaAbility ? { manaAbility: true } : {}),
+        // CR 605.4 — declarative extra-mana descriptor for the predictive
+        // potential-mana models (castability gate + auto-tap solver).
+        ...(args.manaBonusForPotential
+            ? { manaBonusForPotential: args.manaBonusForPotential }
+            : {}),
         matches: (event: GameEvent, self, state) => {
             if (event.type !== "PERMANENT_TAPPED") return false;
             return tappedMatches(event, self, state);

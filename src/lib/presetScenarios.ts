@@ -94,22 +94,4 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 4,
     },
-    {
-        // Escape via Underworld Breach's zone-wide grant (CR 702.138). Breach on
-        // the battlefield gives every nonland graveyard card escape for its own
-        // mana cost plus exile three others. Cast Lightning Bolt from the
-        // graveyard: pay {R}, exile three other cards. (Edge case: the land in
-        // the graveyard never gains escape — "Each nonland card".)
-        label: "Escape — Underworld Breach grant",
-        cards: [
-            { name: "Underworld Breach", owner: "me", zone: "battlefield" },
-            { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
-            { name: "Grizzly Bears", owner: "me", zone: "graveyard", count: 9 },
-            { name: "Lion's Eye Diamond", owner: "me", zone: "battlefield" },
-            { name: "Vision Charm", owner: "me", zone: "hand" },
-            { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
 ];

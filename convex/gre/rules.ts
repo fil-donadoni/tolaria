@@ -28,6 +28,7 @@ import { isProtectedFromColors } from "./protection";
 import { hasSupertypeLive } from "./snow";
 import { isGuardedAgainst, playerHasShroud } from "./permanentGuard";
 import { castProhibitionReason } from "../cards/castRestrictions";
+import { tapManaBonusUnits } from "./tapManaBonus";
 import { matchesPermanentFilter } from "../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { getCardColors } from "../cards/colors";
@@ -564,7 +565,18 @@ function coloredCostLeftover(
         if (isTapLockedBySummoningSickness(perm)) continue;
         // One entry per mana the source taps for: a {C}{C} source (Sol Ring)
         // contributes two, not one (issue #132).
-        for (const unit of getProducibleManaUnits(perm)) sources.push(unit);
+        const base = getProducibleManaUnits(perm);
+        for (const unit of base) sources.push(unit);
+        // CR 605.4 — a Wild-Growth-style triggered mana ability on ANOTHER
+        // permanent adds extra mana when THIS land is tapped for mana. It only
+        // fires on a for-mana tap, so gate on the land actually producing base
+        // mana; then fold in the declared bonus units (Wild Growth {G},
+        // Gauntlet {R}, Mana Flare produced colour, Fertile Ground any colour).
+        if (base.length > 0) {
+            for (const unit of tapManaBonusUnits(player.battlefield, perm)) {
+                sources.push(unit);
+            }
+        }
     }
 
     // Greedy: assign colored requirements first, picking the least-flexible

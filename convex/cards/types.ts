@@ -5145,6 +5145,41 @@ export interface TriggeredAbility {
      *  pass. A trigger that adds no mana (Manabarbs' damage) must NOT set this —
      *  it is a normal stack trigger. */
     manaAbility?: boolean;
+    /** CR 605.4 — a DECLARATIVE descriptor of the guaranteed additional mana a
+     *  triggered mana ability contributes on a for-mana tap of a matching land
+     *  (Wild Growth {G}, Gauntlet of Might {R}, Mana Flare produced-colour,
+     *  Fertile Ground any-colour). The `resolve` closure that actually adds the
+     *  mana is opaque, so the PREDICTIVE potential-mana calculators — the
+     *  castability gate (`canPotentiallyPayCost`, rules.ts) and the human
+     *  auto-tap solver (`buildAutoTapSources`, autoTap.ts) — can't see the bonus
+     *  without this. Absent → the bonus is invisible to prediction, which is
+     *  CORRECT for a RESTRICTED-mana bonus (Snowfall's cumulative-upkeep {U}
+     *  can't pay a spell cost, so it must not inflate castability). Set this only
+     *  when the added mana is freely spendable. Read by `getActiveTapManaBonuses`
+     *  (`gre/tapManaBonus.ts`); does NOT affect how the ability resolves. */
+    manaBonusForPotential?: TapManaBonusForPotential;
+}
+
+/** Descriptor for {@link TriggeredAbility.manaBonusForPotential} — the extra
+ *  mana a Wild-Growth-style triggered mana ability guarantees on a for-mana tap
+ *  of a matching land, and which lands it applies to. Consumed by the predictive
+ *  potential-mana models only (CR 605.4). */
+export interface TapManaBonusForPotential {
+    /** Which tapped lands grant the bonus. `"host"` = the aura's enchanted land
+     *  (`source.attachedTo`, Wild Growth / Fertile Ground); a `filter` = any
+     *  land the source's global rider matches (Gauntlet of Might → Mountain,
+     *  Mana Flare → any Land). */
+    appliesTo: "host" | { filter: PermanentFilter };
+    /** The extra mana produced on a matching for-mana tap:
+     *  - `fixed` — a constant contribution (Wild Growth {G}, Gauntlet {R}).
+     *  - `anyColor` — `count` mana of any one colour, freely chosen at resolve
+     *    (Fertile Ground). Modelled as fully flexible (errs toward affordable).
+     *  - `perProducedColor` — `count` mana matching a colour the tapped land
+     *    itself produced (Mana Flare "one mana of any type that land produced"). */
+    amount:
+        | { kind: "fixed"; mana: Partial<Record<Color, number>> }
+        | { kind: "anyColor"; count: number }
+        | { kind: "perProducedColor"; count: number };
 }
 
 // --- Replacement effects (CR 614) ---
