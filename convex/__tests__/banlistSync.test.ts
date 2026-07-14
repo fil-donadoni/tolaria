@@ -48,6 +48,29 @@ describe("parseScryfallSearchPage — raw response validation (issue #1143)", ()
         expect(parseScryfallSearchPage(raw).next_page).toBeNull();
     });
 
+    it("captures the Scryfall id when present (PRD #1138 image follow-up)", () => {
+        const raw = {
+            object: "list",
+            has_more: false,
+            data: [{ name: "Amulet of Quoz", id: "abc-123" }],
+        };
+        expect(parseScryfallSearchPage(raw).data).toEqual([
+            { name: "Amulet of Quoz", id: "abc-123" },
+        ]);
+    });
+
+    it("omits id (not null) when the card object has none", () => {
+        const raw = {
+            object: "list",
+            has_more: false,
+            data: [{ name: "Balance" }],
+        };
+        expect(parseScryfallSearchPage(raw).data[0]).toEqual({
+            name: "Balance",
+        });
+        expect("id" in parseScryfallSearchPage(raw).data[0]).toBe(false);
+    });
+
     it("rejects a captured Scryfall error response (malformed/bad-query fetch)", () => {
         expect(() =>
             parseScryfallSearchPage(SCRYFALL_ERROR_RESPONSE_FIXTURE)
@@ -80,6 +103,29 @@ describe("parseBanlistResponse — extract + dedupe by oracle name (issue #1143)
         expect(entries.every((e) => e.status === "banned")).toBe(true);
         expect(entries.map((e) => e.cardName)).toContain("Parallax Tide");
         expect(entries.map((e) => e.cardName)).toContain("Amulet of Quoz");
+    });
+
+    it("carries the Scryfall id onto the entry when the page provides one (PRD #1138 image follow-up)", () => {
+        const batches: BanlistFetchBatch[] = [
+            {
+                status: "banned",
+                pages: [
+                    {
+                        has_more: false,
+                        next_page: null,
+                        data: [{ name: "Amulet of Quoz", id: "amulet-id" }],
+                    },
+                ],
+            },
+        ];
+        const entries = parseBanlistResponse(batches);
+        expect(entries).toEqual([
+            {
+                cardName: "Amulet of Quoz",
+                status: "banned",
+                scryfallId: "amulet-id",
+            },
+        ]);
     });
 
     it("dedupes Strip Mine across pages (real multi-printing card, captured cross-page)", () => {

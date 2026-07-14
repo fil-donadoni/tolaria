@@ -10,7 +10,11 @@ import BanlistAdminPanel from "../banlist-admin-panel";
 let currentUser: { isAdmin?: boolean } | null | undefined;
 const syncBanlist = vi.fn();
 
-type BanlistEntry = { cardName: string; status: "banned" | "restricted" };
+type BanlistEntry = {
+    cardName: string;
+    status: "banned" | "restricted";
+    scryfallId?: string;
+};
 type BanlistMeta = { syncedAt: number | null; source: string | null };
 
 const BANLIST_ENTRIES: Record<string, BanlistEntry[]> = {
@@ -19,7 +23,14 @@ const BANLIST_ENTRIES: Record<string, BanlistEntry[]> = {
         { cardName: "Recall", status: "banned" },
     ],
     "old-school": [
-        { cardName: "Black Lotus", status: "banned" },
+        // Amulet of Quoz — never built in our engine — carries a synced
+        // scryfallId, so its tile renders the Scryfall image (PRD #1138
+        // image follow-up).
+        {
+            cardName: "Amulet of Quoz",
+            status: "banned",
+            scryfallId: "amulet-sid",
+        },
         { cardName: "Time Walk", status: "restricted" },
     ],
 };
@@ -164,15 +175,26 @@ describe("BanlistAdminPanel (issue #1146)", () => {
         // One per DB-backed format (Premodern, Old School).
         expect(viewButtons).toHaveLength(2);
 
-        // Open the Old School pile: 1 banned (Black Lotus), 1 restricted
+        // Open the Old School pile: 1 banned (Amulet of Quoz), 1 restricted
         // (Time Walk). The dialog renders into a portal, so assert via `screen`.
         fireEvent.click(viewButtons[1]);
         expect(await screen.findByText("Old School banlist")).toBeTruthy();
         expect(screen.getByText("Banned (1)")).toBeTruthy();
         expect(screen.getByText("Restricted (1)")).toBeTruthy();
-        // Each card name appears (tile caption, and the placeholder frame when
-        // the name has no built CardDefinition) — assert presence, not count.
-        expect(screen.getAllByText("Black Lotus").length).toBeGreaterThan(0);
+        // Each card name appears (tile caption) — assert presence, not count.
+        expect(screen.getAllByText("Amulet of Quoz").length).toBeGreaterThan(0);
         expect(screen.getAllByText("Time Walk").length).toBeGreaterThan(0);
+    });
+
+    it("renders the Scryfall image for a banlist card with no CardDefinition (PRD #1138 image follow-up)", async () => {
+        const { getAllByText } = render(<BanlistAdminPanel />);
+        // Old School row holds Amulet of Quoz — never built, but synced with a
+        // scryfallId, so its tile must show the Scryfall image, not a name
+        // placeholder.
+        fireEvent.click(getAllByText("View cards")[1].closest("button")!);
+        const img = (await screen.findByRole("img", {
+            name: "Amulet of Quoz",
+        })) as HTMLImageElement;
+        expect(img.getAttribute("src")).toContain("amulet-sid");
     });
 });

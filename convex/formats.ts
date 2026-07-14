@@ -104,6 +104,12 @@ export function isBanlistFormatId(value: string): value is BanlistFormatId {
 export interface BanlistEntry {
     cardName: string;
     status: "banned" | "restricted";
+    /** Scryfall card id, captured at sync time (PRD #1138 follow-up). Lets the
+     *  admin banlist dialog show a card's Scryfall image even when the name has
+     *  no `CardDefinition` in our engine (e.g. Amulet of Quoz — a banlist card
+     *  we will never build). Absent on code-seed rows (the pre-sync fallback)
+     *  and on rows synced before this field existed. */
+    scryfallId?: string;
 }
 
 /**

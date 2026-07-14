@@ -37,12 +37,16 @@ import type { BanlistEntry, BanlistFormatId } from "./formats";
 
 // --- Scryfall wire shapes (pure) -------------------------------------------
 
-/** The one field this module reads off a Scryfall card object. Scryfall
- *  cards carry dozens of other fields (image URIs, legalities, prices, …) —
- *  irrelevant here, so the type stays minimal rather than modeling the whole
- *  API response. */
+/** The fields this module reads off a Scryfall card object. Scryfall cards
+ *  carry dozens of others (image URIs, legalities, prices, …) — irrelevant
+ *  here, so the type stays minimal. `id` (the stable Scryfall UUID) is
+ *  captured so the admin dialog can render a card's image via Scryfall even
+ *  when we never build that card (PRD #1138 follow-up); it's optional so a
+ *  malformed/legacy page missing it still parses (the name is the only hard
+ *  requirement). */
 export interface ScryfallCard {
     name: string;
+    id?: string;
 }
 
 /** One page of a Scryfall `/cards/search` response, trimmed to the fields
@@ -93,7 +97,11 @@ export function parseScryfallSearchPage(raw: unknown): ScryfallSearchPage {
                 "Malformed Scryfall response: card entry missing a name"
             );
         }
-        return { name: (card as { name: string }).name };
+        const rec = card as Record<string, unknown>;
+        return {
+            name: rec.name as string,
+            ...(typeof rec.id === "string" ? { id: rec.id } : {}),
+        };
     });
     return {
         data,
@@ -125,7 +133,11 @@ export function parseBanlistResponse(
                 if (!trimmed) continue;
                 const key = trimmed.toLowerCase();
                 if (byName.has(key)) continue; // first occurrence wins
-                byName.set(key, { cardName: trimmed, status: batch.status });
+                byName.set(key, {
+                    cardName: trimmed,
+                    status: batch.status,
+                    ...(card.id ? { scryfallId: card.id } : {}),
+                });
             }
         }
     }
@@ -309,6 +321,7 @@ export const replaceBanlist = internalMutation({
                 status: entry.status,
                 source: SCRYFALL_SYNC_SOURCE,
                 syncedAt,
+                ...(entry.scryfallId ? { scryfallId: entry.scryfallId } : {}),
             });
         }
         return diff;
