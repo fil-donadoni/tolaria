@@ -9,7 +9,6 @@ import { storeSession } from "~/lib/session";
 import { copyMinified } from "~/lib/clipboard";
 import DebugButton from "./debug-button";
 import DebugDbScenarios from "./debug-db-scenarios";
-import { PRESET_SCENARIOS } from "~/lib/presetScenarios";
 
 const theme = {
     scheme: "tolaria",
@@ -113,7 +112,6 @@ export default function DebugPanel({
         isOpen && pageVisible ? { gameId } : "skip"
     );
     const resetGame = useMutation(api.game.debugResetGame);
-    const setupScenario = useMutation(api.game.debugSetupScenario);
     const createSoloGame = useMutation(api.game.createSoloGame);
     const bo3Sideboard = useMutation(api.game.debugBo3Sideboard);
     const [bo3Pending, setBo3Pending] = useState(false);
@@ -257,37 +255,6 @@ export default function DebugPanel({
                                     className="w-full px-2 py-1 rounded bg-black/40 border border-white/20 text-white text-xs placeholder:text-white/30 outline-none focus:border-white/40"
                                     autoFocus
                                 />
-                                <div className="max-h-62.5 overflow-y-auto flex flex-col gap-1">
-                                    {PRESET_SCENARIOS.filter((s) =>
-                                        s.label
-                                            .toLowerCase()
-                                            .includes(
-                                                scenarioFilter.toLowerCase()
-                                            )
-                                    ).map((scenario) => (
-                                        <DebugButton
-                                            key={scenario.label}
-                                            onClick={() =>
-                                                setupScenario({
-                                                    gameId,
-                                                    cards: scenario.cards,
-                                                    phase: scenario.phase,
-                                                    landCount:
-                                                        scenario.landCount,
-                                                    libraryCount:
-                                                        scenario.libraryCount,
-                                                    markLastDrawn:
-                                                        scenario.markLastDrawn,
-                                                    turn: scenario.turn,
-                                                    rngSeed: scenario.rngSeed,
-                                                    poison: scenario.poison,
-                                                })
-                                            }
-                                        >
-                                            {scenario.label}
-                                        </DebugButton>
-                                    ))}
-                                </div>
                                 <DebugDbScenarios
                                     gameId={gameId}
                                     filter={scenarioFilter}

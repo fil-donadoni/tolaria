@@ -304,8 +304,10 @@ Per `.claude/rules/gre-development.md`:
   `getStackAbilities`; existing shapes are covered automatically.
 - New optional `GameState` field → `PERSISTED_OPTIONAL_KEYS`/`TRANSIENT_KEYS` +
   round-trip test (serialize drift guard).
-- A **preset scenario** per cluster in `PRESET_SCENARIOS`
-  (`src/components/debug/debug-panel.tsx`).
+- A **preset scenario** per cluster, saved as a `debugScenarios` DB row via the
+  Debug panel's "Save scenario" form / `saveDebugScenario`
+  (`convex/debugScenarios.ts`) — a DB insert, not a `debug-panel.tsx` edit
+  (ADR 0044, issue #770).
 - Cadence: targeted tests while iterating; full gate once before done/merge —
   `bun run check:all` + full `bun run test`, zero errors/failures. `check:all`
   now also runs `check:stub-coverage` (Phase 4) — every commented stub must

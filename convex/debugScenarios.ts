@@ -1,11 +1,12 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { assertIsAdmin } from "./auth";
 import { tryGetCardByName } from "./cards";
 import {
     collectUnresolvedCardNames,
     normalizeScenarioSpec,
     scenarioSpecValidator,
+    type ScenarioSpec,
 } from "./debugScenarioSpec";
 
 // Debug scenarios (issue #769, ADR 0044). The tracer-bullet DB path: a preset
@@ -94,3 +95,84 @@ export const deleteDebugScenario = mutation({
 // before handing it to `debugSetupScenario` (unknown fields dropped, missing
 // defaulted). Keeps the tolerant-load logic in one place (ADR 0044).
 export { normalizeScenarioSpec };
+
+// ---- One-off migration: PRESET_SCENARIOS code literal → DB rows (issue #770) --
+
+/**
+ * The historical `PRESET_SCENARIOS` entries (formerly
+ * `src/lib/presetScenarios.ts`, now deleted — this migration is the last place
+ * their content lives in code). Frozen as of the migration; a scenario added
+ * after this point is authored straight into the DB (`saveDebugScenario` /
+ * `DebugDbScenarios`), never appended here.
+ */
+const MIGRATED_PRESET_SCENARIOS: { label: string; spec: ScenarioSpec }[] = [
+    {
+        // Wild Growth — triggered mana ability (CR 605.1b / 605.4). Tapping the
+        // enchanted Forest for mana fires Wild Growth's tap trigger, which
+        // resolves IMMEDIATELY off the stack: the bonus {G} appears in the pool
+        // in the same click, with no stack item and no priority pass. Cast the
+        // Craw Wurm ({4}{G}{G}) with fewer lands than its cost to feel it — the
+        // extra {G} is there while you pay, not one pass later.
+        label: "Wild Growth — bonus mana resolves off the stack",
+        spec: {
+            cards: [
+                { name: "Forest", owner: "me", zone: "battlefield" },
+                {
+                    name: "Wild Growth",
+                    owner: "me",
+                    zone: "battlefield",
+                    attachedTo: "Forest",
+                },
+                { name: "Craw Wurm", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 4,
+        },
+    },
+];
+
+/**
+ * One-shot migration (issue #770, ADR 0044): insert the frozen
+ * `MIGRATED_PRESET_SCENARIOS` as `debugScenarios` rows owned by `userId`,
+ * flagged `golden` (curated, keep). Idempotent by label — a label already
+ * present for that user is skipped, so re-running (e.g. against a second admin)
+ * never duplicates rows. `internalMutation`: no `assertIsAdmin` call, since it
+ * is reachable only via the Convex dashboard / `npx convex run` with deploy
+ * access, never from a client. Run once per admin who wants the historical
+ * presets available in their panel, e.g.:
+ * `npx convex run debugScenarios:seedPresetScenarios '{"userId":"<id>"}'`
+ */
+export const seedPresetScenarios = internalMutation({
+    args: { userId: v.id("users") },
+    returns: v.object({ inserted: v.number(), skipped: v.number() }),
+    handler: async (ctx, args) => {
+        const existing = await ctx.db
+            .query("debugScenarios")
+            .withIndex("by_user", (q) => q.eq("userId", args.userId))
+            .collect();
+        const existingLabels = new Set(existing.map((row) => row.label));
+
+        let inserted = 0;
+        let skipped = 0;
+        for (const preset of MIGRATED_PRESET_SCENARIOS) {
+            if (existingLabels.has(preset.label)) {
+                skipped++;
+                continue;
+            }
+            await ctx.db.insert("debugScenarios", {
+                userId: args.userId,
+                label: preset.label,
+                spec: preset.spec,
+                golden: true,
+                createdAt: Date.now(),
+            });
+            inserted++;
+        }
+        return { inserted, skipped };
+    },
+});
+
+// Exported for tests only — proves the frozen migration data itself is
+// loadable (every card name resolves, matches `scenarioSpecValidator`)
+// without spinning up a Convex test harness.
+export { MIGRATED_PRESET_SCENARIOS };

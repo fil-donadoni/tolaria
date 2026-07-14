@@ -10,10 +10,11 @@ import { useCurrentUser } from "~/hooks/useCurrentUser";
 import DebugButton from "./debug-button";
 
 /**
- * DB-backed debug scenarios (issue #769, ADR 0044). Lists the current admin's
- * saved scenarios from `listDebugScenarios` and, on click, passes the TOLERANTLY
- * normalized spec straight to the unchanged `debugSetupScenario` builder — the
- * same call the code-literal presets make. A minimal manual save path (label +
+ * DB-backed debug scenarios (issue #769/#770, ADR 0044). Lists the current
+ * admin's saved scenarios from `listDebugScenarios` — the SOLE scenario source
+ * since the `PRESET_SCENARIOS` code literal was migrated to DB rows (issue
+ * #770) — and, on click, passes the TOLERANTLY normalized spec straight to the
+ * unchanged `debugSetupScenario` builder. A minimal manual save path (label +
  * JSON spec) demos the full schema → mutation → query → UI → load loop; the LLM
  * generator is a later slice. Admin-only: the queries/mutations are
  * `assertIsAdmin`-gated, so the list is skipped for non-admins.
@@ -78,10 +79,7 @@ export default function DebugDbScenarios({
     );
 
     return (
-        <div className="flex flex-col gap-1 border-t border-white/10 pt-2">
-            <span className="text-white/40 text-[10px] uppercase tracking-wide">
-                Saved (DB)
-            </span>
+        <div className="flex flex-col gap-1">
             <div className="max-h-40 overflow-y-auto flex flex-col gap-1">
                 {rows.length === 0 ? (
                     <span className="text-white/30 text-[10px]">
@@ -108,7 +106,7 @@ export default function DebugDbScenarios({
                 )}
             </div>
 
-            <span className="text-white/40 text-[10px] uppercase tracking-wide mt-1">
+            <span className="text-white/40 text-[10px] uppercase tracking-wide mt-1 pt-2 border-t border-white/10">
                 Save scenario
             </span>
             <input
