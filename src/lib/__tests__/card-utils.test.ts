@@ -1757,6 +1757,61 @@ describe("matchesPermanentFilter (client mirror — colors + tapped)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// matchesPermanentFilter — `any` disjunction (issue #897)
+// ---------------------------------------------------------------------------
+
+describe("matchesPermanentFilter (client mirror — `any` disjunction, #897)", () => {
+    // A filter carrying ONLY `any` must NOT collapse to all-fields-undefined
+    // (which would fail OPEN and highlight every permanent as a legal pick).
+    // Regression for the client battlefield-choice highlighter dropping the
+    // disjunction that toPermanentFilter/matchesPermanentFilter (server) and
+    // the other 3 consumers already honor.
+    const anyFilter = {
+        any: [{ types: "Artifact" }, { subtypes: "Dragon" }],
+    };
+
+    it("matches an artifact (clause A) via `any`", () => {
+        const artifact = makeCardInstance({
+            types: ["Artifact"],
+            subtypes: [],
+        });
+        expect(matchesPermanentFilter(artifact, anyFilter)).toBe(true);
+    });
+
+    it("matches a non-artifact Dragon creature (clause B) via `any`", () => {
+        const dragon = makeCardInstance({
+            types: ["Creature"],
+            subtypes: ["Dragon"],
+        });
+        expect(matchesPermanentFilter(dragon, anyFilter)).toBe(true);
+    });
+
+    it("rejects a permanent matching NEITHER clause (not every permanent)", () => {
+        const bear = makeCardInstance({
+            types: ["Creature"],
+            subtypes: ["Bear"],
+        });
+        expect(matchesPermanentFilter(bear, anyFilter)).toBe(false);
+    });
+
+    it("ANDs `any` with a sibling top-level field", () => {
+        const tappedArtifact = makeCardInstance({
+            types: ["Artifact"],
+            subtypes: [],
+            isTapped: true,
+        });
+        const untappedArtifact = makeCardInstance({
+            types: ["Artifact"],
+            subtypes: [],
+            isTapped: false,
+        });
+        const filter = { ...anyFilter, tapped: true };
+        expect(matchesPermanentFilter(tappedArtifact, filter)).toBe(true);
+        expect(matchesPermanentFilter(untappedArtifact, filter)).toBe(false);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // getManaChoices — board-conditional choosers (Fellwar Stone, #420). The client
 // runs the SAME getManaChoices resolver the server validates against, so the
 // picker the player sees matches the index the server reads (CR 106.1).
