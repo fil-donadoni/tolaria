@@ -413,11 +413,27 @@ function isDomainValue(value: unknown): boolean {
     return isPlayerRef(s.of);
 }
 
+/** `{ escaped: { of } }` — SHAPE of the escaped value construct (CR 702.138e,
+ *  issue #695). `of` is an object selector (an announced target slot, `$source`,
+ *  or a permanents-set forEach `$each`) — family-checked as an OBJECT position
+ *  by the ordered ref pass. No other keys are permitted. Mirrors
+ *  `isManaValueValue`. */
+function isEscapedValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "escaped") return false;
+    const spec = (value as { escaped: unknown }).escaped;
+    if (typeof spec !== "object" || spec === null) return false;
+    const s = spec as Record<string, unknown>;
+    if (!Object.keys(s).every((k) => k === "of")) return false;
+    return isObjectSelector(s.of);
+}
+
 /** A numeric Op parameter (ADR 0045 value grammar): a positive-int literal,
  *  a `ref`, a `count`, the chosen-cost `X` (issue #852), a `counters` count
  *  on a selected object (issue #1015), a selected object's `manaValue` (issue
- *  #680), or a player's `domain` (issue #1066). Exactly those — no
- *  arithmetic, no expressions. */
+ *  #680), a player's `domain` (issue #1066), or an object's `escaped` flag
+ *  (issue #695). Exactly those — no arithmetic, no expressions. */
 function isEffectValue(value: unknown): boolean {
     return (
         isPositiveInt(value) ||
@@ -427,7 +443,8 @@ function isEffectValue(value: unknown): boolean {
         isCountersValue(value) ||
         isKickerCountValue(value) ||
         isManaValueValue(value) ||
-        isDomainValue(value)
+        isDomainValue(value) ||
+        isEscapedValue(value)
     );
 }
 

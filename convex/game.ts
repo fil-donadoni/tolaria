@@ -86,6 +86,13 @@ import {
     getFlashbackAdditionalCost,
     getFlashbackCost,
 } from "./gre/flashback";
+import {
+    countDistinctCardTypes,
+    findEscapeCastable,
+    getEscapeExileSpec,
+    getEscapeManaCost,
+    hasEscape,
+} from "./gre/escape";
 import { assertDeckLegal } from "./formats";
 import { loadBanlistOverrides } from "./banlists";
 import type {
@@ -1204,6 +1211,7 @@ type CastFromZone = "hand" | "exile" | "graveyard";
  *  "Card not in hand"). Exported so the flashback integration test can drive
  *  the REAL cast-source resolution (no convex-test harness — issue #944). */
 export function locateCastSource(
+    state: GameState,
     player: PlayerState,
     instanceId: string
 ): { card?: CardInstanceState; zone: CastFromZone } {
@@ -1213,6 +1221,9 @@ export function locateCastSource(
     if (exile) return { card: exile, zone: "exile" };
     const flashback = findFlashbackCastable(player, instanceId);
     if (flashback) return { card: flashback, zone: "graveyard" };
+    // CR 702.138b — a card with escape may be cast from its owner's graveyard.
+    const escape = findEscapeCastable(state, player, instanceId);
+    if (escape) return { card: escape, zone: "graveyard" };
     return { zone: "hand" };
 }
 
@@ -1230,16 +1241,38 @@ export function flashbackStackFlags(zone: CastFromZone): {
         : {};
 }
 
-/** The mana cost a cast pays: the Flashback cost when cast from the graveyard
- *  (CR 702.34a — "rather than paying its mana cost"), else the card's printed
- *  mana cost. Exported for the flashback integration test (issue #944 pattern). */
+/** CR 702.34 / 702.138 — the stack-item flags a graveyard cast adds, choosing
+ *  between Flashback and Escape by the card's live capability:
+ *   - Escape (CR 702.138e): `castFromGraveyard` + `escaped` — the resulting
+ *     permanent escaped. NO `exileOnResolve` (the card resolves normally).
+ *   - Flashback (CR 702.34a): `castFromGraveyard` + `exileOnResolve` — the card
+ *     is exiled as it leaves the stack.
+ *  A non-graveyard cast adds nothing. Exported for the escape integration test. */
+export function graveyardCastStackFlags(
+    state: GameState,
+    card: CardInstanceState,
+    zone: CastFromZone
+): { exileOnResolve?: true; castFromGraveyard?: true; escaped?: true } {
+    if (zone !== "graveyard") return {};
+    if (hasEscape(state, card)) {
+        return { castFromGraveyard: true, escaped: true };
+    }
+    return flashbackStackFlags(zone);
+}
+
+/** The mana cost a cast pays: the Escape cost or Flashback cost when cast from
+ *  the graveyard (CR 702.138a / 702.34a — "rather than paying its mana cost"),
+ *  else the card's printed mana cost. Exported for the flashback/escape
+ *  integration tests (issue #944 pattern). */
 export function castRawManaCost(
+    state: GameState,
     card: CardInstanceState,
     zone: CastFromZone
 ): ManaCost | undefined {
-    return zone === "graveyard"
-        ? getFlashbackCost(card)
-        : getInstanceManaCost(card);
+    if (zone !== "graveyard") return getInstanceManaCost(card);
+    // CR 702.138a — an escape cast pays the escape mana cost; a card never has
+    // both escape and flashback, so this preference is unambiguous.
+    return getEscapeManaCost(state, card) ?? getFlashbackCost(card);
 }
 
 /** Resolves an activated ability's mana cost, folding in the FEM Merseine
@@ -1753,7 +1786,7 @@ export function tryAutoCommitPendingCast(
     const castInstanceId = state.pendingCast!.cardInstanceId;
     // CR 601.3e — the card may be cast from the hand OR from exile (Ice
     // Cauldron's "you may cast that card for as long as it remains exiled").
-    const castSource = locateCastSource(player, castInstanceId);
+    const castSource = locateCastSource(state, player, castInstanceId);
     const castCard = castSource.card;
     const castDef = castCard
         ? tryGetDefinition((castCard.card as { id: string }).id)
@@ -1928,7 +1961,7 @@ export function tryAutoCommitPendingCast(
         ...(pendingChosenModeId ? { chosenModeId: pendingChosenModeId } : {}),
         ...(additionalSacrificeSnapshot ? { additionalSacrificeSnapshot } : {}),
         ...(castNotedManaSpent ? { notedManaSpent: castNotedManaSpent } : {}),
-        ...flashbackStackFlags(castFromZone),
+        ...graveyardCastStackFlags(state, spellCard, castFromZone),
     };
     state.stack.push(stackItem);
 
@@ -3518,7 +3551,7 @@ export function finalizeTargetSelection(
     // Spell cast branch (CR 601.2c). CR 601.3e / 702.34 — normally the hand,
     // but Ice Cauldron's noted card is cast from exile, and a Flashback card is
     // cast from the graveyard.
-    const castSource = locateCastSource(player, cardInstanceId);
+    const castSource = locateCastSource(state, player, cardInstanceId);
     const castZone = castSource.zone;
     const cardInHand = castSource.card;
     if (!cardInHand) throw new Error("Card not in hand");
@@ -3534,7 +3567,7 @@ export function finalizeTargetSelection(
 
     // CR 702.34a — a Flashback cast pays the flashback cost from the graveyard
     // instead of the printed mana cost.
-    const rawCost = castRawManaCost(cardInHand, castZone);
+    const rawCost = castRawManaCost(state, cardInHand, castZone);
     const extraPer = cardDef.additionalGenericPerExtraTarget ?? 0;
     const additionalGeneric =
         extraPer > 0 ? Math.max(0, targets.length - 1) * extraPer : 0;
@@ -3716,7 +3749,7 @@ export function finalizeTargetSelection(
             ...(immediateNotedManaSpent
                 ? { notedManaSpent: immediateNotedManaSpent }
                 : {}),
-            ...flashbackStackFlags(castZone),
+            ...graveyardCastStackFlags(state, card, castZone),
         };
         state.stack.push(stackItem);
         state.passCount = 0;
@@ -4030,7 +4063,7 @@ export const announceCast = mutation({
         // Cauldron lets the noted card be cast from exile ("You may cast that
         // card for as long as it remains exiled"), and a Flashback card is cast
         // from the graveyard. Check hand, then castable exile, then flashback.
-        const castSource = locateCastSource(player, args.cardInstanceId);
+        const castSource = locateCastSource(state, player, args.cardInstanceId);
         const cardInHand = castSource.card;
         if (!cardInHand) throw new Error("Card not in hand");
         assertLegalAction(state, player, cardInHand, "cast");
@@ -4381,7 +4414,7 @@ export const announceCast = mutation({
         // 601.2f) or directly to mana payment / cast if no additional cost.
         // CR 702.34a — a Flashback cast pays the flashback cost from the
         // graveyard instead of the printed mana cost.
-        const rawCost = castRawManaCost(cardInHand, castFromZone);
+        const rawCost = castRawManaCost(state, cardInHand, castFromZone);
 
         const manaCost = rawCost ? normalizeManaCost(rawCost, { chosenX }) : {};
         // CR 702.33a — fold the optional Kicker cost into the total (before cost
@@ -4476,6 +4509,47 @@ export const announceCast = mutation({
                 zone: "hand",
             };
         }
+        // CR 702.138a — the ESCAPE additional cost "Exile N other cards from
+        // your graveyard" (Uro / Phlage / Underworld Breach fixed count,
+        // Nethergoyf variable "any number … with N+ card types among them").
+        // Applies ONLY on an escape (graveyard) cast; the caster exiles the cost
+        // cards from their OWN graveyard, never the escaping card itself
+        // (CR 702.138a "other cards"). Reuses the flashback exile picker slot.
+        const escExileSpec =
+            castFromZone === "graveyard"
+                ? getEscapeExileSpec(state, cardInHand)
+                : undefined;
+        if (escExileSpec && !castExileChoice) {
+            const others = player.graveyard.filter(
+                (c) => c.id !== args.cardInstanceId
+            );
+            if ("minCardTypes" in escExileSpec) {
+                // Nethergoyf — need enough OTHER cards to muster the card-type
+                // threshold, else the escape cost can't be paid (CR 702.138a).
+                if (
+                    countDistinctCardTypes(others) < escExileSpec.minCardTypes
+                ) {
+                    throw new Error(
+                        "Not enough card types in your graveyard to pay the escape cost"
+                    );
+                }
+                castExileChoice = {
+                    count: 1,
+                    minCardTypes: escExileSpec.minCardTypes,
+                    excludeInstanceId: args.cardInstanceId,
+                };
+            } else {
+                if (others.length < escExileSpec.count) {
+                    throw new Error(
+                        "Not enough other cards in your graveyard to pay the escape cost"
+                    );
+                }
+                castExileChoice = {
+                    count: escExileSpec.count,
+                    excludeInstanceId: args.cardInstanceId,
+                };
+            }
+        }
 
         const parkForSacrifice =
             !!exilePicker ||
@@ -4560,7 +4634,7 @@ export const announceCast = mutation({
                 ...(additionalSacrificeSnapshot
                     ? { additionalSacrificeSnapshot }
                     : {}),
-                ...flashbackStackFlags(castFromZone),
+                ...graveyardCastStackFlags(state, card, castFromZone),
             };
             state.stack.push(stackItem);
             state.passCount = 0;
@@ -5510,10 +5584,17 @@ export function recordCastExileCostPick(
     const ec = pc.exileFromGraveyardChoice;
     if (!ec) throw new Error("This spell has no exile-from-graveyard cost");
     if (ec.pickedCardIds) throw new Error("Exile cost already paid");
-    if (cardInstanceIds.length !== ec.count) {
-        throw new Error(
-            `Must exile exactly ${ec.count} card(s) from your graveyard`
-        );
+    if (ec.minCardTypes === undefined) {
+        // Fixed-count exile cost (Flashback X; escape fixed count — Uro/Phlage).
+        if (cardInstanceIds.length !== ec.count) {
+            throw new Error(
+                `Must exile exactly ${ec.count} card(s) from your graveyard`
+            );
+        }
+    } else if (cardInstanceIds.length < 1) {
+        // CR 702.138a (Nethergoyf) — "any number … with N+ card types among
+        // them": at least one card, validated for card-type coverage below.
+        throw new Error("Must exile at least one card from your graveyard");
     }
     if (new Set(cardInstanceIds).size !== cardInstanceIds.length) {
         throw new Error("Duplicate card selected for the exile cost");
@@ -5539,6 +5620,18 @@ export function recordCastExileCostPick(
         if (!graveyardCardMatchesColor(card, ec.color)) {
             throw new Error(
                 "Selected card does not match the exile cost filter"
+            );
+        }
+    }
+    // CR 702.138a (Nethergoyf) — the exiled OTHER cards must collectively carry
+    // at least `minCardTypes` distinct card types.
+    if (ec.minCardTypes !== undefined) {
+        const picked = cardInstanceIds
+            .map((id) => sourceCards.find((c) => c.id === id))
+            .filter((c): c is CardInstanceState => c !== undefined);
+        if (countDistinctCardTypes(picked) < ec.minCardTypes) {
+            throw new Error(
+                `Exiled cards must have at least ${ec.minCardTypes} card types among them`
             );
         }
     }

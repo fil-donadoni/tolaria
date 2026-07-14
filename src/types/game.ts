@@ -162,6 +162,10 @@ export interface CardInstance {
      *  Each entry adds to effective P/T at read time. */
     temporaryPTMods?: ReadonlyArray<{ power: number; toughness: number }>;
     legalActions?: CardAction[];
+    /** CR 702.34 / 702.138 — which graveyard-cast keyword surfaced this card's
+     *  cast affordance, so the graveyard button labels "Flashback" vs "Escape".
+     *  Present only on the viewer's own graveyard cards alongside `legalActions`. */
+    castKind?: "flashback" | "escape";
     /** ADR 0026 — derived eye-icon flag on the viewer's OWN hand cards: true
      *  when at least one opponent currently knows this card's identity. Only
      *  present on own-hand projected cards; raw `knownTo` never reaches the

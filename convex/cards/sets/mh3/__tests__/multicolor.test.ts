@@ -1,7 +1,7 @@
 // Modern Horizons 3 (MH3) — multicolor behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { psychicFrog } from "../multicolor";
+import { psychicFrog, phlageTitanOfFiresFury } from "../multicolor";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     type CardInstanceState,
@@ -26,6 +26,23 @@ function resolveActivated(
         zone: "stack",
         castById: source.controllerId,
         abilityId,
+    } as StackItem);
+    resolveTopOfStack(state);
+}
+
+function resolveTrigger(
+    state: GameState,
+    source: CardInstanceState,
+    triggeredAbilityId: string,
+    triggerEvent: StackItem["triggerEvent"]
+): void {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        triggeredAbilityId,
+        triggerSourceId: source.id,
+        triggerEvent,
     } as StackItem);
     resolveTopOfStack(state);
 }
@@ -125,5 +142,90 @@ describe("Psychic Frog ({U}{B} 1/2 Frog; CR 510.4 / 122.1 / 611.1b)", () => {
         resolveActivated(state, frog, "psychic-frog-exile-flying");
         const live = state.players[0].battlefield.find((c) => c.id === "frog")!;
         expect(live.staticAbilities).toContain("flying");
+    });
+});
+
+// resolvePhlageValue is a resolve() closure (protocol card, ADR 0045): its
+// "3 damage to any target" is a choose-damage-target Pending Choice owed to
+// the controller (CR 115.4), with an unconditional 3 life gain on top.
+describe("Phlage, Titan of Fire's Fury (enters/attacks value: 3 damage any target + gain 3 life, CR 115.4 / 702.138)", () => {
+    const enterEvent = (instanceId: string): StackItem["triggerEvent"] =>
+        ({
+            type: "PERMANENT_ENTERED",
+            instanceId,
+            controllerId: "p1",
+            types: ["Creature"],
+        }) as StackItem["triggerEvent"];
+
+    const phlageOnBattlefield = (id: string, controllerId: string) =>
+        makeInstance(phlageTitanOfFiresFury.id, {
+            id,
+            controllerId,
+            ownerId: controllerId,
+            zone: "battlefield",
+        });
+
+    it("deals 3 damage to the chosen player and the controller gains 3 life", () => {
+        const phlage = phlageOnBattlefield("phlage", "p1");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [phlage] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        resolveTrigger(
+            state,
+            phlage,
+            "phlage-enters-value",
+            enterEvent("phlage")
+        );
+
+        // Resolution suspends for the controller's any-target pick; the
+        // unconditional life gain must not have fired yet (CR 601.2c pattern).
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-damage-target");
+        expect(head.playerId).toBe("p1");
+        expect(state.players[0].life).toBe(20);
+
+        answer(state, ["p2"]);
+
+        expect(state.players[1].life).toBe(17); // 3 damage to the opponent
+        expect(state.players[0].life).toBe(23); // controller gained 3
+        expect(state.pendingChoices ?? []).toEqual([]);
+    });
+
+    it("wire format: 3 damage on the chosen permanent and the life gain survive projection", () => {
+        const phlage = phlageOnBattlefield("phlage", "p1");
+        const oppBody = phlageOnBattlefield("p2-body", "p2");
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [phlage] }),
+                makePlayer("p2", { battlefield: [oppBody] }),
+            ],
+        });
+
+        resolveTrigger(
+            state,
+            phlage,
+            "phlage-enters-value",
+            enterEvent("phlage")
+        );
+        answer(state, ["p2-body"]); // controller pings the opponent's creature
+
+        // GRE: 3 damage marked on the target, controller gained 3 life.
+        expect(
+            state.players[1].battlefield.find((c) => c.id === "p2-body")!
+                .damageMarked
+        ).toBe(3);
+        expect(state.players[0].life).toBe(23);
+
+        // The same visible outcome must survive the wire projection.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimTarget = projected.players[1].battlefield.find(
+            (c) => c.id === "p2-body"
+        )!;
+        expect(slimTarget.damageMarked).toBe(3);
+        expect(projected.players[0].life).toBe(23);
     });
 });

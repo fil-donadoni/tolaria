@@ -11,6 +11,7 @@ import type { CardAction } from "./gre/types";
 import type { ActivatedAbility, ManaCost } from "./cards/types";
 import { getLegalActions } from "./gre/rules";
 import { hasFlashback } from "./gre/flashback";
+import { hasEscape } from "./gre/escape";
 import { FACE_DOWN_CARD_ID, tryGetDefinition } from "./cards";
 
 /** CardInstanceState with the static card def stripped to { id } only. */
@@ -51,6 +52,10 @@ export type SlimExileCard = SlimCardInstance & {
  *  {@link SlimExileCard.legalActions} for an exile cast. */
 export type SlimGraveyardCard = SlimCardInstance & {
     legalActions?: CardAction[];
+    /** CR 702.34 / 702.138 — which graveyard-cast keyword surfaced this card's
+     *  affordance, so the UI labels the button "Flashback" vs "Escape". Present
+     *  only alongside `legalActions`. */
+    castKind?: "flashback" | "escape";
 };
 
 /** ADR 0026 / PRD #338 — one viewer-known library card, projected sparsely.
@@ -331,15 +336,26 @@ function projectExileCard(
  *  `castableFromExileBy` exile-cast affordance. Non-flashback cards and
  *  opponents' graveyards get a plain slim card (no affordance). */
 function projectGraveyardCard(
+    state: GameState,
     card: CardInstanceState,
     isOwnGraveyard: boolean,
     legalActionsFor: () => CardAction[]
 ): SlimGraveyardCard {
     const slim = slimCard(card);
     // CR 702.34a — tag any flashback-castable card, including a purely non-mana
-    // flashback (Lava Dart) whose mana portion is absent.
+    // flashback (Lava Dart) whose mana portion is absent. CR 702.138 — likewise
+    // tag any escape-castable card (Uro/Phlage/Nethergoyf, or a card granted
+    // escape by Underworld Breach) so the client can offer + gate the escape
+    // cast (the board never sees the GRE).
     if (isOwnGraveyard && hasFlashback(card)) {
-        return { ...slim, legalActions: legalActionsFor() };
+        return {
+            ...slim,
+            legalActions: legalActionsFor(),
+            castKind: "flashback",
+        };
+    }
+    if (isOwnGraveyard && hasEscape(state, card)) {
+        return { ...slim, legalActions: legalActionsFor(), castKind: "escape" };
     }
     return slim;
 }
@@ -566,7 +582,7 @@ export function projectPublicState(
             // when they have a Flashback cost, so the client can offer + gate
             // the flashback cast (the board never sees the GRE).
             graveyard: player.graveyard.map((c) =>
-                projectGraveyardCard(c, player.id === viewerId, () =>
+                projectGraveyardCard(state, c, player.id === viewerId, () =>
                     getLegalActions(state, player, c, allActions)
                 )
             ),
@@ -705,7 +721,7 @@ export function projectFullState(
             // legalActions for the graveyard owner so the cast affordance gates
             // the same way as the public projection (CR 702.34).
             graveyard: player.graveyard.map((c) =>
-                projectGraveyardCard(c, true, () =>
+                projectGraveyardCard(state, c, true, () =>
                     getLegalActions(state, player, c, allActions)
                 )
             ),

@@ -32,7 +32,7 @@ export default function BanlistCardTile({
                 {def ? (
                     <CardImage card={{ id: def.id }} lazy sizes="112px" />
                 ) : (
-                    <div className="flex h-full w-full items-center justify-center rounded-[7%] border border-border-subtle/40 bg-surface-sunken p-2 text-center text-[11px] leading-tight text-text-muted">
+                    <div className="flex h-full w-full items-center justify-center rounded-[7%] border border-border-subtle/40 bg-surface-elevated p-2 text-center text-[11px] leading-tight text-text-muted">
                         {cardName}
                     </div>
                 )}
