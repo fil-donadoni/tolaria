@@ -10,10 +10,17 @@ import { mutation, query } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { assertIsAdmin, getCurrentUser, getCurrentUserId } from "./auth";
 import { resolveDeckCardMeta, tryGetDefinition } from "./cards";
+import { getCardColors } from "./cards/colors";
+import { manaValue } from "./gre/constants";
 import { freshSeed, makeRng } from "./gre/rng";
-import { applyPick, startDraft } from "./limited/draftEngine";
 import {
-    assertDraftSeatsFilled,
+    applyPick,
+    runBotAutoPicks,
+    startDraft,
+    type ChooseBotPick,
+} from "./limited/draftEngine";
+import { chooseBotPick, type GetCardEvalMeta } from "./limited/botDrafter";
+import {
     assignFreeSeat,
     buildEmptySeats,
     DEFAULT_SEALED_BOOSTER_COUNT,
@@ -109,6 +116,33 @@ const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
     const meta = resolveDeckCardMeta(scryfallId);
     return meta ? { cardId: meta.cardId, cardName: def.name } : null;
 };
+
+/** Resolves a drawn card's Scryfall id to the printed characteristics the Bot
+ *  Drafter's Pick Heuristic scores on (issue #1113, PRD #1107 story 29) — the
+ *  only place `convex/limited/botDrafter.ts` needs the card registry, kept
+ *  out of that module the same way `resolveCardMeta` above is kept out of
+ *  `eventLogic.ts`. Rarity comes from the exact printing (`resolveDeckCardMeta`,
+ *  CR 206 — a reprint can carry a different rarity than its home set); colors
+ *  and mana value come from the resolved `CardDefinition`. */
+const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
+    const meta = resolveDeckCardMeta(scryfallId);
+    if (!meta) return null;
+    const def = tryGetDefinition(meta.cardId);
+    if (!def) return null;
+    return {
+        cardId: meta.cardId,
+        colors: getCardColors(def),
+        manaValue: manaValue(def.manaCost),
+        rarity: meta.rarity,
+    };
+};
+
+/** Wires the Pick Heuristic (`convex/limited/botDrafter.ts`) into
+ *  `runBotAutoPicks`'s injected `ChooseBotPick` shape — the only place this
+ *  module's card-registry-backed `getCardEvalMeta` meets a bot seat's actual
+ *  Pool. */
+const botChoosePick: ChooseBotPick = (seat, pack) =>
+    chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta);
 
 // --- Queries ---------------------------------------------------------------
 
@@ -252,12 +286,13 @@ export const joinLimitedEvent = mutation({
 
 /** The event's creator starts it (PRD #1107 story 1). Sealed: every
  *  still-empty Seat becomes a Bot Drafter (story 8), then every Seat's Pool
- *  is dealt in full (story 17, ADR 0055). Draft: bot drafting is a separate,
- *  unshipped feature (#1113) — no driver ever calls `submitPick` for a bot
- *  seat, so a bot-filled seat would deadlock the draft forever waiting on a
- *  pick that never comes. Draft therefore requires every Seat to already be
- *  human-occupied and does NOT fill bots; round 0's boosters are then dealt
- *  to every Seat's `currentPack` (issue #1112, PRD #1107 stories 10-12).
+ *  is dealt in full (story 17, ADR 0055). Draft: every still-empty Seat ALSO
+ *  becomes a Bot Drafter (issue #1113 — this is what closes the "solo draft,
+ *  1 human + 7 bots" primary use case, PRD #1107 story 9); round 0's boosters
+ *  are dealt to every Seat's `currentPack` (issue #1112, PRD #1107 stories
+ *  10-12), and every bot seat's pending pick is immediately resolved via
+ *  `runBotAutoPicks` so the draft never deadlocks waiting on a seat nobody
+ *  drives (PRD #1107 story 27: picks happen server-side, no client needed).
  *  Both paths use a fresh `seed` stored on the event row so either is
  *  reproducible/replayable. */
 export const startLimitedEvent = mutation({
@@ -275,30 +310,33 @@ export const startLimitedEvent = mutation({
         }
 
         if (event.type === "draft") {
-            // Bot drafting is out of scope for #1112 (tracked separately as
-            // #1113) — require every seat to be human-occupied before a
-            // draft can start; do NOT `fillBotSeats` on this path.
-            assertDraftSeatsFilled(event.seats);
-
+            const seats = fillBotSeats(event.seats);
             const seed = freshSeed();
-            const {
-                seats: draftSeats,
-                draftRound,
-                draftPacksRemaining,
-            } = startDraft(
-                event.seats,
+            const dealt = startDraft(
+                seats,
                 event.packSlots,
                 seed,
                 getBoosterConfig,
                 resolveCardMeta
             );
+            const afterBots = runBotAutoPicks(
+                dealt.seats,
+                dealt.draftRound,
+                dealt.draftPacksRemaining,
+                event.packSlots,
+                seed,
+                getBoosterConfig,
+                resolveCardMeta,
+                botChoosePick
+            );
             await ctx.db.patch(args.eventId, {
-                seats: asDbSeats(draftSeats),
+                seats: asDbSeats(afterBots.seats),
                 status: "started",
                 seed,
-                draftRound,
-                draftPacksRemaining,
+                draftRound: afterBots.draftRound,
+                draftPacksRemaining: afterBots.draftPacksRemaining,
                 updatedAt: Date.now(),
+                ...(afterBots.completed ? { draftCompletedAt: Date.now() } : {}),
             });
             return null;
         }
@@ -367,12 +405,29 @@ export const submitPick = mutation({
             resolveCardMeta
         );
 
+        // The human's pick can pass a pack straight onto a bot seat, or empty
+        // the round and deal a fresh one into every seat including bots
+        // (issue #1113) — resolve every such pending bot pick immediately so
+        // the draft never stalls on a seat nobody drives (PRD #1107 story
+        // 27). A no-op when no bot seat currently holds a pack.
+        const afterBots = runBotAutoPicks(
+            result.seats,
+            result.draftRound,
+            result.draftPacksRemaining,
+            event.packSlots,
+            event.seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            botChoosePick,
+            result.completed
+        );
+
         await ctx.db.patch(args.eventId, {
-            seats: asDbSeats(result.seats),
-            draftRound: result.draftRound,
-            draftPacksRemaining: result.draftPacksRemaining,
+            seats: asDbSeats(afterBots.seats),
+            draftRound: afterBots.draftRound,
+            draftPacksRemaining: afterBots.draftPacksRemaining,
             updatedAt: Date.now(),
-            ...(result.completed ? { draftCompletedAt: Date.now() } : {}),
+            ...(afterBots.completed ? { draftCompletedAt: Date.now() } : {}),
         });
         return null;
     },

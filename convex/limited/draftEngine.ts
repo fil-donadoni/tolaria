@@ -241,3 +241,106 @@ export function applyPick(
         completed,
     };
 }
+
+/** Chooses which card a Bot Drafter seat picks from its `currentPack` (issue
+ *  #1113, ADR 0054). Injected — like `GetBoosterConfig`/`ResolveCardMeta` —
+ *  so this module stays decoupled from the concrete Pick Heuristic
+ *  (`convex/limited/botDrafter.ts`'s `chooseBotPick`), which owns the actual
+ *  scoring. Returns the `pickId` of the card to take from `pack`. */
+export type ChooseBotPick = (
+    seat: LimitedEventSeat,
+    pack: readonly DraftPackCard[]
+) => string;
+
+/** Result of running every pending Bot Drafter pick to exhaustion. */
+export interface RunBotAutoPicksResult {
+    seats: LimitedEventSeat[];
+    draftRound: number;
+    draftPacksRemaining: number;
+    completed: boolean;
+}
+
+/** Safety bound on the auto-pick loop below — comfortably above any real
+ *  event's total pick count (8 seats × 3 rounds × a ~15-card Booster ≈ 360
+ *  picks at the observed high end). Existing only so a future bug in the
+ *  pass-direction/queue bookkeeping surfaces as a loud thrown error instead
+ *  of a silent infinite loop hanging the mutation. */
+const MAX_AUTO_PICK_ITERATIONS = 10_000;
+
+/** Runs every Bot Drafter seat's pick to exhaustion (PRD #1107 stories 8, 9,
+ *  27: "a pack reaches a bot seat, the pick happens server-side... a draft
+ *  never stalls waiting for missing humans"). Repeatedly finds ANY bot seat
+ *  currently holding a non-empty `currentPack`, asks `chooseBotPick` which
+ *  card it takes, and applies it via `applyPick` — exactly the same path a
+ *  human `submitPick` drives, so a bot pick advances the queue/round/pass
+ *  bookkeeping identically. Stops when no bot seat has a pack to pick from
+ *  (every remaining pending pack, if any, belongs to a human seat waiting on
+ *  a real player) or the draft completes.
+ *
+ *  Called once right after `startDraft` deals round 0 (so an all-bot or
+ *  mixed-seat Draft never leaves a bot's very first pack sitting unpicked)
+ *  and once after every human `submitPick` (a human's pick can pass a pack
+ *  onto a bot seat, or empty the round and deal a fresh one straight into
+ *  bot seats) — both call sites in `convex/limitedEvents.ts`.
+ *
+ *  `alreadyCompleted` carries forward the `completed` flag the caller's OWN
+ *  `applyPick` call may already have produced (a human's pick can itself be
+ *  the very last pick of the whole draft). Without it, a draft finishing on
+ *  a human pick would have its `completed: true` silently dropped here: the
+ *  loop below finds no bot with a pending pack (correctly — the draft is
+ *  over) and would otherwise return `completed: false` regardless. */
+export function runBotAutoPicks(
+    seats: readonly LimitedEventSeat[],
+    draftRound: number,
+    draftPacksRemaining: number,
+    packSlots: readonly string[],
+    eventSeed: number,
+    getConfig: GetBoosterConfig,
+    resolveCardMeta: ResolveCardMeta,
+    chooseBotPick: ChooseBotPick,
+    alreadyCompleted = false
+): RunBotAutoPicksResult {
+    let curSeats: readonly LimitedEventSeat[] = seats;
+    let round = draftRound;
+    let remaining = draftPacksRemaining;
+    let completed = alreadyCompleted;
+
+    for (let i = 0; i < MAX_AUTO_PICK_ITERATIONS; i++) {
+        if (completed) break;
+        const seatIndex = curSeats.findIndex(
+            (s) => s.isBot && s.currentPack && s.currentPack.length > 0
+        );
+        if (seatIndex === -1) break;
+
+        const seat = curSeats[seatIndex];
+        const pickId = chooseBotPick(seat, seat.currentPack!);
+        const result = applyPick(
+            curSeats,
+            round,
+            remaining,
+            packSlots,
+            seatIndex,
+            pickId,
+            eventSeed,
+            getConfig,
+            resolveCardMeta
+        );
+        curSeats = result.seats;
+        round = result.draftRound;
+        remaining = result.draftPacksRemaining;
+        completed = result.completed;
+
+        if (i === MAX_AUTO_PICK_ITERATIONS - 1) {
+            throw new Error(
+                "runBotAutoPicks: exceeded the auto-pick iteration bound — likely an infinite loop in pass/queue bookkeeping."
+            );
+        }
+    }
+
+    return {
+        seats: [...curSeats],
+        draftRound: round,
+        draftPacksRemaining: remaining,
+        completed,
+    };
+}
