@@ -83,6 +83,20 @@ export type ManaCost = {
      *  mana value (`manaValue`) still treats variable X as 0 regardless of the
      *  factor (CR 202.3b). */
     xFactor?: number;
+    /** CR 107.4f / 118.? — Phyrexian mana pips ({C/P}). Each entry is the NUMBER
+     *  of `{<color>/P}` symbols in the printed cost (Dismember `{1}{B/P}{B/P}` →
+     *  `{ B: 2 }`, Gitaxian Probe `{U/P}` → `{ U: 1 }`). A Phyrexian pip is paid
+     *  at cast time with EITHER one mana of the indicated colour OR 2 life — the
+     *  caster's per-pip choice. This field only DECLARES the pips; the mana-vs-
+     *  life split is resolved in the cost system (`convex/gre/phyrexian.ts`,
+     *  threaded through `announceCast` as `phyrexianLifePips`), never here.
+     *  `normalizeManaCost` deliberately IGNORES this field (Phyrexian pips are
+     *  not part of the fixed mana requirement); `manaValue` counts each pip as 1
+     *  (CR 202.3f — the symbol is valued as its colour, without the `/P`), and
+     *  the card's colour identity (`getColorsFromCost`) includes these colours
+     *  (CR 105.2 — a Phyrexian symbol is a coloured mana symbol). Not a Mechanics
+     *  Registry keyword and not an Effect Script Op — pure cost-system infra. */
+    phyrexian?: Partial<Record<Color, number>>;
 };
 
 /** CR 702.34a / 118.5 — the full Flashback cost, generalizing the mana-only

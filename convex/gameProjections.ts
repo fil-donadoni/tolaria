@@ -9,10 +9,14 @@ import type {
 import { getPendingChoiceMax } from "./gre/state";
 import type { CardAction } from "./gre/types";
 import type { ActivatedAbility, ManaCost } from "./cards/types";
-import { getLegalActions } from "./gre/rules";
+import { getLegalActions, phyrexianLifePipOptions } from "./gre/rules";
 import { hasFlashback } from "./gre/flashback";
 import { hasEscape } from "./gre/escape";
-import { FACE_DOWN_CARD_ID, tryGetDefinition } from "./cards";
+import {
+    FACE_DOWN_CARD_ID,
+    getInstanceManaCost,
+    tryGetDefinition,
+} from "./cards";
 
 /** CardInstanceState with the static card def stripped to { id } only. */
 export type SlimCardInstance = Omit<CardInstanceState, "card"> & {
@@ -25,6 +29,15 @@ export type SlimCardInstance = Omit<CardInstanceState, "card"> & {
 export type SlimHandCard = SlimCardInstance & {
     legalActions: CardAction[];
     seenByOpponent?: boolean;
+    /** CR 107.4f — the affordable mana-vs-life split choices for a castable
+     *  Phyrexian-mana card in the viewer's OWN hand, as the distinct `lifePips`
+     *  values the caster could pay (0 = all pips with mana … totalPips = all with
+     *  2 life). Present ONLY when there are TWO OR MORE affordable options — i.e.
+     *  a REAL choice (both mana and life are payable for at least one pip). The
+     *  client shows the split picker exactly when this is present, sending the
+     *  chosen value as `announceCast`'s `phyrexianLifePips`; a degenerate
+     *  zero-branch cost carries no field and the engine auto-resolves it. */
+    phyrexianOptions?: number[];
 };
 
 /** Exile card in projected state: slim, plus `legalActions` when the viewer may
@@ -611,21 +624,38 @@ export function projectPublicState(
         if (player.id === viewerId) {
             return {
                 ...common,
-                hand: player.hand.map(
-                    (card): SlimHandCard => ({
+                hand: player.hand.map((card): SlimHandCard => {
+                    const legalActions = getLegalActions(
+                        state,
+                        player,
+                        card,
+                        allActions
+                    );
+                    // CR 107.4f — surface the Phyrexian mana-vs-life split
+                    // choices to the caster's own client, but only for a
+                    // castable card with a REAL branch (≥ 2 affordable
+                    // `lifePips` values). A degenerate zero-branch cost carries
+                    // no field (the engine auto-resolves it, no prompt).
+                    const rawCost = legalActions.includes("cast")
+                        ? getInstanceManaCost(card)
+                        : undefined;
+                    // `phyrexianLifePipOptions` self-guards (returns [] for a
+                    // non-Phyrexian cost), so this is O(1) for ordinary cards.
+                    const phyrexianOptions = rawCost
+                        ? phyrexianLifePipOptions(player, card, rawCost)
+                        : [];
+                    return {
                         ...slimCard(card),
-                        legalActions: getLegalActions(
-                            state,
-                            player,
-                            card,
-                            allActions
-                        ),
+                        legalActions,
                         // ADR 0026 — eye icon: any non-owner knows this card.
                         ...(hasNonOwnerKnower(card)
                             ? { seenByOpponent: true }
                             : {}),
-                    })
-                ),
+                        ...(phyrexianOptions.length >= 2
+                            ? { phyrexianOptions }
+                            : {}),
+                    };
+                }),
             };
         }
         // ADR 0026 — opponent hand: known slots carry identity, the rest stay

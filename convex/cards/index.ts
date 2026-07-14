@@ -123,6 +123,8 @@ import * as bbd from "./sets/bbd";
 import * as khm from "./sets/khm";
 import * as ptk from "./sets/ptk";
 import * as mbs from "./sets/mbs";
+// Cube CAP: Phyrexian mana (issue #696) — New Phyrexia home set.
+import * as nph from "./sets/nph";
 // Cube FREE: graveyard recursion (issue #680) — new cross-set home sets,
 // routed to earliest paper printing (ADR 0041). Most are sparse — a single
 // tracked stub each, blocked on a capability this issue doesn't add
@@ -322,6 +324,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "khm", exports: khm },
     { code: "ptk", exports: ptk },
     { code: "mbs", exports: mbs },
+    { code: "nph", exports: nph },
     // Cube FREE: token makers (issue #678).
     { code: "c18", exports: c18 },
     // Cube FREE: graveyard recursion (issue #680) — new cross-set home sets.

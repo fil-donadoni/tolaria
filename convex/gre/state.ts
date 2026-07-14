@@ -1801,6 +1801,13 @@ export type PendingTarget = {
      *  so the kicked target set (`kickedTargetRequirement`) governs this
      *  selection and the tally reaches resolution. */
     kickerCount?: number;
+    /** CR 107.4f — how many of this cast's Phyrexian pips ({C/P}) the caster
+     *  chose to pay with LIFE (2 each), propagated from announceCast so the
+     *  mana-vs-life split is applied at cast commit
+     *  (`finalizeTargetSelection` → `resolvePhyrexianCastPayment`). Absent =
+     *  auto-resolve to the most-life affordable split. Used by targeted
+     *  Phyrexian spells (Dismember, Gitaxian Probe). */
+    phyrexianLifePips?: number;
     /** Mode id chosen at announcement for modal spells (CR 700.2 / 700.2c).
      *  Propagated through pendingCast → stack item. Determines which mode's
      *  `targetRequirement` governs this selection. */
@@ -10598,7 +10605,15 @@ export function removeFromZone(
     return card;
 }
 
-type ManaCost = Record<string, number | string | undefined>;
+// Loose structural mana-cost shape used by the mana-payment helpers below. The
+// value union includes the `phyrexian` object (CR 107.4f, ADR: Phyrexian mana)
+// so a real `CardManaCost` carrying `phyrexian?: Partial<Record<Color, number>>`
+// is assignable here; the payment helpers ignore that key (Phyrexian pips are
+// resolved to mana/life before payment — see `convex/gre/phyrexian.ts`).
+type ManaCost = Record<
+    string,
+    number | string | Partial<Record<Color, number>> | undefined
+>;
 
 /** Checks if a player can pay a mana cost. Returns null if yes, or a description of what's missing. */
 export function checkManaCost(

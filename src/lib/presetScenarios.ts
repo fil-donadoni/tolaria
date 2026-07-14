@@ -94,4 +94,21 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         phase: "PRECOMBAT_MAIN",
         landCount: 4,
     },
+    {
+        // Phyrexian mana ({X/P} = pay 2 life, CR 107.4f). Cast Gitaxian Probe
+        // with NO blue mana up — the {U/P} is paid with 2 life (golden path).
+        // Dismember ({1}{B/P}{B/P}) shows the mix: the {1} taps a land while the
+        // two {B/P} are paid with 4 life, wiping the opponent's Craw Wurm with
+        // -5/-5. Phyrexian Metamorph ({3}{U/P}) enters as a copy of a creature,
+        // its pip paid with mana or life. landCount 4 funds the generic pips.
+        label: "Phyrexian mana — pay life for {X/P} pips",
+        cards: [
+            { name: "Gitaxian Probe", owner: "me", zone: "hand" },
+            { name: "Dismember", owner: "me", zone: "hand" },
+            { name: "Phyrexian Metamorph", owner: "me", zone: "hand" },
+            { name: "Craw Wurm", owner: "opp", zone: "battlefield" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
 ];

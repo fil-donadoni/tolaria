@@ -29,6 +29,7 @@ import { hasSupertypeLive } from "./snow";
 import { isGuardedAgainst, playerHasShroud } from "./permanentGuard";
 import { castProhibitionReason } from "../cards/castRestrictions";
 import { tapManaBonusUnits } from "./tapManaBonus";
+import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { matchesPermanentFilter } from "../cards/filters";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { getCardColors } from "../cards/colors";
@@ -603,6 +604,136 @@ function coloredCostLeftover(
     return remaining.length;
 }
 
+/** Whether the player can pay a fully-normalized mana cost (colored pips + the
+ *  generic `X` slot) with their current pool + producible mana. Wraps the
+ *  `coloredCostLeftover` greedy assignment so callers that build a bespoke
+ *  normalized cost (the Phyrexian solver) share the one affordability model. */
+function canPayNormalizedCost(
+    player: PlayerState,
+    card: CardInstanceState,
+    cost: Record<string, number>
+): boolean {
+    const leftover = coloredCostLeftover(player, card, cost);
+    return leftover !== null && leftover >= (cost.X ?? 0);
+}
+
+/** CR 107.4f — resolve the mana-vs-life split for a cost's Phyrexian pips. Each
+ *  `{C/P}` pip is paid with either one `{C}` mana or 2 life; this returns the
+ *  AFFORDABLE split that pays the MOST pips with life (hence the fewest with
+ *  mana — the split with the smallest mana demand, so it is the one most likely
+ *  to be castable, and it surfaces the signature "pay 2 life" line). Returns
+ *  `null` when NO split is affordable (life can't cover the pips it must pay and
+ *  mana can't cover the rest) — i.e. the spell is not castable. `chosenX` folds
+ *  a variable `{X}` into the base cost before the pips are added. The pip counts
+ *  are tiny (≤ a handful), so the split space is enumerated exhaustively. */
+export function solvePhyrexianSplit(
+    player: PlayerState,
+    card: CardInstanceState,
+    rawCost: ManaCost,
+    chosenX?: number
+): { lifePips: number; manaAdditions: Partial<Record<Color, number>> } | null {
+    const totalPips = phyrexianPipCount(rawCost);
+    if (totalPips === 0) return { lifePips: 0, manaAdditions: {} };
+    // Base fixed mana — `normalizeManaCost` deliberately excludes the Phyrexian
+    // pips, so this is the cost BEFORE any pip is folded into a colored pip.
+    const baseCost = normalizeManaCost(rawCost, { chosenX: chosenX ?? 0 });
+    const maxLifePips = Math.floor(player.life / PHYREXIAN_LIFE_PER_PIP);
+    const phy = rawCost.phyrexian ?? {};
+    const colorsPresent = MANA_COLORS.filter((c) => (phy[c] ?? 0) > 0);
+    let best: {
+        lifePips: number;
+        manaAdditions: Partial<Record<Color, number>>;
+    } | null = null;
+    // Enumerate every choice of "how many pips of each colour are paid with
+    // mana"; the rest are paid with life. Keep the affordable split with the
+    // most life pips (fewest mana pips).
+    const rec = (
+        idx: number,
+        manaAdditions: Partial<Record<Color, number>>,
+        manaPips: number
+    ): void => {
+        if (idx === colorsPresent.length) {
+            const lifePips = totalPips - manaPips;
+            // CR 119.4 — a life payment is legal only if life covers it.
+            if (lifePips < 0 || lifePips > maxLifePips) return;
+            const cost: Record<string, number> = { ...baseCost };
+            for (const [c, n] of Object.entries(manaAdditions)) {
+                if (n && n > 0) cost[c] = (cost[c] ?? 0) + n;
+            }
+            if (!canPayNormalizedCost(player, card, cost)) return;
+            if (!best || lifePips > best.lifePips) {
+                best = { lifePips, manaAdditions: { ...manaAdditions } };
+            }
+            return;
+        }
+        const c = colorsPresent[idx];
+        const cnt = phy[c] ?? 0;
+        for (let m = 0; m <= cnt; m++) {
+            // Keep the accumulator clean of zero-count keys so the returned
+            // split's `manaAdditions` only lists colours actually paid by mana.
+            if (m > 0) manaAdditions[c] = m;
+            else delete manaAdditions[c];
+            rec(idx + 1, manaAdditions, manaPips + m);
+        }
+        delete manaAdditions[c];
+    };
+    rec(0, {}, 0);
+    return best;
+}
+
+/** CR 107.4f — the DISTINCT life-payment amounts (as a pip count) the caster can
+ *  currently afford for this Phyrexian cost: every `lifePips` value in
+ *  `[0, totalPips]` for which SOME colour-assignment of the remaining
+ *  mana-paid pips is payable AND life covers the `2 × lifePips` (CR 119.4).
+ *  Sorted ascending. `[]` for a non-Phyrexian cost or an uncastable one; a
+ *  SINGLE value = a degenerate zero-branch choice (only mana, or only life, is
+ *  viable) → no prompt; TWO OR MORE = a real mana-vs-life choice the human must
+ *  make. Used by the projection to surface the split picker only when the branch
+ *  is real (mirrors `solvePhyrexianSplit`, which returns the single best split
+ *  the engine auto-resolves to when the caster does not choose). */
+export function phyrexianLifePipOptions(
+    player: PlayerState,
+    card: CardInstanceState,
+    rawCost: ManaCost,
+    chosenX?: number
+): number[] {
+    const totalPips = phyrexianPipCount(rawCost);
+    if (totalPips === 0) return [];
+    const baseCost = normalizeManaCost(rawCost, { chosenX: chosenX ?? 0 });
+    const maxLifePips = Math.floor(player.life / PHYREXIAN_LIFE_PER_PIP);
+    const phy = rawCost.phyrexian ?? {};
+    const colorsPresent = MANA_COLORS.filter((c) => (phy[c] ?? 0) > 0);
+    const affordable = new Set<number>();
+    const rec = (
+        idx: number,
+        manaAdditions: Partial<Record<Color, number>>,
+        manaPips: number
+    ): void => {
+        if (idx === colorsPresent.length) {
+            const lifePips = totalPips - manaPips;
+            if (lifePips < 0 || lifePips > maxLifePips) return;
+            const cost: Record<string, number> = { ...baseCost };
+            for (const [c, n] of Object.entries(manaAdditions)) {
+                if (n && n > 0) cost[c] = (cost[c] ?? 0) + n;
+            }
+            if (canPayNormalizedCost(player, card, cost)) {
+                affordable.add(lifePips);
+            }
+            return;
+        }
+        const c = colorsPresent[idx];
+        const cnt = phy[c] ?? 0;
+        for (let m = 0; m <= cnt; m++) {
+            if (m > 0) manaAdditions[c] = m;
+            else delete manaAdditions[c];
+            rec(idx + 1, manaAdditions, manaPips + m);
+        }
+        delete manaAdditions[c];
+    };
+    rec(0, {}, 0);
+    return [...affordable].sort((a, b) => a - b);
+}
+
 function canPotentiallyPayCost(
     player: PlayerState,
     card: CardInstanceState,
@@ -612,6 +743,12 @@ function canPotentiallyPayCost(
 ): boolean {
     const rawCost = costOverride ?? getInstanceManaCost(card);
     if (!rawCost) return true;
+    // CR 107.4f — a cost with Phyrexian pips is castable whenever SOME mana-vs-
+    // life split is affordable (each pip: its colour OR 2 life). Delegated to
+    // the shared solver so the gate and the payment agree on the split space.
+    if (phyrexianPipCount(rawCost) > 0) {
+        return solvePhyrexianSplit(player, card, rawCost) !== null;
+    }
     // Cost normalized without chosenX: string-X spells pay only their fixed
     // portion at the minimum (X = 0). User picks X at announcement.
     const cost = normalizeManaCost(rawCost);

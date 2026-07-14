@@ -4,10 +4,15 @@ import { api } from "@convex/_generated/api";
 import { getDefinition } from "@convex/cards";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
-import { affordableAltCostsForCard } from "~/lib/card-utils";
+import {
+    affordableAltCostsForCard,
+    phyrexianSplitChoices,
+    type PhyrexianSplitChoice,
+} from "~/lib/card-utils";
 import type { CardInstance } from "~/types/game";
 import ModePicker from "~/components/cards/mode-picker";
 import AltCostPicker from "~/components/cards/alt-cost-picker";
+import PhyrexianPicker from "~/components/cards/phyrexian-picker";
 import CastCostDialog from "~/components/cards/cast-cost-dialog";
 import type { AlternativeCost } from "@convex/cards/types";
 
@@ -27,6 +32,17 @@ type AltCostPickerState = {
      *  picker offers exactly these plus "Pay mana cost". Filtered at open time
      *  so a condition-failing / unaffordable alt is never shown. */
     altCosts: AlternativeCost[];
+};
+
+/** CR 107.4f — open state for the Phyrexian mana-vs-life split picker. Present
+ *  while the caster picks how many `{C/P}` pips to pay with life; the chosen
+ *  value rides `announceCast`'s `phyrexianLifePips`. */
+type PhyrexianPickerState = {
+    chosenX: number | undefined;
+    kickerCount: number | undefined;
+    keepPriority: boolean | undefined;
+    position: { x: number; y: number };
+    choices: PhyrexianSplitChoice[];
 };
 
 /** Cost-choice dialog state (CR 601.2b {X} + CR 702.33 Kicker). Opened before
@@ -68,6 +84,8 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         useState<ModePickerState | null>(null);
     const [altCostPickerState, setAltCostPickerState] =
         useState<AltCostPickerState | null>(null);
+    const [phyrexianPickerState, setPhyrexianPickerState] =
+        useState<PhyrexianPickerState | null>(null);
     const [costDialogState, setCostDialogState] =
         useState<CostDialogState | null>(null);
 
@@ -90,6 +108,8 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         chosenModeId: string | undefined;
         alternativeCostId?: string | undefined;
         kickerCount?: number | undefined;
+        /** CR 107.4f — how many `{C/P}` pips the caster chose to pay with life. */
+        phyrexianLifePips?: number | undefined;
     }) {
         Promise.resolve(
             announceCast({
@@ -101,6 +121,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
                 chosenModeId: args.chosenModeId,
                 alternativeCostId: args.alternativeCostId,
                 kickerCount: args.kickerCount,
+                phyrexianLifePips: args.phyrexianLifePips,
             })
         ).catch(reportError);
     }
@@ -155,6 +176,23 @@ export function useHandCardCommit(cardInstance: CardInstance) {
                 });
                 return;
             }
+        }
+        // CR 107.4f — a Phyrexian-mana spell whose `{C/P}` pips can be paid with
+        // EITHER colour or 2 life (both legs affordable): let the caster pick the
+        // split before announcement instead of silently auto-charging life. The
+        // projection only attaches `phyrexianOptions` (≥ 2 entries) when the
+        // branch is real; a degenerate zero-branch cost carries none and is
+        // auto-resolved server-side.
+        const phyrexianChoices = phyrexianSplitChoices(cardInstance);
+        if (phyrexianChoices.length >= 2) {
+            setPhyrexianPickerState({
+                chosenX,
+                kickerCount,
+                keepPriority,
+                position,
+                choices: phyrexianChoices,
+            });
+            return;
         }
         commitAnnounceCast({
             chosenX,
@@ -247,6 +285,28 @@ export function useHandCardCommit(cardInstance: CardInstance) {
             />
         ) : null;
 
+    const phyrexianPickerOverlay =
+        phyrexianPickerState && phyrexianPickerState.choices.length >= 2 ? (
+            <PhyrexianPicker
+                choices={phyrexianPickerState.choices}
+                cardName={def.name}
+                position={phyrexianPickerState.position}
+                onSelect={(lifePips) => {
+                    const { chosenX, kickerCount, keepPriority } =
+                        phyrexianPickerState;
+                    setPhyrexianPickerState(null);
+                    commitAnnounceCast({
+                        chosenX,
+                        keepPriority,
+                        chosenModeId: undefined,
+                        kickerCount,
+                        phyrexianLifePips: lifePips,
+                    });
+                }}
+                onCancel={() => setPhyrexianPickerState(null)}
+            />
+        ) : null;
+
     const costDialogOverlay = costDialogState ? (
         <CastCostDialog
             open
@@ -272,6 +332,7 @@ export function useHandCardCommit(cardInstance: CardInstance) {
         onCastClick,
         modePickerOverlay,
         altCostPickerOverlay,
+        phyrexianPickerOverlay,
         costDialogOverlay,
     };
 }

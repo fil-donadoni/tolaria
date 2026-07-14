@@ -685,11 +685,20 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // `bun scripts/migration-classifier.mjs`: total 686→688, FREE 445→447,
         // AFK-ready 408→410, X-only 14 / Op-blocked 227 unchanged.
         // Partition: 447+14+227=688.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(688);
+        // #696 (Phyrexian mana + Dismember/Gitaxian Probe/Phyrexian Metamorph):
+        // Dismember is pure DSL (`pump` Op) and adds no closure. Gitaxian Probe
+        // adds one resolve() closure (protocol card: a PRIVATE hand-look via
+        // `revealHand`/`markKnown` — the DSL `reveal` Op is an all-players
+        // reveal only, no Op covers a single-knower look). Phyrexian Metamorph
+        // adds one resolveSteps closure (`becomeCopyOf` copy-on-ETB, an
+        // uncovered Op). Both are Op-blocked (no missing-Op-free path), so
+        // total 688→690, Op-blocked 227→229, FREE/AFK-ready/X-only unchanged.
+        // Partition: 447+14+229=690.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(690);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(447);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(410);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(227);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(229);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

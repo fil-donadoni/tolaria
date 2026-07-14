@@ -22,6 +22,12 @@ export type ManaCost = {
     /** How many times the chosen X is added to the generic cost for a variable
      *  `{X}` cost (CR 107.3). Defaults to 1; `2` for `{X}{X}` (Recall). */
     xFactor?: number;
+    /** CR 107.4f — Phyrexian mana pips ({C/P}); the count of `{<color>/P}`
+     *  symbols per colour (Dismember `{1}{B/P}{B/P}` → `{ B: 2 }`). Each pip is
+     *  paid with one mana of the colour OR 2 life. Mirrors `ManaCost.phyrexian`
+     *  in `convex/cards/types.ts` (the source of truth); rendered by
+     *  `manaCostToString` as `{<color>/P}` tokens. */
+    phyrexian?: Partial<Record<Color, number>>;
 };
 
 export type CardType =

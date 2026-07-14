@@ -122,10 +122,16 @@ import {
     matchesBattlefieldController,
     matchesMvFilter,
     resolveMvFilter,
+    solvePhyrexianSplit,
     spellMatchesCreaturePtFilter,
     spellMatchesExcludeTypeFilter,
     spellWouldDestroyLandControlledBy,
 } from "./gre/rules";
+import {
+    PHYREXIAN_LIFE_PER_PIP,
+    phyrexianManaAdditions,
+    phyrexianPipCount,
+} from "./gre/phyrexian";
 import {
     STATIC_EFFECT_CTX,
     getEffectivePower,
@@ -3201,6 +3207,53 @@ function kickerAdjustedTargetRequirement(
     return cardDef.targetRequirement;
 }
 
+/** CR 107.4f / 601.2f — resolve the mana-vs-life split for a cast's Phyrexian
+ *  pips ({C/P}). Returns the per-colour mana to FOLD into the spell's mana cost
+ *  (the pips paid with mana) plus the total LIFE to pay (2 per pip paid with
+ *  life). `argLifePips` is the caster's announced choice of how many pips to pay
+ *  with life (threaded from `announceCast` through `pendingTarget`); when it is
+ *  absent the split is auto-resolved to the most-life affordable option via
+ *  `solvePhyrexianSplit` (the signature "pay 2 life" line, falling back to mana
+ *  only when life can't cover a pip). A no-Phyrexian cost is a `{}`/`0` no-op.
+ *  Throws when the chosen life payment exceeds the caster's life (CR 119.4). */
+function resolvePhyrexianCastPayment(
+    player: PlayerState,
+    card: CardInstanceState,
+    rawCost: ManaCost | undefined,
+    chosenX: number | undefined,
+    argLifePips: number | undefined
+): { manaAdditions: Partial<Record<Color, number>>; payLife: number } {
+    if (!rawCost) return { manaAdditions: {}, payLife: 0 };
+    const totalPips = phyrexianPipCount(rawCost);
+    if (totalPips === 0) return { manaAdditions: {}, payLife: 0 };
+    let lifePips: number;
+    let manaAdditions: Partial<Record<Color, number>>;
+    if (argLifePips !== undefined) {
+        // The caster explicitly chose how many pips to pay with life; the rest
+        // fold into coloured mana (paid via the normal pool / auto-tap path).
+        lifePips = Math.max(0, Math.min(argLifePips, totalPips));
+        manaAdditions = phyrexianManaAdditions(rawCost, lifePips);
+    } else {
+        const split = solvePhyrexianSplit(player, card, rawCost, chosenX);
+        if (split) {
+            lifePips = split.lifePips;
+            manaAdditions = split.manaAdditions;
+        } else {
+            // No affordable split (the affordability gate should have blocked
+            // the cast); default to all-life so the commit fails via the life
+            // check below rather than silently under-paying.
+            lifePips = totalPips;
+            manaAdditions = {};
+        }
+    }
+    const payLife = lifePips * PHYREXIAN_LIFE_PER_PIP;
+    // CR 119.4 — a life payment is legal only if the caster's life covers it.
+    if (player.life < payLife) {
+        throw new Error("Cannot pay more life than you have");
+    }
+    return { manaAdditions, payLife };
+}
+
 export function finalizeTargetSelection(
     state: GameState,
     pt: PendingTarget,
@@ -3595,6 +3648,23 @@ export function finalizeTargetSelection(
     // total (CR 601.2f).
     foldKickerCost(manaCost, cardDef, kickerCount);
     applyCostModifiers(manaCost, getCostModifiers(state, cardInHand, "spell"));
+    // CR 107.4f — resolve the Phyrexian pips ({B/P}, {U/P}) for this cast: the
+    // pips paid with mana fold into the coloured mana cost (paid via the pool /
+    // auto-tap like any pip); the pips paid with life add to `payLife` below. An
+    // alternative cost zeroes the printed mana, so Phyrexian folding is skipped
+    // there (no shipped card mixes the two). No-op for a non-Phyrexian cost.
+    const phyrexianPayment = chosenAltCost
+        ? { manaAdditions: {}, payLife: 0 }
+        : resolvePhyrexianCastPayment(
+              player,
+              cardInHand,
+              rawCost,
+              chosenX,
+              pt.phyrexianLifePips
+          );
+    for (const [c, n] of Object.entries(phyrexianPayment.manaAdditions)) {
+        if (n && n > 0) manaCost[c] = (manaCost[c] ?? 0) + n;
+    }
     // CR 601.2f / 118.5 — board-wide static NON-mana additional cost (Drought:
     // "Spells cost an additional 'Sacrifice a Swamp' for each black mana
     // symbol"). Gate on affordability at announcement; pip count comes from the
@@ -3616,7 +3686,10 @@ export function finalizeTargetSelection(
         (cardDef.additionalCosts?.payLife ?? 0) +
         // CR 118.4 / 118.9 — the LIFE leg of the chosen alternative cost (Snuff
         // Out "pay 4 life", Force of Will "pay 1 life and exile a blue card").
-        (chosenAltCost?.payLife ?? 0);
+        (chosenAltCost?.payLife ?? 0) +
+        // CR 107.4f — the life paid for Phyrexian pips chosen to be paid with
+        // life (2 per pip). Dismember paying both {B/P} with life adds 4.
+        phyrexianPayment.payLife;
 
     // CR 601.2c → 601.2f — targets have just been chosen; now the additional
     // cost is paid. A spell with both a target and an additional cost (FEM Soul
@@ -4077,6 +4150,11 @@ export const announceCast = mutation({
          *  returning / sacrificing the named lands INSTEAD of paying its mana
          *  cost (Gush, Thwart, Fireblast). */
         alternativeCostId: v.optional(v.string()),
+        /** CR 107.4f — how many of this cast's Phyrexian pips ({C/P}) to pay
+         *  with LIFE (2 each); the rest are paid with the pip's colour of mana.
+         *  Omitted → the engine auto-resolves to the most-life affordable split
+         *  (the signature "pay 2 life" line). Clamped to `[0, pipCount]`. */
+        phyrexianLifePips: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -4325,6 +4403,12 @@ export const announceCast = mutation({
                 keepPriority: args.keepPriority,
                 chosenX,
                 ...(kickerCount > 0 ? { kickerCount } : {}),
+                // CR 107.4f — carry the caster's Phyrexian mana-vs-life choice
+                // through target selection so it is applied at cast commit
+                // (finalizeTargetSelection → resolvePhyrexianCastPayment).
+                ...(args.phyrexianLifePips !== undefined
+                    ? { phyrexianLifePips: args.phyrexianLifePips }
+                    : {}),
                 ...(divideTotal !== undefined ? { divideTotal } : {}),
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
@@ -4469,6 +4553,22 @@ export const announceCast = mutation({
             manaCost,
             getCostModifiers(state, cardInHand, "spell")
         );
+        // CR 107.4f — resolve this no-target cast's Phyrexian pips (Phyrexian
+        // Metamorph's {U/P}): mana-paid pips fold into `manaCost`, life-paid pips
+        // become `phyrexianPayLife`, deducted at commit (immediate below, or via
+        // `pendingCast.payLife` on the deferred / sacrifice-park paths). No-op
+        // for a non-Phyrexian cost.
+        const phyrexianPayment = resolvePhyrexianCastPayment(
+            player,
+            cardInHand,
+            rawCost,
+            chosenX,
+            args.phyrexianLifePips
+        );
+        for (const [c, n] of Object.entries(phyrexianPayment.manaAdditions)) {
+            if (n && n > 0) manaCost[c] = (manaCost[c] ?? 0) + n;
+        }
+        const phyrexianPayLife = phyrexianPayment.payLife;
         // CR 601.2f / 118.5 — board-wide static NON-mana additional cost
         // (Drought). Gate on affordability at announcement; pip count comes from
         // the spell's PRINTED mana cost.
@@ -4612,6 +4712,8 @@ export const announceCast = mutation({
                 keepPriority: args.keepPriority,
                 chosenX,
                 ...(kickerCount > 0 ? { kickerCount } : {}),
+                // CR 107.4f — Phyrexian life rides to the deferred commit.
+                ...(phyrexianPayLife > 0 ? { payLife: phyrexianPayLife } : {}),
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),
@@ -4657,6 +4759,9 @@ export const announceCast = mutation({
                 );
                 commitLandsForCost(player, manaCost);
             }
+            // CR 107.4f — pay the Phyrexian pips chosen as life as the spell
+            // moves to the stack (Phyrexian Metamorph's {U/P} for 2 life).
+            if (phyrexianPayLife > 0) player.life -= phyrexianPayLife;
             const card = removeFromZone(
                 player,
                 args.cardInstanceId,
@@ -4700,6 +4805,9 @@ export const announceCast = mutation({
                 keepPriority: args.keepPriority,
                 chosenX,
                 ...(kickerCount > 0 ? { kickerCount } : {}),
+                // CR 107.4f — the Phyrexian life is paid at the deferred commit
+                // (finalizePendingCast reads `pendingCast.payLife`).
+                ...(phyrexianPayLife > 0 ? { payLife: phyrexianPayLife } : {}),
                 ...(args.chosenModeId
                     ? { chosenModeId: args.chosenModeId }
                     : {}),

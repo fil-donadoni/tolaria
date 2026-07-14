@@ -31,11 +31,14 @@ import {
     mayPaySacrificeCount,
     normalizeMayPayCost,
     manaCostToString,
+    phyrexianSplitChoices,
     type DisplayAbilities,
 } from "../card-utils";
 import type { CardInstance } from "~/types/game";
 import type { CardDefinition } from "@convex/cards/types";
 import { getDefinition } from "@convex/cards";
+import { dismember } from "@convex/cards/sets/nph/black";
+import { gitaxianProbe } from "@convex/cards/sets/nph/blue";
 import { dominate } from "@convex/cards/sets/nem";
 import { fellwarStone, deepWater, gaeasTouch } from "@convex/cards/sets/drk";
 import { powerArmor } from "@convex/cards/sets/inv";
@@ -2232,6 +2235,62 @@ describe("manaCostToString renders fixed generic mana (bug class)", () => {
 
     it("collapses numeric-X and generic-key into a single {N} if both present", () => {
         expect(manaCostToString({ X: 1, generic: 2, U: 1 })).toBe("{3}{U}");
+    });
+
+    it("renders Phyrexian pips after the colored pips (CR 107.4f)", () => {
+        // Dismember {1}{B/P}{B/P}, Gitaxian Probe {U/P}, Metamorph {3}{U/P}.
+        expect(manaCostToString({ X: 1, phyrexian: { B: 2 } })).toBe(
+            "{1}{B/P}{B/P}"
+        );
+        expect(manaCostToString({ phyrexian: { U: 1 } })).toBe("{U/P}");
+        expect(manaCostToString({ X: 3, phyrexian: { U: 1 } })).toBe(
+            "{3}{U/P}"
+        );
+    });
+});
+
+// phyrexianSplitChoices — the cast-time picker's option labels (CR 107.4f). The
+// affordable `lifePips` values arrive from the projection (`phyrexianOptions`);
+// this maps each to a "pay mana / pay life" label the picker renders.
+describe("phyrexianSplitChoices (CR 107.4f)", () => {
+    it("labels each affordable split of a 2-pip cost (Dismember)", () => {
+        const card = makeCardInstance({
+            card: { id: dismember.id },
+            types: ["Instant"],
+            phyrexianOptions: [0, 1, 2],
+        });
+        expect(phyrexianSplitChoices(card)).toEqual([
+            { lifePips: 0, label: "{B}{B}" },
+            { lifePips: 1, label: "{B} + 2 life" },
+            { lifePips: 2, label: "4 life" },
+        ]);
+    });
+
+    it("labels the two-way split of a single-pip cost (Gitaxian Probe)", () => {
+        const card = makeCardInstance({
+            card: { id: gitaxianProbe.id },
+            types: ["Sorcery"],
+            phyrexianOptions: [0, 1],
+        });
+        expect(phyrexianSplitChoices(card)).toEqual([
+            { lifePips: 0, label: "{U}" },
+            { lifePips: 1, label: "2 life" },
+        ]);
+    });
+
+    it("returns [] when there is no real branch (< 2 options)", () => {
+        const card = makeCardInstance({
+            card: { id: gitaxianProbe.id },
+            types: ["Sorcery"],
+            phyrexianOptions: [1],
+        });
+        expect(phyrexianSplitChoices(card)).toEqual([]);
+        // And when the field is absent entirely (non-Phyrexian / degenerate).
+        expect(
+            phyrexianSplitChoices(
+                makeCardInstance({ card: { id: gitaxianProbe.id } })
+            )
+        ).toEqual([]);
     });
 });
 

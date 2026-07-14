@@ -26,7 +26,9 @@ import {
     getLegalTargets,
     getProducibleManaOptions,
     maxAffordableX,
+    solvePhyrexianSplit,
 } from "./rules";
+import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { MANA_COLORS, isTapLockedBySummoningSickness } from "./constants";
 import {
@@ -128,6 +130,11 @@ export type Move =
           /** Lands to tap, in order, to cover the cost (pool mana is auto-used
            *  by the server at commit and needs no tap). */
           tapPlan: ManaTap[];
+          /** CR 107.4f — total life paid for this cast's Phyrexian pips ({C/P})
+           *  chosen to be paid with life (2 per pip). The mana-paid pips are
+           *  already folded into `tapPlan`. Absent / 0 for a non-Phyrexian cast
+           *  or an all-mana Phyrexian split. Deducted in `applyMove`. */
+          payLife?: number;
       }
     | {
           kind: "activate-ability";
@@ -426,10 +433,30 @@ function enumerateCastMoves(
         ? Array.from({ length: maxAffordableX(player, card) + 1 }, (_, i) => i)
         : [undefined];
 
+    // CR 107.4f — a Phyrexian cost ({B/P}, {U/P}) is paid pip-by-pip with mana
+    // or 2 life. The Bot takes the most-life affordable split (the canonical
+    // line for these cards: pay life, keep mana up); `solvePhyrexianSplit` folds
+    // the mana-paid pips into the colored cost below and reports the life owed.
+    const phyPips = phyrexianPipCount(rawCost);
+
     const moves: Move[] = [];
     for (const { modeId, req } of modeVariants) {
         for (const x of xValues) {
             const normCost = normalizeManaCost(rawCost, { chosenX: x ?? 0 });
+            let payLife = 0;
+            if (phyPips > 0) {
+                const split = solvePhyrexianSplit(
+                    player,
+                    card,
+                    rawCost,
+                    x ?? 0
+                );
+                if (split === null) continue;
+                for (const [c, n] of Object.entries(split.manaAdditions)) {
+                    if (n && n > 0) normCost[c] = (normCost[c] ?? 0) + n;
+                }
+                payLife = split.lifePips * PHYREXIAN_LIFE_PER_PIP;
+            }
             const tapPlan = planManaPayment(player, normCost);
             if (tapPlan === null) continue;
             for (const targets of enumerateTargetTuples(
@@ -447,6 +474,7 @@ function enumerateCastMoves(
                     targets,
                     confirmTargets: isVariableCount(req) && targets.length > 0,
                     tapPlan,
+                    ...(payLife > 0 ? { payLife } : {}),
                 });
                 if (moves.length >= MAX_COMBINATIONS) return moves;
             }

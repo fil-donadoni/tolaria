@@ -82,7 +82,10 @@ export function manaFromPlan(
 
 /** Strip X and zero/negative entries from a ManaCost into a color contribution. */
 function toContribution(cost: {
-    [k: string]: number | string | undefined;
+    // Value union widened to admit the `phyrexian` object key on a real
+    // `CardManaCost` (CR 107.4f) — this reads only numeric colour pips and
+    // ignores everything else, so the extra member is harmless here.
+    [k: string]: number | string | Partial<Record<Color, number>> | undefined;
 }): ManaContribution {
     const out: ManaContribution = {};
     for (const color of MANA_COLORS) {

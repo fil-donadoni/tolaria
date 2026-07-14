@@ -1329,7 +1329,55 @@ export function manaCostToString(cost?: ManaCost): string {
         const n = cost[c] ?? 0;
         for (let i = 0; i < n; i++) parts.push(`{${c}}`);
     }
+    // CR 107.4f — Phyrexian pips render as `{<color>/P}` tokens (Dismember
+    // `{1}{B/P}{B/P}`), after the colored pips. The oracle-text tokenizer maps
+    // `{B/P}` → the `B_P.svg` symbol asset (slash → underscore).
+    if (cost.phyrexian) {
+        for (const c of MANA_DISPLAY_COLORS) {
+            const n = cost.phyrexian[c] ?? 0;
+            for (let i = 0; i < n; i++) parts.push(`{${c}/P}`);
+        }
+    }
     return parts.join("");
+}
+
+/** CR 107.4f — one mana-vs-life split option for a Phyrexian cast. `lifePips` is
+ *  the number of `{C/P}` pips paid with 2 life each (the rest with the pip's
+ *  colour of mana); `label` is the oracle-text-token string the picker renders
+ *  (e.g. `"{B} + 2 life"`). */
+export type PhyrexianSplitChoice = { lifePips: number; label: string };
+
+/** CR 107.4f — the split options a caster chooses between for a Phyrexian-mana
+ *  card in hand, derived from the server-authoritative `phyrexianOptions` the
+ *  projection attaches (the affordable `lifePips` values) and the card's printed
+ *  `{C/P}` pips. Life is assigned to the FIRST `lifePips` pips in WUBRG order
+ *  (matching the engine's `phyrexianManaAdditions`), so each option's mana part
+ *  is the remaining pips. Empty (no picker) unless there are ≥ 2 real options —
+ *  the projection already gates that, this re-checks for safety. */
+export function phyrexianSplitChoices(
+    card: CardInstance
+): PhyrexianSplitChoice[] {
+    const options = card.phyrexianOptions;
+    if (!options || options.length < 2) return [];
+    const phy = getDefinition(card.card.id).manaCost?.phyrexian;
+    if (!phy) return [];
+    const pipColors: Color[] = [];
+    for (const c of MANA_DISPLAY_COLORS) {
+        const n = phy[c] ?? 0;
+        for (let i = 0; i < n; i++) pipColors.push(c);
+    }
+    return options.map((lifePips) => {
+        // Life pays the first `lifePips` pips; the rest are paid with mana.
+        const manaPips = pipColors.slice(lifePips);
+        const manaPart = manaPips.map((c) => `{${c}}`).join("");
+        // CR 107.4f — 2 life per pip.
+        const lifePart = lifePips > 0 ? `${lifePips * 2} life` : "";
+        const label =
+            manaPart && lifePart
+                ? `${manaPart} + ${lifePart}`
+                : manaPart || lifePart;
+        return { lifePips, label };
+    });
 }
 
 /** Normalized `may-pay` cost shape (CR 117.3a / 118.4 / 702.24). Mirrors the

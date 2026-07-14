@@ -13,7 +13,13 @@ export function getColorsFromCost(cost?: ManaCost): Color[] {
     const colors: Color[] = [];
     for (const c of MANA_COLORS) {
         if (c === "C") continue;
-        if ((cost[c] ?? 0) > 0) colors.push(c);
+        // CR 105.2 — a Phyrexian mana symbol `{C/P}` is a coloured mana symbol,
+        // so a card with `{U/P}` in its cost is blue even though it can be cast
+        // for life (Gitaxian Probe, Phyrexian Metamorph). Count a colour when it
+        // appears as a normal pip OR as a Phyrexian pip.
+        if ((cost[c] ?? 0) > 0 || (cost.phyrexian?.[c] ?? 0) > 0) {
+            colors.push(c);
+        }
     }
     return colors;
 }

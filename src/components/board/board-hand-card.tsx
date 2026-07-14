@@ -141,6 +141,7 @@ export default function BoardHandCard({
         onCastClick,
         modePickerOverlay,
         altCostPickerOverlay,
+        phyrexianPickerOverlay,
         costDialogOverlay,
     } = useHandCardCommit(card);
 
@@ -325,6 +326,7 @@ export default function BoardHandCard({
             {seen && <SeenByOpponentBadge />}
             {modePickerOverlay}
             {altCostPickerOverlay}
+            {phyrexianPickerOverlay}
             {costDialogOverlay}
         </div>
     );

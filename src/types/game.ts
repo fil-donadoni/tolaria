@@ -171,6 +171,13 @@ export interface CardInstance {
      *  present on own-hand projected cards; raw `knownTo` never reaches the
      *  client. */
     seenByOpponent?: boolean;
+    /** CR 107.4f — affordable Phyrexian mana-vs-life split choices (as distinct
+     *  `lifePips` values, 0 = all mana … totalPips = all life) for a castable
+     *  `{C/P}` card in the viewer's OWN hand. Present only when there are ≥ 2
+     *  affordable options (a real choice); the client shows the split picker and
+     *  sends the pick as `announceCast`'s `phyrexianLifePips`. Mirrors
+     *  `SlimHandCard.phyrexianOptions` in `convex/gameProjections.ts`. */
+    phyrexianOptions?: number[];
     /** Two basic land types chosen as a permanent entered and stored for the
      *  rest of the game (CR 603.6b / 614.12 — Illusionary Terrain). Forwarded by
      *  `slimCard` (the projection only strips `card`/`knownTo`); read by the
