@@ -13,14 +13,22 @@ import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 // `PERMANENT_ENTERED` trigger gated to Lands you control, CR 603.6a / 109.2).
 //
 // The landfall effect ("put a +1/+1 counter on TARGET creature" — any
-// creature, not just yours) uses an imperative `resolve` with
-// `requestChoice({ allControllers: true })`: the DSL `choice` Op's
-// battlefield candidate set is limited to the CHOOSER's own permanents
-// (interpreter `choiceCandidates`), with no cross-controller (`allControllers`)
-// option — the same documented composition gap that keeps Aura Shards
-// (`inv/multicolor.ts`) imperative. NOT a protocol card and NOT an "Op doesn't
-// exist" stub — a real DSL targeting gap, so `resolve` is the correct escape
-// hatch here (`.claude/rules/gre-development.md` § DSL-first authoring).
+// creature on EITHER battlefield) uses an imperative `resolve` with
+// `requestChoice({ allControllers: true })` because the engine has **no
+// announcement-time target selection for triggered abilities** (CR 603.3d):
+// `TriggeredAbility` carries no `targetRequirement` field, triggers enter the
+// stack with `targets: undefined` (`gre/triggers.ts`), and nothing populates a
+// trigger's targets from a requirement. So a targeted trigger cannot be
+// authored as `targetRequirement` + `{ target: 0 }` DSL today — the whole
+// class (Loran of the Third Path ETB `sets/bro/white.ts`, Aura Shards
+// `sets/inv/multicolor.ts`) uses this exact `resolve` + `requestChoice`
+// pattern. The DSL `choice` Op is ALSO insufficient here: its candidate set is
+// limited to the CHOOSER's own permanents (interpreter `choiceCandidates`), so
+// it cannot offer the opponent's creatures that "target creature" allows.
+// Tracked for a proper DSL migration once announcement-time targeted triggers
+// ship: **#1193**. Not a protocol card; the effect (add counter) is trivially
+// DSL — only the cross-controller targeting forces `resolve`
+// (`.claude/rules/gre-development.md` § DSL-first authoring).
 //
 // The activated ability ("Double the number of +1/+1 counters on each creature
 // you control") IS pure DSL: a `forEach` over your creatures adding, per

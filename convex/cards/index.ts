@@ -197,6 +197,8 @@ import * as pcy from "./sets/pcy";
 // Cycling CAP (CR 702.29, issue #689): IKO + SNC Triomes (colorless taplands).
 import * as iko from "./sets/iko";
 import * as snc from "./sets/snc";
+import * as j25 from "./sets/j25";
+import * as soi from "./sets/soi";
 
 function isCardPrint(value: unknown): value is CardPrint {
     return (
@@ -382,6 +384,11 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     // Cycling CAP (CR 702.29, issue #689): IKO + SNC Triomes.
     { code: "iko", exports: iko },
     { code: "snc", exports: snc },
+    // Landfall CAP (issue #694): home sets for tracked stubs blocked on other
+    // capabilities — Scythecat Cub (#1189), Tireless Tracker (#1191). No active
+    // cards yet; scaffolded so the stubs live under their earliest-print set.
+    { code: "j25", exports: j25 },
+    { code: "soi", exports: soi },
 ];
 
 const allCards: CardDefinition[] = setModules.flatMap((m) =>
