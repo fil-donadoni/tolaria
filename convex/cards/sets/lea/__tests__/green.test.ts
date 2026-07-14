@@ -1486,6 +1486,47 @@ describe("Wild Growth (extra {G} on attached land mana tap)", () => {
         ).toBe(false);
         expect(trig!.matches({ ...host, forMana: false }, self)).toBe(false);
     });
+
+    it("declares itself a triggered mana ability (CR 605.1b)", () => {
+        expect(wildGrowth.triggeredAbilities?.[0]?.manaAbility).toBe(true);
+    });
+
+    // CR 605.4 — a triggered mana ability does NOT use the stack. The bonus
+    // {G} must be in the controller's pool as soon as the enchanted land is
+    // tapped, within the same game action, with the stack left empty — so a
+    // cost payment (e.g. a cumulative-upkeep step) that tapped the land sees
+    // the extra mana before the player has to commit "pay"/"skip".
+    it("resolves immediately without the stack — bonus {G} lands in the pool", () => {
+        const host = makeInstance(forest.id, {
+            id: "host-forest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(wildGrowth.id, {
+            id: "wg",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host-forest",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+
+        // Tap the enchanted land for its base {G} (what a real payment does),
+        // then run the trigger scan the payment path invokes.
+        const p1 = state.players[0];
+        p1.manaPool = { ...(p1.manaPool ?? {}), G: 1 };
+        emitPermanentTapped(state, host, true, { G: 1 });
+        processPendingActionTriggers(state);
+
+        // CR 605.4 — nothing on the stack, no priority handed out.
+        expect(state.stack).toHaveLength(0);
+        // Base {G} + Wild Growth's additional {G} both in the pool now.
+        expect(state.players[0].manaPool?.G).toBe(2);
+    });
 });
 
 // ---------------------------------------------------------------------------

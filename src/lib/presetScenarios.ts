@@ -74,6 +74,27 @@ type PresetScenario = {
 
 export const PRESET_SCENARIOS: PresetScenario[] = [
     {
+        // Wild Growth — triggered mana ability (CR 605.1b / 605.4). Tapping the
+        // enchanted Forest for mana fires Wild Growth's tap trigger, which
+        // resolves IMMEDIATELY off the stack: the bonus {G} appears in the pool
+        // in the same click, with no stack item and no priority pass. Cast the
+        // Craw Wurm ({4}{G}{G}) with fewer lands than its cost to feel it — the
+        // extra {G} is there while you pay, not one pass later.
+        label: "Wild Growth — bonus mana resolves off the stack",
+        cards: [
+            { name: "Forest", owner: "me", zone: "battlefield" },
+            {
+                name: "Wild Growth",
+                owner: "me",
+                zone: "battlefield",
+                attachedTo: "Forest",
+            },
+            { name: "Craw Wurm", owner: "me", zone: "hand" },
+        ],
+        phase: "PRECOMBAT_MAIN",
+        landCount: 4,
+    },
+    {
         // Escape via Underworld Breach's zone-wide grant (CR 702.138). Breach on
         // the battlefield gives every nonland graveyard card escape for its own
         // mana cost plus exile three others. Cast Lightning Bolt from the

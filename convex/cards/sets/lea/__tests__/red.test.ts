@@ -64,6 +64,7 @@ import {
     removePermanentTo,
     resolveTopOfStack,
     emitPermanentEntered,
+    emitPermanentTapped,
     processPendingActionTriggers,
     applySourceStaticEffects,
     type CardInstanceState,
@@ -995,6 +996,37 @@ describe("Mana Flare (extra mana on land tap)", () => {
             )
         ).toBe(false);
     });
+
+    it("declares itself a triggered mana ability (CR 605.1b)", () => {
+        expect(manaFlare.triggeredAbilities?.[0]?.manaAbility).toBe(true);
+    });
+
+    // CR 605.4 — resolves immediately, off the stack: the extra mana is in the
+    // tapping player's pool within the same game action that tapped the land.
+    it("resolves immediately without the stack — bonus mana added", () => {
+        const flare = makeInstance(manaFlare.id, {
+            id: "mf",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = makeInstance(taiga.id, {
+            id: "mtn",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [flare, land] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.players[0].manaPool = { R: 1 };
+        emitPermanentTapped(state, land, true, { R: 1 });
+        processPendingActionTriggers(state);
+
+        expect(state.stack).toHaveLength(0);
+        expect(state.players[0].manaPool?.R).toBe(2);
+    });
 });
 
 describe("Manabarbs (1 damage on land tap)", () => {
@@ -1020,6 +1052,38 @@ describe("Manabarbs (1 damage on land tap)", () => {
             manaProduced: { R: 1 },
         };
         expect(trig!.matches(ev, self)).toBe(true);
+    });
+
+    it("is NOT a mana ability — its damage trigger is not flagged", () => {
+        expect(manabarbs.triggeredAbilities?.[0]?.manaAbility).toBeFalsy();
+    });
+
+    // CR 605.1b — a tap trigger that adds NO mana (Manabarbs deals damage) is
+    // an ordinary triggered ability: it DOES use the stack and hands priority
+    // to the active player, unlike the mana-adding Mana Flare above.
+    it("uses the stack — damage trigger waits for resolution", () => {
+        const barbs = makeInstance(manabarbs.id, {
+            id: "mb",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const land = makeInstance(taiga.id, {
+            id: "mtn",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [barbs] }),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        emitPermanentTapped(state, land, true, { R: 1 });
+        processPendingActionTriggers(state);
+
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0]?.triggeredAbilityId).toBe("manabarbs-damage");
+        expect(state.priorityPlayerId).toBe(state.activePlayerId);
     });
 });
 
