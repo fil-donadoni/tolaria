@@ -246,5 +246,10 @@ export default defineSchema({
         status: v.union(v.literal("banned"), v.literal("restricted")),
         source: v.string(),
         syncedAt: v.number(),
+        // Scryfall card id (PRD #1138 follow-up) — captured at sync so the
+        // admin dialog can render a card's image even when it has no
+        // CardDefinition in our engine. Optional: code-seed rows and rows
+        // synced before this field existed carry no id.
+        scryfallId: v.optional(v.string()),
     }).index("by_format", ["format"]),
 });

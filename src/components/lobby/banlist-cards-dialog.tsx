@@ -63,6 +63,7 @@ export default function BanlistCardsDialog({
                                         key={e.cardName}
                                         cardName={e.cardName}
                                         status="banned"
+                                        scryfallId={e.scryfallId}
                                     />
                                 ))}
                             </div>
@@ -79,6 +80,7 @@ export default function BanlistCardsDialog({
                                         key={e.cardName}
                                         cardName={e.cardName}
                                         status="restricted"
+                                        scryfallId={e.scryfallId}
                                     />
                                 ))}
                             </div>

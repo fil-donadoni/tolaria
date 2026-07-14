@@ -41,6 +41,10 @@ export const banlistFormatValidator = v.union(
 export const banlistEntryValidator = v.object({
     cardName: v.string(),
     status: v.union(v.literal("banned"), v.literal("restricted")),
+    // Scryfall id (PRD #1138 follow-up) — present on synced rows, absent on
+    // code-seed entries. Drives the admin dialog's Scryfall image for cards
+    // with no CardDefinition.
+    scryfallId: v.optional(v.string()),
 });
 
 /**
@@ -54,7 +58,11 @@ export function resolveBanlistDisplay(
     rows: readonly BanlistEntry[]
 ): BanlistEntry[] {
     const entries = rows.length > 0 ? rows : BANLIST_SEEDS[format];
-    return entries.map((e) => ({ cardName: e.cardName, status: e.status }));
+    return entries.map((e) => ({
+        cardName: e.cardName,
+        status: e.status,
+        ...(e.scryfallId ? { scryfallId: e.scryfallId } : {}),
+    }));
 }
 
 /**
@@ -84,7 +92,11 @@ async function loadRows(
         .query("formatBanlists")
         .withIndex("by_format", (q) => q.eq("format", format))
         .collect();
-    return rows.map((r) => ({ cardName: r.cardName, status: r.status }));
+    return rows.map((r) => ({
+        cardName: r.cardName,
+        status: r.status,
+        ...(r.scryfallId ? { scryfallId: r.scryfallId } : {}),
+    }));
 }
 
 /** One `formatBanlists` row's sync provenance — the `source`/`syncedAt`
