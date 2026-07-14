@@ -13,6 +13,7 @@ import { resolveDeckCardMeta, tryGetDefinition } from "./cards";
 import { freshSeed, makeRng } from "./gre/rng";
 import { applyPick, startDraft } from "./limited/draftEngine";
 import {
+    assertDraftSeatsFilled,
     assignFreeSeat,
     buildEmptySeats,
     DEFAULT_SEALED_BOOSTER_COUNT,
@@ -249,11 +250,15 @@ export const joinLimitedEvent = mutation({
     },
 });
 
-/** The event's creator starts it (PRD #1107 story 1): every still-empty Seat
- *  becomes a Bot Drafter (story 8), then either every Seat's Pool is dealt in
- *  full (Sealed, story 17, ADR 0055) or round 0's boosters are dealt to every
- *  Seat's `currentPack` (Draft, issue #1112, PRD #1107 stories 10-12) — both
- *  paths share the one `seed` stored on the event row so either is
+/** The event's creator starts it (PRD #1107 story 1). Sealed: every
+ *  still-empty Seat becomes a Bot Drafter (story 8), then every Seat's Pool
+ *  is dealt in full (story 17, ADR 0055). Draft: bot drafting is a separate,
+ *  unshipped feature (#1113) — no driver ever calls `submitPick` for a bot
+ *  seat, so a bot-filled seat would deadlock the draft forever waiting on a
+ *  pick that never comes. Draft therefore requires every Seat to already be
+ *  human-occupied and does NOT fill bots; round 0's boosters are then dealt
+ *  to every Seat's `currentPack` (issue #1112, PRD #1107 stories 10-12).
+ *  Both paths use a fresh `seed` stored on the event row so either is
  *  reproducible/replayable. */
 export const startLimitedEvent = mutation({
     args: { eventId: v.id("limitedEvents") },
@@ -269,16 +274,19 @@ export const startLimitedEvent = mutation({
             throw new Error("This event has already started.");
         }
 
-        const seats = fillBotSeats(event.seats);
-        const seed = freshSeed();
-
         if (event.type === "draft") {
+            // Bot drafting is out of scope for #1112 (tracked separately as
+            // #1113) — require every seat to be human-occupied before a
+            // draft can start; do NOT `fillBotSeats` on this path.
+            assertDraftSeatsFilled(event.seats);
+
+            const seed = freshSeed();
             const {
                 seats: draftSeats,
                 draftRound,
                 draftPacksRemaining,
             } = startDraft(
-                seats,
+                event.seats,
                 event.packSlots,
                 seed,
                 getBoosterConfig,
@@ -295,6 +303,8 @@ export const startLimitedEvent = mutation({
             return null;
         }
 
+        const seats = fillBotSeats(event.seats);
+        const seed = freshSeed();
         const rng = makeRng(seed);
         const seededSeats = generateSealedPools(
             seats,

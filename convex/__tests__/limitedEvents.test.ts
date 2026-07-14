@@ -11,6 +11,7 @@ import { resolveDeckCardMeta, tryGetDefinition } from "../cards";
 import { makeRng } from "../gre/rng";
 import { applyPick, startDraft } from "../limited/draftEngine";
 import {
+    assertDraftSeatsFilled,
     assignFreeSeat,
     buildEmptySeats,
     fillBotSeats,
@@ -310,5 +311,28 @@ describe("Limited Event Draft: create → join → start → scripted picks → 
             expect(seat.currentPack).toBeNull();
             expect(seat.poolCount).toBe(expectedPerSeat);
         }
+    });
+
+    it("rejects starting a draft with any unfilled seat — bot drafting is not shipped (#1112/#1113)", () => {
+        // Bot drafting (#1113) is out of scope: no driver ever calls
+        // `submitPick` for a bot seat, so a bot-filled seat's `currentPack`
+        // would never pass and every downstream human seat would wait on it
+        // forever — a permanent deadlock. `startLimitedEvent`'s draft branch
+        // must refuse to start (and must NOT `fillBotSeats`) until every
+        // seat is human-occupied.
+        let seats = buildEmptySeats(3);
+        seats = assignFreeSeat(seats, "user1", "Alice");
+        seats = assignFreeSeat(seats, "user2", "Bob");
+        // Seat 2 is still unclaimed — this is the exact shape
+        // `startLimitedEvent` reads from `event.seats` before ever calling
+        // `fillBotSeats`.
+        expect(seats[2].userId).toBeUndefined();
+        expect(() => assertDraftSeatsFilled(seats)).toThrow(
+            /all 3 seats are filled by human players/
+        );
+
+        // Filling the last seat with a human (never a bot) clears the guard.
+        seats = assignFreeSeat(seats, "user3", "Carol");
+        expect(() => assertDraftSeatsFilled(seats)).not.toThrow();
     });
 });
