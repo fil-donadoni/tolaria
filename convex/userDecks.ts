@@ -1,9 +1,14 @@
 import { v } from "convex/values";
 import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
-import type { DataModel, Id } from "./_generated/dataModel";
+import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { getCurrentUserId } from "./auth";
 import { type FormatId, isFormatId } from "./formats";
+import {
+    assertLimitedSeatOwnership,
+    findSeatPool,
+    resolveLimitedDeckLegality,
+} from "./limited/poolResolution";
 
 const deckCardValidator = v.object({
     cardId: v.string(),
@@ -35,15 +40,54 @@ async function assertOwnsDeck(
     return deck;
 }
 
+/**
+ * Every user deck, with a `limited`-format row's advisory legality
+ * pre-resolved server-side (issue #1111). A `limited` deck's Pool lives on
+ * its Limited Event Seat, not in the deck row itself — the client has no way
+ * to derive `ResolvePool` on its own, so without this a bare client-side
+ * `validateDeck` call (`toUserLobbyDeck`) would always read
+ * `pool-unresolved` and block selection everywhere except the pool-scoped
+ * builder. One event fetch per DISTINCT `limitedEventId` among the caller's
+ * own rows (a user very rarely has more than one Limited deck in flight).
+ */
 export const listMine = query({
     args: {},
     handler: async (ctx) => {
         const userId = await getCurrentUserId(ctx);
-        return await ctx.db
+        const rows = await ctx.db
             .query("userDecks")
             .withIndex("by_user", (q) => q.eq("userId", userId))
             .order("desc")
             .collect();
+
+        const eventCache = new Map<string, Doc<"limitedEvents"> | null>();
+        return await Promise.all(
+            rows.map(async (row) => {
+                if (
+                    row.format !== "limited" ||
+                    !row.limitedEventId ||
+                    !row.limitedSeatId
+                ) {
+                    return row;
+                }
+                let event = eventCache.get(row.limitedEventId);
+                if (event === undefined) {
+                    event =
+                        (await ctx.db.get(
+                            row.limitedEventId as Id<"limitedEvents">
+                        )) ?? null;
+                    eventCache.set(row.limitedEventId, event);
+                }
+                const seatPool = event
+                    ? findSeatPool(event.seats, Number(row.limitedSeatId))
+                    : null;
+                const { isLegal, reasons } = resolveLimitedDeckLegality(
+                    row,
+                    seatPool
+                );
+                return { ...row, isLegal, reasons };
+            })
+        );
     },
 });
 
@@ -76,6 +120,30 @@ export const create = mutation({
     },
     handler: async (ctx, args) => {
         const userId = await getCurrentUserId(ctx);
+
+        // Limited Event + Seat reference (issue #1111 AC: "a user builds
+        // only in their OWN seat — server-derive userId, never trust client
+        // seat id"). Both fields travel together or not at all; ownership is
+        // re-derived from the AUTHENTICATED userId against the event's real
+        // seats, never taken on the client's word.
+        if (
+            args.limitedEventId !== undefined ||
+            args.limitedSeatId !== undefined
+        ) {
+            if (
+                args.limitedEventId === undefined ||
+                args.limitedSeatId === undefined
+            ) {
+                throw new Error(
+                    "limitedEventId and limitedSeatId must be provided together."
+                );
+            }
+            const event = await ctx.db.get(
+                args.limitedEventId as Id<"limitedEvents">
+            );
+            assertLimitedSeatOwnership(event, args.limitedSeatId, userId);
+        }
+
         const name = args.name.trim() || "Untitled deck";
         return await ctx.db.insert("userDecks", {
             userId,

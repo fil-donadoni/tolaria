@@ -6,9 +6,8 @@ import {
     PointerSensor,
 } from "@dnd-kit/react";
 import { PointerActivationConstraints } from "@dnd-kit/dom";
-import { getDefinition } from "@convex/cards";
-import { getCardColors } from "@convex/cards/colors";
 import { effectiveFeatured, toggleFeatured } from "~/lib/featuredPicker";
+import { computeDeckColors } from "~/lib/deckColors";
 import { useBanlistOverride } from "~/hooks/useBanlistOverride";
 import { FORMAT_RULES, type FormatId, validateDeck } from "@convex/formats";
 import { type LobbyDeck } from "~/lib/deckTypes";
@@ -98,25 +97,11 @@ interface DeckBuilderProps {
     onDelete?: () => Promise<void>;
 }
 
-const COLOR_ORDER = ["W", "U", "B", "R", "G"] as const;
 const SAVE_DEBOUNCE_MS = 800;
 // Trailing-edge delay before a search keystroke feeds the filter pass + URL
 // (PRD #501, issue #503). Tuned for feel; the input itself stays responsive.
 const SEARCH_DEBOUNCE_MS = 180;
 const DEFAULT_FORMAT: FormatId = "freeform";
-
-function computeDeckColors(cards: DeckCard[]): string[] {
-    const set = new Set<string>();
-    for (const card of cards) {
-        try {
-            const def = getDefinition(card.cardId);
-            for (const color of getCardColors(def)) set.add(color);
-        } catch {
-            // ignore — card may have been removed from the registry
-        }
-    }
-    return COLOR_ORDER.filter((c) => set.has(c));
-}
 
 export default function DeckBuilder({
     kind,
