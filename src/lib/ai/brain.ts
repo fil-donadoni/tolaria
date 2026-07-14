@@ -165,6 +165,13 @@ export type OwedChoice = {
      *  the running total reaches the threshold. Mutually exclusive with
      *  `sacrificeCount`; undefined when no threshold pick is owed. */
     sacrificeThreshold?: number;
+    /** `may-pay` only (CR 701.9 / 118.3, issue #899): the number of hand cards
+     *  the accepted cost's discard leg makes the payer choose, when the leg
+     *  admits a real choice (more hand cards than discarded). `candidates`
+     *  then holds the legal hand cards and the bot picks `discardCount` of
+     *  them worst-first, mirroring `sacrificeCount`. Undefined / 0 when no
+     *  discard pick is owed. */
+    discardCount?: number;
     /** `discard-hand` only: the controller's mana picture, so the discard
      *  heuristic can protect scarce lands and rank spells by castability
      *  (issue #242). Undefined for every other choice kind. */
@@ -194,7 +201,12 @@ export type BotAction =
     | { kind: "mull" }
     | { kind: "mulligan-bottom"; cardInstanceIds: string[] }
     | { kind: "resolution-choice"; cardInstanceIds: string[] }
-    | { kind: "may-pay"; accept: boolean; sacrificeIds?: string[] }
+    | {
+          kind: "may-pay";
+          accept: boolean;
+          sacrificeIds?: string[];
+          discardIds?: string[];
+      }
     | { kind: "land-entry"; accept: boolean }
     | { kind: "name-card"; cardName: string }
     | { kind: "random-reveal-ack" }
@@ -665,6 +677,20 @@ export function decideBotAction(view: BotView): BotAction {
                         choice.candidates,
                         choice.sacrificeThreshold
                     ),
+                };
+            }
+            // CR 701.9 / 118.3 (issue #899) — a discard leg with a real card
+            // choice needs a legal pick supplied alongside the accept, or the
+            // submit throws and the bot freezes. Pick `discardCount` worst-first
+            // hand cards (a minimal-legal default — smart discard choice is
+            // deferred), mirroring the sacrifice pick above.
+            if (accept && choice.discardCount && choice.discardCount > 0) {
+                return {
+                    kind: "may-pay",
+                    accept,
+                    discardIds: worstFirst(choice.candidates)
+                        .slice(0, choice.discardCount)
+                        .map((c) => c.id),
                 };
             }
             return { kind: "may-pay", accept };

@@ -256,6 +256,9 @@ function mayPayIsAffordable(
             return false;
         }
     }
+    if (norm.discard && bot.hand.length < norm.discard.count) {
+        return false;
+    }
     return true;
 }
 
@@ -288,6 +291,20 @@ function mayPaySacrificePick(head: PendingChoice): {
     return typeof count === "object"
         ? { sacrificeThreshold: count.minTotalPower }
         : { sacrificeCount: count };
+}
+
+/** Surfaces the may-pay discard pick shape for the bot's OwedChoice (CR 701.9 /
+ *  118.3, issue #899): a fixed `discardCount`, or absent for a non-discard
+ *  may-pay. Mirrors {@link mayPaySacrificePick}; discard has no summed-power
+ *  threshold shape. */
+function mayPayDiscardPick(head: PendingChoice): {
+    discardCount?: number;
+} {
+    if (head.kind !== "may-pay" || head.zone !== "hand" || !head.cost) {
+        return {};
+    }
+    const count = normalizeMayPayCost(head.cost).discard?.count;
+    return count === undefined ? {} : { discardCount: count };
 }
 
 /** Project the active bot-owed `PendingChoice` into the {@link OwedChoice} the
@@ -358,6 +375,12 @@ function buildOwedChoice(
         // Dreadnought) so the bot supplies a legal `sacrificeIds`. Both undefined
         // for a plain yes/no or auto-resolving pay.
         ...sacrificePick,
+        // CR 701.9 / 118.3 (issue #899) — a may-pay discard leg with a real card
+        // choice sets `zone: "hand"` and lists the legal hand cards in
+        // `candidateIds`; surfaces the fixed count the payer must pick
+        // (`discardCount`) so the bot supplies a legal `discardIds`. Undefined
+        // for a plain yes/no or auto-resolving pay.
+        ...mayPayDiscardPick(head),
         // issue #242 — the discard heuristic needs the board's mana picture to
         // protect scarce lands and rank spells by castability.
         manaSituation:

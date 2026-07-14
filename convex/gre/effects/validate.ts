@@ -791,14 +791,15 @@ function isSacrificeCount(value: unknown): boolean {
     return isPositiveInt(obj.minTotalPower);
 }
 
-/** A `mayPay` cost (CR 117.3a / 118.4 / 702.24): a bare `ManaCost`, or the
- *  `{ mana?, life?, sacrifice? }` union. At least one leg must be present. */
+/** A `mayPay` cost (CR 117.3a / 118.4 / 702.24 / 701.9): a bare `ManaCost`, or
+ *  the `{ mana?, life?, sacrifice?, discard? }` union. At least one leg must
+ *  be present. */
 function isMayPayCost(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
     }
     const obj = value as Record<string, unknown>;
-    const unionKeys = new Set(["mana", "life", "sacrifice"]);
+    const unionKeys = new Set(["mana", "life", "sacrifice", "discard"]);
     const isUnion = Object.keys(obj).every((k) => unionKeys.has(k));
     if (isUnion && Object.keys(obj).length > 0) {
         if ("mana" in obj && !isManaCost(obj.mana)) return false;
@@ -821,6 +822,16 @@ function isMayPayCost(value: unknown): boolean {
             // summed-power threshold `{ minTotalPower: positive int }` (CR 118,
             // Phyrexian Dreadnought). JSON-pure either way (ADR 0046).
             if (!isSacrificeCount(sac.count)) return false;
+        }
+        if ("discard" in obj) {
+            // Discard leg (CR 701.9 / 118.3, issue #899): fixed cardinal only
+            // — no summed-power threshold shape (that's sacrifice-specific).
+            const d = obj.discard;
+            if (typeof d !== "object" || d === null) return false;
+            const disc = d as Record<string, unknown>;
+            if (!("count" in disc) || !isPositiveInt(disc.count)) {
+                return false;
+            }
         }
         return true;
     }

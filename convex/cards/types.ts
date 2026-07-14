@@ -1018,6 +1018,20 @@ export type MayPayCost =
               filter: PermanentFilter;
               count: number | { minTotalPower: number };
           };
+          /** Discard leg (CR 701.9 / 118.3 — "discard a card"). Mirrors the
+           *  sacrifice leg's picker, but from HAND instead of the battlefield:
+           *  the payer chooses which `count` distinct card(s) from their hand
+           *  to discard on accept (issue #899, Formidable Speaker — "you may
+           *  discard a card. If you do, search your library for a creature
+           *  card…"). Fixed cardinal only — no summed-power threshold shape
+           *  exists for a discard leg (that's a sacrifice-specific CR 118
+           *  wrinkle, Phyrexian Dreadnought); add one only if a card demands it
+           *  (YAGNI). No type filter either: every printed "discard a card"
+           *  may-pay leg is untyped — add a `filter` leg the same way the
+           *  sacrifice leg has one, only when a card needs it. */
+          discard?: {
+              count: number;
+          };
       };
 
 // --- Token specification (CR 111, 707.1) ---

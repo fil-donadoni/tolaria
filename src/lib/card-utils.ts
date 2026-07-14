@@ -1391,15 +1391,24 @@ export interface NormalizedMayPayCost {
      *  threshold `{ minTotalPower }` (CR 118, Phyrexian Dreadnought —
      *  "sacrifice any number of matching permanents with total power ≥ N"). */
     sacrifice?: { count: number | { minTotalPower: number } };
+    /** Discard leg (CR 701.9 / 118.3, issue #899). Fixed cardinal only — the
+     *  payer picks exactly `count` distinct cards from hand. */
+    discard?: { count: number };
 }
 
 function isMayPayUnion(
     cost: MayPayCost
 ): cost is Exclude<MayPayCost, ManaCost> {
-    return "mana" in cost || "life" in cost || "sacrifice" in cost;
+    return (
+        "mana" in cost ||
+        "life" in cost ||
+        "sacrifice" in cost ||
+        "discard" in cost
+    );
 }
 
-/** Widens either `may-pay` cost shape to `{ mana?, life?, sacrifice? }`. */
+/** Widens either `may-pay` cost shape to `{ mana?, life?, sacrifice?,
+ *  discard? }`. */
 export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
     if (isMayPayUnion(cost)) {
         return {
@@ -1407,6 +1416,9 @@ export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
             ...(cost.life !== undefined ? { life: cost.life } : {}),
             ...(cost.sacrifice
                 ? { sacrifice: { count: cost.sacrifice.count } }
+                : {}),
+            ...(cost.discard
+                ? { discard: { count: cost.discard.count } }
                 : {}),
         };
     }
@@ -1433,7 +1445,11 @@ export function mayPayCanAfford(
      *  (CR 118). Required only for a threshold-mode sacrifice leg
      *  (`{ minTotalPower }`, Phyrexian Dreadnought); ignored for a fixed-count
      *  leg, which gates on `sacrificeCandidateCount` instead. */
-    sacrificeCandidatePower?: number
+    sacrificeCandidatePower?: number,
+    /** The chooser's hand size (CR 701.9 / 118.3, issue #899). Required for a
+     *  discard leg — affordable iff the hand holds at least `count` cards.
+     *  Ignored for a cost with no discard leg. */
+    handCount?: number
 ): boolean {
     if (!cost) return true;
     const norm = normalizeMayPayCost(cost);
@@ -1458,6 +1474,9 @@ export function mayPayCanAfford(
         } else if (sacrificeCandidateCount < norm.sacrifice.count) {
             return false;
         }
+    }
+    if (norm.discard && (handCount ?? 0) < norm.discard.count) {
+        return false;
     }
     return true;
 }
@@ -1552,6 +1571,27 @@ export function mayPaySacrificePickSatisfied(
     return selectedIds.length === mayPayRequiredSacrifices(cost);
 }
 
+/** Number of hand cards a `may-pay` discard leg makes the payer discard (CR
+ *  701.9 / 118.3, issue #899). Returns 0 when the cost has no discard leg.
+ *  Mirrors {@link mayPayRequiredSacrifices} — the discard leg has no
+ *  summed-power threshold shape. */
+export function mayPayRequiredDiscards(cost: MayPayCost | undefined): number {
+    if (!cost || !("discard" in cost) || !cost.discard) return 0;
+    return cost.discard.count;
+}
+
+/** Whether the chooser's current discard pick satisfies a hand `may-pay`
+ *  discard leg (CR 701.9 / 118.3, issue #899): the selection must name exactly
+ *  `count` distinct hand cards. A cost with no discard leg is trivially
+ *  satisfied. Mirrors {@link mayPaySacrificePickSatisfied}'s fixed-count
+ *  branch. */
+export function mayPayDiscardPickSatisfied(
+    cost: MayPayCost | undefined,
+    selectedIds: string[]
+): boolean {
+    return selectedIds.length === mayPayRequiredDiscards(cost);
+}
+
 /** Human-readable label for a `may-pay` cost union, rendered after "Pay" on the
  *  prompt button. Mana renders as symbol tokens (formatOracleText-ready); life
  *  and sacrifice render as words, joined with " and " (Infernal Darkness:
@@ -1577,6 +1617,10 @@ export function mayPayCostLabel(cost?: MayPayCost): string {
         } else {
             parts.push(n === 1 ? "sacrifice" : `sacrifice ${n}`);
         }
+    }
+    if (norm.discard) {
+        const n = norm.discard.count;
+        parts.push(n === 1 ? "discard a card" : `discard ${n} cards`);
     }
     return parts.join(" and ");
 }

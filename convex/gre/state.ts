@@ -9278,6 +9278,26 @@ export function buildSpellContext(
                     routed.playerId,
                     req.cost
                 );
+            } else if (
+                // CR 701.9 / 118.3 (issue #899) — when the may-pay's discard leg
+                // admits a real card choice (more hand cards than the leg
+                // discards), light up the payer's hand so the client can prompt
+                // WHICH card(s) to discard before confirming. Mirrors the
+                // sacrifice leg's `zone`/`candidateIds` machinery above, but from
+                // hand instead of the battlefield — `else if` because a single
+                // may-pay entry carries only one real picker (no card needs both
+                // legs to admit a choice simultaneously yet). With a single
+                // legal candidate (or `count` covering all) no fields are set
+                // and the pay auto-selects (Arena UX).
+                req.cost &&
+                mayPayDiscardChoiceRequired(state, routed.playerId, req.cost)
+            ) {
+                entry.zone = "hand";
+                entry.candidateIds = getMayPayDiscardCandidateIds(
+                    state,
+                    routed.playerId,
+                    req.cost
+                );
             }
             state.pendingChoices = [...(state.pendingChoices ?? []), entry];
             return undefined;
@@ -11417,11 +11437,17 @@ export interface NormalizedMayPayCost {
         filter: PermanentFilter;
         count: number | { minTotalPower: number };
     };
+    /** Discard leg (CR 701.9 / 118.3, issue #899). Fixed cardinal only — the
+     *  payer picks exactly `count` distinct cards from HAND. */
+    discard?: {
+        count: number;
+    };
 }
 
-/** Distinguishes the union shape `{ mana?, life?, sacrifice? }` from a bare
- *  `ManaCost`. The union is the ONLY value carrying a `mana` / `life` /
- *  `sacrifice` key; a bare `ManaCost` carries only mana symbol keys. */
+/** Distinguishes the union shape `{ mana?, life?, sacrifice?, discard? }` from
+ *  a bare `ManaCost`. The union is the ONLY value carrying a `mana` / `life` /
+ *  `sacrifice` / `discard` key; a bare `ManaCost` carries only mana symbol
+ *  keys. */
 function isMayPayUnion(cost: MayPayCost): cost is {
     mana?: CardManaCost;
     life?: number;
@@ -11429,19 +11455,28 @@ function isMayPayUnion(cost: MayPayCost): cost is {
         filter: PermanentFilter;
         count: number | { minTotalPower: number };
     };
+    discard?: {
+        count: number;
+    };
 } {
-    return "mana" in cost || "life" in cost || "sacrifice" in cost;
+    return (
+        "mana" in cost ||
+        "life" in cost ||
+        "sacrifice" in cost ||
+        "discard" in cost
+    );
 }
 
-/** Normalizes either `may-pay` cost shape to `{ mana?, life?, sacrifice? }`.
- *  A bare `ManaCost` (the historical mana-only shape) widens to `{ mana }` so
- *  every legacy caller is unaffected (ADR 0042). */
+/** Normalizes either `may-pay` cost shape to `{ mana?, life?, sacrifice?,
+ *  discard? }`. A bare `ManaCost` (the historical mana-only shape) widens to
+ *  `{ mana }` so every legacy caller is unaffected (ADR 0042). */
 export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
     if (isMayPayUnion(cost)) {
         return {
             ...(cost.mana ? { mana: cost.mana } : {}),
             ...(cost.life !== undefined ? { life: cost.life } : {}),
             ...(cost.sacrifice ? { sacrifice: cost.sacrifice } : {}),
+            ...(cost.discard ? { discard: cost.discard } : {}),
         };
     }
     return { mana: cost as CardManaCost };
@@ -11546,6 +11581,46 @@ export function mayPaySacrificeChoiceRequired(
         return candidateCount > 0;
     }
     return candidateCount > norm.sacrifice.count;
+}
+
+/** Instance ids of `playerId`'s hand cards that could pay a `may-pay` cost's
+ *  discard leg (CR 701.9 / 118.3 — the discarder chooses which they discard).
+ *  Returns `[]` when the cost has no discard leg. Exported so the submit
+ *  boundary (`applyMayPaySubmit`) and the bot driver can validate / pick a
+ *  legal card against the SAME candidate set `requestMayPay` computed. Mirrors
+ *  {@link getMayPaySacrificeCandidateIds}, but from hand instead of the
+ *  battlefield — no type filter (every printed discard leg is untyped). */
+export function getMayPayDiscardCandidateIds(
+    state: GameState,
+    playerId: string,
+    cost: MayPayCost
+): string[] {
+    const norm = normalizeMayPayCost(cost);
+    if (!norm.discard) return [];
+    const player = getPlayer(state, playerId);
+    return player.hand.map((c) => c.id);
+}
+
+/** Whether a `may-pay` discard leg admits a real card choice (CR 701.9 /
+ *  118.3): the payer holds MORE cards than the leg discards, so which one(s)
+ *  to discard is the payer's decision, not an auto-pick. When the hand has
+ *  exactly `count` (or fewer) cards there is nothing to choose — auto-
+ *  selection stays and no prompt is shown (Arena UX auto-resolve). Returns
+ *  false for a cost with no discard leg. Mirrors
+ *  {@link mayPaySacrificeChoiceRequired}. */
+export function mayPayDiscardChoiceRequired(
+    state: GameState,
+    playerId: string,
+    cost: MayPayCost
+): boolean {
+    const norm = normalizeMayPayCost(cost);
+    if (!norm.discard) return false;
+    const candidateCount = getMayPayDiscardCandidateIds(
+        state,
+        playerId,
+        cost
+    ).length;
+    return candidateCount > norm.discard.count;
 }
 
 /** Pool a `may-pay` payment may draw on: the fungible `manaPool` plus any
@@ -11657,27 +11732,33 @@ export function canPayMayPayCost(
             return false;
         }
     }
+    if (norm.discard && player.hand.length < norm.discard.count) {
+        return false;
+    }
     return true;
 }
 
 /** Pays the whole `may-pay` cost union from `playerId`'s resources (CR 117.3a /
- *  118.4 / 701.16). Caller MUST have already confirmed affordability with
- *  `canPayMayPayCost` (the mana leg asserts coverage; the life and sacrifice
- *  legs are applied unconditionally). Mana is taken from the pool (lands must
- *  already be tapped, as for any `may-pay`); life is lost through the
- *  replacement chain; the sacrifice leg sacrifices the permanents the payer
- *  CHOSE (CR 701.16b — the controller picks which of their matching permanents
- *  are sacrificed). `sacrificeIds`, validated at the submit boundary, names the
- *  victims; when absent (only one legal candidate, `count` covers all, or a
- *  bot's minimal-legal default) the first `count` matching permanents are
- *  auto-selected in author order — CR 701.16b is satisfied trivially when there
- *  is nothing to choose. */
+ *  118.4 / 701.16 / 701.9). Caller MUST have already confirmed affordability
+ *  with `canPayMayPayCost` (the mana leg asserts coverage; the life, sacrifice
+ *  and discard legs are applied unconditionally). Mana is taken from the pool
+ *  (lands must already be tapped, as for any `may-pay`); life is lost through
+ *  the replacement chain; the sacrifice leg sacrifices the permanents the
+ *  payer CHOSE (CR 701.16b — the controller picks which of their matching
+ *  permanents are sacrificed); the discard leg discards the hand cards the
+ *  payer CHOSE (CR 701.9, issue #899 — mirrors the sacrifice leg's picker).
+ *  `sacrificeIds` / `discardIds`, validated at the submit boundary, name the
+ *  victims/cards; when absent (only one legal candidate, `count` covers all,
+ *  or a bot's minimal-legal default) the first `count` matching
+ *  permanents/cards are auto-selected in author/hand order — CR 701.16b /
+ *  701.9 is satisfied trivially when there is nothing to choose. */
 export function payMayPayCost(
     state: GameState,
     playerId: string,
     cost: MayPayCost,
     manaRestriction?: ManaRestriction,
-    sacrificeIds?: string[]
+    sacrificeIds?: string[],
+    discardIds?: string[]
 ): void {
     const norm = normalizeMayPayCost(cost);
     const player = getPlayer(state, playerId);
@@ -11744,6 +11825,23 @@ export function payMayPayCost(
         }
         for (const v of victims) {
             removePermanentTo(state, v.id, "graveyard", "sacrifice");
+        }
+    }
+    if (norm.discard) {
+        // CR 701.9 / 118.3 — the payer chooses which of their hand cards to
+        // discard. Honour the caller-supplied `discardIds` (validated at the
+        // submit boundary) when present; otherwise fall back to hand order.
+        // Routed through `discardToGraveyard` so CR 614 discard replacements
+        // (Library of Leng) and CARD_DISCARDED triggers (Necropotence-style)
+        // apply exactly as for any other discard.
+        const candidates = player.hand;
+        const chosen =
+            discardIds && discardIds.length > 0
+                ? candidates.filter((c) => discardIds.includes(c.id))
+                : candidates;
+        const toDiscard = chosen.slice(0, norm.discard.count);
+        for (const c of toDiscard) {
+            discardToGraveyard(state, playerId, c.id);
         }
     }
 }

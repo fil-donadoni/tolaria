@@ -8057,6 +8057,10 @@ export const submitMayPay = mutation({
         // may-pay's sacrifice leg admits a real choice. Omitted for a plain
         // yes/no may-pay or an auto-resolving single-candidate sacrifice.
         sacrificeIds: v.optional(v.array(v.string())),
+        // CR 701.9 / 118.3 (issue #899) — the payer's chosen hand card id(s)
+        // when the may-pay's discard leg admits a real choice. Omitted for a
+        // plain yes/no may-pay or an auto-resolving discard.
+        discardIds: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -8073,6 +8077,7 @@ export const submitMayPay = mutation({
             playerId: args.playerId,
             accept: args.accept,
             sacrificeIds: args.sacrificeIds,
+            discardIds: args.discardIds,
         });
 
         const nextSeq = gameState.seq + 1;
