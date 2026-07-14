@@ -68,6 +68,10 @@ export interface Player {
      *  with ten or more loses the game (CR 704.5c). Rides the public
      *  projection via the `...player` spread (ADR 0032). */
     poisonCounters?: number;
+    /** Energy counters on this player (CR 122.1 — a player-owned resource).
+     *  Absent means zero. Rides the public projection via the `...player`
+     *  spread, like `poisonCounters` (issue #697). */
+    energyCounters?: number;
 }
 
 /** Mana pool carried by the player. All six color slots may be missing from the server payload. */

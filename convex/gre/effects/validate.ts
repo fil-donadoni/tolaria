@@ -1099,6 +1099,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     },
     draw: { required: { player: isPlayerRef, count: isEffectValue } },
     gainLife: { required: { player: isPlayerRef, amount: isEffectValue } },
+    getEnergy: { required: { player: isPlayerRef, amount: isEffectValue } },
     loseLife: { required: { player: isPlayerRef, amount: isEffectValue } },
     // CR 500.7 (issue #686) — schedule an extra turn for `player` (Time Warp).
     extraTurn: { required: { player: isPlayerRef } },

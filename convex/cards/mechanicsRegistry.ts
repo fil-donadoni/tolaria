@@ -2371,6 +2371,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         binding: "SpellContext.gainLife",
     },
     {
+        op: "getEnergy",
+        status: "implemented",
+        cr: "122.1",
+        note: 'CR 122.1 — "you get {E}": add energy counters to a player. The GENERATION half of the Energy resource (issue #697, Cube CAP). A thin declarative skin over SpellContext.addEnergy (the dedicated PlayerState.energyCounters scalar, mirroring poisonCounters, ADR 0032). Energy is engine/cost infra with NO MECHANICS_REGISTRY keyword row (it is a resource, not a CR 701/702 keyword), but the "get {E}" effect IS a one-shot Effect Script Op, so it lives here. The SPENDING half ("pay {E}") is a cost-system capability (SpellContext.payEnergy), not an Op — no registry row, same as the alt-cost mechanics (Cycling, Flashback, Escape).',
+        binding: "SpellContext.addEnergy",
+    },
+    {
         op: "loseLife",
         status: "implemented",
         cr: "119.3b",

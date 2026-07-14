@@ -972,6 +972,14 @@ export type PlayerState = {
      *  Kept as a dedicated scalar rather than an entry in the object
      *  `counters[type]` map (ADR 0032). */
     poisonCounters?: number;
+    /** Energy counters on this player (CR 122.1 — energy is a player-owned
+     *  resource, a counter kind that sits on players, not objects). Absent means
+     *  zero; no cap and no loss condition (unlike poison). A player "gets {E}"
+     *  to add energy (`SpellContext.addEnergy`) and "pays {E}" to spend it
+     *  (`SpellContext.payEnergy`, all-or-nothing). Kept as a dedicated scalar
+     *  rather than an entry in the object `counters[type]` map, mirroring
+     *  `poisonCounters` (ADR 0032). */
+    energyCounters?: number;
     /** Revolt (CR 702.RV): true when a permanent this player controlled left
      *  the battlefield this turn. Set by `removePermanentTo` whenever a
      *  permanent leaves the battlefield (destroy / exile / sacrifice / bounce).
@@ -6853,6 +6861,27 @@ export function buildSpellContext(
             // enforced by the SBA, not here, so the field has no cap.
             const player = getPlayer(state, playerId);
             player.poisonCounters = (player.poisonCounters ?? 0) + n;
+        },
+        addEnergy(playerId: string, n: number) {
+            if (n <= 0) return;
+            // CR 122.1 — "you get {E}": add energy counters to the player. No
+            // cap and no loss SBA (energy, unlike poison, is a pure resource).
+            const player = getPlayer(state, playerId);
+            player.energyCounters = (player.energyCounters ?? 0) + n;
+        },
+        getEnergy(playerId: string): number {
+            return getPlayer(state, playerId).energyCounters ?? 0;
+        },
+        payEnergy(playerId: string, n: number): boolean {
+            // CR 122.1 / 118.12 — "pay {E}": spend energy counters, all-or-
+            // nothing. Returns false (and spends nothing) when the player lacks
+            // the required amount; n <= 0 is a trivially-paid no-op.
+            if (n <= 0) return true;
+            const player = getPlayer(state, playerId);
+            const have = player.energyCounters ?? 0;
+            if (have < n) return false;
+            player.energyCounters = have - n;
+            return true;
         },
         getLife(playerId: string): number {
             return getPlayer(state, playerId).life;

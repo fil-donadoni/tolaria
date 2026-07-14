@@ -2,6 +2,7 @@ import type { Player } from "~/types/game";
 import type { PlayerInteraction } from "~/hooks/usePlayerInteraction";
 import AnimatedLifeTotal from "./animated-life-total";
 import PlayerPoisonCounters from "./player-poison-counters";
+import PlayerEnergyCounters from "./player-energy-counters";
 import DivideTargetStepper from "./divide-target-stepper";
 
 type PlayerNameplateProps = {
@@ -90,6 +91,7 @@ export default function PlayerNameplate({
                 {player.name}
             </div>
             <PlayerPoisonCounters count={player.poisonCounters} />
+            <PlayerEnergyCounters count={player.energyCounters} />
             {interaction.isDivideTarget && (
                 <>
                     {interaction.divideAssigned > 0 && (

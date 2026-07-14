@@ -933,6 +933,14 @@ export const OP_EXECUTORS: {
         if (amount === undefined || amount <= 0) return;
         ctx.gainLife(playerId, amount);
     },
+    // CR 122.1 — "you get {E}": add energy counters to the player.
+    getEnergy(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        const amount = resolveValue(ctx, op.amount);
+        if (amount === undefined || amount <= 0) return;
+        ctx.addEnergy(playerId, amount);
+    },
     // CR 119.3b — life loss (not damage).
     loseLife(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);

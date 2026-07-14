@@ -3222,6 +3222,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Galvanic Discharge",
+        "scryfallId": "32aa6e33-221f-414c-9b51-850d97a7e051",
+        "oracleId": "ef0f06f1-3991-4897-bf62-d4cab7ec79a0",
+        "firstSet": "mh3"
+    },
+    {
         "name": "Game of Chaos",
         "scryfallId": "08265332-2c0e-4c42-8c51-83ac20462eed",
         "oracleId": "b6756608-a618-4e26-a090-ea8fc992def1",

@@ -249,6 +249,27 @@ const MIGRATED_PRESET_SCENARIOS: { label: string; spec: ScenarioSpec }[] = [
             landCount: 5,
         },
     },
+    {
+        // Energy (CR 122.1 — the {E} resource, Cube CAP #697). Two Galvanic
+        // Discharges in hand and two opposing Grizzly Bears to zap. Cast the
+        // first Discharge on a Bears: "you get {E}{E}{E}, then you may pay any
+        // amount of {E}" — pay 1 or 2 and watch the energy badge appear under
+        // your name with the leftover (golden path: get → pay → damage). Then
+        // cast the SECOND Discharge: it gets you three MORE {E}, so the pay
+        // range now spans the whole ACCUMULATED pool (leftover + 3) — the edge
+        // case showing energy is a persistent, stacking player resource.
+        label: "Energy — Galvanic Discharge: get {E}{E}{E}, pay any amount",
+        spec: {
+            cards: [
+                { name: "Galvanic Discharge", owner: "me", zone: "hand" },
+                { name: "Galvanic Discharge", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 4,
+        },
+    },
 ];
 
 /**
