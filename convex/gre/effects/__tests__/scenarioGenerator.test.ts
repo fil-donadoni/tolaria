@@ -11,26 +11,20 @@ import { registerTokenDefinition } from "../../../cards";
 import {
     ASSERTED_OP_KINDS,
     CASTER_ID,
-    FILLER_CARD_ID,
-    FILLER_SUBTYPE,
+    FILLER_CARD_DEFINITION,
     OPPONENT_ID,
     opCoverageGaps,
     planSmokeTest,
 } from "../scenarioGenerator";
 import { EFFECT_OP_REGISTRY } from "../../../cards/mechanicsRegistry";
 
-// The generator references FILLER_CARD_ID by id; register it once here (and the
-// sweep registers it too — `registerTokenDefinition` is idempotent).
-registerTokenDefinition({
-    id: FILLER_CARD_ID,
-    name: FILLER_CARD_ID,
-    rarity: "common",
-    manaCost: { G: 1 },
-    types: ["Creature"],
-    subtypes: [FILLER_SUBTYPE],
-    power: 2,
-    toughness: 5,
-});
+// The generator references FILLER_CARD_ID by id; register the ONE canonical
+// definition (the catalogue sweep in `effectScriptSmoke.test.ts` registers the
+// same object — `registerTokenDefinition` is idempotent for identical
+// registrations, but NOT safe for two divergent literals racing on
+// module-load order under the node project's `isolate: false`; see the
+// docstring on `FILLER_CARD_DEFINITION`, issue #926).
+registerTokenDefinition(FILLER_CARD_DEFINITION);
 
 describe("scenario construction (issue #804)", () => {
     it("builds a two-seat state with a stocked library for a controller draw", () => {

@@ -8862,6 +8862,12 @@
         "firstSet": "drk"
     },
     {
+        "name": "Toxic Deluge",
+        "scryfallId": "564caf57-4ba5-4993-a35e-945699c94eb7",
+        "oracleId": "afaef788-34d1-460b-b884-9d7ae6ddeb18",
+        "firstSet": "c13"
+    },
+    {
         "name": "Tracker",
         "scryfallId": "35ffc69e-26f2-434f-8c89-2df108dd984a",
         "oracleId": "86260d53-a68e-43cb-88ba-6a97c0b2f4f4",

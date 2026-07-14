@@ -80,6 +80,7 @@ import type {
     EffectPileObjectSelector,
     EffectPlayerRef,
     EffectPredicate,
+    EffectSignedValue,
     EffectTargetRef,
     EffectValue,
     GainControlDuration,
@@ -265,15 +266,26 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
 /** Resolves a numeric Op parameter (ADR 0045 value grammar): a literal, a
  *  `ref` reading a bound snapshot's power/toughness, a `count` of a selected
  *  set, the chosen-cost `X` (issue #852 — a thin skin over `ctx.getX()`,
- *  CR 107.3 / 601.2b), or a `counters` count on a selected object (issue #1015
- *  — a thin skin over `ctx.getCounterCount`, CR 122.6). Returns `undefined`
- *  when a ref names a binding that was never captured or a selected object has
- *  left play (CR 608.2b), so the caller skips too. */
+ *  CR 107.3 / 601.2b), a `counters` count on a selected object (issue #1015
+ *  — a thin skin over `ctx.getCounterCount`, CR 122.6), or — at a SIGNED value
+ *  site (`EffectSignedValue`, today only `pump`'s power/toughness) — a
+ *  `negate`-wrapped value (issue #926, one unary sign flip, no other
+ *  arithmetic). Returns `undefined` when a ref names a binding that was never
+ *  captured, a selected object has left play (CR 608.2b), or the negated
+ *  inner value is itself unresolvable — so the caller skips too. */
 function resolveValue(
     ctx: SpellContext,
-    value: EffectValue
+    value: EffectValue | EffectSignedValue
 ): number | undefined {
     if (typeof value === "number") return value;
+    // negate (issue #926) — flips the sign of the wrapped value at read time.
+    // Scoped to the SIGNED value grammar; `EffectValue` proper never carries
+    // this key (the static validator, `isEffectValue`, rejects it), so this
+    // branch only ever fires for a pump power/toughness site.
+    if ("negate" in value) {
+        const inner = resolveValue(ctx, value.negate);
+        return inner === undefined ? undefined : -inner;
+    }
     if ("ref" in value) {
         const parsed = parseRef(value.ref);
         if (!parsed) return undefined;

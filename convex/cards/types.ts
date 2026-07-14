@@ -5787,6 +5787,37 @@ export interface EffectEscapedValue {
     escaped: { of: EffectObjectSelector };
 }
 
+/** negate — wraps any plain `EffectValue` and flips its resolved sign at read
+ *  time (issue #926, blocking Toxic Deluge's "-X/-X"). NOT a tenth `EffectValue`
+ *  grammar member and NOT a new Op or structural construct (ADR 0045 stays
+ *  closed — one unary negation, no arithmetic, no composition: nesting
+ *  (`{ negate: { negate: X } }`) is grammatically impossible because `negate`
+ *  wraps `EffectValue` itself, which does not include `negate`).
+ *
+ *  Scope: every OTHER `EffectValue` member (`X`, `counters`, `kickerCount`,
+ *  `manaValue`, `domain`) reads back a quantity that is non-negative BY
+ *  NATURE (CR 107.3 chosen X ≥ 0, CR 122.6 counter count ≥ 0, …) — there was
+ *  no way to express "the negative of the chosen X" before this. A literal
+ *  integer can already be negative directly (`power: -3`, Weakness) — `negate`
+ *  is for wrapping the non-literal members.
+ *
+ *  Deliberately scoped to the SIGNED value grammar (`EffectSignedValue`,
+ *  today only `pump`'s `power`/`toughness`, issue #840) rather than the
+ *  general `EffectValue` grammar `dealDamage`/`loseLife`/`draw`/`gainLife`
+ *  etc. use: a negative damage/life-loss/draw amount has no CR meaning at
+ *  those sites. Widen `isEffectValue` (`convex/gre/effects/validate.ts`) to
+ *  admit `negate` at a specific Op slot only when a real card needs it there
+ *  — do not assume it is already legal. */
+export interface EffectNegatedValue {
+    negate: EffectValue;
+}
+
+/** A SIGNED runtime numeric parameter (issue #926): a plain `EffectValue`, or
+ *  its `negate`-wrapped opposite. The pump Op's `power`/`toughness` (CR 613.4c,
+ *  issue #840) are the only site today — a shrink (Weakness) or a chosen-cost
+ *  driven "-X/-X" (Toxic Deluge). */
+export type EffectSignedValue = EffectValue | EffectNegatedValue;
+
 /** JSON-pure mana specification for the `addMana` Op (CR 106.1, issue #850) —
  *  a per-colour amount map. Only fixed coloured / colorless pips: no variable
  *  `{X}`, generic, or "mana of any colour" (a runtime colour choice, not a
@@ -6192,17 +6223,20 @@ export type EffectOp =
      *  slot (Giant Growth), the resolving source (`$source` — a self-pump
      *  activated ability, "~ gets +1/+0 until end of turn"), or the current
      *  member of a `forEach` set (`{ ref: "$each" }` — a mass pump). `power`
-     *  and `toughness` are signed amounts (each may be negative — a shrink,
-     *  Weakness — or zero — a one-sided pump, +1/+0); each is a literal, a
-     *  bound object's power/toughness (`ref`), or a `count`. `duration` is the
-     *  phase boundary at which the buff expires (CR 514.2 end-of-turn cleanup /
-     *  CR 511.3 end-of-combat). Skipped when the referenced permanent is gone
+     *  and `toughness` are SIGNED amounts (`EffectSignedValue`, issue #926):
+     *  each may be a negative literal (a shrink, Weakness) or zero (a
+     *  one-sided pump, +1/+0), a literal, a bound object's power/toughness
+     *  (`ref`), a `count`, or a `negate`-wrapped value member for a
+     *  non-negative-by-nature amount driven negative (Toxic Deluge's
+     *  "-X/-X", `{ negate: { X: true } }`). `duration` is the phase boundary
+     *  at which the buff expires (CR 514.2 end-of-turn cleanup / CR 511.3
+     *  end-of-combat). Skipped when the referenced permanent is gone
      *  (CR 608.2b — the spell does as much as it can). */
     | {
           op: "pump";
           target: EffectObjectSelector;
-          power: EffectValue;
-          toughness: EffectValue;
+          power: EffectSignedValue;
+          toughness: EffectSignedValue;
           duration: DurationSpec;
       }
     /** CR 122 (issue #841) — put or remove counters on a permanent. A thin

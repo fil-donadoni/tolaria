@@ -3515,6 +3515,197 @@ describe("Effect Script Op: pump (CR 613.4c, layer 7c, issue #840)", () => {
     });
 });
 
+describe("Effect Script value grammar: negate (signed value negation, issue #926)", () => {
+    // `{ negate: <value> }` is NOT a tenth EffectValue grammar member and NOT
+    // a new Op / structural construct (ADR 0045 stays closed) — it is scoped
+    // to the SIGNED value grammar (`EffectSignedValue`, `isSignedEffectValue`),
+    // today only `pump`'s power/toughness. Unblocks "-X/-X" style pump amounts
+    // driven off a non-negative-by-nature value member (Toxic Deluge's
+    // pay-X-life additional cost, CR 118.4 — "All creatures get -X/-X until
+    // end of turn"). Exercised here: a single-target -X/-X pump (the direct
+    // Toxic Deluge shape), a mass -X/-X across EVERY player's creatures via
+    // forEach (Toxic Deluge's actual scope), and the CR 608.2b skip when the
+    // wrapped value is itself unresolvable.
+
+    it("negate wraps X for a -X/-X pump on an announced target (Toxic Deluge single-target shape)", () => {
+        const id = registerScript("test-negate-x-pump-target", [
+            {
+                op: "pump",
+                target: { target: 0 },
+                power: { negate: { X: true } },
+                toughness: { negate: { X: true } },
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearNegX",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        const item = pushSpell(state, id, "p1", [
+            { type: "permanent", id: "bearNegX" },
+        ]);
+        item.chosenX = 3;
+        resolveTopOfStack(state);
+        const shrunk = state.players[1].battlefield.find(
+            (c) => c.id === "bearNegX"
+        )!;
+        // BEAR_ID is a 2/5 → -3/-3 = -1/2.
+        expect(getEffectivePower(state, shrunk)).toBe(-1);
+        expect(getEffectiveToughness(state, shrunk)).toBe(2);
+        // Wire-format assertion — the negated buff is baked into the
+        // temporary modifier at resolution time, so it must survive the
+        // projection identically (the layer pipeline reads over the
+        // slimmed client state).
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "bearNegX"
+        )!;
+        expect(getEffectivePower(projected, slim)).toBe(-1);
+        expect(getEffectiveToughness(projected, slim)).toBe(2);
+    });
+
+    it("negate wraps X across a forEach mass pump — every player's creatures get -X/-X (Toxic Deluge)", () => {
+        const id = registerScript("test-negate-x-pump-foreach", [
+            {
+                op: "forEach",
+                // No `controller` — every player's battlefield (Toxic
+                // Deluge hits ALL creatures, not just the caster's).
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature" },
+                },
+                effects: [
+                    {
+                        op: "pump",
+                        target: { ref: "$each" },
+                        power: { negate: { X: true } },
+                        toughness: { negate: { X: true } },
+                        duration: { phase: "end-of-turn" },
+                    },
+                ],
+            },
+        ]);
+        const mine = makeInstance(BEAR_ID, {
+            id: "mDeluge",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const theirs = makeInstance(BEAR_ID, {
+            id: "tDeluge",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mine] }),
+                makePlayer("p2", { battlefield: [theirs] }),
+            ],
+        });
+        const item = pushSpell(state, id, "p1");
+        item.chosenX = 2;
+        resolveTopOfStack(state);
+        for (const [pIdx, cid] of [
+            [0, "mDeluge"],
+            [1, "tDeluge"],
+        ] as const) {
+            const c = state.players[pIdx].battlefield.find(
+                (x) => x.id === cid
+            )!;
+            // BEAR_ID is a 2/5 → -2/-2 = 0/3, on BOTH sides.
+            expect(getEffectivePower(state, c)).toBe(0);
+            expect(getEffectiveToughness(state, c)).toBe(3);
+        }
+        // Wire-format assertion from each side's own viewpoint.
+        const p1View = projectPublicState(state, 0, "p1");
+        const p2View = projectPublicState(state, 1, "p2");
+        const mineSlim = p1View.players[0].battlefield.find(
+            (c) => c.id === "mDeluge"
+        )!;
+        const theirsSlim = p2View.players[1].battlefield.find(
+            (c) => c.id === "tDeluge"
+        )!;
+        expect(getEffectivePower(p1View, mineSlim)).toBe(0);
+        expect(getEffectiveToughness(p1View, mineSlim)).toBe(3);
+        expect(getEffectivePower(p2View, theirsSlim)).toBe(0);
+        expect(getEffectiveToughness(p2View, theirsSlim)).toBe(3);
+    });
+
+    it("negate wraps a counters count for a -N/-N pump", () => {
+        const id = registerScript("test-negate-counters-pump", [
+            {
+                op: "pump",
+                target: { target: 0 },
+                power: { negate: { counters: { of: { target: 0 }, type: "fuse" } } },
+                toughness: 0,
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearNegCtr",
+            counters: { fuse: 2 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "bearNegCtr" }]);
+        resolveTopOfStack(state);
+        const shrunk = state.players[1].battlefield.find(
+            (c) => c.id === "bearNegCtr"
+        )!;
+        // BEAR_ID is a 2/5 with 2 fuse counters → -2/+0 = 0/5.
+        expect(getEffectivePower(state, shrunk)).toBe(0);
+        expect(getEffectiveToughness(state, shrunk)).toBe(5);
+    });
+
+    it("skips the pump when the negated value is itself unresolvable (CR 608.2b)", () => {
+        const id = registerScript("test-negate-missing", [
+            {
+                op: "pump",
+                target: { target: 0 },
+                power: { negate: { counters: { of: { target: 1 }, type: "fuse" } } },
+                toughness: 0,
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "bearNegMissing",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        // Only ONE target is announced (slot 0) — slot 1 (what `negate`'s
+        // `counters.of` reads) is unresolvable, so resolveValue returns
+        // undefined and the pump executor skips rather than throwing.
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "bearNegMissing" },
+        ]);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        const unchanged = state.players[1].battlefield.find(
+            (c) => c.id === "bearNegMissing"
+        )!;
+        expect(getEffectivePower(state, unchanged)).toBe(2);
+        expect(getEffectiveToughness(state, unchanged)).toBe(5);
+    });
+});
+
 describe("Effect Script Op: counters (CR 122, issue #841)", () => {
     // Adding +1/+1 counters to an announced creature target: the counters
     // persist and feed layer 7d, so the effective P/T rises. Wire-format
