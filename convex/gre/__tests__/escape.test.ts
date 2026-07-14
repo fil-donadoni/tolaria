@@ -21,6 +21,7 @@ import {
     type GameState,
     type StackItem,
     type CardInstanceState,
+    type PendingTarget,
 } from "../state";
 import {
     getEscapeCost,
@@ -36,6 +37,7 @@ import {
     castRawManaCost,
     graveyardCastStackFlags,
     recordCastExileCostPick,
+    finalizeTargetSelection,
 } from "../../game";
 import { collectTriggers } from "../triggers";
 import { compactState, expandState } from "../serialize";
@@ -54,6 +56,7 @@ import {
     mountain,
     ancestralRecall,
     disenchant,
+    lightningBolt,
 } from "../../cards/sets/lea";
 
 /** Five filler cards to pay a "exile five other cards" escape cost. */
@@ -244,6 +247,52 @@ describe("Escape capability (CR 702.138)", () => {
             expect(flags.escaped).toBe(true);
             expect(flags.castFromGraveyard).toBe(true);
             expect(flags.exileOnResolve).toBeUndefined();
+        });
+
+        it("a TARGETED escape cast opens the exile picker at finalizeTargetSelection (Underworld Breach + Lightning Bolt)", () => {
+            // Regression: a Breach-granted TARGETED spell (Lightning Bolt) casts
+            // from the graveyard via the targeted path, which must still demand
+            // the "exile N other cards" escape cost — previously only the
+            // no-target announce path set it.
+            const breach = makeInstance(underworldBreach.id, {
+                id: "breach",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const bolt = makeInstance(lightningBolt.id, {
+                id: "bolt",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "graveyard",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: [breach],
+                        graveyard: [bolt, ...fiveFiller("p1")],
+                    }),
+                    makePlayer("p2"),
+                ],
+            });
+            const pt: PendingTarget = {
+                playerId: "p1",
+                cardInstanceId: "bolt",
+                targetType: "any",
+                count: 1,
+                selected: [{ type: "player", id: "p2" }],
+            };
+            state.pendingTarget = pt;
+            finalizeTargetSelection(state, pt, "p1");
+            // The cast parked on the escape exile picker (exile three others),
+            // carrying the chosen target — NOT committed straight to the stack.
+            expect(state.pendingCast?.exileFromGraveyardChoice).toEqual({
+                count: 3,
+                excludeInstanceId: "bolt",
+            });
+            expect(
+                (state.pendingCast as Record<string, unknown>).targets
+            ).toEqual([{ type: "player", id: "p2" }]);
+            expect(state.stack.some((s) => s.id === "bolt")).toBe(false);
         });
     });
 
