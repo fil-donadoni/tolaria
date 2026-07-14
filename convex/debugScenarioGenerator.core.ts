@@ -190,6 +190,23 @@ export function parseLlmScenarioText(raw: string): unknown {
     }
 }
 
+/**
+ * Build the effective description for a REGENERATE / VARY run (issue #772, ADR
+ * 0044). Regenerate re-runs a row's stored prompt verbatim to produce a NEW
+ * scenario (the saved row never drifts — re-running yields a distinct row).
+ * "Vary" appends a tweak so the model re-prompts with an adjustment. Pure and
+ * trimmed so the same combined text is what gets stored on the new row,
+ * documenting the varied intent for a further re-vary.
+ */
+export function buildRegenerateDescription(
+    prompt: string,
+    tweak?: string
+): string {
+    const base = prompt.trim();
+    const extra = tweak?.trim();
+    return extra ? `${base}\n\nAdjustment: ${extra}` : base;
+}
+
 /** The generator's result: the tolerantly-normalized spec ready for the
  *  preview/edit step, plus the card names that don't resolve (surfaced as
  *  validation errors, never written). */

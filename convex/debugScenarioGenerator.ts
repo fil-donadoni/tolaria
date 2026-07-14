@@ -18,6 +18,7 @@ import { internal } from "./_generated/api";
 import { getAllCardNames, tryGetCardByName } from "./cards";
 import {
     SCENARIO_JSON_SCHEMA,
+    buildRegenerateDescription,
     runScenarioGeneration,
     type ScenarioGenerateFn,
 } from "./debugScenarioGenerator.core";
@@ -94,5 +95,50 @@ export const generateDebugScenario = action({
             generate: makeAnthropicGenerate(apiKey),
             resolves: (name) => tryGetCardByName(name) !== null,
         });
+    },
+});
+
+/**
+ * Regenerate / vary a scenario from a stored prompt (issue #772, ADR 0044).
+ * Re-runs the #771 generator pipeline against an EXISTING row's saved prompt to
+ * produce a NEW spec — the saved row is never mutated (re-running the prompt
+ * yields a fresh scenario; only a subsequent `saveDebugScenario` inserts a
+ * distinct row). "Vary" passes a `tweak` appended to the prompt. Admin-gated and
+ * ownership-enforced via the internal query. Returns the new spec + unresolved
+ * names + the effective prompt (stored on the new row so a further vary works);
+ * writes NOTHING, mirroring `generateDebugScenario`.
+ */
+export const regenerateDebugScenario = action({
+    args: { id: v.id("debugScenarios"), tweak: v.optional(v.string()) },
+    returns: v.object({
+        spec: v.any(),
+        unresolved: v.array(v.string()),
+        prompt: v.string(),
+    }),
+    handler: async (ctx, { id, tweak }) => {
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) {
+            throw new Error(
+                "ANTHROPIC_API_KEY is not set in the Convex deployment env"
+            );
+        }
+        // Admin gate + ownership are enforced inside the internal query.
+        const prompt = await ctx.runQuery(
+            internal.debugScenarios.getScenarioPromptForRegen,
+            { id }
+        );
+        if (!prompt) {
+            throw new Error(
+                "This scenario has no stored prompt to regenerate from"
+            );
+        }
+        const description = buildRegenerateDescription(prompt, tweak);
+        const result = await runScenarioGeneration({
+            description,
+            allowList: getAllCardNames(),
+            generate: makeAnthropicGenerate(apiKey),
+            resolves: (name) => tryGetCardByName(name) !== null,
+        });
+        return { ...result, prompt: description };
     },
 });
