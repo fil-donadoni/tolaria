@@ -12,6 +12,7 @@ import {
     mayPayRequiredSacrifices,
     mayPaySacrificeThreshold,
     mayPaySacrificeSelectionPower,
+    mayPayRequiredDiscards,
 } from "~/lib/card-utils";
 import { formatOracleText } from "~/lib/oracle-text";
 import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
@@ -114,6 +115,16 @@ export default function PendingChoicePrompt({
                   chooser?.battlefield ?? []
               )
             : 0;
+
+    // CR 701.9 / 118.3 (issue #899) — a may-pay discard leg with a real card
+    // choice sets `zone: "hand"`; the chooser clicks the card(s) in hand to
+    // discard (routed into the shared buffer) before Pay enables. Show the
+    // pick progress, mirroring the sacrifice pick above.
+    const discardPickCount =
+        isMayPay && choice.zone === "hand"
+            ? mayPayRequiredDiscards(choice.cost)
+            : 0;
+    const needsDiscardPick = discardPickCount > 0;
 
     // Done/Skip label (ADR 0007): switches to "Skip" only when min === 0 and
     // the buffer is empty.
@@ -267,6 +278,13 @@ export default function PendingChoicePrompt({
                                         {selectedSacrificePower} /{" "}
                                         {sacrificeThreshold} power selected —
                                         click creatures to sacrifice
+                                    </p>
+                                )}
+                                {needsDiscardPick && (
+                                    <p className="text-text-disabled text-xs">
+                                        {selected} / {discardPickCount}{" "}
+                                        selected — click a card in hand to
+                                        discard
                                     </p>
                                 )}
                                 <div className="flex gap-2 mt-1">

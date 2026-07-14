@@ -14,6 +14,8 @@ import {
     mayPaySacrificeChoiceRequired,
     mayPaySacrificeThreshold,
     mayPaySacrificeSetPower,
+    getMayPayDiscardCandidateIds,
+    mayPayDiscardChoiceRequired,
     normalizeMayPayCost,
     grantKnowledge,
     finalizeAuraHost,
@@ -58,6 +60,12 @@ export type SubmitMayPayArgs = {
      *  when the pick auto-resolves (single candidate / `count` covers all) or the
      *  accepted cost has no sacrifice leg. */
     sacrificeIds?: string[];
+    /** CR 701.9 / 118.3 (issue #899) — the payer's chosen hand card id(s) for a
+     *  may-pay whose discard leg admits a real choice (more hand cards than
+     *  the leg discards). Required (exactly `count` ids) in that case; ignored
+     *  when the pick auto-resolves (hand size ≤ `count`) or the accepted cost
+     *  has no discard leg. Mirrors `sacrificeIds`. */
+    discardIds?: string[];
 };
 
 /** Validates and applies a yes/no `may-pay` submission (CR 117.3a / 118.4)
@@ -146,12 +154,40 @@ export function applyMayPaySubmit(
         } else {
             sacrificeIds = undefined;
         }
+        // CR 701.9 / 118.3 (issue #899) — validate the payer's discard pick
+        // when the leg admits a real choice. Mirrors the sacrifice validation
+        // above: fixed cardinal only (no threshold shape for discard), the
+        // candidate set (the payer's current hand) is recomputed live. When no
+        // choice is required the ids are ignored and the pay auto-selects.
+        let discardIds = args.discardIds;
+        if (mayPayDiscardChoiceRequired(state, args.playerId, head.cost)) {
+            const norm = normalizeMayPayCost(head.cost);
+            const ids = args.discardIds ?? [];
+            if (new Set(ids).size !== ids.length) {
+                throw new Error("Duplicate discard choice");
+            }
+            const legal = new Set(
+                getMayPayDiscardCandidateIds(state, args.playerId, head.cost)
+            );
+            for (const id of ids) {
+                if (!legal.has(id)) {
+                    throw new Error("Illegal discard choice");
+                }
+            }
+            const need = norm.discard!.count;
+            if (ids.length !== need) {
+                throw new Error(`Must choose ${need} card(s) to discard`);
+            }
+        } else {
+            discardIds = undefined;
+        }
         payMayPayCost(
             state,
             args.playerId,
             head.cost,
             head.manaRestriction,
-            sacrificeIds
+            sacrificeIds,
+            discardIds
         );
     }
 

@@ -6,6 +6,7 @@ import {
     mayPaySacrificeCount,
     mayPaySacrificePower,
     mayPaySacrificePickSatisfied,
+    mayPayDiscardPickSatisfied,
 } from "~/lib/card-utils";
 import { isZonePickConfirmEnabled } from "~/lib/pending-choice-confirm";
 import { useGameContext } from "./useGameContext";
@@ -57,11 +58,17 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                     choice.zone === "battlefield"
                         ? bufferCtx.buffer
                         : undefined;
+                // CR 701.9 / 118.3 (issue #899) — a discard leg with a real
+                // card choice sets `zone: "hand"`; the chosen cards are the
+                // picks the player accumulated in the same shared buffer.
+                const discardIds =
+                    choice.zone === "hand" ? bufferCtx.buffer : undefined;
                 await submitMayPay({
                     gameId,
                     playerId,
                     accept: true,
                     ...(sacrificeIds ? { sacrificeIds } : {}),
+                    ...(discardIds ? { discardIds } : {}),
                 });
             } finally {
                 setIsBusy(false);
@@ -118,9 +125,16 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                 bufferCtx.buffer,
                 chooser?.battlefield ?? []
             );
+        // CR 701.9 / 118.3 (issue #899) — when the choice carries a hand
+        // discard pick (`zone: "hand"`), Pay stays disabled until the buffered
+        // cards satisfy the leg's fixed count.
+        const discardPickSatisfied =
+            choice.zone !== "hand" ||
+            mayPayDiscardPickSatisfied(choice.cost, bufferCtx.buffer);
         canConfirm =
             !isBusy &&
             sacrificePickSatisfied &&
+            discardPickSatisfied &&
             (!choice.cost ||
                 (chooser
                     ? mayPayCanAfford(
@@ -132,7 +146,8 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                               chooser.battlefield
                           ),
                           extraMana,
-                          mayPaySacrificePower(choice.cost, chooser.battlefield)
+                          mayPaySacrificePower(choice.cost, chooser.battlefield),
+                          chooser.hand.length
                       )
                     : false));
     } else {

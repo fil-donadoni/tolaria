@@ -3048,6 +3048,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Formidable Speaker",
+        "scryfallId": "265522eb-4f6a-40e7-b374-3833fa63c80b",
+        "oracleId": "5bd06f9e-9a42-455d-ad26-24bc04e51c7c",
+        "firstSet": "ecl"
+    },
+    {
         "name": "Fortified Area",
         "scryfallId": "dc64f19c-5b2b-4697-b4dc-2be9c3790794",
         "oracleId": "cef37acf-ee97-48bf-a605-b17efcce5ce8",
