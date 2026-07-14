@@ -127,12 +127,13 @@ const sampleDeck: ValidatableDeck = {
 };
 
 describe("FORMAT_IDS / FORMAT_RULES registry (ADR 0036)", () => {
-    it("exposes exactly the four shipped Formats", () => {
+    it("exposes exactly the five shipped Formats", () => {
         expect([...FORMAT_IDS]).toEqual([
             "freeform",
             "alpha-40",
             "old-school",
             "premodern",
+            "limited",
         ]);
     });
 
@@ -165,6 +166,11 @@ describe("FORMAT_IDS / FORMAT_RULES registry (ADR 0036)", () => {
         // Pre-4th-Edition sets are OUT of the Premodern pool.
         expect(FORMAT_RULES["premodern"].allowedSets).not.toContain("lea");
         expect(FORMAT_RULES["premodern"].allowedSets).not.toContain("arn");
+        // Limited (ADR 0054/0055, issue #1109): pool-scoped, not set-scoped —
+        // >=40 main, no sideboard cap.
+        expect(FORMAT_RULES.limited.allowedSets).toBeNull();
+        expect(FORMAT_RULES.limited.minMain).toBe(40);
+        expect(FORMAT_RULES.limited.maxSide).toBeNull();
     });
 });
 

@@ -21,7 +21,12 @@ import { resolveDeckCardMeta, type DeckCardMeta } from "./cards";
  * three literals — the schema types it as a `v.union` of exactly these values,
  * so a non-conforming string is rejected at the DB boundary.
  */
-export type FormatId = "freeform" | "alpha-40" | "old-school" | "premodern";
+export type FormatId =
+    | "freeform"
+    | "alpha-40"
+    | "old-school"
+    | "premodern"
+    | "limited";
 
 /** Every valid `FormatId`, in display order. The single source of truth the
  *  schema union, the create-flow select, and the validators all key off. */
@@ -30,6 +35,7 @@ export const FORMAT_IDS: readonly FormatId[] = [
     "alpha-40",
     "old-school",
     "premodern",
+    "limited",
 ] as const;
 
 /** Type guard: is an arbitrary string a known `FormatId`? Used by the schema
@@ -57,6 +63,16 @@ export interface Reason {
 export interface ValidatableDeck {
     cards: DeckCard[];
     sideboard?: DeckCard[];
+    /** Limited Event + Seat reference (ADR 0054/0055, issue #1109): the deck's
+     *  whole Pool was generated (Sealed) or drafted at this Seat. Only the
+     *  `limited` format's validator reads these two fields (through an
+     *  injected `ResolvePool`) — every other format ignores them entirely.
+     *  Absent ⇒ no resolvable Pool ⇒ illegal for `limited` (never a silent
+     *  pass). Optional so every existing `ValidatableDeck` caller (builder
+     *  working deck, `userDecks`/`presetDecks` rows, `matches.ts` Match deck
+     *  copy) keeps satisfying this interface unchanged. */
+    limitedEventId?: string;
+    limitedSeatId?: string;
 }
 
 /**
@@ -67,6 +83,155 @@ export interface ValidatableDeck {
  * a set-aware validator treats as out-of-pool.
  */
 export type ResolveCard = (cardId: string) => DeckCardMeta | null;
+
+// --- Limited: pool-scoped legality (ADR 0054/0055, issue #1109) -----------
+//
+// A Limited seat's authoritative Pool is the whole set of non-basic cards it
+// was granted — every opened Sealed booster or every drafted Pick, flattened
+// to a multiset by canonical Card ID. Basic lands are NEVER stored in a Pool:
+// the format lets a builder add unlimited basics regardless of the Pool
+// (mirroring `checkSets`'s basic exemption), so a Pool only needs to carry
+// what it actually constrains. The Pool itself is produced upstream (the
+// event/seat tables land in issue #1110); this module stays pure by taking
+// it through the SAME injection pattern as `resolve`/`banlist` — a
+// `ResolvePool` callback, never a direct DB read.
+
+/** A single counted card entry in a Limited seat's Pool: canonical Card ID,
+ *  display name (for human-readable reasons), and how many copies the seat
+ *  holds. */
+export interface PoolCard {
+    cardId: string;
+    cardName: string;
+    count: number;
+}
+
+/** A Limited seat's authoritative Pool (ADR 0054/0055): every non-basic card
+ *  granted to the seat, as a multiset by canonical Card ID. */
+export interface Pool {
+    cards: readonly PoolCard[];
+}
+
+/**
+ * Resolves a Limited deck (via its `limitedEventId`/`limitedSeatId`) to its
+ * authoritative Pool, or `null` when it can't be resolved — no event/seat
+ * reference on the deck, an unknown id, or a seat whose Pool hasn't been
+ * generated yet. Injected exactly like `ResolveCard`/`BanlistOverride` (ADR
+ * 0036) so this module stays pure; the real seat-table lookup (issue #1110)
+ * lives above it, in the caller. `null` is a HARD failure for `limitedValidate`
+ * — "no resolvable Pool" is illegal, never a silent pass (issue #1109 AC).
+ */
+export type ResolvePool = (deck: ValidatableDeck) => Pool | null;
+
+/**
+ * Build a Pool from a flat list of cards — a Sealed pool's opened boosters
+ * flattened, or a Draft's accumulated Picks. This is the shape the (future)
+ * event/seat storage (issue #1110) can call once a seat's real Pool is
+ * generated, and it doubles as the fixture builder for this module's own
+ * tests. Canonicalizes each card to its `resolve`d Card ID — exactly like
+ * `countByCardId` below — so two printings of the same card collapse into one
+ * multiset entry, and drops basics (a Pool never stores them; see the basic
+ * exemption above).
+ */
+export function buildPool(cards: DeckCard[], resolve: ResolveCard): Pool {
+    const counts = new Map<string, PoolCard>();
+    for (const card of cards) {
+        const meta = resolve(card.cardId);
+        if (meta === null || meta.isBasic) continue; // unknown / basic — never pooled
+        const existing = counts.get(meta.cardId);
+        if (existing) {
+            existing.count += 1;
+        } else {
+            counts.set(meta.cardId, {
+                cardId: meta.cardId,
+                cardName: card.cardName,
+                count: 1,
+            });
+        }
+    }
+    return { cards: [...counts.values()] };
+}
+
+/** Deck-side counting used specifically for pool-membership. Unlike
+ *  `countByCardId` (below), an unresolvable id is NOT silently dropped —
+ *  `limited` has no companion `checkSets` to own that reason (pool matching
+ *  IS its set-membership check), so an unknown id must still surface as
+ *  "not in Pool" rather than vanish. Basics remain exempt on both sides. */
+interface PoolCheckCount {
+    cardId: string;
+    cardName: string;
+    count: number;
+}
+function countForPoolCheck(
+    deck: ValidatableDeck,
+    resolve: ResolveCard
+): PoolCheckCount[] {
+    const counts = new Map<string, PoolCheckCount>();
+    const all = [...deck.cards, ...(deck.sideboard ?? [])];
+    for (const card of all) {
+        const meta = resolve(card.cardId);
+        if (meta?.isBasic) continue; // basics exempt from Pool matching
+        // Unresolved ids fall back to the raw deck-card id — a real Pool
+        // never contains one, so it surfaces below as "not granted".
+        const cardId = meta?.cardId ?? card.cardId;
+        const existing = counts.get(cardId);
+        if (existing) {
+            existing.count += 1;
+        } else {
+            counts.set(cardId, { cardId, cardName: card.cardName, count: 1 });
+        }
+    }
+    return [...counts.values()];
+}
+
+/**
+ * Pool-membership check (ADR 0054/0055, issue #1109): every non-basic card
+ * across BOTH zones must be accounted for by the seat's Pool, card-for-card —
+ * the deck's non-basic multiset (by canonical Card ID) must equal the Pool's
+ * multiset exactly. Two independent violations surface: a card the deck
+ * plays that the Pool never granted (the tamper case — a client fabricating a
+ * card, issue #1109 AC3) or more copies than granted, and a Pool card the
+ * deck doesn't place in either zone — "the whole Pool travels with the deck"
+ * (ADR 0055, MTGO model: maindeck + sideboard together ARE the Pool). Basics
+ * are exempt on both sides.
+ */
+export function checkPoolMembership(
+    deck: ValidatableDeck,
+    pool: Pool,
+    resolve: ResolveCard
+): Reason[] {
+    const reasons: Reason[] = [];
+    const deckCounts = countForPoolCheck(deck, resolve);
+    const deckByCardId = new Map(deckCounts.map((c) => [c.cardId, c]));
+    const poolByCardId = new Map(pool.cards.map((c) => [c.cardId, c]));
+
+    for (const { cardId, cardName, count } of deckCounts) {
+        const granted = poolByCardId.get(cardId)?.count ?? 0;
+        if (granted === 0) {
+            reasons.push({
+                code: "pool-not-granted",
+                message: `${cardName}: not in this seat's Pool.`,
+            });
+        } else if (count > granted) {
+            reasons.push({
+                code: "pool-excess-copies",
+                message: `${cardName}: ${count} copies played, Pool grants only ${granted}.`,
+            });
+        }
+    }
+
+    for (const { cardId, cardName, count: granted } of pool.cards) {
+        const inDeck = deckByCardId.get(cardId)?.count ?? 0;
+        if (inDeck < granted) {
+            const missing = granted - inDeck;
+            reasons.push({
+                code: "pool-card-unplaced",
+                message: `${cardName}: ${missing} cop${missing === 1 ? "y" : "ies"} from the Pool not placed in the Maindeck or Sideboard.`,
+            });
+        }
+    }
+
+    return reasons;
+}
 
 /**
  * An injected banlist override (PRD #1138, issue #1140): banned/restricted
@@ -242,11 +407,17 @@ export interface FormatMeta {
     /** Pure legality check. Returns the list of failure reasons (empty = legal),
      *  using `resolve` for any card-level lookup. `banlist`, when present, is an
      *  injected banned/restricted override (issue #1140) — a format whose
-     *  banlist is not DB-backed (Alpha 40, Freeform) simply ignores it. */
+     *  banlist is not DB-backed (Alpha 40, Freeform) simply ignores it.
+     *  `resolvePool`, when present, is the injected Pool resolver (issue
+     *  #1109) — only `limited`'s validator reads it; every other format's
+     *  `validate` keeps its existing 2/3-argument signature unchanged (a
+     *  function with fewer params structurally satisfies this type, so no
+     *  existing format needed to be touched). */
     validate: (
         deck: ValidatableDeck,
         resolve: ResolveCard,
-        banlist?: BanlistOverride
+        banlist?: BanlistOverride,
+        resolvePool?: ResolvePool
     ) => Reason[];
 }
 
@@ -910,6 +1081,43 @@ function premodernValidate(
 const noReasons = (): Reason[] => [];
 
 /**
+ * The Limited (Sealed/Draft) validator (ADR 0054/0055, issue #1109): Maindeck
+ * ≥ 40 (unlimited basics added freely), no Sideboard cap — the deck's whole
+ * Pool travels with it (MTGO model, `FORMAT_RULES.limited.maxSide === null`)
+ * — and every non-basic card in EITHER zone must be accounted for by the
+ * seat's authoritative Pool, exactly (`checkPoolMembership`). Unlike every
+ * other format, legality here is NOT set-membership (`checkSets` is not
+ * called; `allowedSets: null`) — the Pool itself is the whole legality
+ * surface, a stronger constraint than any set list. `resolvePool` is injected
+ * exactly like `resolve`/`banlist` (ADR 0036) so this module stays pure; the
+ * real seat-table lookup (event skeleton, issue #1110) lives above it, in the
+ * caller. An absent/unresolvable Pool is a HARD failure — a deck can't be
+ * validated as `limited` without one (issue #1109 AC4), never a silent pass.
+ */
+function limitedValidate(
+    deck: ValidatableDeck,
+    resolve: ResolveCard,
+    _banlist?: BanlistOverride,
+    resolvePool?: ResolvePool
+): Reason[] {
+    const meta = FORMAT_RULES.limited;
+    const reasons = checkSize(deck, meta);
+
+    const pool = resolvePool ? resolvePool(deck) : null;
+    if (pool === null) {
+        return [
+            ...reasons,
+            {
+                code: "pool-unresolved",
+                message:
+                    "Deck has no resolvable Limited Pool — it must reference a valid Limited Event Seat.",
+            },
+        ];
+    }
+    return [...reasons, ...checkPoolMembership(deck, pool, resolve)];
+}
+
+/**
  * The code-side Format registry (ADR 0036): `FormatId → FormatMeta`. The only
  * place format policy lives — a ruleset change is a code release, never a DB
  * migration.
@@ -956,6 +1164,19 @@ export const FORMAT_RULES: Record<FormatId, FormatMeta> = {
         // list — see premodernValidate.
         validate: premodernValidate,
     },
+    limited: {
+        label: "Limited",
+        // Pool-scoped, not set-scoped (ADR 0054/0055) — checkSets is never
+        // called; checkPoolMembership is the whole legality surface.
+        allowedSets: null,
+        minMain: 40,
+        // No 15-card cap: every unplayed Pool card lives in the Sideboard
+        // (ADR 0054/0055, MTGO model).
+        maxSide: null,
+        // Maindeck ≥ 40 + Pool-multiset match (both directions) — see
+        // limitedValidate.
+        validate: limitedValidate,
+    },
 };
 
 /** The outcome of validating a deck against a format: legal iff no reasons. */
@@ -978,15 +1199,22 @@ export interface DeckLegality {
  * constants (`PREMODERN_BANNED`, `OLD_SCHOOL_BANNED`, `OLD_SCHOOL_RESTRICTED`),
  * so existing callers and tests are unaffected. Formats without a DB-backed
  * banlist (Alpha 40, Freeform) ignore the argument.
+ *
+ * `resolvePool` (issue #1109) is an optional injected Limited Pool resolver,
+ * mirroring `banlist` — only `limited`'s validator reads it; every other
+ * format ignores the argument. Absent, a `limited` deck has no resolvable
+ * Pool and is illegal (fail-closed, not a silent pass) — the real seat-table
+ * lookup (issue #1110) is wired in by the caller once it exists.
  */
 export function validateDeck(
     deck: ValidatableDeck,
     format: FormatId,
     resolve: ResolveCard = resolveDeckCardMeta,
-    banlist?: BanlistOverride
+    banlist?: BanlistOverride,
+    resolvePool?: ResolvePool
 ): DeckLegality {
     const meta = FORMAT_RULES[format] ?? FORMAT_RULES.freeform;
-    const reasons = meta.validate(deck, resolve, banlist);
+    const reasons = meta.validate(deck, resolve, banlist, resolvePool);
     return { isLegal: reasons.length === 0, reasons };
 }
 
@@ -1009,14 +1237,28 @@ export interface GateDeck extends ValidatableDeck {
  *
  * `banlist` (issue #1140) is threaded straight through to `validateDeck` —
  * optional injected override, code constants as fallback when absent.
+ *
+ * `resolvePool` (issue #1109) is threaded straight through to `validateDeck`
+ * — optional injected Limited Pool resolver. Every EXISTING call site
+ * (`createGame`/`joinGame`/`createSoloGame` in `convex/game.ts`) omits it, so
+ * a `limited`-format deck submitted there is rejected as having no
+ * resolvable Pool until the seat-table lookup (issue #1110) is wired in
+ * above this gate — fail-closed by construction, never silently legal.
  */
 export function assertDeckLegal(
     deck: GateDeck,
     resolve: ResolveCard = resolveDeckCardMeta,
-    banlist?: BanlistOverride
+    banlist?: BanlistOverride,
+    resolvePool?: ResolvePool
 ): void {
     const format: FormatId = isFormatId(deck.format) ? deck.format : "freeform";
-    const { isLegal, reasons } = validateDeck(deck, format, resolve, banlist);
+    const { isLegal, reasons } = validateDeck(
+        deck,
+        format,
+        resolve,
+        banlist,
+        resolvePool
+    );
     if (isLegal) return;
     const label = deck.name ? `"${deck.name}"` : "Deck";
     throw new Error(

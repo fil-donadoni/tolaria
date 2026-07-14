@@ -3,14 +3,17 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 // Typed, immutable deck Format (PRD #509, ADR 0036). `userDecks` and
-// `presetDecks` store one of exactly three literals — a non-conforming string
-// is rejected at the DB boundary. Kept in sync with `FormatId` in
+// `presetDecks` store one of these literals — a non-conforming string is
+// rejected at the DB boundary. Kept in sync with `FormatId` in
 // `convex/formats.ts` (the single source of truth for format policy).
+// `"limited"` (ADR 0054/0055, issue #1109) is pool-scoped rather than
+// catalogue-scoped — see `userDecks.limitedEventId`/`limitedSeatId` below.
 const formatValidator = v.union(
     v.literal("freeform"),
     v.literal("alpha-40"),
     v.literal("old-school"),
-    v.literal("premodern")
+    v.literal("premodern"),
+    v.literal("limited")
 );
 
 export default defineSchema({
@@ -80,6 +83,16 @@ export default defineSchema({
         // absent value resolves to the default). Not part of legality (ADR
         // 0036). Resolved via the pure `resolveFeaturedCardId`.
         featuredCardId: v.optional(v.string()),
+        // Limited Event + Seat reference (ADR 0054/0055, issue #1109). Set
+        // once at creation for a `format: "limited"` deck — its whole Pool
+        // was generated (Sealed) or drafted at this Seat. Opaque string
+        // handles (like `players[].id`), NOT `v.id()`: the event/seat tables
+        // land in a later slice (issue #1110), so this is forward-compatible
+        // storage, not yet a foreign key. `convex/formats.ts`'s
+        // `checkPoolMembership` is the only reader (via an injected
+        // `ResolvePool`); absent on every non-limited deck.
+        limitedEventId: v.optional(v.string()),
+        limitedSeatId: v.optional(v.string()),
     }).index("by_user", ["userId"]),
     // Preset Decks (PRD #466, ADR 0033). The built-in decklists, moved out of
     // the in-code `PRESET_DECKS` constant into the DB so a trusted Admin can
