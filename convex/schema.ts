@@ -303,6 +303,18 @@ export default defineSchema({
         // Event RNG seed (ADR 0055), set once at `startEvent` so the seat
         // Pools it produced are reproducible/replayable given the same seed.
         seed: v.optional(v.number()),
+        // Draft only (issue #1112): 0-indexed current booster round —
+        // `packSlots[draftRound]` is the Pack Source of the boosters in play.
+        // Absent for Sealed / before a Draft starts.
+        draftRound: v.optional(v.number()),
+        // Draft only: packs of the CURRENT round not yet fully picked through
+        // (`draftEngine.ts`'s `applyPick`). Reaching 0 either deals the next
+        // round or — on the last round — completes the draft.
+        draftPacksRemaining: v.optional(v.number()),
+        // Draft only: set once, the instant the last pack of the last round
+        // empties — every seat's Pool is final and deckbuilding can start.
+        // Absent while the draft is still in progress (or for Sealed).
+        draftCompletedAt: v.optional(v.number()),
         seats: v.array(
             v.object({
                 seatIndex: v.number(),
@@ -315,7 +327,8 @@ export default defineSchema({
                 // per physical card opened, not yet grouped into counts (the
                 // legality-side `Pool`/`PoolCard` shape in `convex/formats.ts`
                 // is derived from this at the deckbuilding seam, a later
-                // slice). Absent until `startEvent` generates it.
+                // slice). Absent until `startEvent` generates it (Sealed: in
+                // full; Draft: accumulates one Pick at a time, issue #1112).
                 pool: v.optional(
                     v.array(
                         v.object({
@@ -323,6 +336,34 @@ export default defineSchema({
                             cardId: v.string(),
                             cardName: v.string(),
                         })
+                    )
+                ),
+                // Draft only: the pack currently in front of this seat to
+                // Pick from (`pickId` disambiguates a duplicate scryfallId
+                // within the same pack). Absent while waiting for the next
+                // pass, or for a Sealed event.
+                currentPack: v.optional(
+                    v.array(
+                        v.object({
+                            scryfallId: v.string(),
+                            cardId: v.string(),
+                            cardName: v.string(),
+                            pickId: v.string(),
+                        })
+                    )
+                ),
+                // Draft only: packs passed here while `currentPack` was still
+                // non-empty, FIFO (PRD #1107 story 13).
+                packQueue: v.optional(
+                    v.array(
+                        v.array(
+                            v.object({
+                                scryfallId: v.string(),
+                                cardId: v.string(),
+                                cardName: v.string(),
+                                pickId: v.string(),
+                            })
+                        )
                     )
                 ),
             })

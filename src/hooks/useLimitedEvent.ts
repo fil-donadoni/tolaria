@@ -51,5 +51,6 @@ export function useLimitedEventMutations() {
     const create = useMutation(api.limitedEvents.createLimitedEvent);
     const join = useMutation(api.limitedEvents.joinLimitedEvent);
     const start = useMutation(api.limitedEvents.startLimitedEvent);
-    return { create, join, start };
+    const submitPick = useMutation(api.limitedEvents.submitPick);
+    return { create, join, start, submitPick };
 }
