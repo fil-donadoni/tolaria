@@ -14,6 +14,7 @@ import { getCardColors } from "./cards/colors";
 import {
     type CardInstanceState,
     type GameState,
+    type ManaSubstitution,
     type PendingActivation,
     type PendingCast,
     type PendingTarget,
@@ -74,8 +75,12 @@ import {
     solveSmartAutoTap,
     solveAutoTapPartial,
     manaFromPlan,
+    floatingAfterPlan,
+    type AutoTapPlan,
+    type AutoTapSource,
     type Demand,
 } from "./gre/autoTap";
+import { evaluateAutoTapPosition } from "./gre/evaluate";
 import {
     buildBoardAbilityDemands,
     buildHandSpellDemands,
@@ -5224,6 +5229,45 @@ export const tapForActivationPayment = mutation({
 });
 
 /**
+ * Static Evaluation of the position a candidate auto-tap `plan` leaves behind,
+ * from the paying player's perspective (issue #794, PRD #472 / ADR 0034). Pure
+ * and synchronous: clones the paying player's view, applies the plan (marks the
+ * tapped sources tapped, sets the leftover floating mana), and returns the
+ * Brain's STATIC `evaluateAutoTapPosition` — NO ISMCTS search on this
+ * authoritative payment path. Higher = a better resulting position (more
+ * valuable dual-purpose / color-flexible sources left untapped). Feeds
+ * `solveSmartAutoTap` as its primary plan scorer.
+ */
+export function scoreAutoTapPlanPosition(
+    state: GameState,
+    playerId: string,
+    pool: Record<string, number>,
+    cost: Record<string, number>,
+    substitutions: ManaSubstitution[],
+    sources: AutoTapSource[],
+    plan: AutoTapPlan
+): number {
+    const sim = structuredClone(state) as GameState;
+    const simPlayer = sim.players.find((p) => p.id === playerId);
+    if (!simPlayer) return evaluateAutoTapPosition(sim, playerId);
+    const tapped = new Set(plan.map((s) => s.cardId));
+    for (const perm of simPlayer.battlefield) {
+        if (tapped.has(perm.id)) perm.isTapped = true;
+    }
+    // Floating mana still in the pool after the taps pay the cost (CR 601.2g) —
+    // an over-producing tap (a dual spent for the "wrong" half) leaves usable
+    // mana, which the `mana` term then values.
+    simPlayer.manaPool = floatingAfterPlan(
+        pool,
+        cost,
+        substitutions,
+        sources,
+        plan
+    );
+    return evaluateAutoTapPosition(sim, playerId);
+}
+
+/**
  * Auto-tap mana sources to pay the pending cast or activation in one action
  * (issue #154). Finds a minimal valid combination of untapped pure-mana
  * sources, taps them (reusing the manual single-tap path), and lets the
@@ -5303,13 +5347,33 @@ export const autoTapForPayment = mutation({
             state.pendingActivation?.playerId === args.playerId
                 ? state.pendingActivation.cardInstanceId
                 : undefined;
+        // Evaluation-scored plan selection (issue #794, PRD #472 / ADR 0034):
+        // score each candidate minimal-tap plan by the Brain's STATIC
+        // `evaluate()` of the position it leaves behind — a pure, synchronous
+        // read, NO ISMCTS search on this authoritative payment path. Simulating
+        // a plan means tapping its sources and applying the leftover floating
+        // mana; `evaluateAutoTapPosition` then values the dual-purpose /
+        // color-flexible sources it spares (Mishra's Factory, a dual land). The
+        // closure captures a clone of the paying player's own perspective, so
+        // it never leaks hidden information and works for every seat.
+        const scorePlan = (plan: AutoTapPlan): number =>
+            scoreAutoTapPlanPosition(
+                state,
+                player.id,
+                player.manaPool,
+                pending.manaCost,
+                substitutions,
+                sources,
+                plan
+            );
         const fullPlan = solveSmartAutoTap(
             player.manaPool,
             pending.manaCost,
             substitutions,
             sources,
             demands,
-            selfSourceId
+            selfSourceId,
+            scorePlan
         );
         const plan =
             fullPlan ??

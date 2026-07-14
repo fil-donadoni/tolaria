@@ -6,11 +6,15 @@ import {
     solveSmartAutoTap,
     scorePreservedDemands,
     remainingFlexibility,
+    floatingAfterPlan,
     AUTO_TAP_PLAN_CAP,
+    type AutoTapPlan,
     type AutoTapSource,
     type Demand,
 } from "../autoTap";
-import { makeInstance } from "../../cards/__tests__/setup";
+import { evaluateAutoTapPosition } from "../evaluate";
+import type { GameState, ManaSubstitution } from "../state";
+import { makeInstance, makePlayer, makeState } from "../../cards/__tests__/setup";
 
 // Card ids (LEA set).
 const FOREST = "6f1c8cb0-38eb-408b-94e8-16db83999b3b"; // {T}: G
@@ -684,6 +688,131 @@ describe("solveSmartAutoTap — self-source deprioritization (issue #544)", () =
         );
         expect(plan).not.toBeNull();
         expect(plan).toHaveLength(1);
+        expect(plan![0].cardId).toBe("island");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Evaluation-scored smart auto-tap (issue #794, PRD #472 / ADR 0034).
+//
+// Among the minimal-tap covering plans, prefer the one whose resulting position
+// the Brain's STATIC Evaluation rates highest for the paying player — leaving
+// dual-purpose permanents (Mishra's Factory) and color-critical sources untapped
+// whenever an equal-tap-count plan can pay without them. These tests exercise
+// the real composition of the three target modules: `buildAutoTapSources`
+// (autoTap) + a `scorePlan` closure (game.ts glue) over `evaluateAutoTapPosition`
+// (evaluate) + `floatingAfterPlan` (autoTap), driving `solveSmartAutoTap`.
+// ---------------------------------------------------------------------------
+describe("evaluation-scored smart auto-tap (issue #794)", () => {
+    const MISHRAS_FACTORY = "a696c5b6-f216-454d-8029-74e84bbd1428"; // {T}: C + animate
+
+    /** Mirrors the `scoreAutoTapPlanPosition` closure game.ts builds: simulate
+     *  the plan (tap its sources, apply leftover floating mana) then score the
+     *  resulting position with the static Evaluation. */
+    function makeScorer(
+        state: GameState,
+        playerId: string,
+        pool: Record<string, number>,
+        cost: Record<string, number>,
+        substitutions: ManaSubstitution[],
+        sources: AutoTapSource[]
+    ) {
+        return (plan: AutoTapPlan): number => {
+            const sim = structuredClone(state) as GameState;
+            const p = sim.players.find((x) => x.id === playerId)!;
+            const tapped = new Set(plan.map((s) => s.cardId));
+            for (const perm of p.battlefield) {
+                if (tapped.has(perm.id)) perm.isTapped = true;
+            }
+            p.manaPool = floatingAfterPlan(pool, cost, substitutions, sources, plan);
+            return evaluateAutoTapPosition(sim, playerId);
+        };
+    }
+
+    it("AC1: leaves a dual-purpose manland untapped when a plain source can pay", () => {
+        // Board: Mishra's Factory ({T}: C, plus animate) + a plain Forest ({T}: G).
+        // Paying {1} generic is a one-tap cost either source covers. The
+        // eval-scored plan must tap the Forest and SPARE the Factory (its animate
+        // ability makes it worth more untapped — it can attack/block).
+        const factory = makeInstance(MISHRAS_FACTORY, {
+            id: "factory",
+            controllerId: "p1",
+        });
+        const forest = makeInstance(FOREST, { id: "forest", controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [factory, forest] }),
+                makePlayer("p2"),
+            ],
+        });
+        const p1 = state.players[0];
+        const sources = buildAutoTapSources(p1.battlefield);
+        const cost = { X: 1 };
+        const scorer = makeScorer(state, "p1", p1.manaPool, cost, [], sources);
+        const plan = solveSmartAutoTap(
+            p1.manaPool,
+            cost,
+            [],
+            sources,
+            [],
+            undefined,
+            scorer
+        );
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardId).toBe("forest");
+    });
+
+    it("AC2: preserves a color source a still-castable held spell needs", () => {
+        // Board: Island ({T}: U) + Tundra ({T}: W or U). Paying {U} is a one-tap
+        // cost either can cover. A held blue-white spell still wants {W}, which
+        // ONLY Tundra can make. The eval-scored plan (color-flexible source is
+        // worth more untapped) + the {W} Demand both point to tapping the Island
+        // and sparing Tundra.
+        const island = makeInstance(ISLAND, { id: "island", controllerId: "p1" });
+        const tundra = makeInstance(TUNDRA, { id: "tundra", controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [island, tundra] }),
+                makePlayer("p2"),
+            ],
+        });
+        const p1 = state.players[0];
+        const sources = buildAutoTapSources(p1.battlefield);
+        const cost = { U: 1 };
+        const demands: Demand[] = [{ id: "held-WW", cost: { W: 1 } }];
+        const scorer = makeScorer(state, "p1", p1.manaPool, cost, [], sources);
+        const plan = solveSmartAutoTap(
+            p1.manaPool,
+            cost,
+            [],
+            sources,
+            demands,
+            undefined,
+            scorer
+        );
+        expect(plan).not.toBeNull();
+        expect(plan).toHaveLength(1);
+        expect(plan![0].cardId).toBe("island");
+    });
+
+    it("with no scorer, behavior is the legacy demand→flex→lex order (backward-compatible)", () => {
+        // Same board/cost as AC2 but no `scorePlan`: the {W} Demand + the
+        // flexibility tie-break still spare Tundra, so the legacy path taps the
+        // Island too — the new primary key defaults to a constant across plans.
+        const island = makeInstance(ISLAND, { id: "island", controllerId: "p1" });
+        const tundra = makeInstance(TUNDRA, { id: "tundra", controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [island, tundra] }),
+                makePlayer("p2"),
+            ],
+        });
+        const p1 = state.players[0];
+        const sources = buildAutoTapSources(p1.battlefield);
+        const demands: Demand[] = [{ id: "held-WW", cost: { W: 1 } }];
+        const plan = solveSmartAutoTap(p1.manaPool, { U: 1 }, [], sources, demands);
+        expect(plan).not.toBeNull();
         expect(plan![0].cardId).toBe("island");
     });
 });

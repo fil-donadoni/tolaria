@@ -7,11 +7,13 @@ import { getCardByName } from "../../cards";
 import {
     cardValue,
     evaluate,
+    evaluateAutoTapPosition,
     evaluateBreakdown,
     evaluateCreature,
     materialMargin,
     WIN_SCORE,
 } from "../evaluate";
+import type { GameState } from "../state";
 import {
     dangerClock,
     predictUnblockedDamage,
@@ -1018,5 +1020,64 @@ describe("non-creature beneficial permanents are material (issue #365)", () => {
         // A land's permanents term is the flat W_PERMANENT only (5); its value
         // lives in the `mana` term, not a duplicated non-creature body.
         expect(evaluateBreakdown(withLand, "p1").self.permanents).toBe(5);
+    });
+});
+
+describe("evaluateAutoTapPosition — source-quality bonus (issue #794)", () => {
+    const FACTORY = getCardByName("Mishra's Factory").id; // {T}: C + animate
+    const FOREST = getCardByName("Forest").id; // {T}: G, plain basic
+    const TUNDRA = getCardByName("Tundra").id; // {T}: W or U, dual
+
+    function landState(landId: string, id: string, tapped = false): GameState {
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(landId, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            id,
+                            isTapped: tapped,
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("values an untapped dual-purpose manland above a plain basic", () => {
+        const withFactory = landState(FACTORY, "src");
+        const withForest = landState(FOREST, "src");
+        expect(evaluateAutoTapPosition(withFactory, "p1")).toBeGreaterThan(
+            evaluateAutoTapPosition(withForest, "p1")
+        );
+    });
+
+    it("values an untapped color-flexible dual land above a mono basic", () => {
+        const withTundra = landState(TUNDRA, "src");
+        const withForest = landState(FOREST, "src");
+        expect(evaluateAutoTapPosition(withTundra, "p1")).toBeGreaterThan(
+            evaluateAutoTapPosition(withForest, "p1")
+        );
+    });
+
+    it("tapping the manland removes its source-quality bonus", () => {
+        const untapped = landState(FACTORY, "src", false);
+        const tapped = landState(FACTORY, "src", true);
+        // The tapped position loses both the flat mana term AND the untapped
+        // dual-purpose bonus, so it scores strictly lower.
+        expect(evaluateAutoTapPosition(tapped, "p1")).toBeLessThan(
+            evaluateAutoTapPosition(untapped, "p1")
+        );
+    });
+
+    it("adds no bonus over base evaluate for a plain tapped board", () => {
+        // A tapped basic is neither a color-flexible nor a dual-purpose untapped
+        // source, so the auto-tap score equals the base static evaluate.
+        const tapped = landState(FOREST, "src", true);
+        expect(evaluateAutoTapPosition(tapped, "p1")).toBe(
+            evaluate(tapped, "p1")
+        );
     });
 });
