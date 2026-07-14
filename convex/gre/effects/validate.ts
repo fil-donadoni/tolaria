@@ -151,9 +151,11 @@ function isValueOrArray(
  *  "noncreature, nonland card". `supertype` is the "search for a BASIC land
  *  card" restriction (CR 205.4a) and its value must be a real printed
  *  supertype (reuses `TOKEN_SUPERTYPES`). `color` reuses `TOKEN_COLORS`.
- *  `manaValueAtMost` is a non-negative integer ceiling (Spellseeker's "mana
- *  value 2 or less") — a literal only, no `ref`/`X` (a dynamic ceiling like
- *  Green Sun's Zenith's "mana value X or less" is not expressible here). */
+ *  `manaValueAtMost` is a mana-value ceiling: a non-negative integer literal
+ *  (Spellseeker's "mana value 2 or less") OR the dynamic chosen-cost
+ *  `{ X: true }` (issue #898, Green Sun's Zenith's "mana value X or less",
+ *  resolved via `ctx.getX()` at resolution — the same shape every other
+ *  `EffectXValue` site uses). */
 function isCardFilter(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
@@ -184,7 +186,10 @@ function isCardFilter(value: unknown): boolean {
             );
         }
         if (k === "manaValueAtMost") {
-            return typeof v === "number" && Number.isInteger(v) && v >= 0;
+            return (
+                (typeof v === "number" && Number.isInteger(v) && v >= 0) ||
+                isXValue(v)
+            );
         }
         if (k === "isToken") {
             return typeof v === "boolean";
@@ -1310,6 +1315,10 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             player: isPlayerRef,
         },
     },
+    // CR 608.2 / 701.24 (issue #898) — the resolving spell shuffles ITSELF
+    // into its owner's library instead of the graveyard (Green Sun's Zenith).
+    // No fields — it always redirects the currently-resolving stack item.
+    shuffleSelfIntoLibrary: { required: {} },
     // CR 401.4 / 701.22 / 701.44 (issue #885) — look at / reorder the top of a
     // library through the suspending `orderTop` primitive. `player` names whose
     // library; `count` is how many top cards to look at; `destination` is where

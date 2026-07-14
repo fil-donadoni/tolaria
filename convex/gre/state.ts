@@ -1104,6 +1104,16 @@ export type StackItem = CardInstanceState & {
      *  exile zone instead of the graveyard. Set via
      *  `SpellContext.exileSelf()`. */
     exileOnResolve?: boolean;
+    /** True iff the resolving spell instructs itself to be shuffled into its
+     *  owner's library as the last thing it does (CR 608.2 / 701.24 — "Shuffle
+     *  <this spell> into its owner's library", e.g. Green Sun's Zenith, issue
+     *  #898). When set, `finalizeSpellResolution` routes the non-permanent card
+     *  to its owner's (shuffled) library instead of the graveyard. Set via
+     *  `SpellContext.shuffleSelfIntoLibrary()`. Mutually exclusive with
+     *  `exileOnResolve` in practice (a spell redirects its own resolution
+     *  destination once), but not enforced — the finalization path checks
+     *  this flag first. */
+    shuffleIntoLibraryOnResolve?: boolean;
     /** CR 702.34 — true iff this spell was cast from a graveyard via Flashback.
      *  Read by resolution effects with an "if this spell was cast from a
      *  graveyard" clause (Sevinne's Reclamation). The cast site also sets
@@ -3390,6 +3400,23 @@ function finalizeSpellResolution(
         // of being put into a graveyard.
         if (item.isCopy) return;
         const owner = getPlayer(state, item.ownerId);
+        // CR 608.2 / 701.24 (issue #898) — a spell that instructs "Shuffle
+        // <this spell> into its owner's library" as part of its own
+        // resolution goes to the (shuffled) library instead of the graveyard
+        // (Green Sun's Zenith). The flag is set by
+        // `SpellContext.shuffleSelfIntoLibrary()` during the resolve. Checked
+        // before `exileOnResolve` — the two redirects are mutually exclusive
+        // in practice.
+        if (item.shuffleIntoLibraryOnResolve) {
+            item.zone = "library";
+            owner.library.push(item);
+            // ADR 0026 — a shuffle is an unwitnessed reordering; reuse the
+            // exact primitive `shuffleLibrary` calls so this redirect behaves
+            // identically to a normal post-search shuffle.
+            seededShuffle(state, owner.library);
+            clearKnowledge(owner.library, null);
+            return;
+        }
         // CR 608.2 — a spell that instructs "Exile <this spell>" as part of its
         // own resolution goes to exile instead of the graveyard (Recall). The
         // flag is set by `SpellContext.exileSelf()` during the resolve.
@@ -6204,6 +6231,10 @@ function cloneSpellOntoStack(
     // one-shot effect per CR 707.10/112.5).
     delete copy.castFromGraveyard;
     delete copy.exileOnResolve;
+    // `shuffleIntoLibraryOnResolve` is likewise a cast-site artifact (issue
+    // #898) — the ORIGINAL is shuffled into its owner's library, not the copy,
+    // which ceases to exist as a one-shot effect (CR 707.10/112.5).
+    delete copy.shuffleIntoLibraryOnResolve;
     // CR 702.138e — "escaped" is a cast-site artifact; a copy was not cast via
     // escape, so it must not inherit the flag (a copied escape permanent would
     // otherwise read as having escaped).
@@ -10066,6 +10097,15 @@ export function buildSpellContext(
             if (item.isCopy) return;
             if (item.abilityId || item.triggeredAbilityId) return;
             item.exileOnResolve = true;
+        },
+        shuffleSelfIntoLibrary(): void {
+            // CR 608.2 / 701.24 (issue #898) — "Shuffle <this spell> into its
+            // owner's library" (Green Sun's Zenith). Mirrors `exileSelf`
+            // exactly: a copy ceases to exist anyway (CR 707.10) and an
+            // ability has no card to shuffle away; both no-op.
+            if (item.isCopy) return;
+            if (item.abilityId || item.triggeredAbilityId) return;
+            item.shuffleIntoLibraryOnResolve = true;
         },
         grantFlashback(target, cost): void {
             // CR 702.34 — grant Flashback to a target instant/sorcery card in a

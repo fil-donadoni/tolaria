@@ -112,7 +112,13 @@ function handCardMatchesFilter(
         const cardColors = getCardColors(def);
         if (!colors.some((c) => cardColors.includes(c))) return false;
     }
-    if (filter.manaValueAtMost !== undefined) {
+    // issue #898 — `manaValueAtMost` now also accepts a dynamic `{ X: true }`
+    // (Green Sun's Zenith). There is no resolving-spell context (no `ctx`, no
+    // chosen X) at alternative-cost hand-leg check time, and no alt-cost card
+    // uses a dynamic ceiling — only the literal-number shape is meaningful
+    // here; a dynamic value imposes no ceiling (fail-open, matching "field
+    // absent" rather than mis-comparing against a non-numeric value).
+    if (typeof filter.manaValueAtMost === "number") {
         const mv = def.manaCost
             ? Object.values(def.manaCost).reduce<number>(
                   (acc, v) => acc + (typeof v === "number" ? v : 0),

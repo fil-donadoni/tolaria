@@ -2859,6 +2859,108 @@ describe("Effect Script Op: moveZone — cards/player shape (CR 400.7, issue #67
         expect(state.pendingChoices![0].candidateIds).toEqual(["cheap1"]);
     });
 
+    // `filter.manaValueAtMost: { X: true }` (issue #898) — a DYNAMIC ceiling
+    // (Green Sun's Zenith's "mana value X or less"), resolved via
+    // `ctx.getX()` at resolution through the same `resolveValue` path every
+    // other `EffectXValue` site uses. Mirrors the fixed-ceiling test above
+    // but reads the chosen X off the stack item instead of a literal.
+    it("restricts the search-library candidates by a DYNAMIC mana-value ceiling ({ X: true }, Green Sun's Zenith)", () => {
+        const CHEAP_SORCERY_ID = "test-effects-x-cheap-sorcery";
+        registerTokenDefinition({
+            id: CHEAP_SORCERY_ID,
+            name: CHEAP_SORCERY_ID,
+            rarity: "common",
+            manaCost: { X: 2 },
+            types: ["Sorcery"],
+        });
+        const EXPENSIVE_SORCERY_ID = "test-effects-x-expensive-sorcery";
+        registerTokenDefinition({
+            id: EXPENSIVE_SORCERY_ID,
+            name: EXPENSIVE_SORCERY_ID,
+            rarity: "common",
+            manaCost: { X: 5 },
+            types: ["Sorcery"],
+        });
+        const id = registerScript("test-op-choice-manavalue-x", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: { type: "Sorcery", manaValueAtMost: { X: true } },
+                count: { min: 0, max: 1 },
+                prompt: "Search your library for a sorcery card with mana value X or less.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "library",
+                to: "hand",
+            },
+        ]);
+        const lib = [
+            ...libraryOf("p1", ["xcheap1"], CHEAP_SORCERY_ID),
+            ...libraryOf("p1", ["xexpensive1"], EXPENSIVE_SORCERY_ID),
+        ];
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        const item = pushSpell(state, id, "p1");
+        item.chosenX = 3;
+        resolveTopOfStack(state);
+        expect(state.pendingChoices![0].candidateIds).toEqual(["xcheap1"]);
+    });
+
+    // The chosen X ceiling of 0 (issue #898) — `getX()` defaults to 0 (CR
+    // 107.3) when no X was announced, so an UNANNOUNCED X excludes every
+    // card with a positive mana value, mirroring "X reads back 0 when no X
+    // was announced" for a plain `EffectValue` site.
+    it("a dynamic mana-value ceiling with no chosen X excludes every positive-mana-value card (getX default)", () => {
+        const CHEAP_SORCERY_ID = "test-effects-x0-cheap-sorcery";
+        registerTokenDefinition({
+            id: CHEAP_SORCERY_ID,
+            name: CHEAP_SORCERY_ID,
+            rarity: "common",
+            manaCost: { X: 2 },
+            types: ["Sorcery"],
+        });
+        const id = registerScript("test-op-choice-manavalue-x-zero", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: { type: "Sorcery", manaValueAtMost: { X: true } },
+                count: { min: 0, max: 1 },
+                prompt: "Search your library for a sorcery card with mana value X or less.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "library",
+                to: "hand",
+            },
+        ]);
+        const lib = [...libraryOf("p1", ["x0cheap1"], CHEAP_SORCERY_ID)];
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1"); // no chosenX
+        const resolved = resolveTopOfStack(state);
+        // Zero candidates + `count: { min: 0, ... }` auto-resolves without
+        // suspending (CR 608.2b — mirrors "skips the choice AND the
+        // consuming Op when there are no candidates" above); the card never
+        // moves out of the library.
+        expect(resolved).not.toBeNull();
+        expect(state.pendingChoices).toBeUndefined();
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["x0cheap1"]);
+        expect(state.players[0].hand.length).toBe(0);
+    });
+
     // `filter.any` (issue #897) — OR ACROSS filter dimensions, distinct from
     // the OR-WITHIN-a-field arrays `type`/`subtype`/`color` already support
     // (issue #677). Magda, Brazen Outlaw's "an artifact or Dragon card":
@@ -3643,7 +3745,9 @@ describe("Effect Script value grammar: negate (signed value negation, issue #926
             {
                 op: "pump",
                 target: { target: 0 },
-                power: { negate: { counters: { of: { target: 0 }, type: "fuse" } } },
+                power: {
+                    negate: { counters: { of: { target: 0 }, type: "fuse" } },
+                },
                 toughness: 0,
                 duration: { phase: "end-of-turn" },
             },
@@ -3675,7 +3779,9 @@ describe("Effect Script value grammar: negate (signed value negation, issue #926
             {
                 op: "pump",
                 target: { target: 0 },
-                power: { negate: { counters: { of: { target: 1 }, type: "fuse" } } },
+                power: {
+                    negate: { counters: { of: { target: 1 }, type: "fuse" } },
+                },
                 toughness: 0,
                 duration: { phase: "end-of-turn" },
             },
@@ -4426,6 +4532,92 @@ describe("Effect Script Op: libraryLook (CR 701.20, issue #844)", () => {
         const opp = projectPublicState(state, 1, "p2");
         const oppLib = opp.players[0].library as unknown as { count: number };
         expect(oppLib.count).toBe(8);
+    });
+});
+
+describe("Effect Script Op: shuffleSelfIntoLibrary (CR 608.2 / 701.24, issue #898)", () => {
+    // The resolving spell shuffles ITSELF into its owner's library instead of
+    // the graveyard (Green Sun's Zenith). Proof of the redirect: the card is
+    // NOT in the graveyard, IS in the library (multiset +1), and the library
+    // was actually shuffled (knowledge cleared — same proof `libraryLook`
+    // uses, ADR 0026).
+    it("shuffles the resolving spell into its owner's library instead of the graveyard", () => {
+        const id = registerScript("test-op-shuffleself", [
+            { op: "shuffleSelfIntoLibrary" },
+        ]);
+        const lib = Array.from({ length: 6 }, (_, i) =>
+            makeInstance(BEAR_ID, {
+                id: `shuffleself-lib-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+                knownTo: ["p1"],
+            })
+        );
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        const item = pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // Not in the graveyard (the normal CR 608.2m destination is skipped).
+        expect(state.players[0].graveyard.find((c) => c.id === item.id)).toBe(
+            undefined
+        );
+        // In the library — multiset grew by exactly the resolved card.
+        expect(state.players[0].library.length).toBe(7);
+        const self = state.players[0].library.find((c) => c.id === item.id);
+        expect(self).toBeDefined();
+        // The shuffle actually ran: every OTHER card's persistent knowledge
+        // was cleared too (ADR 0026 — an unwitnessed reorder), same proof
+        // `libraryLook`'s test uses.
+        for (const c of state.players[0].library) {
+            expect(c.knownTo ?? []).toEqual([]);
+        }
+    });
+
+    // A copy of the spell (CR 707.10) ceases to exist on resolution instead of
+    // being shuffled anywhere — mirrors `exileSelf`'s copy no-op exactly.
+    it("does not shuffle a COPY of the spell into the library (CR 707.10 — a copy ceases to exist)", () => {
+        const id = registerScript("test-op-shuffleself-copy", [
+            { op: "shuffleSelfIntoLibrary" },
+        ]);
+        const state = makeState();
+        const item = pushSpell(state, id, "p1");
+        item.isCopy = true;
+        const before = state.players[0].library.length;
+        resolveTopOfStack(state);
+        expect(state.players[0].library.length).toBe(before);
+        expect(
+            state.players[0].graveyard.find((c) => c.id === item.id)
+        ).toBeUndefined();
+    });
+
+    // Wire format (mandatory for a new Op, `.claude/rules/gre-development.md`):
+    // the library's projected `{ count }` reflects the redirected card on
+    // both the owner's and the opponent's view.
+    it("the self-shuffled library survives projection with its grown count (wire format)", () => {
+        const id = registerScript("test-op-shuffleself-wire", [
+            { op: "shuffleSelfIntoLibrary" },
+        ]);
+        const lib = Array.from({ length: 4 }, (_, i) =>
+            makeInstance(BEAR_ID, {
+                id: `shuffleself-wire-lib-${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "library",
+            })
+        );
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const own = projectPublicState(state, 1, "p1");
+        const ownLib = own.players[0].library as unknown as { count: number };
+        expect(ownLib.count).toBe(5);
+        const opp = projectPublicState(state, 1, "p2");
+        const oppLib = opp.players[0].library as unknown as { count: number };
+        expect(oppLib.count).toBe(5);
     });
 });
 

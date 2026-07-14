@@ -429,8 +429,13 @@ function asFilterArray<T>(value: T | T[] | undefined): T[] | undefined {
  *  that field). `supertypes` / `colors` are optional on the card shape since
  *  `getGraveyardCards` doesn't carry supertypes — a filter naming a field the
  *  card shape lacks simply never matches (fail-closed, mirrors
- *  `FilterMatchContext.supertypesOf`'s fail-closed default). */
+ *  `FilterMatchContext.supertypesOf`'s fail-closed default). `ctx` (issue
+ *  #898) resolves a DYNAMIC `manaValueAtMost` (`{ X: true }`, Green Sun's
+ *  Zenith's "mana value X or less") via the same `resolveValue` every other
+ *  `EffectValue` site uses — an unresolvable dynamic value fails the filter
+ *  closed (nothing matches, CR 608.2b, rather than admitting every card). */
 function matchesCardFilter(
+    ctx: SpellContext,
     card: {
         name?: string;
         types: readonly string[];
@@ -491,11 +496,12 @@ function matchesCardFilter(
     ) {
         return false;
     }
-    if (
-        filter.manaValueAtMost !== undefined &&
-        card.manaValue > filter.manaValueAtMost
-    ) {
-        return false;
+    if (filter.manaValueAtMost !== undefined) {
+        const ceiling = resolveValue(ctx, filter.manaValueAtMost);
+        // An unresolvable dynamic ceiling (issue #898) fails closed — no
+        // candidates, mirroring every other unresolvable-EffectValue skip
+        // (CR 608.2b), rather than silently admitting every card.
+        if (ceiling === undefined || card.manaValue > ceiling) return false;
     }
     // issue #897 — OR ACROSS filter dimensions. Every other field above is
     // ANDed; `any` is the one disjunctive clause list this filter supports:
@@ -507,7 +513,7 @@ function matchesCardFilter(
     // same function — each clause is itself a full AND-of-fields filter).
     if (
         filter.any !== undefined &&
-        !filter.any.some((clause) => matchesCardFilter(card, clause))
+        !filter.any.some((clause) => matchesCardFilter(ctx, card, clause))
     ) {
         return false;
     }
@@ -562,7 +568,7 @@ function resolvePileObjectSet(
     const cards = ctx.getGraveyardCards(zoneOwnerId);
     const filter = select.filter;
     const ids = (
-        filter ? cards.filter((c) => matchesCardFilter(c, filter)) : cards
+        filter ? cards.filter((c) => matchesCardFilter(ctx, c, filter)) : cards
     ).map((c) => c.id);
     return { ids, zone: "graveyard", zoneOwnerId };
 }
@@ -609,7 +615,7 @@ function countZoneForPlayer(
     // graveyard").
     const cards = ctx.getGraveyardCards(playerId);
     const filtered = spec.filter
-        ? cards.filter((c) => matchesCardFilter(c, spec.filter!))
+        ? cards.filter((c) => matchesCardFilter(ctx, c, spec.filter!))
         : cards;
     // Delirium (CR 702.D): count distinct card types instead of total cards
     // ("there are four or more card types among cards in your graveyard").
@@ -843,7 +849,7 @@ function choiceCandidates(
         const filter = op.filter;
         const ids = ctx
             .getHandCards(zoneOwnerId)
-            .filter((c) => matchesCardFilter(c, filter))
+            .filter((c) => matchesCardFilter(ctx, c, filter))
             .map((c) => c.id);
         return { available: ids.length, candidateIds: ids };
     }
@@ -862,7 +868,7 @@ function choiceCandidates(
         const filter = op.filter;
         const ids = ctx
             .getLibraryCards(zoneOwnerId)
-            .filter((c) => matchesCardFilter(c, filter))
+            .filter((c) => matchesCardFilter(ctx, c, filter))
             .map((c) => c.id);
         return { available: ids.length, candidateIds: ids };
     }
@@ -876,7 +882,7 @@ function choiceCandidates(
     const graveyardCards = ctx.getGraveyardCards(zoneOwnerId);
     const ids = op.filter
         ? graveyardCards
-              .filter((c) => matchesCardFilter(c, op.filter!))
+              .filter((c) => matchesCardFilter(ctx, c, op.filter!))
               .map((c) => c.id)
         : graveyardCards.map((c) => c.id);
     return { available: ids.length, candidateIds: ids };
@@ -1195,6 +1201,16 @@ export const OP_EXECUTORS: {
         // `action` is "shuffle" — the only folded library primitive (issue
         // #844; peek/reorder are the `scryReorder` Op below, issue #885).
         ctx.shuffleLibrary(playerId);
+    },
+    // CR 608.2 / 701.24 (issue #898) — the resolving spell shuffles ITSELF
+    // into its owner's library instead of the graveyard ("Shuffle ~ into its
+    // owner's library", Green Sun's Zenith). A thin declarative skin over the
+    // single SpellContext primitive `shuffleSelfIntoLibrary`, ONE execution
+    // path (ADR 0045). No parameters to resolve — the primitive flags the
+    // CURRENTLY-RESOLVING stack item (mirrors `exileSelf`'s design), so
+    // `finalizeSpellResolution` reads the flag once resolution completes.
+    shuffleSelfIntoLibrary(ctx) {
+        ctx.shuffleSelfIntoLibrary();
     },
     // CR 401.4 look / CR 701.22 Scry / 701.44 Surveil / order-only (issue
     // #885) — look at / reorder the top of a library. A thin declarative skin
@@ -1975,7 +1991,7 @@ function selectForEachMembers(
         return owners.flatMap((pid) => {
             const cards = ctx.getGraveyardCards(pid);
             const filtered = select.filter
-                ? cards.filter((c) => matchesCardFilter(c, select.filter!))
+                ? cards.filter((c) => matchesCardFilter(ctx, c, select.filter!))
                 : cards;
             return filtered.map((c) => c.id);
         });
