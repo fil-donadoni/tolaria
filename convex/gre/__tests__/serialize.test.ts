@@ -225,6 +225,16 @@ describe("game_state serialize round-trip", () => {
         expect(empty.players[0].drawnThisTurn).toBeUndefined();
     });
 
+    it("preserves a player's energy counters (CR 122.1, issue #697)", () => {
+        const state = freshState();
+        state.players[0].energyCounters = 5;
+        const expanded = expandState(compactState(state));
+        expect(expanded.players[0].energyCounters).toBe(5);
+        // Absent when zero (omitted rather than serialized as 0), like poison.
+        const empty = expandState(compactState(freshState()));
+        expect(empty.players[0].energyCounters).toBeUndefined();
+    });
+
     it("preserves a non-zero mana pool", () => {
         const state = freshState();
         state.players[0].manaPool = { W: 0, U: 0, B: 0, R: 3, G: 1, C: 0 };

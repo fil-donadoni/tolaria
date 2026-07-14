@@ -703,12 +703,21 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Aura Shards resolve() closures already counted FREE). It carries a
         // per-card test (`sets/otj/__tests__/green.test.ts`) → AFK-ready. The
         // activated double-counters ability is pure DSL (0 closures); the four
-        // other cluster cards are commented stubs (0 closures). Net: total
-        // 690→691, FREE 447→448, AFK-ready 410→411, X-only 14 / Op-blocked 229
-        // unchanged. Partition: 448+14+229=691.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(691);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(448);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(411);
+        // other cluster cards are commented stubs (0 closures). Partition:
+        // 448+14+229=691.
+        //
+        // Then Galvanic Discharge (`sets/mh3/red.ts`, Cube CAP Energy #697) adds
+        // ONE resolveSteps closure ("pay any amount of {E}" variable resource
+        // payment — a justified resolve, not DSL). Its effect uses only COVERED
+        // primitives (addEnergy / payEnergy / dealDamage / requestOptionChoice),
+        // so the classifier's static heuristic buckets it FREE, and it carries a
+        // per-card test (`sets/mh3/__tests__/red.test.ts`) → AFK-ready. Guide of
+        // Souls (#1194) and Satya (#1195) are commented stubs (0 closures). Net:
+        // total 691→692, FREE 448→449, AFK-ready 411→412, X-only 14 / Op-blocked
+        // 229 unchanged. Partition: 449+14+229=692.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(692);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(449);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(412);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(229);
     });

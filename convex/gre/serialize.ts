@@ -554,6 +554,7 @@ type CompactPlayer = {
     qualifyingActionThisTurn?: boolean;
     qualifyingActionLastTurn?: boolean;
     poisonCounters?: number;
+    energyCounters?: number;
     permanentYouControlledLeftThisTurn?: boolean;
 };
 
@@ -605,6 +606,9 @@ function compactPlayer(player: PlayerState): CompactPlayer {
     // Poison counters (CR 122) — persisted so the loss SBA (CR 704.5c) survives
     // a save/load round-trip.
     if (player.poisonCounters) out.poisonCounters = player.poisonCounters;
+    // Energy counters (CR 122.1) — persisted so a player's energy pool survives
+    // a save/load round-trip (issue #697).
+    if (player.energyCounters) out.energyCounters = player.energyCounters;
     // Revolt (CR 702.RV) — persisted so the flag survives a save/load round-trip.
     if (player.permanentYouControlledLeftThisTurn) {
         out.permanentYouControlledLeftThisTurn = true;
@@ -663,6 +667,7 @@ function expandPlayer(player: CompactPlayer): PlayerState {
         result.qualifyingActionLastTurn = true;
     }
     if (player.poisonCounters) result.poisonCounters = player.poisonCounters;
+    if (player.energyCounters) result.energyCounters = player.energyCounters;
     if (player.permanentYouControlledLeftThisTurn) {
         result.permanentYouControlledLeftThisTurn = true;
     }

@@ -1245,6 +1245,20 @@ export interface SpellContext {
      *  not the object counter map. No cap; a player reaching ten or more loses
      *  the game (CR 704.5c), enforced as an SBA in `checkGameOverSBA`. */
     addPoisonCounters: (playerId: string, n: number) => void;
+    /** CR 122.1 — "you get {E}": adds `n` energy counters to a player. Mutates
+     *  the dedicated `PlayerState.energyCounters` scalar (mirroring
+     *  `addPoisonCounters`), not the object counter map. No cap and no loss
+     *  condition — energy is a pure resource. n <= 0 is a no-op. The declarative
+     *  skin is the `getEnergy` Effect Script Op. */
+    addEnergy: (playerId: string, n: number) => void;
+    /** CR 122.1 — the player's current energy-counter total (0 when none). */
+    getEnergy: (playerId: string) => number;
+    /** CR 122.1 / 118.12 — "pay {E}": spends `n` energy counters, all-or-
+     *  nothing. Returns true and deducts when the player has at least `n`
+     *  (a paid cost); returns false and spends nothing when they can't afford it
+     *  (CR 118.4 — an unpayable cost isn't paid). n <= 0 is a trivially-paid
+     *  no-op. */
+    payEnergy: (playerId: string, n: number) => boolean;
     getLife: (playerId: string) => number;
     getPower: (target: TargetSelection) => number;
     getToughness: (target: TargetSelection) => number;
@@ -6072,6 +6086,12 @@ export type EffectOp =
     | { op: "draw"; player: EffectPlayerRef; count: EffectValue }
     /** CR 119.3a — `player` gains `amount` life. */
     | { op: "gainLife"; player: EffectPlayerRef; amount: EffectValue }
+    /** CR 122.1 — "you get {E}": `player` gets `amount` energy counters. A thin
+     *  declarative skin over `SpellContext.addEnergy` (mirroring `gainLife`),
+     *  one execution path (ADR 0045). Energy is a player-owned resource counter
+     *  (not on an object), so `player` is a player ref — never an object slot.
+     *  Skipped when the player cannot be resolved (CR 608.2b). */
+    | { op: "getEnergy"; player: EffectPlayerRef; amount: EffectValue }
     /** CR 119.3b — `player` loses `amount` life (not damage — no
      *  damage-replacement interaction). */
     | { op: "loseLife"; player: EffectPlayerRef; amount: EffectValue }

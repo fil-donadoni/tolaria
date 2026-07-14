@@ -1440,6 +1440,40 @@ describe("Effect Script Op: gainLife (CR 119.3a)", () => {
     });
 });
 
+// New Op (issue #697, Cube CAP Energy) → full per-Op regime: interpreter
+// coverage of the construct combinations it participates in (controller /
+// opponent player refs, accumulation across two Ops in one script), plus a
+// wire-format assertion through projectPublicState (energy is a player scalar
+// that must survive the wire, like poisonCounters). `getEnergy` is a thin
+// declarative skin over `SpellContext.addEnergy` (the dedicated
+// PlayerState.energyCounters scalar). This is the Op's permanent test,
+// inherited free by every later energy card.
+describe("Effect Script Op: getEnergy (CR 122.1)", () => {
+    it("the selected player gets energy counters, accumulating", () => {
+        const id = registerScript("test-op-energy", [
+            { op: "getEnergy", player: "controller", amount: 3 },
+            { op: "getEnergy", player: "controller", amount: 2 },
+            { op: "getEnergy", player: "opponent", amount: 1 },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].energyCounters).toBe(5);
+        expect(state.players[1].energyCounters).toBe(1);
+    });
+
+    it("the energy total survives projection (wire format)", () => {
+        const id = registerScript("test-op-energy-wire", [
+            { op: "getEnergy", player: "controller", amount: 4 },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[0].energyCounters).toBe(4);
+    });
+});
+
 describe("Effect Script Op: loseLife (CR 119.3b)", () => {
     it("the selected player loses life (announced player target)", () => {
         const id = registerScript(

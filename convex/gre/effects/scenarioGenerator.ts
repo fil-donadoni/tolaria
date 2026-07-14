@@ -371,6 +371,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             return;
         case "gainLife":
         case "loseLife":
+        case "getEnergy":
             analysePlayer(op.player, req, false);
             analyseValue(op.amount, req);
             return;
@@ -934,6 +935,24 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 return {
                     ok: life === expected,
                     detail: `life ${life}, expected ${expected}`,
+                };
+            },
+        };
+    },
+    getEnergy(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "getEnergy" }>;
+        const amount = predictAmount(op.amount);
+        if (amount === null) return null;
+        const pid = assertionPlayerId(op.player);
+        const before = findPlayer(pre, pid).energyCounters ?? 0;
+        const expected = before + amount;
+        return {
+            label: `getEnergy ${amount} for player ${pid} (energy ${before}→${expected})`,
+            check: (post) => {
+                const energy = findPlayer(post, pid).energyCounters ?? 0;
+                return {
+                    ok: energy === expected,
+                    detail: `energy ${energy}, expected ${expected}`,
                 };
             },
         };
