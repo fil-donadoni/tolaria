@@ -144,3 +144,37 @@ export const talismanOfDominance: CardDefinition = makeTalisman({
     rarity: "uncommon",
     colors: ["U", "B"],
 });
+
+// Aether Spellbomb — {1} Artifact (Vintage Cube FREE misc value/utility,
+// issue #687). "{U}, Sacrifice this artifact: Return target creature to its
+// owner's hand. {1}, Sacrifice this artifact: Draw a card." Two independent
+// activated abilities (CR 602.1), each with a mana + sacrifice-self cost
+// (`sacrifice: true`, CR 118.5 / 701.16). The effects compose live Ops only:
+// `moveZone` to hand (CR 400.7 bounce) and `draw` (CR 121.1).
+export const aetherSpellbomb: CardDefinition = {
+    id: "f3792e8b-4ad7-4e2d-994c-c4eaac0fa55f",
+    rarity: "common",
+    name: "Aether Spellbomb",
+    oracleText:
+        "{U}, Sacrifice this artifact: Return target creature to its owner's hand.\n{1}, Sacrifice this artifact: Draw a card.",
+    manaCost: { X: 1 },
+    types: ["Artifact"],
+    activatedAbilities: [
+        {
+            id: "aether-spellbomb-bounce",
+            oracleText:
+                "{U}, Sacrifice this artifact: Return target creature to its owner's hand.",
+            cost: { mana: { U: 1 }, sacrifice: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
+        },
+        {
+            id: "aether-spellbomb-draw",
+            oracleText: "{1}, Sacrifice this artifact: Draw a card.",
+            cost: { mana: { X: 1 }, sacrifice: true },
+            useStack: true,
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        },
+    ],
+};
