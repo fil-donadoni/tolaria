@@ -114,6 +114,12 @@
         "firstSet": "leg"
     },
     {
+        "name": "Aether Spellbomb",
+        "scryfallId": "f3792e8b-4ad7-4e2d-994c-c4eaac0fa55f",
+        "oracleId": "4b033a0a-c1ae-44d7-9662-72cbbfda024b",
+        "firstSet": "mrd"
+    },
+    {
         "name": "Aggression",
         "scryfallId": "f3f26060-0c24-496c-b8e2-4dac7ea6166b",
         "oracleId": "b6c38a2b-2fe8-4080-80ce-cfa12aaf57f0",
@@ -4576,6 +4582,12 @@
         "scryfallId": "31bf3f14-b5df-498b-a1bb-965885c82401",
         "oracleId": "4e81596c-9225-43d1-bd35-798212144f2c",
         "firstSet": "arn"
+    },
+    {
+        "name": "Karakas",
+        "scryfallId": "31d2422a-bb7d-4cdd-9aac-e5a936a4be3b",
+        "oracleId": "59119143-c0fa-49dd-adf0-e2fd3029c48b",
+        "firstSet": "leg"
     },
     {
         "name": "Karma",

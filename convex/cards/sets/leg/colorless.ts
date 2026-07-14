@@ -82,8 +82,6 @@ export const koboldsOfKherKeep: CardDefinition = {
 //     strike or swampwalk until end of turn" needs a duration-scoped keyword
 //     REMOVAL; only static keyword-remove and keyword GRANT exist (same gap
 //     flagged for Radjan Spirit).
-//   • Karakas — "Return target legendary creature" needs a supertype target
-//     filter; TargetRequirement has no `supertypeFilter`.
 //   • Arena of the Ancients — "Legendary creatures don't untap" needs a
 //     supertype-scoped untap-restriction; PermanentFilter has no supertypes
 //     field.
@@ -335,6 +333,48 @@ export const pendelhaven: CardDefinition = {
                     duration: { phase: "end-of-turn" },
                 },
             ],
+        },
+    ],
+};
+
+// Karakas — Legendary Land (Vintage Cube FREE misc value/utility, issue #687).
+// "{T}: Add {W}. {T}: Return target legendary creature to its owner's hand."
+// The mana ability is a CR 605.1a mana ability (`useStack: false`, Pendelhaven
+// template). The bounce is a plain CR 400.7 zone move to hand, gated to
+// legendary creatures via `TargetRequirement.supertypeFilter` (CR 205.4a) —
+// the supertype-target filter that was missing when LEG first shipped (its
+// SKIPPED note above) and has since landed, so the card is now expressible
+// with only live Ops (`moveZone` to hand).
+export const karakas: CardDefinition = {
+    id: "31d2422a-bb7d-4cdd-9aac-e5a936a4be3b",
+    rarity: "rare",
+    name: "Karakas",
+    oracleText:
+        "{T}: Add {W}.\n{T}: Return target legendary creature to its owner's hand.",
+    manaCost: {},
+    types: ["Land"],
+    supertypes: ["Legendary"],
+    activatedAbilities: [
+        {
+            id: "karakas-mana",
+            oracleText: "{T}: Add {W}.",
+            cost: { tap: true },
+            useStack: false,
+            effect: (ctx) => ctx.addMana({ W: 1 }),
+            manaProduced: { W: 1 },
+        },
+        {
+            id: "karakas-bounce",
+            oracleText:
+                "{T}: Return target legendary creature to its owner's hand.",
+            cost: { tap: true },
+            useStack: true,
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                supertypeFilter: "Legendary",
+            },
+            effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
 };
