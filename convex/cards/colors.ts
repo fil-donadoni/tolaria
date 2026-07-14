@@ -1,7 +1,12 @@
 // Color derivation from mana cost (CR 202.2). Lives outside the GRE so the
 // card index, deck builder UI, and layer system can share one implementation.
 
-import { LAND_SUBTYPE_MANA, MANA_COLORS } from "../gre/constants";
+// Imports from the dependency-free `gre/manaColors.ts` leaf, NOT
+// `gre/constants.ts` (issue #927) — `gre/constants.ts` now imports
+// `gre/layers.ts` for `getEffectivePower`/`getEffectiveToughness`, and
+// `gre/layers.ts` imports THIS module (`getColorsFromCost`, CR 613.1d layer
+// 5); importing back from `gre/constants.ts` here would close that cycle.
+import { LAND_SUBTYPE_MANA, MANA_COLORS } from "../gre/manaColors";
 import type { CardDefinition, Color, ManaCost } from "./types";
 
 /** Returns the colors of a card derived from its mana cost (CR 202.2).

@@ -9,6 +9,9 @@ import type { ManaRestriction } from "./types";
 import { getDefinition, tryGetDefinition } from "../cards";
 import type { CardInstanceState, GameState } from "./state";
 import { applySubstitution } from "./textChanges";
+import { getEffectivePower, getEffectiveToughness } from "./layers";
+import type { LayerStateView } from "./layers";
+import { MANA_COLORS, LAND_SUBTYPE_MANA } from "./manaColors";
 
 /** Sentinel card id for opaque library placeholders the vs-AI Bot's search
  *  world is rehydrated with (issue #136). The wire projects a library as a
@@ -18,14 +21,13 @@ import { applySubstitution } from "./textChanges";
  *  actions on it, so a drawn placeholder never surfaces as a legal move. */
 export const PLACEHOLDER_CARD_ID = "placeholder:hidden-library";
 
-/** Intrinsic mana abilities for basic land subtypes (CR 305.6). */
-export const LAND_SUBTYPE_MANA: Record<string, Color> = {
-    Plains: "W",
-    Island: "U",
-    Swamp: "B",
-    Mountain: "R",
-    Forest: "G",
-};
+/** Intrinsic mana abilities for basic land subtypes (CR 305.6). Canonical
+ *  definition lives in the dependency-free `gre/manaColors.ts` leaf (issue
+ *  #927 — breaks the `constants → layers → cards/colors → constants` cycle
+ *  `getEffectivePower`/`getEffectiveToughness` would otherwise create);
+ *  re-exported here so every existing `from "../gre/constants"` import site
+ *  is unaffected. */
+export { LAND_SUBTYPE_MANA };
 
 /** Landwalk keywords mapped to the land subtype they reference (CR 702.13c-g). */
 export const LANDWALK_KEYWORDS: Record<string, string> = {
@@ -100,8 +102,11 @@ export function isDamageablePermanent(card: CardInstanceState): boolean {
     return DAMAGEABLE_PERMANENT_TYPES.some((t) => card.types.includes(t));
 }
 
-/** All six mana colors in canonical order. */
-export const MANA_COLORS = ["W", "U", "B", "R", "G", "C"] as const;
+/** All six mana colors in canonical order. Canonical definition lives in the
+ *  dependency-free `gre/manaColors.ts` leaf (see the re-export note above);
+ *  re-exported here so every existing `from "../gre/constants"` import site
+ *  is unaffected. */
+export { MANA_COLORS };
 
 /** Default number of lands a player may play per turn (CR 305.2). Cards
  *  granting additional drops (Exploration, Azusa) would mutate the per-turn
@@ -243,11 +248,57 @@ export function getFixedManaAmount(
     return produced?.[color] ?? 1;
 }
 
+/** Builds a minimal CR 611/613 `LayerStateView` from whatever battlefield data
+ *  a mana-ability call site has on hand, so `manaAmount` / `getManaChoices`
+ *  hooks can read the source's CURRENT effective power/toughness (CR 613.4)
+ *  rather than its base printed stats (issue #927 — Vivi Ornitier's mana
+ *  ability scales with her own +1/+1 counters). Graveyards aren't tracked by
+ *  these battlefields-only call sites, so a source whose OWN power is itself a
+ *  graveyard-counting CDA (layer 7a) wouldn't resolve correctly through this
+ *  path — no shipped mana ability needs that combination today; a future one
+ *  would need a real `GameState` threaded to this call site instead. */
+function manaLayerView(
+    battlefields: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
+): LayerStateView {
+    return {
+        players: battlefields.map((b) => ({
+            battlefield: b.battlefield as unknown as readonly PermanentView[],
+            graveyard: [],
+        })),
+    };
+}
+
+/** Returns `card`'s `PermanentView` with `power`/`toughness` overridden to
+ *  their CURRENT effective values (CR 613.4 layer pipeline) computed against
+ *  `layerView`, instead of the raw base stats. A `manaAmount` / `getManaChoices`
+ *  hook that reads `source.power` / `source.toughness` therefore sees the
+ *  layered value (+1/+1 counters, anthems, CDAs visible on `layerView`)
+ *  automatically — no signature change needed on either hook (issue #927). */
+function withEffectivePT(
+    card: CardInstanceState,
+    layerView: LayerStateView
+): PermanentView {
+    const view = card as unknown as PermanentView;
+    return {
+        ...view,
+        power: getEffectivePower(layerView, view),
+        toughness: getEffectiveToughness(layerView, view),
+    };
+}
+
 /** Board-conditional mana output for a card's fixed tap mana ability (CR 106.1),
  *  computed against the controller's battlefield, or null when the ability has
  *  no `manaAmount` hook. The Urza land trio uses this to scale colorless output
  *  with the assembled set. The raw `CardInstanceState`s are structurally valid
- *  `PermanentView`s (the engine passes instances as views everywhere). */
+ *  `PermanentView`s (the engine passes instances as views everywhere).
+ *
+ *  CR 613.4 / 605.1a (issue #927) — the `source` passed to `manaAmount` carries
+ *  the source's CURRENT effective power/toughness (post-layers), computed from
+ *  the controller's own battlefield (the only board data this hook receives —
+ *  see `manaLayerView`), not its raw base stats. */
 export function getDynamicManaProduced(
     card: CardInstanceState,
     controllerBattlefield: readonly CardInstanceState[]
@@ -258,8 +309,11 @@ export function getDynamicManaProduced(
         (a) => a.cost.tap && !a.useStack && a.manaAmount
     );
     if (!ability?.manaAmount) return null;
+    const layerView = manaLayerView([
+        { playerId: card.controllerId, battlefield: controllerBattlefield },
+    ]);
     return ability.manaAmount(
-        card as unknown as PermanentView,
+        withEffectivePT(card, layerView),
         controllerBattlefield as unknown as readonly PermanentView[]
     );
 }
@@ -306,7 +360,13 @@ export function getProducibleColors(card: CardInstanceState): Set<Color> {
  *  raw `CardInstanceState`s are structurally valid `PermanentView`s. Used by
  *  Fellwar Stone (colours derived from opponents' lands). The same resolver is
  *  re-exported to the client (`src/lib/card-utils`) so the picker the player
- *  sees and the index the server validates reference one list. */
+ *  sees and the index the server validates reference one list.
+ *
+ *  CR 613.4 / 605.1a (issue #927) — the `source` passed to `getManaChoices`
+ *  carries the source's CURRENT effective power/toughness (post-layers),
+ *  computed from every player's battlefield (this hook already receives the
+ *  full board — see `manaLayerView`), not its raw base stats. Vivi Ornitier's
+ *  "{U}/{R} split totalling X, where X is this creature's power" reads it. */
 export function getDynamicManaChoices(
     card: CardInstanceState,
     controllerId: string,
@@ -321,11 +381,12 @@ export function getDynamicManaChoices(
         (a) => !a.useStack && a.getManaChoices
     );
     if (!ability?.getManaChoices) return null;
+    const layerView = manaLayerView(battlefields);
     // Precompute each permanent's producible colours via the shared helper so
     // the card definition (Fellwar Stone) reads board mana without importing the
     // engine's mana machinery (CR 106.4).
     return ability.getManaChoices(
-        card as unknown as PermanentView,
+        withEffectivePT(card, layerView),
         controllerId,
         battlefields.map((b) => ({
             playerId: b.playerId,
