@@ -119,6 +119,22 @@ export interface PermanentFilter {
      *  `createdBy` equals this instance id — "tokens created with this
      *  creature" (Tetravus). Omitted = no constraint. */
     createdBy?: string;
+    /** OR ACROSS filter dimensions (issue #897) — a disjunctive clause list,
+     *  mirroring `EffectCardFilter.any` (`convex/gre/effects/interpreter.ts`)
+     *  for the on-battlefield filter shape (Magda, Brazen Outlaw's "an
+     *  artifact or Dragon card": `types: "Artifact"` OR `subtypes: "Dragon"`,
+     *  two DIFFERENT fields — distinct from the OR-WITHIN-a-field arrays
+     *  `types`/`subtypes`/`colors` already support). Every other field on
+     *  this interface is ANDed together; `any` is a non-empty array of full
+     *  `PermanentFilter` clauses (each itself the existing AND-of-fields
+     *  shape) — the permanent matches if it matches AT LEAST ONE clause in
+     *  `any`, ANDed with every other top-level field present alongside `any`.
+     *  Populated by `toPermanentFilter` (`convex/gre/effects/interpreter.ts`)
+     *  when mapping an `EffectCardFilter` carrying `any` onto this shape, so
+     *  battlefield `choice`/`count`/`forEach` sites (and the on-board pick
+     *  validator in `pendingChoiceSubmit.ts`) honor the disjunction instead
+     *  of silently dropping it. */
+    any?: PermanentFilter[];
 }
 
 // --- SpellFilter (applied to SpellCastEvent) ---
@@ -352,6 +368,18 @@ export function matchesPermanentFilter(
         if (!matchesControllerRelation(filter.controllerRelation, card, ctx)) {
             return false;
         }
+    }
+    // issue #897 — OR ACROSS filter dimensions. Every other field above is
+    // ANDed; `any` is the one disjunctive clause list this filter supports.
+    // Recurses through this same matcher (each clause is a full AND-of-fields
+    // `PermanentFilter`), threading the same `ctx` so a clause's own
+    // `controllerRelation` still resolves. A filter carrying ONLY `any` must
+    // NOT fail open (match everything) — this check is what enforces that.
+    if (
+        filter.any !== undefined &&
+        !filter.any.some((clause) => matchesPermanentFilter(card, clause, ctx))
+    ) {
+        return false;
     }
     return true;
 }

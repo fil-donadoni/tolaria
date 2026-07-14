@@ -5230,6 +5230,82 @@ describe("Effect Script construct: count (ADR 0045, CR 122)", () => {
         // Only the 2 Zombies count → 2 damage (NOT 5, the whole graveyard).
         expect(state.players[1].life).toBe(18);
     });
+
+    // `filter.any` on a BATTLEFIELD count (issue #897) — `toPermanentFilter`
+    // (the `EffectCardFilter` → `PermanentFilter` mapping used by every
+    // battlefield `choice`/`count`/`forEach` site) used to drop `any` on the
+    // floor: a filter carrying ONLY `any` mapped to an all-undefined
+    // `PermanentFilter`, which `matchesPermanentFilter` treats as "no
+    // constraint" — counting EVERY permanent (fail OPEN), not just the
+    // disjunction members. An Artifact (matches `types`), a Dragon (matches
+    // `subtypes`), and a Bear (matches NEITHER clause) on the battlefield:
+    // only the first two should count.
+    it("counts only the disjunction members on a battlefield count (any: type OR subtype, issue #897)", () => {
+        const ARTIFACT_ID = "test-count-any-artifact";
+        registerTokenDefinition({
+            id: ARTIFACT_ID,
+            name: ARTIFACT_ID,
+            rarity: "common",
+            manaCost: { X: 2 },
+            types: ["Artifact"],
+        });
+        const DRAGON_ID = "test-count-any-dragon";
+        registerTokenDefinition({
+            id: DRAGON_ID,
+            name: DRAGON_ID,
+            rarity: "common",
+            manaCost: { X: 4, R: 2 },
+            types: ["Creature"],
+            subtypes: ["Dragon"],
+            power: 4,
+            toughness: 4,
+        });
+        const id = registerScript("test-count-any-battlefield", [
+            {
+                op: "draw",
+                player: "controller",
+                count: {
+                    count: {
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: {
+                            any: [{ type: "Artifact" }, { subtype: "Dragon" }],
+                        },
+                    },
+                },
+            },
+        ]);
+        const artifact = makeInstance(ARTIFACT_ID, {
+            id: "any-artifact",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const dragon = makeInstance(DRAGON_ID, {
+            id: "any-dragon",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const bear = makeInstance(BEAR_ID, {
+            id: "any-bear",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [artifact, dragon, bear],
+                    library: withLibrary("p1", 5),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // Only the Artifact + Dragon match `any` → draw 2 (NOT 3, the whole
+        // battlefield, and NOT 0).
+        expect(state.players[0].hand).toHaveLength(2);
+        expect(state.players[0].library).toHaveLength(3);
+    });
 });
 
 describe("Effect Script flat sequencing (CR 608.2c)", () => {

@@ -380,6 +380,15 @@ function toPermanentFilter(
         colors: filter.color,
         isToken: filter.isToken,
         name: filter.name,
+        // issue #897 — propagate the OR-across-fields clause list onto
+        // `PermanentFilter.any` (`convex/cards/filters.ts`), recursing through
+        // this same mapping for each clause. Without this, a filter carrying
+        // ONLY `any` (no other field set) mapped to an all-undefined
+        // `PermanentFilter` that `matchesPermanentFilter` treats as "no
+        // constraint" — matching EVERY permanent (fail OPEN) at every
+        // battlefield `choice`/`count`/`forEach` site. Each clause is always a
+        // full `EffectCardFilter`, so the recursive call is never undefined.
+        any: filter.any?.map((clause) => toPermanentFilter(clause)!),
     };
 }
 

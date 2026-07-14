@@ -17,6 +17,7 @@ import {
     buildAlternativeCostHandChoice,
     validateAlternativeHandCostPicks,
     getAlternativeCost,
+    matchingHandCardsForAltCost,
 } from "../alternativeCost";
 import { projectPublicState } from "../../gameProjections";
 import type { GameState, CardInstanceState } from "../state";
@@ -180,6 +181,32 @@ describe("canPayAlternativeCost — life & hand legs (CR 118.4 / 118.9)", () => 
         // Only the Island (besides Foil): can't also cover "another card".
         const short = makePlayer("p1", { hand: [foilInst, islandInst] });
         expect(canPayHandCost(short, altCost, "foil")).toBe(false);
+    });
+
+    // `EffectCardFilter.any` (issue #897) — OR ACROSS filter dimensions, the
+    // same disjunctive clause the effect-script interpreter honors
+    // (`matchesCardFilter`). `handCardMatchesFilter` is a SEPARATE copy of
+    // that matcher scoped to the hand leg's `CardDefinition` shape, and it
+    // dropped `any` on the floor — a filter carrying ONLY `any` mapped to an
+    // all-undefined set of checks and fell straight through to `return true`,
+    // matching every hand card (fail OPEN) instead of just the disjunction
+    // members. Proves the fix: a Land (matches `type`), a red Instant
+    // (matches `color`), and a blue Instant (matches NEITHER clause) — only
+    // the first two should be eligible.
+    it("matchingHandCardsForAltCost honors a disjunctive `any` clause (type OR color, issue #897)", () => {
+        const foilInst = handCard(foil.id, "foil");
+        const islandInst = handCard(island.id, "isl");
+        const boltInst = handCard(lightningBolt.id, "bolt");
+        const counterspellInst = handCard(counterspell.id, "ctr");
+        const player = makePlayer("p1", {
+            hand: [foilInst, islandInst, boltInst, counterspellInst],
+        });
+        const matches = matchingHandCardsForAltCost(
+            player,
+            { any: [{ type: "Land" }, { color: "R" }] },
+            "foil"
+        );
+        expect(matches.map((c) => c.id).sort()).toEqual(["bolt", "isl"]);
     });
 });
 

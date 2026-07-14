@@ -70,7 +70,13 @@ export function altCostHasPermanentLeg(altCost: AlternativeCost): boolean {
 /** Match a HAND card against an `EffectCardFilter` (CR 118.9 hand leg). Reads
  *  the card's registry characteristics (types / subtypes / colours / name /
  *  mana value); every present filter field is ANDed, array fields OR within
- *  themselves. Fail-closed on an unknown card id. */
+ *  themselves. `any` (issue #897) is the one disjunctive clause list this
+ *  filter supports — recurses through this same matcher — ANDed with every
+ *  other top-level field present alongside it. Fail-closed on an unknown card
+ *  id. Mirrors the shared hidden-zone matcher `matchesCardFilter`
+ *  (`convex/gre/effects/interpreter.ts`) — kept as a separate copy because it
+ *  reads a HAND card's registry `CardDefinition` shape rather than the
+ *  library/graveyard runtime-card shape `matchesCardFilter` targets. */
 function handCardMatchesFilter(
     card: CardInstanceState,
     filter: EffectCardFilter
@@ -115,6 +121,15 @@ function handCardMatchesFilter(
             : 0;
         if (mv > filter.manaValueAtMost) return false;
     }
+    // issue #897 — OR ACROSS filter dimensions. A filter carrying ONLY `any`
+    // (no other field set) must not fail open (match every hand card) — every
+    // check above is skipped when its field is absent, so without this the
+    // function fell straight through to `return true`.
+    if (
+        filter.any !== undefined &&
+        !filter.any.some((clause) => handCardMatchesFilter(card, clause))
+    )
+        return false;
     return true;
 }
 
