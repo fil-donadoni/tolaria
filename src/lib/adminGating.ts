@@ -17,3 +17,14 @@ export function canEditPresets(
 ): boolean {
     return user?.isAdmin === true;
 }
+
+/**
+ * Whether the Limited Events page should expose the "Create Event" control
+ * (PRD #1107 story 1, ADR 0054/0055). Same predicate as `canEditPresets` —
+ * cosmetic only, the server re-gates `createLimitedEvent` via `assertIsAdmin`.
+ */
+export function canCreateLimitedEvents(
+    user: AdminGateUser | null | undefined
+): boolean {
+    return user?.isAdmin === true;
+}

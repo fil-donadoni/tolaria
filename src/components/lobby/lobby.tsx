@@ -385,6 +385,15 @@ function Lobby() {
             <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
                 <DashboardTopBar />
 
+                <div className="flex justify-end">
+                    <button
+                        onClick={() => void navigate({ to: "/limited" })}
+                        className="btn-base btn-tone-secondary px-3 py-1.5 text-xs"
+                    >
+                        Limited Events
+                    </button>
+                </div>
+
                 {activeGame && user && (
                     <ActiveGameNotice
                         activeGame={activeGame}
