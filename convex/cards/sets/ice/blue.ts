@@ -1985,6 +1985,10 @@ export const snowfall: CardDefinition = {
             filter: { subtypes: "Island" },
             forMana: true,
             manaAbility: true, // CR 605.1b / 605.4 — resolves without the stack
+            // NO manaBonusForPotential (CR 106.6, ADR 0022): the bonus {U} is
+            // RESTRICTED to cumulative-upkeep costs, so it must stay invisible to
+            // the spell-castability gate and the auto-tap solver — modelling it
+            // would falsely inflate what the player can pay for a spell.
             resolve: (ctx, _event, tapped) => {
                 // CR 106.6 — the Island controller gets the bonus {U} in their
                 // CU-restricted pool (ADR 0022). CR 205.4a — if the tapped

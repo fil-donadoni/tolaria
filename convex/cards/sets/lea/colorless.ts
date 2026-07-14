@@ -511,6 +511,12 @@ export const gauntletOfMight: CardDefinition = {
             filter: { subtypes: "Mountain" },
             forMana: true,
             manaAbility: true, // CR 605.1b / 605.4 — resolves without the stack
+            // CR 605.4 — predictive extra-mana descriptor: any Mountain tapped
+            // for mana yields an additional {R} (castability gate + auto-tap).
+            manaBonusForPotential: {
+                appliesTo: { filter: { subtypes: "Mountain" } },
+                amount: { kind: "fixed", mana: { R: 1 } },
+            },
             resolve: (ctx, _event, tapped) => {
                 ctx.addManaTo(tapped.controllerId, { R: 1 });
             },

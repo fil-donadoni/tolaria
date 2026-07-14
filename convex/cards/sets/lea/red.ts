@@ -671,6 +671,13 @@ export const manaFlare: CardDefinition = {
             filter: { types: "Land" },
             forMana: true,
             manaAbility: true, // CR 605.1b / 605.4 — resolves without the stack
+            // CR 605.4 — predictive extra-mana descriptor: any land tapped for
+            // mana yields one additional mana of a colour it produced (Mana
+            // Flare doubles the land's first produced colour).
+            manaBonusForPotential: {
+                appliesTo: { filter: { types: "Land" } },
+                amount: { kind: "perProducedColor", count: 1 },
+            },
             resolve: (ctx, _event, tapped) => {
                 const produced = tapped.manaProduced ?? {};
                 for (const [color, amount] of Object.entries(produced)) {

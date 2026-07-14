@@ -1119,6 +1119,14 @@ export const fertileGround: CardDefinition = {
             scope: "any",
             forMana: true,
             manaAbility: true, // CR 605.1b / 605.4 — resolves without the stack
+            // CR 605.4 — predictive extra-mana descriptor: the enchanted land
+            // yields one additional mana of any colour (chosen at resolve). The
+            // castability gate models it as fully flexible; the auto-tap solver
+            // treats it as generic (it can't pre-encode the colour choice).
+            manaBonusForPotential: {
+                appliesTo: "host",
+                amount: { kind: "anyColor", count: 1 },
+            },
             condition: (event, self) =>
                 !!self.attachedTo && event.permanentId === self.attachedTo,
             resolve: (ctx, _event, tapped) => {
