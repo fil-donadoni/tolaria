@@ -3659,8 +3659,45 @@ export function finalizeTargetSelection(
     const altHandChoice = chosenAltCost
         ? buildAlternativeCostHandChoice(player, chosenAltCost, cardInstanceId)
         : undefined;
+    // CR 702.138a — the ESCAPE additional cost "exile N other cards from your
+    // graveyard" also applies to a TARGETED escape cast (e.g. a Lightning Bolt
+    // granted escape by Underworld Breach, cast from the graveyard at a target).
+    // The no-target announce path builds this same picker; a targeted escape
+    // reaches its commit here instead, AFTER target selection (CR 601.2c →
+    // 601.2f), so build the picker here too and park on it before mana.
+    const escExileSpec =
+        castZone === "graveyard"
+            ? getEscapeExileSpec(state, cardInHand)
+            : undefined;
+    let castExileChoice: PendingCast["exileFromGraveyardChoice"];
+    if (escExileSpec) {
+        const others = player.graveyard.filter((c) => c.id !== cardInstanceId);
+        if ("minCardTypes" in escExileSpec) {
+            if (countDistinctCardTypes(others) < escExileSpec.minCardTypes) {
+                throw new Error(
+                    "Not enough card types in your graveyard to pay the escape cost"
+                );
+            }
+            castExileChoice = {
+                count: 1,
+                minCardTypes: escExileSpec.minCardTypes,
+                excludeInstanceId: cardInstanceId,
+            };
+        } else {
+            if (others.length < escExileSpec.count) {
+                throw new Error(
+                    "Not enough other cards in your graveyard to pay the escape cost"
+                );
+            }
+            castExileChoice = {
+                count: escExileSpec.count,
+                excludeInstanceId: cardInstanceId,
+            };
+        }
+    }
     const parkForSacrifice =
         !!exilePicker ||
+        !!castExileChoice ||
         (castSac !== undefined && !isSacrificeSelectionComplete(castSac)) ||
         (altHandChoice !== undefined && !altHandChoice.pickedCardIds);
     if (parkForSacrifice) {
@@ -3676,6 +3713,9 @@ export function finalizeTargetSelection(
             ...(chosenModeId ? { chosenModeId } : {}),
             ...(exilePicker ? { additionalCost: exilePicker } : {}),
             ...(castSac ? { sacrificeSelection: castSac } : {}),
+            ...(castExileChoice
+                ? { exileFromGraveyardChoice: castExileChoice }
+                : {}),
             ...(altHandChoice
                 ? { alternativeCostHandChoice: altHandChoice }
                 : {}),
