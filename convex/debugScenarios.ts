@@ -225,6 +225,30 @@ const MIGRATED_PRESET_SCENARIOS: { label: string; spec: ScenarioSpec }[] = [
             landCount: 4,
         },
     },
+    {
+        // Landfall (CR 603.6a — "a land you control enters", issue #694).
+        // Bristly Bill, Spine Sower is on the battlefield next to a Grizzly
+        // Bears. Play a Forest from hand: the Landfall trigger goes on the
+        // stack and, on resolution, lets you put a +1/+1 counter on target
+        // creature (golden path). Then, with the lands up, activate
+        // "{3}{G}{G}: Double the number of +1/+1 counters on each creature you
+        // control" to feel the payoff (edge case — the DSL activated ability).
+        label: "Landfall — Bristly Bill grows the team on each land drop",
+        spec: {
+            cards: [
+                {
+                    name: "Bristly Bill, Spine Sower",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "hand" },
+                { name: "Forest", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 5,
+        },
+    },
 ];
 
 /**
