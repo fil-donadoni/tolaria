@@ -192,6 +192,14 @@ function isCardFilter(value: unknown): boolean {
         if (k === "name") {
             return typeof v === "string" && v.length > 0;
         }
+        // issue #897 — the OR-ACROSS-fields disjunctive clause list. A
+        // non-empty array of full `EffectCardFilter` clauses, each itself
+        // validated by this same function (an AND-of-fields shape, may
+        // itself carry `any` — recursion is harmless, unused by any shipped
+        // card, but not worth forbidding for a "generalize, don't add" shape).
+        if (k === "any") {
+            return Array.isArray(v) && v.length > 0 && v.every(isCardFilter);
+        }
         return false;
     });
 }

@@ -17,9 +17,11 @@ type HandChoice = {
 
 /** Does a hand card match an `EffectCardFilter`? Reads the card's registry
  *  characteristics (types / subtypes / colours / name); every present field is
- *  ANDed, array fields OR within themselves. Mirrors the server's
- *  `handCardMatchesFilter` (convex/gre/alternativeCost.ts) so eligibility shown
- *  client-side matches what the mutation will accept. */
+ *  ANDed, array fields OR within themselves. `any` (issue #897) is the one
+ *  disjunctive clause list this filter supports — recurses through this same
+ *  matcher — ANDed with every other top-level field present alongside it.
+ *  Mirrors the server's `handCardMatchesFilter` (convex/gre/alternativeCost.ts)
+ *  so eligibility shown client-side matches what the mutation will accept. */
 function handCardMatches(
     card: CardInstance,
     filter: EffectCardFilter
@@ -53,6 +55,14 @@ function handCardMatches(
         const cardColors = getCardColors(def);
         if (!colors.some((c) => cardColors.includes(c))) return false;
     }
+    // issue #897 — OR ACROSS filter dimensions. A filter carrying ONLY `any`
+    // must not fail open (match every hand card) — mirrors the server's
+    // matching addition in `handCardMatchesFilter`.
+    if (
+        filter.any !== undefined &&
+        !filter.any.some((clause) => handCardMatches(card, clause))
+    )
+        return false;
     return true;
 }
 

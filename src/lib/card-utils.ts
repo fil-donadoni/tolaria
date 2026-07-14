@@ -244,16 +244,26 @@ export function wantsPlayerTarget(
  *  Used by the mid-resolution choice UI to highlight legal picks.
  *
  *  Must stay in sync with `matchesPermanentFilter` in convex/gre/state.ts. */
+export interface ClientPermanentFilter {
+    types?: string | string[];
+    subtypes?: string | string[];
+    requireAbility?: string;
+    excludeAbility?: string;
+    colors?: string | string[];
+    tapped?: boolean;
+    /** OR ACROSS filter dimensions (issue #897) — mirrors
+     *  `PermanentFilter.any` (`convex/cards/filters.ts`). A non-empty array
+     *  of full clauses of this same shape; the permanent matches if it
+     *  matches AT LEAST ONE clause, ANDed with every other top-level field
+     *  present alongside `any`. Without this branch a filter carrying ONLY
+     *  `any` collapses to all-fields-undefined and fails OPEN (highlights
+     *  every permanent as a legal pick). */
+    any?: ClientPermanentFilter[];
+}
+
 export function matchesPermanentFilter(
     card: CardInstance,
-    filter: {
-        types?: string | string[];
-        subtypes?: string | string[];
-        requireAbility?: string;
-        excludeAbility?: string;
-        colors?: string | string[];
-        tapped?: boolean;
-    }
+    filter: ClientPermanentFilter
 ): boolean {
     if (filter.types !== undefined) {
         const types = Array.isArray(filter.types)
@@ -303,6 +313,17 @@ export function matchesPermanentFilter(
         if (!wanted.some((c) => cardColors.includes(c as Color))) {
             return false;
         }
+    }
+    // issue #897 — OR ACROSS filter dimensions. Every other field above is
+    // ANDed; `any` is the one disjunctive clause list this filter supports.
+    // Recurses through this same matcher (each clause is a full AND-of-fields
+    // filter). A filter carrying ONLY `any` must NOT fail open (match
+    // everything) — this check is what enforces that.
+    if (
+        filter.any !== undefined &&
+        !filter.any.some((clause) => matchesPermanentFilter(card, clause))
+    ) {
+        return false;
     }
     return true;
 }

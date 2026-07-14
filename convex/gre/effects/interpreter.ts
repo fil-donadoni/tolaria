@@ -380,6 +380,15 @@ function toPermanentFilter(
         colors: filter.color,
         isToken: filter.isToken,
         name: filter.name,
+        // issue #897 — propagate the OR-across-fields clause list onto
+        // `PermanentFilter.any` (`convex/cards/filters.ts`), recursing through
+        // this same mapping for each clause. Without this, a filter carrying
+        // ONLY `any` (no other field set) mapped to an all-undefined
+        // `PermanentFilter` that `matchesPermanentFilter` treats as "no
+        // constraint" — matching EVERY permanent (fail OPEN) at every
+        // battlefield `choice`/`count`/`forEach` site. Each clause is always a
+        // full `EffectCardFilter`, so the recursive call is never undefined.
+        any: filter.any?.map((clause) => toPermanentFilter(clause)!),
     };
 }
 
@@ -464,6 +473,20 @@ function matchesCardFilter(
     if (
         filter.manaValueAtMost !== undefined &&
         card.manaValue > filter.manaValueAtMost
+    ) {
+        return false;
+    }
+    // issue #897 — OR ACROSS filter dimensions. Every other field above is
+    // ANDed; `any` is the one disjunctive clause list this filter supports:
+    // the card must match AT LEAST ONE of the clauses (Magda, Brazen
+    // Outlaw's "an artifact or Dragon card" — `type: "Artifact"` OR
+    // `subtype: "Dragon"`, two different fields, not the OR-WITHIN-a-field
+    // arrays `type`/`subtype`/`color` already support). ANDed with every
+    // other top-level field present alongside `any` (recursion through this
+    // same function — each clause is itself a full AND-of-fields filter).
+    if (
+        filter.any !== undefined &&
+        !filter.any.some((clause) => matchesCardFilter(card, clause))
     ) {
         return false;
     }

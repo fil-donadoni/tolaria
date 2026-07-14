@@ -582,6 +582,53 @@ describe("validateEffectScript — choice Op (CR 608.2 / 101.4, issue #805)", ()
         ).toEqual([]);
     });
 
+    // issue #897 — the OR-ACROSS-fields `any` clause list (Magda, Brazen
+    // Outlaw's "an artifact or Dragon card": `type: "Artifact"` OR
+    // `subtype: "Dragon"`, two different fields).
+    it("accepts a filter with a disjunctive any clause (issue #897)", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            ...choiceOp,
+                            zone: "library",
+                            filter: {
+                                any: [{ type: "Artifact" }, { subtype: "Dragon" }],
+                            },
+                        } as never,
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects an any clause that isn't a non-empty array of valid filters", () => {
+        const emptyArray = validateEffectScript(
+            host({
+                effects: [
+                    { ...choiceOp, zone: "library", filter: { any: [] } } as never,
+                ],
+            })
+        );
+        expect(emptyArray.some((e) => /field "filter"/.test(e))).toBe(true);
+
+        const malformedClause = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        ...choiceOp,
+                        zone: "library",
+                        filter: { any: [{ type: 123 }] },
+                    } as never,
+                ],
+            })
+        );
+        expect(malformedClause.some((e) => /field "filter"/.test(e))).toBe(
+            true
+        );
+    });
+
     it("rejects duplicate binding names (the persisted binding store is keyed by name)", () => {
         const errors = validateEffectScript(
             host({
