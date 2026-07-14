@@ -30,6 +30,7 @@
 // `convex/cards/__tests__/effectScriptSmoke.test.ts`.
 
 import type {
+    CardDefinition,
     EffectCountSpec,
     EffectOp,
     EffectPlayerRef,
@@ -52,15 +53,43 @@ export const CASTER_ID = "p1";
 export const OPPONENT_ID = "p2";
 
 /** A vanilla creature used as a filler target / library card / zone occupant.
- *  Toughness is high (5) so a smoke-test damage Op leaves observable marked
+ *  Toughness is high (8) so a smoke-test damage Op leaves observable marked
  *  damage (CR 120.3) instead of killing the creature and moving it out from
- *  under a follow-up assertion. Registered lazily by the sweep harness — the
- *  generator itself only references the id. */
+ *  under a follow-up assertion — sized above the largest single-target
+ *  `dealDamage` amount in the catalogue (Mine Collapse's 5, issue #690).
+ *  Registered lazily by callers — the generator itself only references the
+ *  id. */
 export const FILLER_CARD_ID = "gen-scenario-filler";
 
 /** The stable subtype the filler card carries, so a `count` set filtered by
  *  subtype can be satisfied by spawning filler cards. */
 export const FILLER_SUBTYPE = "Bear";
+
+/** The ONE canonical filler `CardDefinition` — every caller that needs
+ *  `FILLER_CARD_ID` registered (the catalogue sweep and the generator's own
+ *  unit tests) MUST register this exact object, not a hand-copied literal.
+ *  `registerTokenDefinition` keys a single shared, non-isolated registry
+ *  (`convex/cards/index.ts`) by id; under the node Vitest project's
+ *  `isolate: false` (perf lever, see `vitest.config.ts`), test files sharing
+ *  a worker share that registry too. Two divergent literals for the same id
+ *  raced on module-load order — whichever file's top-level
+ *  `registerTokenDefinition` ran last in the worker won, silently swapping
+ *  the filler's toughness out from under whichever test happened to run
+ *  after it. That's exactly how issue #690's toughness-8 fix regressed: a
+ *  second, stale toughness-5 copy in `scenarioGenerator.test.ts` kept
+ *  overwriting it depending on file ordering (issue #926 test-isolation
+ *  fallout). A single exported constant makes the two call sites incapable
+ *  of disagreeing. */
+export const FILLER_CARD_DEFINITION: CardDefinition = {
+    id: FILLER_CARD_ID,
+    name: FILLER_CARD_ID,
+    rarity: "common",
+    manaCost: { G: 1 },
+    types: ["Creature"],
+    subtypes: [FILLER_SUBTYPE],
+    power: 2,
+    toughness: 8,
+};
 
 /** How many cards to seed for an open-ended library draw and for each count
  *  set — comfortably above any single card's declared amount so the outcome is

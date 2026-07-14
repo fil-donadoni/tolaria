@@ -20,8 +20,7 @@ import { getAllCards, registerTokenDefinition } from "..";
 import type { EffectOp, TargetRequirement } from "../types";
 import {
     CASTER_ID,
-    FILLER_CARD_ID,
-    FILLER_SUBTYPE,
+    FILLER_CARD_DEFINITION,
     planSmokeTest,
     type Plan,
 } from "../../gre/effects/scenarioGenerator";
@@ -29,20 +28,11 @@ import { makeInstance } from "./setup";
 import { resolveTopOfStack } from "../../gre/state";
 
 // The filler card the generated scenarios use for targets / library / zones.
-registerTokenDefinition({
-    id: FILLER_CARD_ID,
-    name: FILLER_CARD_ID,
-    rarity: "common",
-    manaCost: { G: 1 },
-    types: ["Creature"],
-    subtypes: [FILLER_SUBTYPE],
-    power: 2,
-    // Toughness is high (8) so a smoke-test damage Op leaves observable marked
-    // damage (CR 120.3) instead of killing the creature and moving it out from
-    // under a follow-up assertion — sized above the largest single-target
-    // dealDamage amount in the catalogue (Mine Collapse's 5, issue #690).
-    toughness: 8,
-});
+// Register the ONE canonical definition (`scenarioGenerator.ts`) — do not
+// hand-copy this literal (issue #926 test-isolation postmortem: a divergent
+// copy in `scenarioGenerator.test.ts` used to race this one under the node
+// project's `isolate: false`, last-registration-wins).
+registerTokenDefinition(FILLER_CARD_DEFINITION);
 
 /** A DSL Effect Script found in the catalogue, tagged by site so the harness
  *  can push the right stack item. */
