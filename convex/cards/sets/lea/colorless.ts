@@ -10,6 +10,7 @@
 import type {
     ActivatedAbilityContext,
     CardDefinition,
+    CardPrint,
     Color,
     Rarity,
     SpellContext,
@@ -1510,6 +1511,22 @@ export const plains: CardDefinition = {
     subtypes: ["Plains"],
 };
 
+// Alpha printed each basic land at two collector numbers (two arts). Only
+// #286 is a CardDefinition; #287 is the same card, same rules text, just a
+// second Alpha printing — a CardPrint resolving back to `plains` (ADR 0014),
+// same "same-set alt art" pattern LEB uses for its own basics
+// (`forestLeb300`/`forestLeb301`/`forestLeb302`, convex/cards/sets/leb/colorless.ts).
+// Booster Config CI guard (issue #1108, ADR 0056): LEA's MTGJSON booster
+// sheets reference both Alpha basic-land arts by their own Scryfall id, so
+// the second art needs its own resolvable entry for LEA to be a Draftable
+// Set.
+export const plainsLea287: CardPrint = {
+    printId: "51662253-789f-4a02-9937-688e36775024",
+    definitionId: "b1623d57-4729-4796-b3f7-f1837a05c6ed", // plains
+    setCode: "lea",
+    rarity: "common",
+};
+
 export const island: CardDefinition = {
     id: "90a57c0e-fa61-45ef-955d-d296403967d5",
     rarity: "common",
@@ -1518,6 +1535,13 @@ export const island: CardDefinition = {
     types: ["Land"],
     supertypes: ["Basic"],
     subtypes: ["Island"],
+};
+
+export const islandLea289: CardPrint = {
+    printId: "bc6ea08d-7991-4a57-a1e3-abd508426970",
+    definitionId: "90a57c0e-fa61-45ef-955d-d296403967d5", // island
+    setCode: "lea",
+    rarity: "common",
 };
 
 export const swamp: CardDefinition = {
@@ -1530,6 +1554,13 @@ export const swamp: CardDefinition = {
     subtypes: ["Swamp"],
 };
 
+export const swampLea291: CardPrint = {
+    printId: "edeba4e1-9012-4962-8797-3a1f6a660952",
+    definitionId: "6176936d-72e2-4205-8871-4c5a4f1cb2d8", // swamp
+    setCode: "lea",
+    rarity: "common",
+};
+
 export const mountain: CardDefinition = {
     id: "eace2c85-976c-425e-9800-5a6ccbd91b56",
     rarity: "common",
@@ -1540,6 +1571,13 @@ export const mountain: CardDefinition = {
     subtypes: ["Mountain"],
 };
 
+export const mountainLea293: CardPrint = {
+    printId: "1a96315d-edc6-4d68-a260-d14f61281dc1",
+    definitionId: "eace2c85-976c-425e-9800-5a6ccbd91b56", // mountain
+    setCode: "lea",
+    rarity: "common",
+};
+
 export const forest: CardDefinition = {
     id: "6f1c8cb0-38eb-408b-94e8-16db83999b3b",
     rarity: "common",
@@ -1548,6 +1586,13 @@ export const forest: CardDefinition = {
     types: ["Land"],
     supertypes: ["Basic"],
     subtypes: ["Forest"],
+};
+
+export const forestLea295: CardPrint = {
+    printId: "f20c89d9-71c9-45f5-a9cb-6e253b0a7cca",
+    definitionId: "6f1c8cb0-38eb-408b-94e8-16db83999b3b", // forest
+    setCode: "lea",
+    rarity: "common",
 };
 
 // Disrupting Scepter — {3} Artifact. "{3}, {T}: Target player discards a
