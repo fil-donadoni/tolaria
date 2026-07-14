@@ -55,3 +55,24 @@ export const ouroboroid: CardDefinition = {
         }),
     ],
 };
+
+// STOP-AND-ISSUE (tracked-by: #1190) — Icetill Explorer: "You may play an
+// additional land on each of your turns. You may play lands from your
+// graveyard. Landfall — Whenever a land you control enters, mill a card." The
+// `extraLandDrops: 1` static and the Landfall→`mill` trigger (shared
+// `landfallTrigger` factory, #694) are both expressible today, but "You may
+// play lands from your graveyard" is an unconditional player-wide
+// play-from-graveyard permission with no primitive (distinct from the scoped
+// Serra Paragon variant #1149). Landfall CAP (#694). Whole card left as one
+// stub until #1190 lands.
+// export const icetillExplorer: CardDefinition = {
+//     id: "d9482aab-6ddf-48e1-84fa-b13d5ff81e69",
+//     name: "Icetill Explorer",
+//     rarity: "rare",
+//     manaCost: { X: 2, G: 2 },
+//     types: ["Creature"],
+//     subtypes: ["Insect", "Scout"],
+//     power: 2,
+//     toughness: 4,
+//     extraLandDrops: 1,
+// };
