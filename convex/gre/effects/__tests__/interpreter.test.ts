@@ -2859,6 +2859,85 @@ describe("Effect Script Op: moveZone — cards/player shape (CR 400.7, issue #67
         expect(state.pendingChoices![0].candidateIds).toEqual(["cheap1"]);
     });
 
+    // `filter.any` (issue #897) — OR ACROSS filter dimensions, distinct from
+    // the OR-WITHIN-a-field arrays `type`/`subtype`/`color` already support
+    // (issue #677). Magda, Brazen Outlaw's "an artifact or Dragon card":
+    // `type: "Artifact"` OR `subtype: "Dragon"` — two DIFFERENT fields, not
+    // one array on either. Covers a match via EACH clause plus a non-match
+    // (neither clause satisfied), and re-asserts through `projectPublicState`
+    // per the new-construct wire-format mandate.
+    it("restricts the search-library candidates by a disjunctive any clause (type OR subtype, issue #897)", () => {
+        const ARTIFACT_ID = "test-effects-any-artifact";
+        registerTokenDefinition({
+            id: ARTIFACT_ID,
+            name: ARTIFACT_ID,
+            rarity: "common",
+            manaCost: { X: 2 },
+            types: ["Artifact"],
+        });
+        const DRAGON_ID = "test-effects-any-dragon";
+        registerTokenDefinition({
+            id: DRAGON_ID,
+            name: DRAGON_ID,
+            rarity: "common",
+            manaCost: { X: 4, R: 2 },
+            types: ["Creature"],
+            subtypes: ["Dragon"],
+            power: 4,
+            toughness: 4,
+        });
+        const BEAR_ID = "test-effects-any-bear";
+        registerTokenDefinition({
+            id: BEAR_ID,
+            name: BEAR_ID,
+            rarity: "common",
+            manaCost: { G: 2 },
+            types: ["Creature"],
+            subtypes: ["Bear"],
+            power: 2,
+            toughness: 2,
+        });
+        const id = registerScript("test-op-choice-any", [
+            {
+                op: "choice",
+                kind: "search-library",
+                player: "controller",
+                zone: "library",
+                filter: { any: [{ type: "Artifact" }, { subtype: "Dragon" }] },
+                count: 1,
+                prompt: "Search your library for an artifact or Dragon card.",
+                bind: "$picked",
+            },
+            {
+                op: "moveZone",
+                cards: { ref: "$picked" },
+                player: "controller",
+                from: "library",
+                to: "battlefield",
+            },
+        ]);
+        const lib = [
+            ...libraryOf("p1", ["artifact1"], ARTIFACT_ID),
+            ...libraryOf("p1", ["dragon1"], DRAGON_ID),
+            ...libraryOf("p1", ["bear1"], BEAR_ID), // neither clause — excluded
+        ];
+        const state = makeState({
+            players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on the search
+        // Both the artifact (matches `type`) and the Dragon (matches
+        // `subtype`) are eligible; the Bear matches neither clause.
+        expect(state.pendingChoices![0].candidateIds!.slice().sort()).toEqual([
+            "artifact1",
+            "dragon1",
+        ]);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.pendingChoices![0].candidateIds!.slice().sort()
+        ).toEqual(["artifact1", "dragon1"]);
+    });
+
     // `count: { min: 0, max: N }` (issue #677) — an OPTIONAL / "up to N"
     // search (Stoneforge Mystic's "you may search…", Brightglass Gearhulk's
     // "up to two"). The player may submit FEWER than `max` (down to `min`).

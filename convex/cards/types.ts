@@ -5639,6 +5639,21 @@ export interface EffectCardFilter {
      *  single card name; matched case-sensitively against the registry name,
      *  ANDed with every other field. */
     name?: string;
+    /** OR ACROSS filter dimensions (issue #897) — a disjunctive clause list.
+     *  Every other field on this interface is ANDed together (and each of
+     *  `type`/`subtype`/`color` is itself an OR-WITHIN-that-field array,
+     *  issue #677) — neither expresses "type X OR subtype Y" (Magda, Brazen
+     *  Outlaw's "an artifact or Dragon card": `type: "Artifact"` OR
+     *  `subtype: "Dragon"`, two DIFFERENT fields, not one array on either).
+     *  `any` is a non-empty array of full `EffectCardFilter` clauses (each
+     *  itself the existing AND-of-fields shape); the containing filter
+     *  matches a card if the card matches AT LEAST ONE clause in `any`,
+     *  ANDed with every other top-level field present alongside `any` (there
+     *  usually are none — Magda's filter is just `{ any: [{ type:
+     *  "Artifact" }, { subtype: "Dragon" }] }`). Deliberately the ONE
+     *  disjunctive clause this issue asks for — not a general boolean filter
+     *  grammar (no `all`/`not` siblings; scope note in #897). */
+    any?: EffectCardFilter[];
 }
 
 /** X — the chosen-cost value (CR 107.3, 601.2b), a thin JSON-pure skin over

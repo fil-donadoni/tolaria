@@ -467,6 +467,20 @@ function matchesCardFilter(
     ) {
         return false;
     }
+    // issue #897 — OR ACROSS filter dimensions. Every other field above is
+    // ANDed; `any` is the one disjunctive clause list this filter supports:
+    // the card must match AT LEAST ONE of the clauses (Magda, Brazen
+    // Outlaw's "an artifact or Dragon card" — `type: "Artifact"` OR
+    // `subtype: "Dragon"`, two different fields, not the OR-WITHIN-a-field
+    // arrays `type`/`subtype`/`color` already support). ANDed with every
+    // other top-level field present alongside `any` (recursion through this
+    // same function — each clause is itself a full AND-of-fields filter).
+    if (
+        filter.any !== undefined &&
+        !filter.any.some((clause) => matchesCardFilter(card, clause))
+    ) {
+        return false;
+    }
     return true;
 }
 
