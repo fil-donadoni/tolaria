@@ -1,7 +1,7 @@
 import { v, type GenericId } from "convex/values";
 import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
-import { auth, getCurrentUser } from "./auth";
+import { assertIsAdmin, auth, getCurrentUser } from "./auth";
 import { mutation, query } from "./_generated/server";
 import {
     getAllCardNames,
@@ -9973,6 +9973,12 @@ export const debugSetupScenario = mutation({
         ),
     },
     handler: async (ctx, args) => {
+        // Admin-only debug board setup (CLAUDE.md privileged-mutation
+        // convention, issue #768). `assertIsAdmin` runs FIRST — non-admins
+        // are rejected server-side before any state is touched: an arbitrary
+        // logged-in caller could otherwise overwrite any game's board.
+        await assertIsAdmin(ctx);
+
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
