@@ -2223,12 +2223,12 @@ describe("mana-tap triggers fire end-to-end", () => {
         p1.battlefield.push(forest, manaFlareCard);
         p1.manaPool.G = 1;
 
+        // CR 605.4 — Mana Flare is a triggered mana ability: it resolves
+        // immediately off the stack, so the extra {G} is in the pool right
+        // after the tap with nothing left on the stack.
         emitPermanentTapped(state, forest, true, { G: 1 });
         processPendingActionTriggers(state);
-        expect(state.stack).toHaveLength(1);
-        expect(state.stack[0].triggeredAbilityId).toBe("mana-flare-extra");
-
-        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(0);
         expect(p1.manaPool.G).toBe(2);
     });
 
@@ -2277,15 +2277,13 @@ describe("mana-tap triggers fire end-to-end", () => {
         processPendingActionTriggers(state);
         expect(state.stack).toHaveLength(0);
 
+        // CR 605.4 — tapping the enchanted host fires Wild Growth's mana
+        // ability, which resolves immediately off the stack: the bonus {G} is
+        // in the pool with nothing left to resolve, no priority pass.
+        p1.manaPool.G = 1;
         emitPermanentTapped(state, enchantedForest, true, { G: 1 });
         processPendingActionTriggers(state);
-        expect(state.stack).toHaveLength(1);
-        expect(state.stack[0].triggeredAbilityId).toBe(
-            "wild-growth-extra-green"
-        );
-
-        p1.manaPool.G = 1;
-        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(0);
         expect(p1.manaPool.G).toBe(2);
     });
 });

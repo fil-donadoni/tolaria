@@ -2744,7 +2744,7 @@ export function resolveTopOfStack(state: GameState): StackItem | null {
 /** True when this trigger StackItem is a triggered MANA ability (CR 605.1b):
  *  its ability declares `manaAbility`. Such an ability does not use the stack
  *  (CR 605.4) — the caller resolves it immediately instead of pushing it. */
-function isManaAbilityTriggerItem(state: GameState, item: StackItem): boolean {
+function isManaAbilityTriggerItem(item: StackItem): boolean {
     if (!item.triggeredAbilityId) return false;
     const ability = findTriggeredAbility(item, item.triggeredAbilityId);
     return ability?.manaAbility === true;
@@ -2784,7 +2784,7 @@ export function processPendingActionTriggers(state: GameState): void {
     if (triggers.length === 0) return;
     const stackTriggers: StackItem[] = [];
     for (const trigger of triggers) {
-        if (isManaAbilityTriggerItem(state, trigger)) {
+        if (isManaAbilityTriggerItem(trigger)) {
             resolveManaAbilityTriggerImmediately(state, trigger);
         } else {
             stackTriggers.push(trigger);

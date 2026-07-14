@@ -3250,8 +3250,11 @@ describe("Gauntlet of Might (static pt-buff + tapped trigger)", () => {
             ],
         });
         emitPermanentTapped(state, mtn, true, { R: 1 });
+        // CR 605.4 — Gauntlet's tap trigger is a mana ability: it resolves
+        // immediately here, off the stack, so the bonus {R} is already in the
+        // pool with nothing left to resolve.
         processPendingActionTriggers(state);
-        resolveTopOfStack(state);
+        expect(state.stack).toHaveLength(0);
         expect(state.players[0].manaPool["R"]).toBe(1);
     });
 });
