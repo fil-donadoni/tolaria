@@ -9,6 +9,7 @@ import { storeSession } from "~/lib/session";
 import { copyMinified } from "~/lib/clipboard";
 import DebugButton from "./debug-button";
 import DebugDbScenarios from "./debug-db-scenarios";
+import DebugGenerateScenario from "./debug-generate-scenario";
 
 const theme = {
     scheme: "tolaria",
@@ -259,6 +260,9 @@ export default function DebugPanel({
                                     gameId={gameId}
                                     filter={scenarioFilter}
                                 />
+                                <div className="mt-2 pt-2 border-t border-white/10">
+                                    <DebugGenerateScenario />
+                                </div>
                             </div>
                         )}
 
