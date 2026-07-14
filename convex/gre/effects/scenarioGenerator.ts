@@ -599,6 +599,16 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // interpreter tests (per-Op regime).
             req.skip ??= `Op "libraryLook" shuffles a library (seeded-PRNG randomization) — covered by the Op's interpreter tests`;
             return;
+        case "shuffleSelfIntoLibrary":
+            // CR 608.2 / 701.24 (issue #898) — redirects the RESOLVING
+            // spell's own destination from graveyard to a shuffled library.
+            // Same rationale as `libraryLook`: a shuffle is a seeded-PRNG
+            // randomization with no deterministic same-resolution outcome the
+            // canned generator can assert (which library slot the card lands
+            // in is unwitnessed). Explicit skip — covered by the Op's own
+            // interpreter tests (per-Op regime).
+            req.skip ??= `Op "shuffleSelfIntoLibrary" shuffles the resolving spell into a library (seeded-PRNG randomization) — covered by the Op's interpreter tests`;
+            return;
         case "preventDamage":
             // CR 615 (issue #845) — a prevention shield sits DORMANT until a
             // later damage event tests it; the canned scenario only resolves
@@ -1242,6 +1252,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // scenario can assert). Kept for the 1:1 coverage guard; the shuffle
     // primitive is covered by the Op's own interpreter tests.
     libraryLook() {
+        return null;
+    },
+    // `shuffleSelfIntoLibrary` (CR 608.2 / 701.24, issue #898) — never
+    // reached: `analyseOp` skips every script with this Op (a shuffle is a
+    // seeded-PRNG randomization with no deterministic same-resolution
+    // outcome the canned scenario can assert). Kept for the 1:1 coverage
+    // guard; the self-redirect + shuffle is covered by the Op's own
+    // interpreter tests.
+    shuffleSelfIntoLibrary() {
         return null;
     },
     // `scryReorder` (CR 401.4 / 701.22, issue #885) — never reached: `analyseOp`

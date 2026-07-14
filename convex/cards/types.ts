@@ -3129,6 +3129,14 @@ export interface SpellContext {
      *  graveyard when resolution completes. No-op on a stack item that is a
      *  copy (a copy ceases to exist anyway, CR 707.10) or an ability. */
     exileSelf: () => void;
+    /** CR 608.2 / 701.24 (issue #898) — the resolving spell shuffles ITSELF into
+     *  its owner's library as the last thing it does ("Shuffle ~ into its
+     *  owner's library", Green Sun's Zenith), instead of going to the graveyard
+     *  (CR 608.2m). Mirrors `exileSelf` exactly but redirects to the library
+     *  (shuffled, ADR 0026 — clears persistent knowledge like any other
+     *  shuffle) rather than exile. No-op on a stack item that is a copy (a copy
+     *  ceases to exist anyway, CR 707.10) or an ability. */
+    shuffleSelfIntoLibrary: () => void;
     /** CR 702.34 — grant Flashback to a target instant/sorcery card in a
      *  graveyard until end of turn (Snapcaster Mage). The `target` is a chosen
      *  `graveyard-card` selection; its flashback cost is set on the card
@@ -5614,12 +5622,12 @@ export interface EffectCountSpec {
  *  BASIC land card" restriction (Fabled Passage, Prismatic Vista) — a printed
  *  supertype, not a type/subtype. `color` (issue #677) is the mana-cost-
  *  derived color restriction (Natural Order's "a green creature card").
- *  `manaValueAtMost` (issue #677) is a FIXED mana-value ceiling (Spellseeker's
- *  "mana value 2 or less", Brightglass Gearhulk's "mana value 1 or less"); a
- *  DYNAMIC ceiling (Green Sun's Zenith's "mana value X or less") is NOT
- *  expressible here (a literal number, not an EffectValue) — that card stays a
- *  tracked stub. Deliberately small: it answers "how many X" / "search for an
- *  X card", not arbitrary predicates. `isToken` (issue #920) restricts a
+ *  `manaValueAtMost` (issue #677) is a mana-value ceiling: a FIXED literal
+ *  (Spellseeker's "mana value 2 or less", Brightglass Gearhulk's "mana value 1
+ *  or less") OR a DYNAMIC `{ X: true }` (issue #898, Green Sun's Zenith's
+ *  "mana value X or less" — the caster's chosen {X}, read at resolution via
+ *  `ctx.getX()`, same as every other `EffectXValue` site). Deliberately small:
+ *  it answers "how many X" / "search for an X card", not arbitrary predicates. `isToken` (issue #920) restricts a
  *  `zone: "battlefield"` pick to tokens (`true`, Sheoldred's Edict's "a
  *  creature TOKEN") or nontoken permanents (`false`, Sheoldred's Edict's "a
  *  NONTOKEN creature") — a direct passthrough of the `PermanentFilter.isToken`
@@ -5651,7 +5659,7 @@ export interface EffectCardFilter {
      *  the LIVE supertype set (snow-aware) for battlefield counts. */
     excludeSupertype?: CardSupertype | CardSupertype[];
     color?: Color | Color[];
-    manaValueAtMost?: number;
+    manaValueAtMost?: number | EffectXValue;
     isToken?: boolean;
     excludeType?: CardType | CardType[];
     /** Match cards by exact printed name (CR 201.2 — "each other card named
@@ -6316,6 +6324,17 @@ export type EffectOp =
           action: "shuffle";
           player: EffectPlayerRef;
       }
+    /** CR 608.2 / 701.24 (issue #898) — the resolving spell shuffles ITSELF
+     *  into its owner's library, instead of going to the graveyard (CR
+     *  608.2m), as the last thing it does ("Shuffle Green Sun's Zenith into
+     *  its owner's library"). A thin declarative skin over the SpellContext
+     *  primitive `shuffleSelfIntoLibrary`, one execution path (ADR 0045) —
+     *  mirrors the `exileSelf` self-redirect design (Recall, `resolve()`) but
+     *  targets the library instead of exile, and is exposed as an Op (unlike
+     *  `exileSelf`, which has no DSL Op yet) since Green Sun's Zenith is a
+     *  DSL-first card. No parameters — it always applies to the currently-
+     *  resolving spell card; no-op for an ability or a spell copy (CR 707.10). */
+    | { op: "shuffleSelfIntoLibrary" }
     /** CR 401.4 look / CR 701.22 Scry / 701.44 Surveil / order-only (issue
      *  #885) — look at the top `count` cards of a library, then reorder / place
      *  them per `destination`. A thin declarative skin over the single

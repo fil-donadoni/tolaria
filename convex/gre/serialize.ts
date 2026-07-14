@@ -712,6 +712,11 @@ function compactStackItem(item: StackItem): CompactCard {
     }
     if (item.isCopy) base.isCopy = item.isCopy;
     if (item.exileOnResolve) base.exileOnResolve = item.exileOnResolve;
+    // issue #898 — persist the self-shuffle-into-library redirect flag so a
+    // mid-resolution save (suspended on a choice) survives a DB round-trip.
+    if (item.shuffleIntoLibraryOnResolve) {
+        base.shuffleIntoLibraryOnResolve = item.shuffleIntoLibraryOnResolve;
+    }
     // CR 702.34 — persist the Flashback cast marker so an "if this spell was
     // cast from a graveyard" resolution (Sevinne's Reclamation) survives a DB
     // round-trip mid-resolution.
@@ -787,6 +792,10 @@ function expandStackItem(compact: CompactCard): StackItem {
     if (compact.isCopy) item.isCopy = compact.isCopy as boolean;
     if (compact.exileOnResolve) {
         item.exileOnResolve = compact.exileOnResolve as boolean;
+    }
+    if (compact.shuffleIntoLibraryOnResolve) {
+        item.shuffleIntoLibraryOnResolve =
+            compact.shuffleIntoLibraryOnResolve as boolean;
     }
     if (compact.castFromGraveyard) {
         item.castFromGraveyard = compact.castFromGraveyard as boolean;
