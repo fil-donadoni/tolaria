@@ -14,6 +14,7 @@ import { describe, it, expect } from "vitest";
 import { isAdminUser } from "../auth";
 import { tryGetCardByName } from "../cards";
 import type { Doc } from "../_generated/dataModel";
+import { MIGRATED_PRESET_SCENARIOS } from "../debugScenarios";
 import {
     collectUnresolvedCardNames,
     normalizeScenarioSpec,
@@ -172,5 +173,42 @@ describe("DB row → load → builder input (issue #769 integration)", () => {
         expect(args.cards.map((c) => c.name)).toEqual(["Plains", "Mountain"]);
         expect(args.landCount).toBe(3);
         expect(args.phase).toBe("PRECOMBAT_MAIN");
+    });
+});
+
+describe("MIGRATED_PRESET_SCENARIOS — PRESET_SCENARIOS → DB migration (issue #770)", () => {
+    it("is non-empty and every label is unique (the idempotency key `seedPresetScenarios` skips on)", () => {
+        expect(MIGRATED_PRESET_SCENARIOS.length).toBeGreaterThan(0);
+        const labels = MIGRATED_PRESET_SCENARIOS.map((s) => s.label);
+        expect(new Set(labels).size).toBe(labels.length);
+    });
+
+    it("every migrated spec loads with only resolvable card names (would not corrupt a board)", () => {
+        for (const preset of MIGRATED_PRESET_SCENARIOS) {
+            expect(
+                collectUnresolvedCardNames(preset.spec, resolves)
+            ).toEqual([]);
+        }
+    });
+
+    it("every migrated spec round-trips through the tolerant load unchanged (matches the debugScenarios row shape)", () => {
+        for (const preset of MIGRATED_PRESET_SCENARIOS) {
+            expect(normalizeScenarioSpec(preset.spec)).toEqual(preset.spec);
+        }
+    });
+
+    it("carries the historical Wild Growth scenario (CR 605.1b / 605.4)", () => {
+        const wildGrowth = MIGRATED_PRESET_SCENARIOS.find((s) =>
+            s.label.startsWith("Wild Growth")
+        );
+        expect(wildGrowth).toBeDefined();
+        const spec = wildGrowth!.spec;
+        expect(spec.cards.map((c) => c.name)).toEqual([
+            "Forest",
+            "Wild Growth",
+            "Craw Wurm",
+        ]);
+        expect(spec.phase).toBe("PRECOMBAT_MAIN");
+        expect(spec.landCount).toBe(4);
     });
 });

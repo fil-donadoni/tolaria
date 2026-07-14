@@ -71,9 +71,10 @@ Once on the board:
 2. `find` → click `Scenarios`
 3. `find` → click the scenario label
 
-Add new scenarios to `PRESET_SCENARIOS` in
-`src/components/debug/debug-panel.tsx` whenever you need a repeatable starting
-position — that's faster than scripting card placements via JS.
+Add new scenarios via the panel's own "Save scenario" form (label + JSON spec,
+`saveDebugScenario` in `convex/debugScenarios.ts`) whenever you need a
+repeatable starting position — a DB insert, not a code edit (ADR 0044, issue
+#770) — that's faster than scripting card placements via JS.
 
 ## Verifying the auto-switch
 
