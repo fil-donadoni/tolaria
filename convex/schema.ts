@@ -303,6 +303,11 @@ export default defineSchema({
         // Event RNG seed (ADR 0055), set once at `startEvent` so the seat
         // Pools it produced are reproducible/replayable given the same seed.
         seed: v.optional(v.number()),
+        // Per-pick timer, in seconds (issue #1114, PRD #1107 story 5/14).
+        // Configured once at `createLimitedEvent`; absent === disabled (no
+        // countdown, no Auto-Pick ever scheduled). Draft only — a Sealed
+        // event has no picks to time.
+        timerSeconds: v.optional(v.number()),
         // Draft only (issue #1112): 0-indexed current booster round —
         // `packSlots[draftRound]` is the Pack Source of the boosters in play.
         // Absent for Sealed / before a Draft starts.
@@ -366,6 +371,26 @@ export default defineSchema({
                         )
                     )
                 ),
+                // Draft only, timer-on events (issue #1114): epoch ms when
+                // this seat's CURRENT pack's pick timer expires. Absent when
+                // the event has no `timerSeconds`, this is a Bot Drafter seat
+                // (bots pick instantly, never idly holding a pack), or
+                // nothing is currently in front of the seat. Server-written
+                // only (`draftEngine.ts`'s pure stamping helpers) — never
+                // client-settable, so a client can't extend its own timer.
+                pickDeadline: v.optional(v.number()),
+                // Draft only, timer-on events: monotonic counter bumped every
+                // time this seat's `currentPack` is freshly assigned (dealt
+                // or passed in) — NOT bumped when a pick merely clears it to
+                // empty. `startLimitedEvent`/`submitPick` schedule the
+                // Auto-Pick timeout with the value captured at scheduling
+                // time; `autoPickSeatTimeout` re-checks it against the LIVE
+                // value when it fires — a mismatch means a human pick (or a
+                // later pack) already superseded this schedule, so the
+                // timeout is a no-op. This is the seq-based cancellation
+                // CLAUDE.md's priority-timeout pattern uses, adapted here
+                // since Convex has no cheap "cancel a scheduled job" call.
+                pickSeq: v.optional(v.number()),
             })
         ),
         createdAt: v.number(),

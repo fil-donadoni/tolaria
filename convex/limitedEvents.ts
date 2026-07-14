@@ -6,8 +6,14 @@
 // convex-test harness (the project has none — see
 // `convex/__tests__/adminAuth.test.ts`).
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import type { Doc } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
+import {
+    internalMutation,
+    mutation,
+    query,
+    type MutationCtx,
+} from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
 import { assertIsAdmin, getCurrentUser, getCurrentUserId } from "./auth";
 import { resolveDeckCardMeta, tryGetDefinition } from "./cards";
 import { getCardColors } from "./cards/colors";
@@ -15,9 +21,12 @@ import { manaValue } from "./gre/constants";
 import { freshSeed, makeRng } from "./gre/rng";
 import {
     applyPick,
+    resolveAutoPickTimeout,
     runBotAutoPicks,
     startDraft,
     type ChooseBotPick,
+    type SeatTimerUpdate,
+    type TimerConfig,
 } from "./limited/draftEngine";
 import { chooseBotPick, type GetCardEvalMeta } from "./limited/botDrafter";
 import {
@@ -73,6 +82,7 @@ const limitedEventSeatViewValidator = v.object({
     pool: v.union(v.array(limitedPoolCardValidator), v.null()),
     currentPack: v.union(v.array(draftPackCardValidator), v.null()),
     packQueueCount: v.union(v.number(), v.null()),
+    pickDeadline: v.union(v.number(), v.null()),
 });
 
 /** Wire shape of `projectLimitedEvent`'s return value — declared once here so
@@ -89,6 +99,7 @@ const limitedEventViewValidator = v.object({
     draftRound: v.optional(v.number()),
     draftPacksRemaining: v.optional(v.number()),
     draftCompletedAt: v.optional(v.number()),
+    timerSeconds: v.optional(v.number()),
     seats: v.array(limitedEventSeatViewValidator),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -143,6 +154,43 @@ const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
  *  Pool. */
 const botChoosePick: ChooseBotPick = (seat, pack) =>
     chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta);
+
+/** Builds the `TimerConfig` `startDraft`/`applyPick`/`runBotAutoPicks` accept
+ *  (issue #1114) from an event's stored `timerSeconds`, or `undefined` when
+ *  the event has no timer configured — the single point deciding "is the
+ *  timer on for this event" so every draft mutation below agrees. `now` is
+ *  read ONCE per mutation invocation (never inside the pure engine) so every
+ *  deadline stamped within the same call shares one time reference. */
+function buildTimerConfig(
+    timerSeconds: number | undefined,
+    now: number
+): TimerConfig | undefined {
+    return timerSeconds ? { timerSeconds, now } : undefined;
+}
+
+/** Schedules exactly one `autoPickSeatTimeout` Auto-Pick per `updates` entry
+ *  (issue #1114) — the ONLY place `ctx.scheduler.runAfter` is called for this
+ *  feature. Mirrors the GRE priority-timeout pattern (CLAUDE.md): the
+ *  schedule is unconditional (Convex has no cheap "cancel a scheduled job"),
+ *  and `autoPickSeatTimeout` re-validates `pickSeq` when it actually fires —
+ *  seq-based cancellation, not an explicit cancel call. A no-op for a
+ *  timer-off event (`timerSeconds` undefined) since `updates` is always empty
+ *  in that case (the pure engine never stamps a seat with no `TimerConfig`). */
+async function scheduleSeatTimers(
+    ctx: MutationCtx,
+    eventId: Id<"limitedEvents">,
+    timerSeconds: number | undefined,
+    updates: readonly SeatTimerUpdate[]
+): Promise<void> {
+    if (!timerSeconds || updates.length === 0) return;
+    for (const update of updates) {
+        await ctx.scheduler.runAfter(
+            timerSeconds * 1000,
+            internal.limitedEvents.autoPickSeatTimeout,
+            { eventId, seatIndex: update.seatIndex, expectedSeq: update.pickSeq }
+        );
+    }
+}
 
 // --- Queries ---------------------------------------------------------------
 
@@ -223,6 +271,9 @@ export const createLimitedEvent = mutation({
         seatCount: v.number(),
         packSlots: v.array(v.string()),
         sealedBoosterCount: v.optional(v.number()),
+        // Per-pick timer, seconds (issue #1114, PRD #1107 story 5: "configure
+        // the per-pick timer, or disable it"). Absent/omitted === disabled.
+        timerSeconds: v.optional(v.number()),
     },
     returns: v.id("limitedEvents"),
     handler: async (ctx, args) => {
@@ -246,6 +297,14 @@ export const createLimitedEvent = mutation({
                 );
             }
         }
+        if (
+            args.timerSeconds !== undefined &&
+            (!Number.isInteger(args.timerSeconds) || args.timerSeconds <= 0)
+        ) {
+            throw new Error(
+                "The per-pick timer must be a positive whole number of seconds, or omitted to disable it."
+            );
+        }
 
         const seats = buildEmptySeats(args.seatCount);
         const now = Date.now();
@@ -257,6 +316,7 @@ export const createLimitedEvent = mutation({
             packSlots: args.packSlots,
             sealedBoosterCount:
                 args.sealedBoosterCount ?? DEFAULT_SEALED_BOOSTER_COUNT,
+            timerSeconds: args.timerSeconds,
             seats: asDbSeats(seats),
             createdAt: now,
             updatedAt: now,
@@ -312,12 +372,15 @@ export const startLimitedEvent = mutation({
         if (event.type === "draft") {
             const seats = fillBotSeats(event.seats);
             const seed = freshSeed();
+            const now = Date.now();
+            const timerConfig = buildTimerConfig(event.timerSeconds, now);
             const dealt = startDraft(
                 seats,
                 event.packSlots,
                 seed,
                 getBoosterConfig,
-                resolveCardMeta
+                resolveCardMeta,
+                timerConfig
             );
             const afterBots = runBotAutoPicks(
                 dealt.seats,
@@ -327,7 +390,9 @@ export const startLimitedEvent = mutation({
                 seed,
                 getBoosterConfig,
                 resolveCardMeta,
-                botChoosePick
+                botChoosePick,
+                false,
+                timerConfig
             );
             await ctx.db.patch(args.eventId, {
                 seats: asDbSeats(afterBots.seats),
@@ -335,9 +400,15 @@ export const startLimitedEvent = mutation({
                 seed,
                 draftRound: afterBots.draftRound,
                 draftPacksRemaining: afterBots.draftPacksRemaining,
-                updatedAt: Date.now(),
-                ...(afterBots.completed ? { draftCompletedAt: Date.now() } : {}),
+                updatedAt: now,
+                ...(afterBots.completed ? { draftCompletedAt: now } : {}),
             });
+            await scheduleSeatTimers(
+                ctx,
+                args.eventId,
+                event.timerSeconds,
+                [...dealt.timerUpdates, ...afterBots.timerUpdates]
+            );
             return null;
         }
 
@@ -393,6 +464,8 @@ export const submitPick = mutation({
             throw new Error("You do not have a Seat in this event.");
         }
 
+        const now = Date.now();
+        const timerConfig = buildTimerConfig(event.timerSeconds, now);
         const result = applyPick(
             event.seats,
             event.draftRound ?? 0,
@@ -402,7 +475,8 @@ export const submitPick = mutation({
             args.pickId,
             event.seed,
             getBoosterConfig,
-            resolveCardMeta
+            resolveCardMeta,
+            timerConfig
         );
 
         // The human's pick can pass a pack straight onto a bot seat, or empty
@@ -419,16 +493,115 @@ export const submitPick = mutation({
             getBoosterConfig,
             resolveCardMeta,
             botChoosePick,
-            result.completed
+            result.completed,
+            timerConfig
         );
 
         await ctx.db.patch(args.eventId, {
             seats: asDbSeats(afterBots.seats),
             draftRound: afterBots.draftRound,
             draftPacksRemaining: afterBots.draftPacksRemaining,
-            updatedAt: Date.now(),
-            ...(afterBots.completed ? { draftCompletedAt: Date.now() } : {}),
+            updatedAt: now,
+            ...(afterBots.completed ? { draftCompletedAt: now } : {}),
         });
+        // The human's own pick just superseded any Auto-Pick schedule that
+        // was pending for THIS seat (its pickSeq only advances here if it
+        // dequeued a new pack — see `assignFreshPack`); a stale schedule from
+        // before this call self-invalidates via the seq guard in
+        // `autoPickSeatTimeout`, so nothing needs cancelling here — only the
+        // freshly-created deadlines from this call need a NEW schedule.
+        await scheduleSeatTimers(
+            ctx,
+            args.eventId,
+            event.timerSeconds,
+            [...result.timerUpdates, ...afterBots.timerUpdates]
+        );
+        return null;
+    },
+});
+
+/** Auto-Pick timeout (issue #1114, PRD #1107 stories 5, 14, 16, 27): fires
+ *  when a human seat's per-pick timer expires. `internalMutation` — reachable
+ *  ONLY via `ctx.scheduler.runAfter` (scheduled by `startLimitedEvent` /
+ *  `submitPick` / this mutation itself), never by any client-facing API —
+ *  which is what makes "a client can't force an Auto-Pick on another seat"
+ *  true by construction: there is no public mutation a client could call to
+ *  reach this path for an arbitrary seat.
+ *
+ *  `expectedSeq` is the seat's `pickSeq` AT SCHEDULING TIME. If the live
+ *  value no longer matches — the human already picked, or a previous
+ *  Auto-Pick already resolved this exact schedule — `resolveAutoPickTimeout`
+ *  returns `null` and this is a no-op (the seq-based cancellation guard,
+ *  since Convex has no cheap "cancel a scheduled job" primitive to reach for
+ *  instead). Otherwise it picks with the SAME `chooseBotPick` a real Bot
+ *  Drafter seat uses (never randomly) and advances the queue exactly like a
+ *  human `submitPick` — including resolving any bot picks the Auto-Pick
+ *  itself unblocks and scheduling fresh timeouts for whichever human seat(s)
+ *  just received a new pack. */
+export const autoPickSeatTimeout = internalMutation({
+    args: {
+        eventId: v.id("limitedEvents"),
+        seatIndex: v.number(),
+        expectedSeq: v.number(),
+    },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        const event = await ctx.db.get(args.eventId);
+        if (!event) return null;
+        if (event.type !== "draft" || event.status !== "started") return null;
+        if (event.draftCompletedAt !== undefined) return null;
+        if (event.seed === undefined || event.timerSeconds === undefined) {
+            return null;
+        }
+
+        const pickId = resolveAutoPickTimeout(
+            event.seats,
+            args.seatIndex,
+            args.expectedSeq,
+            botChoosePick
+        );
+        if (pickId === null) return null; // stale schedule — no-op
+
+        const now = Date.now();
+        const timerConfig = buildTimerConfig(event.timerSeconds, now);
+        const result = applyPick(
+            event.seats,
+            event.draftRound ?? 0,
+            event.draftPacksRemaining ?? event.seats.length,
+            event.packSlots,
+            args.seatIndex,
+            pickId,
+            event.seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            timerConfig
+        );
+        const afterBots = runBotAutoPicks(
+            result.seats,
+            result.draftRound,
+            result.draftPacksRemaining,
+            event.packSlots,
+            event.seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            botChoosePick,
+            result.completed,
+            timerConfig
+        );
+
+        await ctx.db.patch(args.eventId, {
+            seats: asDbSeats(afterBots.seats),
+            draftRound: afterBots.draftRound,
+            draftPacksRemaining: afterBots.draftPacksRemaining,
+            updatedAt: now,
+            ...(afterBots.completed ? { draftCompletedAt: now } : {}),
+        });
+        await scheduleSeatTimers(
+            ctx,
+            args.eventId,
+            event.timerSeconds,
+            [...result.timerUpdates, ...afterBots.timerUpdates]
+        );
         return null;
     },
 });

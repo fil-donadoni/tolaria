@@ -64,11 +64,70 @@ function generateRoundPacks(
     );
 }
 
+/** Per-pick timer config (issue #1114, PRD #1107 stories 5/14): threaded
+ *  through `startDraft`/`applyPick`/`runBotAutoPicks` as a single optional
+ *  trailing parameter so every existing call site with no timer configured
+ *  compiles and behaves byte-identically (no `pickDeadline`/`pickSeq` fields
+ *  are ever written when this is omitted). `now` is captured ONCE by the
+ *  mutation shell at the top of the call (`Date.now()`) and threaded through
+ *  every pure call in that invocation, so every deadline stamped within the
+ *  same mutation shares one time reference — never re-read mid-computation. */
+export interface TimerConfig {
+    /** Per-pick timer length, seconds. Always > 0 — a disabled timer is
+     *  represented by omitting `TimerConfig` entirely, never `timerSeconds:
+     *  0`. */
+    timerSeconds: number;
+    /** Epoch ms "now" for this call — a deadline is `now + timerSeconds *
+     *  1000`. */
+    now: number;
+}
+
+/** One seat whose `currentPack` was freshly assigned this call, timer-on
+ *  (issue #1114) — the mutation shell schedules exactly one
+ *  `ctx.scheduler.runAfter` Auto-Pick timeout per entry, carrying `pickSeq`
+ *  as the value `autoPickSeatTimeout` must still match when it fires. */
+export interface SeatTimerUpdate {
+    seatIndex: number;
+    pickSeq: number;
+}
+
+/** Stamps a seat that just received `pack` as its fresh `currentPack` (dealt
+ *  or passed in) with a new Auto-Pick deadline, when timer-on
+ *  (`timerConfig` present) and the seat is human (a Bot Drafter never idles
+ *  on a pack — `runBotAutoPicks` always resolves it within the same call, so
+ *  stamping one would be dead state). Returns the stamped seat and, only when
+ *  a schedule is actually needed, a `SeatTimerUpdate` for the mutation shell
+ *  to act on. Timer-off (`timerConfig` undefined) writes NEITHER field, so a
+ *  timer-off event's seats stay byte-identical to pre-#1114 shape. */
+function assignFreshPack(
+    seat: LimitedEventSeat,
+    pack: DraftPackCard[],
+    timerConfig: TimerConfig | undefined
+): { seat: LimitedEventSeat; update?: SeatTimerUpdate } {
+    if (!timerConfig || seat.isBot) {
+        return { seat: { ...seat, currentPack: pack } };
+    }
+    const pickSeq = (seat.pickSeq ?? 0) + 1;
+    return {
+        seat: {
+            ...seat,
+            currentPack: pack,
+            pickSeq,
+            pickDeadline: timerConfig.now + timerConfig.timerSeconds * 1000,
+        },
+        update: { seatIndex: seat.seatIndex, pickSeq },
+    };
+}
+
 /** Result of the initial round-0 deal at `startLimitedEvent`. */
 export interface StartDraftResult {
     seats: LimitedEventSeat[];
     draftRound: number;
     draftPacksRemaining: number;
+    /** Timer-on events only (issue #1114): one entry per human seat whose
+     *  round-0 pack the mutation shell must schedule an Auto-Pick timeout
+     *  for. Empty when `timerConfig` was omitted. */
+    timerUpdates: SeatTimerUpdate[];
 }
 
 /** Deals round 0: every seat opens one Booster from `packSlots[0]` and it
@@ -80,7 +139,8 @@ export function startDraft(
     packSlots: readonly string[],
     eventSeed: number,
     getConfig: GetBoosterConfig,
-    resolveCardMeta: ResolveCardMeta
+    resolveCardMeta: ResolveCardMeta,
+    timerConfig?: TimerConfig
 ): StartDraftResult {
     if (packSlots.length === 0) {
         throw new Error("startDraft: packSlots is empty");
@@ -93,15 +153,21 @@ export function startDraft(
         roundSeed(eventSeed, 0),
         0
     );
+    const timerUpdates: SeatTimerUpdate[] = [];
+    const nextSeats = seats.map((seat, i) => {
+        const { seat: stamped, update } = assignFreshPack(
+            { ...seat, pool: [], packQueue: [] },
+            packs[i],
+            timerConfig
+        );
+        if (update) timerUpdates.push(update);
+        return stamped;
+    });
     return {
-        seats: seats.map((seat, i) => ({
-            ...seat,
-            pool: [],
-            currentPack: packs[i],
-            packQueue: [],
-        })),
+        seats: nextSeats,
         draftRound: 0,
         draftPacksRemaining: seats.length,
+        timerUpdates,
     };
 }
 
@@ -113,6 +179,12 @@ export interface ApplyPickResult {
     /** True the instant the very last pack of the very last round empties —
      *  every seat's Pool is final (`packSlots.length * boosterSize` cards). */
     completed: boolean;
+    /** Timer-on events only (issue #1114): one entry per human seat that just
+     *  received a freshly-assigned `currentPack` this call (the pass target,
+     *  the picker's own dequeued pack, or every seat on a round advance) — the
+     *  mutation shell schedules one Auto-Pick timeout per entry. Empty when
+     *  `timerConfig` was omitted. */
+    timerUpdates: SeatTimerUpdate[];
 }
 
 /** Applies one Pick at `seatIndex`, targeting the card `pickId` in that
@@ -144,7 +216,8 @@ export function applyPick(
     pickId: string,
     eventSeed: number,
     getConfig: GetBoosterConfig,
-    resolveCardMeta: ResolveCardMeta
+    resolveCardMeta: ResolveCardMeta,
+    timerConfig?: TimerConfig
 ): ApplyPickResult {
     const seatCount = seats.length;
     const seat = seats[seatIndex];
@@ -161,6 +234,7 @@ export function applyPick(
     }
     const picked = pack[pickedIdx];
     const remaining = pack.filter((_, i) => i !== pickedIdx);
+    const timerUpdates: SeatTimerUpdate[] = [];
 
     let nextSeats = seats.map((s) => ({ ...s }));
     nextSeats[seatIndex] = {
@@ -174,6 +248,10 @@ export function applyPick(
             },
         ],
         currentPack: undefined,
+        // Nothing is timed for this seat until it either dequeues its own
+        // next pack below or receives a fresh one later — clear any stale
+        // deadline so the UI never shows a countdown with no pack behind it.
+        ...(timerConfig ? { pickDeadline: undefined } : {}),
     };
 
     let packsRemaining = draftPacksRemaining;
@@ -185,7 +263,13 @@ export function applyPick(
             seatCount;
         const target = nextSeats[targetIndex];
         if (!target.currentPack) {
-            nextSeats[targetIndex] = { ...target, currentPack: remaining };
+            const { seat: stamped, update } = assignFreshPack(
+                target,
+                remaining,
+                timerConfig
+            );
+            nextSeats[targetIndex] = stamped;
+            if (update) timerUpdates.push(update);
         } else {
             nextSeats[targetIndex] = {
                 ...target,
@@ -204,11 +288,13 @@ export function applyPick(
         seatAfterPass.packQueue.length > 0
     ) {
         const [next, ...restQueue] = seatAfterPass.packQueue;
-        nextSeats[seatIndex] = {
-            ...seatAfterPass,
-            currentPack: next,
-            packQueue: restQueue,
-        };
+        const { seat: stamped, update } = assignFreshPack(
+            { ...seatAfterPass, packQueue: restQueue },
+            next,
+            timerConfig
+        );
+        nextSeats[seatIndex] = stamped;
+        if (update) timerUpdates.push(update);
     }
 
     let completed = false;
@@ -223,11 +309,15 @@ export function applyPick(
                 roundSeed(eventSeed, round),
                 round
             );
-            nextSeats = nextSeats.map((s, i) => ({
-                ...s,
-                currentPack: packs[i],
-                packQueue: [],
-            }));
+            nextSeats = nextSeats.map((s, i) => {
+                const { seat: stamped, update } = assignFreshPack(
+                    { ...s, packQueue: [] },
+                    packs[i],
+                    timerConfig
+                );
+                if (update) timerUpdates.push(update);
+                return stamped;
+            });
             packsRemaining = seatCount;
         } else {
             completed = true;
@@ -239,6 +329,7 @@ export function applyPick(
         draftRound: round,
         draftPacksRemaining: packsRemaining,
         completed,
+        timerUpdates,
     };
 }
 
@@ -258,6 +349,12 @@ export interface RunBotAutoPicksResult {
     draftRound: number;
     draftPacksRemaining: number;
     completed: boolean;
+    /** Timer-on events only (issue #1114): every human seat that received a
+     *  freshly-assigned `currentPack` as a side effect of a bot pick (e.g. a
+     *  bot passes its leftover pack onto a human neighbor, or a bot pick
+     *  empties the round and the next one deals straight into human seats
+     *  too) — accumulated across every `applyPick` call this loop makes. */
+    timerUpdates: SeatTimerUpdate[];
 }
 
 /** Safety bound on the auto-pick loop below — comfortably above any real
@@ -298,12 +395,14 @@ export function runBotAutoPicks(
     getConfig: GetBoosterConfig,
     resolveCardMeta: ResolveCardMeta,
     chooseBotPick: ChooseBotPick,
-    alreadyCompleted = false
+    alreadyCompleted = false,
+    timerConfig?: TimerConfig
 ): RunBotAutoPicksResult {
     let curSeats: readonly LimitedEventSeat[] = seats;
     let round = draftRound;
     let remaining = draftPacksRemaining;
     let completed = alreadyCompleted;
+    const timerUpdates: SeatTimerUpdate[] = [];
 
     for (let i = 0; i < MAX_AUTO_PICK_ITERATIONS; i++) {
         if (completed) break;
@@ -323,12 +422,14 @@ export function runBotAutoPicks(
             pickId,
             eventSeed,
             getConfig,
-            resolveCardMeta
+            resolveCardMeta,
+            timerConfig
         );
         curSeats = result.seats;
         round = result.draftRound;
         remaining = result.draftPacksRemaining;
         completed = result.completed;
+        timerUpdates.push(...result.timerUpdates);
 
         if (i === MAX_AUTO_PICK_ITERATIONS - 1) {
             throw new Error(
@@ -342,5 +443,34 @@ export function runBotAutoPicks(
         draftRound: round,
         draftPacksRemaining: remaining,
         completed,
+        timerUpdates,
     };
+}
+
+/** Checks whether a scheduled Auto-Pick timeout (issue #1114) is still valid
+ *  to apply — the seq-based cancellation guard (see `SeatTimerUpdate`'s doc
+ *  comment). Returns the `pickId` to Auto-Pick with, chosen via the SAME
+ *  `chooseBotPick` a real Bot Drafter seat uses (PRD #1107 story 14: "an
+ *  expired timer Auto-Picks with the bot engine, never randomly" — the
+ *  acceptance criterion this directly satisfies), or `null` when the
+ *  schedule is stale and must be a no-op:
+ *
+ *  - the seat no longer exists (out-of-range index — defensive only),
+ *  - `expectedSeq` no longer matches the seat's LIVE `pickSeq` (a human pick,
+ *    or an earlier Auto-Pick, already superseded this schedule),
+ *  - the seat currently has nothing to pick from (should be unreachable
+ *    given a matching `pickSeq`, but never assumed away), or
+ *  - the seat is a Bot Drafter (defensive: bots are never scheduled, but a
+ *    stray schedule must never auto-pick a seat nobody is late on). */
+export function resolveAutoPickTimeout(
+    seats: readonly LimitedEventSeat[],
+    seatIndex: number,
+    expectedSeq: number,
+    chooseBotPick: ChooseBotPick
+): string | null {
+    const seat = seats[seatIndex];
+    if (!seat || seat.isBot) return null;
+    if ((seat.pickSeq ?? 0) !== expectedSeq) return null;
+    if (!seat.currentPack || seat.currentPack.length === 0) return null;
+    return chooseBotPick(seat, seat.currentPack);
 }

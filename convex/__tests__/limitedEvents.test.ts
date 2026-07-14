@@ -13,9 +13,11 @@ import { manaValue } from "../gre/constants";
 import { makeRng } from "../gre/rng";
 import {
     applyPick,
+    resolveAutoPickTimeout,
     runBotAutoPicks,
     startDraft,
     type ChooseBotPick,
+    type TimerConfig,
 } from "../limited/draftEngine";
 import { chooseBotPick, type GetCardEvalMeta } from "../limited/botDrafter";
 import {
@@ -506,5 +508,231 @@ describe("Limited Event Draft: create → join → start → scripted picks → 
             expect(seat.pool).toHaveLength(expectedPerSeat);
             expect(seat.currentPack).toBeUndefined();
         }
+    });
+});
+
+describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 5, 14, 16, 27)", () => {
+    it("Auto-Pick, on expiry, chooses EXACTLY what the real Bot Drafter would choose from the same pack/pool", () => {
+        // Against the REAL LEA registry (not a stub) — the acceptance
+        // criterion is literally "same choice the Bot Drafter would make".
+        const packSlots = ["lea"];
+        const seed = 9001;
+        const timerConfig: TimerConfig = { timerSeconds: 30, now: 5_000 };
+
+        const started = startDraft(
+            fillBotSeats(buildEmptySeats(2)).map((s, i) =>
+                i === 0 ? { ...s, isBot: false, userId: "human1" } : s
+            ),
+            packSlots,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            timerConfig
+        );
+        // Seat 0 is the lone human; seat 1 is a bot, resolved immediately.
+        const afterBots = runBotAutoPicks(
+            started.seats,
+            started.draftRound,
+            started.draftPacksRemaining,
+            packSlots,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            botChoosePick,
+            false,
+            timerConfig
+        );
+        const humanSeat = afterBots.seats[0];
+        expect(humanSeat.currentPack).toBeDefined();
+
+        // What the timeout path picks…
+        const timeoutPickId = resolveAutoPickTimeout(
+            afterBots.seats,
+            0,
+            humanSeat.pickSeq!,
+            botChoosePick
+        );
+        // …versus what calling the SAME bot engine directly on the SAME
+        // pack/pool produces.
+        const directPickId = chooseBotPick(
+            humanSeat.currentPack!,
+            humanSeat.pool ?? [],
+            getCardEvalMeta
+        );
+        expect(timeoutPickId).toBe(directPickId);
+    });
+
+    it("a permanently-absent human seat's Auto-Picks (via the exact autoPickSeatTimeout sequence) complete the draft with a heuristic-coherent Pool", () => {
+        // Mirrors the "solo draft" test above, but the human seat (seat 0)
+        // NEVER submits a real pick — every one of its picks is driven by
+        // the exact sequence `autoPickSeatTimeout` runs:
+        // resolveAutoPickTimeout → applyPick → runBotAutoPicks. This is the
+        // acceptance criterion "a draft with a permanently absent human
+        // completes; the absent seat's picks are heuristic-coherent."
+        const packSlots = ["lea", "lea"];
+        const seed = 31337;
+        const HUMAN_SEAT = 0;
+        const timerConfig: TimerConfig = { timerSeconds: 30, now: 1_000 };
+
+        let seats = fillBotSeats(
+            assignFreeSeat(buildEmptySeats(4), "human1", "Alice")
+        );
+        expect(seats[HUMAN_SEAT].isBot).toBeFalsy();
+
+        const dealt = startDraft(
+            seats,
+            packSlots,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            timerConfig
+        );
+        let afterBots = runBotAutoPicks(
+            dealt.seats,
+            dealt.draftRound,
+            dealt.draftPacksRemaining,
+            packSlots,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            botChoosePick,
+            false,
+            timerConfig
+        );
+        seats = afterBots.seats;
+        let round = afterBots.draftRound;
+        let remaining = afterBots.draftPacksRemaining;
+        let completed = afterBots.completed;
+        let safety = 0;
+
+        while (!completed) {
+            const humanSeat = seats[HUMAN_SEAT];
+            expect(humanSeat.currentPack).toBeDefined();
+            expect(humanSeat.currentPack!.length).toBeGreaterThan(0);
+
+            // Exactly the `autoPickSeatTimeout` mutation body's sequence.
+            const pickId = resolveAutoPickTimeout(
+                seats,
+                HUMAN_SEAT,
+                humanSeat.pickSeq!,
+                botChoosePick
+            );
+            expect(pickId).not.toBeNull();
+            const picked = applyPick(
+                seats,
+                round,
+                remaining,
+                packSlots,
+                HUMAN_SEAT,
+                pickId!,
+                seed,
+                getBoosterConfig,
+                resolveCardMeta,
+                timerConfig
+            );
+            afterBots = runBotAutoPicks(
+                picked.seats,
+                picked.draftRound,
+                picked.draftPacksRemaining,
+                packSlots,
+                seed,
+                getBoosterConfig,
+                resolveCardMeta,
+                botChoosePick,
+                picked.completed,
+                timerConfig
+            );
+            seats = afterBots.seats;
+            round = afterBots.draftRound;
+            remaining = afterBots.draftPacksRemaining;
+            completed = afterBots.completed;
+
+            if (++safety > 1000) {
+                throw new Error(
+                    "test: absent-human draft never completed — infinite loop guard tripped"
+                );
+            }
+        }
+
+        const expectedPerSeat = 15 * packSlots.length;
+        for (const seat of seats) {
+            expect(seat.pool).toHaveLength(expectedPerSeat);
+            expect(seat.currentPack).toBeUndefined();
+            for (const card of seat.pool!) {
+                expect(card.cardName).not.toBe(card.scryfallId);
+            }
+        }
+    });
+
+    it("a stale/superseded schedule (a human picked before the timer fired) is a no-op — never a forced pick", () => {
+        // The seq guard IS the mechanism that makes "a client can't force an
+        // Auto-Pick on a seat whose human already acted" true: a schedule
+        // captured at an earlier pickSeq simply fails to match once the
+        // human's own pick (or a later pack) has moved the seat's live
+        // pickSeq forward, regardless of who/what invokes the timeout path.
+        const packSlots = ["lea"];
+        const seed = 55;
+        const timerConfig: TimerConfig = { timerSeconds: 10, now: 0 };
+
+        const started = startDraft(
+            fillBotSeats(buildEmptySeats(2)).map((s, i) =>
+                i === 0 ? { ...s, isBot: false, userId: "human1" } : s
+            ),
+            packSlots,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            timerConfig
+        );
+        const afterBots = runBotAutoPicks(
+            started.seats,
+            started.draftRound,
+            started.draftPacksRemaining,
+            packSlots,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            botChoosePick,
+            false,
+            timerConfig
+        );
+        const staleExpectedSeq = afterBots.seats[0].pickSeq!;
+
+        // The human picks for real BEFORE the scheduled timeout ever fires.
+        const humanPicked = applyPick(
+            afterBots.seats,
+            afterBots.draftRound,
+            afterBots.draftPacksRemaining,
+            packSlots,
+            0,
+            afterBots.seats[0].currentPack![0].pickId,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            timerConfig
+        );
+        const afterRealPick = runBotAutoPicks(
+            humanPicked.seats,
+            humanPicked.draftRound,
+            humanPicked.draftPacksRemaining,
+            packSlots,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            botChoosePick,
+            humanPicked.completed,
+            timerConfig
+        );
+
+        // The stale schedule (captured before the real pick) now resolves to
+        // null — a no-op — never re-picking or otherwise disturbing the
+        // seat's state.
+        const stalePickId = resolveAutoPickTimeout(
+            afterRealPick.seats,
+            0,
+            staleExpectedSeq,
+            botChoosePick
+        );
+        expect(stalePickId).toBeNull();
     });
 });

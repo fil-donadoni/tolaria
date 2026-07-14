@@ -29,6 +29,11 @@ export interface LimitedEventRow {
     draftRound?: number;
     draftPacksRemaining?: number;
     draftCompletedAt?: number;
+    /** Per-pick timer, seconds (issue #1114, PRD #1107 story 5) — absent ===
+     *  disabled. Not per-seat: it's the event-wide config, always visible
+     *  (not hidden information) so every seat's UI knows whether a countdown
+     *  should render at all. */
+    timerSeconds?: number;
     seats: LimitedEventSeat[];
     createdAt: number;
     updatedAt: number;
@@ -61,6 +66,13 @@ export interface LimitedEventSeatView {
      *  contents, only the count). `null` when not applicable/not the
      *  viewer. */
     packQueueCount: number | null;
+    /** Draft only, timer-on events (issue #1114): epoch ms when this seat's
+     *  CURRENT `currentPack` pick times out, so the UI can render a live
+     *  countdown (`Date.now()` diffed client-side, never a server-ticking
+     *  integer). Same "own seat only" discipline as `currentPack` — another
+     *  seat's timing is no more the viewer's business than their cards.
+     *  `null` when not applicable/not the viewer/no timer configured. */
+    pickDeadline: number | null;
 }
 
 export interface LimitedEventView {
@@ -74,6 +86,7 @@ export interface LimitedEventView {
     draftRound?: number;
     draftPacksRemaining?: number;
     draftCompletedAt?: number;
+    timerSeconds?: number;
     seats: LimitedEventSeatView[];
     createdAt: number;
     updatedAt: number;
@@ -97,6 +110,7 @@ export function projectLimitedEvent(
         draftRound: event.draftRound,
         draftPacksRemaining: event.draftPacksRemaining,
         draftCompletedAt: event.draftCompletedAt,
+        timerSeconds: event.timerSeconds,
         createdAt: event.createdAt,
         updatedAt: event.updatedAt,
         seats: event.seats.map((seat) => {
@@ -112,6 +126,7 @@ export function projectLimitedEvent(
                 pool: isViewer ? (seat.pool ?? null) : null,
                 currentPack: isViewer ? (seat.currentPack ?? null) : null,
                 packQueueCount: isViewer ? (seat.packQueue?.length ?? 0) : null,
+                pickDeadline: isViewer ? (seat.pickDeadline ?? null) : null,
             };
         }),
     };
