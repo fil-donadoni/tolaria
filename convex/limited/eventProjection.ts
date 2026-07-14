@@ -8,6 +8,7 @@
 // never a hand-built view (the project's known recurring bug class, see
 // `.claude/rules/gre-development.md` § Frontend wiring analysis).
 import type {
+    DraftPackCard,
     LimitedEventSeat,
     LimitedEventStatus,
     LimitedEventType,
@@ -25,6 +26,9 @@ export interface LimitedEventRow {
     seatCount: number;
     packSlots: string[];
     sealedBoosterCount?: number;
+    draftRound?: number;
+    draftPacksRemaining?: number;
+    draftCompletedAt?: number;
     seats: LimitedEventSeat[];
     createdAt: number;
     updatedAt: number;
@@ -47,6 +51,16 @@ export interface LimitedEventSeatView {
      *  hidden from other Seats during the draft" — the same discipline
      *  extends to a Sealed seat's opened boosters). */
     pool: LimitedPoolCard[] | null;
+    /** Draft only: the pack currently in front of THIS seat. Populated ONLY
+     *  for the viewer's own seat — another seat's current pack is exactly
+     *  the hidden information a Draft protects (PRD #1107 story 15). `null`
+     *  for a Sealed event, before the draft starts, or a non-viewer seat. */
+    currentPack: DraftPackCard[] | null;
+    /** Draft only: how many packs are queued behind `currentPack` — viewer's
+     *  own seat only (never another seat's, and never a queued pack's
+     *  contents, only the count). `null` when not applicable/not the
+     *  viewer. */
+    packQueueCount: number | null;
 }
 
 export interface LimitedEventView {
@@ -57,6 +71,9 @@ export interface LimitedEventView {
     seatCount: number;
     packSlots: string[];
     sealedBoosterCount?: number;
+    draftRound?: number;
+    draftPacksRemaining?: number;
+    draftCompletedAt?: number;
     seats: LimitedEventSeatView[];
     createdAt: number;
     updatedAt: number;
@@ -77,6 +94,9 @@ export function projectLimitedEvent(
         seatCount: event.seatCount,
         packSlots: event.packSlots,
         sealedBoosterCount: event.sealedBoosterCount,
+        draftRound: event.draftRound,
+        draftPacksRemaining: event.draftPacksRemaining,
+        draftCompletedAt: event.draftCompletedAt,
         createdAt: event.createdAt,
         updatedAt: event.updatedAt,
         seats: event.seats.map((seat) => {
@@ -90,6 +110,8 @@ export function projectLimitedEvent(
                 isViewer,
                 poolCount: seat.pool ? seat.pool.length : null,
                 pool: isViewer ? (seat.pool ?? null) : null,
+                currentPack: isViewer ? (seat.currentPack ?? null) : null,
+                packQueueCount: isViewer ? (seat.packQueue?.length ?? 0) : null,
             };
         }),
     };

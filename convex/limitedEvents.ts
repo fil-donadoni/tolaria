@@ -11,7 +11,9 @@ import type { Doc } from "./_generated/dataModel";
 import { assertIsAdmin, getCurrentUser, getCurrentUserId } from "./auth";
 import { resolveDeckCardMeta, tryGetDefinition } from "./cards";
 import { freshSeed, makeRng } from "./gre/rng";
+import { applyPick, startDraft } from "./limited/draftEngine";
 import {
+    assertDraftSeatsFilled,
     assignFreeSeat,
     buildEmptySeats,
     DEFAULT_SEALED_BOOSTER_COUNT,
@@ -47,6 +49,13 @@ const limitedPoolCardValidator = v.object({
     cardName: v.string(),
 });
 
+const draftPackCardValidator = v.object({
+    scryfallId: v.string(),
+    cardId: v.string(),
+    cardName: v.string(),
+    pickId: v.string(),
+});
+
 const limitedEventSeatViewValidator = v.object({
     seatIndex: v.number(),
     userId: v.optional(v.string()),
@@ -55,6 +64,8 @@ const limitedEventSeatViewValidator = v.object({
     isViewer: v.boolean(),
     poolCount: v.union(v.number(), v.null()),
     pool: v.union(v.array(limitedPoolCardValidator), v.null()),
+    currentPack: v.union(v.array(draftPackCardValidator), v.null()),
+    packQueueCount: v.union(v.number(), v.null()),
 });
 
 /** Wire shape of `projectLimitedEvent`'s return value — declared once here so
@@ -68,6 +79,9 @@ const limitedEventViewValidator = v.object({
     seatCount: v.number(),
     packSlots: v.array(v.string()),
     sealedBoosterCount: v.optional(v.number()),
+    draftRound: v.optional(v.number()),
+    draftPacksRemaining: v.optional(v.number()),
+    draftCompletedAt: v.optional(v.number()),
     seats: v.array(limitedEventSeatViewValidator),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -236,11 +250,16 @@ export const joinLimitedEvent = mutation({
     },
 });
 
-/** The event's creator starts it (PRD #1107 story 1): every still-empty Seat
- *  becomes a Bot Drafter (story 8), and — for a Sealed event — every Seat's
- *  Pool is dealt via the seeded Booster generator (story 17, ADR 0055).
- *  Draft's pick/pass flow is a later slice; starting a Draft event is
- *  rejected with a clear message rather than silently doing nothing. */
+/** The event's creator starts it (PRD #1107 story 1). Sealed: every
+ *  still-empty Seat becomes a Bot Drafter (story 8), then every Seat's Pool
+ *  is dealt in full (story 17, ADR 0055). Draft: bot drafting is a separate,
+ *  unshipped feature (#1113) — no driver ever calls `submitPick` for a bot
+ *  seat, so a bot-filled seat would deadlock the draft forever waiting on a
+ *  pick that never comes. Draft therefore requires every Seat to already be
+ *  human-occupied and does NOT fill bots; round 0's boosters are then dealt
+ *  to every Seat's `currentPack` (issue #1112, PRD #1107 stories 10-12).
+ *  Both paths use a fresh `seed` stored on the event row so either is
+ *  reproducible/replayable. */
 export const startLimitedEvent = mutation({
     args: { eventId: v.id("limitedEvents") },
     returns: v.null(),
@@ -255,14 +274,36 @@ export const startLimitedEvent = mutation({
             throw new Error("This event has already started.");
         }
 
-        const seats = fillBotSeats(event.seats);
-
         if (event.type === "draft") {
-            throw new Error(
-                "Draft events aren't playable yet — the pick/pass flow lands in a later slice. Start a Sealed event instead."
+            // Bot drafting is out of scope for #1112 (tracked separately as
+            // #1113) — require every seat to be human-occupied before a
+            // draft can start; do NOT `fillBotSeats` on this path.
+            assertDraftSeatsFilled(event.seats);
+
+            const seed = freshSeed();
+            const {
+                seats: draftSeats,
+                draftRound,
+                draftPacksRemaining,
+            } = startDraft(
+                event.seats,
+                event.packSlots,
+                seed,
+                getBoosterConfig,
+                resolveCardMeta
             );
+            await ctx.db.patch(args.eventId, {
+                seats: asDbSeats(draftSeats),
+                status: "started",
+                seed,
+                draftRound,
+                draftPacksRemaining,
+                updatedAt: Date.now(),
+            });
+            return null;
         }
 
+        const seats = fillBotSeats(event.seats);
         const seed = freshSeed();
         const rng = makeRng(seed);
         const seededSeats = generateSealedPools(
@@ -279,6 +320,59 @@ export const startLimitedEvent = mutation({
             status: "started",
             seed,
             updatedAt: Date.now(),
+        });
+        return null;
+    },
+});
+
+/** Submits a Pick for the CALLER's own Seat (issue #1112, PRD #1107 stories
+ *  10-13). `seatIndex` is derived server-side from `userId` — never taken
+ *  from the client — so a user can only pick from their own seat's current
+ *  pack; `applyPick` re-validates `pickId` membership regardless. */
+export const submitPick = mutation({
+    args: { eventId: v.id("limitedEvents"), pickId: v.string() },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        const user = await getCurrentUser(ctx);
+        const event = await ctx.db.get(args.eventId);
+        if (!event) throw new Error("Event not found");
+        if (event.type !== "draft") {
+            throw new Error("This event is not a Draft.");
+        }
+        if (event.status !== "started") {
+            throw new Error("This event has not started yet.");
+        }
+        if (event.draftCompletedAt !== undefined) {
+            throw new Error("The draft has already finished.");
+        }
+        if (event.seed === undefined) {
+            throw new Error(
+                "This event has no RNG seed — it wasn't started via startLimitedEvent."
+            );
+        }
+        const seatIndex = event.seats.findIndex((s) => s.userId === user._id);
+        if (seatIndex === -1) {
+            throw new Error("You do not have a Seat in this event.");
+        }
+
+        const result = applyPick(
+            event.seats,
+            event.draftRound ?? 0,
+            event.draftPacksRemaining ?? event.seats.length,
+            event.packSlots,
+            seatIndex,
+            args.pickId,
+            event.seed,
+            getBoosterConfig,
+            resolveCardMeta
+        );
+
+        await ctx.db.patch(args.eventId, {
+            seats: asDbSeats(result.seats),
+            draftRound: result.draftRound,
+            draftPacksRemaining: result.draftPacksRemaining,
+            updatedAt: Date.now(),
+            ...(result.completed ? { draftCompletedAt: Date.now() } : {}),
         });
         return null;
     },

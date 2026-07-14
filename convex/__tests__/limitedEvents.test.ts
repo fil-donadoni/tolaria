@@ -9,14 +9,19 @@
 import { describe, it, expect } from "vitest";
 import { resolveDeckCardMeta, tryGetDefinition } from "../cards";
 import { makeRng } from "../gre/rng";
+import { applyPick, startDraft } from "../limited/draftEngine";
 import {
+    assertDraftSeatsFilled,
     assignFreeSeat,
     buildEmptySeats,
     fillBotSeats,
     generateSealedPools,
     type ResolveCardMeta,
 } from "../limited/eventLogic";
-import { projectLimitedEvent, type LimitedEventRow } from "../limited/eventProjection";
+import {
+    projectLimitedEvent,
+    type LimitedEventRow,
+} from "../limited/eventProjection";
 import { getBoosterConfig, isDraftableSet } from "../limited/registry";
 
 const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
@@ -66,9 +71,9 @@ describe("Limited Event: create → join → start → pools exist (PRD #1107)",
 
         // A second join attempt by the same user is rejected (no
         // double-seating) — exactly what the mutation throws.
-        expect(() =>
-            assignFreeSeat(event.seats, "user1", "Alice")
-        ).toThrow(/already have a seat/);
+        expect(() => assignFreeSeat(event.seats, "user1", "Alice")).toThrow(
+            /already have a seat/
+        );
 
         // 3. startLimitedEvent — creator starts: empty seats become bots, then
         // every seat (human + bot) gets a Sealed Pool from the checked-in LEA
@@ -170,5 +175,164 @@ describe("Limited Event: create → join → start → pools exist (PRD #1107)",
         expect(seededSeats.every((s) => s.pool && s.pool.length === 45)).toBe(
             true
         );
+    });
+});
+
+describe("Limited Event Draft: create → join → start → scripted picks → pools (issue #1112)", () => {
+    it("scripted picks through the exact submitPick path give every seat a 3×pack-size Pool", () => {
+        // 1. createLimitedEvent — admin creates a 4-seat Draft on 3× LEA.
+        const packSlots = ["lea", "lea", "lea"];
+        assertPackSlotsDraftable(packSlots);
+        let event: LimitedEventRow = {
+            _id: "draftEvent1",
+            createdBy: "admin1",
+            type: "draft",
+            status: "open",
+            seatCount: 4,
+            packSlots,
+            seats: buildEmptySeats(4),
+            createdAt: 0,
+            updatedAt: 0,
+        };
+
+        // 2. joinLimitedEvent — a table of humans (2+, PRD #1107 story 9/
+        // issue #1112 scope: "no bots yet") — all 4 seats join as humans.
+        event = {
+            ...event,
+            seats: assignFreeSeat(event.seats, "user1", "Alice"),
+        };
+        event = {
+            ...event,
+            seats: assignFreeSeat(event.seats, "user2", "Bob"),
+        };
+        event = {
+            ...event,
+            seats: assignFreeSeat(event.seats, "user3", "Carol"),
+        };
+        event = {
+            ...event,
+            seats: assignFreeSeat(event.seats, "user4", "Dave"),
+        };
+        const filled = fillBotSeats(event.seats); // idempotent no-op here — mirrors what startLimitedEvent always calls.
+        expect(filled.every((s) => !s.isBot)).toBe(true);
+
+        // 3. startLimitedEvent — round 0's boosters dealt from the real
+        // checked-in LEA Booster Config.
+        const seed = 555;
+        const started = startDraft(
+            filled,
+            packSlots,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta
+        );
+        event = {
+            ...event,
+            seats: started.seats,
+            status: "started",
+            draftRound: started.draftRound,
+            draftPacksRemaining: started.draftPacksRemaining,
+            updatedAt: 1,
+        };
+        expect(event.seats.every((s) => s.currentPack?.length === 15)).toBe(
+            true
+        );
+
+        // 4. submitPick, scripted for every seat until the draft completes —
+        // exactly the pure function the mutation calls, in the same order.
+        // Picks always take the first card of whichever seat currently holds
+        // a non-empty pack (deterministic scan order, not real user input,
+        // but drives the identical pick→pass→queue→advance state machine).
+        let round = event.draftRound!;
+        let remaining = event.draftPacksRemaining!;
+        let seats = event.seats;
+        let completed = false;
+        let safety = 0;
+        while (!completed) {
+            const seatIndex = seats.findIndex(
+                (s) => s.currentPack && s.currentPack.length > 0
+            );
+            if (seatIndex === -1) {
+                throw new Error(
+                    "test: no seat has a pack to pick from but the draft isn't completed"
+                );
+            }
+            const pickId = seats[seatIndex].currentPack![0].pickId;
+            const result = applyPick(
+                seats,
+                round,
+                remaining,
+                packSlots,
+                seatIndex,
+                pickId,
+                seed,
+                getBoosterConfig,
+                resolveCardMeta
+            );
+            seats = result.seats;
+            round = result.draftRound;
+            remaining = result.draftPacksRemaining;
+            completed = result.completed;
+            if (++safety > 10_000) {
+                throw new Error(
+                    "test: draft never completed — infinite loop guard tripped"
+                );
+            }
+        }
+        event = {
+            ...event,
+            seats,
+            draftRound: round,
+            draftPacksRemaining: remaining,
+            draftCompletedAt: 2,
+        };
+
+        // 5. Every seat's Pool is 3 boosters × 15 cards/booster = 45 real,
+        // named LEA cards — proof the whole loop ran against the actual
+        // catalogue, not stubs.
+        const expectedPerSeat = 15 * packSlots.length;
+        for (const seat of event.seats) {
+            expect(seat.pool).toHaveLength(expectedPerSeat);
+            expect(seat.currentPack).toBeUndefined();
+            expect(seat.packQueue).toEqual([]);
+            for (const card of seat.pool!) {
+                expect(card.cardName).not.toBe(card.scryfallId);
+                expect(card.cardId.length).toBeGreaterThan(0);
+            }
+        }
+
+        // 6. Privacy: the human's own Pool/currentPack are visible to them;
+        // every other seat's are stripped (PRD #1107 story 15).
+        const view = projectLimitedEvent(event, "user1");
+        const own = view.seats.find((s) => s.userId === "user1")!;
+        expect(own.pool).toHaveLength(expectedPerSeat);
+        for (const seat of view.seats.filter((s) => s.userId !== "user1")) {
+            expect(seat.pool).toBeNull();
+            expect(seat.currentPack).toBeNull();
+            expect(seat.poolCount).toBe(expectedPerSeat);
+        }
+    });
+
+    it("rejects starting a draft with any unfilled seat — bot drafting is not shipped (#1112/#1113)", () => {
+        // Bot drafting (#1113) is out of scope: no driver ever calls
+        // `submitPick` for a bot seat, so a bot-filled seat's `currentPack`
+        // would never pass and every downstream human seat would wait on it
+        // forever — a permanent deadlock. `startLimitedEvent`'s draft branch
+        // must refuse to start (and must NOT `fillBotSeats`) until every
+        // seat is human-occupied.
+        let seats = buildEmptySeats(3);
+        seats = assignFreeSeat(seats, "user1", "Alice");
+        seats = assignFreeSeat(seats, "user2", "Bob");
+        // Seat 2 is still unclaimed — this is the exact shape
+        // `startLimitedEvent` reads from `event.seats` before ever calling
+        // `fillBotSeats`.
+        expect(seats[2].userId).toBeUndefined();
+        expect(() => assertDraftSeatsFilled(seats)).toThrow(
+            /all 3 seats are filled by human players/
+        );
+
+        // Filling the last seat with a human (never a bot) clears the guard.
+        seats = assignFreeSeat(seats, "user3", "Carol");
+        expect(() => assertDraftSeatsFilled(seats)).not.toThrow();
     });
 });

@@ -10,7 +10,8 @@ import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
 import LoadingScreen from "~/components/ui/loading-screen";
 import ActionButton from "~/components/board/action-button";
 import LimitedEventSeatList from "./limited-event-seat-list";
-import LimitedPoolView from "./limited-pool-view";
+import LimitedDraftTable from "./limited-draft-table";
+import LimitedSeatPoolPanel from "./limited-seat-pool-panel";
 
 /** One Limited Event's detail page (PRD #1107, ADR 0054/0055): the Seat list,
  *  a Join button (open events, no seat yet), a Start button (the event's
@@ -98,26 +99,36 @@ export default function LimitedEventDetail({
                     )}
                 </div>
 
-                {event.status === "started" && viewerSeat?.pool && (
-                    <div className="mt-4 border-t border-border-accent/20 pt-4">
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                            <h3 className="text-sm font-semibold uppercase tracking-wide text-text-muted">
-                                Your Pool
-                            </h3>
-                            <ActionButton
-                                onClick={() =>
-                                    void navigate({
-                                        to: "/limited/$eventId/build",
-                                        params: { eventId },
-                                    })
-                                }
-                                label="Build Deck"
-                                tone="primary"
-                            />
-                        </div>
-                        <LimitedPoolView pool={viewerSeat.pool} />
-                    </div>
-                )}
+                {event.status === "started" &&
+                    event.type === "sealed" &&
+                    viewerSeat?.pool && (
+                        <LimitedSeatPoolPanel
+                            eventId={eventId}
+                            pool={viewerSeat.pool}
+                        />
+                    )}
+
+                {event.status === "started" &&
+                    event.type === "draft" &&
+                    !event.draftCompletedAt &&
+                    viewerSeat && (
+                        <LimitedDraftTable
+                            eventId={eventId}
+                            seat={viewerSeat}
+                            round={event.draftRound ?? 0}
+                            totalRounds={event.packSlots.length}
+                        />
+                    )}
+
+                {event.status === "started" &&
+                    event.type === "draft" &&
+                    event.draftCompletedAt &&
+                    viewerSeat?.pool && (
+                        <LimitedSeatPoolPanel
+                            eventId={eventId}
+                            pool={viewerSeat.pool}
+                        />
+                    )}
             </PanelBody>
         </Panel>
     );
