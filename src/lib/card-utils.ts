@@ -1329,6 +1329,15 @@ export function manaCostToString(cost?: ManaCost): string {
         const n = cost[c] ?? 0;
         for (let i = 0; i < n; i++) parts.push(`{${c}}`);
     }
+    // CR 107.4f — Phyrexian pips render as `{<color>/P}` tokens (Dismember
+    // `{1}{B/P}{B/P}`), after the colored pips. The oracle-text tokenizer maps
+    // `{B/P}` → the `B_P.svg` symbol asset (slash → underscore).
+    if (cost.phyrexian) {
+        for (const c of MANA_DISPLAY_COLORS) {
+            const n = cost.phyrexian[c] ?? 0;
+            for (let i = 0; i < n; i++) parts.push(`{${c}/P}`);
+        }
+    }
     return parts.join("");
 }
 

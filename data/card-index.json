@@ -2046,6 +2046,12 @@
         "firstSet": "inv"
     },
     {
+        "name": "Dismember",
+        "scryfallId": "064dfdeb-485f-473e-9fa0-8fdb7638cdc6",
+        "oracleId": "fd74f8eb-0253-42dd-8277-186d4934da38",
+        "firstSet": "nph"
+    },
+    {
         "name": "Disrupt",
         "scryfallId": "c000a02f-6b7e-4925-a938-59e645e980d7",
         "oracleId": "76347258-71d5-4874-adde-ff7aa932b808",
@@ -3304,6 +3310,12 @@
         "scryfallId": "87e5fc19-3b10-476f-9a73-e8bf4b5fbec0",
         "oracleId": "9297c0a6-1a8e-4e6e-99d6-f0877b2ec46c",
         "firstSet": "leg"
+    },
+    {
+        "name": "Gitaxian Probe",
+        "scryfallId": "995486ce-58bb-4753-a812-0ca73ef1a235",
+        "oracleId": "1d67f5ff-1fce-45e5-b6a1-416c569351e2",
+        "firstSet": "nph"
     },
     {
         "name": "Giver of Runes",
@@ -6298,6 +6310,12 @@
         "scryfallId": "6ec9a91d-7af0-44a8-839f-fb9960be0ddd",
         "oracleId": "d2ce3832-a12d-4c7a-9bc2-51dc92764994",
         "firstSet": "inv"
+    },
+    {
+        "name": "Phyrexian Metamorph",
+        "scryfallId": "d2e27911-87cb-49a0-a34f-6afe4bddd592",
+        "oracleId": "340bbe8b-e987-4c3e-ab4e-9dee63e57d4f",
+        "firstSet": "nph"
     },
     {
         "name": "Phyrexian Reaper",

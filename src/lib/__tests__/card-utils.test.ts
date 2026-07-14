@@ -2233,6 +2233,17 @@ describe("manaCostToString renders fixed generic mana (bug class)", () => {
     it("collapses numeric-X and generic-key into a single {N} if both present", () => {
         expect(manaCostToString({ X: 1, generic: 2, U: 1 })).toBe("{3}{U}");
     });
+
+    it("renders Phyrexian pips after the colored pips (CR 107.4f)", () => {
+        // Dismember {1}{B/P}{B/P}, Gitaxian Probe {U/P}, Metamorph {3}{U/P}.
+        expect(manaCostToString({ X: 1, phyrexian: { B: 2 } })).toBe(
+            "{1}{B/P}{B/P}"
+        );
+        expect(manaCostToString({ phyrexian: { U: 1 } })).toBe("{U/P}");
+        expect(manaCostToString({ X: 3, phyrexian: { U: 1 } })).toBe(
+            "{3}{U/P}"
+        );
+    });
 });
 
 // getHandStackAbilities — activate-from-hand affordance (CR 113.6 / 702.29a,

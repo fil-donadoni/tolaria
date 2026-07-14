@@ -211,6 +211,11 @@ export function applyMoveForSearch(
 
         case "cast-spell": {
             applyTapPlan(next, playerId, move.tapPlan);
+            // CR 107.4f — pay the Phyrexian pips this move chose to cover with
+            // life (2 each); the mana-paid pips are already in `tapPlan`.
+            if (move.payLife && move.payLife > 0) {
+                player.life -= move.payLife;
+            }
             const spellCard = removeFromZone(
                 player,
                 move.cardInstanceId,

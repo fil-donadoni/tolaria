@@ -122,6 +122,13 @@ export function manaValue(cost?: ManaCost): number {
         const v = cost[key];
         if (typeof v === "number") total += v;
     }
+    // CR 202.3f — each Phyrexian pip `{C/P}` is valued as its colour without the
+    // `/P` (i.e. 1), so Dismember `{1}{B/P}{B/P}` has mana value 3.
+    if (cost.phyrexian) {
+        for (const n of Object.values(cost.phyrexian)) {
+            if (typeof n === "number") total += n;
+        }
+    }
     return total;
 }
 
