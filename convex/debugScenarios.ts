@@ -1,11 +1,18 @@
 import { v } from "convex/values";
-import { internalMutation, mutation, query } from "./_generated/server";
+import {
+    internalMutation,
+    internalQuery,
+    mutation,
+    query,
+} from "./_generated/server";
 import { assertIsAdmin } from "./auth";
 import { tryGetCardByName } from "./cards";
 import {
     collectUnresolvedCardNames,
     normalizeScenarioSpec,
     scenarioSpecValidator,
+    selectEphemeralIdsToPrune,
+    SCENARIO_SCHEMA_VERSION,
     type ScenarioSpec,
 } from "./debugScenarioSpec";
 
@@ -68,8 +75,80 @@ export const saveDebugScenario = mutation({
             spec: args.spec,
             golden: args.golden,
             prompt: args.prompt,
+            // Only golden rows carry the schema-drift tag (issue #772, ADR 0044).
+            schemaVersion:
+                args.golden === true ? SCENARIO_SCHEMA_VERSION : undefined,
             createdAt: Date.now(),
         });
+    },
+});
+
+/**
+ * Promote a scenario to "golden" (keep) or demote it back to ephemeral (issue
+ * #772, ADR 0044). Golden rows survive `cleanupEphemeralScenarios`; ephemeral
+ * rows are prunable. Promoting stamps the current `schemaVersion` (the drift tag
+ * a long-lived curated row is checked against); demoting clears it, since only
+ * golden rows carry the tag. Admin-gated and ownership-enforced — a row owned by
+ * another user is treated as not found.
+ */
+export const setDebugScenarioGolden = mutation({
+    args: { id: v.id("debugScenarios"), golden: v.boolean() },
+    returns: v.null(),
+    handler: async (ctx, args) => {
+        const user = await assertIsAdmin(ctx);
+        const row = await ctx.db.get(args.id);
+        if (!row || row.userId !== user._id) {
+            throw new Error("Scenario not found");
+        }
+        await ctx.db.patch(args.id, {
+            golden: args.golden,
+            schemaVersion: args.golden ? SCENARIO_SCHEMA_VERSION : undefined,
+        });
+        return null;
+    },
+});
+
+/**
+ * Prune the current admin's EPHEMERAL scenarios past a bound (issue #772, ADR
+ * 0044). Golden rows are never removed; non-golden rows are kept newest-first up
+ * to `keep`, and everything older is deleted. This is the "relocate the too-many-
+ * scenarios problem into the DB on purpose" cleanup — bounded and deletable,
+ * which the old code array never was. Admin-gated and scoped to the caller's own
+ * rows. Returns the number pruned.
+ */
+export const cleanupEphemeralScenarios = mutation({
+    args: { keep: v.optional(v.number()) },
+    returns: v.object({ pruned: v.number() }),
+    handler: async (ctx, args) => {
+        const user = await assertIsAdmin(ctx);
+        const rows = await ctx.db
+            .query("debugScenarios")
+            .withIndex("by_user", (q) => q.eq("userId", user._id))
+            .collect();
+        const toPrune = selectEphemeralIdsToPrune(rows, args.keep);
+        for (const id of toPrune) {
+            await ctx.db.delete(id);
+        }
+        return { pruned: toPrune.length };
+    },
+});
+
+/**
+ * Read a scenario's stored prompt for the regenerate/vary action (issue #772,
+ * ADR 0044). `internalQuery` — reachable only from the server-side
+ * `regenerateDebugScenario` action (which has no `ctx.db`), never from a client.
+ * Re-runs the admin gate AND enforces ownership so the action can't read another
+ * user's row. Returns `null` when the row is missing, not owned, or has no
+ * prompt (a hand-authored row without one can't be regenerated).
+ */
+export const getScenarioPromptForRegen = internalQuery({
+    args: { id: v.id("debugScenarios") },
+    returns: v.union(v.string(), v.null()),
+    handler: async (ctx, args) => {
+        const user = await assertIsAdmin(ctx);
+        const row = await ctx.db.get(args.id);
+        if (!row || row.userId !== user._id) return null;
+        return row.prompt ?? null;
     },
 });
 
@@ -183,6 +262,8 @@ export const seedPresetScenarios = internalMutation({
                 label: preset.label,
                 spec: preset.spec,
                 golden: true,
+                // Curated presets are golden → carry the drift tag (issue #772).
+                schemaVersion: SCENARIO_SCHEMA_VERSION,
                 createdAt: Date.now(),
             });
             inserted++;

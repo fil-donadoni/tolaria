@@ -89,6 +89,51 @@ export type ScenarioSpec = {
     poison?: { me?: number; opp?: number };
 };
 
+// ---- Disposable / promotable policy (issue #772, ADR 0044) -----------------
+
+/**
+ * Schema-drift tag stamped onto GOLDEN rows only (ADR 0044: "only the few golden
+ * rows warrant a version tag"). Bump this whenever the persisted spec shape
+ * changes in a way a long-lived curated row should be re-checked against — a
+ * golden row carrying an older version signals it predates the change. Ephemeral
+ * rows are disposable, so they never carry (or need) the tag.
+ */
+export const SCENARIO_SCHEMA_VERSION = 1;
+
+/**
+ * Default number of ephemeral (non-golden) rows to KEEP per user during a
+ * cleanup pass; older ephemeral rows beyond this bound are pruned. Golden rows
+ * never count against the bound and are never pruned. Relocating the "too many
+ * scenarios" problem into the DB on purpose — where it is bounded and prunable —
+ * is the whole point (ADR 0044).
+ */
+export const EPHEMERAL_KEEP_BOUND = 25;
+
+/** The row fields the pruning policy reads — a structural subset so the decision
+ *  is pure and testable without a Convex `Doc`. */
+export type PrunableScenarioRow<Id> = {
+    _id: Id;
+    golden?: boolean;
+    createdAt: number;
+};
+
+/**
+ * Pure cleanup policy (ADR 0044). Given a user's scenario rows, return the ids of
+ * the EPHEMERAL rows to prune: golden rows are always kept (never returned);
+ * ephemeral rows are kept newest-first up to `keep`, and every ephemeral row
+ * beyond that bound is returned for deletion. Deterministic and side-effect-free
+ * so the mutation is a thin wrapper the tests can drive directly.
+ */
+export function selectEphemeralIdsToPrune<Id>(
+    rows: readonly PrunableScenarioRow<Id>[],
+    keep: number = EPHEMERAL_KEEP_BOUND
+): Id[] {
+    const ephemeral = rows
+        .filter((row) => row.golden !== true)
+        .sort((a, b) => b.createdAt - a.createdAt);
+    return ephemeral.slice(Math.max(0, keep)).map((row) => row._id);
+}
+
 // ---- Tolerant load helpers -------------------------------------------------
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -268,10 +268,17 @@ export default defineSchema({
         // and defaults missing ones. The strict `scenarioSpecValidator`
         // (`convex/debugScenarioSpec.ts`) guards only the WRITE path.
         spec: v.any(),
-        // Reserved for later slices (#770+): a "golden" keep-flag and the
-        // originating LLM prompt (ADR 0044). Unused in this slice.
+        // Disposable/promotable rows (issue #772, ADR 0044). `golden` promotes a
+        // row to "keep" — golden rows survive `cleanupEphemeralScenarios`,
+        // ephemeral (non-golden) rows are pruned past a bound. `prompt` stores the
+        // originating NL description (metadata only — the frozen `spec` is what
+        // loads, never the prompt); it drives regenerate/vary. `schemaVersion`
+        // stamps only golden rows so schema drift against a long-lived curated row
+        // is detectable (ADR 0044: "only the few golden rows warrant a version
+        // tag").
         golden: v.optional(v.boolean()),
         prompt: v.optional(v.string()),
+        schemaVersion: v.optional(v.number()),
         createdAt: v.number(),
     }).index("by_user", ["userId"]),
 });

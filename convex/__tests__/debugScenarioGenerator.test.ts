@@ -8,6 +8,7 @@
 
 import { describe, it, expect, vi } from "vitest";
 import {
+    buildRegenerateDescription,
     buildScenarioSystemPrompt,
     parseLlmScenarioText,
     runScenarioGeneration,
@@ -69,6 +70,32 @@ describe("SCENARIO_JSON_SCHEMA (issue #771)", () => {
         const cardItem = SCENARIO_JSON_SCHEMA.properties.cards.items;
         expect(cardItem.additionalProperties).toBe(false);
         expect(cardItem.required).toEqual(["name", "owner"]);
+    });
+});
+
+describe("buildRegenerateDescription — regenerate / vary (issue #772)", () => {
+    it("returns the stored prompt verbatim (trimmed) for a plain regenerate", () => {
+        expect(buildRegenerateDescription("  Forest with Wild Growth  ")).toBe(
+            "Forest with Wild Growth"
+        );
+    });
+
+    it("appends a tweak as an adjustment for a vary", () => {
+        expect(
+            buildRegenerateDescription("Forest with Wild Growth", "add a Craw Wurm")
+        ).toBe("Forest with Wild Growth\n\nAdjustment: add a Craw Wurm");
+    });
+
+    it("ignores a blank/whitespace tweak (behaves like a plain regenerate)", () => {
+        expect(buildRegenerateDescription("Forest", "   ")).toBe("Forest");
+        expect(buildRegenerateDescription("Forest", undefined)).toBe("Forest");
+    });
+
+    it("regenerating twice from the same prompt yields the SAME description (a new row comes from re-running, not from prompt drift)", () => {
+        const prompt = "Mishra's Factory with lands to animate it";
+        expect(buildRegenerateDescription(prompt)).toBe(
+            buildRegenerateDescription(prompt)
+        );
     });
 });
 

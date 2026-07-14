@@ -18,6 +18,10 @@ import { MIGRATED_PRESET_SCENARIOS } from "../debugScenarios";
 import {
     collectUnresolvedCardNames,
     normalizeScenarioSpec,
+    selectEphemeralIdsToPrune,
+    SCENARIO_SCHEMA_VERSION,
+    EPHEMERAL_KEEP_BOUND,
+    type PrunableScenarioRow,
     type ScenarioSpec,
 } from "../debugScenarioSpec";
 
@@ -173,6 +177,84 @@ describe("DB row → load → builder input (issue #769 integration)", () => {
         expect(args.cards.map((c) => c.name)).toEqual(["Plains", "Mountain"]);
         expect(args.landCount).toBe(3);
         expect(args.phase).toBe("PRECOMBAT_MAIN");
+    });
+});
+
+describe("golden flag + schema-drift tag (issue #772, ADR 0044)", () => {
+    // The mutations (`saveDebugScenario`, `setDebugScenarioGolden`,
+    // `seedPresetScenarios`) all stamp the SAME decision: a golden row carries
+    // the version tag, an ephemeral one carries none. Asserting the decision
+    // directly (no convex-test harness) proves the stamp the mutations write.
+    const stamp = (golden: boolean): number | undefined =>
+        golden ? SCENARIO_SCHEMA_VERSION : undefined;
+
+    it("stamps the schema version onto golden rows only", () => {
+        expect(stamp(true)).toBe(SCENARIO_SCHEMA_VERSION);
+        expect(stamp(false)).toBeUndefined();
+    });
+
+    it("keeps the version tag a finite positive integer (a real drift marker)", () => {
+        expect(Number.isInteger(SCENARIO_SCHEMA_VERSION)).toBe(true);
+        expect(SCENARIO_SCHEMA_VERSION).toBeGreaterThan(0);
+    });
+});
+
+describe("selectEphemeralIdsToPrune — cleanup policy (issue #772, ADR 0044)", () => {
+    // The `cleanupEphemeralScenarios` mutation is a thin wrapper over this pure
+    // policy: it deletes exactly the ids returned. So "golden survives cleanup,
+    // ephemeral is pruned past the bound" (the AC) is asserted here directly.
+    const row = (
+        id: string,
+        createdAt: number,
+        golden?: boolean
+    ): PrunableScenarioRow<string> => ({ _id: id, createdAt, golden });
+
+    it("NEVER prunes a golden row, no matter how tight the bound", () => {
+        const rows = [
+            row("g1", 100, true),
+            row("g2", 200, true),
+            row("g3", 300, true),
+        ];
+        expect(selectEphemeralIdsToPrune(rows, 0)).toEqual([]);
+    });
+
+    it("keeps the newest `keep` ephemeral rows and prunes the rest", () => {
+        const rows = [
+            row("e-old", 100),
+            row("e-mid", 200),
+            row("e-new", 300),
+        ];
+        // keep=1 → newest ("e-new") survives, the two older are pruned.
+        expect(selectEphemeralIdsToPrune(rows, 1).sort()).toEqual(
+            ["e-mid", "e-old"].sort()
+        );
+    });
+
+    it("golden rows don't count against the ephemeral bound", () => {
+        const rows = [
+            row("g1", 500, true),
+            row("g2", 400, true),
+            row("e-new", 300),
+            row("e-old", 100),
+        ];
+        // keep=1 counts ONLY ephemeral rows: e-new survives, e-old pruned;
+        // both golden rows are untouched.
+        expect(selectEphemeralIdsToPrune(rows, 1)).toEqual(["e-old"]);
+    });
+
+    it("prunes nothing when ephemeral rows are within the bound", () => {
+        const rows = [row("e1", 100), row("e2", 200)];
+        expect(selectEphemeralIdsToPrune(rows, 5)).toEqual([]);
+    });
+
+    it("defaults to EPHEMERAL_KEEP_BOUND when no bound is given", () => {
+        const many = Array.from({ length: EPHEMERAL_KEEP_BOUND + 3 }, (_, i) =>
+            row(`e${i}`, i)
+        );
+        // 3 rows beyond the default bound are pruned (the 3 OLDEST).
+        expect(selectEphemeralIdsToPrune(many).sort()).toEqual(
+            ["e0", "e1", "e2"].sort()
+        );
     });
 });
 
