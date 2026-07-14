@@ -108,19 +108,28 @@ type OpOutcome = void | "suspend";
 type Cursor = { pos: number; readonly resume: number };
 
 /** Snapshot layout inside `collectedChoices` (see module doc):
- *  [0] power, [1] toughness, [2] controller, [3] instance id, [4] mana value
- *  — all strings (the store is the same `string[]` shape every collected
- *  answer uses). The id slot (issue #807) lets a `forEach` body act ON the
- *  snapshotted object (`{ ref: "$each" }` in an object position); snapshots
- *  written before #807 lack it, and readers treat a missing id as "no
- *  object". The mana-value slot (issue #680) is 0 for pre-existing snapshots
- *  (`Number("")` reads back as `NaN`, but no card predates `ref.manaValue`
- *  support so nothing reads a missing slot). */
+ *  [0] power, [1] toughness, [2] controller, [3] instance id, [4] mana value,
+ *  [5] owner — all strings (the store is the same `string[]` shape every
+ *  collected answer uses). The id slot (issue #807) lets a `forEach` body act
+ *  ON the snapshotted object (`{ ref: "$each" }` in an object position);
+ *  snapshots written before #807 lack it, and readers treat a missing id as
+ *  "no object". The mana-value slot (issue #680) is 0 for pre-existing
+ *  snapshots (`Number("")` reads back as `NaN`, but no card predates
+ *  `ref.manaValue` support so nothing reads a missing slot). The owner slot
+ *  (issue #1106) is DISTINCT from controller (CR 108.3 — ownership never
+ *  changes, control can) — "return X to its OWNER's hand, that player
+ *  discards" (Recoil) must read owner, not whoever currently controls a
+ *  stolen permanent (Spinal Embrace). A snapshot written before #1106 lacks
+ *  this slot; `snap[SNAP_OWNER]` then reads `undefined` and `resolvePlayerRef`
+ *  skips the dependent Op (CR 608.2b) exactly like a missing id — no shipped
+ *  card round-trips a pre-#1106 snapshot across this deploy, so no migration
+ *  is needed. */
 const SNAP_POWER = 0;
 const SNAP_TOUGHNESS = 1;
 const SNAP_CONTROLLER = 2;
 const SNAP_ID = 3;
 const SNAP_MANA_VALUE = 4;
+const SNAP_OWNER = 5;
 
 /** A players-set `$each` binding (issue #807) is stored as the single-element
  *  `[playerId]` — distinguishable from a 4-slot object snapshot by the
@@ -641,6 +650,14 @@ function resolvePlayerRef(
         }
         const snap = readBinding(ctx, parsed.binding);
         if (!snap) return undefined;
+        // `.owner` (issue #1106) reads the immutable CR 108.3 owner captured
+        // at bind time — DISTINCT from `.controller`, which tracks whoever
+        // currently controls the object (a control-magic effect can diverge
+        // the two; Recoil's "that player discards" means the owner, CR
+        // 400.7). A pre-#1106 snapshot has no SNAP_OWNER slot; the array read
+        // then yields `undefined` and the Op skips (CR 608.2b), same as any
+        // other uncaptured binding.
+        if (parsed.property === "owner") return snap[SNAP_OWNER];
         return parsed.property === "controller"
             ? snap[SNAP_CONTROLLER]
             : undefined;
@@ -743,10 +760,13 @@ function resolvePicks(
  *  Ops BEFORE the zone change, so a later ref reads last-known information
  *  (CR 608.2h). `target` is normally a battlefield permanent (destroy/exile,
  *  a bounce); a `moveZone` graveyard-card reanimation (issue #680) can also
- *  bind — `getPower`/`getToughness`/`getController` are battlefield-scoped
- *  and meaningless for a card that never was on the battlefield (CR 208.2), so
- *  those three slots fall back to 0/0/owner for a non-permanent target;
- *  `getManaValue` (SNAP_MANA_VALUE) already dispatches on `target.type`. */
+ *  bind — `getPower`/`getToughness`/`getController`/`getOwnerId` are
+ *  battlefield-scoped and meaningless for a card that never was on the
+ *  battlefield (CR 208.2), so those slots fall back to 0/0/owner/owner for a
+ *  non-permanent target (a graveyard card's "controller" and "owner" are the
+ *  same player, CR 108.3/110.2 — nobody else can control a card that isn't a
+ *  permanent); `getManaValue` (SNAP_MANA_VALUE) already dispatches on
+ *  `target.type`. */
 function bindSnapshot(
     ctx: SpellContext,
     name: string,
@@ -765,6 +785,16 @@ function bindSnapshot(
         // moves so a graveyard-card reanimation's mana value survives the
         // zone change (Reanimate).
         String(ctx.getManaValue(target)),
+        // SNAP_OWNER (issue #1106) — CR 108.3, immutable and DISTINCT from
+        // controller (Recoil: "return target permanent to its OWNER's hand.
+        // Then that player discards" — the owner, not a Spinal Embrace thief
+        // who currently controls it). `getOwnerId` is battlefield-scoped like
+        // `getController`, so it's read here, BEFORE the zone change, and
+        // falls back to "" only defensively (the target is still on the
+        // battlefield at bind time by construction).
+        (isPermanent
+            ? ctx.getOwnerId(target.id)
+            : (target.playerId ?? undefined)) ?? "",
     ]);
 }
 

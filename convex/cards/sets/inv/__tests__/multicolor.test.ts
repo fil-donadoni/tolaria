@@ -18,6 +18,7 @@ import {
     stalkingAssassin,
     urborgDrake,
     vileConsumption,
+    recoil,
     agonizingDemise,
     blazingSpecter,
     bloodstoneCameo,
@@ -466,11 +467,15 @@ describe("Teferi's Moat (chosen-color no-fly attack lock, CR 508/509 + 603.6b)",
 // staticEffects[] keyword-grant (Sleeper's Robe), two board-visible
 // activatedAbilities[] (Stalking Assassin), a staticEffects[]
 // attack-requirement (Urborg Drake), and a triggered-grant continuous effect
-// (Vile Consumption). Recoil / Spinal Embrace / Undermine / Slinking
-// Serpent / Vodalian Zombie are plain `effects[]`/keyword cards reusing
+// (Vile Consumption). Spinal Embrace / Undermine / Slinking Serpent /
+// Vodalian Zombie are plain `effects[]`/keyword cards reusing
 // already-exercised Ops and ride the per-Op regime (catalogue
 // `effectScripts.test.ts` static sweep + `effectScriptSmoke.test.ts`
-// canned-scenario smoke test) with no hand-written test required.
+// canned-scenario smoke test) with no hand-written test required. Recoil
+// gets its own describe below: its `$bounced.owner` ref (issue #1106) is a
+// NEW construct usage (the interpreter's `.owner` snapshot property has its
+// own permanent test in `interpreter.test.ts`, but the per-Op regime still
+// wants the CARD-level owner/controller divergence exercised here).
 // ─────────────────────────────────────────────────────────────────────────
 
 describe("Sleeper's Robe (fear keyword-grant + combat-damage draw, CR 702.14b / 510.4)", () => {
@@ -809,6 +814,89 @@ describe("Vile Consumption (triggered-grant to every creature, CR 113.1/611 + up
         expect(state.players[0].graveyard.some((c) => c.id === "bear")).toBe(
             true
         );
+    });
+});
+
+describe("Recoil (bounce to OWNER's hand + owner discards, CR 400.7, issue #1106)", () => {
+    it("bounces a permanent to its OWNER's hand and makes the OWNER discard, even when a different player controls it (Spinal Embrace shape)", () => {
+        // A "stolen" creature: p2 owns it (CR 108.3), but p1 currently
+        // controls it (mirrors what Spinal Embrace leaves behind — a control
+        // change only mutates `controllerId`, it never relocates the
+        // permanent out of the owner's battlefield array).
+        const stolen = makeInstance(grizzlyBears.id, {
+            id: "stolen-bear",
+            controllerId: "p1",
+            ownerId: "p2",
+        });
+        const p2Card = makeInstance(scatheZombies.id, {
+            id: "p2-hand-card",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [stolen] }),
+                makePlayer("p2", { hand: [p2Card] }),
+            ],
+        });
+        pushSpell(state, recoil.id, "p1", [
+            { type: "permanent", id: "stolen-bear" },
+        ]);
+        resolveTopOfStack(state);
+        // Bounced to the OWNER's (p2) hand, not the controller's (p1).
+        expect(state.players[1].hand.some((c) => c.id === "stolen-bear")).toBe(
+            true
+        );
+        expect(state.players[0].hand.some((c) => c.id === "stolen-bear")).toBe(
+            false
+        );
+        // Discard suspends for the OWNER (p2), not the controller (p1).
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p2");
+        submitChoice(state, ["p2-hand-card"]);
+        // p2 (the owner) discarded — p1 (the former controller) never had a
+        // discard prompt. p1's graveyard holds only the resolved Recoil
+        // spell itself, not a discarded card.
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "p2-hand-card")
+        ).toBe(true);
+        expect(
+            state.players[0].graveyard.some((c) => c.id === "p2-hand-card")
+        ).toBe(false);
+    });
+
+    it("survives projection: the OWNER's hand/graveyard reflect the bounce + discard (wire format)", () => {
+        const stolen = makeInstance(grizzlyBears.id, {
+            id: "stolen-bear-wire",
+            controllerId: "p1",
+            ownerId: "p2",
+        });
+        const p2Card = makeInstance(scatheZombies.id, {
+            id: "p2-hand-card-wire",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [stolen] }),
+                makePlayer("p2", { hand: [p2Card] }),
+            ],
+        });
+        pushSpell(state, recoil.id, "p1", [
+            { type: "permanent", id: "stolen-bear-wire" },
+        ]);
+        resolveTopOfStack(state);
+        submitChoice(state, ["p2-hand-card-wire"]);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(
+            projected.players[1].hand.some((c) => c?.id === "stolen-bear-wire")
+        ).toBe(true);
+        expect(
+            projected.players[1].graveyard.some(
+                (c) => c.id === "p2-hand-card-wire"
+            )
+        ).toBe(true);
     });
 });
 

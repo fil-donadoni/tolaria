@@ -520,20 +520,19 @@ export const wingsOfHope: CardDefinition = {
 
 // Recoil — {1}{U}{B} Instant. "Return target permanent to its owner's hand.
 // Then that player discards a card." (CR 400.7 zone change, CR 701.9
-// discard.) `moveZone`'s `bind` snapshots the bounced permanent's CONTROLLER
+// discard.) `moveZone`'s `bind` snapshots the bounced permanent's OWNER
 // before it leaves the battlefield (the same LKI snapshot Swords to
-// Plowshares reads its target's power/controller from, `lea/white.ts`); the
-// trailing `choice`(`choose-hand-card`) + `discard` pair reads that snapshot
-// as "that player" — the shipped choose-then-discard shape (issue #805),
-// just scoped to the chooser's OWN hand instead of an opponent's.
-// FLAGGED SIMPLIFICATION (tracked: #1106): `moveZone`'s bind captures the
-// target's CONTROLLER, not its OWNER, so "that player discards" resolves to
-// the controller. This diverges from CR 400.7 ("return … to its OWNER's hand
-// … that player discards") whenever a permanent is controlled by a non-owner
-// and still targetable by Recoil — REACHABLE within INV itself via Spinal
-// Embrace (steal a creature, then Recoil it → the wrong player discards). No
-// `{ ownerOf }` `EffectPlayerRef` variant exists yet (#1106 adds it); flagged
-// rather than silently assumed away.
+// Plowshares reads its target's power/controller from, `lea/white.ts`, now
+// also carrying an owner slot — issue #1106); the trailing
+// `choice`(`choose-hand-card`) + `discard` pair reads that snapshot's
+// `.owner` as "that player" — the shipped choose-then-discard shape (issue
+// #805), just scoped to the chooser's OWN hand instead of an opponent's.
+// FIXED (issue #1106): previously read `$bounced.controller`, which
+// diverges from CR 400.7's OWNER whenever a permanent is controlled by a
+// non-owner and still targetable by Recoil — reachable within INV itself via
+// Spinal Embrace (steal a creature, then Recoil it). `.owner` is immutable
+// (CR 108.3) so it always names the correct discarder regardless of who
+// currently controls the bounced permanent.
 export const recoil: CardDefinition = {
     id: "b6a77be3-e3b0-40f5-a470-414bac49da60",
     rarity: "common",
@@ -556,7 +555,7 @@ export const recoil: CardDefinition = {
         {
             op: "choice",
             kind: "choose-hand-card",
-            player: { ref: "$bounced.controller" },
+            player: { ref: "$bounced.owner" },
             zone: "hand",
             count: 1,
             prompt: "Discard a card (Recoil)",
@@ -564,7 +563,7 @@ export const recoil: CardDefinition = {
         },
         {
             op: "discard",
-            player: { ref: "$bounced.controller" },
+            player: { ref: "$bounced.owner" },
             cards: { ref: "$picked" },
         },
     ],

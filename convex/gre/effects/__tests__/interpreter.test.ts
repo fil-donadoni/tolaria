@@ -5068,6 +5068,80 @@ describe("Effect Script construct: bind + ref (ADR 0045, CR 608.2h)", () => {
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[1].life).toBe(22);
     });
+
+    // `.owner` (issue #1106, CR 108.3) — DISTINCT from `.controller`: the
+    // snapshot's owner slot never changes even when a control-magic effect
+    // (Spinal Embrace) makes some other player the current controller. The
+    // Recoil shape: bounce via `moveZone` bind, then read `.owner` for "that
+    // player" (CR 400.7), not `.controller`.
+    it("reads a bound object's OWNER, distinct from its controller, after a moveZone bounce (CR 108.3/400.7)", () => {
+        const id = registerScript("test-bind-ref-owner", [
+            { op: "moveZone", target: { target: 0 }, to: "hand", bind: "$c" },
+            {
+                op: "gainLife",
+                player: { ref: "$c.owner" },
+                amount: 5,
+            },
+        ]);
+        // Owned by p2, but controlled by p1 (the Spinal-Embrace-then-Recoil
+        // shape the issue is about) — sits in p2's battlefield array; a
+        // control change only mutates `controllerId`, never relocates the
+        // permanent between players' arrays.
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p2",
+            id: "stolenBear",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "stolenBear" }]);
+        resolveTopOfStack(state);
+        // The OWNER (p2) gained life, NOT the controller (p1).
+        expect(state.players[1].life).toBe(25);
+        expect(state.players[0].life).toBe(20);
+        // The bounced permanent went to its OWNER's (p2) hand.
+        expect(state.players[1].hand.some((c) => c.id === "stolenBear")).toBe(
+            true
+        );
+    });
+
+    it("the bound-owner ref survives projection (wire format, issue #1106)", () => {
+        const id = registerScript("test-bind-ref-owner-wire", [
+            { op: "moveZone", target: { target: 0 }, to: "hand", bind: "$c" },
+            {
+                op: "gainLife",
+                player: { ref: "$c.owner" },
+                amount: 5,
+            },
+        ]);
+        const bear = makeInstance(BEAR_ID, {
+            controllerId: "p1",
+            ownerId: "p2",
+            id: "stolenBearWire",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [
+            { type: "permanent", id: "stolenBearWire" },
+        ]);
+        resolveTopOfStack(state);
+        // Viewed from p2 (the owner) so its own hand isn't nulled-out by the
+        // opponent-hand projection (the point here is `.owner` resolving
+        // correctly, not hand secrecy).
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[1].life).toBe(25);
+        expect(
+            projected.players[1].hand.some((c) => c?.id === "stolenBearWire")
+        ).toBe(true);
+    });
 });
 
 describe("Effect Script construct: count (ADR 0045, CR 122)", () => {
