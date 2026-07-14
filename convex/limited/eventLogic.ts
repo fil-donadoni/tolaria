@@ -72,24 +72,6 @@ export function fillBotSeats(
     );
 }
 
-/** Guards a Draft start: bot drafting is a separate, unshipped feature
- *  (#1113) — no driver ever calls `submitPick` for a bot seat, so dealing a
- *  bot-filled seat a `currentPack` would deadlock the draft forever
- *  (downstream human seats wait on a pick that never comes). Unlike Sealed,
- *  a Draft therefore must NOT `fillBotSeats`; every seat must already be
- *  human-occupied (`userId` set) before `startDraft` runs. Throws with a
- *  clear, user-facing message when a seat is still unfilled. */
-export function assertDraftSeatsFilled(
-    seats: readonly LimitedEventSeat[]
-): void {
-    const hasUnfilledSeat = seats.some((seat) => seat.userId === undefined);
-    if (hasUnfilledSeat) {
-        throw new Error(
-            `Cannot start a draft until all ${seats.length} seats are filled by human players — bot drafting is not yet available (#1113).`
-        );
-    }
-}
-
 /** Resolves a set code to its checked-in `BoosterConfig`, or `null` when the
  *  set has none — injected so this module never reads the repo data /
  *  registry directly (mirrors `ResolveCard` in `convex/formats.ts`). */

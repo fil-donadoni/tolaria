@@ -8,10 +8,17 @@
 // mutations" proof available without spinning up Convex.
 import { describe, it, expect } from "vitest";
 import { resolveDeckCardMeta, tryGetDefinition } from "../cards";
+import { getCardColors } from "../cards/colors";
+import { manaValue } from "../gre/constants";
 import { makeRng } from "../gre/rng";
-import { applyPick, startDraft } from "../limited/draftEngine";
 import {
-    assertDraftSeatsFilled,
+    applyPick,
+    runBotAutoPicks,
+    startDraft,
+    type ChooseBotPick,
+} from "../limited/draftEngine";
+import { chooseBotPick, type GetCardEvalMeta } from "../limited/botDrafter";
+import {
     assignFreeSeat,
     buildEmptySeats,
     fillBotSeats,
@@ -30,6 +37,24 @@ const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
     const meta = resolveDeckCardMeta(scryfallId);
     return meta ? { cardId: meta.cardId, cardName: def.name } : null;
 };
+
+// The same `GetCardEvalMeta` wiring `convex/limitedEvents.ts` uses, against
+// the REAL card registry — the Bot Drafter's Pick Heuristic input.
+const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
+    const meta = resolveDeckCardMeta(scryfallId);
+    if (!meta) return null;
+    const def = tryGetDefinition(meta.cardId);
+    if (!def) return null;
+    return {
+        cardId: meta.cardId,
+        colors: getCardColors(def),
+        manaValue: manaValue(def.manaCost),
+        rarity: meta.rarity,
+    };
+};
+
+const botChoosePick: ChooseBotPick = (seat, pack) =>
+    chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta);
 
 /** `createLimitedEvent`'s server-side gate: every packSlot must currently be
  *  Draftable. Modeled here exactly as the mutation enforces it. */
@@ -313,26 +338,173 @@ describe("Limited Event Draft: create → join → start → scripted picks → 
         }
     });
 
-    it("rejects starting a draft with any unfilled seat — bot drafting is not shipped (#1112/#1113)", () => {
-        // Bot drafting (#1113) is out of scope: no driver ever calls
-        // `submitPick` for a bot seat, so a bot-filled seat's `currentPack`
-        // would never pass and every downstream human seat would wait on it
-        // forever — a permanent deadlock. `startLimitedEvent`'s draft branch
-        // must refuse to start (and must NOT `fillBotSeats`) until every
-        // seat is human-occupied.
-        let seats = buildEmptySeats(3);
-        seats = assignFreeSeat(seats, "user1", "Alice");
-        seats = assignFreeSeat(seats, "user2", "Bob");
-        // Seat 2 is still unclaimed — this is the exact shape
-        // `startLimitedEvent` reads from `event.seats` before ever calling
-        // `fillBotSeats`.
-        expect(seats[2].userId).toBeUndefined();
-        expect(() => assertDraftSeatsFilled(seats)).toThrow(
-            /all 3 seats are filled by human players/
+    it("solo draft (1 human + 3 bots) completes end-to-end with nobody ever driving the bot seats (issue #1113, PRD #1107 story 9)", () => {
+        // 1. createLimitedEvent — admin creates a 4-seat Draft on 3× LEA.
+        const packSlots = ["lea", "lea", "lea"];
+        assertPackSlotsDraftable(packSlots);
+        let event: LimitedEventRow = {
+            _id: "soloDraftEvent",
+            createdBy: "admin1",
+            type: "draft",
+            status: "open",
+            seatCount: 4,
+            packSlots,
+            seats: buildEmptySeats(4),
+            createdAt: 0,
+            updatedAt: 0,
+        };
+
+        // 2. joinLimitedEvent — only ONE human ever joins. This is the primary
+        // use case (PRD #1107 story 9: "I want to draft completely alone").
+        event = {
+            ...event,
+            seats: assignFreeSeat(event.seats, "user1", "Alice"),
+        };
+        expect(event.seats.filter((s) => s.userId !== undefined)).toHaveLength(
+            1
         );
 
-        // Filling the last seat with a human (never a bot) clears the guard.
-        seats = assignFreeSeat(seats, "user3", "Carol");
-        expect(() => assertDraftSeatsFilled(seats)).not.toThrow();
+        // 3. startLimitedEvent — empty seats become Bot Drafters (issue
+        // #1113: unlike #1112, a Draft is now allowed to do this), round 0 is
+        // dealt, and every bot's pending pick resolves immediately.
+        const filled = fillBotSeats(event.seats);
+        expect(filled.filter((s) => s.isBot)).toHaveLength(3);
+
+        const seed = 777;
+        const dealt = startDraft(
+            filled,
+            packSlots,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta
+        );
+        const afterInitialBots = runBotAutoPicks(
+            dealt.seats,
+            dealt.draftRound,
+            dealt.draftPacksRemaining,
+            packSlots,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            botChoosePick
+        );
+        event = {
+            ...event,
+            seats: afterInitialBots.seats,
+            status: "started",
+            draftRound: afterInitialBots.draftRound,
+            draftPacksRemaining: afterInitialBots.draftPacksRemaining,
+            updatedAt: 1,
+            ...(afterInitialBots.completed ? { draftCompletedAt: 2 } : {}),
+        };
+
+        // 4. Drive ONLY the human seat's picks (`submitPick`'s exact path);
+        // every bot pick happens purely as a side effect of `runBotAutoPicks`
+        // after each human submission — nothing in this loop ever targets a
+        // bot seatIndex, mirroring "no driver ever calls submitPick for a bot
+        // seat" but now because it never NEEDS to, not because bots can't
+        // draft.
+        let round = event.draftRound!;
+        let remaining = event.draftPacksRemaining!;
+        let seats = event.seats;
+        let completed = event.draftCompletedAt !== undefined;
+        let safety = 0;
+        const HUMAN_SEAT = 0;
+        while (!completed) {
+            const humanPack = seats[HUMAN_SEAT].currentPack;
+            expect(humanPack).toBeDefined();
+            expect(humanPack!.length).toBeGreaterThan(0);
+            const pickId = humanPack![0].pickId;
+
+            const picked = applyPick(
+                seats,
+                round,
+                remaining,
+                packSlots,
+                HUMAN_SEAT,
+                pickId,
+                seed,
+                getBoosterConfig,
+                resolveCardMeta
+            );
+            const afterBots = runBotAutoPicks(
+                picked.seats,
+                picked.draftRound,
+                picked.draftPacksRemaining,
+                packSlots,
+                seed,
+                getBoosterConfig,
+                resolveCardMeta,
+                botChoosePick,
+                picked.completed
+            );
+            seats = afterBots.seats;
+            round = afterBots.draftRound;
+            remaining = afterBots.draftPacksRemaining;
+            completed = afterBots.completed;
+            if (++safety > 1000) {
+                throw new Error(
+                    "test: solo draft never completed — infinite loop guard tripped"
+                );
+            }
+        }
+
+        // 5. Every seat — human AND every bot — has a full 45-card Pool
+        // (3 boosters × 15 cards), and nothing is left mid-pick.
+        const expectedPerSeat = 15 * packSlots.length;
+        for (const seat of seats) {
+            expect(seat.pool).toHaveLength(expectedPerSeat);
+            expect(seat.currentPack).toBeUndefined();
+            expect(seat.packQueue).toEqual([]);
+        }
+
+        // 6. Privacy: the bots' Pools/picks never leaked into the human
+        // viewer's projection during the draft — same discipline as any
+        // other seat (PRD #1107 story 15/26).
+        event = { ...event, seats, draftRound: round, draftPacksRemaining: remaining, draftCompletedAt: 2 };
+        const view = projectLimitedEvent(event, "user1");
+        const own = view.seats.find((s) => s.userId === "user1")!;
+        expect(own.pool).toHaveLength(expectedPerSeat);
+        for (const seat of view.seats.filter((s) => s.seatIndex !== HUMAN_SEAT)) {
+            expect(seat.isBot).toBe(true);
+            expect(seat.pool).toBeNull();
+            expect(seat.currentPack).toBeNull();
+            expect(seat.poolCount).toBe(expectedPerSeat);
+        }
+    });
+
+    it("scripted 8-seat all-bot draft completes with no human seats at all", () => {
+        // No connected client whatsoever — every seat is a Bot Drafter. This
+        // is the degenerate-but-supported extreme of issue #1113's guard
+        // relaxation: a Draft no longer requires ANY human seat to start.
+        const packSlots = ["lea"];
+        const seats = fillBotSeats(buildEmptySeats(8));
+        expect(seats.every((s) => s.isBot)).toBe(true);
+
+        const seed = 314;
+        const dealt = startDraft(
+            seats,
+            packSlots,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta
+        );
+        const result = runBotAutoPicks(
+            dealt.seats,
+            dealt.draftRound,
+            dealt.draftPacksRemaining,
+            packSlots,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta,
+            botChoosePick
+        );
+
+        expect(result.completed).toBe(true);
+        const expectedPerSeat = 15 * packSlots.length;
+        for (const seat of result.seats) {
+            expect(seat.pool).toHaveLength(expectedPerSeat);
+            expect(seat.currentPack).toBeUndefined();
+        }
     });
 });
