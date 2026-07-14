@@ -109,7 +109,17 @@ export function isWaitingOnOpponent(ctx: HasPriorityCtx): boolean {
     return opponentSelectingAttackers || opponentSelectingBlockers;
 }
 
+/** Phases where no player ever receives priority (CR 502/514 + pre-game). */
+const NON_PRIORITY_PHASES = new Set(["MULLIGAN", "UNTAP", "CLEANUP"]);
+
 export function computeHasPriority(ctx: HasPriorityCtx): boolean {
+    // No player holds priority in a pre-priority / turn-based phase (CR 502/514
+    // + pre-game mulligan). Without this guard the client believes it has
+    // priority whenever `priorityPlayerId` still points at it during MULLIGAN,
+    // so Space → `handlePass` → `passPriority`, which the server rejects
+    // ("Cannot pass priority during mulligan phase"). `computePriorityState`
+    // already gates on this set; `computeHasPriority` must too.
+    if (NON_PRIORITY_PHASES.has(ctx.phase)) return false;
     return (
         ctx.playerId === ctx.priorityPlayerId &&
         !ctx.pendingCast &&
@@ -136,9 +146,6 @@ export function computeHasPriority(ctx: HasPriorityCtx): boolean {
 export type PriorityState = "mine" | "opponent" | "none";
 
 export type PriorityStateCtx = HasPriorityCtx & { gameOver?: GameOver };
-
-/** Phases where no player ever receives priority (CR 502/514 + pre-game). */
-const NON_PRIORITY_PHASES = new Set(["MULLIGAN", "UNTAP", "CLEANUP"]);
 
 export function computePriorityState(ctx: PriorityStateCtx): PriorityState {
     if (ctx.gameOver) return "none";

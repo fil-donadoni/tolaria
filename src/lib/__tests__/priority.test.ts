@@ -53,6 +53,17 @@ describe("computeHasPriority", () => {
         ).toBe(false);
     });
 
+    // Pressing Space during mulligan must NOT reach `passPriority` — the server
+    // rejects it ("Cannot pass priority during mulligan phase"). No player holds
+    // priority in a pre-priority / turn-based phase (CR 502/514 + pre-game),
+    // even while `priorityPlayerId` still points at the viewer.
+    it.each(["MULLIGAN", "UNTAP", "CLEANUP"])(
+        "false during %s even when priorityPlayerId is ours",
+        (phase) => {
+            expect(computeHasPriority(makePriorityCtx({ phase }))).toBe(false);
+        }
+    );
+
     it("false when a cast is in progress (any player)", () => {
         expect(
             computeHasPriority(
