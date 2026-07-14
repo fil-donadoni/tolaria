@@ -17,11 +17,17 @@ import {
 } from "./formats";
 
 // Typed deck Format (ADR 0036). An Admin chooses it when authoring a preset.
+// Mirrors `userDecks`/`schema.ts`'s union (kept in sync with `FormatId`);
+// `"limited"` (ADR 0054/0055, issue #1109) is included for type parity even
+// though a hand-authored Preset Deck has no Pool to validate against — a
+// preset's `format` field is typed as the full `FormatId`, so this validator
+// must accept every member or `list`/`get`'s `returns:` fails to type-check.
 const formatValidator = v.union(
     v.literal("freeform"),
     v.literal("alpha-40"),
     v.literal("old-school"),
-    v.literal("premodern")
+    v.literal("premodern"),
+    v.literal("limited")
 );
 
 // Preset Decks now live in the `presetDecks` DB table (PRD #466, ADR 0033).

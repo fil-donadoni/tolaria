@@ -12,11 +12,14 @@ const deckCardValidator = v.object({
 
 // Typed deck Format (ADR 0036). Chosen at creation and immutable thereafter,
 // so create requires it but `update` intentionally does NOT accept it.
+// `"limited"` (ADR 0054/0055, issue #1109) is pool-scoped rather than
+// catalogue-scoped — see `limitedEventId`/`limitedSeatId` below.
 const formatValidator = v.union(
     v.literal("freeform"),
     v.literal("alpha-40"),
     v.literal("old-school"),
-    v.literal("premodern")
+    v.literal("premodern"),
+    v.literal("limited")
 );
 
 type AnyCtx = GenericQueryCtx<DataModel> | GenericMutationCtx<DataModel>;
@@ -64,6 +67,12 @@ export const create = mutation({
         // Featured Card override (PRD #589, issue #593). Optional Card ID;
         // absent ⇒ the resolver defaults to the first Maindeck card on read.
         featuredCardId: v.optional(v.string()),
+        // Limited Event + Seat reference (ADR 0054/0055, issue #1109). Set
+        // once at creation for a `format: "limited"` deck, exactly like
+        // `format` itself is immutable thereafter — `update` intentionally
+        // does not accept these two fields.
+        limitedEventId: v.optional(v.string()),
+        limitedSeatId: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const userId = await getCurrentUserId(ctx);
@@ -77,6 +86,8 @@ export const create = mutation({
             sideboard: args.sideboard,
             description: args.description,
             featuredCardId: args.featuredCardId,
+            limitedEventId: args.limitedEventId,
+            limitedSeatId: args.limitedSeatId,
         });
     },
 });
