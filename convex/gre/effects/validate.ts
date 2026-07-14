@@ -1602,7 +1602,11 @@ export const SCHEMA_OP_NAMES: readonly string[] = Object.keys(OP_SCHEMAS);
  *  mana value (Reanimate). */
 const NUMBER_REF_PROPERTIES = new Set(["power", "toughness", "manaValue"]);
 /** Property paths legal in a PLAYER ref position (a player selector). */
-const PLAYER_REF_PROPERTIES = new Set(["controller"]);
+// "owner" (issue #1106) — CR 108.3, the immutable owner captured alongside
+// controller in the same snapshot `bind` (Recoil: "return it to its owner's
+// hand, that player discards" — distinct from `.controller` whenever a
+// control-magic effect diverges the two, e.g. Spinal Embrace then Recoil).
+const PLAYER_REF_PROPERTIES = new Set(["controller", "owner"]);
 
 /** ADR 0046 — deep JSON-purity check: only null, booleans, finite numbers,
  *  strings, arrays and plain objects (no undefined values, functions,

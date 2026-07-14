@@ -5484,7 +5484,13 @@ export type EffectShorthand = "destroy-target" | PumpCombatEffect;
  *  - `{ ref: "$x.controller" }` — the controller of a bound object snapshot
  *    (ADR 0045 ref construct). Used by "its controller gains…" (Swords to
  *    Plowshares) — snapshot semantics let the controller survive the object
- *    changing zone (CR 608.2h last-known information). */
+ *    changing zone (CR 608.2h last-known information).
+ *  - `{ ref: "$x.owner" }` — the OWNER of a bound object snapshot (issue
+ *    #1106, CR 108.3 — immutable, distinct from `.controller`). Used by
+ *    "return it to its owner's hand, then that player discards" (Recoil):
+ *    a control-magic effect (Spinal Embrace) can make owner and controller
+ *    diverge, and CR 400.7 names the OWNER, not whoever currently controls
+ *    the stolen permanent. */
 export type EffectPlayerRef =
     | "controller"
     | "opponent"
@@ -6051,8 +6057,8 @@ export type EffectOp =
      *  `forEach` member (`{ ref: "$each" }`, issue #807). Routes through
      *  `SpellContext.destroy`, so regeneration / indestructible / destroy
      *  replacements (ADR 0020) apply exactly as for imperative cards.
-     *  `bind` snapshots the permanent's power/toughness/controller BEFORE it
-     *  leaves the battlefield (CR 608.2h). `cantBeRegenerated` (ADR 0053,
+     *  `bind` snapshots the permanent's power/toughness/controller/owner
+     *  (issue #1106) BEFORE it leaves the battlefield (CR 608.2h). `cantBeRegenerated` (ADR 0053,
      *  Do or Die's "They can't be regenerated") is a direct passthrough of
      *  `SpellContext.destroy`'s existing `{ cantBeRegenerated }` option
      *  (Terror, Disintegrate already use it imperatively) — suppresses the
@@ -6067,9 +6073,9 @@ export type EffectOp =
       }
     /** CR 701.13 — exile the announced target permanent (or the current
      *  `forEach` member, issue #807) to its owner's exile zone (CR 406).
-     *  `bind` snapshots the permanent's power/toughness/controller BEFORE it
-     *  leaves the battlefield, so a later `ref` reads its last-known values
-     *  (Swords to Plowshares, CR 608.2h). */
+     *  `bind` snapshots the permanent's power/toughness/controller/owner
+     *  (issue #1106) BEFORE it leaves the battlefield, so a later `ref` reads
+     *  its last-known values (Swords to Plowshares, CR 608.2h). */
     | { op: "exile"; target: EffectObjectSelector; bind?: string }
     /** CR 400.7 — move a card between zones (issue #839). A thin declarative
      *  skin over the SpellContext zone-movement primitives
@@ -6088,11 +6094,15 @@ export type EffectOp =
      *  Skipped when the referenced object is gone (CR 608.2b — does as much as
      *  it can), or for a zone pair with no plain-move primitive (e.g. a
      *  battlefield permanent to exile, which needs LTB semantics — use
-     *  `exile`). `bind` (issue #680) snapshots the object BEFORE it moves —
-     *  power/toughness/controller/id for a permanent, mana value (+ owner as
-     *  `controller`, 0 power/toughness) for a graveyard card — so a later
-     *  `ref` reads e.g. the reanimated card's mana value (Reanimate: "You
-     *  lose life equal to that card's mana value"). `controller` (issue #680,
+     *  `exile`). `bind` (issue #680, owner slot added issue #1106) snapshots
+     *  the object BEFORE it moves — power/toughness/controller/owner/id for a
+     *  permanent, mana value (+ owner/controller both as the card's owner, 0
+     *  power/toughness) for a graveyard card — so a later `ref` reads e.g.
+     *  the reanimated card's mana value (Reanimate: "You lose life equal to
+     *  that card's mana value") or a bounced permanent's OWNER (Recoil:
+     *  "return it to its owner's hand, that player discards", CR 400.7 —
+     *  distinct from `.controller` when a control-magic effect diverges the
+     *  two). `controller` (issue #680,
      *  meaningful only for a graveyard-card reanimation) overrides the
      *  default owner-control (CR 800.4a — Reanimate / Hymn of Rebirth's
      *  "under your control", a cross-graveyard reanimation) by passing
