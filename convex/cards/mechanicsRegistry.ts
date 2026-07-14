@@ -2669,7 +2669,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  reopens ADR 0045 (no structural construct, no arithmetic composition — a
  *  constant baked into one count) and neither earns an EFFECT_OP_REGISTRY row.
  *  They unblock the "damage/value equal to TWICE the number of nonbasic lands"
- *  class (Price of Progress, issue #999). */
+ *  class (Price of Progress, issue #999). `negate` (issue #926, `{ negate:
+ *  <value> }`) is likewise NOT an Op and NOT a new grammar member — it is a
+ *  unary sign flip scoped to the SIGNED value grammar (`EffectSignedValue`,
+ *  today only `pump`'s power/toughness), not a tenth `EffectValue` member, so
+ *  it earns neither an EFFECT_OP_REGISTRY row nor a MECHANICS_REGISTRY row
+ *  (unlike Domain, it names no CR keyword or ability word). It unblocks
+ *  "-X/-X" style pump amounts driven off a non-negative-by-nature value
+ *  member (Toxic Deluge's chosen-cost X, CR 118.4 pay-X-life). */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED

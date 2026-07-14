@@ -609,12 +609,28 @@ function isBoolean(value: unknown): boolean {
     return typeof value === "boolean";
 }
 
+/** `{ negate: <value> }` — SHAPE of the negated-value construct (issue #926,
+ *  `EffectNegatedValue`). Wraps ANY plain `EffectValue` (checked via
+ *  `isEffectValue`, defined above — so nesting is grammatically impossible:
+ *  `isEffectValue` itself never accepts `negate`, only the SIGNED grammar
+ *  below does). No other keys are permitted. Unblocks "-X/-X" style pump
+ *  amounts driven off a non-negative-by-nature value member (Toxic Deluge's
+ *  chosen-cost X, CR 118.4 pay-X-life). */
+function isNegatedValue(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "negate") return false;
+    return isEffectValue((value as { negate: unknown }).negate);
+}
+
 /** A SIGNED effect value, for a `pump` Op's P/T amounts (issue #840). Unlike
  *  `isEffectValue` (whose literal branch is a positive count, CR 107.1), a
  *  pump amount is a signed integer literal — a negative is a shrink (Weakness),
  *  a zero is a one-sided pump (+1/+0) — or a `ref` / `count` / chosen-cost `X` /
  *  `counters` count (all non-negative by nature; Howl from Beyond's +X/+0,
- *  issue #852; a "+1/+1 per fuse counter" pump, issue #1015). */
+ *  issue #852; a "+1/+1 per fuse counter" pump, issue #1015) — or a
+ *  `negate`-wrapped value member for the negative of one of those
+ *  non-negative-by-nature reads (issue #926 — Toxic Deluge's "-X/-X"). */
 function isSignedEffectValue(value: unknown): boolean {
     if (typeof value === "number") return Number.isInteger(value);
     return (
@@ -622,7 +638,8 @@ function isSignedEffectValue(value: unknown): boolean {
         isCountValue(value) ||
         isXValue(value) ||
         isCountersValue(value) ||
-        isDomainValue(value)
+        isDomainValue(value) ||
+        isNegatedValue(value)
     );
 }
 
