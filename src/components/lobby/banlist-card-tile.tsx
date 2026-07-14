@@ -1,5 +1,6 @@
 import { tryGetCardByName } from "@convex/cards";
 import CardImage from "~/components/cards/card-image";
+import { getImageUrl, getImageSrcSet } from "~/lib/images";
 
 interface BanlistCardTileProps {
     cardName: string;
@@ -7,13 +8,6 @@ interface BanlistCardTileProps {
     /** Scryfall id captured at sync (PRD #1138 follow-up). Used only when the
      *  card has no `CardDefinition` in our engine, to still show its image. */
     scryfallId?: string;
-}
-
-/** Scryfall's stable per-id image endpoint (a 302 to the card image CDN). Used
- *  for banlist cards we never build (e.g. Amulet of Quoz) so the pile still
- *  shows the real card, not just a name. */
-function scryfallImageUrl(id: string): string {
-    return `https://api.scryfall.com/cards/${id}?format=image&version=normal`;
 }
 
 /**
@@ -44,8 +38,14 @@ export default function BanlistCardTile({
                 {def ? (
                     <CardImage card={{ id: def.id }} lazy sizes="112px" />
                 ) : scryfallId ? (
+                    // Scryfall CDN image (WebP + srcset) via the project's
+                    // image authority (`~/lib/images`) — same source CardImage
+                    // uses — so a never-built banlist card (e.g. Amulet of Quoz)
+                    // still shows its real face.
                     <img
-                        src={scryfallImageUrl(scryfallId)}
+                        src={getImageUrl(scryfallId)}
+                        srcSet={getImageSrcSet(scryfallId)}
+                        sizes="112px"
                         alt={cardName}
                         loading="lazy"
                         className="h-full w-full rounded-[7%] object-cover"

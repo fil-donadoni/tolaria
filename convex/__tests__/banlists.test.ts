@@ -34,6 +34,22 @@ describe("resolveBanlistDisplay — DB rows or seed fallback (issue #1141)", () 
         expect(result).toEqual(rows);
     });
 
+    it("preserves a row's scryfallId when present (PRD #1138 image follow-up)", () => {
+        const rows: BanlistEntry[] = [
+            {
+                cardName: "Amulet of Quoz",
+                status: "banned",
+                scryfallId: "amulet-sid",
+            },
+        ];
+        const result = resolveBanlistDisplay("premodern", rows);
+        expect(result[0]).toEqual({
+            cardName: "Amulet of Quoz",
+            status: "banned",
+            scryfallId: "amulet-sid",
+        });
+    });
+
     it("falls back to the code-side seed when the format has no DB rows", () => {
         const result = resolveBanlistDisplay("premodern", []);
         expect(result).toEqual([...PREMODERN_BANLIST_SEED]);
