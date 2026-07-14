@@ -20,6 +20,7 @@ import {
     buildAutoTapSources,
     solveSmartAutoTap,
     solveAutoTapPartial,
+    type AutoTapPlan,
 } from "../gre/autoTap";
 import {
     buildBoardAbilityDemands,
@@ -30,6 +31,7 @@ import {
     tapSourceIntoPayment,
     tryAutoCommitPendingCast,
     tryAutoCommitPendingActivation,
+    scoreAutoTapPlanPosition,
 } from "../game";
 import {
     getManaSubstitutions,
@@ -65,12 +67,27 @@ function runAutoTap(state: GameState, player: PlayerState): boolean {
             isControllersTurn: state.activePlayerId === player.id,
         }),
     ];
+    // Drive the REAL production scorer (`scoreAutoTapPlanPosition`, exported from
+    // game.ts) — not a mirrored closure — so the eval-scored glue is under test
+    // exactly as the `autoTapForPayment` mutation body wires it (issue #794).
+    const scorePlan = (plan: AutoTapPlan): number =>
+        scoreAutoTapPlanPosition(
+            state,
+            player.id,
+            player.manaPool,
+            pending.manaCost,
+            substitutions,
+            sources,
+            plan
+        );
     const fullPlan = solveSmartAutoTap(
         player.manaPool,
         pending.manaCost,
         substitutions,
         sources,
-        demands
+        demands,
+        undefined,
+        scorePlan
     );
     const plan =
         fullPlan ??
@@ -926,5 +943,127 @@ describe("autoTapForPayment — manland self-source (issue #544)", () => {
         expect(tappedA).toEqual(tappedB);
         // The Factory is never among the tapped sources while a Mountain exists.
         expect(tappedA).not.toContain("factory");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Evaluation-scored auto-tap acceptance scenarios through the REAL scorer
+// (issue #794). Unlike the per-module AC1/AC2 unit tests (autoTap.test.ts),
+// which mirror the scorer with a hand-built closure, these run
+// `runAutoTap` — which now wires the production `scoreAutoTapPlanPosition`
+// exported from game.ts — so the GRE → game.ts glue is exercised end to end,
+// asserting the resulting `isTapped` set. Includes the Finding-1 regression
+// (Plains + Tropical Island, held {W} spell) so a demand-blind eval can never
+// again strand a color-critical source for a generic breadth bonus.
+// ---------------------------------------------------------------------------
+
+const PLAINS = "b1623d57-4729-4796-b3f7-f1837a05c6ed"; // {T}: W
+const SOL_RING = "c4300d24-1cae-4dd5-be7e-38cc677cf5bd"; // {1} artifact (generic)
+// MISHRAS_FACTORY id is declared above (manland self-source block).
+
+/** Cast a generic {1} spell (Sol Ring) with `battlefield` sources and an
+ *  optional held white spell (Savannah Lions) as a Demand. */
+function genericOneState(
+    battlefield: ReturnType<typeof makeInstance>[],
+    withWhiteDemand: boolean
+) {
+    const cast = makeInstance(SOL_RING, {
+        id: "solring",
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "hand",
+    });
+    const hand = [cast];
+    if (withWhiteDemand) {
+        hand.push(
+            makeInstance(SAVANNAH_LIONS, {
+                id: "lions",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            })
+        );
+    }
+    const pendingCast: PendingCast = {
+        playerId: "p1",
+        cardInstanceId: "solring",
+        manaCost: { X: 1 }, // {1} generic
+        tappedLandIds: [],
+    };
+    const p1 = makePlayer("p1", { hand, battlefield });
+    const state = makeState({
+        players: [p1, makePlayer("p2")],
+        activePlayerId: "p1",
+        priorityPlayerId: "p1",
+        pendingCast,
+    });
+    return { state, player: state.players[0] };
+}
+
+describe("autoTapForPayment — evaluation-scored plan selection (issue #794)", () => {
+    it("AC(a): equal-tap plan avoiding a dual-purpose permanent leaves it untapped", () => {
+        // Board: Mishra's Factory ({T}: C + animate) + a plain Mountain ({T}: R).
+        // Paying {1} generic is one tap either source covers; no held demands. The
+        // real scorer must tap the Mountain and SPARE the Factory (its animate
+        // ability makes it worth more untapped).
+        const { state, player } = genericOneState(
+            [
+                makeInstance(MISHRAS_FACTORY, {
+                    id: "factory",
+                    controllerId: "p1",
+                }),
+                makeInstance(MOUNTAIN, { id: "m1", controllerId: "p1" }),
+            ],
+            false
+        );
+        const committed = runAutoTap(state, player);
+        expect(committed).toBe(true);
+        expect(state.pendingCast).toBeUndefined();
+
+        const factory = player.battlefield.find((c) => c.id === "factory")!;
+        const mountain = player.battlefield.find((c) => c.id === "m1")!;
+        expect(factory.isTapped).toBeFalsy();
+        expect(mountain.isTapped).toBe(true);
+    });
+
+    it("AC(b) / Finding-1 regression: preserves the color-critical source a held spell needs over a higher-breadth dual", () => {
+        // Board: Plains ({T}: W, 1 color) + Tropical Island ({T}: G or U, 2 color).
+        // Paying {1} generic is one tap either covers. A held Savannah Lions ({W})
+        // still needs {W}, which ONLY the Plains makes. A demand-BLIND eval would
+        // spare the higher-breadth Tropical Island (+breadth bonus) and tap the
+        // Plains — stranding the {W}. The unified position score (demand term
+        // dominates the breadth bonus) must tap the Tropical Island and spare the
+        // Plains so Savannah Lions stays castable.
+        const { state, player } = genericOneState(
+            [
+                makeInstance(PLAINS, { id: "plains", controllerId: "p1" }),
+                makeInstance(TROPICAL_ISLAND, {
+                    id: "trop",
+                    controllerId: "p1",
+                }),
+            ],
+            true
+        );
+        const committed = runAutoTap(state, player);
+        expect(committed).toBe(true);
+        expect(state.pendingCast).toBeUndefined();
+
+        const plains = player.battlefield.find((c) => c.id === "plains")!;
+        const trop = player.battlefield.find((c) => c.id === "trop")!;
+        // Regression assertion: the white source is spared, the dual is tapped.
+        expect(plains.isTapped).toBeFalsy();
+        expect(trop.isTapped).toBe(true);
+
+        // Savannah Lions ({W}) is still castable from the untapped Plains.
+        const sub = getManaSubstitutions(state, player.id);
+        const sources = buildAutoTapSources(player.battlefield);
+        const lionsPlan = solveSmartAutoTap(
+            player.manaPool,
+            { W: 1 },
+            sub,
+            sources,
+            []
+        );
+        expect(lionsPlan).not.toBeNull();
     });
 });

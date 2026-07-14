@@ -5238,7 +5238,7 @@ export const tapForActivationPayment = mutation({
  * valuable dual-purpose / color-flexible sources left untapped). Feeds
  * `solveSmartAutoTap` as its primary plan scorer.
  */
-function scoreAutoTapPlanPosition(
+export function scoreAutoTapPlanPosition(
     state: GameState,
     playerId: string,
     pool: Record<string, number>,
