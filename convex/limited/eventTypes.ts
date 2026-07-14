@@ -46,6 +46,17 @@ export interface LimitedEventSeat {
      *  slow neighbor). FIFO: `packQueue[0]` becomes the next `currentPack`
      *  once the current one is exhausted. */
     packQueue?: DraftPackCard[][];
+    /** Draft only, timer-on events (issue #1114): epoch ms when this seat's
+     *  CURRENT `currentPack` pick times out. Absent when the event has no
+     *  configured timer, this is a Bot Drafter seat, or the seat has no
+     *  current pack. Server-authoritative — never client-writable. */
+    pickDeadline?: number;
+    /** Draft only, timer-on events: monotonic counter bumped every time this
+     *  seat's `currentPack` is freshly assigned (dealt or passed in) — see
+     *  `draftEngine.ts`'s `resolveAutoPickTimeout` for the stale-schedule
+     *  guard this powers (seq-based Auto-Pick cancellation, CLAUDE.md's
+     *  priority-timeout pattern). */
+    pickSeq?: number;
 }
 
 export type LimitedEventType = "sealed" | "draft";

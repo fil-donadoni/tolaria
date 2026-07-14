@@ -15,7 +15,15 @@ export interface CreateLimitedEventPayload {
     seatCount: number;
     packSlots: string[];
     sealedBoosterCount: number;
+    /** Per-pick timer, seconds (issue #1114, PRD #1107 story 5). Omitted
+     *  when the admin leaves the timer off. */
+    timerSeconds?: number;
 }
+
+/** Default per-pick timer length offered when the admin turns the timer on
+ *  (issue #1114) — generous enough for a first-time drafter to read a
+ *  15-card Booster, short enough to keep a table moving. */
+const DEFAULT_TIMER_SECONDS = 60;
 
 interface CreateLimitedEventDialogProps {
     open: boolean;
@@ -54,6 +62,8 @@ export default function CreateLimitedEventDialog({
     const [sealedBoosterCount, setSealedBoosterCount] = useState(
         DEFAULT_SEALED_BOOSTER_COUNT
     );
+    const [timerEnabled, setTimerEnabled] = useState(false);
+    const [timerSeconds, setTimerSeconds] = useState(DEFAULT_TIMER_SECONDS);
 
     const resolvedSetCode = setCode ?? firstDraftable;
     const canSubmit = !pending && resolvedSetCode !== undefined;
@@ -65,6 +75,8 @@ export default function CreateLimitedEventDialog({
             seatCount,
             packSlots: [resolvedSetCode],
             sealedBoosterCount,
+            timerSeconds:
+                type === "draft" && timerEnabled ? timerSeconds : undefined,
         });
     };
 
@@ -125,12 +137,6 @@ export default function CreateLimitedEventDialog({
                             </button>
                         ))}
                     </div>
-                    {type === "draft" && (
-                        <p className="text-xs text-text-muted">
-                            Draft events can be created but aren't playable
-                            yet — the pick/pass flow lands in a later slice.
-                        </p>
-                    )}
                 </div>
 
                 <label className="flex flex-col gap-1 text-sm">
@@ -227,6 +233,52 @@ export default function CreateLimitedEventDialog({
                             }
                         />
                     </label>
+                )}
+
+                {type === "draft" && (
+                    <div className="flex flex-col gap-1 text-sm">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+                            Per-Pick Timer
+                        </span>
+                        <label className="flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                checked={timerEnabled}
+                                disabled={pending}
+                                onChange={(e) =>
+                                    setTimerEnabled(e.currentTarget.checked)
+                                }
+                            />
+                            <span>
+                                {timerEnabled
+                                    ? "Timer on — an expired pick auto-picks with the bot engine"
+                                    : "Timer off — seats pick at their own pace"}
+                            </span>
+                        </label>
+                        {timerEnabled && (
+                            <label className="flex flex-col gap-1">
+                                <span className="text-xs text-text-muted">
+                                    Seconds per pick
+                                </span>
+                                <Input
+                                    type="number"
+                                    min={1}
+                                    value={timerSeconds}
+                                    disabled={pending}
+                                    onChange={(e) =>
+                                        setTimerSeconds(
+                                            Math.max(
+                                                1,
+                                                Number(
+                                                    e.currentTarget.value
+                                                ) || DEFAULT_TIMER_SECONDS
+                                            )
+                                        )
+                                    }
+                                />
+                            </label>
+                        )}
+                    </div>
                 )}
 
                 {error && (

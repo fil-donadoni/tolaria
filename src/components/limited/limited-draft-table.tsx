@@ -5,6 +5,7 @@ import {
     type LimitedEventSeatView,
 } from "~/hooks/useLimitedEvent";
 import LimitedDraftPack from "./limited-draft-pack";
+import LimitedDraftTimer from "./limited-draft-timer";
 import LimitedPoolView from "./limited-pool-view";
 
 /** The Draft table (PRD #1107 stories 10-13, issue #1112): the Booster in
@@ -53,11 +54,14 @@ export default function LimitedDraftTable({
                 <span>
                     Booster {round + 1} of {totalRounds}
                 </span>
-                <span>
-                    {queueCount > 0
-                        ? `${queueCount} pack${queueCount === 1 ? "" : "s"} queued`
-                        : "No packs queued"}
-                </span>
+                <div className="flex items-center gap-2">
+                    <LimitedDraftTimer pickDeadline={seat.pickDeadline} />
+                    <span>
+                        {queueCount > 0
+                            ? `${queueCount} pack${queueCount === 1 ? "" : "s"} queued`
+                            : "No packs queued"}
+                    </span>
+                </div>
             </div>
 
             {error && (
