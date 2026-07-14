@@ -74,68 +74,6 @@ type PresetScenario = {
 
 export const PRESET_SCENARIOS: PresetScenario[] = [
     {
-        // Fact or Fiction (ADR 0053, pile division). Four Islands to cast the
-        // {3}{U}, five distinct cards fixed on top of the library so the
-        // revealed set is deterministic. In solo mode you divide (as the
-        // opponent) then choose a pile (as the controller) — exercising both the
-        // 3-zone drag stage and the face-up two-pile pick.
-        label: "Fact or Fiction — divide the top five",
-        cards: [
-            { name: "Fact or Fiction", owner: "me", zone: "hand" },
-            { name: "Island", owner: "me", zone: "battlefield", count: 4 },
-            { name: "Serra Angel", owner: "me", zone: "library", position: 1 },
-            {
-                name: "Shivan Dragon",
-                owner: "me",
-                zone: "library",
-                position: 2,
-            },
-            {
-                name: "Lightning Bolt",
-                owner: "me",
-                zone: "library",
-                position: 3,
-            },
-            {
-                name: "Llanowar Elves",
-                owner: "me",
-                zone: "library",
-                position: 4,
-            },
-            { name: "Dark Ritual", owner: "me", zone: "library", position: 5 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-        libraryCount: 12,
-    },
-    {
-        // Escape (CR 702.138) golden path. Uro sits in the graveyard alongside
-        // five other cards to exile for its escape cost ({G}{G}{U}{U} + exile
-        // five). Two Forests + two Islands pay the mana. Click Uro's "Escape"
-        // button, pick five cards to exile: Uro enters ESCAPED, so its ETB
-        // "sacrifice unless it escaped" does NOT sacrifice it, and you gain 3 +
-        // draw + may drop a land.
-        label: "Escape — Uro from the graveyard",
-        cards: [
-            {
-                name: "Uro, Titan of Nature's Wrath",
-                owner: "me",
-                zone: "graveyard",
-            },
-            { name: "Grizzly Bears", owner: "me", zone: "graveyard", count: 3 },
-            {
-                name: "Lightning Bolt",
-                owner: "me",
-                zone: "graveyard",
-                count: 2,
-            },
-            { name: "Forest", owner: "me", zone: "battlefield", count: 2 },
-            { name: "Island", owner: "me", zone: "battlefield", count: 2 },
-        ],
-        phase: "PRECOMBAT_MAIN",
-        landCount: 0,
-    },
-    {
         // Escape via Underworld Breach's zone-wide grant (CR 702.138). Breach on
         // the battlefield gives every nonland graveyard card escape for its own
         // mana cost plus exile three others. Cast Lightning Bolt from the
@@ -145,7 +83,9 @@ export const PRESET_SCENARIOS: PresetScenario[] = [
         cards: [
             { name: "Underworld Breach", owner: "me", zone: "battlefield" },
             { name: "Lightning Bolt", owner: "me", zone: "graveyard" },
-            { name: "Grizzly Bears", owner: "me", zone: "graveyard", count: 3 },
+            { name: "Grizzly Bears", owner: "me", zone: "graveyard", count: 9 },
+            { name: "Lion's Eye Diamond", owner: "me", zone: "battlefield" },
+            { name: "Vision Charm", owner: "me", zone: "hand" },
             { name: "Mountain", owner: "me", zone: "battlefield", count: 3 },
         ],
         phase: "PRECOMBAT_MAIN",
