@@ -8,6 +8,7 @@ import { usePageVisible } from "~/hooks/usePageVisible";
 import { storeSession } from "~/lib/session";
 import { copyMinified } from "~/lib/clipboard";
 import DebugButton from "./debug-button";
+import DebugDbScenarios from "./debug-db-scenarios";
 import { PRESET_SCENARIOS } from "~/lib/presetScenarios";
 
 const theme = {
@@ -287,6 +288,10 @@ export default function DebugPanel({
                                         </DebugButton>
                                     ))}
                                 </div>
+                                <DebugDbScenarios
+                                    gameId={gameId}
+                                    filter={scenarioFilter}
+                                />
                             </div>
                         )}
 
