@@ -7,7 +7,11 @@
 // `CardEvalMeta` so only the field under test varies — isolating each term
 // from the others' contribution.
 import { describe, it, expect } from "vitest";
-import { getCardByName, resolveDeckCardMeta, tryGetDefinition } from "../../cards";
+import {
+    getCardByName,
+    resolveDeckCardMeta,
+    tryGetDefinition,
+} from "../../cards";
 import { getCardColors } from "../../cards/colors";
 import type { Color } from "../../cards/types";
 import { manaValue } from "../../gre/constants";
@@ -17,7 +21,11 @@ import {
     type CardEvalMeta,
     type GetCardEvalMeta,
 } from "../botDrafter";
-import { runBotAutoPicks, startDraft, type ChooseBotPick } from "../draftEngine";
+import {
+    runBotAutoPicks,
+    startDraft,
+    type ChooseBotPick,
+} from "../draftEngine";
 import {
     buildEmptySeats,
     fillBotSeats,
@@ -90,7 +98,8 @@ describe("scoreCandidate — color commitment (PRD #1107 story 29: 'prefers on-c
         const deepPool = Array(10).fill(green); // heavily committed to green
 
         const shallowGap =
-            scoreCandidate(green, shallowPool) - scoreCandidate(red, shallowPool);
+            scoreCandidate(green, shallowPool) -
+            scoreCandidate(red, shallowPool);
         const deepGap =
             scoreCandidate(green, deepPool) - scoreCandidate(red, deepPool);
 
@@ -173,10 +182,7 @@ describe("chooseBotPick (PRD #1107 stories 8, 9, 27)", () => {
     });
 
     it("ties break by pack position (first wins)", () => {
-        const pack = [
-            packCard("bears", "pick-a"),
-            packCard("bears", "pick-b"),
-        ];
+        const pack = [packCard("bears", "pick-a"), packCard("bears", "pick-b")];
         expect(chooseBotPick(pack, [], getCardEvalMeta)).toBe("pick-a");
     });
 

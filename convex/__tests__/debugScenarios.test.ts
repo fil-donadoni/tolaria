@@ -114,7 +114,9 @@ describe("normalizeScenarioSpec — tolerant load (ADR 0044)", () => {
         // A card missing `owner` defaults to "me"; a card missing `name` is
         // dropped (unloadable).
         expect(
-            normalizeScenarioSpec({ cards: [{ name: "Plains" }, { owner: "opp" }] })
+            normalizeScenarioSpec({
+                cards: [{ name: "Plains" }, { owner: "opp" }],
+            })
         ).toEqual({ cards: [{ name: "Plains", owner: "me" }] });
     });
 
@@ -219,11 +221,7 @@ describe("selectEphemeralIdsToPrune — cleanup policy (issue #772, ADR 0044)", 
     });
 
     it("keeps the newest `keep` ephemeral rows and prunes the rest", () => {
-        const rows = [
-            row("e-old", 100),
-            row("e-mid", 200),
-            row("e-new", 300),
-        ];
+        const rows = [row("e-old", 100), row("e-mid", 200), row("e-new", 300)];
         // keep=1 → newest ("e-new") survives, the two older are pruned.
         expect(selectEphemeralIdsToPrune(rows, 1).sort()).toEqual(
             ["e-mid", "e-old"].sort()
@@ -267,9 +265,9 @@ describe("MIGRATED_PRESET_SCENARIOS — PRESET_SCENARIOS → DB migration (issue
 
     it("every migrated spec loads with only resolvable card names (would not corrupt a board)", () => {
         for (const preset of MIGRATED_PRESET_SCENARIOS) {
-            expect(
-                collectUnresolvedCardNames(preset.spec, resolves)
-            ).toEqual([]);
+            expect(collectUnresolvedCardNames(preset.spec, resolves)).toEqual(
+                []
+            );
         }
     });
 

@@ -56,9 +56,7 @@ export default function CreateLimitedEventDialog({
     const [type, setType] = useState<LimitedEventType>("sealed");
     const [seatCount, setSeatCount] = useState(4);
     const firstDraftable = draftableSets.find((s) => s.draftable)?.setCode;
-    const [setCode, setSetCode] = useState<string | undefined>(
-        firstDraftable
-    );
+    const [setCode, setSetCode] = useState<string | undefined>(firstDraftable);
     const [sealedBoosterCount, setSealedBoosterCount] = useState(
         DEFAULT_SEALED_BOOSTER_COUNT
     );
@@ -189,10 +187,10 @@ export default function CreateLimitedEventDialog({
                                         type="radio"
                                         name="limited-pack-source"
                                         disabled={!set.draftable || pending}
-                                        checked={resolvedSetCode === set.setCode}
-                                        onChange={() =>
-                                            setSetCode(set.setCode)
+                                        checked={
+                                            resolvedSetCode === set.setCode
                                         }
+                                        onChange={() => setSetCode(set.setCode)}
                                     />
                                     <span className="uppercase">
                                         {set.setCode}
@@ -269,9 +267,8 @@ export default function CreateLimitedEventDialog({
                                         setTimerSeconds(
                                             Math.max(
                                                 1,
-                                                Number(
-                                                    e.currentTarget.value
-                                                ) || DEFAULT_TIMER_SECONDS
+                                                Number(e.currentTarget.value) ||
+                                                    DEFAULT_TIMER_SECONDS
                                             )
                                         )
                                     }
@@ -281,9 +278,7 @@ export default function CreateLimitedEventDialog({
                     </div>
                 )}
 
-                {error && (
-                    <p className="text-sm text-danger-strong">{error}</p>
-                )}
+                {error && <p className="text-sm text-danger-strong">{error}</p>}
             </div>
         </GameDialog>
     );

@@ -12,7 +12,9 @@ const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // basic land, colorles
 describe("computeDeckColors", () => {
     it("derives WUBRG-ordered colors from the deck's cards", () => {
         expect(
-            computeDeckColors([{ cardId: BOLT_LEA, cardName: "Lightning Bolt" }])
+            computeDeckColors([
+                { cardId: BOLT_LEA, cardName: "Lightning Bolt" },
+            ])
         ).toEqual(["R"]);
     });
 

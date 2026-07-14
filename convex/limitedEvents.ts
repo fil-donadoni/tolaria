@@ -187,7 +187,11 @@ async function scheduleSeatTimers(
         await ctx.scheduler.runAfter(
             timerSeconds * 1000,
             internal.limitedEvents.autoPickSeatTimeout,
-            { eventId, seatIndex: update.seatIndex, expectedSeq: update.pickSeq }
+            {
+                eventId,
+                seatIndex: update.seatIndex,
+                expectedSeq: update.pickSeq,
+            }
         );
     }
 }
@@ -403,12 +407,10 @@ export const startLimitedEvent = mutation({
                 updatedAt: now,
                 ...(afterBots.completed ? { draftCompletedAt: now } : {}),
             });
-            await scheduleSeatTimers(
-                ctx,
-                args.eventId,
-                event.timerSeconds,
-                [...dealt.timerUpdates, ...afterBots.timerUpdates]
-            );
+            await scheduleSeatTimers(ctx, args.eventId, event.timerSeconds, [
+                ...dealt.timerUpdates,
+                ...afterBots.timerUpdates,
+            ]);
             return null;
         }
 
@@ -510,12 +512,10 @@ export const submitPick = mutation({
         // before this call self-invalidates via the seq guard in
         // `autoPickSeatTimeout`, so nothing needs cancelling here — only the
         // freshly-created deadlines from this call need a NEW schedule.
-        await scheduleSeatTimers(
-            ctx,
-            args.eventId,
-            event.timerSeconds,
-            [...result.timerUpdates, ...afterBots.timerUpdates]
-        );
+        await scheduleSeatTimers(ctx, args.eventId, event.timerSeconds, [
+            ...result.timerUpdates,
+            ...afterBots.timerUpdates,
+        ]);
         return null;
     },
 });
@@ -596,12 +596,10 @@ export const autoPickSeatTimeout = internalMutation({
             updatedAt: now,
             ...(afterBots.completed ? { draftCompletedAt: now } : {}),
         });
-        await scheduleSeatTimers(
-            ctx,
-            args.eventId,
-            event.timerSeconds,
-            [...result.timerUpdates, ...afterBots.timerUpdates]
-        );
+        await scheduleSeatTimers(ctx, args.eventId, event.timerSeconds, [
+            ...result.timerUpdates,
+            ...afterBots.timerUpdates,
+        ]);
         return null;
     },
 });

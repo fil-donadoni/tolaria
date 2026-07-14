@@ -18,7 +18,9 @@ type Preview = { spec: unknown; unresolved: string[]; prompt: string };
  * already gates on admin.
  */
 export default function DebugGenerateScenario() {
-    const generate = useAction(api.debugScenarioGenerator.generateDebugScenario);
+    const generate = useAction(
+        api.debugScenarioGenerator.generateDebugScenario
+    );
 
     const [description, setDescription] = useState("");
     const [preview, setPreview] = useState<Preview | null>(null);

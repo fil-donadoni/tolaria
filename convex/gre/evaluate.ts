@@ -347,7 +347,8 @@ function untappedSourceQuality(state: GameState, playerId: string): number {
         // Only score a source with a real definition — a token without one
         // (`getProducibleColors` reads the throwing `getDefinition`) contributes
         // nothing to source quality.
-        if (!tryGetDefinition((perm.card as { id?: string }).id ?? "")) continue;
+        if (!tryGetDefinition((perm.card as { id?: string }).id ?? ""))
+            continue;
         const breadth = getProducibleColors(perm).size;
         if (breadth > 1) bonus += (breadth - 1) * W_SOURCE_BREADTH;
         if (hasNonManaActivatedAbility(perm)) bonus += W_SOURCE_DUAL_PURPOSE;

@@ -146,7 +146,8 @@ export function scoreCandidate(
     candidate: CardEvalMeta,
     poolMeta: readonly CardEvalMeta[]
 ): number {
-    const quality = cardValueById(candidate.cardId) * RARITY_WEIGHT[candidate.rarity];
+    const quality =
+        cardValueById(candidate.cardId) * RARITY_WEIGHT[candidate.rarity];
 
     let colorTerm = 0;
     if (candidate.colors.length > 0) {
@@ -160,7 +161,8 @@ export function scoreCandidate(
         const totalPicks = poolMeta.length;
         if (bestAffinity === 0 && totalPicks > OFF_COLOR_GRACE_PICKS) {
             colorTerm -=
-                (totalPicks - OFF_COLOR_GRACE_PICKS) * OFF_COLOR_PENALTY_PER_PICK;
+                (totalPicks - OFF_COLOR_GRACE_PICKS) *
+                OFF_COLOR_PENALTY_PER_PICK;
         }
     }
 

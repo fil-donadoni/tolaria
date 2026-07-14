@@ -51,9 +51,9 @@ describe("parseLlmScenarioText (issue #771)", () => {
     });
 
     it("tolerates markdown-fenced JSON", () => {
-        expect(
-            parseLlmScenarioText('```json\n{"cards":[]}\n```')
-        ).toEqual({ cards: [] });
+        expect(parseLlmScenarioText('```json\n{"cards":[]}\n```')).toEqual({
+            cards: [],
+        });
     });
 
     it("throws a clear error on non-JSON output", () => {
@@ -82,7 +82,10 @@ describe("buildRegenerateDescription — regenerate / vary (issue #772)", () => 
 
     it("appends a tweak as an adjustment for a vary", () => {
         expect(
-            buildRegenerateDescription("Forest with Wild Growth", "add a Craw Wurm")
+            buildRegenerateDescription(
+                "Forest with Wild Growth",
+                "add a Craw Wurm"
+            )
         ).toBe("Forest with Wild Growth\n\nAdjustment: add a Craw Wurm");
     });
 

@@ -23,7 +23,9 @@ export default function LimitedEventSeatRow({
                 </span>
                 <span
                     className={
-                        isOccupied ? "font-medium text-text" : "text-text-muted italic"
+                        isOccupied
+                            ? "font-medium text-text"
+                            : "text-text-muted italic"
                     }
                 >
                     {label}

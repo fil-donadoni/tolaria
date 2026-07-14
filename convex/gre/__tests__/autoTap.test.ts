@@ -14,7 +14,11 @@ import {
 } from "../autoTap";
 import { evaluateAutoTapPosition } from "../evaluate";
 import type { GameState, ManaSubstitution } from "../state";
-import { makeInstance, makePlayer, makeState } from "../../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup";
 
 // Card ids (LEA set).
 const FOREST = "6f1c8cb0-38eb-408b-94e8-16db83999b3b"; // {T}: G
@@ -724,7 +728,13 @@ describe("evaluation-scored smart auto-tap (issue #794)", () => {
             for (const perm of p.battlefield) {
                 if (tapped.has(perm.id)) perm.isTapped = true;
             }
-            p.manaPool = floatingAfterPlan(pool, cost, substitutions, sources, plan);
+            p.manaPool = floatingAfterPlan(
+                pool,
+                cost,
+                substitutions,
+                sources,
+                plan
+            );
             return evaluateAutoTapPosition(sim, playerId);
         };
     }
@@ -738,7 +748,10 @@ describe("evaluation-scored smart auto-tap (issue #794)", () => {
             id: "factory",
             controllerId: "p1",
         });
-        const forest = makeInstance(FOREST, { id: "forest", controllerId: "p1" });
+        const forest = makeInstance(FOREST, {
+            id: "forest",
+            controllerId: "p1",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [factory, forest] }),
@@ -769,8 +782,14 @@ describe("evaluation-scored smart auto-tap (issue #794)", () => {
         // ONLY Tundra can make. The eval-scored plan (color-flexible source is
         // worth more untapped) + the {W} Demand both point to tapping the Island
         // and sparing Tundra.
-        const island = makeInstance(ISLAND, { id: "island", controllerId: "p1" });
-        const tundra = makeInstance(TUNDRA, { id: "tundra", controllerId: "p1" });
+        const island = makeInstance(ISLAND, {
+            id: "island",
+            controllerId: "p1",
+        });
+        const tundra = makeInstance(TUNDRA, {
+            id: "tundra",
+            controllerId: "p1",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [island, tundra] }),
@@ -800,8 +819,14 @@ describe("evaluation-scored smart auto-tap (issue #794)", () => {
         // Same board/cost as AC2 but no `scorePlan`: the {W} Demand + the
         // flexibility tie-break still spare Tundra, so the legacy path taps the
         // Island too — the new primary key defaults to a constant across plans.
-        const island = makeInstance(ISLAND, { id: "island", controllerId: "p1" });
-        const tundra = makeInstance(TUNDRA, { id: "tundra", controllerId: "p1" });
+        const island = makeInstance(ISLAND, {
+            id: "island",
+            controllerId: "p1",
+        });
+        const tundra = makeInstance(TUNDRA, {
+            id: "tundra",
+            controllerId: "p1",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [island, tundra] }),
@@ -811,7 +836,13 @@ describe("evaluation-scored smart auto-tap (issue #794)", () => {
         const p1 = state.players[0];
         const sources = buildAutoTapSources(p1.battlefield);
         const demands: Demand[] = [{ id: "held-WW", cost: { W: 1 } }];
-        const plan = solveSmartAutoTap(p1.manaPool, { U: 1 }, [], sources, demands);
+        const plan = solveSmartAutoTap(
+            p1.manaPool,
+            { U: 1 },
+            [],
+            sources,
+            demands
+        );
         expect(plan).not.toBeNull();
         expect(plan![0].cardId).toBe("island");
     });

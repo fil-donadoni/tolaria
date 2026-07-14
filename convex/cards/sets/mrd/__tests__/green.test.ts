@@ -54,13 +54,13 @@ describe("Viridian Joiner (board-conditional mana from own EFFECTIVE power, CR 1
         const state = makeState({ players: [player, makePlayer("p2")] });
         const card = state.players[0].battlefield[0];
 
-        expect(getFixedManaAmount(card, "G", state.players[0].battlefield)).toBe(
-            1
-        );
+        expect(
+            getFixedManaAmount(card, "G", state.players[0].battlefield)
+        ).toBe(1);
         card.counters = { "+1/+1": 2 };
-        expect(getFixedManaAmount(card, "G", state.players[0].battlefield)).toBe(
-            3
-        );
+        expect(
+            getFixedManaAmount(card, "G", state.players[0].battlefield)
+        ).toBe(3);
 
         tapSourceIntoPayment(state, state.players[0], card, undefined, []);
         expect(state.players[0].manaPool.G).toBe(3);

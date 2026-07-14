@@ -1417,9 +1417,7 @@ export function normalizeMayPayCost(cost: MayPayCost): NormalizedMayPayCost {
             ...(cost.sacrifice
                 ? { sacrifice: { count: cost.sacrifice.count } }
                 : {}),
-            ...(cost.discard
-                ? { discard: { count: cost.discard.count } }
-                : {}),
+            ...(cost.discard ? { discard: { count: cost.discard.count } } : {}),
         };
     }
     return { mana: cost as ManaCost };

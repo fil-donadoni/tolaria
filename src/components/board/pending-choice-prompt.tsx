@@ -282,9 +282,8 @@ export default function PendingChoicePrompt({
                                 )}
                                 {needsDiscardPick && (
                                     <p className="text-text-disabled text-xs">
-                                        {selected} / {discardPickCount}{" "}
-                                        selected — click a card in hand to
-                                        discard
+                                        {selected} / {discardPickCount} selected
+                                        — click a card in hand to discard
                                     </p>
                                 )}
                                 <div className="flex gap-2 mt-1">

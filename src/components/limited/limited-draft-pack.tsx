@@ -1,5 +1,5 @@
 import type { LimitedEventSeatView } from "~/hooks/useLimitedEvent";
-import ActionButton from "~/components/board/action-button";
+import LimitedDraftPackCard from "./limited-draft-pack-card";
 
 type DraftPackCard = NonNullable<LimitedEventSeatView["currentPack"]>[number];
 
@@ -29,14 +29,13 @@ export default function LimitedDraftPack({
     );
 
     return (
-        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <ul className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
             {sorted.map((card) => (
                 <li key={card.pickId}>
-                    <ActionButton
-                        onClick={() => onPick(card.pickId)}
-                        label={card.cardName}
-                        tone="secondary"
-                        disabled={pending}
+                    <LimitedDraftPackCard
+                        card={card}
+                        onPick={onPick}
+                        pending={pending}
                     />
                 </li>
             ))}

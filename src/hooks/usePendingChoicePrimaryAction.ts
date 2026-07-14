@@ -146,7 +146,10 @@ export function usePendingChoicePrimaryAction(): PendingChoicePrimaryAction | nu
                               chooser.battlefield
                           ),
                           extraMana,
-                          mayPaySacrificePower(choice.cost, chooser.battlefield),
+                          mayPaySacrificePower(
+                              choice.cost,
+                              chooser.battlefield
+                          ),
                           chooser.hand.length
                       )
                     : false));

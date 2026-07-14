@@ -32,7 +32,11 @@ import type { Color, TapManaBonusForPotential } from "../cards/types";
 import type { CardInstanceState } from "./state";
 import { matchesPermanentFilter } from "../cards/filters";
 import { tryGetDefinition } from "../cards";
-import { abilitiesSuppressed, getProducibleColors, MANA_COLORS } from "./constants";
+import {
+    abilitiesSuppressed,
+    getProducibleColors,
+    MANA_COLORS,
+} from "./constants";
 
 type BonusAmount = TapManaBonusForPotential["amount"];
 

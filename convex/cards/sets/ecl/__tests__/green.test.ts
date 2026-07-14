@@ -211,24 +211,20 @@ describe("Formidable Speaker (mayPay discard leg, CR 701.9 / 118.3 / 608.2b, iss
         expect(head.candidateIds).toEqual(
             expect.arrayContaining(["card-a", "card-b"])
         );
-        expect(mayPayDiscardChoiceRequired(state, "p1", head.cost!)).toBe(
-            true
-        );
+        expect(mayPayDiscardChoiceRequired(state, "p1", head.cost!)).toBe(true);
         applyMayPaySubmit(state, {
             playerId: "p1",
             accept: true,
             discardIds: ["card-b"],
         });
         // Only card-b was discarded; card-a remains in hand.
-        expect(state.players[0].hand.some((c) => c.id === "card-a")).toBe(
-            true
-        );
+        expect(state.players[0].hand.some((c) => c.id === "card-a")).toBe(true);
         expect(state.players[0].hand.some((c) => c.id === "card-b")).toBe(
             false
         );
-        expect(
-            state.players[0].graveyard.some((c) => c.id === "card-b")
-        ).toBe(true);
+        expect(state.players[0].graveyard.some((c) => c.id === "card-b")).toBe(
+            true
+        );
         submitSearchChoice(state, ["lib-bear"]);
         expect(state.players[0].hand.some((c) => c.id === "lib-bear")).toBe(
             true
@@ -351,10 +347,7 @@ describe("Formidable Speaker (mayPay discard leg, CR 701.9 / 118.3 / 608.2b, iss
             zone: "hand",
         });
         const state = makeState({
-            players: [
-                makePlayer("p1", { hand: [handCard] }),
-                makePlayer("p2"),
-            ],
+            players: [makePlayer("p1", { hand: [handCard] }), makePlayer("p2")],
         });
         const cost = speakerCost();
         expect(canPayMayPayCost(state, "p1", cost)).toBe(true);

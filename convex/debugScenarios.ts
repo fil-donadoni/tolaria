@@ -64,9 +64,7 @@ export const saveDebugScenario = mutation({
             (name) => tryGetCardByName(name) !== null
         );
         if (unresolved.length > 0) {
-            throw new Error(
-                `Unknown card name(s): ${unresolved.join(", ")}`
-            );
+            throw new Error(`Unknown card name(s): ${unresolved.join(", ")}`);
         }
 
         return await ctx.db.insert("debugScenarios", {

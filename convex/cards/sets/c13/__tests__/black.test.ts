@@ -11,7 +11,10 @@ import {
 } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { checkStateBasedActions } from "../../../../gre/sba";
-import { getEffectivePower, getEffectiveToughness } from "../../../../gre/layers";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+} from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 
 // Toxic Deluge — {2}{B} Sorcery. "As an additional cost to cast this spell,

@@ -248,9 +248,7 @@ export default function DebugDbScenarios({
                 rows={3}
                 className="w-full px-2 py-1 rounded bg-black/40 border border-white/20 text-white text-xs placeholder:text-white/30 outline-none focus:border-white/40 font-mono"
             />
-            {error && (
-                <span className="text-red-400 text-[10px]">{error}</span>
-            )}
+            {error && <span className="text-red-400 text-[10px]">{error}</span>}
             <DebugButton onClick={() => void handleSave()} disabled={pending}>
                 {pending ? "Saving…" : "Save to DB"}
             </DebugButton>

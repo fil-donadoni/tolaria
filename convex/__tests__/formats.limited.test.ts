@@ -292,9 +292,7 @@ describe("validateDeck('limited') — basic-land exemption (issue #1109)", () =>
             ])
         );
         const reasons = checkPoolMembership(deckAllBasics, SEAT_POOL, resolve);
-        expect(
-            reasons.some((r) => /mountain/i.test(r.message))
-        ).toBe(false);
+        expect(reasons.some((r) => /mountain/i.test(r.message))).toBe(false);
     });
 });
 
@@ -385,9 +383,9 @@ describe("validateDeck('limited') — a deck without a resolvable Pool is illega
             resolveSeatPool
         );
         expect(legality.isLegal).toBe(false);
-        expect(
-            legality.reasons.some((r) => r.code === "pool-unresolved")
-        ).toBe(true);
+        expect(legality.reasons.some((r) => r.code === "pool-unresolved")).toBe(
+            true
+        );
     });
 
     it("assertDeckLegal rejects a limited deck at game creation when no Pool resolver is wired in yet", () => {
@@ -435,7 +433,11 @@ describe("Sideboarding across the pool boundary preserves Limited legality (issu
         // Confirm the PRE-swap deck validates legal.
         expect(
             validateDeck(
-                { ...legal, cards: matchDeck.maindeck, sideboard: matchDeck.sideboard },
+                {
+                    ...legal,
+                    cards: matchDeck.maindeck,
+                    sideboard: matchDeck.sideboard,
+                },
                 "limited",
                 resolve,
                 undefined,

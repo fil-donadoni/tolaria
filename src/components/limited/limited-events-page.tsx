@@ -32,7 +32,11 @@ export default function LimitedEventsPage() {
         useState<Id<"limitedEvents"> | null>(null);
     const [joinError, setJoinError] = useState<string | null>(null);
 
-    if (events === undefined || draftableSets === undefined || user === undefined) {
+    if (
+        events === undefined ||
+        draftableSets === undefined ||
+        user === undefined
+    ) {
         return <LoadingScreen />;
     }
 

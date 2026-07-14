@@ -77,13 +77,9 @@ describe("startDraft — timer stamping (issue #1114)", () => {
             timerConfig
         );
 
-        expect(result.seats[0].pickDeadline).toBe(
-            NOW + TIMER_SECONDS * 1000
-        );
+        expect(result.seats[0].pickDeadline).toBe(NOW + TIMER_SECONDS * 1000);
         expect(result.seats[0].pickSeq).toBe(1);
-        expect(result.seats[2].pickDeadline).toBe(
-            NOW + TIMER_SECONDS * 1000
-        );
+        expect(result.seats[2].pickDeadline).toBe(NOW + TIMER_SECONDS * 1000);
         expect(result.seats[2].pickSeq).toBe(1);
 
         // Bot seats never idle on a pack (runBotAutoPicks always resolves it
@@ -192,9 +188,7 @@ describe("applyPick — timer stamping and clearing (issue #1114)", () => {
         expect(afterSeat0.seats[1].pickDeadline).toBe(
             NOW + TIMER_SECONDS * 1000
         );
-        expect(afterSeat0.timerUpdates).toEqual([
-            { seatIndex: 1, pickSeq: 2 },
-        ]);
+        expect(afterSeat0.timerUpdates).toEqual([{ seatIndex: 1, pickSeq: 2 }]);
     });
 
     it("bumps the picker's own pickSeq when it dequeues an already-queued pack", () => {

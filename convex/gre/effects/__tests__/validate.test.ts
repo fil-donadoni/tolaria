@@ -594,7 +594,10 @@ describe("validateEffectScript — choice Op (CR 608.2 / 101.4, issue #805)", ()
                             ...choiceOp,
                             zone: "library",
                             filter: {
-                                any: [{ type: "Artifact" }, { subtype: "Dragon" }],
+                                any: [
+                                    { type: "Artifact" },
+                                    { subtype: "Dragon" },
+                                ],
                             },
                         } as never,
                     ],
@@ -607,7 +610,11 @@ describe("validateEffectScript — choice Op (CR 608.2 / 101.4, issue #805)", ()
         const emptyArray = validateEffectScript(
             host({
                 effects: [
-                    { ...choiceOp, zone: "library", filter: { any: [] } } as never,
+                    {
+                        ...choiceOp,
+                        zone: "library",
+                        filter: { any: [] },
+                    } as never,
                 ],
             })
         );

@@ -463,11 +463,19 @@ describe("Limited Event Draft: create → join → start → scripted picks → 
         // 6. Privacy: the bots' Pools/picks never leaked into the human
         // viewer's projection during the draft — same discipline as any
         // other seat (PRD #1107 story 15/26).
-        event = { ...event, seats, draftRound: round, draftPacksRemaining: remaining, draftCompletedAt: 2 };
+        event = {
+            ...event,
+            seats,
+            draftRound: round,
+            draftPacksRemaining: remaining,
+            draftCompletedAt: 2,
+        };
         const view = projectLimitedEvent(event, "user1");
         const own = view.seats.find((s) => s.userId === "user1")!;
         expect(own.pool).toHaveLength(expectedPerSeat);
-        for (const seat of view.seats.filter((s) => s.seatIndex !== HUMAN_SEAT)) {
+        for (const seat of view.seats.filter(
+            (s) => s.seatIndex !== HUMAN_SEAT
+        )) {
             expect(seat.isBot).toBe(true);
             expect(seat.pool).toBeNull();
             expect(seat.currentPack).toBeNull();

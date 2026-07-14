@@ -5,11 +5,7 @@ import { groupPoolCards } from "./limitedPoolGrouping";
  *  counts. Only ever receives the viewer's own seat's `pool` — every other
  *  seat's is stripped by `projectLimitedEvent` before it reaches the client
  *  (ADR 0054/0055), so there is no privacy check to do here. */
-export default function LimitedPoolView({
-    pool,
-}: {
-    pool: LimitedPoolCard[];
-}) {
+export default function LimitedPoolView({ pool }: { pool: LimitedPoolCard[] }) {
     const grouped = groupPoolCards(pool);
 
     if (grouped.length === 0) {

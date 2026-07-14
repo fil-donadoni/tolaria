@@ -115,7 +115,8 @@ export const SCENARIO_JSON_SCHEMA = {
         phase: {
             type: "string",
             enum: [...SCENARIO_PHASES],
-            description: "The phase the board opens in (default PRECOMBAT_MAIN).",
+            description:
+                "The phase the board opens in (default PRECOMBAT_MAIN).",
         },
         landCount: {
             type: "integer",
@@ -149,7 +150,9 @@ export type ScenarioGenerateFn = (
  * the `debugScenarios` shape. The allow-list is embedded verbatim so the model
  * only ever picks catalogued, loadable cards.
  */
-export function buildScenarioSystemPrompt(allowList: readonly string[]): string {
+export function buildScenarioSystemPrompt(
+    allowList: readonly string[]
+): string {
     return [
         "You set up Magic: The Gathering debug board states for a rules engine.",
         "Given a natural-language description of a board, produce a scenario spec",

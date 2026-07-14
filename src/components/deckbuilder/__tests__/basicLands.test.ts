@@ -4,10 +4,7 @@
 // card registry, not a stub.
 import { describe, it, expect } from "vitest";
 import type { LimitedPoolCard } from "@convex/limited/eventTypes";
-import {
-    isBasicLandCardId,
-    resolveBasicLandCardIds,
-} from "../basicLands";
+import { isBasicLandCardId, resolveBasicLandCardIds } from "../basicLands";
 
 const BOLT_LEA = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
 const MOUNTAIN = "eace2c85-976c-425e-9800-5a6ccbd91b56";
@@ -50,7 +47,10 @@ describe("resolveBasicLandCardIds (issue #1111: unlimited basics sourced from th
     });
 
     it("picks the FIRST matching copy — repeats of the same subtype don't change the resolved id", () => {
-        const pool = [poolCard(MOUNTAIN, "Mountain"), poolCard(MOUNTAIN, "Mountain")];
+        const pool = [
+            poolCard(MOUNTAIN, "Mountain"),
+            poolCard(MOUNTAIN, "Mountain"),
+        ];
         const result = resolveBasicLandCardIds(pool);
         expect(result.Mountain).toBe(MOUNTAIN);
     });
