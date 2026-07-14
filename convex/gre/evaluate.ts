@@ -29,7 +29,14 @@ import {
     getPermanentEffectivePower,
     getPermanentEffectiveToughness,
 } from "./layers";
-import { isCreature, isLand, hasManaAbility, manaValue } from "./constants";
+import {
+    isCreature,
+    isLand,
+    hasManaAbility,
+    hasNonManaActivatedAbility,
+    getProducibleColors,
+    manaValue,
+} from "./constants";
 import {
     getInstanceManaCost,
     getInstanceAiValue,
@@ -406,6 +413,68 @@ export function evaluate(state: GameState, playerId: string): number {
         dangerClock(state, playerId) +
         declaredCombatDelta(state, me.id)
     );
+}
+
+// --- Smart auto-tap source quality (issue #794, PRD #472 / ADR 0034) --------
+// The color-blind `mana` term prices every untapped source at a flat W_MANA,
+// so it cannot tell a *dual-purpose* source (a manland that can animate/attack)
+// or a *color-flexible* source (a dual land) apart from a plain basic. Smart
+// auto-tap must, among equal-tap-count covering plans, leave the more valuable
+// sources untapped — so `evaluateAutoTapPosition` folds a small SOURCE-QUALITY
+// bonus on top of `evaluate`, seen only on the auto-tap path (never by the
+// bot's own move search, whose leaf magnitudes stay unchanged). The bonus is
+// deliberately small: two plans that differ only in *which* equal-cardinality
+// set of plain basics they tap stay tied (0 delta), and the demand / flexibility
+// / lexicographic tie-breaks still decide those; the bonus only tips a plan that
+// spares a genuinely more valuable source (Mishra's Factory, a dual land).
+
+/** Per extra distinct color an untapped source can produce (a dual land untapped
+ *  outranks a basic). Small — only tips otherwise-equal auto-tap plans. */
+const W_SOURCE_BREADTH = 4;
+/** An untapped source that also has a non-mana activated ability (a manland that
+ *  can animate/attack — Mishra's Factory). Larger than a color of breadth so a
+ *  manland is spared even against a dual land, but far below a creature's worth
+ *  so it never distorts material. */
+const W_SOURCE_DUAL_PURPOSE = 20;
+
+/** Bonus for the quality of the mana sources a player leaves UNTAPPED (issue
+ *  #794). Sums, over each untapped mana source: its extra color breadth (CR
+ *  106.4, colored producible mana beyond one) and a flat bonus if it is
+ *  dual-purpose (has a non-mana activated ability). Pure; reads only the live
+ *  battlefield. */
+function untappedSourceQuality(state: GameState, playerId: string): number {
+    const me = state.players.find((p) => p.id === playerId);
+    if (!me) return 0;
+    let bonus = 0;
+    for (const perm of me.battlefield) {
+        if (perm.isTapped) continue;
+        if (!(isLand(perm) || hasManaAbility(perm))) continue;
+        // Only score a source with a real definition — a token without one
+        // (`getProducibleColors` reads the throwing `getDefinition`) contributes
+        // nothing to source quality.
+        if (!tryGetDefinition((perm.card as { id?: string }).id ?? "")) continue;
+        const breadth = getProducibleColors(perm).size;
+        if (breadth > 1) bonus += (breadth - 1) * W_SOURCE_BREADTH;
+        if (hasNonManaActivatedAbility(perm)) bonus += W_SOURCE_DUAL_PURPOSE;
+    }
+    return bonus;
+}
+
+/**
+ * Static score of a post-payment position for smart auto-tap (issue #794, PRD
+ * #472 / ADR 0034). Reuses the Brain's STATIC `evaluate()` (NO ISMCTS search —
+ * pure, synchronous, server-safe) and adds `untappedSourceQuality`, so a plan
+ * that leaves a dual-purpose or color-flexible source untapped scores strictly
+ * higher than an equal-tap-count plan that taps it. This is the primary scorer
+ * smart auto-tap ranks its candidate plans by; demand preservation feeds it as
+ * a tie-break rather than being the sole scorer. `playerId` is the paying player
+ * (whose position we optimize). Pure.
+ */
+export function evaluateAutoTapPosition(
+    state: GameState,
+    playerId: string
+): number {
+    return evaluate(state, playerId) + untappedSourceQuality(state, playerId);
 }
 
 /** The expected material + life swing of a combat ALREADY DECLARED but not yet

@@ -384,7 +384,7 @@ function sourcesAfterPlan(
  * Demand may lean on. Plans that over-produce (a dual tapped for the "wrong"
  * half) therefore leave usable floating mana, captured here.
  */
-function floatingAfterPlan(
+export function floatingAfterPlan(
     pool: Record<string, number>,
     cost: Record<string, number>,
     substitutions: ManaSubstitution[],
@@ -518,13 +518,27 @@ function planLexKey(plan: AutoTapPlan): string {
     return [...plan.map((s) => s.cardId)].sort().join(" ");
 }
 
+/** Static score of the position a candidate plan leaves behind, higher = better
+ *  for the paying player (issue #794). Supplied by the caller (the server-side
+ *  payment path) as a closure over the live `GameState` — it simulates the taps
+ *  + leftover floating mana and returns the Brain's STATIC `evaluate()` of the
+ *  resulting position (no ISMCTS search). Pure. When omitted, smart auto-tap
+ *  falls back to the demand-count scorer alone (state.ts feasibility callers,
+ *  which only need *a* minimal plan, pass nothing). */
+export type PlanPositionScorer = (plan: AutoTapPlan) => number;
+
 /**
- * Smart auto-tap (PRD #472, ADR 0034). Among all minimal-tap-count plans that
- * cover `cost`, returns the one that best preserves the paying player's
- * `demands`, broken by the deterministic 3-tier order:
- *   (1) most preserved Demands,
+ * Smart auto-tap (PRD #472, ADR 0034; evaluation-scored, issue #794). Among all
+ * minimal-tap-count plans that cover `cost`, returns the one whose resulting
+ * position the Brain's static Evaluation (`scorePlan`) rates highest for the
+ * paying player, so dual-purpose permanents (Mishra's Factory) and
+ * color-critical sources are left untapped whenever an equal-tap-count plan can
+ * pay without them. Ties broken by the deterministic order:
+ *   (0) highest `scorePlan` (post-payment position value) — when a scorer is given,
+ *   (1) most preserved Demands (demand preservation feeds the eval as an input),
  *   (2) most remaining-source flexibility (colorless/basics spent first),
  *   (3) lexicographic by tapped cardId.
+ * With no `scorePlan` the behavior is the legacy 3-tier demand scorer (1→3).
  *
  * Preserves the minimal-tap-count invariant: it only ever enumerates plans at
  * the smallest covering tap count, so it never taps more sources than
@@ -547,7 +561,8 @@ export function solveSmartAutoTap(
     substitutions: ManaSubstitution[],
     sources: AutoTapSource[],
     demands: Demand[] = [],
-    selfSourceId?: string
+    selfSourceId?: string,
+    scorePlan?: PlanPositionScorer
 ): AutoTapPlan | null {
     // Deprioritize the activating permanent's own mana ability (issue #544):
     // first try to cover the cost without it. Only if that is impossible — the
@@ -563,13 +578,21 @@ export function solveSmartAutoTap(
                 cost,
                 substitutions,
                 withoutSelf,
-                demands
+                demands,
+                scorePlan
             );
             if (plan !== null) return plan;
             // Self-source is strictly necessary: fall through, taps included.
         }
     }
-    return solveSmartAutoTapCore(pool, cost, substitutions, sources, demands);
+    return solveSmartAutoTapCore(
+        pool,
+        cost,
+        substitutions,
+        sources,
+        demands,
+        scorePlan
+    );
 }
 
 /** Core demand-aware minimal-tap selection (no self-source handling). */
@@ -578,7 +601,8 @@ function solveSmartAutoTapCore(
     cost: Record<string, number>,
     substitutions: ManaSubstitution[],
     sources: AutoTapSource[],
-    demands: Demand[] = []
+    demands: Demand[] = [],
+    scorePlan?: PlanPositionScorer
 ): AutoTapPlan | null {
     const k = minimalTapCount(pool, cost, substitutions, sources);
     if (k === null) return null;
@@ -604,11 +628,19 @@ function solveSmartAutoTapCore(
         isDemandAffordable(d, pool, substitutions, sources)
     );
 
+    // Evaluation-scored selection (issue #794): the post-payment position value
+    // (`scorePlan`) is the PRIMARY key when a scorer is supplied; the preserved-
+    // demand count feeds it as the first tie-break (an input to the ranking, no
+    // longer the sole scorer), then remaining flexibility, then lexicographic.
+    // With no scorer the eval key is constant (0) across plans, so the legacy
+    // demand→flex→lex order is recovered exactly — backward-compatible.
     let best: AutoTapPlan | null = null;
+    let bestEval = -Infinity;
     let bestScore = -1;
     let bestFlex = -1;
     let bestLex = "";
     for (const plan of plans) {
+        const evalScore = scorePlan ? scorePlan(plan) : 0;
         const score = scorePreservedDemands(
             pool,
             cost,
@@ -619,12 +651,21 @@ function solveSmartAutoTapCore(
         );
         const flex = remainingFlexibility(sources, plan);
         const lex = planLexKey(plan);
-        if (
-            score > bestScore ||
-            (score === bestScore && flex > bestFlex) ||
-            (score === bestScore && flex === bestFlex && lex < bestLex)
-        ) {
+        // Lexicographic on (evalScore desc, score desc, flex desc, lex asc).
+        const better =
+            best === null ||
+            evalScore > bestEval ||
+            (evalScore === bestEval && score > bestScore) ||
+            (evalScore === bestEval &&
+                score === bestScore &&
+                flex > bestFlex) ||
+            (evalScore === bestEval &&
+                score === bestScore &&
+                flex === bestFlex &&
+                lex < bestLex);
+        if (better) {
             best = plan;
+            bestEval = evalScore;
             bestScore = score;
             bestFlex = flex;
             bestLex = lex;

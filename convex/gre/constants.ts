@@ -738,3 +738,21 @@ export function hasManaAbility(
         getActivatedManaAbility(card, state) !== null
     );
 }
+
+/** Returns true if a card carries an activated ability that is NOT a mana
+ *  ability (CR 605.1a) — i.e. a "dual-purpose" source that can do something
+ *  beyond tapping for mana: a manland's animate (`{1}: becomes a 2/2`, on the
+ *  stack), a firebreathing pump, a Factory's Assembly-Worker buff. Used by the
+ *  bot's static Evaluation (issue #794) to value leaving such a source untapped
+ *  when auto-tapping. A mana ability is `!useStack && (manaProduced ||
+ *  manaChoices)` (CR 605.3a); anything else (a stack ability, or an activated
+ *  ability with no mana output) makes the permanent dual-purpose. Suppressed
+ *  permanents expose no abilities (CR 613.1f). */
+export function hasNonManaActivatedAbility(card: CardInstanceState): boolean {
+    if (abilitiesSuppressed(card)) return false;
+    const def = tryGetDefinition(card.card.id as string);
+    if (!def?.activatedAbilities) return false;
+    return def.activatedAbilities.some(
+        (a) => a.useStack === true || !(a.manaProduced || a.manaChoices)
+    );
+}
