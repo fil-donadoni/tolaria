@@ -85,15 +85,21 @@ describe("Gitaxian Probe (look at target player's hand, draw; {U/P}, CR 107.4f)"
         expect(state.players[1].hand[0].knownTo).toEqual(["p1"]);
     });
 
-    it("wire format: the private look survives projection (mandatory)", () => {
+    it("wire format: the look survives projection AND stays private (mandatory)", () => {
         const state = castAtOpponent();
         resolveTopOfStack(state);
         commitHead(state, []);
         resolveTopOfStack(state);
-        // p1 sees p2's known hand card as the real card; p2's hand is hidden to
-        // any other viewer.
+        // The caster (p1) sees p2's known hand card as the real card.
         const forP1 = projectPublicState(state, 1, "p1");
         expect(forP1.players[1].hand[0]?.id).toBe("oh1");
+        // Privacy (CR 701.18a — a private LOOK, not a public reveal): a viewer
+        // who is NOT the caster never sees p2's hand card. Had the card used the
+        // all-players `reveal` op instead of `markKnown(controller)`, this slot
+        // would leak the real id. A non-participant spectator stands in for "any
+        // other viewer" (p2 owns the hand and sees it natively).
+        const forOther = projectPublicState(state, 1, "spectator");
+        expect(forOther.players[1].hand[0]).toBeNull();
     });
 });
 

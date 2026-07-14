@@ -14,14 +14,20 @@ import {
     phyrexianPipColors,
     phyrexianPipCount,
 } from "../phyrexian";
-import { getLegalActions, solvePhyrexianSplit } from "../rules";
+import {
+    getLegalActions,
+    phyrexianLifePipOptions,
+    solvePhyrexianSplit,
+} from "../rules";
 import { dismember } from "../../cards/sets/nph/black";
 import { gitaxianProbe, phyrexianMetamorph } from "../../cards/sets/nph/blue";
+import { grizzlyBears } from "../../cards/sets/lea/green";
 import {
     makeInstance,
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup";
+import { projectPublicState } from "../../gameProjections";
 
 describe("Phyrexian mana — representation (CR 107.4f / 202.3f)", () => {
     it("counts each Phyrexian pip as 1 toward mana value (CR 202.3f)", () => {
@@ -157,5 +163,95 @@ describe("Phyrexian mana — getLegalActions cast gate (CR 107.4f)", () => {
         expect(getLegalActions(state, state.players[0], card)).toContain(
             "cast"
         );
+    });
+});
+
+describe("Phyrexian mana — split OPTIONS for the picker (CR 107.4f)", () => {
+    it("returns every affordable lifePips value (a real branch)", () => {
+        // Gitaxian Probe {U/P}, {U} in pool + 20 life → pay {U} (0) OR 2 life (1).
+        const probe = makeInstance(gitaxianProbe.id, { zone: "hand" });
+        const withU = makePlayer("p1", {
+            life: 20,
+            manaPool: { W: 0, U: 1, B: 0, R: 0, G: 0, C: 0 },
+        });
+        expect(
+            phyrexianLifePipOptions(withU, probe, gitaxianProbe.manaCost!)
+        ).toEqual([0, 1]);
+        // Dismember {1}{B/P}{B/P}, {B}{B}{B} in pool + 20 life → 0, 1, or 2 pips
+        // with life.
+        const dis = makeInstance(dismember.id, { zone: "hand" });
+        const withBBB = makePlayer("p1", {
+            life: 20,
+            manaPool: { W: 0, U: 0, B: 3, R: 0, G: 0, C: 0 },
+        });
+        expect(
+            phyrexianLifePipOptions(withBBB, dis, dismember.manaCost!)
+        ).toEqual([0, 1, 2]);
+    });
+
+    it("collapses to a single option in a degenerate (zero-branch) case", () => {
+        // Gitaxian Probe {U/P}, no blue mana, 20 life → only "pay 2 life" (1).
+        const probe = makeInstance(gitaxianProbe.id, { zone: "hand" });
+        const noU = makePlayer("p1", { life: 20 });
+        expect(
+            phyrexianLifePipOptions(noU, probe, gitaxianProbe.manaCost!)
+        ).toEqual([1]);
+    });
+});
+
+describe("Phyrexian mana — split picker surfaces through projection (CR 107.4f)", () => {
+    // The picker decision is server-authoritative and reaches the client ONLY
+    // through `projectPublicState` (the reducer). A hand-built view would mask a
+    // dropped field, so these SURFACE assertions run through the projection.
+    function handState(
+        cardId: string,
+        manaPool: Partial<Record<"W" | "U" | "B" | "R" | "G" | "C", number>>
+    ) {
+        const card = makeInstance(cardId, {
+            zone: "hand",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        // A creature so Dismember (target creature) is castable.
+        const bear = makeInstance(grizzlyBears.id, {
+            id: "bear",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    life: 20,
+                    hand: [card],
+                    manaPool: {
+                        W: 0,
+                        U: 0,
+                        B: 0,
+                        R: 0,
+                        G: 0,
+                        C: 0,
+                        ...manaPool,
+                    },
+                }),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+        return { state, cardId: card.id };
+    }
+
+    it("exposes phyrexianOptions when both mana and life are affordable", () => {
+        const { state, cardId } = handState(dismember.id, { B: 3 });
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].hand.find((c) => c?.id === cardId);
+        expect(slim?.phyrexianOptions).toEqual([0, 1, 2]);
+    });
+
+    it("omits phyrexianOptions in a degenerate (life-only) case — no prompt", () => {
+        // Gitaxian Probe with no blue mana: only "pay 2 life" is viable, so the
+        // client must NOT prompt (the engine auto-resolves).
+        const { state, cardId } = handState(gitaxianProbe.id, {});
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[0].hand.find((c) => c?.id === cardId);
+        expect(slim?.phyrexianOptions).toBeUndefined();
     });
 });

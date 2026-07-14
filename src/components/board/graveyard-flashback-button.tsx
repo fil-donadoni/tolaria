@@ -21,6 +21,7 @@ export default function GraveyardFlashbackButton({
         onCastClick,
         modePickerOverlay,
         altCostPickerOverlay,
+        phyrexianPickerOverlay,
         costDialogOverlay,
     } = useHandCardCommit(card);
 
@@ -55,6 +56,7 @@ export default function GraveyardFlashbackButton({
             </button>
             {modePickerOverlay}
             {altCostPickerOverlay}
+            {phyrexianPickerOverlay}
             {costDialogOverlay}
         </>
     );

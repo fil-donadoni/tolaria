@@ -681,6 +681,59 @@ export function solvePhyrexianSplit(
     return best;
 }
 
+/** CR 107.4f — the DISTINCT life-payment amounts (as a pip count) the caster can
+ *  currently afford for this Phyrexian cost: every `lifePips` value in
+ *  `[0, totalPips]` for which SOME colour-assignment of the remaining
+ *  mana-paid pips is payable AND life covers the `2 × lifePips` (CR 119.4).
+ *  Sorted ascending. `[]` for a non-Phyrexian cost or an uncastable one; a
+ *  SINGLE value = a degenerate zero-branch choice (only mana, or only life, is
+ *  viable) → no prompt; TWO OR MORE = a real mana-vs-life choice the human must
+ *  make. Used by the projection to surface the split picker only when the branch
+ *  is real (mirrors `solvePhyrexianSplit`, which returns the single best split
+ *  the engine auto-resolves to when the caster does not choose). */
+export function phyrexianLifePipOptions(
+    player: PlayerState,
+    card: CardInstanceState,
+    rawCost: ManaCost,
+    chosenX?: number
+): number[] {
+    const totalPips = phyrexianPipCount(rawCost);
+    if (totalPips === 0) return [];
+    const baseCost = normalizeManaCost(rawCost, { chosenX: chosenX ?? 0 });
+    const maxLifePips = Math.floor(player.life / PHYREXIAN_LIFE_PER_PIP);
+    const phy = rawCost.phyrexian ?? {};
+    const colorsPresent = MANA_COLORS.filter((c) => (phy[c] ?? 0) > 0);
+    const affordable = new Set<number>();
+    const rec = (
+        idx: number,
+        manaAdditions: Partial<Record<Color, number>>,
+        manaPips: number
+    ): void => {
+        if (idx === colorsPresent.length) {
+            const lifePips = totalPips - manaPips;
+            if (lifePips < 0 || lifePips > maxLifePips) return;
+            const cost: Record<string, number> = { ...baseCost };
+            for (const [c, n] of Object.entries(manaAdditions)) {
+                if (n && n > 0) cost[c] = (cost[c] ?? 0) + n;
+            }
+            if (canPayNormalizedCost(player, card, cost)) {
+                affordable.add(lifePips);
+            }
+            return;
+        }
+        const c = colorsPresent[idx];
+        const cnt = phy[c] ?? 0;
+        for (let m = 0; m <= cnt; m++) {
+            if (m > 0) manaAdditions[c] = m;
+            else delete manaAdditions[c];
+            rec(idx + 1, manaAdditions, manaPips + m);
+        }
+        delete manaAdditions[c];
+    };
+    rec(0, {}, 0);
+    return [...affordable].sort((a, b) => a - b);
+}
+
 function canPotentiallyPayCost(
     player: PlayerState,
     card: CardInstanceState,
