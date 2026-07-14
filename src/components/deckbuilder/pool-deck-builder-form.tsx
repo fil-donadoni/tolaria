@@ -5,6 +5,7 @@ import {
     DragOverlay,
     KeyboardSensor,
     PointerSensor,
+    type DragEndEvent,
 } from "@dnd-kit/react";
 import { PointerActivationConstraints } from "@dnd-kit/dom";
 import type { Id } from "@convex/_generated/dataModel";
@@ -287,8 +288,7 @@ export default function PoolDeckBuilderForm({
     );
 
     const handleDragEnd = useCallback(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (event: any) => {
+        (event: DragEndEvent) => {
             if (event.canceled) return;
             const source = event.operation?.source;
             const target = event.operation?.target;

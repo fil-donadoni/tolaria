@@ -100,7 +100,10 @@ import {
 } from "./gre/escape";
 import { assertDeckLegal, type ResolvePool } from "./formats";
 import { loadBanlistOverrides } from "./banlists";
-import { resolvePoolFromEvent } from "./limited/poolResolution";
+import {
+    assertLimitedSeatOwnership,
+    resolvePoolFromEvent,
+} from "./limited/poolResolution";
 import type {
     ActivatedAbility,
     CardDefinition,
@@ -2190,16 +2193,28 @@ const deckValidator = v.object({
  * synchronous callback over the already-fetched Pool — mirrors
  * `loadBanlistOverrides`'s injection pattern. `undefined` for a non-Limited
  * deck (no `limitedEventId`) so every existing call site's non-Limited decks
- * are completely unaffected. An unresolvable event/seat/Pool still returns a
- * resolver — one that always answers `null` — so `limitedValidate` reports
- * "no resolvable Pool" rather than silently skipping the gate.
+ * are completely unaffected.
+ *
+ * SECURITY (issue #1111 follow-up): `createGame`/`createSoloGame`/`joinGame`
+ * accept an INLINE `args.deck`, never one loaded from a persisted `userDecks`
+ * row — so the ownership gate `userDecks.create` applies at deck-*save* time
+ * never runs for a deck built ad hoc for game-start. Without re-asserting
+ * ownership HERE, a client could point `limitedSeatId`/`limitedEventId` at
+ * ANOTHER user's seat and have this resolver source THEIR Pool. Reuses the
+ * exact same `assertLimitedSeatOwnership` gate `userDecks.create` uses — one
+ * seat-ownership authority, never duplicated — keyed off the AUTHENTICATED
+ * `callerUserId`, never anything from `deck`. Throws (not a silent
+ * `pool-unresolved`) so the mutation aborts before any Match/Game row is
+ * written.
  */
-async function loadLimitedPoolResolver(
+export async function loadLimitedPoolResolver(
     ctx: MutationCtx,
-    deck: { limitedEventId?: string; limitedSeatId?: string }
+    deck: { limitedEventId?: string; limitedSeatId?: string },
+    callerUserId: string
 ): Promise<ResolvePool | undefined> {
     if (!deck.limitedEventId || !deck.limitedSeatId) return undefined;
     const event = await ctx.db.get(deck.limitedEventId as Id<"limitedEvents">);
+    assertLimitedSeatOwnership(event, deck.limitedSeatId, callerUserId);
     const pool = resolvePoolFromEvent(event, deck.limitedSeatId);
     return () => pool;
 }
@@ -2230,7 +2245,7 @@ export const createGame = mutation({
             args.deck,
             undefined,
             await loadBanlistOverrides(ctx, args.deck.format),
-            await loadLimitedPoolResolver(ctx, args.deck)
+            await loadLimitedPoolResolver(ctx, args.deck, user._id)
         );
         const now = Date.now();
 
@@ -2298,14 +2313,18 @@ export const createSoloGame = mutation({
             args.deck,
             undefined,
             await loadBanlistOverrides(ctx, args.deck.format),
-            await loadLimitedPoolResolver(ctx, args.deck)
+            await loadLimitedPoolResolver(ctx, args.deck, user._id)
         );
         if (args.deck2)
             assertDeckLegal(
                 args.deck2,
                 undefined,
                 await loadBanlistOverrides(ctx, args.deck2.format),
-                await loadLimitedPoolResolver(ctx, args.deck2)
+                // Solo/vs-AI: a single authenticated user occupies BOTH seats
+                // it controls, so the same `user._id` is the correct owner
+                // check for `deck2`'s seat too — not a false-reject of a
+                // legitimate solo Limited playtest.
+                await loadLimitedPoolResolver(ctx, args.deck2, user._id)
             );
 
         const player1: PlayerInput = {
@@ -2442,7 +2461,7 @@ export const joinGame = mutation({
             args.deck,
             undefined,
             await loadBanlistOverrides(ctx, args.deck.format),
-            await loadLimitedPoolResolver(ctx, args.deck)
+            await loadLimitedPoolResolver(ctx, args.deck, user._id)
         );
 
         const player: PlayerInput = {

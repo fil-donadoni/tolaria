@@ -11,6 +11,8 @@
 import { describe, it, expect } from "vitest";
 import { resolveDeckCardMeta, tryGetDefinition } from "../cards";
 import { assertDeckLegal, type GateDeck } from "../formats";
+import { loadLimitedPoolResolver } from "../game";
+import type { MutationCtx } from "../_generated/server";
 import { makeRng } from "../gre/rng";
 import {
     assignFreeSeat,
@@ -199,5 +201,78 @@ describe("Limited deckbuild pipeline: sealed event → build → submit → crea
         expect(() =>
             assertDeckLegal(gateDeck, undefined, undefined, resolvePool)
         ).toThrow(/not in this seat's Pool/i);
+    });
+
+    // Security regression (issue #1111 follow-up): `createGame` /
+    // `createSoloGame` / `joinGame` accept an INLINE `args.deck`, never one
+    // loaded from a persisted `userDecks` row — so the `userDecks.create`
+    // seat-ownership gate is fully bypassable by a client that fabricates a
+    // deck object naming ANOTHER user's `limitedEventId`/`limitedSeatId`
+    // directly at game-start. This drives the REAL, exported
+    // `loadLimitedPoolResolver` from `convex/game.ts` (not a hand-mirrored
+    // reimplementation) with a minimal stub `MutationCtx` whose `db.get`
+    // returns the fixture event — the exact function all three mutation
+    // entry points call before `assertDeckLegal`.
+    describe("loadLimitedPoolResolver — game-start seat-ownership gate (convex/game.ts)", () => {
+        const packSlots = ["lea"];
+        let seats = buildEmptySeats(2);
+        seats = assignFreeSeat(seats, "victim", "Victim");
+        seats = fillBotSeats(seats);
+        seats = generateSealedPools(
+            seats,
+            packSlots,
+            6,
+            getBoosterConfig,
+            resolveCardMeta,
+            makeRng(4242)
+        );
+        const event = { _id: "event-3", seats };
+        const victimSeat = event.seats.find((s) => s.userId === "victim")!;
+
+        // Stub ctx: `loadLimitedPoolResolver` only ever calls `ctx.db.get`.
+        const stubCtx = {
+            db: { get: async () => event },
+        } as unknown as MutationCtx;
+
+        it("denies an ATTACKER who supplies the VICTIM's limitedSeatId/limitedEventId", async () => {
+            await expect(
+                loadLimitedPoolResolver(
+                    stubCtx,
+                    {
+                        limitedEventId: event._id,
+                        limitedSeatId: String(victimSeat.seatIndex),
+                    },
+                    "attacker" // authenticated caller — NOT the seat's occupant
+                )
+            ).rejects.toThrow(/do not occupy/);
+        });
+
+        it("still resolves the Pool for the seat's REAL occupant (no false-reject)", async () => {
+            const resolver = await loadLimitedPoolResolver(
+                stubCtx,
+                {
+                    limitedEventId: event._id,
+                    limitedSeatId: String(victimSeat.seatIndex),
+                },
+                "victim" // the authenticated occupant of this seat
+            );
+            expect(resolver).toBeDefined();
+            // `ResolvePool` takes a `ValidatableDeck` but this resolver
+            // (mirroring `resolvePoolFromEvent`'s closure in `game.ts`)
+            // ignores it — the Pool is already fixed by the closed-over
+            // event/seat, not by anything on the deck passed at call time.
+            expect(resolver!({} as GateDeck)).toEqual(
+                resolvePoolFromEvent(event, String(victimSeat.seatIndex))
+            );
+        });
+
+        it("is a no-op (undefined resolver, no ownership check) for a non-Limited deck", async () => {
+            const resolver = await loadLimitedPoolResolver(
+                stubCtx,
+                {}, // no limitedEventId/limitedSeatId — every other Format
+                "anyone"
+            );
+            expect(resolver).toBeUndefined();
+        });
     });
 });
