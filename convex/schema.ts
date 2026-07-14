@@ -252,4 +252,26 @@ export default defineSchema({
         // synced before this field existed carry no id.
         scryfallId: v.optional(v.string()),
     }).index("by_format", ["format"]),
+    // Debug scenarios (issue #769, ADR 0044). A preset board state — the
+    // *argument* to the unchanged `debugSetupScenario` builder — relocated out
+    // of the `PRESET_SCENARIOS` code literal into the DB, scoped per user. The
+    // panel lists a user's rows and, on click, passes the stored `spec` straight
+    // to `debugSetupScenario`. The write path is `assertIsAdmin`-gated
+    // (`convex/debugScenarios.ts`), inheriting the same gate as the builder.
+    debugScenarios: defineTable({
+        userId: v.id("users"),
+        label: v.string(),
+        // The resolved spec, same shape `debugSetupScenario` accepts (minus
+        // `gameId`). Stored as `v.any()` on PURPOSE so the load path is TOLERANT
+        // (ADR 0044): a row written under today's shape still loads after a
+        // field is added/removed — `normalizeScenarioSpec` drops unknown fields
+        // and defaults missing ones. The strict `scenarioSpecValidator`
+        // (`convex/debugScenarioSpec.ts`) guards only the WRITE path.
+        spec: v.any(),
+        // Reserved for later slices (#770+): a "golden" keep-flag and the
+        // originating LLM prompt (ADR 0044). Unused in this slice.
+        golden: v.optional(v.boolean()),
+        prompt: v.optional(v.string()),
+        createdAt: v.number(),
+    }).index("by_user", ["userId"]),
 });
