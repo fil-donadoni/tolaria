@@ -31,7 +31,11 @@ import {
 } from "./rules";
 import { PHYREXIAN_LIFE_PER_PIP, phyrexianPipCount } from "./phyrexian";
 import { STATIC_EFFECT_CTX } from "./layers";
-import { MANA_COLORS, isTapLockedBySummoningSickness } from "./constants";
+import {
+    MANA_COLORS,
+    isPlaneswalker,
+    isTapLockedBySummoningSickness,
+} from "./constants";
 import {
     getRequiredAttackerIds,
     getMaxBlockTargets,
@@ -154,7 +158,14 @@ export type Move =
           confirmTargets: boolean;
           tapPlan: ManaTap[];
       }
-    | { kind: "declare-attackers"; attackerIds: string[] }
+    | {
+          kind: "declare-attackers";
+          attackerIds: string[];
+          /** CR 508.1a (issue #1220) — optional per-attacker planeswalker attack
+           *  target (attackerId → planeswalkerId). Absent attackers attack the
+           *  defending player. Lets the bot direct an attack at a planeswalker. */
+          attackTargets?: Record<string, string>;
+      }
     | {
           kind: "declare-blockers";
           /** blocker → the single attacker it blocks (single-block this slice). */
@@ -730,13 +741,41 @@ export function enumerateAttackerMoves(
 
     // Each optional subset, always unioned with the forced attackers. Drop any
     // subset whose total declared attackers would exceed the global cap.
-    return powerSet(optional)
+    const subsets = powerSet(optional)
         .map((subset) => [...requiredIds, ...subset.map((c) => c.id)])
-        .filter((ids) => cap === undefined || ids.length <= cap)
-        .map((attackerIds) => ({
-            kind: "declare-attackers" as const,
-            attackerIds,
-        }));
+        .filter((ids) => cap === undefined || ids.length <= cap);
+
+    const baseMoves: Move[] = subsets.map((attackerIds) => ({
+        kind: "declare-attackers" as const,
+        attackerIds,
+    }));
+
+    // CR 508.1a (issue #1220) — the bot must also be able to attack a
+    // planeswalker the defender controls, not only the defending player. For
+    // each defending planeswalker, add one variant per non-empty subset that
+    // directs the whole declared attack at that planeswalker (attackTargets
+    // maps every attacker → that planeswalker). This keeps the option available
+    // to the search without a per-attacker combinatorial blow-up; the evaluator
+    // picks the player-vs-planeswalker split. `applyMove` drops targets for
+    // attackers/planeswalkers that are no longer legal.
+    const defenderPlaneswalkers = (defBf ?? []).filter((c) =>
+        isPlaneswalker(c)
+    );
+    const pwMoves: Move[] = [];
+    for (const pw of defenderPlaneswalkers) {
+        for (const attackerIds of subsets) {
+            if (attackerIds.length === 0) continue;
+            const attackTargets: Record<string, string> = {};
+            for (const id of attackerIds) attackTargets[id] = pw.id;
+            pwMoves.push({
+                kind: "declare-attackers" as const,
+                attackerIds,
+                attackTargets,
+            });
+        }
+    }
+
+    return [...baseMoves, ...pwMoves];
 }
 
 /** Every legal blocker assignment for the declaring player (CR 509.1),

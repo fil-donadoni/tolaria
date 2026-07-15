@@ -9,6 +9,7 @@ import { api } from "@convex/_generated/api";
 import { getDefinition } from "@convex/cards";
 import {
     isCreature,
+    isPlaneswalker,
     getManaChoices,
     getActivatedManaMenuEntry,
     canRefundManaTap,
@@ -262,6 +263,19 @@ export function useBattlefieldInteraction(player: Player) {
         isMe &&
         playerId === activePlayerId;
 
+    // CR 508.1a (issue #1220) — while the active player is declaring attackers,
+    // the DEFENDING player's planeswalkers are legal attack targets. This board
+    // is the defender's, the viewer is the declaring active player, and at least
+    // one attacker has been declared to point at a planeswalker.
+    const isAttackTargetBoard =
+        phase === "DECLARE_ATTACKERS" &&
+        !!combat &&
+        !combat.confirmed &&
+        !combat.pendingAttackManaTax &&
+        playerId === activePlayerId &&
+        player.id !== activePlayerId &&
+        combat.attackerIds.length > 0;
+
     // The declarer selects from the DEFENDING player's creatures, so the
     // clickable battlefield is always the non-active player's — even under Melee
     // where the attacker is the one choosing.
@@ -408,6 +422,27 @@ export function useBattlefieldInteraction(player: Player) {
             }
             guardMutation(
                 toggleAttacker({ gameId, playerId, cardInstanceId: card.id })
+            );
+            return;
+        }
+        if (isAttackTargetBoard && isPlaneswalker(card)) {
+            // CR 508.1a (issue #1220) — direct a declared attacker at this
+            // planeswalker. Pick the most-recently declared attacker not already
+            // attacking it (retargeting from the player or another planeswalker);
+            // repeated clicks pile attackers onto the planeswalker. Re-declaring
+            // the attacker on the own board sends it back to the player.
+            const targets = combat?.attackTargets ?? {};
+            const attackerId = [...(combat?.attackerIds ?? [])]
+                .reverse()
+                .find((id) => targets[id] !== card.id);
+            if (!attackerId) return;
+            guardMutation(
+                toggleAttacker({
+                    gameId,
+                    playerId,
+                    cardInstanceId: attackerId,
+                    planeswalkerId: card.id,
+                })
             );
             return;
         }

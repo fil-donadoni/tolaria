@@ -236,6 +236,11 @@ export interface CardInstance {
 
 export interface Combat {
     attackerIds: string[];
+    /** CR 508.1a — per-attacker attack target: attackerId → planeswalkerId.
+     *  Absence = the attacker is attacking the defending player. An entry means
+     *  the attacker is attacking that planeswalker (combat damage → loyalty,
+     *  issue #1220). Mirrors the GRE `combat.attackTargets`. */
+    attackTargets?: Record<string, string>;
     confirmed: boolean;
     blockerAssignments: Record<string, string[]>;
     pendingBlockerId?: string;
