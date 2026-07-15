@@ -4,11 +4,7 @@
 // Ravager's definition + its attack trigger (discard your hand, then draw 3).
 
 import { describe, it, expect } from "vitest";
-import {
-    makeInstance,
-    makePlayer,
-    makeState,
-} from "../../../__tests__/setup";
+import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import type {
     CardInstanceState,
     GameState,

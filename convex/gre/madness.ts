@@ -102,9 +102,7 @@ export function isMadnessCastable(
     card: CardInstanceState,
     playerId: string
 ): boolean {
-    return (
-        card.madnessExiled === true && card.castableFromExileBy === playerId
-    );
+    return card.madnessExiled === true && card.castableFromExileBy === playerId;
 }
 
 /** CR 702.35d — at the cleanup step, put every madness card whose cast window

@@ -9,7 +9,11 @@
 //   - the frontend-wiring SURFACE: projectPublicState carries the cast affordance
 //     to the owner and hides it from the opponent
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../cards/__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+} from "../../cards/__tests__/setup";
 import {
     discardToGraveyard,
     getPlayer,
@@ -109,7 +113,11 @@ describe("Madness capability (CR 702.35)", () => {
             discardToGraveyard(state, "p1", card.id);
 
             // Real cast-source seam: exile zone, madness cost.
-            const src = locateCastSource(state, getPlayer(state, "p1"), card.id);
+            const src = locateCastSource(
+                state,
+                getPlayer(state, "p1"),
+                card.id
+            );
             expect(src.zone).toBe("exile");
             expect(castRawManaCost(state, src.card!, src.zone)).toEqual({
                 X: 1,
@@ -127,17 +135,29 @@ describe("Madness capability (CR 702.35)", () => {
             const state = makeState({ players: [p1, makePlayer("p2")] });
 
             discardToGraveyard(state, "p1", card.id);
-            const src = locateCastSource(state, getPlayer(state, "p1"), card.id);
+            const src = locateCastSource(
+                state,
+                getPlayer(state, "p1"),
+                card.id
+            );
             expect(src.zone).toBe("exile");
             // Madness {0}: the empty cost is present (not undefined) and free.
             expect(castRawManaCost(state, src.card!, src.zone)).toEqual({});
 
             // Commit the cast: exile → stack (clears the madness/exile markers),
             // then resolve the creature onto the battlefield.
-            const moved = removeFromZone(getPlayer(state, "p1"), card.id, "exile");
+            const moved = removeFromZone(
+                getPlayer(state, "p1"),
+                card.id,
+                "exile"
+            );
             expect(moved.madnessExiled).toBeUndefined();
             expect(moved.castableFromExileBy).toBeUndefined();
-            const stackItem: StackItem = { ...moved, castById: "p1", targets: [] };
+            const stackItem: StackItem = {
+                ...moved,
+                castById: "p1",
+                targets: [],
+            };
             state.stack.push(stackItem);
             resolveTopOfStack(state);
 

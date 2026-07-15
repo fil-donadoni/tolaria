@@ -37,8 +37,7 @@ export default function DiscardCostDialog({
         () =>
             (me?.hand ?? []).filter(
                 (card): card is CardInstance =>
-                    card !== null &&
-                    matchesHandCardFilter(card, choice.filter)
+                    card !== null && matchesHandCardFilter(card, choice.filter)
             ),
         [me?.hand, choice.filter]
     );

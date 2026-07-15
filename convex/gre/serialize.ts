@@ -820,7 +820,9 @@ function expandStackItem(compact: CompactCard): StackItem {
     // snapshot (recursing through this same expander) and remaining-copies
     // counter.
     if (compact.stormSnapshot) {
-        item.stormSnapshot = expandStackItem(compact.stormSnapshot as CompactCard);
+        item.stormSnapshot = expandStackItem(
+            compact.stormSnapshot as CompactCard
+        );
     }
     if (compact.stormCopiesRemaining !== undefined) {
         item.stormCopiesRemaining = compact.stormCopiesRemaining as number;

@@ -4,12 +4,12 @@
 // Basking Rootwalla's definition + its once-per-turn pump.
 
 import { describe, it, expect } from "vitest";
-import {
-    makeInstance,
-    makePlayer,
-    makeState,
-} from "../../../__tests__/setup";
-import type { CardInstanceState, GameState, StackItem } from "../../../../gre/state";
+import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import type {
+    CardInstanceState,
+    GameState,
+    StackItem,
+} from "../../../../gre/state";
 import { resolveTopOfStack } from "../../../../gre/state";
 import {
     getEffectivePower,

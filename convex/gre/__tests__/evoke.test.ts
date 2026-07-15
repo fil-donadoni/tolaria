@@ -321,9 +321,9 @@ describe("Solitude ETB (CR 603.6a — exile up to one other creature, LKI life g
         resolveTopOfStack(state);
 
         // (a) The target is exiled from the battlefield.
-        expect(
-            state.players[1].battlefield.some((c) => c.id === "serra")
-        ).toBe(false);
+        expect(state.players[1].battlefield.some((c) => c.id === "serra")).toBe(
+            false
+        );
         expect(state.players[1].exile.some((c) => c.id === "serra")).toBe(true);
         // (b) Its controller (p2) gained life equal to its power (4), read
         // while it was still on the battlefield — a post-exile read would see
@@ -341,9 +341,9 @@ describe("Solitude ETB (CR 603.6a — exile up to one other creature, LKI life g
         commitHeadChoice(state, []);
         resolveTopOfStack(state);
         // Serra survives, nobody gains life.
-        expect(
-            state.players[1].battlefield.some((c) => c.id === "serra")
-        ).toBe(true);
+        expect(state.players[1].battlefield.some((c) => c.id === "serra")).toBe(
+            true
+        );
         expect(state.players[1].life).toBe(20);
     });
 });

@@ -6444,8 +6444,7 @@ function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
     if (!req) return; // copied spell targets nothing — keep as-is
     // CR 107.3 — resolve an "X" target count against the copy's X.
     const rawCount = req.count;
-    const count =
-        rawCount === "X" ? Math.max(0, copy.chosenX ?? 0) : rawCount;
+    const count = rawCount === "X" ? Math.max(0, copy.chosenX ?? 0) : rawCount;
     const minNeeded = typeof count === "number" ? count : count.min;
     if (minNeeded <= 0) return; // no targets to choose
     const subtypeFilter = req.subtypeFilter
@@ -6503,7 +6502,9 @@ function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
         ...(subtypeFilter ? { subtypeFilter } : {}),
         ...(supertypeFilter ? { supertypeFilter } : {}),
         ...(req.powerFilter ? { powerFilter: req.powerFilter } : {}),
-        ...(req.toughnessFilter ? { toughnessFilter: req.toughnessFilter } : {}),
+        ...(req.toughnessFilter
+            ? { toughnessFilter: req.toughnessFilter }
+            : {}),
         ...(excludeSubtypes ? { excludeSubtypes } : {}),
         ...(excludeSupertypes ? { excludeSupertypes } : {}),
         ...(mvFilter ? { mvFilter } : {}),

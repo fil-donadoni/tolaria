@@ -53,7 +53,7 @@ type Shape = "exileFromGraveyard" | "life" | "removeCounter" | "discardFilter";
  *  itself (unlike `PermanentFilter` matching) — so building a matching hand
  *  card means finding a real card id whose definition satisfies the filter. */
 function findMatchingCardId(filter: EffectCardFilter): string {
-    const asArray = <T,>(v: T | T[] | undefined): T[] | undefined =>
+    const asArray = <T>(v: T | T[] | undefined): T[] | undefined =>
         v === undefined ? undefined : Array.isArray(v) ? v : [v];
     const types = asArray(filter.type);
     const subtypes = asArray(filter.subtype);

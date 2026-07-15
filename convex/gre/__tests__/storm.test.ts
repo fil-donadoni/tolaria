@@ -146,10 +146,7 @@ describe("Storm — spells-cast-this-turn counter (CR 702.40a, S2)", () => {
 describe("Storm — cast-trigger + copy resolution (CR 702.40, S1)", () => {
     it("zero prior spells this turn -> zero copies, only the original resolves", () => {
         const state = makeState({
-            players: [
-                makePlayer("p1"),
-                makePlayer("p2", { battlefield: [] }),
-            ],
+            players: [makePlayer("p1"), makePlayer("p2", { battlefield: [] })],
         });
         const gs = pushSpell(state, grapeshot.id, "p1", [
             { type: "player", id: "p2" },
@@ -210,7 +207,9 @@ describe("Storm — cast-trigger + copy resolution (CR 702.40, S1)", () => {
         // + 2 more from the original -> 6 total (2 copies + the original).
         expect(state.players[0].battlefield).toHaveLength(6);
         expect(
-            state.players[0].battlefield.every((c) => c.subtypes.includes("Goblin"))
+            state.players[0].battlefield.every((c) =>
+                c.subtypes.includes("Goblin")
+            )
         ).toBe(true);
     });
 
@@ -474,7 +473,9 @@ describe("Storm — serialize round-trip (S3)", () => {
         emitSpellCastEvent(state, gs); // priorSpellCount = 1, trigger on stack, not yet resolved
 
         const round = expandState(compactState(state));
-        const trigger = round.stack.find((s) => s.triggeredAbilityId === "storm");
+        const trigger = round.stack.find(
+            (s) => s.triggeredAbilityId === "storm"
+        );
         expect(trigger).toBeDefined();
         expect(trigger!.stormCopiesRemaining).toBe(1);
         expect(trigger!.stormSnapshot).toBeDefined();

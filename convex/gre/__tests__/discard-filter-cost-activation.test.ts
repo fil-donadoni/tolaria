@@ -21,7 +21,10 @@ import {
 import { getDefinition } from "../../cards";
 import { handCardMatchesFilter } from "../alternativeCost";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
-import { buildPendingActivation, tryAutoCommitPendingActivation } from "../../game";
+import {
+    buildPendingActivation,
+    tryAutoCommitPendingActivation,
+} from "../../game";
 import { survivalOfTheFittest } from "../../cards/sets/exo/green";
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { forest } from "../../cards/sets/lea/colorless";
@@ -153,9 +156,9 @@ describe("discard-a-card-matching-<filter> activation cost (CR 602.1 / 118.3)", 
             zone: "hand",
         });
         const state = scenario({ hand: [wood] });
-        expect(() =>
-            activateSurvival(state, "p1", "survival-1")
-        ).toThrow(/discard cost/i);
+        expect(() => activateSurvival(state, "p1", "survival-1")).toThrow(
+            /discard cost/i
+        );
     });
 
     it("enters pendingActivation with a discardFilterChoice picker and blocks commit until picked", () => {
@@ -174,9 +177,9 @@ describe("discard-a-card-matching-<filter> activation cost (CR 602.1 / 118.3)", 
         // Mana is already covered, but commit is BLOCKED until the pick.
         expect(state.stack).toHaveLength(0);
         expect(state.pendingActivation).toBeDefined();
-        expect(
-            state.players[0].hand.some((c) => c.id === "bears-1")
-        ).toBe(true);
+        expect(state.players[0].hand.some((c) => c.id === "bears-1")).toBe(
+            true
+        );
     });
 
     it("rejects a pick that doesn't match the filter (a land isn't a creature card)", () => {
@@ -194,9 +197,9 @@ describe("discard-a-card-matching-<filter> activation cost (CR 602.1 / 118.3)", 
         });
         const state = scenario({ hand: [bears, wood], manaPool: { G: 1 } });
         activateSurvival(state, "p1", "survival-1");
-        expect(() =>
-            selectDiscardCost(state, "p1", ["forest-1"])
-        ).toThrow(/filter/i);
+        expect(() => selectDiscardCost(state, "p1", ["forest-1"])).toThrow(
+            /filter/i
+        );
     });
 
     it("discards the chosen creature card and finds a creature card in the library, revealed into hand, CR 701.19/701.20", () => {
@@ -228,12 +231,12 @@ describe("discard-a-card-matching-<filter> activation cost (CR 602.1 / 118.3)", 
 
         // Cost paid at commit: the discarded creature left hand → graveyard,
         // independent of the ability resolving.
-        expect(
-            state.players[0].hand.some((c) => c.id === "bears-1")
-        ).toBe(false);
-        expect(
-            state.players[0].graveyard.some((c) => c.id === "bears-1")
-        ).toBe(true);
+        expect(state.players[0].hand.some((c) => c.id === "bears-1")).toBe(
+            false
+        );
+        expect(state.players[0].graveyard.some((c) => c.id === "bears-1")).toBe(
+            true
+        );
         expect(state.stack).toHaveLength(1);
 
         // The ability is now on the stack; resolving it drives the DSL
@@ -251,9 +254,9 @@ describe("discard-a-card-matching-<filter> activation cost (CR 602.1 / 118.3)", 
 
         // Found creature card put into hand (CR 400.7); the non-creature
         // library card was never a candidate and stays in the library.
-        expect(
-            state.players[0].hand.some((c) => c.id === "lib-bears-1")
-        ).toBe(true);
+        expect(state.players[0].hand.some((c) => c.id === "lib-bears-1")).toBe(
+            true
+        );
         expect(
             state.players[0].library.some((c) => c.id === "lib-forest-1")
         ).toBe(true);
