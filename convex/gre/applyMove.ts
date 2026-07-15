@@ -34,8 +34,10 @@ import {
     getOpponentId,
     tapPermanent,
     canPayMayPayCost,
+    discardToGraveyard,
 } from "./state";
 import { matchesPermanentFilter } from "../cards/filters";
+import { handCardMatchesFilter } from "./alternativeCost";
 import { liveSupertypesOf } from "./snow";
 import { checkStateBasedActions } from "./sba";
 import { applyPlayLand, finalizeLandEntry } from "./playLand";
@@ -344,6 +346,45 @@ export function applyMoveForSearch(
                             )
                             .slice(0, count);
                         for (const perm of picks) tapPermanent(next, perm);
+                    }
+                    // CR 602.1 / 118.3 — "discard a card matching <filter>"
+                    // cost (Survival of the Fittest): discard the lowest-
+                    // mana-value matching card(s) from the activator's hand.
+                    // A conservative deterministic pick — the search doesn't
+                    // model the human's free choice of which card to discard.
+                    if (ability?.cost.discardFilter) {
+                        const owner = next.players.find((p) =>
+                            p.battlefield.some((c) => c.id === src!.id)
+                        );
+                        const { filter, count } = ability.cost.discardFilter;
+                        const candidates = (owner?.hand ?? [])
+                            .filter((c) => handCardMatchesFilter(c, filter))
+                            .sort((a, b) => {
+                                const mv = (d: CardInstanceState) => {
+                                    const cd = tryGetDefinition(
+                                        (d.card as { id?: string }).id ?? ""
+                                    );
+                                    return cd?.manaCost
+                                        ? Object.values(
+                                              cd.manaCost
+                                          ).reduce<number>(
+                                              (acc, v) =>
+                                                  acc +
+                                                  (typeof v === "number"
+                                                      ? v
+                                                      : 0),
+                                              0
+                                          )
+                                        : 0;
+                                };
+                                return mv(a) - mv(b);
+                            })
+                            .slice(0, count);
+                        if (owner) {
+                            for (const pick of candidates) {
+                                discardToGraveyard(next, owner.id, pick.id);
+                            }
+                        }
                     }
                 }
             }

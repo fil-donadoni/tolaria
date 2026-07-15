@@ -5,7 +5,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { CardInstance, Player } from "~/types/game";
 import type { EffectCardFilter } from "@convex/cards/types";
 import { getDefinition } from "@convex/cards";
-import { getCardColors } from "@convex/cards/colors";
+import { matchesHandCardFilter as handCardMatches } from "~/lib/card-utils";
 import GameDialog from "~/components/ui/game-dialog";
 import CardImage from "~/components/cards/card-image";
 
@@ -14,57 +14,6 @@ type HandChoice = {
     requirements: { filter: EffectCardFilter; count: number }[];
     excludeInstanceId: string;
 };
-
-/** Does a hand card match an `EffectCardFilter`? Reads the card's registry
- *  characteristics (types / subtypes / colours / name); every present field is
- *  ANDed, array fields OR within themselves. `any` (issue #897) is the one
- *  disjunctive clause list this filter supports — recurses through this same
- *  matcher — ANDed with every other top-level field present alongside it.
- *  Mirrors the server's `handCardMatchesFilter` (convex/gre/alternativeCost.ts)
- *  so eligibility shown client-side matches what the mutation will accept. */
-function handCardMatches(
-    card: CardInstance,
-    filter: EffectCardFilter
-): boolean {
-    const def = getDefinition(card.card.id);
-    const asArray = <T,>(v: T | T[] | undefined): T[] | undefined =>
-        v === undefined ? undefined : Array.isArray(v) ? v : [v];
-    if (filter.name !== undefined && def.name !== filter.name) return false;
-    const types = asArray(filter.type);
-    if (types !== undefined && !types.some((t) => def.types.includes(t)))
-        return false;
-    const excludeTypes = asArray(filter.excludeType);
-    if (
-        excludeTypes !== undefined &&
-        excludeTypes.some((t) => def.types.includes(t))
-    )
-        return false;
-    const subtypes = asArray(filter.subtype);
-    if (
-        subtypes !== undefined &&
-        !subtypes.some((s) => (def.subtypes ?? []).includes(s))
-    )
-        return false;
-    if (
-        filter.supertype !== undefined &&
-        !(def.supertypes ?? []).includes(filter.supertype)
-    )
-        return false;
-    const colors = asArray(filter.color);
-    if (colors !== undefined) {
-        const cardColors = getCardColors(def);
-        if (!colors.some((c) => cardColors.includes(c))) return false;
-    }
-    // issue #897 — OR ACROSS filter dimensions. A filter carrying ONLY `any`
-    // must not fail open (match every hand card) — mirrors the server's
-    // matching addition in `handCardMatchesFilter`.
-    if (
-        filter.any !== undefined &&
-        !filter.any.some((clause) => handCardMatches(card, clause))
-    )
-        return false;
-    return true;
-}
 
 /** ALTERNATIVE-cost HAND-leg picker (CR 118.9 — Force of Will's "exile a blue
  *  card", Foil's "discard an Island card and another card"). Active when this

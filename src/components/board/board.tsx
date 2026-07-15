@@ -52,6 +52,7 @@ import TargetSelectionBanner from "./target-selection-banner";
 import GraveyardTargetDialog from "./graveyard-target-dialog";
 import ExileCostDialog from "./exile-cost-dialog";
 import CastExileCostDialog from "./cast-exile-cost-dialog";
+import DiscardCostDialog from "./discard-cost-dialog";
 import CastAlternativeHandCostDialog from "./cast-alternative-hand-cost-dialog";
 import { isGraveyardTargetForViewer } from "~/lib/graveyard-targets";
 import PaymentBanner from "./payment-banner";
@@ -641,6 +642,21 @@ export default function Board({
                                                 pendingActivation.exileFromGraveyardChoice
                                             }
                                             allPlayers={allPlayers}
+                                            gameId={gameId}
+                                            playerId={viewerId}
+                                        />
+                                    ) : // CR 602.1 / 118.3 — the discard-a-card
+                                    // cost (Survival of the Fittest) needs a
+                                    // dedicated hand-card picker before the
+                                    // payment banner takes over.
+                                    pendingActivation.discardFilterChoice &&
+                                      !pendingActivation.discardFilterChoice
+                                          .pickedCardIds ? (
+                                        <DiscardCostDialog
+                                            choice={
+                                                pendingActivation.discardFilterChoice
+                                            }
+                                            me={me}
                                             gameId={gameId}
                                             playerId={viewerId}
                                         />

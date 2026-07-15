@@ -4,6 +4,7 @@ import type { Phase } from "@convex/gre/types";
 import type {
     AlternativeCost,
     CardDefinition,
+    EffectCardFilter,
     MayPayCost,
     PermanentView,
     TargetRequirement,
@@ -21,7 +22,10 @@ import type {
     GameState,
     PlayerState,
 } from "@convex/gre/state";
-import { affordableAlternativeCosts } from "@convex/gre/alternativeCost";
+import {
+    affordableAlternativeCosts,
+    handCardMatchesFilter,
+} from "@convex/gre/alternativeCost";
 import { getDefinition, tryGetDefinition } from "@convex/cards";
 import { getColorsFromCost } from "@convex/cards/colors";
 import {
@@ -661,6 +665,22 @@ export function affordableAltCostsForCard(
     );
 }
 
+/** Does a HAND card (wire-projected `CardInstance`) match an
+ *  `EffectCardFilter`? Thin wrapper around the server's
+ *  `handCardMatchesFilter` (`convex/gre/alternativeCost.ts`) — delegates to
+ *  the SAME predicate the mutation enforces (mirrors `affordableAltCostsForCard`
+ *  above) so the UI and the GRE can never disagree on hand-card eligibility.
+ *  Shared (issue #901) by every client-side hand-card-matching picker/gate:
+ *  the alternative-cost hand leg (`CastAlternativeHandCostDialog`) and the
+ *  `discardFilter` activation-cost leg (`DiscardCostDialog`, and the
+ *  `getStackAbilities` affordability gate below). */
+export function matchesHandCardFilter(
+    card: CardInstance,
+    filter: EffectCardFilter
+): boolean {
+    return handCardMatchesFilter(card as unknown as CardInstanceState, filter);
+}
+
 /** Returns stack-using activated abilities the player can currently announce.
  *  Only the non-mana availability is checked (source not already tapped when
  *  the ability has {T}); mana is deferred to a `pendingActivation` payment
@@ -688,7 +708,18 @@ export function getStackAbilities(
      *  CR 118.4 life-payment cost as a UI hint: an ability whose `cost.life`
      *  exceeds it is unpayable and hidden, mirroring the server throw ("Not
      *  enough life"). Omit to skip the gate (callers/tests without life data). */
-    payerLife?: number
+    payerLife?: number,
+    /** The activating player's OWN real hand cards (never the opponent's —
+     *  those are stripped to `null` on the wire and never reach this gate).
+     *  Gates the CR 602.1 / 118.3 `discardFilter` activation cost (Survival
+     *  of the Fittest "Discard a creature card") as a UI hint: an ability
+     *  whose `cost.discardFilter` has fewer than `count` matching cards in
+     *  this hand is unpayable and hidden, mirroring the server throw ("Not
+     *  enough matching cards in hand to pay the discard cost"). Omit to skip
+     *  the gate (callers without hand data, or the non-controller
+     *  `getAnyPlayerStackAbilities` path — a `discardFilter` cost is always
+     *  paid from the CONTROLLER's own hand, never the activator's). */
+    discardFilterHand?: ReadonlyArray<CardInstance>
 ): { id: string; oracleText: string }[] {
     const cardDef = getDefinition(card.card.id);
     const tapLocked = isTapLockedBySummoningSickness(card);
@@ -700,6 +731,7 @@ export function getStackAbilities(
             life?: number;
             removeCounter?: { type: string; count: number };
             discardLastDrawn?: boolean;
+            discardFilter?: { filter: EffectCardFilter; count: number };
             exileFromGraveyard?: {
                 count: number;
                 cardType?: CardType;
@@ -776,6 +808,19 @@ export function getStackAbilities(
         // CR 118.3 — "discard the last card you drew this turn" cost
         // (Jandor's Ring) is unpayable when no such card is in hand.
         if (a.cost.discardLastDrawn && !canDiscardLastDrawn) return false;
+        // CR 602.1 / 118.3 — "discard a card matching <filter>" cost
+        // (Survival of the Fittest) is unpayable unless at least `count`
+        // cards in the controller's OWN hand match the filter. UI hint
+        // against the viewer-visible hand; server validation is
+        // authoritative. Skipped when `discardFilterHand` is unknown
+        // (undefined) — same fail-open discipline as `payerLife`.
+        if (a.cost.discardFilter && discardFilterHand !== undefined) {
+            const { filter, count } = a.cost.discardFilter;
+            const matching = discardFilterHand.filter((c) =>
+                matchesHandCardFilter(c, filter)
+            ).length;
+            if (matching < count) return false;
+        }
         // CR 602.1 / 118.5 — "exile N cards from a single graveyard" cost
         // (Night Soil) is unpayable unless one graveyard holds enough matching
         // cards (the whole cost must come from ONE graveyard). UI hint against

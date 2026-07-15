@@ -21,6 +21,7 @@
 import type { Color, TargetRequirement, TargetSelection } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { normalizeManaCost, canPayDiscardLastDrawn } from "./state";
+import { handCardMatchesFilter } from "./alternativeCost";
 import {
     getLegalActions,
     getLegalTargets,
@@ -569,6 +570,17 @@ function enumerateAbilityMoves(
                     supertypesOf: liveSupertypesOf,
                 })
             )
+        ) {
+            continue;
+        }
+        // CR 602.1 / 118.3 — "discard a card matching <filter>" cost
+        // (Survival of the Fittest) is unpayable when no matching card is in
+        // the player's hand.
+        if (
+            ability.cost.discardFilter &&
+            player.hand.filter((c) =>
+                handCardMatchesFilter(c, ability.cost.discardFilter!.filter)
+            ).length < ability.cost.discardFilter.count
         ) {
             continue;
         }

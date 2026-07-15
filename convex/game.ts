@@ -149,6 +149,7 @@ import {
     buildAlternativeCostChoice,
     buildAlternativeCostHandChoice,
     validateAlternativeHandCostPicks,
+    handCardMatchesFilter,
 } from "./gre/alternativeCost";
 import { hasSupertypeLive, liveSupertypesOf } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
@@ -1410,6 +1411,14 @@ export function buildPendingActivation(opts: {
                   },
               }
             : {}),
+        ...(ability.cost.discardFilter
+            ? {
+                  discardFilterChoice: {
+                      filter: ability.cost.discardFilter.filter,
+                      count: ability.cost.discardFilter.count,
+                  },
+              }
+            : {}),
         ...(opts.chosenX !== undefined ? { chosenX: opts.chosenX } : {}),
         // CR 106.10 — noted-mana battery (Jeweled Amulet / Ice Cauldron). Carry
         // the capture flag onto the deferred payment so the per-colour
@@ -1473,6 +1482,12 @@ export function tryAutoCommitPendingActivation(
         pa.tapOtherChoice &&
         pa.tapOtherChoice.pickedIds.length < pa.tapOtherChoice.count
     ) {
+        return null;
+    }
+    // CR 602.1 / 118.3 — commit is blocked until the "discard a card matching
+    // <filter>" cost has been picked (selectActivationDiscardCost — Survival
+    // of the Fittest).
+    if (pa.discardFilterChoice && !pa.discardFilterChoice.pickedCardIds) {
         return null;
     }
 
@@ -1590,6 +1605,25 @@ export function tryAutoCommitPendingActivation(
         if (!discardToGraveyard(state, playerId, card.id)) {
             state.pendingActivation = undefined;
             return null;
+        }
+    }
+    // CR 602.1 / 118.3 — pay the "discard a card matching <filter>" cost
+    // (Survival of the Fittest): move each picked card from hand to graveyard
+    // through the shared discard choke point so CR 614 replacements /
+    // CARD_DISCARDED fire. Re-check presence at commit (vanished-card
+    // policy): if any picked card left the hand while mana was tapped, drop
+    // the activation silently (lands stay tapped, mirroring the
+    // vanished-source policy above).
+    if (pa.discardFilterChoice?.pickedCardIds) {
+        const stillInHand = pa.discardFilterChoice.pickedCardIds.every((id) =>
+            player.hand.some((c) => c.id === id)
+        );
+        if (!stillInHand) {
+            state.pendingActivation = undefined;
+            return null;
+        }
+        for (const id of pa.discardFilterChoice.pickedCardIds) {
+            discardToGraveyard(state, playerId, id);
         }
     }
     // CR 602.1 / 118.5 / 701.21a — execute the player-chosen filtered
@@ -3452,6 +3486,20 @@ export function finalizeTargetSelection(
         if (ability.cost.discardAtRandom && player.hand.length === 0) {
             throw new Error("No card in hand to discard");
         }
+        // CR 602.1 / 118.3 — "discard a card matching <filter>" cost
+        // (Survival of the Fittest): illegal unless at least `count` matching
+        // cards are in the activating player's hand. Validated up-front so we
+        // never enter a pendingActivation that can't be paid.
+        if (ability.cost.discardFilter) {
+            const candidates = player.hand.filter((c) =>
+                handCardMatchesFilter(c, ability.cost.discardFilter!.filter)
+            );
+            if (candidates.length < ability.cost.discardFilter.count) {
+                throw new Error(
+                    "Not enough matching cards in hand to pay the discard cost"
+                );
+            }
+        }
         assertActivationTimingLegal(state, card, ability);
 
         const hasXInCost =
@@ -3534,7 +3582,8 @@ export function finalizeTargetSelection(
             manaUncovered ||
             needsSacrificeChoice ||
             ability.cost.exileFromGraveyard ||
-            ability.cost.tapOtherFilter
+            ability.cost.tapOtherFilter ||
+            ability.cost.discardFilter
         ) {
             state.pendingActivation = {
                 playerId,
@@ -3576,6 +3625,14 @@ export function finalizeTargetSelection(
                               filter: ability.cost.tapOtherFilter.filter,
                               count: ability.cost.tapOtherFilter.count,
                               pickedIds: [],
+                          },
+                      }
+                    : {}),
+                ...(ability.cost.discardFilter
+                    ? {
+                          discardFilterChoice: {
+                              filter: ability.cost.discardFilter.filter,
+                              count: ability.cost.discardFilter.count,
                           },
                       }
                     : {}),
@@ -5839,6 +5896,81 @@ export const selectActivationExileCost = mutation({
         }
         ec.pickedGraveyardOwnerId = args.graveyardOwnerId;
         ec.pickedCardIds = [...args.cardInstanceIds];
+
+        // Commit fires here when the mana is also covered; otherwise the player
+        // taps the remaining mana via tapForActivationPayment.
+        tryAutoCommitPendingActivation(state, args.playerId);
+
+        await saveGameState(
+            ctx,
+            args.gameId,
+            gameState.seq + 1,
+            state,
+            gameState
+        );
+    },
+});
+
+/** Records the player's pick for a "discard a card matching <filter>"
+ *  activation cost (CR 602.1 / 118.3 — Survival of the Fittest "Discard a
+ *  creature card"). Validates that the pick count matches the cost exactly
+ *  and that each card is in the activator's OWN hand and matches the filter
+ *  (the same `handCardMatchesFilter` matcher `activateAbility` uses
+ *  up-front). Mirrors `selectActivationExileCost`: it only RECORDS the pick
+ *  — the cards move hand → graveyard at commit (via the shared
+ *  `discardToGraveyard` choke point, CR 614 / 701.8), so cancelling leaves
+ *  the hand untouched — then drives `tryAutoCommitPendingActivation` once the
+ *  pick and the mana are both in. */
+export const selectActivationDiscardCost = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+        cardInstanceIds: v.array(v.string()),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "priority",
+        });
+
+        const pa = state.pendingActivation;
+        if (!pa) throw new Error("No ability being activated");
+        if (pa.playerId !== args.playerId) {
+            throw new Error("Not your pending activation");
+        }
+        const dc = pa.discardFilterChoice;
+        if (!dc) {
+            throw new Error("This ability has no discard-a-card cost");
+        }
+        if (dc.pickedCardIds) {
+            throw new Error("Discard cost already paid");
+        }
+        if (args.cardInstanceIds.length !== dc.count) {
+            throw new Error(`Must discard exactly ${dc.count} card(s)`);
+        }
+        if (
+            new Set(args.cardInstanceIds).size !== args.cardInstanceIds.length
+        ) {
+            throw new Error("Duplicate card selected for the discard cost");
+        }
+        const player = getPlayer(state, args.playerId);
+        for (const id of args.cardInstanceIds) {
+            const card = player.hand.find((c) => c.id === id);
+            if (!card) {
+                throw new Error("Selected card is not in your hand");
+            }
+            if (!handCardMatchesFilter(card, dc.filter)) {
+                throw new Error(
+                    "Selected card does not match the discard cost filter"
+                );
+            }
+        }
+        dc.pickedCardIds = [...args.cardInstanceIds];
 
         // Commit fires here when the mana is also covered; otherwise the player
         // taps the remaining mana via tapForActivationPayment.
@@ -8819,6 +8951,20 @@ export const activateAbility = mutation({
         if (ability.cost.discardAtRandom && player.hand.length === 0) {
             throw new Error("No card in hand to discard");
         }
+        // CR 602.1 / 118.3 — "discard a card matching <filter>" cost
+        // (Survival of the Fittest): illegal unless at least `count` matching
+        // cards are in the activating player's hand. Validated up-front so we
+        // never enter a pendingActivation that can't be paid.
+        if (ability.cost.discardFilter) {
+            const candidates = player.hand.filter((c) =>
+                handCardMatchesFilter(c, ability.cost.discardFilter!.filter)
+            );
+            if (candidates.length < ability.cost.discardFilter.count) {
+                throw new Error(
+                    "Not enough matching cards in hand to pay the discard cost"
+                );
+            }
+        }
         // CR 118.4 — a life-payment cost is illegal unless the player has at
         // least that much life. Validated up-front so we never enter a
         // pendingActivation that can't be paid (fetch lands: {T}, Pay 1 life,
@@ -8945,11 +9091,13 @@ export const activateAbility = mutation({
             !!activationSac && !isSacrificeSelectionComplete(activationSac);
         const needsExileChoice = !!ability.cost.exileFromGraveyard;
         const needsTapOtherChoice = !!ability.cost.tapOtherFilter;
+        const needsDiscardChoice = !!ability.cost.discardFilter;
         if (
             manaUncovered ||
             needsSacrificeChoice ||
             needsExileChoice ||
-            needsTapOtherChoice
+            needsTapOtherChoice ||
+            needsDiscardChoice
         ) {
             const pending = buildPendingActivation({
                 playerId: args.playerId,
