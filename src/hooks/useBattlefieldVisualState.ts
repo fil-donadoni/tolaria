@@ -6,6 +6,7 @@ import { getDefinition } from "@convex/cards";
 import { globalAttackProhibitionReason } from "@convex/cards/attackRestrictions";
 import {
     isCreature,
+    isPlaneswalker,
     isLandwalkUnblockable,
     hasManaAbility,
     matchesPermanentFilter,
@@ -164,6 +165,20 @@ export function useBattlefieldVisualState(player: Player) {
         isMe &&
         playerId === activePlayerId;
 
+    // CR 508.1a (issue #1220) — while the active player is declaring attackers,
+    // the DEFENDING player's planeswalkers are legal attack targets. This board
+    // is the defender's (not the viewer's own, and not the active player's), the
+    // viewer is the declaring active player, and at least one attacker has been
+    // declared to point at a planeswalker.
+    const isAttackTargetBoard =
+        phase === "DECLARE_ATTACKERS" &&
+        !!combat &&
+        !combat.confirmed &&
+        !combat.pendingAttackManaTax &&
+        playerId === activePlayerId &&
+        player.id !== activePlayerId &&
+        combat.attackerIds.length > 0;
+
     const isSelectingBlockers =
         phase === "DECLARE_BLOCKERS" &&
         !!combat &&
@@ -184,6 +199,13 @@ export function useBattlefieldVisualState(player: Player) {
     const selectedAttackerIds = combat?.attackerIds ?? [];
     const blockerAssignments = combat?.blockerAssignments ?? {};
     const pendingBlockerId = combat?.pendingBlockerId;
+    const attackTargets = combat?.attackTargets ?? {};
+
+    // CR 508.1a (issue #1220) — true iff at least one declared attacker is
+    // currently attacking this planeswalker.
+    function isAttackedPlaneswalker(card: CardInstance): boolean {
+        return Object.values(attackTargets).includes(card.id);
+    }
 
     const combatGroupColors = useMemo(() => {
         const map: Record<string, number> = {};
@@ -345,6 +367,10 @@ export function useBattlefieldVisualState(player: Player) {
             return !card.isTapped && canBlockAnyAttacker(card);
         }
 
+        // CR 508.1a (issue #1220) — the defender's planeswalkers are clickable
+        // attack targets while attackers are being declared.
+        if (isAttackTargetBoard && isPlaneswalker(card)) return true;
+
         if (isBlockerTarget && card.isAttacking) return true;
 
         if (!isMe || !hasManaAbility(card, manaGateView)) return false;
@@ -406,6 +432,9 @@ export function useBattlefieldVisualState(player: Player) {
             !!activeChoice &&
             bufferCtx.buffer.includes(card.id);
 
+        const isAttackTargetPw =
+            isAttackTargetBoard && isPlaneswalker(card);
+
         const interactive = isSelectingChoice
             ? isValidChoice
             : isSelectingTarget
@@ -414,7 +443,8 @@ export function useBattlefieldVisualState(player: Player) {
                     (manaSource ||
                         (isSelectingAttackers && creature) ||
                         (isSelectingBlockers && creature))) ||
-                (isBlockerTarget && !!card.isAttacking);
+                (isBlockerTarget && !!card.isAttacking) ||
+                isAttackTargetPw;
 
         const enabled = canInteract(card);
 
@@ -525,6 +555,16 @@ export function useBattlefieldVisualState(player: Player) {
             ringClass = "ring-2 ring-emerald-400 rounded-sm";
         } else if (!ringClass && isValidSacrificePick) {
             ringClass = "ring-2 ring-accent/40 rounded-sm";
+        }
+
+        // CR 508.1a (issue #1220) — a planeswalker under attack reads GREEN (a
+        // committed attack target), the same emerald selection ring targets and
+        // choices use; a clickable-but-unchosen defending planeswalker reads with
+        // the faded-accent "valid target" ring.
+        if (!ringClass && isAttackTargetPw && isAttackedPlaneswalker(card)) {
+            ringClass = "ring-2 ring-emerald-400 rounded-sm";
+        } else if (!ringClass && isAttackTargetPw) {
+            ringClass = "ring-2 ring-accent/50 rounded-sm";
         }
 
         // Tooltip for ineligible creatures

@@ -187,6 +187,7 @@ import {
     getManaTapOptionsDetailed,
     getFixedManaAmount,
     hasManaAbility,
+    isPlaneswalker,
     isTapLockedBySummoningSickness,
     manaValue,
 } from "./gre/constants";
@@ -6979,12 +6980,35 @@ export const cancelTarget = mutation({
     },
 });
 
-/** Toggle a creature in/out of the attacker selection (visible to both clients in real-time). */
+/** CR 508.1a (issue #1220) — assert `planeswalkerId` is a legal per-attacker
+ *  attack target: a planeswalker the DEFENDING player controls (the only
+ *  non-player thing an attacker may attack). Throws otherwise. Extracted from
+ *  the `toggleAttacker` mutation so the boundary rule is unit-testable. */
+export function assertLegalAttackTarget(
+    defenderBattlefield: CardInstanceState[],
+    planeswalkerId: string
+): void {
+    const pw = defenderBattlefield.find((c) => c.id === planeswalkerId);
+    if (!pw || !isPlaneswalker(pw)) {
+        throw new Error(
+            "Attack target must be a planeswalker the defending player controls"
+        );
+    }
+}
+
+/** Toggle a creature in/out of the attacker selection (visible to both clients
+ *  in real-time). When `planeswalkerId` is supplied, the creature attacks that
+ *  planeswalker (CR 508.1a, issue #1220) rather than the defending player:
+ *  - selecting a creature with `planeswalkerId` declares it attacking the PW;
+ *  - re-supplying `planeswalkerId` for an already-declared attacker retargets it
+ *    (or clears the target back to the player when it already attacks that PW);
+ *  - omitting `planeswalkerId` toggles declaration as before (target = player). */
 export const toggleAttacker = mutation({
     args: {
         gameId: v.id("games"),
         playerId: v.string(),
         cardInstanceId: v.string(),
+        planeswalkerId: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const gameState = await getLatestGameState(ctx, args.gameId);
@@ -7017,7 +7041,38 @@ export const toggleAttacker = mutation({
             state,
             getOpponentId(state, args.playerId)
         ).battlefield;
+
+        // CR 508.1a (issue #1220) — validate an optional planeswalker attack
+        // target: it must be a planeswalker the DEFENDING player controls. Its
+        // presence routes this attacker's combat damage to the planeswalker's
+        // loyalty instead of the defending player.
+        if (args.planeswalkerId !== undefined) {
+            assertLegalAttackTarget(defenderBattlefield, args.planeswalkerId);
+        }
+
         const idx = state.combat.attackerIds.indexOf(args.cardInstanceId);
+        if (idx !== -1 && args.planeswalkerId !== undefined) {
+            // Already-declared attacker + a planeswalker target: retarget it
+            // (CR 508.1a). If it already attacks that same planeswalker, clear
+            // the target back to the defending player (toggle-off); otherwise
+            // point it at the planeswalker. Never a deselection.
+            const targets = state.combat.attackTargets ?? {};
+            if (targets[args.cardInstanceId] === args.planeswalkerId) {
+                delete targets[args.cardInstanceId];
+            } else {
+                targets[args.cardInstanceId] = args.planeswalkerId;
+            }
+            state.combat.attackTargets =
+                Object.keys(targets).length > 0 ? targets : undefined;
+            await saveGameState(
+                ctx,
+                args.gameId,
+                gameState.seq + 1,
+                state,
+                gameState
+            );
+            return;
+        }
         if (idx !== -1) {
             // CR 508.1d: can't deselect a creature required to attack
             if (mustAttack(card, defenderBattlefield)) {
@@ -7026,6 +7081,13 @@ export const toggleAttacker = mutation({
                 );
             }
             state.combat.attackerIds.splice(idx, 1);
+            // Drop any planeswalker attack target for the deselected attacker.
+            if (state.combat.attackTargets?.[args.cardInstanceId]) {
+                delete state.combat.attackTargets[args.cardInstanceId];
+                if (Object.keys(state.combat.attackTargets).length === 0) {
+                    state.combat.attackTargets = undefined;
+                }
+            }
             // CR 702.21e: a deselected attacker leaves any band it was in.
             // Drop the now-stale member and discard bands that fall below a
             // legal size (need 2+ members, 1+ with banding).
@@ -7075,6 +7137,15 @@ export const toggleAttacker = mutation({
                 );
             }
             state.combat.attackerIds.push(args.cardInstanceId);
+            // CR 508.1a (issue #1220) — record the planeswalker this attacker is
+            // attacking, if one was chosen at declaration. Absence = the
+            // defending player.
+            if (args.planeswalkerId !== undefined) {
+                state.combat.attackTargets = {
+                    ...(state.combat.attackTargets ?? {}),
+                    [args.cardInstanceId]: args.planeswalkerId,
+                };
+            }
         }
 
         await saveGameState(

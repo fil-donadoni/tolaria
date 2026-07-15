@@ -267,6 +267,48 @@ describe("enumerateMoves — combat (issue #110)", () => {
         expect(sets).toContainEqual([a1.id, a2.id].sort());
     });
 
+    // CR 508.1a (issue #1220) — the bot must be able to attack a planeswalker
+    // the defender controls, not just the defending player. The enumerator adds
+    // per-planeswalker variants that direct the declared attack at it.
+    it("offers attacking a defending planeswalker (attackTargets variant)", () => {
+        const a1 = makeInstance(BEARS, { controllerId: "p1", ownerId: "p1" });
+        const pw = makeInstance(getCardByName("Liliana of the Veil").id, {
+            id: "pw",
+            controllerId: "p2",
+            ownerId: "p2",
+            counters: { loyalty: 3 },
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a1] }),
+                makePlayer("p2", { battlefield: [pw] }),
+            ],
+            phase: "DECLARE_ATTACKERS",
+            combat: {
+                attackerIds: [],
+                confirmed: false,
+                blockerAssignments: {},
+                blockersConfirmed: false,
+            },
+        });
+        const attackMoves = enumerateMoves(state, "p1").filter(
+            (m): m is Extract<Move, { kind: "declare-attackers" }> =>
+                m.kind === "declare-attackers"
+        );
+        // At least one move directs a1 at the planeswalker.
+        const pwMove = attackMoves.find(
+            (m) => m.attackTargets?.[a1.id] === "pw"
+        );
+        expect(pwMove).toBeDefined();
+        expect(pwMove!.attackerIds).toContain(a1.id);
+        // The default (attack-the-player) variant is still present.
+        expect(
+            attackMoves.some(
+                (m) => m.attackerIds.includes(a1.id) && !m.attackTargets
+            )
+        ).toBe(true);
+    });
+
     it("enumerates blocker assignments for the defender", () => {
         const attacker = makeInstance(BEARS, {
             controllerId: "p1",

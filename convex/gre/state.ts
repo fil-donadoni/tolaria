@@ -2117,6 +2117,16 @@ export type GameState = {
     /** Active combat state. Set at DECLARE_ATTACKERS, cleared at END_OF_COMBAT. */
     combat?: {
         attackerIds: string[];
+        /** CR 508.1a — per-attacker attack target. Each attacker chooses either
+         *  the defending player (the default: absence of an entry) OR a
+         *  planeswalker that player controls. Maps attackerId → planeswalkerId.
+         *  An attacker with an entry here deals its combat damage to that
+         *  planeswalker's loyalty instead of to the defending player (CR 120.3c /
+         *  509.1h, issue #1220). Distinct from `combatDamageRedirectToPermanent`
+         *  (Kjeldoran Royal Guard), which is a post-declaration redirect, not the
+         *  declare-time target chosen here. Cleared at END_OF_COMBAT with the
+         *  rest of `combat`. */
+        attackTargets?: Record<string, string>;
         confirmed: boolean;
         /** blockerId → attackerIds mapping. Each blocker maps to the array of
          *  attackers it is blocking. Normally length 1; multi-block creatures
@@ -4858,7 +4868,10 @@ export function dealDamageFromPermanentToPlayer(
  *  that many loyalty counters (floored at 0; the 0-loyalty death is the
  *  `checkZeroLoyaltySBA` state-based action, not a job for this helper). Shared
  *  by every non-combat damage sink so damage → loyalty is handled uniformly. */
-function removeLoyaltyForDamage(card: CardInstanceState, amount: number): void {
+export function removeLoyaltyForDamage(
+    card: CardInstanceState,
+    amount: number
+): void {
     const current = card.counters?.loyalty ?? 0;
     card.counters = {
         ...(card.counters ?? {}),
