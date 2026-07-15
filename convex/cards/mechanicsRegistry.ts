@@ -1390,7 +1390,14 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Exalted",
         kind: "keyword-ability",
         cr: "702.83",
-        status: "planned",
+        status: "implemented",
+        // Expanded from the bare `staticAbilities: ["exalted"]` string at the
+        // `getDefinition` seam (convex/cards/abilities/keywordTriggers.ts,
+        // issue #699): injects a CR 702.83a triggered ability — whenever a
+        // creature its controller controls attacks alone (ATTACKERS_DECLARED
+        // with a single attacker), that lone attacker gets +1/+1 until end of
+        // turn (pump Op, `{ ref: "$event.soleAttacker" }`, CR 613.4c).
+        binding: "exalted",
     },
     // 702.84 Unearth
     {
@@ -1591,7 +1598,14 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Prowess",
         kind: "keyword-ability",
         cr: "702.108",
-        status: "planned",
+        status: "implemented",
+        // Expanded from the bare `staticAbilities: ["prowess"]` string at the
+        // `getDefinition` seam (convex/cards/abilities/keywordTriggers.ts,
+        // issue #699): injects a CR 702.108a triggered ability — whenever its
+        // controller casts a noncreature spell (SPELL_CAST, scope "you",
+        // filter excludeTypes "Creature"), this creature gets +1/+1 until end
+        // of turn (pump Op on `$source`, CR 613.4c).
+        binding: "prowess",
     },
     // 702.109 Dash
     {
@@ -2870,6 +2884,21 @@ export const EVENT_FIELD_REGISTRY: Record<
     string,
     Record<string, EventFieldRow>
 > = {
+    // CR 508.1 — attacker declaration. `ATTACKERS_DECLARED` carries the full
+    // `attackerIds` list; `soleAttacker` FLATTENS it to a single id ONLY when
+    // exactly one creature was declared (CR 702.83 Exalted's "attacks alone"),
+    // and is undefined otherwise (CR 608.2b — the reading Op then skips). This
+    // is the object-family field Exalted's expanded trigger pumps: the lone
+    // attacker, which need not be the exalted source itself. Issue #699.
+    ATTACKERS_DECLARED: {
+        soleAttacker: {
+            family: "object",
+            resolve: (e) =>
+                e.type === "ATTACKERS_DECLARED" && e.attackerIds.length === 1
+                    ? e.attackerIds[0]
+                    : undefined,
+        },
+    },
     // CR 509.1h — the attacker/blocker pairing, emitted per attacker-blocker
     // PAIR (phases.ts), so a per-pair capture reads exactly one attacker and one
     // blocker even under multi-block / banding. Both ids are OBJECT refs
