@@ -244,6 +244,58 @@ describe("board damage-target choice parity (#280, CR 115.4)", () => {
     });
 });
 
+describe("board choose-player choice (CR 115.1a, Endurance #1207)", () => {
+    // Endurance's ETB owes a trigger-time player pick to its controller (p2 as
+    // the viewer here). The pick routes through the SAME nameplate → buffer path
+    // as the damage-target pick, so a `choose-player` choice must light up the
+    // candidate players too (zone is "graveyard" — never a battlefield pick).
+    const playerChoice = [
+        {
+            stackItemId: "end1",
+            step: 0,
+            choiceId: "endurance-etb",
+            playerId: "p2",
+            kind: "choose-player" as const,
+            zone: "graveyard" as const,
+            count: { min: 0, max: 1 },
+            prompt: "Choose up to one player.",
+            candidatePlayerIds: ["p1", "p2"],
+        },
+    ];
+
+    it("clicking an eligible player toggles the buffer (not selectTarget)", () => {
+        const spatialBuffer = makeBuffer();
+        const { container } = renderSpatial(
+            makePlayer("p1"),
+            { playerId: "p2", pendingChoices: playerChoice as never },
+            "top",
+            spatialBuffer
+        );
+        fireEvent.click(
+            container.querySelector('[data-arrow-anchor-player="p1"]')!
+        );
+        expect(spatialBuffer.toggle).toHaveBeenCalledWith("p1");
+        expect(selectTargetSpy).not.toHaveBeenCalled();
+    });
+
+    it("an ineligible player (not a candidate) is inert", () => {
+        const spatialBuffer = makeBuffer();
+        const onlyP2 = [
+            { ...playerChoice[0], candidatePlayerIds: ["p2"] },
+        ] as never;
+        const { container } = renderSpatial(
+            makePlayer("p1"),
+            { playerId: "p2", pendingChoices: onlyP2 },
+            "top",
+            spatialBuffer
+        );
+        fireEvent.click(
+            container.querySelector('[data-arrow-anchor-player="p1"]')!
+        );
+        expect(spatialBuffer.toggle).not.toHaveBeenCalled();
+    });
+});
+
 describe("board player life totals (#280)", () => {
     it("renders the life total and name for each player on the spatial board", () => {
         const opp = renderSpatial(

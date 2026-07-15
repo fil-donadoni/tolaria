@@ -2520,6 +2520,12 @@
         "firstSet": "ons"
     },
     {
+        "name": "Endurance",
+        "scryfallId": "eb0e0404-4846-4891-acfa-bd0951ecf9c6",
+        "oracleId": "c85d824b-c190-4d04-ab99-918ad0e6516c",
+        "firstSet": "mh2"
+    },
+    {
         "name": "Energy Flux",
         "scryfallId": "bd1f624b-e8f2-462f-838a-7cb9e8fda988",
         "oracleId": "7a756cd1-29a8-4edf-bb74-fbb5b4020022",

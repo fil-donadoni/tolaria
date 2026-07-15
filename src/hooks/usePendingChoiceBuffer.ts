@@ -19,6 +19,9 @@ export const CLIENT_BUFFERED_KINDS: ReadonlySet<PendingChoiceKind> =
         "mulligan-bottom",
         "choose-permanents",
         "choose-damage-target",
+        // trigger-time player pick (CR 115.1a — Endurance) — routed through the
+        // same client buffer as damage-target player picks.
+        "choose-player",
         "option-pick",
         // Recall (LEG) — graveyard pick of N cards to return to hand.
         "choose-graveyard-card",

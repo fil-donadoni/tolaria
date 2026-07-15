@@ -324,7 +324,13 @@ function buildOwedChoice(
     // the choice's `candidatePlayerIds` allow-list. Each player gets a neutral
     // value so the bot's worst-first default treats them like a low-value pick
     // (the bot is the opponent choosing; a minimal-legal pick suffices, ADR 0016).
-    if (head.kind === "choose-damage-target" && head.candidatePlayerIds) {
+    // `choose-player` (CR 115.1a — Endurance) is likewise a player pick with no
+    // zone members, so its candidates come entirely from `candidatePlayerIds`.
+    if (
+        (head.kind === "choose-damage-target" ||
+            head.kind === "choose-player") &&
+        head.candidatePlayerIds
+    ) {
         for (const pid of head.candidatePlayerIds) {
             candidates.push({ id: pid, value: 0 });
         }

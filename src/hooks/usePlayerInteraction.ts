@@ -101,7 +101,10 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
     const damageTargetChoice = pendingChoices?.[0];
     const isDamageTargetPickable =
         !!damageTargetChoice &&
-        damageTargetChoice.kind === "choose-damage-target" &&
+        // `choose-player` (CR 115.1a — Endurance's trigger-time player target)
+        // is picked through the SAME player-nameplate buffer path.
+        (damageTargetChoice.kind === "choose-damage-target" ||
+            damageTargetChoice.kind === "choose-player") &&
         damageTargetChoice.playerId === playerId &&
         (damageTargetChoice.candidatePlayerIds?.includes(player.id) ?? false);
     const isPlayerPicked =

@@ -230,6 +230,10 @@ function resolvePending(state: GameState): boolean {
         // Players aren't zone cards: ping the first legal player (minimal).
         const pid = head.candidatePlayerIds?.[0];
         ids = pid ? [pid] : [];
+    } else if (head.kind === "choose-player") {
+        // Trigger-time "up to one target player" (CR 115.1a, Endurance) —
+        // minimal-legal default (ADR 0016): decline (min is 0).
+        ids = [];
     } else if (head.kind === "option-pick") {
         // CR 614.12 — body-on-entry options aren't zone cards. Minimal-legal
         // default (ADR 0016): pick the first author-listed option.
