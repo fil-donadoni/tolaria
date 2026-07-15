@@ -10200,6 +10200,183 @@ describe("Effect Script Op: digToHand (CR 401.4, issue #984)", () => {
     });
 });
 
+describe("Effect Script Op: putBack (CR 401.4, issue #1046)", () => {
+    const handOf = (owner: "p1" | "p2", ids: string[]) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "hand",
+            })
+        );
+
+    it("suspends with a choose-hand-card PendingChoice over the whole hand, then moves the picks to the top in pick order (last picked ends up on top)", () => {
+        const id = registerScript("test-op-putback-order", [
+            { op: "putBack", player: "controller", count: 2 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: handOf("p1", ["h1", "h2", "h3"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-hand-card");
+        expect(head.zone).toBe("hand");
+        expect(head.playerId).toBe("p1");
+        expect(head.count).toBe(2);
+        // CR 608.3 — the spell stays on the stack while suspended.
+        expect(state.stack).toHaveLength(1);
+
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["h1", "h3"], // pick order: h1 first, h3 last
+        });
+        // h3 (picked last) lands literally on top; h1 second from top —
+        // moveHandCardToLibraryTop unshifts, so the pick order IS the
+        // resulting top-to-bottom order (CR 401 "in any order").
+        expect(state.players[0].library.map((c) => c.id)).toEqual([
+            "h3",
+            "h1",
+        ]);
+        expect(state.players[0].hand.map((c) => c.id)).toEqual(["h2"]);
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices).toBeUndefined();
+    });
+
+    it("clamps count to hand size and no-ops (never suspends) on an empty hand; a later Op still runs", () => {
+        const idClamp = registerScript("test-op-putback-clamp", [
+            { op: "putBack", player: "controller", count: 5 },
+        ]);
+        const clampState = makeState({
+            players: [
+                makePlayer("p1", { hand: handOf("p1", ["only"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(clampState, idClamp, "p1");
+        expect(resolveTopOfStack(clampState)).toBeNull();
+        expect(clampState.pendingChoices![0].count).toBe(1); // clamped
+
+        const idEmpty = registerScript("test-op-putback-empty", [
+            { op: "putBack", player: "controller", count: 2 },
+            { op: "gainLife", player: "controller", amount: 3 },
+        ]);
+        const emptyState = makeState();
+        pushSpell(emptyState, idEmpty, "p1");
+        expect(resolveTopOfStack(emptyState)).not.toBeNull(); // no suspension
+        expect(emptyState.pendingChoices ?? []).toHaveLength(0);
+        expect(emptyState.players[0].life).toBe(23); // the trailing Op ran
+    });
+
+    it("an Op before the putBack never re-runs on resume (CR 608.3 checkpoint) — the Brainstorm draw-replay bug", () => {
+        const id = registerScript("test-op-putback-checkpoint", [
+            { op: "draw", player: "controller", count: 3 },
+            { op: "putBack", player: "controller", count: 2 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [0, 1, 2, 3, 4, 5, 6].map((i) =>
+                        makeInstance(BEAR_ID, {
+                            id: `lib${i}`,
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        })
+                    ),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state); // draws 3, suspends on the put-back choice
+        expect(state.players[0].hand).toHaveLength(3);
+        const head = state.pendingChoices![0];
+        const drawn = state.players[0].hand.map((c) => c.id);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [drawn[0], drawn[1]],
+        });
+        // 3 drawn − 2 put back = 1 in hand. NOT 6 − 2 = 4 (the replay bug the
+        // old imperative Brainstorm `resolveSteps` split fixed by hand — the
+        // interpreter's own per-Op checkpoint now does it for free).
+        expect(state.players[0].hand).toHaveLength(1);
+    });
+
+    it("wire format: the caster keeps knowing the put-back cards on top, hidden from the opponent", () => {
+        const id = registerScript("test-op-putback-wire", [
+            { op: "putBack", player: "controller", count: 2 },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: handOf("p1", ["h1", "h2", "h3"]) }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state); // suspends
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["h1", "h3"],
+        });
+        const topTwo = state.players[0].library.slice(0, 2).map((c) => c.id);
+        expect(topTwo).toEqual(["h3", "h1"]);
+
+        // ADR 0026 — the caster keeps knowing the cards they put on top; they
+        // surface as the caster's contiguous top-of-library known run, in
+        // order, and are hidden from the opponent.
+        const casterView = projectPublicState(state, 1, "p1");
+        const known = casterView.players[0].library.known ?? [];
+        expect(known.map((k) => k.card.id)).toEqual(topTwo);
+        expect(known.map((k) => k.index)).toEqual([0, 1]);
+
+        const oppView = projectPublicState(state, 1, "p2");
+        expect(oppView.players[0].library.known ?? []).toEqual([]);
+    });
+
+    it("puts back a target player's hand cards, not the controller's", () => {
+        const id = registerScript(
+            "test-op-putback-target",
+            [{ op: "putBack", player: { target: 0 }, count: 1 }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: handOf("p2", ["a", "b"]) }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        // The chooser is p2 — whoever's hand it is picks their own card.
+        expect(head.playerId).toBe("p2");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["a"],
+        });
+        expect(state.players[1].library.map((c) => c.id)).toContain("a");
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["b"]);
+    });
+});
+
 describe("Effect Script count refinements: times multiplier + excludeSupertype (CR 122 / 205.4a, issue #999)", () => {
     // Price of Progress-shaped constructs — the `count` value gains a `times`
     // literal multiplier ("TWICE the number of …") and the `EffectCardFilter`

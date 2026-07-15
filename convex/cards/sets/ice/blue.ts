@@ -330,11 +330,16 @@ export const bindingGrasp: CardDefinition = {
     ],
 };
 // Brainstorm — "Draw three cards, then put two cards from your hand on top of
-// your library in any order." (CR 121.1 draw, CR 401 library top.) Composition:
-// drawCards(3) then a two-step resolution — the caster picks 2 hand cards (a
-// `choose-hand-card` requestChoice), each moved to the top of the library; the
-// pick order IS the top-of-library order (the first picked ends up second from
-// top, matching "in any order" since the player controls the sequence).
+// your library in any order." (CR 121.1 draw, CR 401.4 library top.) DSL
+// script (issue #1046): `draw` 3 then `putBack` 2 — `putBack` raises a
+// suspending `choose-hand-card` pick over the caster's hand and moves each
+// pick to the library top (last picked lands literally on top, preserving the
+// player's chosen sequence — CR 401 "in any order"). The interpreter's own
+// per-Op checkpoint (`runOpList`, issue #805/#806) is what used to require the
+// imperative `resolveSteps` split: it skips any Op before the checkpointed
+// position on a resume, so the `draw` Op here never re-runs when the
+// `putBack` choice suspends and resumes (CR 608.3) — no hand-rolled step
+// isolation needed anymore.
 export const brainstorm: CardDefinition = {
     id: "8d42d7aa-7f53-4cfc-842a-086aab2448d1",
     name: "Brainstorm",
@@ -343,39 +348,13 @@ export const brainstorm: CardDefinition = {
         "Draw three cards, then put two cards from your hand on top of your library in any order.",
     manaCost: { U: 1 },
     types: ["Instant"],
-    // protocol card: "draw N, then put N chosen hand cards on top of library in
-    // any order" is not expressible by the current Op vocabulary — there is no
-    // hand→library-top-with-player-ordering Op (a suspending pick that consumes
-    // its own result; distinct from moveZone / scryReorder / libraryLook, which
-    // don't move a chosen hand subset to the top). DSL migration is blocked on
-    // that Op (stop-and-issue). resolveSteps isolates the irreversible draw in
-    // step 0 so a resume for the putback choice never re-runs it — a single
-    // `resolve()` replays from the top on resume and draws 3 twice.
-    resolveSteps: [
-        (ctx: SpellContext) => {
-            ctx.drawCards(ctx.controller, 3);
-        },
-        (ctx: SpellContext) => {
-            const picks = ctx.requestChoice({
-                playerId: ctx.controller,
-                choiceId: "brainstorm-putback",
-                kind: "choose-hand-card",
-                zone: "hand",
-                count: 2,
-                prompt: "Choose two cards to put on top of your library (last picked ends up on top).",
-            });
-            if (picks === undefined) return; // suspended for the choice
-            // Move each pick to the top; the second pick lands on top last, so
-            // the player's chosen order is preserved (CR 401 "in any order").
-            for (const id of picks) {
-                ctx.moveHandCardToLibraryTop(ctx.controller, id);
-            }
-            // Private knowledge (ADR 0026): the caster chose these two cards and
-            // their order, so they keep knowing them on top — mark them known to
-            // the controller alone (NOT revealed to the opponent; Brainstorm has
-            // no reveal clause). They surface via `libraryPeek` for the caster
-            // until a shuffle clears the knowledge (CR 701.20).
-            ctx.markKnown(ctx.controller, picks, ctx.controller);
+    effects: [
+        { op: "draw", player: "controller", count: 3 },
+        {
+            op: "putBack",
+            player: "controller",
+            count: 2,
+            prompt: "Choose two cards to put on top of your library (last picked ends up on top).",
         },
     ],
 };

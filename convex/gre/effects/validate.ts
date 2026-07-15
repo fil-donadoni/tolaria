@@ -1366,6 +1366,19 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
         optional: { take: isEffectValue, prompt: isNonEmptyString },
     },
+    // CR 401.4 (issue #1046) — put N cards from a hand on top of a library,
+    // in the player's chosen order, through the suspending
+    // `choose-hand-card` choice + `moveHandCardToLibraryTop` primitive pair.
+    // `player` names whose hand/library; `count` is how many cards to put
+    // back (clamped to hand size). `prompt` is an optional choice header. No
+    // `bind` — the pick is consumed internally, not by a later Op.
+    putBack: {
+        required: {
+            player: isPlayerRef,
+            count: isEffectValue,
+        },
+        optional: { prompt: isNonEmptyString },
+    },
     // CR 615 (issue #845) — establish a damage-prevention shield. `mode`
     // discriminates the three folded prevention primitives, each with its own
     // required fields (enforced by `check`): `"next-n"` needs `to` (a damage
