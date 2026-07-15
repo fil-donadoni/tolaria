@@ -37,6 +37,7 @@ import {
     makeInstance,
     makePlayer,
     makeState,
+    resolveTriggerOrder,
 } from "../../cards/__tests__/setup";
 import { registerTokenDefinition } from "../../cards";
 import type { CardDefinition } from "../../cards/types";
@@ -166,6 +167,14 @@ describe("Evoke — CR 702.74a sacrifice-on-ETB", () => {
             const pending = state.pendingChoices;
             if (pending && pending.length > 0) {
                 const head = pending[0];
+                // CR 603.3b (ADR 0058) — Grief's ETB + evoke-sacrifice are two
+                // distinct simultaneous triggers, so the flush suspends on a
+                // `trigger-order` choice with the batch held off-stack. Land it
+                // (collection order) so the triggers reach the stack, then loop.
+                if (head.kind === "trigger-order") {
+                    resolveTriggerOrder(state);
+                    continue;
+                }
                 const item = state.stack.find(
                     (s) => s.id === head.stackItemId
                 ) as StackItem;

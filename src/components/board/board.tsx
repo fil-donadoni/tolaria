@@ -350,6 +350,7 @@ export default function Board({
                 pendingActivation,
                 pendingTarget,
                 pendingChoices,
+                pendingTriggerBatch: state.pendingTriggerBatch,
                 autoPassPlayers,
                 queuedEndTurn,
                 combat,

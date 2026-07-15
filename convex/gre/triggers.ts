@@ -5,10 +5,11 @@
 // ability, event) match. Caller appends them to the stack and restarts
 // priority from the active player.
 //
-// APNAP ordering (CR 603.3b) is out of scope for now — this implementation
-// iterates the active player's permanents first, then the opponent's, in
-// battlefield-declaration order. That's deterministic but not the rules-
-// correct ordering for controlled simultaneous triggers.
+// APNAP ordering of SIMULTANEOUS same-controller triggers (CR 603.3b, ADR 0058)
+// is handled by `placeTriggersOnStack` below: `collectTriggers` builds the batch
+// in collection order (active player's permanents first, then opponents', in
+// battlefield-declaration order), and the placement helper lets each controller
+// order their own slice before the batch lands on the stack.
 
 import type { GameEvent, StateCheckEvent } from "../cards/types";
 import { tryGetDefinition } from "../cards";
@@ -16,6 +17,7 @@ import type {
     CardInstanceState,
     DelayedTriggerInstance,
     GameState,
+    PendingChoice,
     StackItem,
 } from "./state";
 import { getPlayer, allocInstanceId } from "./state";
@@ -356,4 +358,118 @@ export function applyStateTriggers(state: GameState): boolean {
     state.priorityPlayerId = state.activePlayerId;
     state.passCount = 0;
     return true;
+}
+
+/** Sentinel `stackItemId` on a `trigger-order` PendingChoice (CR 603.3b, ADR
+ *  0058). The ordering decision happens BEFORE anything is on the stack, so —
+ *  like `mulligan-bottom`'s `"mulligan"` sentinel — there is no owning stack
+ *  item; this constant keys the choice's identity instead. */
+export const TRIGGER_BATCH_STACK_ID = "trigger-batch";
+
+/** True when a StackItem is a PLAIN card triggered ability — the only kind ADR
+ *  0058 puts to a user ordering decision. Delayed triggers (Battle Cry
+ *  repeaters, leave-watch triggers), Madness reflexive triggers and Storm
+ *  cast-trigger snapshots are engine-internal firings the engine places in
+ *  scheduling order; they are pushed as collected, never prompted (matching
+ *  pre-ADR-0058 behavior). */
+function isPlainTrigger(item: StackItem): boolean {
+    return (
+        !item.madnessTrigger &&
+        !item.delayedTriggerId &&
+        !item.delayedEffects &&
+        !item.stormSnapshot &&
+        !!item.triggeredAbilityId
+    );
+}
+
+/** CR 603.3d — the ADR-0058 identity key for one plain trigger StackItem. Two
+ *  items share a key iff they are the SAME printed triggered ability of the SAME
+ *  card. A triggered ability in this engine chooses its targets/modes at
+ *  RESOLUTION (there is no announcement-time `targetRequirement` on
+ *  `TriggeredAbility`), so two identical copies are outcome-interchangeable
+ *  regardless of targets — swapping them has one meaningful result (ADR 0003). */
+function triggerOrderKey(item: StackItem): string {
+    const cardId = (item.card as { id?: string }).id ?? "";
+    return `${cardId}::${item.triggeredAbilityId}`;
+}
+
+/** Whether a controller's ≥2-trigger slice requires a user ordering decision
+ *  (CR 603.3b). It does NOT when: any member is a non-plain (delayed / Madness /
+ *  Storm) trigger — those never prompt — or every member is the SAME printed
+ *  ability (identical copies auto-order in collection order, ADR 0003). */
+function sliceNeedsOrdering(slice: StackItem[]): boolean {
+    if (slice.length < 2) return false;
+    if (!slice.every(isPlainTrigger)) return false;
+    const key = triggerOrderKey(slice[0]);
+    return !slice.every((t) => triggerOrderKey(t) === key);
+}
+
+/** CR 603.3b (ADR 0058) — place a freshly-collected batch of triggered-ability
+ *  StackItems on the stack, honoring each controller's right to order their own
+ *  simultaneous triggers. `triggers` is the collection-order (bottom-first,
+ *  APNAP-grouped) output of `collectTriggers`, already filtered of mana-ability
+ *  triggers (those never touch the stack, CR 605.4).
+ *
+ *  Returns `true` (LANDED) when the whole batch was pushed onto the stack right
+ *  now — either it was empty of ordering decisions or every ≥2 slice auto-orders
+ *  (ADR 0003). The caller then grants priority as it did before ADR 0058.
+ *
+ *  Returns `false` (SUSPENDED, or empty) when at least one controller must order
+ *  ≥2 distinct triggers: the batch is stashed off-stack on
+ *  `state.pendingTriggerBatch`, one `trigger-order` PendingChoice is enqueued per
+ *  such controller (APNAP — active player first, so their triggers end up on the
+ *  bottom and resolve last), priority is handed to the head chooser, and nothing
+ *  is on the stack yet. The batch lands in one shot once the last ordering is
+ *  submitted (`applyPendingChoiceSubmit`). A `false` caller must NOT grant
+ *  priority — the helper already parked it on the chooser. */
+export function placeTriggersOnStack(
+    state: GameState,
+    triggers: StackItem[]
+): boolean {
+    if (triggers.length === 0) return false;
+
+    // APNAP controller order: active player first, then the others in seat order.
+    const apnap = [
+        state.activePlayerId,
+        ...state.players
+            .map((p) => p.id)
+            .filter((id) => id !== state.activePlayerId),
+    ];
+
+    const choices: PendingChoice[] = [];
+    for (const playerId of apnap) {
+        const slice = triggers.filter((t) => t.controllerId === playerId);
+        // No ordering owed: a single trigger, identical copies (auto-ordered,
+        // ADR 0003), or a slice with any engine-internal (delayed / Madness /
+        // Storm) trigger — all pushed in collection order.
+        if (!sliceNeedsOrdering(slice)) continue;
+        choices.push({
+            stackItemId: TRIGGER_BATCH_STACK_ID,
+            step: 0,
+            choiceId: `trigger-order-${playerId}`,
+            playerId,
+            kind: "trigger-order",
+            // This controller's slice in collection (bottom-first) order. The
+            // submission is a permutation of these ids, TOPMOST-first (index 0 =
+            // top of stack = resolves first).
+            candidateIds: slice.map((t) => t.id),
+            count: slice.length,
+            prompt: "Order your triggered abilities on the stack — rightmost resolves first (CR 603.3b).",
+        });
+    }
+
+    if (choices.length === 0) {
+        // No ordering owed: push in collection order (auto-ordered slices ride
+        // along unchanged), exactly as the pre-ADR-0058 engine did.
+        state.stack.push(...triggers);
+        return true;
+    }
+
+    // Suspend on the ordering choice(s). Hold the whole batch off-stack; the
+    // final APNAP push runs when the last `trigger-order` choice clears.
+    state.pendingTriggerBatch = triggers;
+    state.pendingChoices = [...(state.pendingChoices ?? []), ...choices];
+    state.priorityPlayerId = state.pendingChoices[0].playerId;
+    state.passCount = 0;
+    return false;
 }

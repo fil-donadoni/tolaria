@@ -25,6 +25,7 @@ import CardNameInput from "~/components/board/card-name-input";
 import CardImage from "~/components/cards/card-image";
 import RandomRevealOverlay from "~/components/board/random-reveal-overlay";
 import MinimizeChoiceButton from "~/components/board/minimize-choice-button";
+import TriggerOrderPrompt from "~/components/board/trigger-order-prompt";
 
 /** Banner shown at the top-center of the board while a mid-resolution
  *  player choice is active (CR 608.2). Displays the prompt and, for the
@@ -179,6 +180,13 @@ export default function PendingChoicePrompt({
         choice.kind === "reorder-library"
     )
         return null;
+
+    // trigger-order (CR 603.3b, ADR 0058) — the chooser owns the same full-screen
+    // drag strip (order-only mode) to order their simultaneous triggers on the
+    // stack. The non-chooser falls through to the generic "Waiting for X" banner.
+    if (choice.kind === "trigger-order" && isChooser) {
+        return <TriggerOrderPrompt choice={choice} gameId={gameId} />;
+    }
 
     // A `choose-hand-card` pick from ANOTHER player's hand (Thoughtseize /
     // Duress / Hymn to Tourach) owns its own modal picker (`HandCardPick`,

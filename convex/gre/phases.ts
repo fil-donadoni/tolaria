@@ -48,7 +48,11 @@ import {
 } from "./layers";
 import { isProtectedFromSource } from "./protection";
 import { isCombatDamagePreventedFromSource } from "./combatDamagePrevention";
-import { collectTriggers, buildDelayedTriggerStackItem } from "./triggers";
+import {
+    collectTriggers,
+    buildDelayedTriggerStackItem,
+    placeTriggersOnStack,
+} from "./triggers";
 import { hasAnyLegalBlock, getRequiredAttackerIds } from "./combat";
 import {
     getEffectiveBlockGraph,
@@ -678,9 +682,11 @@ export function untapStep(state: GameState): void {
     if (untapEvents.length > 0) {
         const rest = pending.filter((e) => e.type !== "PERMANENT_UNTAPPED");
         state.pendingEvents = rest.length > 0 ? rest : undefined;
-        for (const t of collectTriggers(state, untapEvents)) {
-            state.stack.push(t);
-        }
+        // CR 603.3b (ADR 0058) — order same-controller simultaneous triggers.
+        // UNTAP grants no priority: on LANDED the triggers just sit until the
+        // upkeep window (helper leaves priority untouched); on the rare SUSPENDED
+        // path the helper parks priority on the chooser.
+        placeTriggersOnStack(state, collectTriggers(state, untapEvents));
     }
 }
 
@@ -1393,9 +1399,10 @@ export function applyAllCombatDamage(
     // not strictly CR-correct for LTB/"when ~ dies" triggers, but those are
     // out of scope here.
     const triggers = collectTriggers(state, events);
-    if (triggers.length > 0) {
-        state.stack.push(...triggers);
-        // Active player gets priority again with triggers on the stack (CR 117.3c).
+    // CR 603.3b (ADR 0058) — LANDED: active player gets priority again with the
+    // triggers on the stack (CR 117.3c). SUSPENDED: the helper parked priority
+    // on the ordering chooser.
+    if (placeTriggersOnStack(state, triggers)) {
         state.priorityPlayerId = state.activePlayerId;
         state.passCount = 0;
     }
@@ -1413,10 +1420,12 @@ function firePhaseBeginTriggers(state: GameState): void {
         activePlayerId: state.activePlayerId,
     };
     const triggers = collectTriggers(state, [event]);
-    if (triggers.length === 0) return;
-    state.stack.push(...triggers);
-    state.priorityPlayerId = state.activePlayerId;
-    state.passCount = 0;
+    // CR 603.3b (ADR 0058) — order same-controller simultaneous phase-begin
+    // triggers. No-op on empty; SUSPENDED parks priority on the chooser.
+    if (placeTriggersOnStack(state, triggers)) {
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+    }
 }
 
 /** Dequeue delayed triggers matching `timing`, push them on the stack as
@@ -1512,10 +1521,8 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
     }
     if (events.length === 0) return;
     const triggers = collectTriggers(state, events);
-    for (const t of triggers) {
-        state.stack.push(t);
-    }
-    if (triggers.length > 0) {
+    // CR 603.3b (ADR 0058) — order same-controller simultaneous block triggers.
+    if (placeTriggersOnStack(state, triggers)) {
         state.priorityPlayerId = state.activePlayerId;
         state.passCount = 0;
     }
@@ -1533,10 +1540,8 @@ export function emitAttackersDeclaredEvents(state: GameState): void {
         attackerIds: [...state.combat.attackerIds],
     };
     const triggers = collectTriggers(state, [event]);
-    for (const t of triggers) {
-        state.stack.push(t);
-    }
-    if (triggers.length > 0) {
+    // CR 603.3b (ADR 0058) — order same-controller simultaneous attack triggers.
+    if (placeTriggersOnStack(state, triggers)) {
         state.priorityPlayerId = state.activePlayerId;
         state.passCount = 0;
     }
@@ -1858,13 +1863,17 @@ export function finalizeCleanupDiscard(
     const cleanupEvents = flushPendingEvents(state);
     const cleanupTriggers =
         cleanupEvents.length > 0 ? collectTriggers(state, cleanupEvents) : [];
-    if (cleanupTriggers.length > 0) {
-        state.stack.push(...cleanupTriggers);
+    // CR 603.3b (ADR 0058) — LANDED: hand the active player priority and stay in
+    // CLEANUP so the owner gets a real window (CR 514.3). SUSPENDED (a rare
+    // two-Madness-discard ordering): the helper parked priority on the chooser;
+    // stay in CLEANUP until the ordered batch lands.
+    if (placeTriggersOnStack(state, cleanupTriggers)) {
         state.priorityPlayerId = state.activePlayerId;
         state.passCount = 0;
         drainAutoPasses(state);
         return;
     }
+    if (state.pendingTriggerBatch) return;
 
     // CLEANUP is an auto-phase. Leaving it lands at the next turn's UNTAP →
     // UPKEEP via the normal auto-phase recursion (CR 500.1). Drain any

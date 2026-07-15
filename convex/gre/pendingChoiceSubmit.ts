@@ -567,6 +567,56 @@ export function applyPendingChoiceSubmit(
         return;
     }
 
+    // --- Trigger-order (CR 603.3b, ADR 0058): order this controller's slice of
+    // the off-stack simultaneous-trigger batch. The submission is a permutation
+    // of `candidateIds` (the slice), TOPMOST-first (index 0 = top of stack =
+    // resolves first). Reorder the slice within `pendingTriggerBatch`; when the
+    // last `trigger-order` choice clears, push the whole batch onto the stack in
+    // one shot (bottom-first, APNAP-grouped) and hand priority to the active
+    // player (CR 117.3c). Held off-stack until then, so the stack is never
+    // observed half-ordered. ---
+    if (head.kind === "trigger-order") {
+        const sliceIds = head.candidateIds ?? [];
+        const submitted = args.cardInstanceIds;
+        if (
+            submitted.length !== sliceIds.length ||
+            new Set(submitted).size !== submitted.length ||
+            !submitted.every((id) => sliceIds.includes(id))
+        ) {
+            throw new Error(
+                "Trigger order must be a permutation of your triggers"
+            );
+        }
+        const batch = state.pendingTriggerBatch ?? [];
+        // UI submits topmost-first; the batch stores bottom-first (resolve-last
+        // first). Reverse to slot this player's slice back in stack order.
+        const bottomFirst = [...submitted].reverse();
+        const inSlice = new Set(sliceIds);
+        const byId = new Map(batch.map((it) => [it.id, it]));
+        const next = [...bottomFirst];
+        state.pendingTriggerBatch = batch.map((it) =>
+            inSlice.has(it.id) ? byId.get(next.shift()!)! : it
+        );
+
+        queue.shift();
+        const nextHead = queue[0];
+        if (nextHead && nextHead.kind === "trigger-order") {
+            // Another controller still owes an ordering (APNAP): stay suspended.
+            state.pendingChoices = queue;
+            state.priorityPlayerId = nextHead.playerId;
+            return;
+        }
+        // Last ordering in: land the whole batch atomically, then resume.
+        state.pendingChoices = queue.length > 0 ? queue : undefined;
+        const finalBatch = state.pendingTriggerBatch ?? [];
+        state.pendingTriggerBatch = undefined;
+        state.stack.push(...finalBatch);
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+        checkStateBasedActions(state);
+        return;
+    }
+
     const zoneOwner = getPlayer(state, head.zoneOwnerId ?? args.playerId);
 
     // --- Zone-level validation: verify every id exists in the declared zone ---

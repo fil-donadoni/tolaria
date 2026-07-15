@@ -902,6 +902,11 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "pendingActivation",
     "pendingTarget",
     "pendingChoices",
+    // CR 603.3b / ADR 0058 — the off-stack simultaneous-trigger batch held while
+    // its controllers order it. A pending `trigger-order` choice is a stable save
+    // point, so the batch must survive a DB round-trip (round-trips as raw JSON —
+    // its StackItems already carry `card: { id }`, no fat defs).
+    "pendingTriggerBatch",
     "pendingReveals",
     "autoPassPlayers",
     "singleShotAutoPass",

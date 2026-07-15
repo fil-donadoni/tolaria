@@ -86,7 +86,7 @@ import {
     describeDamageSource,
     graveyardDestinationFor,
 } from "./replacements";
-import { collectTriggers } from "./triggers";
+import { collectTriggers, placeTriggersOnStack } from "./triggers";
 import { getColorsFromCost } from "../cards/colors";
 import {
     applyCopy,
@@ -2073,6 +2073,15 @@ export type GameState = {
      *  front entry is active. Non-empty blocks priority and further actions —
      *  the engine is suspended between resolve steps of the top stack item. */
     pendingChoices?: PendingChoice[];
+    /** CR 603.3b / ADR 0058 — simultaneous triggered abilities collected but not
+     *  yet placed on the stack, held off-stack while their controllers order
+     *  them. Non-empty ONLY while at least one `trigger-order` PendingChoice is
+     *  active (itself a stable save point, so it must survive a DB round-trip).
+     *  Stored bottom-first, APNAP-grouped (active player's slice first) exactly
+     *  as `collectTriggers` produced it; when the last ordering clears, the whole
+     *  batch is pushed onto the stack in one shot and the field is cleared.
+     *  Undefined at every fully-resolved point. */
+    pendingTriggerBatch?: StackItem[];
     /** ADR 0026 (Reveal dialog) — one-shot notifications produced when a pure
      *  look/peek/reveal effect resolves (Mishra's Bauble, Gitaxian Probe, …).
      *  Each entry drives a transient client dialog that shows the revealed
@@ -2942,9 +2951,14 @@ export function processPendingActionTriggers(state: GameState): void {
         }
     }
     if (stackTriggers.length === 0) return;
-    state.stack.push(...stackTriggers);
-    state.priorityPlayerId = state.activePlayerId;
-    state.passCount = 0;
+    // CR 603.3b (ADR 0058) — route through the shared placement helper so each
+    // controller can order their own simultaneous triggers. LANDED → grant
+    // priority to the active player as before; SUSPENDED → the helper already
+    // parked priority on the first chooser and stashed the batch off-stack.
+    if (placeTriggersOnStack(state, stackTriggers)) {
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+    }
 }
 
 /** CR 605.4 — resolve ONLY the triggered MANA abilities (Wild Growth, Mana

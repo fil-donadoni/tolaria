@@ -111,8 +111,8 @@ describe("Storm copy-retarget — copy count is bounded regardless of target cho
     it("DIFFERENT target each copy -> still exactly 3 prompts (repro)", () => {
         const state = setup();
         const picks = ["p1", "p2", "p1", "p2", "p1", "p2"];
-        expect(driveAndCountPrompts(state, (n) => picks[n % picks.length])).toBe(
-            3
-        );
+        expect(
+            driveAndCountPrompts(state, (n) => picks[n % picks.length])
+        ).toBe(3);
     });
 });

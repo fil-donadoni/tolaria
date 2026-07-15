@@ -592,6 +592,14 @@ export function chooseResolution(choice: OwedChoice): string[] {
         case "pick-pile":
             return candidates.slice(0, min).map((c) => c.id);
 
+        // CR 603.3b (ADR 0058) — order this bot's simultaneous-trigger slice.
+        // `candidates` are the slice ids (appended in `buildOwedChoice`); `min`
+        // equals the whole slice (count is fixed), so this returns every id in
+        // collection order — a legal permutation. Self-ordering own triggers is
+        // tactically immaterial, so the flat default suffices (ADR 0058).
+        case "trigger-order":
+            return candidates.slice(0, min).map((c) => c.id);
+
         // `may-pay` is a yes/no answer routed through `submitMayPay`
         // (`decideBotAction` handles it before reaching here), and
         // `mulligan-bottom` has its own pre-game branch. Reaching either via

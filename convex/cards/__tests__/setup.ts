@@ -14,6 +14,7 @@ import {
     assertExpectedInputCoherent,
     refreshExpectedInput,
 } from "../../gre/expectedInput";
+import { applyPendingChoiceSubmit } from "../../gre/pendingChoiceSubmit";
 
 /** Builds a CardInstanceState from a registered card id. Honors overrides.
  *  The engine persists only the slim `{ id }` reference in `card.card`;
@@ -106,4 +107,23 @@ export function pushSpell(
     };
     state.stack.push(item);
     return item;
+}
+
+/** CR 603.3b (ADR 0058) — when two or more DISTINCT triggered abilities under one
+ *  controller trigger from the same event, the engine suspends on a
+ *  `trigger-order` PendingChoice and holds the batch off-stack. Tests that assert
+ *  on the individual triggers (not the ordering itself) call this to submit the
+ *  ordering in collection order, landing the whole batch on the stack. */
+export function resolveTriggerOrder(state: GameState): void {
+    let guard = 0;
+    while (state.pendingChoices?.[0]?.kind === "trigger-order" && guard++ < 8) {
+        const head = state.pendingChoices[0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: head.candidateIds ?? [],
+        });
+    }
 }

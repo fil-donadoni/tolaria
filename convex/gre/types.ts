@@ -148,7 +148,21 @@ export type YesNoChoiceKind = "may-pay";
  *  `submitNameCard`); the entering land's instance id rides on
  *  `PendingChoice.landInstanceId`. */
 export type LandEntryChoiceKind = "land-entry-tapped";
-export type OrderChoiceKind = "mulligan-bottom";
+/** Order family — the chooser determines an ORDER over a set (no zone move, no
+ *  subset selection: every candidate is placed, only the sequence is chosen).
+ *  Two members today:
+ *   - `mulligan-bottom` (CR 103.5): order the N cards bottomed after a London
+ *     mulligan (first picked → topmost of the bottomed group).
+ *   - `trigger-order` (CR 603.3b, ADR 0058): when a player controls two or more
+ *     triggered abilities that triggered from the SAME game event, they choose
+ *     the order those triggers go on the stack. The candidate triggers are held
+ *     off-stack in `GameState.pendingTriggerBatch` while the choice is pending;
+ *     `candidateIds` carries this player's slice (collection / bottom-first
+ *     order). The submission is a permutation of that slice, TOPMOST-first
+ *     (index 0 = top of stack = resolves first). Auto-ordered (no prompt) when a
+ *     slice is ≥2 copies of the same printed target-less ability — swapping
+ *     outcome-identical instances has one meaningful result (ADR 0003). */
+export type OrderChoiceKind = "mulligan-bottom" | "trigger-order";
 /** Pick exactly one abstract option from a precomputed list (CR 614.12 /
  *  701.x "as it enters, choose …" body selection). Unlike `ZonePickKind` the
  *  candidates are NOT zone members — they are author-supplied `{id,label}`

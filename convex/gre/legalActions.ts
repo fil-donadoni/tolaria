@@ -332,6 +332,14 @@ function choiceActions(
         return (["A", "B"] as const).map((id) => submit([id]));
     }
 
+    // CR 603.3b (ADR 0058) — trigger-order: a single canonical ordering (the
+    // slice in collection order). Any permutation is legal for the human path,
+    // but self-ordering own triggers is tactically immaterial, so the move space
+    // stays flat — one action, not N! — to preserve ISMCTS budget (ADR 0058).
+    if (head.kind === "trigger-order") {
+        return [submit(head.candidateIds ?? [])];
+    }
+
     // CR 115.4 — "any target" damage-target pick: one of the damageable
     // permanents (`candidateIds`) or players (`candidatePlayerIds`).
     if (head.kind === "choose-damage-target") {

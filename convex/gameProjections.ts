@@ -164,22 +164,26 @@ export type SlimPhasedOutBundle = Omit<PhasedOutBundle, "cards"> & {
 
 export type PublicGameState = Omit<
     GameState,
-    "players" | "stack" | "phasedOut"
+    "players" | "stack" | "phasedOut" | "pendingTriggerBatch"
 > & {
     seq: number;
     players: PublicPlayer[];
     stack: SlimStackItem[];
     phasedOut?: SlimPhasedOutBundle[];
+    // CR 603.3b / ADR 0058 — off-stack simultaneous-trigger batch, slimmed.
+    pendingTriggerBatch?: SlimStackItem[];
 };
 
 export type FullGameState = Omit<
     GameState,
-    "players" | "stack" | "phasedOut"
+    "players" | "stack" | "phasedOut" | "pendingTriggerBatch"
 > & {
     seq: number;
     players: FullPlayer[];
     stack: SlimStackItem[];
     phasedOut?: SlimPhasedOutBundle[];
+    // CR 603.3b / ADR 0058 — off-stack simultaneous-trigger batch, slimmed.
+    pendingTriggerBatch?: SlimStackItem[];
 };
 
 function slimCard<
@@ -682,6 +686,11 @@ export function projectPublicState(
         seq,
         players,
         stack: state.stack.map(slimCard),
+        // CR 603.3b / ADR 0058 — the off-stack simultaneous-trigger batch is
+        // public (the triggers are going on the stack); slim it like `stack` so
+        // the ordering picker can render card art without the raw `...state`
+        // spread leaking fat card defs.
+        pendingTriggerBatch: state.pendingTriggerBatch?.map(slimCard),
         // CR 702.26 — phased-out permanents are public (set aside face-up), so
         // project them for the wire (the raw `...state` spread would leak the
         // fat card defs). Per-card face-down hiding still applies via
@@ -793,6 +802,10 @@ export function projectFullState(
         seq,
         players,
         stack: state.stack.map(slimCard),
+        // CR 603.3b / ADR 0058 — slim the off-stack simultaneous-trigger batch so
+        // the raw `...state` spread never leaks fat card defs (mirror of the
+        // public projection).
+        pendingTriggerBatch: state.pendingTriggerBatch?.map(slimCard),
         // CR 702.26 — full debug view reveals everything; slim the phased-out
         // bundle cards to match the battlefield treatment (line above).
         phasedOut: state.phasedOut?.map((b) => ({

@@ -345,6 +345,16 @@ function buildOwedChoice(
     if (head.kind === "pick-pile") {
         candidates.push({ id: "A", value: 0 }, { id: "B", value: 0 });
     }
+    // CR 603.3b (ADR 0058) — a `trigger-order` choice orders this bot's slice of
+    // the off-stack trigger batch. The candidates aren't zone members; append
+    // them from `candidateIds` (neutral value). The default policy emits the
+    // slice in collection order — the bot's self-ordering is tactically
+    // immaterial, so any legal permutation suffices (ADR 0058).
+    if (head.kind === "trigger-order" && head.candidateIds) {
+        for (const id of head.candidateIds) {
+            candidates.push({ id, value: 0 });
+        }
+    }
     // CR 118 — for a threshold-mode may-pay sacrifice (Phyrexian Dreadnought),
     // drop the ability's own source from the pool the bot reasons over so the
     // greedy never self-sacrifices the permanent the payment keeps. The same

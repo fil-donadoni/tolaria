@@ -785,4 +785,28 @@ describe("decideBotAction resolves an owed mid-resolution choice (ADR 0016)", ()
         // No decision — the bot just acks to resume (like the human auto-ack).
         expect(action).toEqual({ kind: "random-reveal-ack" });
     });
+
+    it("orders a simultaneous-trigger batch it controls (CR 603.3b, ADR 0058)", () => {
+        const action = decideBotAction(
+            view({
+                priorityPlayerId: BOT,
+                owedChoice: {
+                    kind: "trigger-order",
+                    min: 2,
+                    max: 2,
+                    candidates: [
+                        { id: "t1", value: 0 },
+                        { id: "t2", value: 0 },
+                    ],
+                },
+            })
+        );
+        // Self-ordering own triggers is tactically immaterial (ADR 0058): the
+        // bot emits the full slice in collection order — a legal permutation
+        // routed through the generic resolution-choice path.
+        expect(action).toEqual({
+            kind: "resolution-choice",
+            cardInstanceIds: ["t1", "t2"],
+        });
+    });
 });

@@ -235,6 +235,11 @@ function resolvePending(state: GameState): boolean {
         // default (ADR 0016): pick the first author-listed option.
         const optId = head.options?.[0]?.id;
         ids = optId ? [optId] : [];
+    } else if (head.kind === "trigger-order") {
+        // CR 603.3b (ADR 0058) — order the bot's simultaneous-trigger slice. The
+        // candidates aren't zone cards; collection order (`candidateIds`) is a
+        // legal canonical permutation, and self-ordering is immaterial (ADR 0058).
+        ids = head.candidateIds ?? [];
     } else {
         const owed: OwedChoice = {
             kind: head.kind,

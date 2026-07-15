@@ -67,6 +67,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveTriggerOrder,
 } from "../../../__tests__/setup";
 import {
     isCreature,
@@ -1077,6 +1078,11 @@ describe("Tablet of Epityr (may pay {1} → gain 1 on your artifact to graveyard
         const { state } = setup();
         removePermanentTo(state, "art", "graveyard");
         processPendingActionTriggers(state);
+        // CR 603.3b (ADR 0058) — Tablet's trigger + the Onulet dies-trigger are
+        // two distinct simultaneous triggers under one controller, so the flush
+        // suspends on a `trigger-order` choice; land the batch to put both on the
+        // stack before isolating the Tablet trigger.
+        resolveTriggerOrder(state);
         // Tablet's may-pay trigger is on the stack (a CREATURE_DIED trigger
         // for Onulet may also be present; resolve the Tablet trigger).
         const tabletTrig = state.stack.find(
@@ -3350,6 +3356,10 @@ describe("Urza's Miter (non-sacrifice artifact to graveyard → may pay {3} draw
         // Destruction routes through removePermanentTo with no cause.
         removePermanentTo(state, "art", "graveyard");
         processPendingActionTriggers(state);
+        // CR 603.3b (ADR 0058) — the Miter draw-trigger co-fires with the
+        // destroyed artifact's own dies-trigger; land the resulting ordering
+        // batch so both reach the stack before isolating the Miter trigger.
+        resolveTriggerOrder(state);
         const trig = state.stack.find(
             (s) => s.triggeredAbilityId === "urzas-miter-draw"
         );

@@ -39,6 +39,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     "land-entry-tapped": "Pay 2 life",
     // order family
     "mulligan-bottom": "Mulligan",
+    // simultaneous-trigger ordering (CR 603.3b, ADR 0058)
+    "trigger-order": "Order triggers",
     // option family
     "option-pick": "Choose",
     // name-card family (CR 202.3)

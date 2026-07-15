@@ -2,7 +2,11 @@
 // the branch selectTarget invokes) increment spellsCastThisTurn exactly once
 // for a targeted spell? A 2x here would explain storm making double copies.
 import { describe, it, expect } from "vitest";
-import { makeState, makePlayer, makeInstance } from "../../cards/__tests__/setup";
+import {
+    makeState,
+    makePlayer,
+    makeInstance,
+} from "../../cards/__tests__/setup";
 import { finalizeTargetSelection } from "../../game";
 import { lightningBolt } from "../../cards/sets/lea";
 import type { GameState, PendingTarget } from "../state";

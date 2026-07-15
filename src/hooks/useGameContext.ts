@@ -24,6 +24,10 @@ type GameContext = {
     pendingActivation?: PendingActivation;
     pendingTarget?: PendingTarget;
     pendingChoices?: PendingChoice[];
+    /** CR 603.3b / ADR 0058 — the off-stack simultaneous-trigger batch (slimmed),
+     *  non-empty only while a `trigger-order` choice is active. The ordering
+     *  picker maps its candidate ids to card art through this list. */
+    pendingTriggerBatch?: CardInstance[];
     autoPassPlayers?: string[];
     queuedEndTurn?: string[];
     combat?: Combat;

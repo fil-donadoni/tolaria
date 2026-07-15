@@ -426,6 +426,13 @@ describe("Escape capability (CR 702.138)", () => {
             };
             state.stack.push(stackItem);
             resolveTopOfStack(state);
+            // ADR 0058 — Uro's two distinct ETB triggers (value + sacrifice) now
+            // raise a `trigger-order` choice at the cast-time flush. These unit
+            // tests isolate a SINGLE trigger by re-collecting manually below, so
+            // discard the cast's off-stack batch + ordering prompt for a clean
+            // slate.
+            state.pendingChoices = undefined;
+            state.pendingTriggerBatch = undefined;
             return state;
         }
 
