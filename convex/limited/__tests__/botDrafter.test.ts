@@ -18,8 +18,10 @@ import { manaValue } from "../../gre/constants";
 import {
     chooseBotPick,
     scoreCandidate,
+    scoreCandidateWithRating,
     type CardEvalMeta,
     type GetCardEvalMeta,
+    type GetPickRating,
 } from "../botDrafter";
 import {
     runBotAutoPicks,
@@ -32,6 +34,7 @@ import {
     type ResolveCardMeta,
 } from "../eventLogic";
 import type { DraftPackCard, LimitedPoolCard } from "../eventTypes";
+import { getPickRatingByCardId } from "../pickRatings";
 import { getBoosterConfig } from "../registry";
 
 /** Builds a real `CardEvalMeta` from a LEA card name — the card-quality
@@ -271,5 +274,223 @@ describe("scripted 8-seat all-bot draft — plausibly coherent 2-color pools (PR
             expect(coloredCount).toBeGreaterThan(0);
             expect(topTwo / coloredCount).toBeGreaterThan(0.6);
         }
+    });
+});
+
+// --- Pick Rating layer (issue #1117, ADR 0054/0055) -------------------------
+
+describe("scoreCandidateWithRating (issue #1117 acceptance: 'scoring layers verified')", () => {
+    it("with a null rating, reproduces scoreCandidate's own value exactly (unrated fallback)", () => {
+        expect(scoreCandidateWithRating(wurm, [], null)).toBe(
+            scoreCandidate(wurm, [])
+        );
+        expect(scoreCandidateWithRating(bears, [bears, wurm], null)).toBe(
+            scoreCandidate(bears, [bears, wurm])
+        );
+    });
+
+    it("a rated card beats a heuristically-favored lower-rated card (rating DOMINATES)", () => {
+        // Craw Wurm strictly outscores Grizzly Bears on the heuristic alone
+        // (bigger body, same color/rarity, empty pool) — see the "card
+        // quality" describe block above. A low rating on the wurm and a high
+        // rating on the bears must flip that ordering.
+        const wurmLowRated = scoreCandidateWithRating(wurm, [], 1);
+        const bearsHighRated = scoreCandidateWithRating(bears, [], 5);
+        expect(scoreCandidate(wurm, [])).toBeGreaterThan(
+            scoreCandidate(bears, [])
+        );
+        expect(bearsHighRated).toBeGreaterThan(wurmLowRated);
+    });
+
+    it("equally-rated cards fall back to the heuristic as the tie-breaker", () => {
+        const wurmRated3 = scoreCandidateWithRating(wurm, [], 3);
+        const bearsRated3 = scoreCandidateWithRating(bears, [], 3);
+        // The rating contribution is identical for both (same rating), so the
+        // ordering — and even the GAP — must match the pure heuristic's.
+        expect(wurmRated3 - bearsRated3).toBeCloseTo(
+            scoreCandidate(wurm, []) - scoreCandidate(bears, []),
+            10
+        );
+        expect(wurmRated3).toBeGreaterThan(bearsRated3);
+    });
+
+    it("a rating of exactly PICK_RATING_NEUTRAL (2.5) leaves the heuristic score unchanged", () => {
+        expect(scoreCandidateWithRating(wurm, [], 2.5)).toBe(
+            scoreCandidate(wurm, [])
+        );
+    });
+});
+
+describe("chooseBotPick with the Pick Rating layer (issue #1117)", () => {
+    const metaTable: Record<string, CardEvalMeta> = {
+        bears,
+        wurm,
+        giant: hillGiant,
+    };
+    const getCardEvalMeta: GetCardEvalMeta = (scryfallId) =>
+        metaTable[scryfallId] ?? null;
+
+    function packCard(scryfallId: string, pickId: string): DraftPackCard {
+        return { scryfallId, cardId: scryfallId, cardName: scryfallId, pickId };
+    }
+
+    it("a rated card beats the heuristic's own favorite when a Pick Rating is supplied", () => {
+        const pack = [
+            packCard("bears", "pick-bears"),
+            packCard("wurm", "pick-wurm"),
+        ];
+        // Without ratings, the heuristic alone prefers the wurm (bigger body).
+        expect(chooseBotPick(pack, [], getCardEvalMeta)).toBe("pick-wurm");
+
+        // With bears rated a 5 (and wurm unrated), the rating dominates.
+        // `getPickRating` is keyed on the candidate's CANONICAL `cardId`
+        // (`CardEvalMeta.cardId`), not the pack's `scryfallId` — `bears`'s
+        // fixture carries the real Grizzly Bears definition id.
+        const getPickRating: GetPickRating = (cardId) =>
+            cardId === bears.cardId ? 5 : null;
+        expect(chooseBotPick(pack, [], getCardEvalMeta, getPickRating)).toBe(
+            "pick-bears"
+        );
+    });
+
+    it("unrated cards fall back to the heuristic even when getPickRating is supplied", () => {
+        const pack = [
+            packCard("bears", "pick-bears"),
+            packCard("wurm", "pick-wurm"),
+            packCard("giant", "pick-giant"),
+        ];
+        const getPickRating: GetPickRating = () => null; // nothing rated
+        expect(chooseBotPick(pack, [], getCardEvalMeta, getPickRating)).toBe(
+            chooseBotPick(pack, [], getCardEvalMeta)
+        );
+    });
+
+    it("omitting getPickRating reproduces the EXACT pre-Pick-Rating-layer pick — the real production lookup, on cards no checked-in file rates, agrees (regression: a set without ratings drafts exactly as before)", () => {
+        const pack = [
+            packCard("bears", "pick-bears"),
+            packCard("wurm", "pick-wurm"),
+        ];
+        const withoutRatingArg = chooseBotPick(pack, [], getCardEvalMeta);
+        // These synthetic ids ("bears"/"wurm") are not real LEA card ids, so
+        // the REAL production `getPickRatingByCardId` (which only rates real
+        // checked-in cardIds) returns null for all of them — exactly the "no
+        // ratings file for this set" case.
+        const withRealLookup = chooseBotPick(
+            pack,
+            [],
+            getCardEvalMeta,
+            getPickRatingByCardId
+        );
+        expect(withRealLookup).toBe(withoutRatingArg);
+        expect(withRealLookup).toBe("pick-wurm");
+    });
+});
+
+describe("scripted all-bot LEA draft — bots take obvious bombs first-pick (issue #1117 acceptance: deterministic seeded test)", () => {
+    // Same real-registry wiring as the "plausibly coherent 2-color pools"
+    // draft above, plus the real Pick Rating lookup.
+    const resolveCardMeta: ResolveCardMeta = (scryfallId) => {
+        const def = tryGetDefinition(scryfallId);
+        if (!def) return null;
+        const meta = resolveDeckCardMeta(scryfallId);
+        return meta ? { cardId: meta.cardId, cardName: def.name } : null;
+    };
+    const realGetCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
+        const meta = resolveDeckCardMeta(scryfallId);
+        if (!meta) return null;
+        const def = tryGetDefinition(meta.cardId);
+        if (!def) return null;
+        return {
+            cardId: meta.cardId,
+            colors: getCardColors(def),
+            manaValue: manaValue(def.manaCost),
+            rarity: meta.rarity,
+        };
+    };
+    const realBotChoosePickRated: ChooseBotPick = (seat, pack) =>
+        chooseBotPick(
+            pack,
+            seat.pool ?? [],
+            realGetCardEvalMeta,
+            getPickRatingByCardId
+        );
+
+    // A rating this close to `PICK_RATING_MAX` (5.0) is far enough from
+    // `PICK_RATING_NEUTRAL` (2.5) that `PICK_RATING_DOMINANCE_WEIGHT`
+    // guarantees it beats ANY realistic Pick Heuristic value underneath it
+    // (the heuristic's own spread tops out in the low hundreds — see
+    // `scoreCandidate`'s doc comment) — the "obvious bomb" bar. A MID-tier
+    // rating (e.g. 2.0-3.0, "solid playable") is deliberately NOT asserted
+    // here: it nudges the heuristic rather than overriding it, so it can
+    // still lose to an unrated card the heuristic loves — exactly the
+    // "ratings REFINE, never GATE" design (ADR 0054/0055), not a bug.
+    const OBVIOUS_BOMB_THRESHOLD = 4.5;
+
+    it("every bot seat with an obvious bomb (rating >= 4.5) in its P1P1 pack takes it, even against strong heuristic-favored alternatives", () => {
+        const packSlots = ["lea", "lea", "lea"];
+        const seed = 20260714; // same seed the 2-color-pools test above uses
+        const seats = fillBotSeats(buildEmptySeats(8));
+        const dealt = startDraft(
+            seats,
+            packSlots,
+            seed,
+            getBoosterConfig,
+            resolveCardMeta
+        );
+
+        let sawAtLeastOneObviousBomb = false;
+        for (const seat of dealt.seats) {
+            const pack = seat.currentPack!;
+            const bombs = pack
+                .map((c) => {
+                    const meta = realGetCardEvalMeta(c.scryfallId);
+                    if (!meta) return null;
+                    const rating = getPickRatingByCardId(meta.cardId);
+                    return rating !== null && rating >= OBVIOUS_BOMB_THRESHOLD
+                        ? { pickId: c.pickId, cardName: c.cardName }
+                        : null;
+                })
+                .filter(
+                    (b): b is { pickId: string; cardName: string } => b !== null
+                );
+            if (bombs.length === 0) continue;
+
+            // At most one obvious bomb per pack given this curated file and
+            // seed — assert it deterministically, rather than assuming it,
+            // so a future curation change that breaks the assumption fails
+            // loudly here instead of silently passing a vacuous check.
+            expect(bombs).toHaveLength(1);
+            sawAtLeastOneObviousBomb = true;
+            const picked = realBotChoosePickRated(seat, pack);
+            expect(picked).toBe(bombs[0].pickId);
+        }
+
+        // Across 8 seats' opening packs (120 cards from a 291-card set with
+        // several cards rated 4.5+), at least one obvious bomb should show
+        // up given this fixed seed — a vacuous pass (nothing bomb-tier ever
+        // dealt) would prove nothing about "bots take obvious bombs
+        // first-pick".
+        expect(sawAtLeastOneObviousBomb).toBe(true);
+    });
+
+    it("is fully deterministic: re-running the same seed yields the same picks", () => {
+        const packSlots = ["lea", "lea", "lea"];
+        const seed = 20260714;
+
+        function firstPicks(): string[] {
+            const seats = fillBotSeats(buildEmptySeats(8));
+            const dealt = startDraft(
+                seats,
+                packSlots,
+                seed,
+                getBoosterConfig,
+                resolveCardMeta
+            );
+            return dealt.seats.map((seat) =>
+                realBotChoosePickRated(seat, seat.currentPack!)
+            );
+        }
+
+        expect(firstPicks()).toEqual(firstPicks());
     });
 });

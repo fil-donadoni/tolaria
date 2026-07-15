@@ -59,6 +59,15 @@ export interface CardEvalMeta {
  *  the worst possible pick rather than crashing the draft). */
 export type GetCardEvalMeta = (scryfallId: string) => CardEvalMeta | null;
 
+/** Resolves a candidate's canonical `cardId` (`CardEvalMeta.cardId`) to its
+ *  Pick Rating (`pickRatings.ts`'s `PICK_RATING_MIN..PICK_RATING_MAX` scale),
+ *  or `null` when no checked-in Pick Rating file rates this card (no file for
+ *  the set at all, or the file simply has no entry for it) — both `null`
+ *  cases fall back to the Pick Heuristic alone, identically (see
+ *  `scoreCandidateWithRating`). Injected — like `GetCardEvalMeta` — so this
+ *  module never touches `pickRatings.ts`'s checked-in registry directly. */
+export type GetPickRating = (cardId: string) => number | null;
+
 /** Rarity multiplier on top of raw card quality (PRD #1107 story 29: "card
  *  quality... adjusted by Rarity"). A higher rarity nudges an otherwise close
  *  decision toward the rarer card — real Limited bombs cluster at rare/mythic
@@ -103,6 +112,24 @@ const CURVE_TARGET: Record<number, number> = {
 };
 const CURVE_MAX_BUCKET = 6;
 const CURVE_BONUS_WEIGHT = 30;
+
+/** Midpoint of the Pick Rating 0-5 scale (`pickRatings.ts`). A rating ABOVE
+ *  the neutral point boosts a candidate over the heuristic-only baseline, a
+ *  rating BELOW it penalizes — so a rating of exactly 2.5 ("perfectly
+ *  average playable") reproduces roughly the same ranking an unrated card
+ *  gets from the heuristic alone, while 0 ("never play this") and 5
+ *  ("first-pick bomb") pull hard in either direction. */
+const PICK_RATING_NEUTRAL = 2.5;
+
+/** Per-rating-point weight applied on top of the Pick Heuristic's own score
+ *  (issue #1117: "rating DOMINATES ordering"). Sized comfortably above the
+ *  Pick Heuristic's realistic spread — `scoreCandidate`'s quality term tops
+ *  out in the low hundreds (a big flying rare) plus at most a few dozen from
+ *  color/curve terms — so even a single rating-point gap between two
+ *  candidates can never be overturned by the heuristic underneath it. A
+ *  `null` rating (see `GetPickRating`) contributes exactly 0 — the pure
+ *  heuristic-fallback case. */
+const PICK_RATING_DOMINANCE_WEIGHT = 1000;
 
 function curveBucket(mv: number): number {
     return Math.max(1, Math.min(CURVE_MAX_BUCKET, Math.round(mv)));
@@ -179,14 +206,48 @@ export function scoreCandidate(
     return quality + colorTerm + curveTerm;
 }
 
+/** Scores one candidate the same way `scoreCandidate` does, then layers the
+ *  Pick Rating adjustment on top (issue #1117, ADR 0054/0055's Pick Rating
+ *  layer). `rating` is `null` for a card with no checked-in Pick Rating entry
+ *  (no file for the set, or the file simply doesn't rate this card) — in
+ *  that case the result is EXACTLY `scoreCandidate`'s own value, byte-for-
+ *  byte, so a Draftable Set with no ratings file (or a card a checked-in
+ *  file happens not to cover) drafts on the heuristic alone, unchanged (this
+ *  issue's regression acceptance criterion).
+ *
+ *  When `rating` is present, the adjustment is `(rating - PICK_RATING_NEUTRAL)
+ *  * PICK_RATING_DOMINANCE_WEIGHT` — large enough relative to the heuristic's
+ *  own spread that a real rating gap between two candidates always survives
+ *  underneath it (rating DOMINATES), while two candidates sharing the SAME
+ *  rating fall back to comparing on the heuristic term alone (the heuristic
+ *  is still the tie-breaker, per this issue's acceptance criteria). */
+export function scoreCandidateWithRating(
+    candidate: CardEvalMeta,
+    poolMeta: readonly CardEvalMeta[],
+    rating: number | null
+): number {
+    const heuristicScore = scoreCandidate(candidate, poolMeta);
+    if (rating === null) return heuristicScore;
+    return (
+        heuristicScore +
+        (rating - PICK_RATING_NEUTRAL) * PICK_RATING_DOMINANCE_WEIGHT
+    );
+}
+
 /** Picks one card from `pack` for a Bot Drafter seat (PRD #1107 stories 8, 9,
- *  27, 29; ADR 0054). Scores every candidate via `scoreCandidate` against the
- *  seat's already-accumulated `pool`, returning the `pickId` of the highest
- *  scorer. Ties break by pack position (first wins). Deterministic: a pure
- *  function of `(pack, pool)` — the caller (`convex/limitedEvents.ts`) never
- *  needs to thread an RNG stream through this path, so it is trivially
- *  reproducible given the event's seed (which already seeds the pack
- *  contents via `generateRoundPacks`).
+ *  27, 29; ADR 0054; Pick Rating layer: issue #1117, ADR 0054/0055). Scores
+ *  every candidate via `scoreCandidateWithRating` against the seat's
+ *  already-accumulated `pool`, returning the `pickId` of the highest scorer.
+ *  Ties break by pack position (first wins). Deterministic: a pure function
+ *  of `(pack, pool)` — the caller (`convex/limitedEvents.ts`) never needs to
+ *  thread an RNG stream through this path, so it is trivially reproducible
+ *  given the event's seed (which already seeds the pack contents via
+ *  `generateRoundPacks`).
+ *
+ *  `getPickRating` is OPTIONAL and defaults to "no ratings at all" (every
+ *  candidate scored as `rating: null`) — omitting it reproduces the exact
+ *  pre-Pick-Rating-layer behavior, which is how a Draftable Set with no
+ *  checked-in ratings file keeps drafting on the heuristic alone.
  *
  *  Throws only when `pack` is empty — the same contract as `applyPick`,
  *  which already guards against calling this with no pack to pick from. A
@@ -196,7 +257,8 @@ export function scoreCandidate(
 export function chooseBotPick(
     pack: readonly DraftPackCard[],
     pool: readonly LimitedPoolCard[],
-    getCardEvalMeta: GetCardEvalMeta
+    getCardEvalMeta: GetCardEvalMeta,
+    getPickRating?: GetPickRating
 ): string {
     if (pack.length === 0) {
         throw new Error("chooseBotPick: pack is empty");
@@ -209,7 +271,11 @@ export function chooseBotPick(
     let bestScore = -Infinity;
     for (let i = 0; i < pack.length; i++) {
         const meta = getCardEvalMeta(pack[i].scryfallId);
-        const score = meta ? scoreCandidate(meta, poolMeta) : -Infinity;
+        const rating =
+            meta && getPickRating ? getPickRating(meta.cardId) : null;
+        const score = meta
+            ? scoreCandidateWithRating(meta, poolMeta, rating)
+            : -Infinity;
         if (score > bestScore) {
             bestScore = score;
             bestIndex = i;

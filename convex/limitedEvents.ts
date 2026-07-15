@@ -29,6 +29,7 @@ import {
     type TimerConfig,
 } from "./limited/draftEngine";
 import { chooseBotPick, type GetCardEvalMeta } from "./limited/botDrafter";
+import { getPickRatingByCardId } from "./limited/pickRatings";
 import {
     assignFreeSeat,
     buildEmptySeats,
@@ -148,12 +149,24 @@ const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
     };
 };
 
-/** Wires the Pick Heuristic (`convex/limited/botDrafter.ts`) into
- *  `runBotAutoPicks`'s injected `ChooseBotPick` shape — the only place this
- *  module's card-registry-backed `getCardEvalMeta` meets a bot seat's actual
- *  Pool. */
+/** Wires the Pick Heuristic (`convex/limited/botDrafter.ts`) AND the Pick
+ *  Rating layer (`convex/limited/pickRatings.ts`, issue #1117, ADR
+ *  0054/0055) into `runBotAutoPicks`'s injected `ChooseBotPick` shape — the
+ *  only place this module's card-registry-backed `getCardEvalMeta` meets a
+ *  bot seat's actual Pool. `getPickRatingByCardId` is registry-agnostic (it
+ *  scans every checked-in Pick Rating file by cardId, not by which set this
+ *  particular pack was drawn from — see that function's doc comment), so no
+ *  set-code plumbing is needed here: a set with no checked-in ratings file
+ *  simply never matches, and every lookup falls through to `null`, which
+ *  `chooseBotPick` treats as "score via the Pick Heuristic alone" — the
+ *  exact pre-Pick-Rating-layer behavior. */
 const botChoosePick: ChooseBotPick = (seat, pack) =>
-    chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta);
+    chooseBotPick(
+        pack,
+        seat.pool ?? [],
+        getCardEvalMeta,
+        getPickRatingByCardId
+    );
 
 /** Builds the `TimerConfig` `startDraft`/`applyPick`/`runBotAutoPicks` accept
  *  (issue #1114) from an event's stored `timerSeconds`, or `undefined` when
