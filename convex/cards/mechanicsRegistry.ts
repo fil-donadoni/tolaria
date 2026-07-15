@@ -2332,6 +2332,28 @@ export const ENGINE_INTERNAL_MARKERS: EngineInternalMarker[] = [
     },
 ];
 
+// --- Loyalty abilities (CR 606) census note (ADR 0058) ---
+//
+// A LOYALTY ABILITY is a planeswalker's activated ability with a signed loyalty
+// cost (`ActivatedAbility.cost.loyalty`, `+N`/`-N`/`0`). It is deliberately
+// given NO row in any of the tables above, and this is the honest census, not
+// an omission:
+//   - It is NOT a CR 701 keyword action or a CR 702 keyword ability — CR 606 is
+//     its own section, and a loyalty ability never contributes a
+//     `staticAbilities[]` string, so the name-authority guard (`isNamedMechanic`)
+//     has nothing to check. It is therefore not an `ENGINE_INTERNAL_MARKER`
+//     either (those bind a literal `staticAbilities` string).
+//   - It is NOT an Effect Script Op. `cost.loyalty` is a COST-SYSTEM +
+//     activation-timing capability (paid by adjusting `counters["loyalty"]`,
+//     gated sorcery-speed / one-per-turn / not-below-0 in `game.ts`
+//     `assertLoyaltyActivationLegal`), exactly like the alternative-cost
+//     mechanics that also carry no registry row (Cycling, Flashback, Escape,
+//     the "pay {E}" energy spend — see the `energy` Op note below). The ability's
+//     one-shot EFFECT is a normal Effect Script and its Ops ARE censused in
+//     `EFFECT_OP_REGISTRY` like any other ability.
+// Starting loyalty (`CardDefinition.loyalty`, CR 306.5b) and the 0-loyalty SBA
+// (CR 704.5i) are likewise pure engine rules, not named mechanics.
+
 // --- Effect Script Op census (ADR 0045) ---
 
 /** One row of the Effect Script Op vocabulary (ADR 0045). The Mechanics

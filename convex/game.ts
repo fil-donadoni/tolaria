@@ -3093,6 +3093,67 @@ function assertActivationTimingLegal(
     }
 }
 
+/** CR 606 — validates a LOYALTY ABILITY (an ability whose cost carries a signed
+ *  `cost.loyalty`) up-front, before any cost is paid. No-op for a non-loyalty
+ *  ability. Enforces the three restrictions the CR derives from a loyalty
+ *  ability being a planeswalker's activated ability:
+ *   - CR 606.3 — sorcery-speed, and only the source's controller during their
+ *     own main phase with an empty stack (reuses `isSorceryTiming`, which
+ *     already requires the active player to hold priority with an empty stack);
+ *   - CR 606.3 — at most one loyalty ability of a given permanent per turn
+ *     (the per-instance `loyaltyActivatedThisTurn` lock);
+ *   - CR 606.5 — a `-N` cost is illegal if it would drop the permanent below 0
+ *     loyalty. */
+export function assertLoyaltyActivationLegal(
+    state: GameState,
+    card: CardInstanceState,
+    ability: { cost: { loyalty?: number } }
+): void {
+    const loyalty = ability.cost.loyalty;
+    if (loyalty === undefined) return;
+    // CR 606.3 — one loyalty ability per permanent per turn.
+    if (card.loyaltyActivatedThisTurn) {
+        throw new Error(
+            "A loyalty ability of this permanent has already been activated this turn"
+        );
+    }
+    // CR 606.3 — sorcery-speed, controller's own turn only.
+    if (!isSorceryTiming(state) || state.activePlayerId !== card.controllerId) {
+        throw new Error(
+            "A loyalty ability can only be activated at sorcery speed on your turn"
+        );
+    }
+    // CR 606.5 — a loyalty cost that removes counters may not take the
+    // permanent below 0 loyalty.
+    if (loyalty < 0) {
+        const current = card.counters?.loyalty ?? 0;
+        if (current + loyalty < 0) {
+            throw new Error("Not enough loyalty to activate this ability");
+        }
+    }
+}
+
+/** CR 606.5 / 606.2 — pays a loyalty ability's cost at activation commit:
+ *  adjusts `counters["loyalty"]` by the signed `cost.loyalty` (`+N` adds, `-N`
+ *  removes, floored at 0) and sets the per-permanent once-per-turn lock. No-op
+ *  for a non-loyalty ability. Called at every activation commit site (immediate
+ *  no-target and `finalizeTargetSelection`); a loyalty ability has no
+ *  mana/tap/sacrifice component, so it never reaches the deferred
+ *  `pendingActivation` commit. */
+export function payLoyaltyCost(
+    card: CardInstanceState,
+    ability: { cost: { loyalty?: number } }
+): void {
+    const loyalty = ability.cost.loyalty;
+    if (loyalty === undefined) return;
+    const current = card.counters?.loyalty ?? 0;
+    card.counters = {
+        ...(card.counters ?? {}),
+        loyalty: Math.max(0, current + loyalty),
+    };
+    card.loyaltyActivatedThisTurn = true;
+}
+
 /** Records one activation of `abilityId` against `card` for the current turn
  *  (CR 602.5 — `oncePerTurn` enforcement) and emits the cluster-B
  *  `ABILITY_ACTIVATED` event for non-{T} abilities (CR 602.1). Initialises the
@@ -3566,6 +3627,10 @@ export function finalizeTargetSelection(
             }
         }
         assertActivationTimingLegal(state, card, ability);
+        // CR 606 — re-validate a targeted loyalty ability at commit (the timing
+        // / once-per-turn / below-0 gates), since the board may have changed
+        // between opening the target prompt and confirming it.
+        assertLoyaltyActivationLegal(state, card, ability);
 
         const hasXInCost =
             ability.cost.mana?.X !== undefined &&
@@ -3752,6 +3817,9 @@ export function finalizeTargetSelection(
         if (ability.cost.life !== undefined) {
             player.life -= ability.cost.life;
         }
+        // CR 606.5 — pay a targeted loyalty ability's signed loyalty cost as it
+        // goes on the stack (Liliana's "-2"). No-op for a non-loyalty ability.
+        payLoyaltyCost(card, ability);
         if (ability.cost.sacrifice) {
             removePermanentTo(state, card.id, "graveyard", "sacrifice");
         }
@@ -8989,6 +9057,11 @@ export const activateAbility = mutation({
             ) {
                 throw new Error("Ability cannot be activated right now");
             }
+            // CR 606 — a targeted loyalty ability (Liliana of the Veil's "-2:
+            // target player sacrifices a creature") is validated up-front, before
+            // entering target selection, so an illegal loyalty ability never
+            // opens a target prompt. Paid later at `finalizeTargetSelection`.
+            assertLoyaltyActivationLegal(state, card, ability);
             // CR 107.3 / 601.2b — chosenX must accompany abilities with X in
             // their mana cost. Stashed on pendingTarget; finalizeTargetSelection
             // forwards it to pendingActivation / the stack item.
@@ -9169,6 +9242,10 @@ export const activateAbility = mutation({
             throw new Error("Ability cannot be activated right now");
         }
         assertActivationTimingLegal(state, card, ability);
+        // CR 606 — a non-targeted loyalty ability (Liliana's "+1", Garruk's
+        // "-4") is validated up-front here; it has no mana/tap/sacrifice
+        // component, so it commits inline below (paid via `payLoyaltyCost`).
+        assertLoyaltyActivationLegal(state, card, ability);
         // CR 107.3 / 601.2b — chosenX is required for abilities whose mana
         // cost has X. Validate up-front; pass to normalizeManaCost so the
         // generic portion includes X * (the chosen value).
@@ -9304,6 +9381,9 @@ export const activateAbility = mutation({
         if (ability.cost.life !== undefined) {
             player.life -= ability.cost.life;
         }
+        // CR 606.5 — pay a non-targeted loyalty ability's signed loyalty cost as
+        // it goes on the stack (Liliana's "+1", Garruk's "-4"). No-op otherwise.
+        payLoyaltyCost(card, ability);
         if (ability.cost.sacrifice) {
             removePermanentTo(state, card.id, "graveyard", "sacrifice");
         }

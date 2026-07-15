@@ -542,6 +542,13 @@ function enumerateAbilityMoves(
         // leave them to a later slice rather than enumerate possibly-illegal
         // moves. (Documented limitation — server would reject anyway.)
         if (ability.canActivate || ability.getTargetRequirement) continue;
+        // CR 606 — a loyalty ability (planeswalker) has a signed `cost.loyalty`
+        // and sorcery-speed / one-per-turn / not-below-0 gates the move planner
+        // doesn't yet cost or fund. Bot planeswalker play is a follow-up to the
+        // loyalty FRAMEWORK slice (issue #700, ADR 0058); skip these for now so
+        // the bot never enumerates an unpayable/mis-costed loyalty move. The
+        // server (`assertLoyaltyActivationLegal`) rejects them regardless.
+        if (ability.cost.loyalty !== undefined) continue;
         // CR 602.5 — once-per-turn enforcement.
         if (
             ability.oncePerTurn &&

@@ -7,7 +7,7 @@ import {
     removePermanentTo,
     revertControlChange,
 } from "./state";
-import { isAura } from "./constants";
+import { isAura, isPlaneswalker } from "./constants";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -267,6 +267,34 @@ export function checkZeroToughnessSBA(state: GameState): boolean {
                 (c) =>
                     c.types.includes("Creature") &&
                     getEffectiveToughness(state, c) <= 0
+            );
+            if (victim) {
+                removePermanentTo(state, victim.id, "graveyard");
+                removed = true;
+                removedAny = true;
+                break; // battlefield arrays mutated — restart the scan
+            }
+        }
+        if (!removed) break;
+    }
+    return removedAny;
+}
+
+/** CR 704.5i — a planeswalker with 0 loyalty (no loyalty counters) is put into
+ *  its owner's graveyard as a state-based action. This is a direct zone change
+ *  (not a "destroy"), so indestructible/regeneration do not apply — a mirror of
+ *  the zero-toughness sweep above. A planeswalker reaches 0 loyalty by paying a
+ *  `-N` loyalty ability down to 0 (CR 606.5 forbids going below 0) or by taking
+ *  loyalty-removing damage (CR 120.3, `removeLoyaltyForDamage`). Loops until
+ *  stable because one death can cascade further SBAs. */
+export function checkZeroLoyaltySBA(state: GameState): boolean {
+    let removedAny = false;
+    for (;;) {
+        let removed = false;
+        for (const player of state.players) {
+            const victim = player.battlefield.find(
+                (c) =>
+                    isPlaneswalker(c) && (c.counters?.loyalty ?? 0) <= 0
             );
             if (victim) {
                 removePermanentTo(state, victim.id, "graveyard");
@@ -637,6 +665,10 @@ export function checkStateBasedActions(state: GameState): void {
         // the zero-toughness death check reads the net P/T.
         acted = checkCounterAnnihilationSBA(state) || acted;
         acted = checkZeroToughnessSBA(state) || acted;
+        // CR 704.5i — a planeswalker with 0 loyalty is put into its owner's
+        // graveyard. Sits beside the zero-toughness sweep: both are direct
+        // "reduce a stat to 0 → leave the battlefield" state-based actions.
+        acted = checkZeroLoyaltySBA(state) || acted;
         // CR 704.5h / 702.2b — a creature dealt damage by a deathtouch source
         // this turn is destroyed. Runs after zero-toughness (a creature already
         // at 0 toughness leaves via the direct move first) and respects

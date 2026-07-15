@@ -121,6 +121,11 @@ export interface CardInstance {
     hasAttackedThisTurn?: boolean;
     /** Damage marked on this creature this turn (CR 120.3). Cleared at CLEANUP. */
     damageMarked?: number;
+    /** CR 606.3 — set once a loyalty ability of this planeswalker has been
+     *  activated this turn. Drives the frontend loyalty-ability affordability
+     *  hint (`getStackAbilities` hides a second loyalty ability). Cleared at the
+     *  start of each turn. */
+    loyaltyActivatedThisTurn?: boolean;
     /** Id of the permanent this card is attached to (CR 303.4b). Only set
      *  on auras that ETB attached to a host. */
     attachedTo?: string;

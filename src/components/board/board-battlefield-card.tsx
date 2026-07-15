@@ -8,6 +8,7 @@ import { getColorOverrideDisplay } from "~/lib/color-override";
 import CardImage from "../cards/card-image";
 import CardTilt3D from "./card-tilt-3d";
 import CounterBadges from "./counter-badges";
+import PlaneswalkerLoyaltyBadge from "./planeswalker-loyalty-badge";
 import NotedManaBadge from "./noted-mana-badge";
 import ExiledAssociatedCard from "./exiled-associated-card";
 import ActivatableAbilityMenu from "./activatable-ability-menu";
@@ -219,6 +220,7 @@ export default function BoardBattlefieldCard({
                 <CounterBadges card={card} />
                 <NotedManaBadge card={card} />
                 {ptDamageStack}
+                <PlaneswalkerLoyaltyBadge card={card} />
             </div>
         </CardTilt3D>
     );
