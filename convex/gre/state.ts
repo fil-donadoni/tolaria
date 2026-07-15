@@ -64,7 +64,11 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "./layers";
-import { getMadnessCost, markMadnessExiled, windowExpiryTurn } from "./madness";
+import {
+    getMadnessCost,
+    markMadnessExiled,
+    openMadnessCastWindow,
+} from "./madness";
 import { isProtectedFromSource } from "./protection";
 import { isGuardedAgainst } from "./permanentGuard";
 import { getEffectiveBlockGraph } from "./banding";
@@ -770,10 +774,17 @@ export type CardInstanceState = {
      *  `discardToGraveyard` (via `markMadnessExiled`); it rides alongside
      *  `castableFromExileBy` and distinguishes a madness exile (castable for the
      *  MADNESS cost, CR 702.35d) from an Ice-Cauldron-style exile cast (normal
-     *  cost). Cleared when the card is cast to the stack (`moveCardToStack`) or
-     *  swept to the graveyard at cleanup (`sweepUncastMadness`). Persisted so it
-     *  survives a DB round-trip. */
+     *  cost). Cleared when the card is cast to the stack (`removeFromZone`) or
+     *  binned on decline (`declineMadness`). Persisted so it survives a DB
+     *  round-trip. */
     madnessExiled?: boolean;
+    /** CR 702.35d — true while a madness-exiled card is still awaiting its
+     *  reflexive cast-trigger. Set alongside `madnessExiled` by `markMadnessExiled`
+     *  at discard→exile; consumed by `collectTriggers` when it builds the
+     *  reflexive trigger StackItem (so the trigger is created exactly once), and
+     *  cleared by `openMadnessCastWindow` when that trigger resolves. Absent once
+     *  the card is castable (window open) or has been binned. Persisted. */
+    madnessTriggerPending?: boolean;
     /** CR 702.74a — true iff this permanent was cast for its Evoke cost. Set
      *  on the stack item at cast commit (`convex/game.ts`, when the chosen
      *  alternative cost === `CardDefinition.evoke`) and rides onto the
@@ -1087,6 +1098,13 @@ export type StackItem = CardInstanceState & {
     triggerSourceId?: string;
     /** The originating event captured at trigger time. Passed to resolve(). */
     triggerEvent?: GameEvent;
+    /** CR 702.35d — set on the synthetic reflexive triggered ability that a
+     *  discarded madness card puts on the stack (`buildMadnessReflexiveTrigger`,
+     *  triggers.ts). Holds the id of the exiled card. On resolution
+     *  (`resolveTopOfStack`) `openMadnessCastWindow` opens the owner's single
+     *  cast window on that card. Distinct from `triggeredAbilityId` (no card-def
+     *  ability lookup — the reflexive ability is engine-owned). */
+    madnessTrigger?: string;
     /** Storm (CR 702.40, ADR 0052) — present ONLY on the synthesized storm
      *  cast-trigger's own stack item (`triggeredAbilityId === "storm"`). A
      *  detached snapshot of the spell being copied, captured at cast time —
@@ -1607,6 +1625,11 @@ export type PendingChoice = {
      *  the zone move). `finalizeLandEntry` reads it to complete the entry on
      *  submit. */
     landInstanceId?: string;
+    /** For `kind: "madness-cast"` only (CR 702.35d) — the instance id of the
+     *  discarded-and-exiled card this choice decides. The client's "Cast" button
+     *  fires `announceCast` on it (which consumes the choice); the DECLINE routes
+     *  through `submitMadnessDecline`, which reads it to bin the card. */
+    cardInstanceId?: string;
     /** For `kind: "choose-aura-host"` only (CR 303.4f) — the instance id of the
      *  Aura currently entering, held off every zone in
      *  `GameState.stagedAuraEntries` while this choice is pending.
@@ -2016,6 +2039,13 @@ export type GameState = {
      *  discard at random, coin flips). With rngSeed, the event log is
      *  sufficient to reproduce the exact random choices made during a game. */
     rngCounter: number;
+    /** CR 702.35d — the currently-open Madness cast window. Set when a reflexive
+     *  madness trigger resolves (`openMadnessCastWindow`): the owner may cast the
+     *  named exiled card for its madness cost while they hold priority; passing
+     *  priority instead bins it (`declineMadness`). Cleared on cast or decline.
+     *  Persisted so an owner who saves mid-decision resumes with the window open.
+     *  At most one is open at a time (reflexive triggers resolve one by one). */
+    madnessCastWindow?: { cardId: string; ownerId: string };
     /** Active spell payment in progress (CR 601.2). */
     pendingCast?: PendingCast;
     /** Active activated-ability payment in progress (CR 602.1). Mutually
@@ -2979,6 +3009,22 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     state.pendingReveals = undefined;
 
     const top = state.stack[state.stack.length - 1];
+
+    // CR 702.35d — the reflexive Madness cast-trigger. Engine-owned (no card-def
+    // ability), so it is handled here before the spell/ability dispatch: open the
+    // owner's single cast window on the still-exiled card, then leave the stack.
+    // If the card is no longer in the owner's exile (an intervening effect moved
+    // it), the trigger simply does nothing (CR 603.10 last-known-information).
+    if (top.madnessTrigger) {
+        const owner = getPlayer(state, top.ownerId);
+        const card = owner.exile.find((c) => c.id === top.madnessTrigger);
+        if (card && card.madnessExiled) {
+            openMadnessCastWindow(state, card, top.ownerId);
+        }
+        state.stack.pop();
+        return top;
+    }
+
     const cardId = (top.card as { id?: string }).id;
     // Unknown ids (e.g. synthetic test fixtures) collapse to the vanilla
     // ETB-or-graveyard path. Production stack items always carry registry
@@ -11049,22 +11095,20 @@ export function discardToGraveyard(
     let destination = redirect.destination;
     const tagCounters = redirect.tagCounters;
     // CR 702.35c — Madness's replacement: a discarded card with a madness cost
-    // is exiled instead of being put into the graveyard, then its owner may cast
-    // it for the madness cost (CR 702.35d — `markMadnessExiled` opens the
-    // this-turn cast window; `sweepUncastMadness` sends an uncast copy to the
-    // graveyard at cleanup). Applies only when the discard was otherwise headed
-    // to the graveyard (a Yawgmoth's-Will exile redirect already sent it to
-    // exile, so madness is moot there).
+    // is exiled instead of being put into the graveyard, then a reflexive
+    // triggered ability (built by `collectTriggers` off the CARD_DISCARDED event
+    // emitted below) goes on the stack, giving its owner one window to cast it
+    // for the madness cost when it resolves (CR 702.35d — `openMadnessCastWindow`
+    // / `declineMadness`). Applies only when the discard was otherwise headed to
+    // the graveyard (a Yawgmoth's-Will exile redirect already sent it to exile,
+    // so madness is moot there).
     const madnessCost = getMadnessCost(handCard);
     const madnessRoute =
         madnessCost !== undefined && destination === "graveyard";
     if (madnessRoute) destination = "exile";
     const moved = moveCard(player, repl.cardInstanceId, "hand", destination);
     if (madnessRoute) {
-        // CR 702.35d — the cast window normally ends at this turn's cleanup; a
-        // discard made DURING the CR 514.1 cleanup discard is extended one turn
-        // (this engine grants no priority at cleanup — see `windowExpiryTurn`).
-        markMadnessExiled(moved, handCard.ownerId, windowExpiryTurn(state));
+        markMadnessExiled(moved);
     } else if (destination !== "graveyard") {
         applyGraveyardRedirectCounters(moved, tagCounters);
     }

@@ -50,6 +50,7 @@ function engineMutations(state: GameState): MoveMutations {
         declareMulligan: reject,
         submitResolutionChoice: reject,
         submitMayPay: reject,
+        submitMadnessDecline: reject,
         submitLandEntryChoice: async ({ playerId, accept }) => {
             applyLandEntrySubmit(state, { playerId, accept });
         },

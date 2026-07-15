@@ -80,6 +80,7 @@ export type MoveMutations = {
         a: GP & { accept: boolean; sacrificeIds?: string[] }
     ) => Promise<unknown>;
     submitLandEntryChoice: (a: GP & { accept: boolean }) => Promise<unknown>;
+    submitMadnessDecline: (a: GP) => Promise<unknown>;
     submitNameCard: (a: GP & { cardName: string }) => Promise<unknown>;
     submitRandomRevealAck: (
         a: GP & { stackItemId: string; choiceId: string }
@@ -148,6 +149,13 @@ export async function executeMove(
                 ...base,
                 accept: move.accept,
             });
+            return;
+
+        case "madness-decline":
+            // CR 702.35d — decline the reflexive Madness cast-choice (send the
+            // card to the graveyard). Its own entry point (submitMadnessDecline);
+            // no data travels, the server reads the head choice.
+            await mutations.submitMadnessDecline(base);
             return;
 
         case "name-card":

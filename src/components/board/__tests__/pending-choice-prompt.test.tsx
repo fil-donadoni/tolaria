@@ -133,3 +133,35 @@ describe("PendingChoicePrompt — pick-pile (ADR 0053, pile division)", () => {
         expect(getByText(/Waiting for/)).toBeTruthy();
     });
 });
+
+describe("PendingChoicePrompt — madness-cast (CR 702.35d)", () => {
+    const madnessChoice = (playerId: string): PendingChoice =>
+        ({
+            stackItemId: "",
+            step: 0,
+            choiceId: "madness-cast-c1",
+            playerId,
+            kind: "madness-cast",
+            cardInstanceId: "c1",
+            subjectCardId: "basking-rootwalla",
+            cost: {},
+            count: 1,
+            prompt: "Cast Basking Rootwalla for its madness cost, or put it into your graveyard?",
+        }) as PendingChoice;
+
+    it("renders Cast + Decline buttons for the owner (the trigger shows the choice — no exile click)", () => {
+        const { getByText } = renderPrompt(madnessChoice("me"), "me");
+        expect(getByText("Cast")).toBeTruthy();
+        expect(getByText("Decline")).toBeTruthy();
+    });
+
+    it("shows only the waiting banner (no buttons) for the opponent", () => {
+        const { queryByText, getByText } = renderPrompt(
+            madnessChoice("opponent"),
+            "me"
+        );
+        expect(queryByText("Cast")).toBeNull();
+        expect(queryByText("Decline")).toBeNull();
+        expect(getByText(/Waiting for/)).toBeTruthy();
+    });
+});

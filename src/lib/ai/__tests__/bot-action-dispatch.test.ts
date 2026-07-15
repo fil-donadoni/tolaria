@@ -40,6 +40,7 @@ const EXECUTOR_KINDS: BotAction["kind"][] = [
     "land-entry",
     "name-card",
     "random-reveal-ack",
+    "madness-decline",
 ];
 const WORKER_KINDS: BotAction["kind"][] = [
     "pass",
@@ -105,6 +106,42 @@ describe("bot shock-land choice reaches the executor, not the Worker (CR 614.12)
         // through to the Worker and stalled.
         expect(botActionRealisation(action.kind)).toBe("executor");
         // And the executor path can actually realise it.
+        expect(botActionToMove(action, publicState, BOT)).not.toBeNull();
+    });
+});
+
+describe("bot madness-cast choice reaches the executor, not the Worker (CR 702.35d)", () => {
+    it("the bot declines the reflexive madness choice, executor-realised AND translatable", () => {
+        const BOT = "u1-p2";
+        const state = makeState({
+            players: [makePlayer("u1-p1"), makePlayer(BOT, { life: 20 })],
+            activePlayerId: BOT,
+            priorityPlayerId: BOT,
+            // A blocking madness-cast choice owed by the bot (as if its reflexive
+            // trigger just resolved) — the exact shape `openMadnessCastWindow`
+            // pushes.
+            pendingChoices: [
+                {
+                    stackItemId: "",
+                    step: 0,
+                    choiceId: "madness-cast-x",
+                    playerId: BOT,
+                    kind: "madness-cast",
+                    cardInstanceId: "x",
+                    cost: {},
+                    count: 1,
+                    prompt: "Cast for madness?",
+                },
+            ],
+        });
+
+        const publicState = projectPublicState(state, 1, BOT);
+        const view = buildBotView(publicState, BOT);
+        const action = decideBotAction(view);
+        expect(action.kind).toBe("madness-decline");
+        // The driver's dispatch gate: must be executor-realised, never the Worker
+        // (which surfaces no move while a choice is pending → stall).
+        expect(botActionRealisation(action.kind)).toBe("executor");
         expect(botActionToMove(action, publicState, BOT)).not.toBeNull();
     });
 });

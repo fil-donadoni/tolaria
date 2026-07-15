@@ -51,6 +51,8 @@ export default function PendingChoicePrompt({
     const { offset, dragHandlers } = useDraggable();
     const submitMayPay = useMutation(api.game.submitMayPay);
     const submitLandEntryChoice = useMutation(api.game.submitLandEntryChoice);
+    const submitMadnessDecline = useMutation(api.game.submitMadnessDecline);
+    const announceCast = useMutation(api.game.announceCast);
     const submitNameCard = useMutation(api.game.submitNameCard);
     const submitResolutionChoice = useMutation(api.game.submitResolutionChoice);
     const [isBusy, setIsBusy] = useState(false);
@@ -68,6 +70,15 @@ export default function PendingChoicePrompt({
     const isLandEntry = choice.kind === "land-entry-tapped";
     const isYesNoPay = isMayPay || isLandEntry;
     const isOptionPick = choice.kind === "option-pick";
+    // CR 702.35d — reflexive Madness cast-choice: Cast (fires the ordinary
+    // announceCast on the exiled card, which consumes this choice) or Decline
+    // (submitMadnessDecline → graveyard). Its own two-button branch — the Cast
+    // affordance is a cast, not a choice submit.
+    const isMadnessCast = choice.kind === "madness-cast";
+    const madnessCostSymbols =
+        isMadnessCast && choice.cost
+            ? formatOracleText(mayPayCostLabel(choice.cost))
+            : null;
     // ADR 0053 pile division (`divide-piles` / `pick-pile`) is NOT handled here:
     // the chooser's surface is owned by `PileDivisionPicker` (this component
     // returns null for the chooser of those kinds, above); the non-chooser gets
@@ -222,7 +233,62 @@ export default function PendingChoicePrompt({
                                 />
                             </div>
                         )}
-                        {isOptionPick ? (
+                        {isMadnessCast ? (
+                            <div className="flex gap-2 mt-1">
+                                <button
+                                    type="button"
+                                    disabled={isBusy}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-accent-soft border border-accent text-accent-strong hover:bg-accent-soft/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                                    onClick={async () => {
+                                        if (isBusy || !choice.cardInstanceId)
+                                            return;
+                                        setIsBusy(true);
+                                        try {
+                                            // CR 702.35d — accept: cast the
+                                            // exiled card via the ordinary cast
+                                            // path (consumes this choice server-
+                                            // side, then runs targets/mana).
+                                            await announceCast({
+                                                gameId,
+                                                playerId,
+                                                cardInstanceId:
+                                                    choice.cardInstanceId,
+                                            });
+                                        } finally {
+                                            setIsBusy(false);
+                                        }
+                                    }}
+                                >
+                                    <span>Cast</span>
+                                    {madnessCostSymbols && (
+                                        <span className="inline-flex items-center">
+                                            {madnessCostSymbols}
+                                        </span>
+                                    )}
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={isBusy}
+                                    className="px-3 py-1.5 rounded-sm text-xs font-beleren tracking-wide bg-surface-elevated border border-border-accent/40 text-text-muted hover:bg-surface-elevated/80 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                                    onClick={async () => {
+                                        if (isBusy) return;
+                                        setIsBusy(true);
+                                        try {
+                                            // CR 702.35d — decline: send the card
+                                            // to the graveyard.
+                                            await submitMadnessDecline({
+                                                gameId,
+                                                playerId,
+                                            });
+                                        } finally {
+                                            setIsBusy(false);
+                                        }
+                                    }}
+                                >
+                                    Decline
+                                </button>
+                            </div>
+                        ) : isOptionPick ? (
                             <PendingChoiceOptions
                                 options={choice.options ?? []}
                                 disabled={isBusy}

@@ -76,6 +76,32 @@ function buildTriggerItem(
     };
 }
 
+/** CR 702.35d — builds the synthetic reflexive triggered ability StackItem a
+ *  card discarded via Madness puts on the stack ("When this card is discarded
+ *  and exiled this way, its owner may cast it..."). Engine-owned: it carries no
+ *  card-def ability, only the `madnessTrigger` marker (the exiled card's id),
+ *  which `resolveTopOfStack` reads to open the owner's cast window. Controlled
+ *  by the card's owner. */
+export function buildMadnessReflexiveTrigger(
+    state: GameState,
+    card: CardInstanceState,
+    ownerId: string
+): StackItem {
+    return {
+        id: allocInstanceId(state),
+        card: { id: (card.card as { id?: string }).id ?? "" },
+        controllerId: ownerId,
+        ownerId,
+        zone: "stack",
+        types: [],
+        subtypes: [],
+        staticAbilities: [],
+        isTapped: false,
+        castById: ownerId,
+        madnessTrigger: card.id,
+    };
+}
+
 /** Scans all battlefield permanents for triggered abilities matching `events`.
  *  Returns new StackItems in the order they should be placed on the stack.
  *
@@ -250,6 +276,25 @@ export function collectTriggers(
                 }
             }
         }
+    }
+
+    // CR 702.35d — the reflexive "may cast" triggered ability of a card discarded
+    // via Madness. The ability lives on the discarded card itself (now in its
+    // owner's exile), not a battlefield permanent, so every scan above misses it.
+    // It triggers off the CARD_DISCARDED event the madness replacement emitted;
+    // the `madnessTriggerPending` tag (set by `markMadnessExiled`) is consumed
+    // here so the trigger is built exactly once. A card is only ever discarded
+    // from its owner's hand, so the discarding player IS the owner (CR 702.35d —
+    // "its owner may cast it").
+    for (const event of events) {
+        if (event.type !== "CARD_DISCARDED") continue;
+        const owner = getPlayer(state, event.playerId);
+        const card = owner.exile.find(
+            (c) => c.id === event.cardInstanceId && c.madnessTriggerPending
+        );
+        if (!card) continue;
+        delete card.madnessTriggerPending;
+        out.push(buildMadnessReflexiveTrigger(state, card, event.playerId));
     }
 
     return out;

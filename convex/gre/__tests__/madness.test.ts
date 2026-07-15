@@ -1,11 +1,19 @@
-// Madness (CR 702.35) — the discard→exile cast capability. Exercised once here
-// for the mechanic itself (built once, reused by every madness card); the
-// per-card behaviour lives in the parallel colour test files. Covers:
-//   - CR 702.35c replacement: a discarded madness card is exiled, not binned
-//   - CR 702.35d cast affordance: the exiled card is castable from exile for its
-//     madness cost (getLegalActions + the real castRawManaCost cost seam)
-//   - CR 702.35d decline: an uncast madness card is put into the graveyard at
-//     the cleanup step
+// Madness (CR 702.35) — the discard→exile reflexive-cast capability. Exercised
+// once here for the mechanic itself (built once, reused by every madness card);
+// the per-card behaviour lives in the parallel colour test files. Covers the
+// full CR 702.35d timing, driven through the REAL engine path
+// (processPendingActionTriggers → resolveTopOfStack → declineMadness):
+//   - CR 702.35c replacement: a discarded madness card is exiled, not binned,
+//     and is NOT yet castable (it awaits its reflexive trigger)
+//   - CR 702.35d trigger: a reflexive triggered ability goes on the stack, and
+//     resolving it opens the owner's single cast window (castableFromExileBy +
+//     state.madnessCastWindow)
+//   - CR 702.35d cast: the exiled card is castable from exile for its madness
+//     cost only while the window is open (getLegalActions + castRawManaCost)
+//   - CR 702.35d decline: passing priority in the window bins the card
+//     IMMEDIATELY (not at cleanup)
+//   - CR 514.3: a card discarded to hand size at cleanup gets a real cast window
+//     during the discarding player's own end step
 //   - the frontend-wiring SURFACE: projectPublicState carries the cast affordance
 //     to the owner and hides it from the opponent
 import { describe, it, expect } from "vitest";
@@ -19,22 +27,46 @@ import {
     getPlayer,
     removeFromZone,
     resolveTopOfStack,
+    processPendingActionTriggers,
+    type StackItem,
 } from "../state";
-import type { StackItem } from "../state";
 import { getLegalActions } from "../rules";
-import { advancePhase, finalizeCleanup } from "../phases";
+import { advancePhase } from "../phases";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
 import { locateCastSource, castRawManaCost } from "../../game";
-import { getMadnessCost, hasMadness } from "../madness";
+import {
+    getMadnessCost,
+    hasMadness,
+    declineMadness,
+    consumeMadnessCastChoice,
+    openMadnessWindowCard,
+} from "../madness";
 import { baskingRootwalla } from "../../cards/sets/tor/green";
 import { anjesRavager } from "../../cards/sets/c19/red";
 import { grizzlyBears } from "../../cards/sets/lea";
 
+/** Discards `cardId` from `p1` and pushes the reflexive madness trigger onto the
+ *  stack through the real post-action trigger scan (CR 702.35d). Returns the
+ *  discarded card's exiled instance. Does NOT resolve the trigger — the caller
+ *  drives that to open the cast window. */
+function discardAndFireMadnessTrigger(
+    state: ReturnType<typeof makeState>,
+    playerId: string,
+    cardId: string
+) {
+    discardToGraveyard(state, playerId, cardId);
+    // The engine drains CARD_DISCARDED and scans triggers after every game
+    // action; replicate that here (the discard above happened outside a
+    // resolution).
+    processPendingActionTriggers(state);
+    return getPlayer(state, playerId).exile.find((c) => c.id === cardId);
+}
+
 describe("Madness capability (CR 702.35)", () => {
     describe("discard replacement (CR 702.35c)", () => {
-        it("exiles a discarded madness card instead of putting it into the graveyard", () => {
+        it("exiles a discarded madness card instead of putting it into the graveyard, NOT yet castable", () => {
             const card = makeInstance(baskingRootwalla.id, {
                 zone: "hand",
                 controllerId: "p1",
@@ -50,10 +82,14 @@ describe("Madness capability (CR 702.35)", () => {
             expect(player.graveyard.some((c) => c.id === card.id)).toBe(false);
             const exiled = player.exile.find((c) => c.id === card.id);
             expect(exiled).toBeDefined();
-            // CR 702.35c / 702.35d — exiled, owner-castable, this-turn window.
+            // CR 702.35c/d — exiled and pending its reflexive trigger, but the
+            // cast window is NOT open yet (no castableFromExileBy).
             expect(exiled!.madnessExiled).toBe(true);
-            expect(exiled!.castableFromExileBy).toBe("p1");
-            expect(exiled!.castableFromExileUntilTurn).toBe(state.turn);
+            expect(exiled!.madnessTriggerPending).toBe(true);
+            expect(exiled!.castableFromExileBy).toBeUndefined();
+            expect(getLegalActions(state, player, exiled!)).not.toContain(
+                "cast"
+            );
         });
 
         it("puts a NON-madness card into the graveyard as normal (control)", () => {
@@ -73,33 +109,80 @@ describe("Madness capability (CR 702.35)", () => {
         });
     });
 
-    describe("cast affordance from exile (CR 702.35d)", () => {
-        it("offers a Madness {0} creature at instant speed on the opponent's turn", () => {
-            // Basking Rootwalla (Madness {0}) is always affordable, so the
-            // affordance surfaces even on the opponent's turn — CR 702.35d's
-            // window is instant-speed regardless of the card's type.
+    describe("reflexive cast-trigger on the stack (CR 702.35d)", () => {
+        it("puts a reflexive triggered ability on the stack, owner-controlled", () => {
             const card = makeInstance(baskingRootwalla.id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
             });
             const p1 = makePlayer("p1", { hand: [card] });
-            const state = makeState({
-                players: [p1, makePlayer("p2")],
-                activePlayerId: "p2",
-                priorityPlayerId: "p1",
-                phase: "PRECOMBAT_MAIN",
-            });
+            const state = makeState({ players: [p1, makePlayer("p2")] });
 
             discardToGraveyard(state, "p1", card.id);
+            processPendingActionTriggers(state);
+
+            expect(state.stack).toHaveLength(1);
+            const trig = state.stack[0];
+            expect(trig.madnessTrigger).toBe(card.id);
+            expect(trig.controllerId).toBe("p1");
+            // Still not castable while the trigger sits on the stack unresolved.
             const exiled = getPlayer(state, "p1").exile.find(
                 (c) => c.id === card.id
             )!;
+            expect(exiled.castableFromExileBy).toBeUndefined();
+            expect(
+                getLegalActions(state, getPlayer(state, "p1"), exiled)
+            ).not.toContain("cast");
+        });
+
+        it("opens the owner's cast window when the reflexive trigger resolves", () => {
+            const card = makeInstance(baskingRootwalla.id, {
+                zone: "hand",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const p1 = makePlayer("p1", { hand: [card] });
+            const state = makeState({ players: [p1, makePlayer("p2")] });
+
+            const exiled = discardAndFireMadnessTrigger(state, "p1", card.id)!;
+            // Resolve the reflexive trigger → window opens.
+            resolveTopOfStack(state);
+            expect(state.stack).toHaveLength(0);
+            expect(exiled.madnessTriggerPending).toBeUndefined();
+            expect(exiled.castableFromExileBy).toBe("p1");
+            expect(state.madnessCastWindow).toEqual({
+                cardId: card.id,
+                ownerId: "p1",
+            });
             expect(
                 getLegalActions(state, getPlayer(state, "p1"), exiled)
             ).toContain("cast");
         });
 
+        it("pushes a blocking madness-cast pending choice on the owner when the trigger resolves", () => {
+            const card = makeInstance(baskingRootwalla.id, {
+                zone: "hand",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const p1 = makePlayer("p1", { hand: [card] });
+            const state = makeState({ players: [p1, makePlayer("p2")] });
+
+            discardAndFireMadnessTrigger(state, "p1", card.id);
+            resolveTopOfStack(state);
+
+            // A blocking Cast/Decline choice is pending on the owner — passing
+            // priority is impossible while it is (so the cast can't be lost).
+            const head = state.pendingChoices?.[0];
+            expect(head?.kind).toBe("madness-cast");
+            expect(head?.playerId).toBe("p1");
+            expect(head?.cardInstanceId).toBe(card.id);
+            expect(state.priorityPlayerId).toBe("p1");
+        });
+    });
+
+    describe("cast for the madness cost (CR 702.35d)", () => {
         it("charges the madness cost, not the printed cost, on the exile cast", () => {
             // Anje's Ravager: printed {2}{R}, Madness {1}{R}.
             const card = makeInstance(anjesRavager.id, {
@@ -110,7 +193,8 @@ describe("Madness capability (CR 702.35)", () => {
             const p1 = makePlayer("p1", { hand: [card] });
             const state = makeState({ players: [p1, makePlayer("p2")] });
 
-            discardToGraveyard(state, "p1", card.id);
+            discardAndFireMadnessTrigger(state, "p1", card.id);
+            resolveTopOfStack(state); // open the window
 
             // Real cast-source seam: exile zone, madness cost.
             const src = locateCastSource(
@@ -125,7 +209,7 @@ describe("Madness capability (CR 702.35)", () => {
             });
         });
 
-        it("casts a Madness {0} creature from exile for free, and the resolved permanent drops the madness marker", () => {
+        it("casts a Madness {0} creature from exile for free; the resolved permanent drops the madness marker", () => {
             const card = makeInstance(baskingRootwalla.id, {
                 zone: "hand",
                 controllerId: "p1",
@@ -134,7 +218,9 @@ describe("Madness capability (CR 702.35)", () => {
             const p1 = makePlayer("p1", { hand: [card] });
             const state = makeState({ players: [p1, makePlayer("p2")] });
 
-            discardToGraveyard(state, "p1", card.id);
+            discardAndFireMadnessTrigger(state, "p1", card.id);
+            resolveTopOfStack(state); // open the window
+
             const src = locateCastSource(
                 state,
                 getPlayer(state, "p1"),
@@ -143,6 +229,12 @@ describe("Madness capability (CR 702.35)", () => {
             expect(src.zone).toBe("exile");
             // Madness {0}: the empty cost is present (not undefined) and free.
             expect(castRawManaCost(state, src.card!, src.zone)).toEqual({});
+
+            // Accepting via announceCast consumes the madness-cast choice (the
+            // window closes) before the card leaves exile for the stack.
+            consumeMadnessCastChoice(state, "p1", card.id);
+            expect(state.pendingChoices ?? []).toHaveLength(0);
+            expect(state.madnessCastWindow).toBeUndefined();
 
             // Commit the cast: exile → stack (clears the madness/exile markers),
             // then resolve the creature onto the battlefield.
@@ -169,43 +261,60 @@ describe("Madness capability (CR 702.35)", () => {
         });
     });
 
-    describe("decline → graveyard at cleanup (CR 702.35d)", () => {
-        it("puts an uncast madness card (discarded outside cleanup) into its owner's graveyard at the cleanup step", () => {
+    describe("decline → graveyard immediately (CR 702.35d)", () => {
+        it("declineMadness bins the uncast card the instant the owner passes, not at cleanup", () => {
             const card = makeInstance(baskingRootwalla.id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
             });
             const p1 = makePlayer("p1", { hand: [card] });
-            const state = makeState({
-                players: [p1, makePlayer("p2")],
-                phase: "END_STEP",
-            });
+            const state = makeState({ players: [p1, makePlayer("p2")] });
 
-            // Discarded outside the cleanup step (window ends THIS turn's cleanup).
-            discardToGraveyard(state, "p1", card.id);
-            expect(
-                getPlayer(state, "p1").exile.some((c) => c.id === card.id)
-            ).toBe(true);
+            discardAndFireMadnessTrigger(state, "p1", card.id);
+            resolveTopOfStack(state); // open the window
+            expect(openMadnessWindowCard(state)).toBeDefined();
 
-            // The owner declines to cast it: cleanup sweeps it to the graveyard.
-            finalizeCleanup(state);
-
+            // Owner declines: the card goes to the graveyard NOW.
+            expect(declineMadness(state)).toBe(true);
             const player = getPlayer(state, "p1");
             expect(player.exile.some((c) => c.id === card.id)).toBe(false);
             const gy = player.graveyard.find((c) => c.id === card.id);
             expect(gy).toBeDefined();
             expect(gy!.madnessExiled).toBeUndefined();
             expect(gy!.castableFromExileBy).toBeUndefined();
+            expect(state.madnessCastWindow).toBeUndefined();
         });
 
-        // Regression for the CR 514.1 cleanup hand-size discard (the iconic
-        // "discard the extra Rootwalla to hand size, cast it for {0}" line):
-        // drives the REAL tryEnqueueCleanupDiscard → finalizeCleanupDiscard path,
-        // NOT a hand-built state. Without the windowExpiryTurn / sweep guard the
-        // card would be exiled AND binned in the same synchronous pass.
-        it("keeps a Rootwalla discarded to hand size at cleanup castable via madness (not binned), then bins it at the next cleanup if declined", () => {
-            // 8-card hand (one over max) with a Basking Rootwalla to discard.
+        it("declineMadness pops the head madness-cast choice as it bins the card", () => {
+            const card = makeInstance(baskingRootwalla.id, {
+                zone: "hand",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const p1 = makePlayer("p1", { hand: [card] });
+            const state = makeState({ players: [p1, makePlayer("p2")] });
+
+            discardAndFireMadnessTrigger(state, "p1", card.id);
+            resolveTopOfStack(state); // pushes the madness-cast choice
+            expect(state.pendingChoices?.[0]?.kind).toBe("madness-cast");
+
+            expect(declineMadness(state)).toBe(true);
+            // The blocking choice is gone and the card is in the graveyard.
+            expect(state.pendingChoices ?? []).toHaveLength(0);
+            expect(
+                getPlayer(state, "p1").graveyard.some((c) => c.id === card.id)
+            ).toBe(true);
+        });
+    });
+
+    describe("cleanup hand-size discard → CR 514.3 window", () => {
+        // The iconic "discard the extra Rootwalla to hand size, cast it for {0}"
+        // line. Drives the REAL tryEnqueueCleanupDiscard → finalizeCleanupDiscard
+        // path. CR 514.3: the reflexive trigger the cleanup discard creates gives
+        // the active player priority and keeps the game in CLEANUP; the card is
+        // NOT binned in the same synchronous pass.
+        it("keeps a Rootwalla discarded to hand size castable via its reflexive trigger, then bins it on decline", () => {
             const rootwalla = makeInstance(baskingRootwalla.id, {
                 id: "walla",
                 controllerId: "p1",
@@ -246,33 +355,36 @@ describe("Madness capability (CR 702.35)", () => {
                 cardInstanceIds: ["walla"],
             });
 
-            // Bug #1 fix: the Rootwalla is NOT in the graveyard — it is exiled
-            // and still castable for its madness cost (window extended past the
-            // cleanup that just happened, since cleanup grants no priority).
+            // CR 514.3 — the Rootwalla is NOT in the graveyard: it is exiled and
+            // its reflexive trigger is on the stack (still CLEANUP, active player
+            // has priority).
             const p1After = getPlayer(state, "p1");
             expect(p1After.graveyard.some((c) => c.id === "walla")).toBe(false);
-            const exiled = p1After.exile.find((c) => c.id === "walla");
-            expect(exiled).toBeDefined();
-            expect(exiled!.madnessExiled).toBe(true);
-            expect(exiled!.castableFromExileBy).toBe("p1");
-            // The turn advanced out of CLEANUP; the window reaches the next turn.
-            expect(state.turn).toBe(2);
-            expect(exiled!.castableFromExileUntilTurn).toBe(2);
-            // When p1 next holds priority (non-active players get priority during
-            // the opponent's turn), the madness cast is offered at instant speed.
-            state.priorityPlayerId = "p1";
-            expect(getLegalActions(state, p1After, exiled!)).toContain("cast");
+            expect(p1After.exile.some((c) => c.id === "walla")).toBe(true);
+            expect(state.phase).toBe("CLEANUP");
+            expect(state.stack.some((s) => s.madnessTrigger === "walla")).toBe(
+                true
+            );
+            expect(state.priorityPlayerId).toBe("p1");
 
-            // Decline: at the NEXT cleanup (turn 2) the uncast copy is binned.
-            finalizeCleanup(state);
-            const p1Next = getPlayer(state, "p1");
-            expect(p1Next.exile.some((c) => c.id === "walla")).toBe(false);
-            expect(p1Next.graveyard.some((c) => c.id === "walla")).toBe(true);
+            // Resolve the trigger → the cast window opens during p1's own end.
+            resolveTopOfStack(state);
+            const exiled = getPlayer(state, "p1").exile.find(
+                (c) => c.id === "walla"
+            )!;
+            expect(exiled.castableFromExileBy).toBe("p1");
+            expect(getLegalActions(state, p1After, exiled)).toContain("cast");
+
+            // Decline: the uncast copy is binned immediately.
+            expect(declineMadness(state)).toBe(true);
+            const p1End = getPlayer(state, "p1");
+            expect(p1End.exile.some((c) => c.id === "walla")).toBe(false);
+            expect(p1End.graveyard.some((c) => c.id === "walla")).toBe(true);
         });
     });
 
     describe("serialization round-trip", () => {
-        it("preserves the madnessExiled marker across compact/expand", () => {
+        it("preserves the pending-trigger marker before the window opens", () => {
             const card = makeInstance(baskingRootwalla.id, {
                 zone: "hand",
                 controllerId: "p1",
@@ -287,12 +399,11 @@ describe("Madness capability (CR 702.35)", () => {
                 (c) => c.id === card.id
             );
             expect(exiled?.madnessExiled).toBe(true);
-            expect(exiled?.castableFromExileBy).toBe("p1");
+            expect(exiled?.madnessTriggerPending).toBe(true);
+            expect(exiled?.castableFromExileBy).toBeUndefined();
         });
-    });
 
-    describe("frontend wiring — projectPublicState (CR 702.35d)", () => {
-        it("carries the cast affordance to the owner and hides it from the opponent", () => {
+        it("preserves the open cast window (castableFromExileBy + madnessCastWindow)", () => {
             const card = makeInstance(baskingRootwalla.id, {
                 zone: "hand",
                 controllerId: "p1",
@@ -300,7 +411,33 @@ describe("Madness capability (CR 702.35)", () => {
             });
             const p1 = makePlayer("p1", { hand: [card] });
             const state = makeState({ players: [p1, makePlayer("p2")] });
-            discardToGraveyard(state, "p1", card.id);
+            discardAndFireMadnessTrigger(state, "p1", card.id);
+            resolveTopOfStack(state); // open the window
+
+            const round = expandState(compactState(state));
+            const exiled = getPlayer(round, "p1").exile.find(
+                (c) => c.id === card.id
+            );
+            expect(exiled?.madnessExiled).toBe(true);
+            expect(exiled?.castableFromExileBy).toBe("p1");
+            expect(round.madnessCastWindow).toEqual({
+                cardId: card.id,
+                ownerId: "p1",
+            });
+        });
+    });
+
+    describe("frontend wiring — projectPublicState (CR 702.35d)", () => {
+        it("carries the cast affordance to the owner and hides it from the opponent while the window is open", () => {
+            const card = makeInstance(baskingRootwalla.id, {
+                zone: "hand",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const p1 = makePlayer("p1", { hand: [card] });
+            const state = makeState({ players: [p1, makePlayer("p2")] });
+            discardAndFireMadnessTrigger(state, "p1", card.id);
+            resolveTopOfStack(state); // open the window
 
             // Owner's view: the exiled card is castable and tagged with "cast".
             const ownView = projectPublicState(state, 1, "p1");

@@ -210,6 +210,7 @@ export type BotAction =
     | { kind: "land-entry"; accept: boolean }
     | { kind: "name-card"; cardName: string }
     | { kind: "random-reveal-ack" }
+    | { kind: "madness-decline" }
     | { kind: "declare-attackers" }
     | { kind: "declare-blockers" }
     | { kind: "confirm-combat-damage" }
@@ -267,6 +268,7 @@ export function botActionRealisation(
         case "land-entry":
         case "name-card":
         case "random-reveal-ack":
+        case "madness-decline":
             return "executor";
         case "pass":
         case "declare-attackers":
@@ -598,11 +600,14 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // pre-game branch, and `random-reveal` is an engine-drawn reveal acked
         // via `random-reveal-ack` (`decideBotAction` handles all three before
         // reaching here). Reaching any via `chooseResolution` is a bug.
+        // `madness-cast` (CR 702.35d) also has its own dedicated path in
+        // `decideBotAction` (the bot declines): never resolved here.
         case "may-pay":
         case "land-entry-tapped":
         case "mulligan-bottom":
         case "random-reveal":
         case "name-card":
+        case "madness-cast":
             throw new Error(
                 `chooseResolution: "${kind}" is not resolved here (use the dedicated path)`
             );
@@ -715,6 +720,13 @@ export function decideBotAction(view: BotView): BotAction {
                 kind: "name-card",
                 cardName: choice.nameCardDefault ?? "Plains",
             };
+        }
+        if (choice.kind === "madness-cast") {
+            // CR 702.35d — the reflexive Madness cast-choice: the bot's minimal
+            // policy is to DECLINE (send the card to the graveyard). Casting from
+            // exile for the madness cost is a real value decision deferred to a
+            // later slice (ADR 0016); declining is always legal and never stalls.
+            return { kind: "madness-decline" };
         }
         return {
             kind: "resolution-choice",

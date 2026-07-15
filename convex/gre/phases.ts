@@ -39,7 +39,6 @@ import {
     tickDuration,
 } from "./state";
 import { tryGetDefinition } from "../cards";
-import { sweepUncastMadness } from "./madness";
 import { seededShuffle } from "./rng";
 import { describeDamageSource } from "./replacements";
 import {
@@ -1835,6 +1834,29 @@ export function finalizeCleanupDiscard(
     state.pendingCleanupDiscard = undefined;
     // CR 514.2 — runs only after the discard lands.
     finalizeCleanup(state);
+
+    // CR 514.3 — normally no player receives priority during the cleanup step,
+    // but if a turn-based action from 514.1 (here: discarding a card with
+    // Madness, whose replacement exiles it and whose reflexive ability triggers)
+    // put a triggered ability on the stack, the active player receives priority,
+    // players get priority as normal, and a NEW cleanup step begins afterward.
+    // Collect any such trigger off the CARD_DISCARDED events the discard emitted;
+    // if one landed, hand the active player priority and stay in CLEANUP so the
+    // owner gets a real window to cast the madness card (the iconic "discard the
+    // extra Rootwalla to hand size, cast it for {0}" line, CR 702.35d). The
+    // eventual both-players-pass with an empty stack advances the phase (the
+    // "another cleanup step" is a no-op once the hand is at size).
+    const cleanupEvents = flushPendingEvents(state);
+    const cleanupTriggers =
+        cleanupEvents.length > 0 ? collectTriggers(state, cleanupEvents) : [];
+    if (cleanupTriggers.length > 0) {
+        state.stack.push(...cleanupTriggers);
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+        drainAutoPasses(state);
+        return;
+    }
+
     // CLEANUP is an auto-phase. Leaving it lands at the next turn's UNTAP →
     // UPKEEP via the normal auto-phase recursion (CR 500.1). Drain any
     // auto-pass left on the new active player so priority settles correctly.
@@ -1954,12 +1976,6 @@ export function finalizeCleanup(state: GameState): void {
             }
         }
     }
-
-    // CR 702.35d — a card discarded via Madness that its owner did not cast
-    // during this turn's cast window is put into its owner's graveyard at the
-    // cleanup step (the "if the player doesn't, they put it into their
-    // graveyard" clause). Runs after the impulse-window revocation above.
-    sweepUncastMadness(state);
 
     // CR 702.34 / 514.2 — an instance-level Flashback grant (Snapcaster Mage:
     // "gains flashback until end of turn") expires at the cleanup step. The
@@ -2828,9 +2844,10 @@ export function drainAutoPasses(state: GameState): void {
         if (state.passCount >= 2 && state.stack.length > 0) {
             resolveTopOfStack(state);
             if ((state.pendingChoices?.length ?? 0) > 0) {
-                // Resolution suspended on a pending choice (CR 608.2) —
-                // priority moves to the chooser and auto-drain stops;
-                // selectResolutionChoice will resume from here.
+                // Resolution suspended on a pending choice (CR 608.2) — this also
+                // covers the reflexive Madness cast-choice (CR 702.35d), pushed
+                // as a blocking pending choice. Priority moves to the chooser and
+                // auto-drain stops; the submit mutation resumes from here.
                 state.priorityPlayerId = state.pendingChoices![0].playerId;
                 return;
             }

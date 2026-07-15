@@ -359,3 +359,287 @@ export const seedPresetScenarios = internalMutation({
 // loadable (every card name resolves, matches `scenarioSpecValidator`)
 // without spinning up a Convex test harness.
 export { MIGRATED_PRESET_SCENARIOS };
+
+// ---- New-mechanic scenarios (Cube / Storm / DSL batch, 2026-07-14 → 15) ------
+
+/**
+ * Golden manual-test scenarios for the cards & mechanics shipped in the
+ * 2026-07-14/15 batch that the frozen `MIGRATED_PRESET_SCENARIOS` list does not
+ * cover (Storm, Brainstorm put-back Op, Recoil owner-discard, negative-X, mana
+ * from effective power, Evoke, self-shuffle/mv-ceiling search, discard-cost
+ * search, discard-leg mayPay, Cube-FREE utility). Authored straight into the DB
+ * per ADR 0044 — a scenario added after the #770 migration is a `debugScenarios`
+ * row, never appended to the frozen list above. Seed with:
+ * `npx convex run debugScenarios:seedNewCubeScenarios '{"userId":"<id>"}'`
+ */
+const NEW_CUBE_SCENARIOS: { label: string; spec: ScenarioSpec }[] = [
+    {
+        // Storm (CR 702.40, issue #1042). Cast the two free Gitaxian Probes and
+        // the Brainstorm FIRST to raise the spells-cast-this-turn count, THEN
+        // cast Grapeshot / Tendrils / Brain Freeze / Empty the Warrens: each is
+        // copied once per spell cast before it this turn (the copies need no
+        // target re-choice for Empty the Warrens' tokens; the targeted ones ask
+        // per copy). Golden path: 3 prior spells → Grapeshot deals 4 total.
+        label: "Storm — build the count, then Grapeshot/Tendrils copy per prior spell",
+        spec: {
+            cards: [
+                { name: "Gitaxian Probe", owner: "me", zone: "hand", count: 2 },
+                { name: "Brainstorm", owner: "me", zone: "hand" },
+                { name: "Grapeshot", owner: "me", zone: "hand" },
+                { name: "Tendrils of Agony", owner: "me", zone: "hand" },
+                { name: "Brain Freeze", owner: "me", zone: "hand" },
+                { name: "Empty the Warrens", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 7,
+        },
+    },
+    {
+        // Brainstorm put-back Op (issue #1046 / #1218). Draw three, then choose
+        // an order to put two cards back on top of the library — the suspending
+        // "put N hand cards on top in any order" Op. Golden path: cast
+        // Brainstorm, pick two hand cards, order them, confirm; the next draw
+        // pulls the top one you chose. Grizzly Bears seeded on top of the
+        // library so the drawn-then-returned cards are recognizable.
+        label: "Brainstorm — draw 3, put 2 back on top in chosen order",
+        spec: {
+            cards: [
+                { name: "Brainstorm", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "library",
+                    position: 0,
+                },
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "library",
+                    position: 1,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 3,
+        },
+    },
+    {
+        // Recoil — owner-vs-controller discard (`.owner` EffectPlayerRef, issue
+        // #1106). Return a permanent to its OWNER's hand, then THAT player (the
+        // owner, not Recoil's controller) discards a card. Golden path: target
+        // the opponent's Grizzly Bears — it bounces to the opp's hand and the
+        // OPP discards, even though you cast Recoil. Two spare cards in the
+        // opp's hand so the discard has something to hit.
+        label: "Recoil — bounce to owner's hand, that player (owner) discards",
+        spec: {
+            cards: [
+                { name: "Recoil", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "hand", count: 2 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 5,
+        },
+    },
+    {
+        // Toxic Deluge — signed/negative X EffectValue for pump Ops (issue
+        // #926). Pay X life on resolution; every creature gets -X/-X until end
+        // of turn (a negative pump, not destroy — indestructible dies anyway).
+        // Golden path: X=2 wipes both 2/2 Grizzly Bears; your own Craw Wurm
+        // (6/4) survives at 4/2. Edge: X=4 to see your board die with theirs.
+        label: "Toxic Deluge — pay X life, all creatures get -X/-X",
+        spec: {
+            cards: [
+                { name: "Toxic Deluge", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Craw Wurm", owner: "me", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 4,
+        },
+    },
+    {
+        // Viridian Joiner — mana ability amount reads the source's EFFECTIVE
+        // power, layers-aware (issue #927). It taps for {G} equal to its power;
+        // with two +1/+1 counters it is a 3/4, so it taps for {G}{G}{G}, not
+        // {G}. Golden path: tap it, then cast Craw Wurm ({4}{G}{G}) with only
+        // two other lands — the extra green from its boosted power covers it.
+        label: "Viridian Joiner — taps for {G} equal to its (boosted) power",
+        spec: {
+            cards: [
+                {
+                    name: "Viridian Joiner",
+                    owner: "me",
+                    zone: "battlefield",
+                    counters: { "+1/+1": 2 },
+                },
+                { name: "Craw Wurm", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 2,
+        },
+    },
+    {
+        // Evoke (CR 702.74, issue #900) — cast for the alternative evoke cost,
+        // then sacrifice the creature when it enters. Grief's evoke exiles a
+        // black card from hand (the spare Grief); Solitude's exiles a white card
+        // (the spare Solitude). Golden path: evoke Grief → opp discards on ETB →
+        // Grief is sacrificed; evoke Solitude → exiles the opp's Grizzly Bears →
+        // Solitude is sacrificed. Two spare copies serve as the pitch fodder.
+        label: "Evoke — Grief/Solitude for evoke cost, sacrifice on ETB",
+        spec: {
+            cards: [
+                { name: "Grief", owner: "me", zone: "hand", count: 2 },
+                { name: "Solitude", owner: "me", zone: "hand", count: 2 },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "hand", count: 2 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 4,
+        },
+    },
+    {
+        // Green Sun's Zenith — self-shuffle on resolution + dynamic
+        // mana-value-ceiling search filter (issue #898). Search your library for
+        // a green creature with mana value ≤ X, put it onto the battlefield,
+        // THEN shuffle Green Sun's Zenith itself into your library. Golden path:
+        // X=2 finds one of the seeded Grizzly Bears; note the GSZ card is not in
+        // the graveyard afterward — it went back into the deck.
+        label: "Green Sun's Zenith — fetch mv ≤ X creature, shuffle itself in",
+        spec: {
+            cards: [
+                { name: "Green Sun's Zenith", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "library",
+                    count: 2,
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 4,
+        },
+    },
+    {
+        // Survival of the Fittest — discard-card-matching-filter as an
+        // ACTIVATION cost (issue #901). "{G}, discard a creature card: search
+        // your library for a creature card, reveal it, put it into your hand,
+        // then shuffle." The discard is part of the cost (only a CREATURE card
+        // is a legal discard). Golden path: pay {G}, discard a Grizzly Bears
+        // from hand, fetch a Craw Wurm from the library.
+        label: "Survival of the Fittest — discard a creature (cost) to tutor one",
+        spec: {
+            cards: [
+                {
+                    name: "Survival of the Fittest",
+                    owner: "me",
+                    zone: "battlefield",
+                },
+                { name: "Grizzly Bears", owner: "me", zone: "hand", count: 2 },
+                { name: "Craw Wurm", owner: "me", zone: "library", count: 2 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 3,
+        },
+    },
+    {
+        // Discard-leg mayPay (issue #899) — an optional discard leg on a
+        // MayPayCost. Formidable Speaker's effect offers "you may discard a
+        // card"; taking the leg unlocks the conditional upside. Golden path:
+        // cast it with spare cards in hand, ACCEPT the discard leg and watch the
+        // conditional branch fire; edge: DECLINE and see the base branch.
+        label: "Formidable Speaker — optional discard leg (mayPay)",
+        spec: {
+            cards: [
+                { name: "Formidable Speaker", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand", count: 2 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 4,
+        },
+    },
+    {
+        // Cube FREE — misc value/utility (issue #687). Aether Spellbomb: {1},
+        // sacrifice → bounce target permanent, OR {U}, sacrifice → draw. Karakas:
+        // {T} → return target LEGENDARY creature to its owner's hand. Golden
+        // path: bounce the opp's Grizzly Bears with the Spellbomb, then tap
+        // Karakas to bounce the opp's legendary Bristly Bill back to hand.
+        label: "Cube FREE — Aether Spellbomb bounce/draw + Karakas legend bounce",
+        spec: {
+            cards: [
+                { name: "Aether Spellbomb", owner: "me", zone: "battlefield" },
+                { name: "Karakas", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Bristly Bill, Spine Sower",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 3,
+        },
+    },
+];
+
+/**
+ * Seed the `NEW_CUBE_SCENARIOS` as golden `debugScenarios` rows owned by
+ * `userId` (issue-batch 2026-07-14/15). Idempotent by label — mirrors
+ * `seedPresetScenarios`. `internalMutation`: reachable only via the Convex
+ * dashboard / `npx convex run` with deploy access, never from a client.
+ * `npx convex run debugScenarios:seedNewCubeScenarios '{"userId":"<id>"}'`
+ */
+export const seedNewCubeScenarios = internalMutation({
+    args: { userId: v.id("users") },
+    returns: v.object({ inserted: v.number(), skipped: v.number() }),
+    handler: async (ctx, args) => {
+        const existing = await ctx.db
+            .query("debugScenarios")
+            .withIndex("by_user", (q) => q.eq("userId", args.userId))
+            .collect();
+        const existingLabels = new Set(existing.map((row) => row.label));
+
+        // Same loadability guard as the write path — reject before insert if any
+        // referenced card name doesn't resolve in the catalogue (ADR 0044).
+        let inserted = 0;
+        let skipped = 0;
+        for (const preset of NEW_CUBE_SCENARIOS) {
+            if (existingLabels.has(preset.label)) {
+                skipped++;
+                continue;
+            }
+            const unresolved = collectUnresolvedCardNames(
+                preset.spec,
+                (name) => tryGetCardByName(name) !== null
+            );
+            if (unresolved.length > 0) {
+                throw new Error(
+                    `Scenario "${preset.label}" references unknown card(s): ${unresolved.join(", ")}`
+                );
+            }
+            await ctx.db.insert("debugScenarios", {
+                userId: args.userId,
+                label: preset.label,
+                spec: preset.spec,
+                golden: true,
+                schemaVersion: SCENARIO_SCHEMA_VERSION,
+                createdAt: Date.now(),
+            });
+            inserted++;
+        }
+        return { inserted, skipped };
+    },
+});
+
+// Exported for tests only — same loadability proof as the migration list.
+export { NEW_CUBE_SCENARIOS };

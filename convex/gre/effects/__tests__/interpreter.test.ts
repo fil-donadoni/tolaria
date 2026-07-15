@@ -10241,10 +10241,7 @@ describe("Effect Script Op: putBack (CR 401.4, issue #1046)", () => {
         // h3 (picked last) lands literally on top; h1 second from top —
         // moveHandCardToLibraryTop unshifts, so the pick order IS the
         // resulting top-to-bottom order (CR 401 "in any order").
-        expect(state.players[0].library.map((c) => c.id)).toEqual([
-            "h3",
-            "h1",
-        ]);
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["h3", "h1"]);
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["h2"]);
         expect(state.stack).toHaveLength(0);
         expect(state.pendingChoices).toBeUndefined();

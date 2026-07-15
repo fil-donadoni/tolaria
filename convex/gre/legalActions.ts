@@ -125,7 +125,11 @@ export type ChoiceAction =
           kind: "submit-random-reveal-ack";
           stackItemId: string;
           choiceId: string;
-      };
+      }
+    /** Decline a reflexive `madness-cast` choice (`submitMadnessDecline`,
+     *  CR 702.35d) — the card goes to the graveyard. The ACCEPT ("Cast") is a
+     *  normal cast action on the exiled card, not a choice action. */
+    | { kind: "submit-madness-decline" };
 
 /** Actions legal while the game waits for `target` input — mid-cast /
  *  mid-activation target selection (CR 601.2c / 602.2b). */
@@ -297,6 +301,13 @@ function choiceActions(
                 choiceId: head.choiceId,
             }),
         ];
+    }
+
+    // CR 702.35d — reflexive Madness cast-choice: the only choice-action is to
+    // DECLINE (→ graveyard). The ACCEPT ("Cast") is a normal cast of the exiled
+    // card, enumerated as a priority-window `cast-spell` move, not here.
+    if (head.kind === "madness-cast") {
+        return [wrap({ kind: "submit-madness-decline" })];
     }
 
     const submit = (cardInstanceIds: string[]): LegalAction =>

@@ -231,6 +231,20 @@ export type ManaRestriction =
  *  combined submission (ADR 0053 "alternative rejected"). */
 export type DividePilesKind = "divide-piles" | "pick-pile";
 
+/** Reflexive Madness cast-choice (CR 702.35d). A yes/no-shaped decision — "cast
+ *  the discarded-and-exiled card for its madness cost, or put it into your
+ *  graveyard" — raised when the madness reflexive trigger resolves
+ *  (`openMadnessCastWindow`). Its own STACKLESS family (like `land-entry-tapped`)
+ *  because the trigger has already left the stack, so there is no stack item to
+ *  commit an answer into. Unlike every other family the ACCEPT ("Cast") is NOT a
+ *  submit mutation: the client fires the ordinary `announceCast` on the exiled
+ *  card (`PendingChoice.cardInstanceId`), which consumes this choice and runs the
+ *  normal cast flow (targets / mana). Only the DECLINE routes through a dedicated
+ *  `submitMadnessDecline` mutation (like `land-entry` → `submitLandEntryChoice`),
+ *  binning the card. Holds priority while pending, so the owner can never lose the
+ *  cast by accidentally passing priority. */
+export type MadnessCastChoiceKind = "madness-cast";
+
 export type PendingChoiceKind =
     | ZonePickKind
     | YesNoChoiceKind
@@ -239,4 +253,5 @@ export type PendingChoiceKind =
     | OptionChoiceKind
     | NameCardChoiceKind
     | RandomRevealKind
-    | DividePilesKind;
+    | DividePilesKind
+    | MadnessCastChoiceKind;

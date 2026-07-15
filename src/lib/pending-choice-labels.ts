@@ -48,6 +48,8 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     // pile-division divide-then-choose family (ADR 0053)
     "divide-piles": "Divide into piles",
     "pick-pile": "Choose a pile",
+    // reflexive Madness cast-choice (CR 702.35d)
+    "madness-cast": "Madness",
 };
 
 export function pendingChoiceLabel(kind: PendingChoiceKind): string {

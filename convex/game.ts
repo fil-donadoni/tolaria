@@ -98,7 +98,11 @@ import {
     getEscapeManaCost,
     hasEscape,
 } from "./gre/escape";
-import { getMadnessCost } from "./gre/madness";
+import {
+    getMadnessCost,
+    declineMadness,
+    consumeMadnessCastChoice,
+} from "./gre/madness";
 import { assertDeckLegal, type ResolvePool } from "./formats";
 import { loadBanlistOverrides } from "./banlists";
 import {
@@ -4289,6 +4293,16 @@ export const announceCast = mutation({
 
         const state = structuredClone(gameState.state) as GameState;
         assertGameNotOver(state);
+
+        // CR 702.35d — the owner accepted the reflexive Madness cast-choice by
+        // casting the exiled card: consume the choice so the normal cast flow
+        // (priority, targets, mana) runs. Must run BEFORE the priority /
+        // pending-choice gates below — otherwise the pending choice would make
+        // Expected Input "choice" (not "priority") and reject the cast. Only the
+        // window's own card, cast by its owner, consumes it; any other action
+        // leaves the choice pending (the owner can still Decline it).
+        consumeMadnessCastChoice(state, args.playerId, args.cardInstanceId);
+
         assertExpectedInput(state, {
             playerId: args.playerId,
             expect: "priority",
@@ -8116,7 +8130,9 @@ export const passPriority = mutation({
             // Both players passed consecutively — resolve top of stack (CR 117.3d)
             resolveTopOfStack(state);
             if ((state.pendingChoices?.length ?? 0) > 0) {
-                // Resolution suspended awaiting player choices (CR 608.2).
+                // Resolution suspended awaiting player choices (CR 608.2) — this
+                // also covers the reflexive Madness cast-choice (CR 702.35d),
+                // which resolveTopOfStack pushes as a blocking pending choice.
                 // Hand priority to the chooser; the gate on passPriority and
                 // other priority-driven mutations prevents any action other
                 // than submitResolutionChoice.
@@ -8269,6 +8285,50 @@ export const submitLandEntryChoice = mutation({
             playerId: args.playerId,
             accept: args.accept,
         });
+
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
+    },
+});
+
+/** CR 702.35d — declines a reflexive `madness-cast` choice: puts the exiled
+ *  card into its owner's graveyard immediately. The ACCEPT ("Cast") is NOT here
+ *  — the client fires the ordinary `announceCast` on the exiled card, which
+ *  consumes the choice and runs the normal cast flow. This mutation is the
+ *  decline-only counterpart, mirroring `submitLandEntryChoice`. */
+export const submitMadnessDecline = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+        assertExpectedInput(state, {
+            playerId: args.playerId,
+            expect: "choice",
+        });
+        const head = state.pendingChoices?.[0];
+        if (
+            !head ||
+            head.kind !== "madness-cast" ||
+            head.playerId !== args.playerId
+        ) {
+            throw new Error("No madness cast choice to decline");
+        }
+
+        declineMadness(state);
+        // CR 117.3c — the reflexive ability is done; priority returns to the
+        // active player. Drain any standing auto-pass so the game settles (and,
+        // during a CR 514.3 cleanup window, leaves CLEANUP to the next turn).
+        state.priorityPlayerId = state.activePlayerId;
+        state.passCount = 0;
+        drainAutoPasses(state);
+        checkStateBasedActions(state);
 
         const nextSeq = gameState.seq + 1;
         await saveGameState(ctx, args.gameId, nextSeq, state, gameState);

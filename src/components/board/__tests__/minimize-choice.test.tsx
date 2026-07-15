@@ -40,6 +40,8 @@ vi.mock("@convex/_generated/api", () => {
         "submitResolutionChoice",
         "submitMayPay",
         "submitLandEntryChoice",
+        "submitMadnessDecline",
+        "announceCast",
         "submitNameCard",
     ];
     const game: Record<string, { _name: string }> = {};

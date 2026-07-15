@@ -78,6 +78,7 @@ function engineMutations(state: GameState): MoveMutations {
         submitMayPay: async ({ playerId, accept }) => {
             applyMayPaySubmit(state, { playerId, accept });
         },
+        submitMadnessDecline: reject,
         submitLandEntryChoice: async ({ playerId, accept }) => {
             applyLandEntrySubmit(state, { playerId, accept });
         },

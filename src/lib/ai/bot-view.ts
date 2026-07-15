@@ -610,6 +610,20 @@ export function botActionToMove(
                 choiceId: head.choiceId,
             };
         }
+        case "madness-decline": {
+            // CR 702.35d — routes through `submitMadnessDecline` (decline the
+            // reflexive Madness cast-choice → graveyard). No data travels; the
+            // server reads the head choice and validates it.
+            const head = state.pendingChoices?.[0];
+            if (
+                !head ||
+                head.kind !== "madness-cast" ||
+                head.playerId !== botId
+            ) {
+                return null;
+            }
+            return { kind: "madness-decline" };
+        }
         // Realised by the driver directly (Worker search / confirmDamage /
         // attack-tax pay-cancel / no-op), never translated to a Move here.
         case "pass":

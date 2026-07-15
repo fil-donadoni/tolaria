@@ -229,9 +229,14 @@ function compactCard(
         out.escaped = card.escaped;
     }
     // CR 702.35c — the madness-exile marker on a discarded-and-exiled card must
-    // survive a save/load so the cast window + cleanup sweep stay consistent.
+    // survive a save/load so the cast window stays consistent.
     if (card.madnessExiled) {
         out.madnessExiled = card.madnessExiled;
+    }
+    // CR 702.35d — the pending-reflexive-trigger marker must survive a save/load
+    // between the discard→exile and the trigger being built by collectTriggers.
+    if (card.madnessTriggerPending) {
+        out.madnessTriggerPending = card.madnessTriggerPending;
     }
     // CR 702.74a — the Evoke cast marker must survive a save/load between the
     // cast committing and the "sacrifice if evoked" trigger resolving.
@@ -480,6 +485,10 @@ function expandCard(
     // CR 702.35c — restore the madness-exile marker.
     if (compact.madnessExiled) {
         result.madnessExiled = compact.madnessExiled as boolean;
+    }
+    // CR 702.35d — restore the pending-reflexive-trigger marker.
+    if (compact.madnessTriggerPending) {
+        result.madnessTriggerPending = compact.madnessTriggerPending as boolean;
     }
     // CR 702.74a — restore the Evoke cast marker.
     if (compact.evoked) {
@@ -737,6 +746,9 @@ function compactStackItem(item: StackItem): CompactCard {
     }
     if (item.triggerSourceId) base.triggerSourceId = item.triggerSourceId;
     if (item.triggerEvent) base.triggerEvent = item.triggerEvent;
+    // CR 702.35d — the reflexive Madness cast-trigger marker (the exiled card's
+    // id) must survive a save/load while the trigger sits on the stack.
+    if (item.madnessTrigger) base.madnessTrigger = item.madnessTrigger;
     // Storm (CR 702.40, ADR 0052) — the cast-trigger's detached snapshot and
     // remaining-copies counter must survive a save/load while the trigger
     // sits on the stack awaiting priority (or a per-copy retarget answer).
@@ -815,6 +827,10 @@ function expandStackItem(compact: CompactCard): StackItem {
     }
     if (compact.triggerEvent) {
         item.triggerEvent = compact.triggerEvent as StackItem["triggerEvent"];
+    }
+    // CR 702.35d — restore the reflexive Madness cast-trigger marker.
+    if (compact.madnessTrigger) {
+        item.madnessTrigger = compact.madnessTrigger as string;
     }
     // Storm (CR 702.40, ADR 0052) — rehydrate the cast-trigger's detached
     // snapshot (recursing through this same expander) and remaining-copies
@@ -908,6 +924,10 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "spellsCastThisTurn",
     "pendingUntapStep",
     "pendingCleanupDiscard",
+    // CR 702.35d — the open Madness cast window. Transiently set only while its
+    // owner owes a cast-or-decline decision (itself a stable save point), so it
+    // must survive the DB round-trip. Undefined at a fully-resolved point.
+    "madnessCastWindow",
     "damageDealtToPlayerThisTurn",
     "artifactDamageToPlayerThisTurn",
     "damageRedirections",

@@ -94,6 +94,8 @@ export function describeMove(move: Move, state: GameState): string {
             return `name a card (${move.cardName})`;
         case "random-reveal-ack":
             return "acknowledge coin flip";
+        case "madness-decline":
+            return "decline madness cast (to graveyard)";
         case "play-land":
             return `play ${instanceName(state, move.cardInstanceId)}`;
         case "cast-spell": {
