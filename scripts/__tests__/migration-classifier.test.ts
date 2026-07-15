@@ -749,11 +749,27 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // covered instead by the dedicated `convex/gre/__tests__/evoke.test.ts`
         // end-to-end mechanism suite), Op-blocked 229→228. Partition:
         // 451+14+228=693.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(693);
+        //
+        // Then the `putBack` Op ships (issue #1046 — "put N hand cards on top
+        // of your library in any order", unblocking Brainstorm's DSL
+        // migration): its binding adds `moveHandCardToLibraryTop` to the
+        // COVERED-primitive set (`requestChoice` was already covered via the
+        // `choice`/`mayPay` Ops). Brainstorm (ice/blue.ts) migrates
+        // resolveSteps→effects (`draw` 3 + `putBack` 2), so its ONE
+        // resolveSteps closure disappears from the census entirely — it was
+        // previously bucketed Op-blocked (moveHandCardToLibraryTop was
+        // uncovered before this Op), not FREE, so removing it drops the
+        // Op-blocked count, not the FREE count. No OTHER cataloguue closure
+        // using `moveHandCardToLibraryTop` (fem/colorless.ts, ice/green.ts,
+        // lea/colorless.ts, leg/green.ts) flips to FREE — each is blocked on
+        // at least one other still-uncovered primitive too. Net: total
+        // 693→692, FREE/AFK-ready/X-only unchanged (451/413/14), Op-blocked
+        // 228→227. Partition: 451+14+227=692.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(692);
         expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(451);
         expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(413);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(228);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(227);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

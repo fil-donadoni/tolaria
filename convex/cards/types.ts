@@ -6482,6 +6482,37 @@ export type EffectOp =
           take?: EffectValue;
           prompt?: string;
       }
+    /** CR 401.4 (issue #1046) — put N cards from a hand on top of a library,
+     *  in the player's chosen order ("put N cards from your hand on top of
+     *  your library in any order", Brainstorm). A thin declarative skin over
+     *  the single SpellContext primitive `moveHandCardToLibraryTop`, one
+     *  execution path (ADR 0045): raises a suspending `choose-hand-card`
+     *  `requestChoice` over the resolved `player`'s whole hand (`count`
+     *  cards, clamped to hand size — CR 608.2b), then moves each picked card
+     *  to the library top. `moveHandCardToLibraryTop` unshifts, so the LAST
+     *  picked card lands literally on top — the player's pick order IS the
+     *  resulting top-to-bottom order (CR 401 "in any order" = the player
+     *  controls the sequence). Like `choice` / `scryReorder` / `digToHand`
+     *  this Op SUSPENDS: the first execution enqueues the choice and reports
+     *  "suspend" (the item stays on the stack, checkpointed at this Op's own
+     *  position — CR 608.3, so an EARLIER Op in the same script, e.g. `draw`,
+     *  never re-runs on resume); the resumed execution reads the ordered
+     *  picks back and applies the moves. The moved cards are marked known to
+     *  the controller (ADR 0026 — they chose the cards and their order, so
+     *  the top position is certain until a shuffle). Distinct from
+     *  `moveZone`'s `to: "library-top"` shape (issue #1125), which only moves
+     *  FROM the library (a tutor-to-top); this Op moves a chosen HAND subset
+     *  instead — the gap `moveZone` / `scryReorder` / `libraryLook` / `mill`
+     *  all left uncovered. `player` names whose hand/library (the resolving
+     *  controller, an announced target slot, or a forEach `$each`); `count`
+     *  is how many cards to put back. No `bind` — the pick is consumed
+     *  internally, not read by a later Op. */
+    | {
+          op: "putBack";
+          player: EffectPlayerRef;
+          count: EffectValue;
+          prompt?: string;
+      }
     /** CR 615 (issue #845) — establish a damage-prevention shield. A thin
      *  declarative skin over three SpellContext prevention primitives, one
      *  execution path per mode (ADR 0045). `mode` selects the shield shape:

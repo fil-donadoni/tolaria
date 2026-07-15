@@ -714,6 +714,18 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // Fight or Flight / Stand or Fall's hand-written combat tests.
             req.skip ??= `Op "restrictCombat" only manifests at a later combat step — covered by hand-written tests`;
             return;
+        case "putBack":
+            // CR 401.4 (issue #1046) — a suspending `choose-hand-card` pick
+            // over the caster's hand whose ORDER the player controls (the
+            // pick order becomes the resulting top-of-library order); the
+            // canned single-resolution generator cannot drive a live pick.
+            // Explicit skip — the suspend/resume, pick-order-preserving
+            // top-placement, checkpoint (an earlier Op never re-runs on
+            // resume) and wire-format assertions are covered by the Op's own
+            // interpreter tests (per-Op regime; mirrors the suspending
+            // `choice` / `scryReorder` / `digToHand` skips).
+            req.skip ??= `Op "putBack" suspends for a live hand pick (CR 401.4) — covered by the Op's interpreter tests`;
+            return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.
@@ -1305,6 +1317,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // scenario can assert). Kept for the 1:1 coverage guard; the look / keep /
     // bottom is covered by the Op's own interpreter tests.
     digToHand() {
+        return null;
+    },
+    // `putBack` (CR 401.4, issue #1046) — never reached: `analyseOp` skips
+    // every script with a putBack Op (it suspends on a live choose-hand-card
+    // pick whose ORDER the player controls, so there is no deterministic
+    // same-resolution outcome the canned scenario can assert). Kept for the
+    // 1:1 coverage guard; the suspend/resume, pick-order-preserving top
+    // placement and checkpoint are covered by the Op's own interpreter tests.
+    putBack() {
         return null;
     },
     // `preventDamage` (CR 615, issue #845) — never reached: `analyseOp` skips

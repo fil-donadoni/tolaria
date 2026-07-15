@@ -1328,6 +1328,52 @@ export const OP_EXECUTORS: {
         // view) until a shuffle clears the certainty.
         ctx.markKnown(playerId, restTop, playerId);
     },
+    // CR 401.4 (issue #1046) — put N hand cards on top of the library, in the
+    // player's chosen order. A thin declarative skin over the single
+    // SpellContext primitive `moveHandCardToLibraryTop`, ONE execution path
+    // (ADR 0045). SUSPENDS like `choice` / `scryReorder` / `digToHand`: the
+    // first execution raises a `choose-hand-card` PendingChoice over the
+    // resolved player's whole hand and reports "suspend" — `runOpList`
+    // checkpoints THIS Op's own pre-order position BEFORE calling it, so an
+    // earlier Op in the same script (e.g. `draw`) is skipped on resume (CR
+    // 608.3, the bug the old Brainstorm `resolveSteps` split fixed by hand).
+    // The resumed execution reads the ordered picks back and moves each to
+    // the top via `moveHandCardToLibraryTop`, which unshifts — so the LAST
+    // picked card ends up literally on top, meaning the player's pick order
+    // IS the resulting top-of-library order (CR 401 "in any order"). Skipped
+    // when the player is gone, `count` ≤ 0, or the hand is empty (CR
+    // 608.2b — never suspends then); `count` clamps to hand size.
+    putBack(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 608.2b — player gone, skip
+        const count = resolveValue(ctx, op.count);
+        if (count === undefined || count <= 0) return;
+        const handSize = ctx.getHandIds(playerId).length;
+        const clamped = Math.min(count, handSize);
+        if (clamped <= 0) return; // empty hand — nothing to put back
+        const picks = ctx.requestChoice({
+            playerId,
+            // A fixed choiceId is unique per Op position: the pipeline keys
+            // on `step:choiceId` and `step` IS this Op's checkpointed
+            // position, mirroring `scryReorder`'s "order-top" / `digToHand`'s
+            // "dig-to-hand" fixed ids.
+            choiceId: "put-back",
+            kind: "choose-hand-card",
+            zone: "hand",
+            count: clamped,
+            prompt:
+                op.prompt ??
+                `Choose ${clamped} card(s) to put on top of your library (last picked ends up on top).`,
+        });
+        if (picks === undefined) return "suspend"; // enqueued — wait
+        // Resume — move each pick to the top; the LAST pick lands on top
+        // last (unshift), so the player's chosen order IS the resulting
+        // top-of-library order.
+        for (const id of picks) ctx.moveHandCardToLibraryTop(playerId, id);
+        // ADR 0026 — the controller chose these cards and their order, so
+        // they keep knowing them on top (private — no reveal clause here).
+        ctx.markKnown(playerId, picks, playerId);
+    },
     // CR 615 (issue #845) — establish a damage-prevention shield. A thin
     // declarative skin over three SpellContext prevention primitives, ONE
     // execution path per mode (ADR 0045). Each mode is skipped when its
