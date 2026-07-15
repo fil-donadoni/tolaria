@@ -72,15 +72,25 @@ Deferred` / `// DEFERRED` / `// divergence` / `// DIVERGENCE` / `// not
 implemented` / `// TODO` comment inside `convex/cards/sets/**` documents
   an intentional partial implementation (an Oracle clause a card's
   `resolve()`/`effects` silently drops) — and every one MUST carry a
-  disposition somewhere in its contiguous comment block: a linked issue ref
-  (`#NNN`, prefer `tracked-by: #NNN`), an ADR reference (`ADR NNNN`), or an
-  explicit "out of scope" note (mirrors `scripts/check-stub-coverage.ts`'s
-  own disposition vocabulary for commented-out stubs — this guard is that
-  script's ACTIVE-card analogue). Enforced by
-  `convex/cards/__tests__/divergenceMarkers.test.ts`. An unreferenced
-  marker fails CI — either add the ref if the tracking issue already
-  exists, or open a new issue and reference it (`tracked-by: #NNN`) before
-  landing the card.
+  tracking disposition **in the marker's own comment PARAGRAPH**: a linked
+  issue ref (`#NNN`, prefer `tracked-by: #NNN`) or an explicit "out of
+  scope" note. Enforced by
+  `convex/cards/__tests__/divergenceMarkers.test.ts`. Two deliberate
+  narrowings vs. the sibling stub guard (`scripts/check-stub-coverage.ts`),
+  each closing a proven leak. **(1) Paragraph scope, not the whole comment
+  block:** the ref must live in the SAME paragraph as the marker — the run of
+  comment lines around it, bounded by a blank `//` line, a box-rule line
+  (`// ────` / `// ════`), or a non-comment line. A ref in a DIFFERENT
+  paragraph does not vouch: not a provenance citation in the card-intro
+  paragraph above, not a separate deferral note's ref lower in the same block.
+  (A real multi-marker section footer — several deferred cards bulleted under
+  one `tracked-by: #NNN` header — is ONE paragraph and needs the ref once.)
+  **(2) `ADR NNNN` does NOT count as a tracking ref:** an ADR documents a
+  card's design/provenance, it is not a work ticket for a dropped clause; a
+  permanently out-of-scope divergence must still say so in words ("out of
+  scope"), which does count. An unreferenced marker fails CI — add a
+  `tracked-by: #NNN` ref on/next to the marker (same paragraph), or open a new
+  issue and reference it, before landing the card.
 
 **Per-Op test regime replaces per-card mandates for DSL cards.** The `Card
 testing convention` table below still governs `resolve()` cards in full, and
