@@ -1000,7 +1000,9 @@ const KEYWORD_ABILITIES: MechanicRow[] = [
         name: "Madness",
         kind: "keyword-ability",
         cr: "702.35",
-        status: "planned",
+        status: "implemented",
+        binding: "convex/gre/madness.ts",
+        note: "Cost-system / keyword-cast capability (engine infra, NOT an Effect Script Op): convex/gre/madness.ts (getMadnessCost / markMadnessExiled / sweepUncastMadness) + CardDefinition.madness (printed madness cost; `Madness {0}` is the empty cost `{}`) + CardInstanceState.madnessExiled. discardToGraveyard (convex/gre/state.ts) redirects a discarded madness card hand→exile (CR 702.35c) and opens a this-turn cast-from-exile window via the shared castableFromExileBy permission; getLegalActions (rules.ts) offers the cast at instant speed for the madness cost; castRawManaCost (game.ts) charges the madness cost on the exile cast; sweepUncastMadness (phases.ts cleanup) puts an uncast copy into the graveyard (CR 702.35d). CR-simplification: the 702.35d reflexive trigger is modeled as a this-turn impulse window rather than a stack trigger (only the decision timing is widened). Used by Basking Rootwalla, Blazing Rootwalla, Anje's Ravager.",
     },
     // 702.36 Fear
     {

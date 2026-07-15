@@ -6,8 +6,17 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import { getCardByName } from "../../../index";
+import type {
+    CardInstanceState,
+    GameState,
+    StackItem,
+} from "../../../../gre/state";
 import { resolveTopOfStack } from "../../../../gre/state";
-import { mineCollapse } from "../red";
+import {
+    getEffectivePower,
+    getEffectiveToughness,
+} from "../../../../gre/layers";
+import { mineCollapse, blazingRootwalla } from "../red";
 
 // Mine Collapse — {3}{R} Instant. "If it's your turn, you may sacrifice a
 // Mountain rather than pay this spell's mana cost. Mine Collapse deals 5 damage
@@ -54,5 +63,46 @@ describe("Mine Collapse (pitch: sacrifice a Mountain, your turn)", () => {
         resolveTopOfStack(state);
         // 5 damage ≥ toughness 5 → destroyed by SBA.
         expect(state.players[1].graveyard.some((c) => c.id === "v")).toBe(true);
+    });
+});
+
+/** Push an activated ability onto the stack (cost assumed paid), then resolve. */
+function resolveActivated(
+    state: GameState,
+    source: CardInstanceState,
+    abilityId: string
+): void {
+    const item: StackItem = {
+        ...source,
+        zone: "stack",
+        castById: source.controllerId,
+        abilityId,
+        targets: [],
+    };
+    state.stack.push(item);
+    resolveTopOfStack(state);
+}
+
+describe("Blazing Rootwalla — Madness {0} + once-per-turn pump (CR 702.35 / 602.5)", () => {
+    it("carries Madness {0} and a oncePerTurn pump ability", () => {
+        expect(blazingRootwalla.madness).toEqual({});
+        const pump = blazingRootwalla.activatedAbilities?.find(
+            (a) => a.id === "blazing-rootwalla-pump"
+        );
+        expect(pump?.oncePerTurn).toBe(true);
+    });
+
+    it("gives +2/+0 until end of turn", () => {
+        const walla = makeInstance(blazingRootwalla.id, { controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [walla] }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveActivated(state, walla, "blazing-rootwalla-pump");
+        // 1/1 → 3/1.
+        expect(getEffectivePower(state, walla)).toBe(3);
+        expect(getEffectiveToughness(state, walla)).toBe(1);
     });
 });

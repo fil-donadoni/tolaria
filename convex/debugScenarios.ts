@@ -270,6 +270,27 @@ const MIGRATED_PRESET_SCENARIOS: { label: string; spec: ScenarioSpec }[] = [
             landCount: 4,
         },
     },
+    {
+        // Madness (CR 702.35 — the discard→exile cast capability, Cube CAP
+        // #698). Cast Faithless Looting ("draw two, then discard two") and
+        // discard Basking Rootwalla + Anje's Ravager: instead of hitting the
+        // graveyard, each is exiled and offered for its MADNESS cost. Cast
+        // Basking Rootwalla for {0} (golden path — free), and Anje's Ravager for
+        // its Madness {1}{R} (not its printed {2}{R}) from exile at instant
+        // speed. Edge case (decline): leave a discarded copy in exile and pass
+        // to the end of the turn — at cleanup it is put into your graveyard
+        // (CR 702.35d "if you don't, put it into your graveyard").
+        label: "Madness — discard into exile, then cast for the madness cost",
+        spec: {
+            cards: [
+                { name: "Faithless Looting", owner: "me", zone: "hand" },
+                { name: "Basking Rootwalla", owner: "me", zone: "hand" },
+                { name: "Anje's Ravager", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            landCount: 4,
+        },
+    },
 ];
 
 /**

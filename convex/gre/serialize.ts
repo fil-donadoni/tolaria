@@ -228,6 +228,11 @@ function compactCard(
     if (card.escaped) {
         out.escaped = card.escaped;
     }
+    // CR 702.35c — the madness-exile marker on a discarded-and-exiled card must
+    // survive a save/load so the cast window + cleanup sweep stay consistent.
+    if (card.madnessExiled) {
+        out.madnessExiled = card.madnessExiled;
+    }
     return out;
 }
 
@@ -457,6 +462,10 @@ function expandCard(
     // CR 702.138e — restore the escaped flag on the permanent.
     if (compact.escaped) {
         result.escaped = compact.escaped as boolean;
+    }
+    // CR 702.35c — restore the madness-exile marker.
+    if (compact.madnessExiled) {
+        result.madnessExiled = compact.madnessExiled as boolean;
     }
     return result;
 }

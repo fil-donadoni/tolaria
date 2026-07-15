@@ -635,6 +635,9 @@ describe("game_state serialize round-trip", () => {
         // #946 (CR 514.2 / 608.2g) — the turn-scoped impulse-play expiry marker
         // must survive a save/load so cleanup revokes it on the right turn.
         lion.castableFromExileUntilTurn = 7;
+        // #698 (CR 702.35c) — the madness-exile marker on a discarded-and-exiled
+        // card must survive a save/load so the cast window + cleanup sweep hold.
+        lion.madnessExiled = true;
 
         const expanded = expandState(compactState(state));
         const got = expanded.players[1].battlefield[0];
@@ -731,6 +734,7 @@ describe("game_state serialize round-trip", () => {
         });
         expect(got.castableFromExileBy).toBe("p1");
         expect(got.castableFromExileUntilTurn).toBe(7);
+        expect(got.madnessExiled).toBe(true);
     });
 
     it("preserves phasedOut bundles across the round trip (CR 702.26)", () => {

@@ -715,9 +715,21 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // Souls (#1194) and Satya (#1195) are commented stubs (0 closures). Net:
         // total 691→692, FREE 448→449, AFK-ready 411→412, X-only 14 / Op-blocked
         // 229 unchanged. Partition: 449+14+229=692.
-        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(692);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(449);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(412);
+        //
+        // Then Anje's Ravager (`sets/c19/red.ts`, Cube CAP Madness #698) adds ONE
+        // resolve() closure — the attack trigger "discard your hand, then draw
+        // three" (a justified protocol resolve: no whole-hand-discard Op, the
+        // Wheel of Fortune pattern). Its body uses only COVERED primitives
+        // (discardCard / drawCards / getHandIds), so the classifier's static
+        // heuristic buckets it FREE, and it carries a per-card test
+        // (`sets/c19/__tests__/red.test.ts`) → AFK-ready. Basking Rootwalla
+        // (`sets/tor/green.ts`) and Blazing Rootwalla (`sets/mh2/red.ts`) are
+        // pure DSL (`effects[]` pump, 0 closures). Net: total 692→693, FREE
+        // 449→450, AFK-ready 412→413, X-only 14 / Op-blocked 229 unchanged.
+        // Partition: 450+14+229=693.
+        expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(693);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(450);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(413);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(14);
         expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(229);
     });

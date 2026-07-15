@@ -40,6 +40,7 @@ import {
     hasFlashback,
     type FlashbackAdditionalCost,
 } from "./flashback";
+import { getMadnessCost, isMadnessCastable } from "./madness";
 import {
     countDistinctCardTypes,
     getEscapeExileSpec,
@@ -202,6 +203,28 @@ export function getLegalActions(
             ) &&
             hasEnoughLegalTargets(state, player, card) &&
             hasPayableEscapeExileCost(state, player, card)
+        ) {
+            actions.push("cast");
+        }
+        return actions;
+    }
+
+    // CR 702.35d — a card in the player's OWN exile that was discarded via
+    // Madness is castable from there for its madness cost. The madness cast
+    // window is instant-speed (the reflexive trigger can resolve on any player's
+    // turn), so no sorcery-timing/phase gate applies; affordability is checked
+    // against the madness cost (`Madness {0}` is the empty, always-affordable
+    // cost). This branch fully owns the "cast" decision for the exiled card.
+    const isMadnessCast =
+        !types.includes("Land") &&
+        player.exile.some((c) => c.id === card.id) &&
+        isMadnessCastable(card, player.id);
+    if (isMadnessCast) {
+        const madnessMana = getMadnessCost(card) ?? {};
+        if (
+            castProhibitionReason(player.id, card, state) === undefined &&
+            canPotentiallyPayCost(player, card, madnessMana) &&
+            hasEnoughLegalTargets(state, player, card)
         ) {
             actions.push("cast");
         }
