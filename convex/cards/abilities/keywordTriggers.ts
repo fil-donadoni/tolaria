@@ -82,9 +82,7 @@ function hasKeyword(
     staticAbilities: string[] | undefined,
     keyword: string
 ): boolean {
-    return (
-        staticAbilities?.some((a) => a.toLowerCase() === keyword) ?? false
-    );
+    return staticAbilities?.some((a) => a.toLowerCase() === keyword) ?? false;
 }
 
 /** Expands a card carrying `exalted` / `prowess` into a definition that also

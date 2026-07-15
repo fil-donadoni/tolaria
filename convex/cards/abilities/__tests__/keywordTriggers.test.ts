@@ -11,22 +11,15 @@
 // wire-format survival of the resulting until-end-of-turn buff.
 
 import { describe, it, expect } from "vitest";
-import {
-    makeInstance,
-    makePlayer,
-    makeState,
-} from "../../__tests__/setup";
+import { makeInstance, makePlayer, makeState } from "../../__tests__/setup";
+import type { CardDefinition, GameEvent, PermanentView } from "../../types";
 import type {
-    CardDefinition,
-    GameEvent,
-    PermanentView,
-} from "../../types";
-import type { CardInstanceState, GameState, StackItem } from "../../../gre/state";
+    CardInstanceState,
+    GameState,
+    StackItem,
+} from "../../../gre/state";
 import { resolveTopOfStack } from "../../../gre/state";
-import {
-    getEffectivePower,
-    getEffectiveToughness,
-} from "../../../gre/layers";
+import { getEffectivePower, getEffectiveToughness } from "../../../gre/layers";
 import { projectPublicState } from "../../../gameProjections";
 import { getCardByName, getDefinition } from "../..";
 import { getEventFieldRow } from "../../mechanicsRegistry";
@@ -250,9 +243,9 @@ describe("Hierarch definitions carry the exalted keyword (issue #699)", () => {
         expect(mana?.useStack).toBe(false);
         expect(mana?.manaChoices).toEqual([{ G: 1 }, { W: 1 }, { U: 1 }]);
         // Exalted trigger injected by the seam.
-        expect(
-            def.triggeredAbilities?.some((t) => t.id === "exalted")
-        ).toBe(true);
+        expect(def.triggeredAbilities?.some((t) => t.id === "exalted")).toBe(
+            true
+        );
     });
 
     it("Ignoble Hierarch carries exalted + BRG mana choice", () => {
