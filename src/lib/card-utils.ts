@@ -41,6 +41,12 @@ export function isCreature(card: CardInstance): boolean {
     return card.types?.includes("Creature") ?? false;
 }
 
+/** CR 306 — true iff this permanent is a planeswalker. Drives the on-card
+ *  loyalty badge and mirrors the engine-side `isPlaneswalker`. */
+export function isPlaneswalker(card: CardInstance): boolean {
+    return card.types?.includes("Planeswalker") ?? false;
+}
+
 /** CR 302.1 — a creature with summoning sickness cannot pay the {T} or {Q}
  *  cost of an activated ability. Mirrors `isTapLockedBySummoningSickness`
  *  in convex/gre/constants.ts. */
@@ -729,6 +735,7 @@ export function getStackAbilities(
         cost: {
             tap?: boolean;
             life?: number;
+            loyalty?: number;
             removeCounter?: { type: string; count: number };
             discardLastDrawn?: boolean;
             discardFilter?: { filter: EffectCardFilter; count: number };
@@ -804,6 +811,27 @@ export function getStackAbilities(
         if (a.cost.removeCounter) {
             const have = card.counters?.[a.cost.removeCounter.type] ?? 0;
             if (have < a.cost.removeCounter.count) return false;
+        }
+        // CR 606 — a LOYALTY ABILITY (signed `cost.loyalty`) is offered only as
+        // a UI hint when its three restrictions can be met; the `activateAbility`
+        // mutation is the authoritative gate.
+        if (a.cost.loyalty !== undefined) {
+            // CR 606.3 — at most one loyalty ability of this permanent per turn.
+            if (card.loyaltyActivatedThisTurn) return false;
+            // CR 606.3 — sorcery-speed: only on the controller's own turn. The
+            // full "stack empty + priority" refinement is the server's job; the
+            // active-turn check is the cheap client hint the view can make.
+            if (
+                stateView?.activePlayerId !== undefined &&
+                stateView.activePlayerId !== card.controllerId
+            ) {
+                return false;
+            }
+            // CR 606.5 — a `-N` cost may not take loyalty below 0.
+            if (a.cost.loyalty < 0) {
+                const loyalty = card.counters?.loyalty ?? 0;
+                if (loyalty + a.cost.loyalty < 0) return false;
+            }
         }
         // CR 118.3 — "discard the last card you drew this turn" cost
         // (Jandor's Ring) is unpayable when no such card is in hand.

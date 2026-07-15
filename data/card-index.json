@@ -3270,6 +3270,12 @@
         "firstSet": "ice"
     },
     {
+        "name": "Garruk Wildspeaker",
+        "scryfallId": "ca6f13a2-9243-4ce9-9f71-bed74355b781",
+        "oracleId": "186b4def-4fff-4a2b-bcbf-5318b0ac5fa9",
+        "firstSet": "lrw"
+    },
+    {
         "name": "Gate to Phyrexia",
         "scryfallId": "1f372950-6693-4838-80ef-8fd9aa3e0349",
         "oracleId": "bbb005de-bbba-458e-87c1-912a004e80da",
@@ -5062,6 +5068,12 @@
         "scryfallId": "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
         "oracleId": "4457ed35-7c10-48c8-9776-456485fdf070",
         "firstSet": "lea"
+    },
+    {
+        "name": "Liliana of the Veil",
+        "scryfallId": "ac506c17-adc8-49c6-9d8d-43db7cb1ec9d",
+        "oracleId": "0ba134d8-ee7d-48ec-8dc6-57942b8e9261",
+        "firstSet": "isd"
     },
     {
         "name": "Lim-Dûl's Cohort",

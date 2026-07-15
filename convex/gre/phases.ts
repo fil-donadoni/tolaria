@@ -2528,6 +2528,11 @@ function advanceTurn(state: GameState): void {
     for (const p of state.players) {
         for (const c of p.battlefield) {
             if (c.activationsThisTurn) c.activationsThisTurn = undefined;
+            // CR 606.3 — the "one loyalty ability per turn" lock is per turn;
+            // clear it so each planeswalker may act again on the next turn.
+            if (c.loyaltyActivatedThisTurn) {
+                c.loyaltyActivatedThisTurn = undefined;
+            }
         }
     }
     // Revolt (CR 702.RV): reset the per-player "a permanent you controlled

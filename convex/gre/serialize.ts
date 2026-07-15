@@ -87,6 +87,10 @@ function compactCard(
     if (card.manaCommitted) out.manaCommitted = true;
     if (card.tapTriggerCommitted) out.tapTriggerCommitted = true;
     if (card.damageMarked) out.damageMarked = card.damageMarked;
+    // CR 606.3 — the per-permanent "a loyalty ability was activated this turn"
+    // lock must survive a save/load mid-turn, or a planeswalker could activate
+    // a second loyalty ability after a reload.
+    if (card.loyaltyActivatedThisTurn) out.loyaltyActivatedThisTurn = true;
     if (card.dealtDeathtouchDamage) out.dealtDeathtouchDamage = true;
     if (card.regenerationShields) {
         out.regenerationShields = card.regenerationShields;
@@ -315,6 +319,9 @@ function expandCard(
     if (compact.tapTriggerCommitted) result.tapTriggerCommitted = true;
     if (compact.damageMarked) {
         result.damageMarked = compact.damageMarked as number;
+    }
+    if (compact.loyaltyActivatedThisTurn) {
+        result.loyaltyActivatedThisTurn = true;
     }
     if (compact.dealtDeathtouchDamage) {
         result.dealtDeathtouchDamage = true;

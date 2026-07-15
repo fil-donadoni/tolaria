@@ -60,7 +60,9 @@ export function getCounterDisplays(card: CardInstance): CounterDisplay[] {
     const counters = card.counters;
     if (!counters) return [];
     return Object.entries(counters)
-        .filter(([, count]) => count > 0)
+        // CR 306.5b — loyalty counters are shown by the dedicated planeswalker
+        // loyalty badge (bottom-right), not as a generic named-counter badge.
+        .filter(([type, count]) => count > 0 && type !== "loyalty")
         .map(([type, count]) => ({
             type,
             count,

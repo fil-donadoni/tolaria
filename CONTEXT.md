@@ -96,6 +96,22 @@ A **Permanent** type with power and toughness that can attack and block.
 **Land**:
 A card type that produces **Mana**. Played (not cast) — does not use the **Stack**.
 
+**Planeswalker**:
+A **Permanent** type representing an ally with **Loyalty** rather than power/toughness. Can be dealt damage (removing loyalty) and has **Loyalty Abilities**. A **Planeswalker** with 0 loyalty is put into its owner's **Graveyard** as an **SBA** (CR 704.5i).
+_Avoid_: Walker, PW (in prose)
+
+**Loyalty Counter**:
+The **Counter** type (CR 122) that measures a **Planeswalker**'s current loyalty. Stored in the same generic `counters` map as any other counter (key `"loyalty"`); damage removes them (CR 120.3) and **Loyalty Abilities** add/remove them.
+_Avoid_: Loyalty point, life (a planeswalker doesn't have life)
+
+**Starting Loyalty**:
+The printed number of **Loyalty Counters** a **Planeswalker** enters the **Battlefield** with (CR 306.5b), declared as `CardDefinition.loyalty` and placed on ETB.
+_Avoid_: Base loyalty, initial life
+
+**Loyalty Ability**:
+An **Activated Ability** of a **Planeswalker** whose cost is a signed **Loyalty** change (`+N`/`-N`/`0`, `cost.loyalty`). Sorcery-speed and once per **Planeswalker** per turn (CR 606.3); a `-N` cost may not take loyalty below 0 (CR 606.5). Its presence is the whole marker — no separate flags.
+_Avoid_: Planeswalker ability (broader — a planeswalker could have non-loyalty abilities), tick
+
 **Shock Land**:
 A dual land whose entry offers a **Land-Entry Pay-Choice**: "as it enters, you
 may pay 2 life; if you don't, it enters tapped" (the RAV/GPT/DIS cycle — Steam

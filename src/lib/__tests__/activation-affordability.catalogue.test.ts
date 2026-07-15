@@ -42,7 +42,12 @@ import { getStackAbilities, buildTriggerStateView } from "../card-utils";
  *  that a client-side reducer (or the projection) can silently break. Scalar
  *  shapes (`life`) are included because the same "surface vs hide" contract
  *  regresses if the gate itself is ever miswired. */
-type Shape = "exileFromGraveyard" | "life" | "removeCounter" | "discardFilter";
+type Shape =
+    | "exileFromGraveyard"
+    | "life"
+    | "removeCounter"
+    | "discardFilter"
+    | "loyalty";
 
 /** Finds a REAL catalogue card definition matching an `EffectCardFilter`'s
  *  `type`/`subtype` fields (the two dimensions a `discardFilter` cost is
@@ -137,6 +142,10 @@ function shapesOf(a: ActivatedAbility): Shape[] {
     if (a.cost.life !== undefined) out.push("life");
     if (a.cost.removeCounter) out.push("removeCounter");
     if (a.cost.discardFilter) out.push("discardFilter");
+    // CR 606 — a loyalty ability (signed `cost.loyalty`) has a frontend
+    // affordability hint in `getStackAbilities` (once-per-turn / sorcery-speed /
+    // not-below-0), so it joins the sweep (issue #700).
+    if (a.cost.loyalty !== undefined) out.push("loyalty");
     return out;
 }
 
@@ -190,6 +199,18 @@ function env(c: Case, broken: boolean) {
         const { type, count } = ability.cost.removeCounter;
         const have = broken && shape === "removeCounter" ? count - 1 : count;
         source = makeSource(def, { counters: { [type]: Math.max(0, have) } });
+    }
+    // Loyalty (CR 606): satisfy the below-0 gate with ample loyalty and keep
+    // the source on the controller's own turn (`view.activePlayerId === VIEWER`
+    // below); break by setting the per-permanent once-per-turn lock so exactly
+    // this shape hides (a uniform break that works for both `+N` and `-N`).
+    if (ability.cost.loyalty !== undefined) {
+        source = makeSource(def, {
+            counters: { loyalty: 20 },
+            ...(broken && shape === "loyalty"
+                ? { loyaltyActivatedThisTurn: true }
+                : {}),
+        });
     }
     // Life: the gate is only applied when payerLife is passed.
     let payerLife = 999;

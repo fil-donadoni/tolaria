@@ -76,3 +76,4 @@ added later (see issue tracker).
 | 0055 | Limited Event: ends at the deck, pool-as-sideboard, server-side Bot Drafter                                                                   | [link](0054-limited-event-architecture.md)                             |
 | 0056 | Boosters from MTGJSON print sheets, draftability gated on complete sets                                                                       | [link](0055-booster-mtgjson-sheets-complete-set-gate.md)               |
 | 0057 | Premodern/Old School banlists become DB-backed, name-keyed, Scryfall-synced (supersedes ADR 0036 banlist clause, scoped to those two formats) | [link](0057-db-backed-name-keyed-banlists.md)                          |
+| 0058 | Loyalty abilities as a signed `cost.loyalty` member (planeswalker/loyalty framework: starting loyalty, damage→loyalty, 0-loyalty SBA)         | [link](0058-loyalty-abilities-as-signed-cost-member.md)               |

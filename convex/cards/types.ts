@@ -596,6 +596,24 @@ export interface ActivatedAbility {
         /** Life payment (CR 118.4). Legal while `player.life >= life`; SBA
          *  handles the loss if payment takes life to 0 or below. */
         life?: number;
+        /** Loyalty cost of a LOYALTY ABILITY (CR 606). A SIGNED integer that is
+         *  the whole marker of a loyalty ability: `+N` puts N loyalty counters
+         *  on the source, `-N` removes N, `0` is neutral. Its mere presence (a
+         *  planeswalker's activated ability) makes the engine derive the three
+         *  loyalty restrictions from it, so no separate flags are needed
+         *  (`game.ts` `assertLoyaltyActivationLegal`):
+         *   - sorcery-speed only, and only the source's controller during their
+         *     own main phase with an empty stack (CR 606.3, reuses
+         *     `isSorceryTiming`);
+         *   - at most one loyalty ability of a given permanent per turn
+         *     (CR 606.3, per-instance `loyaltyActivatedThisTurn`);
+         *   - a `-N` cost is illegal if it would take the permanent below 0
+         *     loyalty (CR 606.5).
+         *  Paid at activation commit by adjusting `counters["loyalty"]`
+         *  (`payLoyaltyCost`) — the same counters map starting loyalty is placed
+         *  in (CR 306.5b). A loyalty ability has no mana/tap component, so it
+         *  never enters the `pendingActivation` deferred-payment path. */
+        loyalty?: number;
         /** Counter-removal payment (CR 122.6). The ability is only legal to
          *  activate while the source has at least `count` counters of `type`;
          *  the counters are removed at activation commit. Used by Scavenging
@@ -7171,6 +7189,11 @@ export interface CardDefinition {
     supertypes?: CardSupertype[];
     power?: number;
     toughness?: number;
+    /** Starting loyalty of a planeswalker (CR 306.5b). When the permanent
+     *  enters the battlefield the engine places this many `counters["loyalty"]`
+     *  on it (`state.ts` ETB block) — loyalty counters reuse the generic
+     *  `CardInstanceState.counters` map (same shape as Age/Fade/charge). Only
+     *  meaningful on a card whose `types` include "Planeswalker". */
     loyalty?: number;
     /** AI valuation override (ADR 0018, the Forge `SVar:AI*` analog). When set,
      *  the shared `cardValue` primitive returns this Forge-scale worth verbatim

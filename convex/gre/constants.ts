@@ -102,6 +102,13 @@ export function isDamageablePermanent(card: CardInstanceState): boolean {
     return DAMAGEABLE_PERMANENT_TYPES.some((t) => card.types.includes(t));
 }
 
+/** CR 306 — true iff this permanent is a planeswalker. Damage to a planeswalker
+ *  removes loyalty counters instead of being marked (CR 120.3 / 704.5i), and
+ *  the 0-loyalty SBA (CR 704.5i) scans on it. */
+export function isPlaneswalker(card: CardInstanceState): boolean {
+    return card.types.includes("Planeswalker");
+}
+
 /** All six mana colors in canonical order. Canonical definition lives in the
  *  dependency-free `gre/manaColors.ts` leaf (see the re-export note above);
  *  re-exported here so every existing `from "../gre/constants"` import site

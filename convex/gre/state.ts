@@ -54,6 +54,7 @@ import {
     getBasicLandMana,
     isAura,
     isDamageablePermanent,
+    isPlaneswalker,
     LAND_DROPS_PER_TURN,
     manaValue,
     MANA_COLORS,
@@ -368,6 +369,13 @@ export type CardInstanceState = {
      *  damage events; checked against effective toughness for lethal damage
      *  (CR 704.5g). Removed at CLEANUP (CR 514.2). */
     damageMarked?: number;
+    /** CR 606.3 — set true when a loyalty ability of this planeswalker has been
+     *  activated this turn. Blocks any further loyalty ability of the SAME
+     *  permanent for the rest of the turn (one loyalty ability per permanent per
+     *  turn, across all of its loyalty abilities). Set at activation commit
+     *  (`payLoyaltyCost`, `game.ts`); reset for every permanent at the start of
+     *  each turn (`phases.ts` untap-step turn reset). */
+    loyaltyActivatedThisTurn?: boolean;
     /** CR 702.2b / 704.5h — set true when this creature has been dealt nonzero
      *  damage by a source with deathtouch this turn. `checkDeathtouchDestroySBA`
      *  destroys any creature so marked as a state-based action (respecting
@@ -3487,6 +3495,9 @@ function finalizeSpellResolution(
                       count: number | "X" | "kicker";
                   }[];
               };
+              /** CR 306.5b — planeswalker starting loyalty, placed as
+               *  `counters["loyalty"]` on ETB (issue #700). */
+              loyalty?: number;
           }
         | undefined
 ): void {
@@ -3604,6 +3615,17 @@ function finalizeSpellResolution(
                 counters[entry.type] = (counters[entry.type] ?? 0) + n;
             }
             if (Object.keys(counters).length > 0) item.counters = counters;
+        }
+        // CR 306.5b — a planeswalker enters with a number of loyalty counters
+        // equal to its printed starting loyalty (`CardDefinition.loyalty`).
+        // Loyalty counters reuse the generic `counters` map (same shape as the
+        // ETB counters above), so damage → loyalty removal (CR 120.3 / 704.5i)
+        // and the `-N` loyalty-ability cost operate on one uniform field.
+        if (cardDef?.loyalty !== undefined && cardDef.loyalty > 0) {
+            item.counters = {
+                ...(item.counters ?? {}),
+                loyalty: (item.counters?.loyalty ?? 0) + cardDef.loyalty,
+            };
         }
         // CR 611.2 — first absorb any existing battlefield source's
         // keyword-grant effects that match this new permanent (e.g. Goblin
@@ -4832,6 +4854,18 @@ export function dealDamageFromPermanentToPlayer(
     );
 }
 
+/** CR 120.3 / 704.5i — applies `amount` damage to a planeswalker by removing
+ *  that many loyalty counters (floored at 0; the 0-loyalty death is the
+ *  `checkZeroLoyaltySBA` state-based action, not a job for this helper). Shared
+ *  by every non-combat damage sink so damage → loyalty is handled uniformly. */
+function removeLoyaltyForDamage(card: CardInstanceState, amount: number): void {
+    const current = card.counters?.loyalty ?? 0;
+    card.counters = {
+        ...(card.counters ?? {}),
+        loyalty: Math.max(0, current - amount),
+    };
+}
+
 /** Marks fight/redirect damage on a target permanent from an explicit
  *  battlefield-permanent source (CR 120). Unlike `SpellContext.dealDamage`
  *  (whose source is always the resolving stack item, `item.id`), this routes
@@ -4932,7 +4966,16 @@ function markDamageFromPermanentSource(
         finalAmount
     );
     if (reduced <= 0) return null;
-    found.card.damageMarked = (found.card.damageMarked ?? 0) + reduced;
+    // CR 120.3 / 704.5i — damage dealt to a planeswalker removes that many
+    // loyalty counters instead of being marked (a planeswalker has no
+    // toughness). The 0-loyalty death is a separate SBA (`checkZeroLoyaltySBA`),
+    // never a lethal-damage return here.
+    const pw = isPlaneswalker(found.card);
+    if (pw) {
+        removeLoyaltyForDamage(found.card, reduced);
+    } else {
+        found.card.damageMarked = (found.card.damageMarked ?? 0) + reduced;
+    }
     found.card.damagedBySources = [
         ...(found.card.damagedBySources ?? []),
         source.id,
@@ -4961,10 +5004,12 @@ function markDamageFromPermanentSource(
         desc.staticAbilities,
         reduced
     );
+    if (pw) return null;
     // CR 702.2b — deathtouch: nonzero damage from a deathtouch source marks the
     // creature for destruction as an SBA (CR 704.5h).
     markDeathtouchDamage(found.card, desc.staticAbilities, reduced);
-    return found.card.damageMarked >= getEffectiveToughness(state, found.card)
+    return (found.card.damageMarked ?? 0) >=
+        getEffectiveToughness(state, found.card)
         ? finalTarget.id
         : null;
 }
@@ -7051,12 +7096,22 @@ export function buildSpellContext(
                           amount
                       );
                 if (reduced <= 0) return;
-                // CR 120.3: damage is marked on the creature and accumulates
-                // until CLEANUP (CR 514.2). Lethal damage (CR 704.5g) is
-                // applied inline using the post-accumulation marked total
-                // compared to effective toughness (layer 7c).
-                found.card.damageMarked =
-                    (found.card.damageMarked ?? 0) + reduced;
+                // CR 120.3 / 704.5i: damage dealt to a planeswalker removes
+                // that many loyalty counters instead of being marked (it has no
+                // toughness). Burn "to any target" thereby kills a planeswalker;
+                // the 0-loyalty death is the separate SBA (`checkZeroLoyaltySBA`),
+                // not the lethal-toughness path below.
+                const pw = isPlaneswalker(found.card);
+                if (pw) {
+                    removeLoyaltyForDamage(found.card, reduced);
+                } else {
+                    // CR 120.3: damage is marked on the creature and accumulates
+                    // until CLEANUP (CR 514.2). Lethal damage (CR 704.5g) is
+                    // applied inline using the post-accumulation marked total
+                    // compared to effective toughness (layer 7c).
+                    found.card.damageMarked =
+                        (found.card.damageMarked ?? 0) + reduced;
+                }
                 found.card.damagedBySources = [
                     ...(found.card.damagedBySources ?? []),
                     item.id,
@@ -7085,12 +7140,15 @@ export function buildSpellContext(
                     desc.staticAbilities,
                     reduced
                 );
+                // A planeswalker took loyalty loss above — no deathtouch/lethal
+                // toughness handling applies.
+                if (pw) return;
                 // CR 702.2b — deathtouch: a resolving source (spell/ability)
                 // with deathtouch marks the damaged creature for destruction as
                 // an SBA (CR 704.5h) regardless of the damage total vs toughness.
                 markDeathtouchDamage(found.card, desc.staticAbilities, reduced);
                 if (
-                    found.card.damageMarked >=
+                    (found.card.damageMarked ?? 0) >=
                     getEffectiveToughness(state, found.card)
                 ) {
                     // CR 704.5g lethal → destroy replacement (CR 614, ADR
