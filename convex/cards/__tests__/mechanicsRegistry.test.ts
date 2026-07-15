@@ -229,6 +229,114 @@ describe("Mechanics Registry (CR 701 keyword actions + CR 702 keyword abilities,
 });
 
 // -----------------------------------------------------------------------
+// Guard A — keyword-must-be-implemented (issue #962). Root-cause fix for the
+// "declared-but-unimplemented" partial-card class: a card that declares a
+// keyword whose Mechanics Registry row is `planned`/`out-of-scope` SHIPS
+// functional-looking but is silently inert (the exact deathtouch/hexproof
+// shape, #957/#958). The name-authority guard above only checks that a
+// declared string resolves to SOME registry row — it does not check that
+// row's implementation `status`. This guard closes that gap: every card's
+// declared `staticAbilities` string must resolve to an `implemented` row (or
+// a `bindingPattern` match on an `implemented` row), full stop.
+//
+// `ENGINE_INTERNAL_MARKERS` entries are exempt — they are not CR 701/702
+// keywords with a `status` field at all (they're always-on rules-text
+// markers consumed directly by the engine, e.g. `does-not-untap`), so
+// "implemented" doesn't apply to them.
+//
+// A "non-stub" card is automatically what `getAllCards()` returns — a stub
+// is a COMMENTED-OUT card definition (`scripts/check-stub-coverage.ts`), so
+// it never becomes a live `CardDefinition` in the first place and never
+// reaches this loop.
+//
+// A card that legitimately needs to ship BEFORE its keyword's engine support
+// lands may be added to `KEYWORD_ALLOWLIST` below — narrow, one row per
+// (card, keyword), each carrying a real open tracking issue. The allowlist is
+// meant to empty out as items land (per the issue's own framing); it is not a
+// blanket escape hatch — the guard test below asserts every KEYWORD_ALLOWLIST
+// entry is well-formed and stays truthful (real card, real declared keyword).
+// -----------------------------------------------------------------------
+describe("Guard A — keyword-must-be-implemented (issue #962)", () => {
+    /** Narrow, per-(card,keyword) exemption for a shipped card whose declared
+     *  keyword's Mechanics Registry row isn't `implemented` yet. Empty right
+     *  now — deathtouch (#957) and hexproof (#958) were the two known
+     *  offenders and both shipped before this guard landed (issue #962
+     *  dependency note). Add an entry here ONLY with a real open tracking
+     *  issue; remove it the moment that issue closes. */
+    const KEYWORD_ALLOWLIST: ReadonlyArray<{
+        readonly cardId: string;
+        readonly keyword: string;
+        readonly issue: number;
+    }> = [];
+
+    /** Same resolution `isNamedMechanic` uses internally, but returns the row
+     *  itself (not just a boolean) so this guard can inspect `status`. */
+    function findMechanicRow(value: string): MechanicRow | undefined {
+        const lower = value.toLowerCase();
+        return MECHANICS_REGISTRY.find(
+            (row) =>
+                lower === row.name.toLowerCase() ||
+                row.binding === value ||
+                row.bindingPattern?.test(value)
+        );
+    }
+
+    function isEngineInternalMarker(value: string): boolean {
+        return ENGINE_INTERNAL_MARKERS.some(
+            (m) => m.binding === value || m.bindingPattern?.test(value)
+        );
+    }
+
+    it("every card's staticAbilities keyword resolves to an `implemented` Mechanics Registry row", () => {
+        const offenders: string[] = [];
+        for (const card of getAllCards()) {
+            for (const s of card.staticAbilities ?? []) {
+                // Not a CR keyword at all (engine-internal rules-text marker,
+                // e.g. "does-not-untap") — no status to check.
+                if (isEngineInternalMarker(s)) continue;
+                const row = findMechanicRow(s);
+                // An unresolvable string is the name-authority guard's job
+                // (the describe block above) — don't double-report it here.
+                if (!row) continue;
+                if (row.status === "implemented") continue;
+                if (
+                    KEYWORD_ALLOWLIST.some(
+                        (a) => a.cardId === card.id && a.keyword === s
+                    )
+                ) {
+                    continue;
+                }
+                offenders.push(
+                    `${card.id} (${card.name}): "${s}" -> registry row "${row.id}" is status="${row.status}" (${row.cr})`
+                );
+            }
+        }
+        expect(
+            offenders,
+            "shipped (non-stub) cards declaring a keyword whose Mechanics Registry row is not " +
+                "`implemented` — either ship the mechanic first, or add a narrow, issue-linked " +
+                "KEYWORD_ALLOWLIST entry in this test file"
+        ).toEqual([]);
+    });
+
+    it("every KEYWORD_ALLOWLIST entry is well-formed: a real open issue, a real card, a keyword it actually declares", () => {
+        const cards = getAllCards();
+        for (const a of KEYWORD_ALLOWLIST) {
+            expect(
+                a.issue,
+                `${a.cardId}/${a.keyword} allowlist entry needs a real tracking issue number`
+            ).toBeGreaterThan(0);
+            const card = cards.find((c) => c.id === a.cardId);
+            expect(card, `no card with id ${a.cardId}`).toBeDefined();
+            expect(
+                card!.staticAbilities ?? [],
+                `${a.cardId} (${card?.name}) does not declare "${a.keyword}" — stale allowlist entry`
+            ).toContain(a.keyword);
+        }
+    });
+});
+
+// -----------------------------------------------------------------------
 // Self-verifying implementation status (issue #959).
 //
 // The audit that shipped with this suite found `shroud` drifted from actual

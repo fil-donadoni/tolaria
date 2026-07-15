@@ -802,7 +802,7 @@ export const spiritShackle: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// C5 deferred — counter cards needing a primitive owned by another cluster:
+// C5 deferred (tracked-by: #1213) — counter cards needing a primitive owned by another cluster:
 //   • Glyph of Delusion — "target creature that target Wall blocked this turn"
 //     needs a combat-history "blocked this turn" record AND a two-stage target
 //     (a Wall, then a creature it blocked). The named-counter half (glyph

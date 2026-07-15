@@ -51,6 +51,36 @@ can't express this>`) AND restate it in the PR description. "The Op I need
   (`convex/cards/__tests__/mechanicsRegistry.test.ts`) fails CI on any
   unlisted name regardless — catching it during authoring is cheaper than
   catching it in CI.
+- **Guard A — keyword-must-be-implemented (issue #962).** A shipped
+  (non-stub) card's `staticAbilities[]` string must resolve to a Mechanics
+  Registry row with `status: "implemented"` — not merely a NAMED mechanic
+  (which the name-authority guard above already checks). A card that
+  declares a `planned`/`out-of-scope` keyword ships functional-looking but
+  is silently inert — the exact deathtouch/hexproof shape (#957/#958) this
+  guard exists to catch permanently. Enforced catalogue-wide by
+  `describe("Guard A — keyword-must-be-implemented (issue #962)")` in
+  `convex/cards/__tests__/mechanicsRegistry.test.ts`. To satisfy it: either
+  ship the mechanic (flip its registry row to `implemented` with a real
+  binding) before the card, or — if the card must land first — add a
+  narrow `{ cardId, keyword, issue }` row to that describe block's
+  `KEYWORD_ALLOWLIST`, with a real open tracking issue. The allowlist is
+  meant to empty out as each entry's issue lands, never a standing escape
+  hatch; a companion test asserts every entry stays well-formed (real card,
+  real declared keyword, real issue number).
+- **Guard B — documented-divergence-needs-issue (issue #962).** A `//
+Deferred` / `// DEFERRED` / `// divergence` / `// DIVERGENCE` / `// not
+implemented` / `// TODO` comment inside `convex/cards/sets/**` documents
+  an intentional partial implementation (an Oracle clause a card's
+  `resolve()`/`effects` silently drops) — and every one MUST carry a
+  disposition somewhere in its contiguous comment block: a linked issue ref
+  (`#NNN`, prefer `tracked-by: #NNN`), an ADR reference (`ADR NNNN`), or an
+  explicit "out of scope" note (mirrors `scripts/check-stub-coverage.ts`'s
+  own disposition vocabulary for commented-out stubs — this guard is that
+  script's ACTIVE-card analogue). Enforced by
+  `convex/cards/__tests__/divergenceMarkers.test.ts`. An unreferenced
+  marker fails CI — either add the ref if the tracking issue already
+  exists, or open a new issue and reference it (`tracked-by: #NNN`) before
+  landing the card.
 
 **Per-Op test regime replaces per-card mandates for DSL cards.** The `Card
 testing convention` table below still governs `resolve()` cards in full, and
