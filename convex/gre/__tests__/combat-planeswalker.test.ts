@@ -4,8 +4,9 @@
 // Covers the declare-attackers attack target (CR 508.1a — each attacker chooses
 // the defending player OR a planeswalker that player controls) and the combat
 // damage routing (CR 120.3c / 509.1h — damage to a planeswalker removes loyalty;
-// trample excess spills to the controller). Builds on #700's loyalty-removal
-// path + 0-loyalty SBA (reused, not re-implemented).
+// regular trample does NOT spill excess to the controller — "trample over
+// planeswalkers" (CR 702.19f) is a distinct, out-of-scope keyword). Builds on
+// #700's loyalty-removal path + 0-loyalty SBA (reused, not re-implemented).
 
 import { describe, it, expect } from "vitest";
 import {
@@ -197,8 +198,8 @@ describe("combat damage → planeswalker loyalty (CR 120.3c / 509.1h, #1220)", (
     });
 });
 
-describe("trample over a planeswalker (CR 702.19e, #1220)", () => {
-    it("an unblocked trampler assigns lethal loyalty to the planeswalker and spills the excess to the controller", () => {
+describe("trample over a planeswalker (CR 702.19f, #1220)", () => {
+    it("an unblocked trampler assigns ALL its damage to the planeswalker — regular trample does NOT spill the excess to the controller", () => {
         const atk = attacker("atk", 5, ["trample"]);
         const pw = planeswalker("pw", 2);
         const state = combatState({
@@ -209,12 +210,13 @@ describe("trample over a planeswalker (CR 702.19e, #1220)", () => {
         const startLife = state.players[1].life;
         resolveRegularDamage(state);
 
-        // The planeswalker dies (2 loyalty − 2), the remaining 3 tramples to
-        // the controlling player.
+        // The planeswalker dies (2 loyalty − 2 removed). Regular trample does
+        // not carry over a planeswalker (CR 702.19f): the remaining 3 damage is
+        // wasted, the controller takes nothing.
         expect(
             state.players[1].battlefield.find((c) => c.id === "pw")
         ).toBeUndefined();
-        expect(state.players[1].life).toBe(startLife - 3);
+        expect(state.players[1].life).toBe(startLife);
     });
 
     it("without trample the whole assignment stays on the planeswalker (no spill)", () => {
