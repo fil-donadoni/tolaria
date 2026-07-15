@@ -15,10 +15,23 @@ import {
 } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { assertIsAdmin, getCurrentUser, getCurrentUserId } from "./auth";
-import { resolveDeckCardMeta, tryGetDefinition } from "./cards";
-import { getCardColors } from "./cards/colors";
+import {
+    getCardByName,
+    getPrintingsForCard,
+    resolveDeckCardMeta,
+    tryGetDefinition,
+} from "./cards";
+import { basicLandsForColors, getCardColors } from "./cards/colors";
+import type { Color } from "./cards/types";
 import { manaValue } from "./gre/constants";
 import { freshSeed, makeRng } from "./gre/rng";
+import {
+    computeBotAutoBuiltDeck,
+    type AutoBuildEventContext,
+    type AutoBuiltDeck,
+    type GetAutoBuildCardMeta,
+    type ResolveBasicLand,
+} from "./limited/autoBuild";
 import {
     applyPick,
     resolveAutoPickTimeout,
@@ -37,7 +50,11 @@ import {
     generateSealedPools,
     type ResolveCardMeta,
 } from "./limited/eventLogic";
-import { projectLimitedEvent } from "./limited/eventProjection";
+import {
+    projectLimitedEvent,
+    type LimitedEventSeatView,
+    type LimitedEventView,
+} from "./limited/eventProjection";
 import type { LimitedEventSeat } from "./limited/eventTypes";
 import {
     getBoosterConfig,
@@ -72,6 +89,32 @@ const draftPackCardValidator = v.object({
     pickId: v.string(),
 });
 
+const deckCardValidator = v.object({
+    cardId: v.string(),
+    cardName: v.string(),
+});
+
+// The five true colors a Auto-Built deck can be built in (CR 105.1) — never
+// "C": `chooseTwoColors` (`convex/limited/autoBuild.ts`) only ever returns
+// two of these.
+const colorValidator = v.union(
+    v.literal("W"),
+    v.literal("U"),
+    v.literal("B"),
+    v.literal("R"),
+    v.literal("G")
+);
+
+/** Wire shape of a bot Seat's Auto-Built deck (issue #1115) — the Maindeck +
+ *  Sideboard + the two chosen colors (for a compact "R/G" label). Computed
+ *  on demand (`computeBotAutoBuiltDeck`), never persisted — see
+ *  `convex/limited/autoBuild.ts`'s module comment. */
+const autoBuiltDeckValidator = v.object({
+    cards: v.array(deckCardValidator),
+    sideboard: v.array(deckCardValidator),
+    colors: v.array(colorValidator),
+});
+
 const limitedEventSeatViewValidator = v.object({
     seatIndex: v.number(),
     userId: v.optional(v.string()),
@@ -83,6 +126,14 @@ const limitedEventSeatViewValidator = v.object({
     currentPack: v.union(v.array(draftPackCardValidator), v.null()),
     packQueueCount: v.union(v.number(), v.null()),
     pickDeadline: v.union(v.number(), v.null()),
+    // Auto-Build + vs-AI hookup (issue #1115): a bot seat's playable Limited
+    // deck once its Pool is final (`isEventPoolFinal`), else `null` — always
+    // `null` for a human seat (they build their own via the pool-scoped
+    // deckbuilder, issue #1111). Unlike `pool`/`currentPack`, this is NOT
+    // stripped for non-owner viewers: it's the derived opponent decklist a
+    // human needs to start a vs-AI Match against the table (PRD #1107 story
+    // 25), not the hidden Pool itself (full Pool reveal is issue #1116).
+    autoBuiltDeck: v.union(autoBuiltDeckValidator, v.null()),
 });
 
 /** Wire shape of `projectLimitedEvent`'s return value — declared once here so
@@ -155,6 +206,87 @@ const getCardEvalMeta: GetCardEvalMeta = (scryfallId) => {
 const botChoosePick: ChooseBotPick = (seat, pack) =>
     chooseBotPick(pack, seat.pool ?? [], getCardEvalMeta);
 
+/** Resolves a drawn card's Scryfall id to the printed characteristics
+ *  Auto-Build needs (issue #1115, `convex/limited/autoBuild.ts`) — the same
+ *  shape as `getCardEvalMeta` above, plus `isLand` (the spell/mana-source
+ *  split a deck BUILDER needs that a pack-picking heuristic never did). */
+const getAutoBuildCardMeta: GetAutoBuildCardMeta = (scryfallId) => {
+    const meta = resolveDeckCardMeta(scryfallId);
+    if (!meta) return null;
+    const def = tryGetDefinition(meta.cardId);
+    if (!def) return null;
+    return {
+        cardId: meta.cardId,
+        colors: getCardColors(def),
+        manaValue: manaValue(def.manaCost),
+        rarity: meta.rarity,
+        isLand: def.types.includes("Land"),
+    };
+};
+
+/** Resolves ONE basic land of `color` to a `DeckCard` printed in `setCode`
+ *  when a printing of that basic exists there, else falls back to the card's
+ *  own canonical printing (issue #1115: "basics of the drafted set"). The
+ *  only place `convex/limited/autoBuild.ts`'s injected `ResolveBasicLand`
+ *  touches the card registry — `basicLandsForColors` (already used by the
+ *  debug scenario builder, `convex/game.ts`) resolves a SINGLE color to its
+ *  basic land NAME (CR 305.6), then `getPrintingsForCard` finds the
+ *  drafted-set printing of that name. */
+function resolveBasicLandFor(setCode: string): ResolveBasicLand {
+    return (color: Color) => {
+        const name = basicLandsForColors([color])[0];
+        const def = getCardByName(name);
+        const printing = getPrintingsForCard(def.id).find(
+            (p) => p.setCode === setCode
+        );
+        return { cardId: printing?.printId ?? def.id, cardName: name };
+    };
+}
+
+/** A projected Seat view (`eventProjection.ts`) plus its Auto-Built deck
+ *  (issue #1115) — `extends`, not `&`, because intersecting `LimitedEventView`
+ *  with a `{ seats: T[] }` override makes `seats` unsatisfiable (TS intersects
+ *  the ARRAY ELEMENT types too, and the original `LimitedEventSeatView` has
+ *  no `autoBuiltDeck`). */
+interface SeatViewWithAutoBuild extends LimitedEventSeatView {
+    autoBuiltDeck: AutoBuiltDeck | null;
+}
+
+interface EventViewWithAutoBuild extends Omit<LimitedEventView, "seats"> {
+    seats: SeatViewWithAutoBuild[];
+}
+
+/** Zips `projectLimitedEvent`'s privacy-stripped view with each bot seat's
+ *  Auto-Built deck (issue #1115) — kept OUT of `eventProjection.ts` itself
+ *  so that module stays a pure privacy projection with no card-registry
+ *  dependency (mirrors how `resolveCardMeta`/`getCardEvalMeta` are kept out
+ *  of `eventLogic.ts`/`botDrafter.ts`). Every query below routes through
+ *  this instead of calling `projectLimitedEvent` directly. */
+function projectEventForViewer(
+    event: Doc<"limitedEvents">,
+    viewerUserId: string | null
+): EventViewWithAutoBuild {
+    const base = projectLimitedEvent(event, viewerUserId);
+    const eventContext: AutoBuildEventContext = {
+        type: event.type,
+        status: event.status,
+        draftCompletedAt: event.draftCompletedAt,
+    };
+    const resolveBasicLand = resolveBasicLandFor(event.packSlots[0] ?? "");
+    return {
+        ...base,
+        seats: base.seats.map((seatView, i) => ({
+            ...seatView,
+            autoBuiltDeck: computeBotAutoBuiltDeck(
+                event.seats[i],
+                eventContext,
+                getAutoBuildCardMeta,
+                resolveBasicLand
+            ),
+        })),
+    };
+}
+
 /** Builds the `TimerConfig` `startDraft`/`applyPick`/`runBotAutoPicks` accept
  *  (issue #1114) from an event's stored `timerSeconds`, or `undefined` when
  *  the event has no timer configured — the single point deciding "is the
@@ -223,7 +355,7 @@ export const listOpenLimitedEvents = query({
             .query("limitedEvents")
             .withIndex("by_status", (q) => q.eq("status", "open"))
             .collect();
-        return events.map((event) => projectLimitedEvent(event, null));
+        return events.map((event) => projectEventForViewer(event, null));
     },
 });
 
@@ -245,7 +377,7 @@ export const myLimitedEvents = query({
             .take(MY_EVENTS_SCAN_LIMIT);
         return events
             .filter((event) => event.seats.some((s) => s.userId === userId))
-            .map((event) => projectLimitedEvent(event, userId));
+            .map((event) => projectEventForViewer(event, userId));
     },
 });
 
@@ -258,7 +390,7 @@ export const getLimitedEvent = query({
         const userId = await getCurrentUserId(ctx);
         const event = await ctx.db.get(args.eventId);
         if (!event) throw new Error("Event not found");
-        return projectLimitedEvent(event, userId);
+        return projectEventForViewer(event, userId);
     },
 });
 

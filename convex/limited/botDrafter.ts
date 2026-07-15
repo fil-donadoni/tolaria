@@ -63,8 +63,11 @@ export type GetCardEvalMeta = (scryfallId: string) => CardEvalMeta | null;
  *  quality... adjusted by Rarity"). A higher rarity nudges an otherwise close
  *  decision toward the rarer card — real Limited bombs cluster at rare/mythic
  *  — without letting rarity alone override a genuinely much better common
- *  (the multiplier is small relative to `cardValueById`'s spread). */
-const RARITY_WEIGHT: Record<Rarity, number> = {
+ *  (the multiplier is small relative to `cardValueById`'s spread). Exported
+ *  (issue #1115) so `autoBuild.ts`'s deck-construction quality scoring shares
+ *  the SAME rarity weighting as the Pick Heuristic — one card-quality
+ *  authority for both draft-time and build-time decisions. */
+export const RARITY_WEIGHT: Record<Rarity, number> = {
     common: 1.0,
     uncommon: 1.12,
     rare: 1.3,
@@ -92,8 +95,10 @@ const OFF_COLOR_PENALTY_PER_PICK = 3;
  *  0-cost/land cards don't participate in curve scoring. Target counts are a
  *  generic Limited curve shape (a 23-spell deck skewing toward the cheap end)
  *  — not per-set tuned, just enough to reward "I have no 2-drops yet" over
- *  "I have five 5-drops already". */
-const CURVE_TARGET: Record<number, number> = {
+ *  "I have five 5-drops already". Exported (issue #1115) so `autoBuild.ts`'s
+ *  Auto-Build deck construction reuses the SAME curve shape the Pick
+ *  Heuristic already uses at draft time — one curve authority, not two. */
+export const CURVE_TARGET: Record<number, number> = {
     1: 2,
     2: 5,
     3: 5,
@@ -101,10 +106,10 @@ const CURVE_TARGET: Record<number, number> = {
     5: 3,
     6: 2,
 };
-const CURVE_MAX_BUCKET = 6;
+export const CURVE_MAX_BUCKET = 6;
 const CURVE_BONUS_WEIGHT = 30;
 
-function curveBucket(mv: number): number {
+export function curveBucket(mv: number): number {
     return Math.max(1, Math.min(CURVE_MAX_BUCKET, Math.round(mv)));
 }
 
