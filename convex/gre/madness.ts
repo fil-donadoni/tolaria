@@ -20,17 +20,33 @@
 // distinguishes it from an Ice-Cauldron-style exile cast that pays the normal
 // cost) and carries the shared `castableFromExileBy` cast permission.
 //
-// CR-simplification (documented): the reflexive "may cast" of 702.35d is not put
-// on the stack as its own triggered ability. Instead the discarded card is
-// exiled with a THIS-TURN cast-from-exile window (the same impulse machinery as
-// Expressive Iteration), so its owner may cast it for the madness cost — at
-// instant speed — any time they hold priority this turn. Any copy still in exile
-// at the cleanup step is put into its owner's graveyard (`sweepUncastMadness`),
-// realizing 702.35d's "if the player doesn't, they put it into their graveyard."
-// The player-visible deviation is only the timing of that decision (widened from
-// "immediately, as the trigger resolves" to "any time this turn"); the golden
-// path (cast for the madness cost) and the decline path (to the graveyard) are
-// both faithful.
+// CR-simplification (documented, real game-observable deviation — tracked
+// follow-up #1198): the reflexive "may cast" of 702.35d is not put on the stack
+// as its own triggered ability. Instead the discarded card is exiled with a
+// cast-from-exile window (the same impulse machinery as Expressive Iteration),
+// so its owner may cast it for the madness cost — at instant speed — any time
+// they hold priority within the window; a copy still in exile when the window
+// expires is put into its owner's graveyard at the cleanup step
+// (`sweepUncastMadness`), realizing 702.35d's "if the player doesn't, they put
+// it into their graveyard." The window length depends on WHEN the discard
+// happens (see `windowExpiryTurn`):
+//   - discarded outside the cleanup step (main-phase Faithless Looting, a
+//     discard spell on either turn): the owner already gets priority this turn,
+//     so the window ends at THIS turn's cleanup.
+//   - discarded DURING the CR 514.1 cleanup hand-size discard: this engine
+//     grants NO priority during the cleanup step (no CR 514.3 priority loop), so
+//     a same-turn window would be swept in the same synchronous pass with zero
+//     cast opportunity. The window is therefore extended through the NEXT turn,
+//     where the owner's instant-speed priority windows (on the opponent's turn)
+//     give a real chance to cast it; it is swept at the next cleanup if uncast.
+// Two player-visible deviations remain, both bounded: (1) a DECLINED card reaches
+// the graveyard at the window's cleanup rather than the instant the 702.35d
+// trigger would resolve, so a mid-turn graveyard-count read (Threshold /
+// Delirium) can see one fewer card until then; (2) a card discarded at cleanup
+// is castable into the following turn rather than only during the discarding
+// player's end step. The golden path (cast for the madness cost) and the decline
+// path (to the graveyard) are both faithful. Full CR 514.3 / 702.35d
+// immediate-resolution timing is out of scope for this slice (#1198).
 import type { ManaCost } from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
@@ -50,22 +66,34 @@ export function hasMadness(card: CardInstanceState): boolean {
     return getMadnessCost(card) !== undefined;
 }
 
+/** The turn number at whose cleanup an uncast madness card is swept to the
+ *  graveyard (its `castableFromExileUntilTurn`). Normally the current turn — the
+ *  owner already gets priority this turn to cast it. A discard made DURING the
+ *  cleanup step (the CR 514.1 hand-size discard) is the exception: this engine
+ *  grants no priority during cleanup, so a same-turn window would be swept in
+ *  the same synchronous `finalizeCleanup` pass with no cast opportunity — the
+ *  window is extended one turn so the owner's instant-speed priority windows on
+ *  the following turn give a real chance to cast it. See the module header. */
+export function windowExpiryTurn(state: GameState): number {
+    return state.phase === "CLEANUP" ? state.turn + 1 : state.turn;
+}
+
 /** CR 702.35c — mark a card that just moved hand → exile as discarded via
  *  madness: its owner may cast it for the madness cost while it stays exiled,
- *  and (with the this-turn window) it is swept to the graveyard at cleanup if
- *  uncast. Called by `discardToGraveyard` after it redirects the discard's
- *  destination to exile. `ownerId` is the card's owner (CR 702.35d — "its owner
- *  may cast it"). */
+ *  and it is swept to the graveyard at the cleanup of `expiryTurn` if uncast
+ *  (see {@link windowExpiryTurn}). Called by `discardToGraveyard` after it
+ *  redirects the discard's destination to exile. `ownerId` is the card's owner
+ *  (CR 702.35d — "its owner may cast it"). */
 export function markMadnessExiled(
     card: CardInstanceState,
     ownerId: string,
-    turn: number
+    expiryTurn: number
 ): void {
     card.madnessExiled = true;
     card.castableFromExileBy = ownerId;
-    // CR 514.2 — the impulse window expires at this turn's cleanup step, where
+    // CR 514.2 — the impulse window expires at `expiryTurn`'s cleanup step, where
     // `sweepUncastMadness` puts any uncast copy into its owner's graveyard.
-    card.castableFromExileUntilTurn = turn;
+    card.castableFromExileUntilTurn = expiryTurn;
 }
 
 /** True iff `card` is an exiled, still-uncast madness card owned+castable by the
@@ -79,13 +107,25 @@ export function isMadnessCastable(
     );
 }
 
-/** CR 702.35d — at the cleanup step, put every madness card still in exile (its
- *  owner declined to cast it during the this-turn window) into its owner's
- *  graveyard, clearing the madness/cast markers. Runs alongside the impulse
- *  cast-window revocation in `endStepAndCleanup` (`phases.ts`). */
+/** CR 702.35d — at the cleanup step, put every madness card whose cast window
+ *  has EXPIRED and is still in exile (its owner declined to cast it) into its
+ *  owner's graveyard, clearing the madness/cast markers. Runs right AFTER the
+ *  impulse cast-window revocation in `finalizeCleanup` (`phases.ts`), so an
+ *  expired window has already had its `castableFromExileUntilTurn` deleted; a
+ *  card whose window is still open (`state.turn < castableFromExileUntilTurn` —
+ *  a card discarded during THIS cleanup pass, whose window was extended to the
+ *  next turn) is SKIPPED so the owner keeps a real cast opportunity. Without
+ *  this guard a card discarded to hand size at cleanup would be exiled and binned
+ *  in the same synchronous pass, breaking the iconic "discard the extra Rootwalla
+ *  to hand size, cast it for {0}" line (see the module header / #1198). */
 export function sweepUncastMadness(state: GameState): void {
     for (const p of state.players) {
-        const toGraveyard = p.exile.filter((c) => c.madnessExiled === true);
+        const toGraveyard = p.exile.filter(
+            (c) =>
+                c.madnessExiled === true &&
+                (c.castableFromExileUntilTurn === undefined ||
+                    state.turn >= c.castableFromExileUntilTurn)
+        );
         for (const card of toGraveyard) {
             clearMadnessMarkers(card);
             moveCard(getPlayer(state, p.id), card.id, "exile", "graveyard");

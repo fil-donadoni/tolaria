@@ -63,7 +63,11 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "./layers";
-import { getMadnessCost, markMadnessExiled } from "./madness";
+import {
+    getMadnessCost,
+    markMadnessExiled,
+    windowExpiryTurn,
+} from "./madness";
 import { isProtectedFromSource } from "./protection";
 import { isGuardedAgainst } from "./permanentGuard";
 import { getEffectiveBlockGraph } from "./banding";
@@ -10843,7 +10847,10 @@ export function discardToGraveyard(
     if (madnessRoute) destination = "exile";
     const moved = moveCard(player, repl.cardInstanceId, "hand", destination);
     if (madnessRoute) {
-        markMadnessExiled(moved, handCard.ownerId, state.turn);
+        // CR 702.35d — the cast window normally ends at this turn's cleanup; a
+        // discard made DURING the CR 514.1 cleanup discard is extended one turn
+        // (this engine grants no priority at cleanup — see `windowExpiryTurn`).
+        markMadnessExiled(moved, handCard.ownerId, windowExpiryTurn(state));
     } else if (destination !== "graveyard") {
         applyGraveyardRedirectCounters(moved, tagCounters);
     }

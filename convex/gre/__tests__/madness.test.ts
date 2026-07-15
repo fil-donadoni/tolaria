@@ -18,7 +18,8 @@ import {
 } from "../state";
 import type { StackItem } from "../state";
 import { getLegalActions } from "../rules";
-import { finalizeCleanup } from "../phases";
+import { advancePhase, finalizeCleanup } from "../phases";
+import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { compactState, expandState } from "../serialize";
 import { projectPublicState } from "../../gameProjections";
 import { locateCastSource, castRawManaCost } from "../../game";
@@ -149,7 +150,7 @@ describe("Madness capability (CR 702.35)", () => {
     });
 
     describe("decline → graveyard at cleanup (CR 702.35d)", () => {
-        it("puts an uncast madness card from exile into its owner's graveyard at the cleanup step", () => {
+        it("puts an uncast madness card (discarded outside cleanup) into its owner's graveyard at the cleanup step", () => {
             const card = makeInstance(baskingRootwalla.id, {
                 zone: "hand",
                 controllerId: "p1",
@@ -161,6 +162,7 @@ describe("Madness capability (CR 702.35)", () => {
                 phase: "END_STEP",
             });
 
+            // Discarded outside the cleanup step (window ends THIS turn's cleanup).
             discardToGraveyard(state, "p1", card.id);
             expect(
                 getPlayer(state, "p1").exile.some((c) => c.id === card.id)
@@ -175,6 +177,77 @@ describe("Madness capability (CR 702.35)", () => {
             expect(gy).toBeDefined();
             expect(gy!.madnessExiled).toBeUndefined();
             expect(gy!.castableFromExileBy).toBeUndefined();
+        });
+
+        // Regression for the CR 514.1 cleanup hand-size discard (the iconic
+        // "discard the extra Rootwalla to hand size, cast it for {0}" line):
+        // drives the REAL tryEnqueueCleanupDiscard → finalizeCleanupDiscard path,
+        // NOT a hand-built state. Without the windowExpiryTurn / sweep guard the
+        // card would be exiled AND binned in the same synchronous pass.
+        it("keeps a Rootwalla discarded to hand size at cleanup castable via madness (not binned), then bins it at the next cleanup if declined", () => {
+            // 8-card hand (one over max) with a Basking Rootwalla to discard.
+            const rootwalla = makeInstance(baskingRootwalla.id, {
+                id: "walla",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            });
+            const filler = Array.from({ length: 7 }, (_, i) =>
+                makeInstance(grizzlyBears.id, {
+                    id: `f${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "hand",
+                })
+            );
+            const state = makeState({
+                phase: "END_STEP",
+                turn: 1,
+                activePlayerId: "p1",
+                priorityPlayerId: "p1",
+                players: [
+                    makePlayer("p1", { hand: [rootwalla, ...filler] }),
+                    makePlayer("p2"),
+                ],
+            });
+
+            // END_STEP → CLEANUP enqueues the CR 514.1 discard-hand choice.
+            advancePhase(state);
+            const head = state.pendingChoices![0];
+            expect(head.kind).toBe("discard-hand");
+            expect(head.count).toBe(1);
+
+            // Discard the Rootwalla to hand size via the REAL commit path.
+            applyPendingChoiceSubmit(state, {
+                playerId: "p1",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["walla"],
+            });
+
+            // Bug #1 fix: the Rootwalla is NOT in the graveyard — it is exiled
+            // and still castable for its madness cost (window extended past the
+            // cleanup that just happened, since cleanup grants no priority).
+            const p1After = getPlayer(state, "p1");
+            expect(p1After.graveyard.some((c) => c.id === "walla")).toBe(false);
+            const exiled = p1After.exile.find((c) => c.id === "walla");
+            expect(exiled).toBeDefined();
+            expect(exiled!.madnessExiled).toBe(true);
+            expect(exiled!.castableFromExileBy).toBe("p1");
+            // The turn advanced out of CLEANUP; the window reaches the next turn.
+            expect(state.turn).toBe(2);
+            expect(exiled!.castableFromExileUntilTurn).toBe(2);
+            // When p1 next holds priority (non-active players get priority during
+            // the opponent's turn), the madness cast is offered at instant speed.
+            state.priorityPlayerId = "p1";
+            expect(getLegalActions(state, p1After, exiled!)).toContain("cast");
+
+            // Decline: at the NEXT cleanup (turn 2) the uncast copy is binned.
+            finalizeCleanup(state);
+            const p1Next = getPlayer(state, "p1");
+            expect(p1Next.exile.some((c) => c.id === "walla")).toBe(false);
+            expect(p1Next.graveyard.some((c) => c.id === "walla")).toBe(true);
         });
     });
 
