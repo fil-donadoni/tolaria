@@ -63,6 +63,11 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "./layers";
+import {
+    getMadnessCost,
+    markMadnessExiled,
+    windowExpiryTurn,
+} from "./madness";
 import { isProtectedFromSource } from "./protection";
 import { isGuardedAgainst } from "./permanentGuard";
 import { getEffectiveBlockGraph } from "./banding";
@@ -763,6 +768,15 @@ export type CardInstanceState = {
      *  `SpellContext.isEscaped`. Unlike Flashback, an escape cast does NOT set
      *  `exileOnResolve` — the card resolves to its normal destination. */
     escaped?: boolean;
+    /** CR 702.35c — true iff this card was discarded via Madness and exiled
+     *  instead of going to the graveyard. Set on the exiled instance by
+     *  `discardToGraveyard` (via `markMadnessExiled`); it rides alongside
+     *  `castableFromExileBy` and distinguishes a madness exile (castable for the
+     *  MADNESS cost, CR 702.35d) from an Ice-Cauldron-style exile cast (normal
+     *  cost). Cleared when the card is cast to the stack (`moveCardToStack`) or
+     *  swept to the graveyard at cleanup (`sweepUncastMadness`). Persisted so it
+     *  survives a DB round-trip. */
+    madnessExiled?: boolean;
 };
 
 /** ADR 0026 — clears persistent card knowledge over a Hidden Zone. The single
@@ -10691,6 +10705,10 @@ export function removeFromZone(
     // card leaves exile for the stack; clear the stale flag and its expiry marker.
     delete card.castableFromExileBy;
     delete card.castableFromExileUntilTurn;
+    // CR 702.35d — a madness card cast from exile leaves the madness marker
+    // behind (it is no longer a discarded-and-exiled card once it is on the
+    // stack); clear it so a later bounce/exile never re-reads it.
+    delete card.madnessExiled;
     return card;
 }
 
@@ -10809,14 +10827,31 @@ export function discardToGraveyard(
     // CR 614 (issue #1145) — the card HAS been discarded (CARD_DISCARDED still
     // fires below), but a graveyard-bound replacement (Yawgmoth's Will /
     // Dauthi Voidwalker) can redirect where it actually lands.
-    const { destination, tagCounters } = graveyardDestinationFor(
+    const redirect = graveyardDestinationFor(
         state,
         repl.cardInstanceId,
         handCard.ownerId,
         "hand"
     );
+    let destination = redirect.destination;
+    const tagCounters = redirect.tagCounters;
+    // CR 702.35c — Madness's replacement: a discarded card with a madness cost
+    // is exiled instead of being put into the graveyard, then its owner may cast
+    // it for the madness cost (CR 702.35d — `markMadnessExiled` opens the
+    // this-turn cast window; `sweepUncastMadness` sends an uncast copy to the
+    // graveyard at cleanup). Applies only when the discard was otherwise headed
+    // to the graveyard (a Yawgmoth's-Will exile redirect already sent it to
+    // exile, so madness is moot there).
+    const madnessCost = getMadnessCost(handCard);
+    const madnessRoute = madnessCost !== undefined && destination === "graveyard";
+    if (madnessRoute) destination = "exile";
     const moved = moveCard(player, repl.cardInstanceId, "hand", destination);
-    if (destination !== "graveyard") {
+    if (madnessRoute) {
+        // CR 702.35d — the cast window normally ends at this turn's cleanup; a
+        // discard made DURING the CR 514.1 cleanup discard is extended one turn
+        // (this engine grants no priority at cleanup — see `windowExpiryTurn`).
+        markMadnessExiled(moved, handCard.ownerId, windowExpiryTurn(state));
+    } else if (destination !== "graveyard") {
         applyGraveyardRedirectCounters(moved, tagCounters);
     }
     const cardId = (moved.card as { id?: string }).id;

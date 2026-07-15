@@ -7370,6 +7370,15 @@ export interface CardDefinition {
      *  the resolving permanent is flagged `escaped` (CR 702.138e). Used by Uro,
      *  Phlage, Nethergoyf. */
     escape?: EscapeCost;
+    /** CR 702.35 — Madness. The alternative mana cost this card may be cast for
+     *  out of exile in the window right after it is discarded (the engine
+     *  `convex/gre/madness.ts` reads this). On discard the card is exiled
+     *  instead of going to the graveyard (CR 702.35c) and its owner may cast it
+     *  for this cost (CR 702.35d); an uncast copy is put into the graveyard at
+     *  cleanup. `Madness {0}` is the empty cost `{}` (a real, free cost — not
+     *  `undefined`, which means "no madness"). Used by Basking Rootwalla
+     *  (`{}`), Blazing Rootwalla (`{}`), Anje's Ravager (`{ X: 1, R: 1 }`). */
+    madness?: ManaCost;
     /** CR 702.138 — a static ability granting escape to EVERY nonland card in
      *  its controller's graveyard (Underworld Breach). The granted escape cost
      *  is each card's OWN mana cost plus exiling `exileOtherCount` other cards

@@ -39,6 +39,7 @@ import {
     tickDuration,
 } from "./state";
 import { tryGetDefinition } from "../cards";
+import { sweepUncastMadness } from "./madness";
 import { seededShuffle } from "./rng";
 import { describeDamageSource } from "./replacements";
 import {
@@ -1953,6 +1954,12 @@ export function finalizeCleanup(state: GameState): void {
             }
         }
     }
+
+    // CR 702.35d — a card discarded via Madness that its owner did not cast
+    // during this turn's cast window is put into its owner's graveyard at the
+    // cleanup step (the "if the player doesn't, they put it into their
+    // graveyard" clause). Runs after the impulse-window revocation above.
+    sweepUncastMadness(state);
 
     // CR 702.34 / 514.2 — an instance-level Flashback grant (Snapcaster Mage:
     // "gains flashback until end of turn") expires at the cleanup step. The

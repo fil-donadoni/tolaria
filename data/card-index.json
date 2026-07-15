@@ -306,6 +306,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Anje's Ravager",
+        "scryfallId": "22924c44-5551-4a48-a574-dfef91a5d4d7",
+        "oracleId": "8f1016c7-0551-4813-987d-36abf3b2ffeb",
+        "firstSet": "c19"
+    },
+    {
         "name": "Ankh of Mishra",
         "scryfallId": "f594b7aa-d44e-47c4-989b-565f881e25f1",
         "oracleId": "63c1eda1-3e6f-4e9c-adf3-a43164df98bb",
@@ -726,6 +732,12 @@
         "firstSet": "lea"
     },
     {
+        "name": "Basking Rootwalla",
+        "scryfallId": "1a67768a-6cd9-4163-b941-752f29c87a8d",
+        "oracleId": "b2ec080f-ad5d-4274-91e3-bc6ac89fc3e4",
+        "firstSet": "tor"
+    },
+    {
         "name": "Baton of Morale",
         "scryfallId": "8bc29872-b1a2-4851-9eca-f3e67ae6e14c",
         "oracleId": "879011c6-550e-4e33-a664-fffb655321d9",
@@ -880,6 +892,12 @@
         "scryfallId": "d151c8e2-d715-470d-868a-f45191db9fa0",
         "oracleId": "977c2f33-b622-4172-9efb-7f523becd32b",
         "firstSet": "dsk"
+    },
+    {
+        "name": "Blazing Rootwalla",
+        "scryfallId": "4404fc9c-ef02-479c-9638-0cc163f0b48f",
+        "oracleId": "d43f5977-0532-4653-bc57-ce29f9a531c9",
+        "firstSet": "mh2"
     },
     {
         "name": "Blazing Specter",

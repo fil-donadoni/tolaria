@@ -98,6 +98,7 @@ import {
     getEscapeManaCost,
     hasEscape,
 } from "./gre/escape";
+import { getMadnessCost } from "./gre/madness";
 import { assertDeckLegal, type ResolvePool } from "./formats";
 import { loadBanlistOverrides } from "./banlists";
 import {
@@ -1284,6 +1285,11 @@ export function castRawManaCost(
     card: CardInstanceState,
     zone: CastFromZone
 ): ManaCost | undefined {
+    // CR 702.35d — a card discarded via Madness is cast from exile for its
+    // madness cost, not its printed mana cost. `Madness {0}` is the empty cost.
+    if (zone === "exile" && card.madnessExiled) {
+        return getMadnessCost(card) ?? {};
+    }
     if (zone !== "graveyard") return getInstanceManaCost(card);
     // CR 702.138a — an escape cast pays the escape mana cost; a card never has
     // both escape and flashback, so this preference is unambiguous.
