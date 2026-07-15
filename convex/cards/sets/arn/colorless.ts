@@ -586,7 +586,7 @@ export const aladdinsLamp: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Deferred to later batches — need engine work beyond existing primitives:
+// Deferred to later batches (tracked-by: #1215) — need engine work beyond existing primitives:
 //
 //   • Hurr Jackal — "{T}: Target creature can't be regenerated this turn"
 //     needs a turn-scoped cant-be-regenerated marker primitive.

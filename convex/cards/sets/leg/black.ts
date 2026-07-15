@@ -759,9 +759,9 @@ export const moldDemon: CardDefinition = {
 //   • "if ~ started the turn untapped" / "if ~ dealt damage to an opponent this
 //     turn" = new turn-scoped per-instance flags (CR 502.1 / 120.3).
 //
-// Deferred (need a primitive owned by another cluster — documented at the end
-// of this section): Glyph of Delusion, All Hallow's Eve, plus the C7-noted
-// Pit Scorpion / Takklemaggot.
+// Deferred (tracked-by: #1213 — need a primitive owned by another cluster;
+// documented at the end of this section): Glyph of Delusion, All Hallow's Eve,
+// plus the C7-noted Pit Scorpion / Takklemaggot.
 // ═════════════════════════════════════════════════════════════════════════════
 
 // Spirit Shackle — {B}{B} Aura. "Whenever enchanted creature becomes tapped,
@@ -802,7 +802,7 @@ export const spiritShackle: CardDefinition = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// C5 deferred — counter cards needing a primitive owned by another cluster:
+// C5 deferred (tracked-by: #1213) — counter cards needing a primitive owned by another cluster:
 //   • Glyph of Delusion — "target creature that target Wall blocked this turn"
 //     needs a combat-history "blocked this turn" record AND a two-stage target
 //     (a Wall, then a creature it blocked). The named-counter half (glyph

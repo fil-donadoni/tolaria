@@ -303,7 +303,7 @@ export const obeliskOfUndoing: CardDefinition = {
 // ability shuffles the graveyard (not the source) and exiling self has no
 // stack-interactive payoff, the resolve-body model is behaviourally equivalent
 // for the current card pool. A general `exile`/`exileSelf` cost kind is
-// deferred to a feature tranche.
+// deferred to a feature tranche (tracked-by: #1212).
 export const feldonsCane: CardDefinition = {
     id: "bb6af436-bcfd-4d47-a1aa-e84b587a725a",
     rarity: "uncommon",
@@ -1015,8 +1015,8 @@ export const batteringRam: CardDefinition = {
 // creature gets -1/-1 and gains your choice of banding, flying, first strike,
 // or trample until end of turn." (CR 611.1 temp P/T mod + keyword grant.)
 //
-// DIVERGENCE (flagged, no engine change): the engine has no "choose one named
-// option from a list" resolution-choice kind (ZonePickKind is all zone-picks;
+// DIVERGENCE (flagged, no engine change, tracked-by: #1212): the engine has no
+// "choose one named option from a list" resolution-choice kind (ZonePickKind is all zone-picks;
 // `modes` are spell-cast-time only). The single modal ability is therefore
 // modeled as FOUR fixed-keyword activated abilities — the player picks which
 // ability to activate, choosing the keyword that way. Each ability applies the

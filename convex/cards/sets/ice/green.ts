@@ -1676,8 +1676,8 @@ export const wallOfPineNeedles: CardDefinition = {
 // layer-6 keyword removal via `removeStaticAbilities`, applied to every creature
 // on every battlefield.)
 //
-// DEFERRED (non-snow capability): the second ability — "Sacrifice a snow land:
-// Return this card from your graveyard to your hand." — is an ability ACTIVATED
+// DEFERRED (non-snow capability, tracked-by: #1212): the second ability —
+// "Sacrifice a snow land: Return this card from your graveyard to your hand." — is an ability ACTIVATED
 // FROM THE GRAVEYARD (CR 113.4 / 307.4-style graveyard-activated ability). The
 // engine's `activateAbility` only scans battlefield permanents, so abilities on
 // cards in the graveyard cannot be activated — a general engine gap unrelated to

@@ -911,9 +911,9 @@ export const bartelRuneaxe: CardDefinition = {
 //     exactly like Energy Flux grants its tax to every artifact. Each creature's
 //     own controller pays at their own upkeep (CR 603.6a, `scope: "your"`).
 //
-// Deferred (need a primitive not yet built; documented at the section foot):
-//   Elder Spawn, Forethought Amulet, Primordial Ooze, Pit Scorpion,
-//   Takklemaggot — see the C7 deferred footer.
+// Deferred (need a primitive not yet built): Elder Spawn, Forethought Amulet,
+//   Primordial Ooze (upkeep-maintenance cards, tracked-by: #1216); Pit Scorpion,
+//   Takklemaggot (named counters, tracked-by: #1213).
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Shared resolve body for the Elder-Dragon "sacrifice this unless you pay

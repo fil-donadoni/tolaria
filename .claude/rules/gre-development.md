@@ -51,6 +51,46 @@ can't express this>`) AND restate it in the PR description. "The Op I need
   (`convex/cards/__tests__/mechanicsRegistry.test.ts`) fails CI on any
   unlisted name regardless — catching it during authoring is cheaper than
   catching it in CI.
+- **Guard A — keyword-must-be-implemented (issue #962).** A shipped
+  (non-stub) card's `staticAbilities[]` string must resolve to a Mechanics
+  Registry row with `status: "implemented"` — not merely a NAMED mechanic
+  (which the name-authority guard above already checks). A card that
+  declares a `planned`/`out-of-scope` keyword ships functional-looking but
+  is silently inert — the exact deathtouch/hexproof shape (#957/#958) this
+  guard exists to catch permanently. Enforced catalogue-wide by
+  `describe("Guard A — keyword-must-be-implemented (issue #962)")` in
+  `convex/cards/__tests__/mechanicsRegistry.test.ts`. To satisfy it: either
+  ship the mechanic (flip its registry row to `implemented` with a real
+  binding) before the card, or — if the card must land first — add a
+  narrow `{ cardId, keyword, issue }` row to that describe block's
+  `KEYWORD_ALLOWLIST`, with a real open tracking issue. The allowlist is
+  meant to empty out as each entry's issue lands, never a standing escape
+  hatch; a companion test asserts every entry stays well-formed (real card,
+  real declared keyword, real issue number).
+- **Guard B — documented-divergence-needs-issue (issue #962).** A `//
+Deferred` / `// DEFERRED` / `// divergence` / `// DIVERGENCE` / `// not
+implemented` / `// TODO` comment inside `convex/cards/sets/**` documents
+  an intentional partial implementation (an Oracle clause a card's
+  `resolve()`/`effects` silently drops) — and every one MUST carry a
+  tracking disposition **in the marker's own comment PARAGRAPH**: a linked
+  issue ref (`#NNN`, prefer `tracked-by: #NNN`) or an explicit "out of
+  scope" note. Enforced by
+  `convex/cards/__tests__/divergenceMarkers.test.ts`. Two deliberate
+  narrowings vs. the sibling stub guard (`scripts/check-stub-coverage.ts`),
+  each closing a proven leak. **(1) Paragraph scope, not the whole comment
+  block:** the ref must live in the SAME paragraph as the marker — the run of
+  comment lines around it, bounded by a blank `//` line, a box-rule line
+  (`// ────` / `// ════`), or a non-comment line. A ref in a DIFFERENT
+  paragraph does not vouch: not a provenance citation in the card-intro
+  paragraph above, not a separate deferral note's ref lower in the same block.
+  (A real multi-marker section footer — several deferred cards bulleted under
+  one `tracked-by: #NNN` header — is ONE paragraph and needs the ref once.)
+  **(2) `ADR NNNN` does NOT count as a tracking ref:** an ADR documents a
+  card's design/provenance, it is not a work ticket for a dropped clause; a
+  permanently out-of-scope divergence must still say so in words ("out of
+  scope"), which does count. An unreferenced marker fails CI — add a
+  `tracked-by: #NNN` ref on/next to the marker (same paragraph), or open a new
+  issue and reference it, before landing the card.
 
 **Per-Op test regime replaces per-card mandates for DSL cards.** The `Card
 testing convention` table below still governs `resolve()` cards in full, and

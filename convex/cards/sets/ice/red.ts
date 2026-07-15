@@ -1393,7 +1393,7 @@ export const karplusanYeti: CardDefinition = {
 // from the cost.)
 //
 // DEFERRED (documented simplification, NOT a card-specific primitive — same gap
-// as DRK Whippoorwill): the rider "If Lava Burst would deal damage to a
+// as DRK Whippoorwill, tracked-by: #1212): the rider "If Lava Burst would deal damage to a
 // creature, that damage can't be prevented or dealt instead to another permanent
 // or player" is an anti-prevention / anti-redirection lock for which no engine
 // primitive exists. It is a narrow rider (matters only against active Fog-style
