@@ -8094,6 +8094,22 @@ export function buildSpellContext(
             seededShuffle(state, library);
             clearKnowledge(library, null);
         },
+        // Endurance's ETB (mh2/green.ts, #1207): "put all the cards from their
+        // graveyard on the bottom of their library in a random order." Detach
+        // the whole graveyard, randomize it among itself with the seeded PRNG
+        // (deterministic under replay), then append after the existing library
+        // (index end = bottom, CR 701.22 sense — `library[0]` is the top). The
+        // resulting bottom ordering is unwitnessed, so clear knowledge on the
+        // moved cards (ADR 0026, exactly like a shuffle). No-op on an empty
+        // graveyard.
+        putGraveyardOnBottomOfLibrary(playerId: string): void {
+            const player = getPlayer(state, playerId);
+            if (player.graveyard.length === 0) return;
+            const moved = player.graveyard.splice(0, player.graveyard.length);
+            seededShuffle(state, moved);
+            clearKnowledge(moved, null);
+            player.library.push(...moved);
+        },
         // CR 701.5a: to counter a spell is to remove it from the stack and put
         // it into its owner's graveyard. If the target is no longer on the
         // stack (already resolved/countered), this is a silent no-op — the

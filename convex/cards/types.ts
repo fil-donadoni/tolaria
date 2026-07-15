@@ -1673,6 +1673,15 @@ export interface SpellContext {
     /** Randomizes the order of a player's library using the seeded PRNG
      *  (CR 701.20). Deterministic under replay. */
     shuffleLibrary: (playerId: string) => void;
+    /** Puts every card in a player's graveyard onto the BOTTOM of their
+     *  library in a random order (Endurance's ETB — "put all the cards from
+     *  their graveyard on the bottom of their library in a random order").
+     *  The graveyard cards are shuffled among themselves with the seeded PRNG
+     *  (deterministic under replay) and appended after the existing library,
+     *  which keeps its order; the new bottom ordering is unwitnessed, so
+     *  knowledge on the moved cards is cleared (ADR 0026, like a shuffle).
+     *  No-op when the graveyard is empty. */
+    putGraveyardOnBottomOfLibrary: (playerId: string) => void;
     /** Counters a spell or ability on the stack (CR 701.5a). Target must be
      *  TargetSelection with type "spell". No-op if target no longer on stack
      *  (CR 608.2b). `destination` overrides where a COUNTERED SPELL (never an
@@ -2579,11 +2588,15 @@ export interface SpellContext {
          *  mana-value bound). Validated server-side at submit; the frontend
          *  gates clickability on it. */
         candidateIds?: string[];
-        /** For `kind: "choose-damage-target"` only — the player ids the chooser
-         *  may pick as the damage target (CR 115.4 "any target" includes
-         *  players). The submission carries either a damageable permanent id
-         *  (from `candidateIds`) OR one of these player ids. Used by Cuombajj
-         *  Witches ("1 damage to any target of an opponent's choice"). */
+        /** The player ids the chooser may pick as a target (CR 115.1a).
+         *  Two consumers:
+         *   - `kind: "choose-damage-target"` (CR 115.4 "any target" includes
+         *     players) — the submission carries either a damageable permanent
+         *     id (from `candidateIds`) OR one of these player ids. Cuombajj
+         *     Witches ("1 damage to any target of an opponent's choice").
+         *   - `kind: "choose-player"` — a trigger-time player pick with no
+         *     permanent branch (Endurance's "up to one target player"). The
+         *     submission is one of these ids, or empty for "none". */
         candidatePlayerIds?: string[];
         /** For `kind: "order-top"` only — the second zone the un-kept looked-at
          *  cards go to (`library-bottom` scry / `graveyard` surveil / `none`

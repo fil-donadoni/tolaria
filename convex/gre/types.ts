@@ -55,6 +55,16 @@ export type ZonePickKind =
     // discard step in the same resolution).
     | "choose-graveyard-card"
     | "choose-damage-target"
+    // Trigger-time PLAYER target (CR 115.1a — a player is a legal target),
+    // chosen mid-resolution when a `TriggeredAbility` (which carries no
+    // announcement-time `targetRequirement`, ADR 0002) must pick a player.
+    // "Up to one" is expressed with `count: { min: 0, max: 1 }` — an empty
+    // submission means "none". Players aren't in a zone, so the pick validates
+    // against `candidatePlayerIds` (like `choose-damage-target`), not a zone
+    // membership check. Endurance (mh2/green.ts, #1207): "up to one target
+    // player puts all the cards from their graveyard on the bottom of their
+    // library in a random order."
+    | "choose-player"
     // Aladdin's Lamp (#189): the chooser looks at the top X library cards
     // (`candidateIds`) and keeps one to draw; the rest are bottomed in a
     // random order. A phase-level choice (stackItemId === "") raised by the

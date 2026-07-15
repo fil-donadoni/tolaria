@@ -496,6 +496,44 @@ export function applyPendingChoiceSubmit(
         return;
     }
 
+    // --- Trigger-time player pick (CR 115.1a): the pick is a player id, not a
+    // zone member (Endurance — "up to one target player"). Validates against
+    // `candidatePlayerIds`; an EMPTY submission is legal ("up to one" = none,
+    // `count.min === 0`). The generic min/max check above already bounds the
+    // count. Writes the (0- or 1-element) selection verbatim into
+    // collectedChoices; the card's resolve step reads it back via requestChoice
+    // and acts only when a player was chosen. ---
+    if (head.kind === "choose-player") {
+        for (const id of args.cardInstanceIds) {
+            if (!(head.candidatePlayerIds?.includes(id) ?? false)) {
+                throw new Error("Not a legal player");
+            }
+        }
+        const stackItem = state.stack.find((s) => s.id === head.stackItemId);
+        if (!stackItem) throw new Error("Stack item not found");
+        const key = `${head.step}:${head.choiceId}`;
+        stackItem.collectedChoices = {
+            ...(stackItem.collectedChoices ?? {}),
+            [key]: args.cardInstanceIds,
+        };
+        queue.shift();
+        state.pendingChoices = queue.length > 0 ? queue : undefined;
+        if ((state.pendingChoices?.length ?? 0) === 0) {
+            resolveTopOfStack(state);
+            if ((state.pendingChoices?.length ?? 0) > 0) {
+                state.priorityPlayerId = state.pendingChoices![0].playerId;
+            } else {
+                state.priorityPlayerId = state.activePlayerId;
+                state.passCount = 0;
+                drainAutoPasses(state);
+            }
+            checkStateBasedActions(state);
+        } else {
+            state.priorityPlayerId = state.pendingChoices![0].playerId;
+        }
+        return;
+    }
+
     // --- Abstract option pick (CR 614.12 "as it enters, choose …"): the pick
     // is one author-supplied option id, not a zone member. Validates against
     // `head.options` (like `choose-damage-target` validates against its

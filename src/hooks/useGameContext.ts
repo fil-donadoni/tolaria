@@ -10,6 +10,7 @@ import type {
     PendingChoice,
     PendingTarget,
     Player,
+    StackItem,
 } from "~/types/game";
 
 type GameContext = {
@@ -24,10 +25,11 @@ type GameContext = {
     pendingActivation?: PendingActivation;
     pendingTarget?: PendingTarget;
     pendingChoices?: PendingChoice[];
-    /** CR 603.3b / ADR 0058 — the off-stack simultaneous-trigger batch (slimmed),
-     *  non-empty only while a `trigger-order` choice is active. The ordering
-     *  picker maps its candidate ids to card art through this list. */
-    pendingTriggerBatch?: CardInstance[];
+    /** CR 603.3b / ADR 0058 — the off-stack simultaneous-trigger batch (slimmed
+     *  stack items), non-empty only while a `trigger-order` choice is active. The
+     *  ordering picker maps each candidate id to its ability oracle text through
+     *  this list (`triggeredAbilityId` / `grantedTriggeredAbilities`). */
+    pendingTriggerBatch?: StackItem[];
     autoPassPlayers?: string[];
     queuedEndTurn?: string[];
     combat?: Combat;

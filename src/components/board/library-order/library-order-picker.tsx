@@ -80,17 +80,12 @@ export default function LibraryOrderPicker({
     prompt,
     submitting,
     distribute,
-    rightLabelOverride,
     onConfirm,
 }: {
     lookedAt: LookedAtCard[];
     destination: LibraryDestination;
     prompt: string;
     submitting: boolean;
-    /** Overrides the right-zone label (default "TOP OF LIBRARY" in `none` mode).
-     *  Used by the simultaneous-trigger ordering picker (CR 603.3b, ADR 0058),
-     *  the second consumer of this strip, to read "TOP OF STACK". */
-    rightLabelOverride?: string;
     /** `look-distribute` mode (Impulse / Stock Up): the RIGHT zone is the HAND
      *  (exactly `keep` cards), the LEFT zone the ordered bottom. Omit for the
      *  scry/surveil/ponder order-top modes. */
@@ -114,8 +109,7 @@ export default function LibraryOrderPicker({
               detached: false,
           }
         : chromeFor(destination);
-    const { leftLabel, hasSecond, detached } = chrome;
-    const rightLabel = rightLabelOverride ?? chrome.rightLabel;
+    const { leftLabel, rightLabel, hasSecond, detached } = chrome;
 
     const defById = useMemo(
         () => Object.fromEntries(lookedAt.map((c) => [c.instanceId, c.defId])),
