@@ -63,6 +63,7 @@ import {
     resolveTopOfStack,
     emitPermanentTapped,
     processPendingActionTriggers,
+    realizeManaAbilityTapBonus,
     applySourceStaticEffects,
     unapplySourceStaticEffects,
     type CardInstanceState,
@@ -1526,6 +1527,39 @@ describe("Wild Growth (extra {G} on attached land mana tap)", () => {
         expect(state.stack).toHaveLength(0);
         // Base {G} + Wild Growth's additional {G} both in the pool now.
         expect(state.players[0].manaPool?.G).toBe(2);
+    });
+
+    // CR 605.4 — the cost-payment path realizes the bonus once and flags the
+    // event (`manaTriggersResolved`) so the later commit-time trigger flush does
+    // NOT add it a second time (the double-mana bug the flag exists to prevent).
+    it("realizeManaAbilityTapBonus adds the bonus once; a follow-up flush is a no-op", () => {
+        const host = makeInstance(forest.id, {
+            id: "host-forest",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const aura = makeInstance(wildGrowth.id, {
+            id: "wg",
+            controllerId: "p1",
+            ownerId: "p1",
+            attachedTo: "host-forest",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [host, aura] }),
+                makePlayer("p2"),
+            ],
+        });
+        const p1 = state.players[0];
+        p1.manaPool = { ...(p1.manaPool ?? {}), G: 1 };
+        emitPermanentTapped(state, host, true, { G: 1 });
+
+        realizeManaAbilityTapBonus(state);
+        expect(p1.manaPool?.G).toBe(2);
+        // The event stays queued (so its non-mana triggers still fire at commit)
+        // but is flagged, so the commit-time flush skips the mana bonus.
+        processPendingActionTriggers(state);
+        expect(p1.manaPool?.G).toBe(2);
     });
 });
 

@@ -4800,6 +4800,15 @@ export interface PermanentTappedEvent {
      *  when `forMana` is true. Used by Mana Flare ("adds one mana of any
      *  type that land produced"). */
     manaProduced?: ManaCost;
+    /** CR 605.4 — set once this tap's triggered MANA abilities (Wild Growth,
+     *  Mana Flare, Gauntlet of Might) have already been resolved off-stack. The
+     *  cost-payment tap path (`tapSourceIntoPayment` → `realizeManaAbilityTapBonus`)
+     *  resolves them eagerly so the bonus is in the pool for the affordability
+     *  check, but keeps the event queued so the tap's NON-mana triggers still
+     *  fire (deferred to cast commit) and an undo (`untapForPayment`) can still
+     *  discard it. This flag stops the later commit-time trigger flush from
+     *  re-resolving the mana bonus a second time (double-mana). */
+    manaTriggersResolved?: boolean;
 }
 
 /** Emitted when a permanent transitions tapped → untapped (CR 701.20b "becomes

@@ -211,6 +211,15 @@ export type CardInstanceState = {
      *  the mana ability with no stack, so the tap stays reversible. Cleared at
      *  untap step / on refund, like `chosenMana`. */
     lifePaidThisTap?: number;
+    /** CR 605.4 — extra mana a Wild-Growth-style triggered MANA ability (Wild
+     *  Growth, Fertile Ground, a Gauntlet-of-Might rider) added to the pool when
+     *  THIS source was tapped for mana. Snapshotted as the pool delta the bonus
+     *  trigger produced so an untap-toggle / payment undo that reverses the whole
+     *  tap refunds the bonus too — the sibling of `chosenMana`. Without it the
+     *  untap-toggle refunds only the land's own base mana, leaving the bonus {G}
+     *  floating: tap → +2, untap → −1, a net +1 per cycle = infinite mana.
+     *  Cleared at untap step / on refund, like `chosenMana`. */
+    tapBonusMana?: CardManaCost;
     /** Mode chosen at cast time for modal permanents (CR 700.2c). Survives
      *  from the stack to the battlefield so the layer system can read
      *  mode-specific static effects (e.g. Phantasmal Terrain). */
@@ -2907,6 +2916,19 @@ export function processPendingActionTriggers(state: GameState): void {
     const stackTriggers: StackItem[] = [];
     for (const trigger of triggers) {
         if (isManaAbilityTriggerItem(trigger)) {
+            // CR 605.4 — the cost-payment tap path may have already resolved
+            // this tap's mana bonus off-stack (`realizeManaAbilityTapBonus`),
+            // flagging the triggering event. Re-resolving it here would add the
+            // bonus a second time (double mana). Its NON-mana siblings on the
+            // same event are still collected and stacked below, so nothing is
+            // lost by skipping only the already-realized mana ability.
+            const ev = trigger.triggerEvent;
+            if (
+                ev?.type === "PERMANENT_TAPPED" &&
+                ev.manaTriggersResolved === true
+            ) {
+                continue;
+            }
             resolveManaAbilityTriggerImmediately(state, trigger);
         } else {
             stackTriggers.push(trigger);
@@ -2916,6 +2938,48 @@ export function processPendingActionTriggers(state: GameState): void {
     state.stack.push(...stackTriggers);
     state.priorityPlayerId = state.activePlayerId;
     state.passCount = 0;
+}
+
+/** CR 605.4 — resolve ONLY the triggered MANA abilities (Wild Growth, Mana
+ *  Flare, Gauntlet of Might) waiting in `pendingEvents` for a for-mana tap,
+ *  immediately and off-stack, so their extra mana is in the pool RIGHT NOW —
+ *  the cost-payment path calls this after each land tap so the bonus is
+ *  available for the affordability check that decides whether the spell can be
+ *  committed.
+ *
+ *  Unlike `processPendingActionTriggers`, this does NOT stack the tap's
+ *  NON-mana triggers (City of Brass's ping, Manabarbs): a spell being cast is
+ *  not yet on the stack, so those must wait until the cast commits (CR 601.2i)
+ *  — the normal commit-time flush handles them. To make that possible the
+ *  triggering events are drained, their mana bonuses resolved, then the events
+ *  are RESTORED to `pendingEvents` (flagged `manaTriggersResolved`) so the
+ *  commit-time flush still fires the non-mana triggers and an undo can still
+ *  discard the event. The flag keeps the commit-time flush from re-resolving
+ *  the mana bonus (see `processPendingActionTriggers`).
+ *
+ *  Returns nothing; the caller measures the pool delta to attribute the bonus
+ *  to the just-tapped source (`CardInstanceState.tapBonusMana`). Idempotent:
+ *  events already flagged are skipped, so calling it once per tap resolves only
+ *  that tap's newly-emitted event. */
+export function realizeManaAbilityTapBonus(state: GameState): void {
+    const events = flushPendingEvents(state);
+    if (events.length === 0) return;
+    const triggers = collectTriggers(state, events);
+    for (const trigger of triggers) {
+        if (!isManaAbilityTriggerItem(trigger)) continue;
+        const ev = trigger.triggerEvent;
+        if (ev?.type !== "PERMANENT_TAPPED") continue;
+        if (ev.manaTriggersResolved === true) continue;
+        // Resolve off-stack. `pendingEvents` is currently empty (drained
+        // above), so the nested trigger flush inside `resolveTopOfStack` sees
+        // no events and cannot stack the deferred non-mana triggers early.
+        resolveManaAbilityTriggerImmediately(state, trigger);
+        ev.manaTriggersResolved = true;
+    }
+    // Restore the (now-flagged) events so the tap's non-mana triggers still
+    // fire at cast commit and an undo can still discard them. Any new events the
+    // bonus resolution emitted go first (preserve their arrival order).
+    state.pendingEvents = [...(state.pendingEvents ?? []), ...events];
 }
 
 /** Re-checks a single chosen target's legality at resolution (CR 608.2b/c).

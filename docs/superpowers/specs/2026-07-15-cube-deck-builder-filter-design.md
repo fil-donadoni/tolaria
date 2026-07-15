@@ -8,8 +8,8 @@
 The deck builder can narrow the card pool by color, type, mana value, set, and
 text, plus a Format set-membership gate (`allowedSets`). There is no way to
 restrict the pool to a **cube** — a curated, arbitrary list of specific cards
-(e.g. the MTGO/paper Vintage Cube, 540 cards). A cube is a *card list*, not a
-*set list*, so it does not fit the existing `allowedSets` mechanism. The engine
+(e.g. the MTGO/paper Vintage Cube, 540 cards). A cube is a _card list_, not a
+_set list_, so it does not fit the existing `allowedSets` mechanism. The engine
 must support **multiple named cube lists**, not just one.
 
 ## Decisions (locked in brainstorm)
@@ -25,7 +25,7 @@ must support **multiple named cube lists**, not just one.
 3. **This slice: seed + filter only.** No admin editing UI. Editing is via a
    `saveCube` mutation (console / script) for now; a panel is a later slice.
 4. **Single-select** in the builder — one cube at a time (a cube is a single
-   curated list; you build *for* a cube).
+   curated list; you build _for_ a cube).
 
 ## Why store names, not card ids
 
@@ -84,7 +84,7 @@ reads `data/worklists/vintage-cube.txt` (names, `#` comments stripped) and calls
 - **`CardSearchFilters`** (`useCardSearch.ts`) gains `cube?: string` (slug);
   `DEFAULT_FILTERS.cube` unset.
 - **`useCardSearch`**: when `filters.cube` is set, `useQuery(api.cubes.membership,
-  { slug })` → build a `Set<cardId>` → new gate `cubeSet.has(e.cardId)`.
+{ slug })` → build a `Set<cardId>` → new gate `cubeSet.has(e.cardId)`.
   Composes (AND) with the existing `matchesFormatSets` gate and every user
   filter. While the membership query is loading, treat as "no matches yet"
   (empty) rather than showing the unfiltered pool.

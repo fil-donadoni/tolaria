@@ -52,6 +52,7 @@ import {
     emitAbilityActivated,
     discardPermanentTappedEvent,
     processPendingActionTriggers,
+    realizeManaAbilityTapBonus,
     allocInstanceId,
     tapPermanent,
     exileFaceDownCard,
@@ -842,6 +843,35 @@ function manaTapBattlefields(state: GameState): {
     }));
 }
 
+/** CR 605.4 — realize this tap's Wild-Growth-style triggered mana bonus into
+ *  the pool NOW (so a cost payment sees it for the affordability check) and
+ *  attribute the extra mana to the just-tapped `card` as `tapBonusMana`, so an
+ *  undo (`untapForPayment`) reverses the bonus too. Measures the pool delta
+ *  across `realizeManaAbilityTapBonus` — which resolves only the mana-ability
+ *  triggers and leaves the non-mana ones deferred to cast commit. No-op when no
+ *  bonus applies. Skips the stamp on a sacrificed source (it has no untap
+ *  branch); the bonus, if any, still lands in the pool. */
+function realizeAndStampTapBonus(
+    state: GameState,
+    player: PlayerState,
+    card: CardInstanceState
+): void {
+    const before = { ...player.manaPool };
+    realizeManaAbilityTapBonus(state);
+    const bonus: Record<string, number> = {};
+    for (const [color, after] of Object.entries(player.manaPool)) {
+        if (color === "X" || typeof after !== "number") continue;
+        const delta = after - (before[color as keyof typeof before] ?? 0);
+        if (delta > 0) bonus[color] = delta;
+    }
+    if (
+        Object.keys(bonus).length > 0 &&
+        player.battlefield.some((c) => c.id === card.id)
+    ) {
+        card.tapBonusMana = bonus as ManaCost;
+    }
+}
+
 export function tapSourceIntoPayment(
     state: GameState,
     player: PlayerState,
@@ -995,6 +1025,9 @@ export function tapSourceIntoPayment(
         // on the sacrifice path (the painland rider no-ops on a sacrificed
         // source, and a sacrificed source has no untap branch anyway).
         recordLifePaidOnTap(card, lifeBeforeTap, player.life);
+        // CR 605.4 — resolve this tap's Wild-Growth-style mana bonus into the
+        // pool now (so the affordability check sees it) and record it for undo.
+        if (!isSacrifice) realizeAndStampTapBonus(state, player, card);
         tappedLandIds.push(card.id);
         return;
     }
@@ -1066,6 +1099,31 @@ export function tapSourceIntoPayment(
     // Tomb, Mana Confluence) so untapForPayment can restore it. Skip on the
     // sacrifice path: the source is gone and has no untap branch.
     if (!isSacrifice) recordLifePaidOnTap(card, lifeBeforeTap, player.life);
+    // CR 605.4 — resolve this tap's Wild-Growth-style mana bonus into the pool
+    // now (so the affordability check sees it) and record it for undo.
+    if (!isSacrifice) realizeAndStampTapBonus(state, player, card);
+}
+
+/** CR 605.4 / 106.4 — reversing a for-mana tap undoes the whole mana ability,
+ *  so refund the extra mana a Wild-Growth-style triggered mana ability added on
+ *  this tap (`tapBonusMana`) and clear the record. Without this the bonus stays
+ *  floating after the source untaps — the tap → +2 / untap → −1 infinite-mana
+ *  leak. Symmetric with the `chosenMana` / `lifePaidThisTap` refunds. No-op when
+ *  the tap added no bonus. */
+export function refundTapBonusMana(
+    player: PlayerState,
+    card: CardInstanceState
+): void {
+    if (!card.tapBonusMana) return;
+    for (const [color, amount] of Object.entries(card.tapBonusMana)) {
+        if (color !== "X" && typeof amount === "number" && amount > 0) {
+            player.manaPool[color] = Math.max(
+                0,
+                (player.manaPool[color] ?? 0) - amount
+            );
+        }
+    }
+    card.tapBonusMana = undefined;
 }
 
 /** Reverses a single tap recorded in `tappedLandIds` — refunds the mana and
@@ -1076,6 +1134,7 @@ function untapSourceFromPayment(
     card: CardInstanceState
 ): void {
     discardPermanentTappedEvent(state, card.id);
+    refundTapBonusMana(player, card);
     if (card.chosenMana) {
         for (const [color, amount] of Object.entries(card.chosenMana)) {
             if (color !== "X" && typeof amount === "number" && amount > 0) {
@@ -1736,6 +1795,8 @@ function rollbackPendingCast(state: GameState): void {
         const card = player.battlefield.find((c) => c.id === cardId);
         if (!card) continue;
         card.isTapped = false;
+        // CR 605.4 — refund the Wild-Growth-style bonus mana this tap added.
+        refundTapBonusMana(player, card);
         if (card.chosenMana) {
             for (const [color, amount] of Object.entries(card.chosenMana)) {
                 if (color !== "X" && typeof amount === "number" && amount > 0) {
@@ -5210,6 +5271,8 @@ export const untapForPayment = mutation({
             );
         }
 
+        // CR 605.4 — refund the Wild-Growth-style bonus mana this tap added.
+        refundTapBonusMana(player, card);
         card.isTapped = false;
         discardPermanentTappedEvent(state, card.id);
         state.pendingCast.tappedLandIds.splice(idx, 1);
@@ -9610,6 +9673,9 @@ export const tapUntap = mutation({
                 // depletion counter it put on itself when tapped for mana.
                 reverseDepletionCounterOnUntap(ability, card);
                 card.chosenMana = undefined;
+                // CR 605.4 — also refund the Wild-Growth-style bonus mana this
+                // tap added (else it stays floating: the infinite-mana leak).
+                refundTapBonusMana(player, card);
                 card.isTapped = false;
             }
         } else {
@@ -9740,6 +9806,10 @@ export const tapUntap = mutation({
                     }
                     if (isDynamic || card.chosenMana)
                         card.chosenMana = undefined;
+                    // CR 605.4 — also refund the Wild-Growth-style bonus mana
+                    // this tap added (else it stays floating: the infinite-mana
+                    // leak on tap/untap).
+                    refundTapBonusMana(player, card);
                 }
             }
             // CR 605.1a / ADR 0039 — pay the "Sacrifice this" portion of a
@@ -9841,8 +9911,26 @@ export const tapUntap = mutation({
             // mana and untap the land while the trigger's effect (e.g. lost
             // life) stays applied — a state with no legal MTG equivalent.
             const stackSizeBeforeTriggers = state.stack.length;
+            // CR 605.4 — snapshot the pool so the extra mana a Wild-Growth-style
+            // triggered MANA ability adds off-stack during this flush can be
+            // attributed to THIS tap and recorded on the source, so the
+            // untap-toggle refunds it too (otherwise the bonus stays floating —
+            // the infinite-mana leak on tap/untap).
+            const poolBeforeTriggers = { ...player.manaPool };
             processPendingActionTriggers(state);
             markTapTriggerCommitment(state, card, stackSizeBeforeTriggers);
+            const bonus: Record<string, number> = {};
+            for (const [color, after] of Object.entries(player.manaPool)) {
+                if (color === "X" || typeof after !== "number") continue;
+                const delta =
+                    after -
+                    (poolBeforeTriggers[
+                        color as keyof typeof poolBeforeTriggers
+                    ] ?? 0);
+                if (delta > 0) bonus[color] = delta;
+            }
+            card.tapBonusMana =
+                Object.keys(bonus).length > 0 ? (bonus as ManaCost) : undefined;
         }
 
         await saveGameState(
