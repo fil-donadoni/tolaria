@@ -1319,6 +1319,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     digToHand() {
         return null;
     },
+    // `putBack` (CR 401.4, issue #1046) — never reached: `analyseOp` skips
+    // every script with a putBack Op (it suspends on a live choose-hand-card
+    // pick whose ORDER the player controls, so there is no deterministic
+    // same-resolution outcome the canned scenario can assert). Kept for the
+    // 1:1 coverage guard; the suspend/resume, pick-order-preserving top
+    // placement and checkpoint are covered by the Op's own interpreter tests.
+    putBack() {
+        return null;
+    },
     // `preventDamage` (CR 615, issue #845) — never reached: `analyseOp` skips
     // every script with a preventDamage Op (a shield sits dormant until a later
     // damage event, with no same-resolution outcome the canned scenario can
