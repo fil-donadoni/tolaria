@@ -24,18 +24,19 @@ import {
 // state-mutation surface is exposed to non-admin players.
 
 /**
- * List the current admin's saved debug scenarios, newest first. `assertIsAdmin`
- * runs FIRST — a non-admin caller is rejected before any row is read.
+ * List ALL saved debug scenarios, newest first. Debug scenarios are a SHARED
+ * admin tool: every admin sees (and can load/edit/delete) every scenario,
+ * regardless of which admin created it — `userId` is retained only as authorship
+ * provenance. `assertIsAdmin` runs FIRST — a non-admin caller is rejected before
+ * any row is read.
  */
 export const listDebugScenarios = query({
     args: {},
     handler: async (ctx) => {
-        const user = await assertIsAdmin(ctx);
-        return await ctx.db
-            .query("debugScenarios")
-            .withIndex("by_user", (q) => q.eq("userId", user._id))
-            .order("desc")
-            .collect();
+        await assertIsAdmin(ctx);
+        // Admin-only debug tool; the table is kept small by
+        // `cleanupEphemeralScenarios`. Bound the scan defensively.
+        return await ctx.db.query("debugScenarios").order("desc").take(500);
     },
 });
 
@@ -83,11 +84,11 @@ export const saveDebugScenario = mutation({
 
 /**
  * Update an existing scenario's label + spec in place (edit an existing row).
- * Ownership is enforced (a row owned by another user is treated as not found)
- * and the same loadability guard as `saveDebugScenario` runs before write, so an
- * edit can't introduce an unknown card name. `golden`/`prompt`/`schemaVersion`
- * are left untouched — editing the board doesn't change a row's keep status or
- * its regenerate provenance.
+ * Scenarios are a SHARED admin tool: ANY admin may edit ANY scenario. The same
+ * loadability guard as `saveDebugScenario` runs before write, so an edit can't
+ * introduce an unknown card name. `golden`/`prompt`/`schemaVersion` are left
+ * untouched — editing the board doesn't change a row's keep status or its
+ * regenerate provenance.
  */
 export const updateDebugScenario = mutation({
     args: {
@@ -97,9 +98,9 @@ export const updateDebugScenario = mutation({
     },
     returns: v.null(),
     handler: async (ctx, args) => {
-        const user = await assertIsAdmin(ctx);
+        await assertIsAdmin(ctx);
         const row = await ctx.db.get(args.id);
-        if (!row || row.userId !== user._id) {
+        if (!row) {
             throw new Error("Scenario not found");
         }
         const unresolved = collectUnresolvedCardNames(
@@ -122,16 +123,16 @@ export const updateDebugScenario = mutation({
  * #772, ADR 0044). Golden rows survive `cleanupEphemeralScenarios`; ephemeral
  * rows are prunable. Promoting stamps the current `schemaVersion` (the drift tag
  * a long-lived curated row is checked against); demoting clears it, since only
- * golden rows carry the tag. Admin-gated and ownership-enforced — a row owned by
- * another user is treated as not found.
+ * golden rows carry the tag. Admin-gated; ANY admin may promote/demote ANY
+ * scenario (shared tool).
  */
 export const setDebugScenarioGolden = mutation({
     args: { id: v.id("debugScenarios"), golden: v.boolean() },
     returns: v.null(),
     handler: async (ctx, args) => {
-        const user = await assertIsAdmin(ctx);
+        await assertIsAdmin(ctx);
         const row = await ctx.db.get(args.id);
-        if (!row || row.userId !== user._id) {
+        if (!row) {
             throw new Error("Scenario not found");
         }
         await ctx.db.patch(args.id, {
@@ -143,22 +144,22 @@ export const setDebugScenarioGolden = mutation({
 });
 
 /**
- * Prune the current admin's EPHEMERAL scenarios past a bound (issue #772, ADR
- * 0044). Golden rows are never removed; non-golden rows are kept newest-first up
- * to `keep`, and everything older is deleted. This is the "relocate the too-many-
+ * Prune the SHARED EPHEMERAL scenarios past a bound (issue #772, ADR 0044).
+ * Golden rows are never removed; non-golden rows are kept newest-first up to
+ * `keep`, and everything older is deleted. This is the "relocate the too-many-
  * scenarios problem into the DB on purpose" cleanup — bounded and deletable,
- * which the old code array never was. Admin-gated and scoped to the caller's own
- * rows. Returns the number pruned.
+ * which the old code array never was. Admin-gated; operates on the shared pool
+ * (all admins' scenarios). Returns the number pruned.
  */
 export const cleanupEphemeralScenarios = mutation({
     args: { keep: v.optional(v.number()) },
     returns: v.object({ pruned: v.number() }),
     handler: async (ctx, args) => {
-        const user = await assertIsAdmin(ctx);
+        await assertIsAdmin(ctx);
         const rows = await ctx.db
             .query("debugScenarios")
-            .withIndex("by_user", (q) => q.eq("userId", user._id))
-            .collect();
+            .order("desc")
+            .take(500);
         const toPrune = selectEphemeralIdsToPrune(rows, args.keep);
         for (const id of toPrune) {
             await ctx.db.delete(id);
@@ -171,32 +172,31 @@ export const cleanupEphemeralScenarios = mutation({
  * Read a scenario's stored prompt for the regenerate/vary action (issue #772,
  * ADR 0044). `internalQuery` — reachable only from the server-side
  * `regenerateDebugScenario` action (which has no `ctx.db`), never from a client.
- * Re-runs the admin gate AND enforces ownership so the action can't read another
- * user's row. Returns `null` when the row is missing, not owned, or has no
- * prompt (a hand-authored row without one can't be regenerated).
+ * Re-runs the admin gate; scenarios are shared, so any admin may regenerate any
+ * row. Returns `null` when the row is missing or has no prompt (a hand-authored
+ * row without one can't be regenerated).
  */
 export const getScenarioPromptForRegen = internalQuery({
     args: { id: v.id("debugScenarios") },
     returns: v.union(v.string(), v.null()),
     handler: async (ctx, args) => {
-        const user = await assertIsAdmin(ctx);
+        await assertIsAdmin(ctx);
         const row = await ctx.db.get(args.id);
-        if (!row || row.userId !== user._id) return null;
+        if (!row) return null;
         return row.prompt ?? null;
     },
 });
 
 /**
- * Delete one of the current admin's debug scenarios. Ownership is enforced: a
- * row belonging to another user is treated as not found (never deletable across
- * users).
+ * Delete a debug scenario. Scenarios are a SHARED admin tool: ANY admin may
+ * delete ANY scenario.
  */
 export const deleteDebugScenario = mutation({
     args: { id: v.id("debugScenarios") },
     handler: async (ctx, args) => {
-        const user = await assertIsAdmin(ctx);
+        await assertIsAdmin(ctx);
         const row = await ctx.db.get(args.id);
-        if (!row || row.userId !== user._id) {
+        if (!row) {
             throw new Error("Scenario not found");
         }
         await ctx.db.delete(args.id);

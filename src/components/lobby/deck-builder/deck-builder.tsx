@@ -295,6 +295,21 @@ export default function DeckBuilder({
     // never changes its Format (ADR 0036).
     const formatReadOnly = initialDeck !== null;
 
+    // Cube ⇄ Format mutual exclusion. An active cube locks the Format select
+    // (pinned to Freeform); a fixed non-Freeform Format (edit mode) disables the
+    // cube selector — the two never apply together.
+    const cubeActive = filters.cube !== "";
+    const cubeDisabled = formatReadOnly && deck.format !== "freeform";
+
+    // Defensive clear: if a fixed non-Freeform Format disables the cube (e.g. a
+    // shared URL carried `?cube=` into the edit of a non-Freeform deck), drop the
+    // stale cube so the search pool isn't silently restricted by a hidden filter.
+    useEffect(() => {
+        if (cubeDisabled && filters.cube) {
+            setFilters((f) => ({ ...f, cube: "" }));
+        }
+    }, [cubeDisabled, filters.cube, setFilters]);
+
     // DB banlist override for the deck's Format (PRD #1138, issue #1144). The
     // shared `useBanlistOverride` hook skips the query for a Format with no
     // DB-backed banlist (Freeform, Alpha 40) and resolves to `undefined` while
@@ -484,11 +499,23 @@ export default function DeckBuilder({
         [setFilters]
     );
 
-    const setCube = useCallback(
+    // Cube and Format are mutually exclusive discovery scopes (they sit side by
+    // side above). Selecting a cube pins the deck's Format to Freeform so the
+    // cube is the sole search scope with no set/legality constraint layered on
+    // top; clearing the cube frees the Format select again. The `freeform` guard
+    // keeps this a no-op for an already-Freeform deck, so it never mutates an
+    // immutable non-Freeform Format in edit mode (that path is unreachable — the
+    // selector is disabled there — but the guard makes it safe by construction).
+    const handleSetCube = useCallback(
         (cube: string) => {
             setFilters((f) => ({ ...f, cube }));
+            if (cube) {
+                updateDeck((d) =>
+                    d.format === "freeform" ? d : { ...d, format: "freeform" }
+                );
+            }
         },
-        [setFilters]
+        [setFilters, updateDeck]
     );
 
     const setSort = useCallback(
@@ -634,8 +661,18 @@ export default function DeckBuilder({
                             />
                             <FormatSelect
                                 value={deck.format}
-                                readOnly={formatReadOnly}
+                                readOnly={formatReadOnly || cubeActive}
+                                lockedReason={
+                                    cubeActive && !formatReadOnly
+                                        ? "Format is forced to Freeform while a cube is selected"
+                                        : undefined
+                                }
                                 onChange={handleSetFormat}
+                            />
+                            <CubeFilter
+                                value={filters.cube}
+                                onChange={handleSetCube}
+                                disabled={cubeDisabled}
                             />
                             <DeckBanlistPanel format={deck.format} />
                         </div>
@@ -666,7 +703,6 @@ export default function DeckBuilder({
                             selected={filters.manaValues}
                             onToggle={toggleManaValue}
                         />
-                        <CubeFilter value={filters.cube} onChange={setCube} />
                         <SortSelect value={filters.sort} onChange={setSort} />
                         <div className="ml-auto flex items-center gap-2 text-xs text-text-muted">
                             <span className="tracking-wide">Results</span>
