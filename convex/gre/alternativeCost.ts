@@ -76,8 +76,12 @@ export function altCostHasPermanentLeg(altCost: AlternativeCost): boolean {
  *  id. Mirrors the shared hidden-zone matcher `matchesCardFilter`
  *  (`convex/gre/effects/interpreter.ts`) — kept as a separate copy because it
  *  reads a HAND card's registry `CardDefinition` shape rather than the
- *  library/graveyard runtime-card shape `matchesCardFilter` targets. */
-function handCardMatchesFilter(
+ *  library/graveyard runtime-card shape `matchesCardFilter` targets. Exported
+ *  (issue #901) so the `discardFilter` activation-cost leg
+ *  (`ActivatedAbility.cost.discardFilter` — Survival of the Fittest "Discard
+ *  a creature card") reuses the exact same hand-card matcher rather than a
+ *  third copy. */
+export function handCardMatchesFilter(
     card: CardInstanceState,
     filter: EffectCardFilter
 ): boolean {

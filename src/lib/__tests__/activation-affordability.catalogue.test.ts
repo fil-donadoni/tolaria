@@ -30,7 +30,11 @@
 
 import { describe, it, expect } from "vitest";
 import { getAllCards } from "@convex/cards";
-import type { ActivatedAbility, CardDefinition } from "@convex/cards/types";
+import type {
+    ActivatedAbility,
+    CardDefinition,
+    EffectCardFilter,
+} from "@convex/cards/types";
 import type { CardInstance } from "../../types/game";
 import { getStackAbilities, buildTriggerStateView } from "../card-utils";
 
@@ -38,7 +42,56 @@ import { getStackAbilities, buildTriggerStateView } from "../card-utils";
  *  that a client-side reducer (or the projection) can silently break. Scalar
  *  shapes (`life`) are included because the same "surface vs hide" contract
  *  regresses if the gate itself is ever miswired. */
-type Shape = "exileFromGraveyard" | "life" | "removeCounter";
+type Shape = "exileFromGraveyard" | "life" | "removeCounter" | "discardFilter";
+
+/** Finds a REAL catalogue card definition matching an `EffectCardFilter`'s
+ *  `type`/`subtype` fields (the two dimensions a `discardFilter` cost is
+ *  expected to use — Survival of the Fittest's "a creature card"). The
+ *  `discardFilter` hand-card matcher (`handCardMatchesFilter`,
+ *  `convex/gre/alternativeCost.ts`) reads a hand card's REGISTRY definition
+ *  via `card.card.id`, not synthetic fields on the `CardInstance` fixture
+ *  itself (unlike `PermanentFilter` matching) — so building a matching hand
+ *  card means finding a real card id whose definition satisfies the filter. */
+function findMatchingCardId(filter: EffectCardFilter): string {
+    const asArray = <T,>(v: T | T[] | undefined): T[] | undefined =>
+        v === undefined ? undefined : Array.isArray(v) ? v : [v];
+    const types = asArray(filter.type);
+    const subtypes = asArray(filter.subtype);
+    const found = getAllCards().find((d) => {
+        if (types !== undefined && !types.some((t) => d.types.includes(t))) {
+            return false;
+        }
+        if (
+            subtypes !== undefined &&
+            !subtypes.some((s) => (d.subtypes ?? []).includes(s))
+        ) {
+            return false;
+        }
+        return true;
+    });
+    if (!found) {
+        throw new Error(
+            "No catalogue card matches this discardFilter — the sweep's " +
+                "findMatchingCardId helper needs a wider filter dimension."
+        );
+    }
+    return found.id;
+}
+
+/** A hand card referencing a REAL registry card id (so `getDefinition` in
+ *  `handCardMatchesFilter` resolves real types/subtypes). */
+function handCard(id: string, cardId: string): CardInstance {
+    return {
+        id,
+        card: { id: cardId },
+        controllerId: VIEWER,
+        ownerId: VIEWER,
+        zone: "hand",
+        isTapped: false,
+        types: [],
+        subtypes: [],
+    };
+}
 
 const VIEWER = "p1";
 const OPP = "p2";
@@ -83,6 +136,7 @@ function shapesOf(a: ActivatedAbility): Shape[] {
     if (a.cost.exileFromGraveyard) out.push("exileFromGraveyard");
     if (a.cost.life !== undefined) out.push("life");
     if (a.cost.removeCounter) out.push("removeCounter");
+    if (a.cost.discardFilter) out.push("discardFilter");
     return out;
 }
 
@@ -155,6 +209,19 @@ function env(c: Case, broken: boolean) {
         void owner;
         void oppGrave;
     }
+    // Hand: satisfy every discardFilter gate (Survival of the Fittest —
+    // "Discard a creature card"). `hand` here mirrors `getStackAbilities`'
+    // `discardFilterHand` param — never `buildTriggerStateView`'s stripped
+    // `{ length }` hand, which the gate deliberately does NOT read (issue
+    // #901; a real hand contents field, mirroring the graveyard fix for
+    // Grim Lavamancer).
+    const hand: CardInstance[] = [];
+    if (ability.cost.discardFilter) {
+        const { filter, count } = ability.cost.discardFilter;
+        const n = broken && shape === "discardFilter" ? count - 1 : count;
+        const matchId = findMatchingCardId(filter);
+        for (let i = 0; i < n; i++) hand.push(handCard(`hc${i}`, matchId));
+    }
     const view = buildTriggerStateView(
         [
             {
@@ -174,7 +241,7 @@ function env(c: Case, broken: boolean) {
         ],
         VIEWER
     );
-    return { source, view, payerLife };
+    return { source, view, payerLife, hand };
 }
 
 describe("frontend affordability wiring — catalogue sweep", () => {
@@ -201,25 +268,27 @@ describe("frontend affordability wiring — catalogue sweep", () => {
     for (const c of cases) {
         describe(c.label, () => {
             it("is SURFACED when the cost is fully affordable (via buildTriggerStateView)", () => {
-                const { source, view, payerLife } = env(c, false);
+                const { source, view, payerLife, hand } = env(c, false);
                 const ids = getStackAbilities(
                     source,
                     undefined,
                     true,
                     view,
-                    payerLife
+                    payerLife,
+                    hand
                 ).map((x) => x.id);
                 expect(ids).toContain(c.ability.id);
             });
 
             it("is HIDDEN when the cost shape under test is unaffordable", () => {
-                const { source, view, payerLife } = env(c, true);
+                const { source, view, payerLife, hand } = env(c, true);
                 const ids = getStackAbilities(
                     source,
                     undefined,
                     true,
                     view,
-                    payerLife
+                    payerLife,
+                    hand
                 ).map((x) => x.id);
                 expect(ids).not.toContain(c.ability.id);
             });

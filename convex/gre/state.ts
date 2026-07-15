@@ -1407,6 +1407,19 @@ export type PendingActivation = {
     /** "Discard N cards at random" cost (CR 118.3 — Coral Helm). The cards are
      *  discarded at commit via the seeded PRNG. */
     discardAtRandomCount?: number;
+    /** In-progress "discard a card matching <filter>" cost picker (CR 602.1 /
+     *  118.3 — Survival of the Fittest "Discard a creature card"). Set when
+     *  the ability has `cost.discardFilter`. `pickedCardIds` is undefined
+     *  until the player calls `selectActivationDiscardCost`, and commit is
+     *  blocked while it is unset regardless of mana coverage. On commit the
+     *  chosen cards move hand → graveyard through the shared discard choke
+     *  point (`discardToGraveyard`, CR 614 / 701.8). Mirrors
+     *  `exileFromGraveyardChoice`. */
+    discardFilterChoice?: {
+        filter: EffectCardFilter;
+        count: number;
+        pickedCardIds?: string[];
+    };
     /** Value chosen for X at activation announcement (CR 107.3 / 601.2b).
      *  Forwarded to the stack item at commit so resolve reads it via
      *  SpellContext.getX(). */

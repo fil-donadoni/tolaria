@@ -586,7 +586,11 @@ export function useBattlefieldInteraction(player: Player) {
             stateView,
             // CR 118.4 — controller's own ability: the controller (this `player`,
             // the viewer on the isMe path) pays the life cost.
-            player.life
+            player.life,
+            // CR 602.1 / 118.3 — the `discardFilter` cost (Survival of the
+            // Fittest) is always paid from the CONTROLLER's own hand; this
+            // `isMe` path's `player.hand` is the real (non-nulled) hand.
+            player.hand.filter((c): c is CardInstance => c !== null)
         );
         // When a card carries BOTH a mana ability and at least one stack
         // ability (Basalt Monolith, Mana Vault), surface the mana ability as

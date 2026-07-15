@@ -627,6 +627,20 @@ export interface ActivatedAbility {
          *  random, using the game's seeded PRNG, at activation commit. Used by
          *  Coral Helm ("Discard a card at random: target creature gets +2/+2"). */
         discardAtRandom?: number;
+        /** "Discard a card matching <filter>" as an activation cost (CR 602.1,
+         *  118.3 — an additional cost paid by discarding a CHOSEN card from
+         *  hand, as opposed to `discardLastDrawn` — a fixed card — or
+         *  `discardAtRandom` — no choice). The activating player picks WHICH
+         *  `count` matching card(s) in their hand to discard while paying the
+         *  cost (never auto-picked — a real player choice through a dedicated
+         *  picker, `selectActivationDiscardCost`, mirroring `sacrificeFilter`'s
+         *  player-choice discipline); the activation is illegal unless at
+         *  least `count` cards in hand match `filter`. Routed through the
+         *  shared discard choke point (`discardToGraveyard`) so it honors CR
+         *  614 discard replacements (Library of Leng) and emits
+         *  CARD_DISCARDED (CR 701.8). Used by Survival of the Fittest
+         *  ("Discard a creature card: …", issue #901). */
+        discardFilter?: { filter: EffectCardFilter; count: number };
         /** "Exile N cards from a single graveyard" as an activation cost
          *  (CR 602.1, 118.5, 406 — exile zone). A real cost: the activating
          *  player chooses ONE graveyard and exiles exactly `count` cards from it
